@@ -46,7 +46,7 @@ describe("buildRunPlan", () => {
     const result = buildRunPlan(
       {
         harness: "pi_agenta",
-        prompt: " ship it ",
+        messages: [{ role: "user", content: " ship it " }],
         agentsMd: " instructions ",
         systemPrompt: " system ",
         appendSystemPrompt: " append ",
@@ -103,7 +103,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         sandboxPermission: {
           network: { mode: "on", allowlist: [] },
           enforcement: "strict",
@@ -122,7 +122,11 @@ describe("buildRunPlan", () => {
 
   it("treats an absent sandbox permission as unrestricted", () => {
     const result = buildRunPlan(
-      { harness: "claude", sandbox: "daytona", prompt: "hello" },
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+      },
       { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
     );
 
@@ -138,7 +142,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "local",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         sandboxPermission: {
           network: { mode: "off" },
           enforcement: "strict",
@@ -159,7 +163,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "local",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         sandboxPermission: {
           network: { mode: "off" },
           enforcement: "best_effort",
@@ -178,7 +182,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "local",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         sandboxPermission: {
           network: { mode: "on" },
           enforcement: "strict",
@@ -198,7 +202,7 @@ describe("buildRunPlan", () => {
         {
           harness: "claude",
           sandbox: "daytona",
-          prompt: "hello",
+          messages: [{ role: "user", content: "hello" }],
           sandboxPermission: { filesystem: "readonly", enforcement },
         } as AgentRunRequest,
         { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
@@ -218,7 +222,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
         sandboxPermission: {
           network: { mode: "allowlist", allowlist: ["10.0.0.0/8"] },
@@ -234,6 +238,50 @@ describe("buildRunPlan", () => {
     assert.match(result.error, /network:allowlist/);
   });
 
+  it("treats an OMITTED enforcement as strict (LOW-6: wire-schema default is strict)", () => {
+    // The Python service always fills enforcement="strict", but a DIRECT runner caller may omit
+    // it. The wire schema defaults it to "strict", so an omitted value must rebuff a runner-host
+    // tool on a restricted-network Daytona run the same as an explicit "strict" — only an
+    // explicit "best_effort" opts out.
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+        customTools: [{ name: "server_tool", kind: "callback" }],
+        sandboxPermission: {
+          network: { mode: "allowlist", allowlist: ["10.0.0.0/8"] },
+          // enforcement omitted on purpose
+        },
+      } as AgentRunRequest,
+      { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /run on the runner host and would bypass/);
+  });
+
+  it("lets best_effort opt out of the runner-host-tool guard (LOW-6 contrast)", () => {
+    // The explicit opt-out: best_effort accepts that the network boundary is not a hard
+    // guarantee, so the same restricted-network Daytona run with a host tool is allowed.
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+        customTools: [{ name: "server_tool", kind: "callback" }],
+        sandboxPermission: {
+          network: { mode: "allowlist", allowlist: ["10.0.0.0/8"] },
+          enforcement: "best_effort",
+        },
+      } as AgentRunRequest,
+      { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
   it("errors on any run carrying a stdio MCP server (MCP disabled)", () => {
     // The stdio MCP implementation is disabled in the sidecar; a stdio server errors the
     // not-implemented way regardless of sandbox/enforcement, even with no network policy.
@@ -241,7 +289,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
       } as AgentRunRequest,
       { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
@@ -252,12 +300,12 @@ describe("buildRunPlan", () => {
     assert.match(result.error, /MCP servers are not supported by the sidecar/);
   });
 
-  it("errors on a stdio MCP server on the local sandbox too", () => {
+  it("errors on a stdio MCP server on the local sandbox too (non-Pi harness)", () => {
     const result = buildRunPlan(
       {
-        harness: "pi_core",
+        harness: "claude",
         sandbox: "local",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
       } as AgentRunRequest,
       { createLocalCwd: () => "/tmp/local-cwd" },
@@ -266,6 +314,81 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.match(result.error, /MCP servers are not supported by the sidecar/);
+  });
+
+  it("errors LOUD on a Pi run carrying a user STDIO MCP server (F-032, Pi-specific)", () => {
+    // Pi delivers tools through its bundled extension, not MCP, so a user MCP server would be
+    // dropped silently (the F-032 bug). The Pi gate refuses it up front with a Pi-specific
+    // message (precedes the harness-agnostic stdio gate).
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /not supported on the Pi harness/);
+  });
+
+  it("errors LOUD on a Pi run carrying a user HTTP MCP server (F-032 silent-drop fix)", () => {
+    // The core of F-032: an http user MCP on Pi previously passed the stdio gate, then
+    // buildSessionMcpServers returned [] for Pi -> the server was dropped with NO log and an
+    // HTTP 200. It must now fail loud, not silently succeed. Fails before any cwd is created.
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "pi_agenta",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [
+          {
+            name: "linear",
+            transport: "http",
+            url: "https://mcp.linear.app/sse",
+          },
+        ],
+      } as AgentRunRequest,
+      {
+        createDaytonaCwd: () => {
+          created = true;
+          return "/home/sandbox/agenta-fixed";
+        },
+      },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /not supported on the Pi harness/);
+    assert.equal(
+      created,
+      false,
+      "fails before any cwd is created (up-front gate)",
+    );
+  });
+
+  it("allows a non-Pi (claude) run with a user HTTP MCP server (Pi gate is Pi-only)", () => {
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [
+          {
+            name: "linear",
+            transport: "http",
+            url: "https://mcp.linear.app/sse",
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
   });
 
   it("errors on any run carrying a code tool (code execution removed, fail loud)", () => {
@@ -277,7 +400,7 @@ describe("buildRunPlan", () => {
       {
         harness: "pi_core",
         sandbox: "local",
-        prompt: "compute it",
+        messages: [{ role: "user", content: "compute it" }],
         customTools: [
           {
             name: "secret_math",
@@ -307,7 +430,7 @@ describe("buildRunPlan", () => {
       {
         harness: "pi_core",
         sandbox: "local",
-        prompt: "do it",
+        messages: [{ role: "user", content: "do it" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
       { createLocalCwd: () => "/tmp/local-cwd" },
@@ -321,7 +444,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         mcpServers: [
           { name: "remote", transport: "http", url: "https://mcp.example" },
         ],
@@ -341,7 +464,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
         sandboxPermission: {
           network: { mode: "off" },
@@ -359,7 +482,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         sandboxPermission: {
           network: { mode: "off" },
           enforcement: "strict",
@@ -377,7 +500,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         skills: [
           { name: "alpha", description: "Alpha skill.", body: "Do alpha." },
           { name: "beta", description: "Beta skill.", body: "Do beta." },
@@ -412,7 +535,11 @@ describe("buildRunPlan", () => {
     // No skills on the wire: materialization is a no-op and must not warn.
     const logs: string[] = [];
     const result = buildRunPlan(
-      { harness: "claude", sandbox: "daytona", prompt: "hello" },
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+      },
       {
         createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
         log: (message) => logs.push(message),
@@ -431,7 +558,7 @@ describe("buildRunPlan", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         secrets: { ANTHROPIC_API_KEY: "anthropic" },
         credentialMode: "env",
         systemPrompt: "ignored for non-pi",

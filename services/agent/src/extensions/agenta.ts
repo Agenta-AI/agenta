@@ -17,6 +17,7 @@
  *   AGENTA_AGENT_CONTENT_CAPTURE_ENABLED "false" to drop prompt/completion/tool I/O from spans
  *   AGENTA_AGENT_TOOLS_PUBLIC_SPECS   JSON [{ name, description, inputSchema }]
  *   AGENTA_AGENT_TOOLS_RELAY_DIR      relay tool calls through the runner via files here
+ *   AGENTA_AGENT_SKILLS_LOADED        JSON [skillName] of skills that loaded this run (F-029)
  *
  * Bundled self-contained (esbuild) so its OpenTelemetry deps resolve wherever Pi loads
  * it (local, the docker sidecar, a Daytona snapshot). Default export is the Pi
@@ -46,6 +47,19 @@ import { runResolvedTool } from "../tools/dispatch.ts";
 
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
+}
+
+/** Parse the JSON array of loaded skill names from AGENTA_AGENT_SKILLS_LOADED; [] on absent/malformed. */
+function parseSkillsLoaded(raw: string | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((s): s is string => typeof s === "string")
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Register public tool metadata as Pi tools whose execution relays to the runner. */
@@ -114,6 +128,9 @@ const factory = (pi: ExtensionAPI): void => {
     endpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
     authorization: authorizationFromOtlpHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS),
     captureContent: process.env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED !== "false",
+    // The skills that loaded for this run (author + forced `_agenta.*`), stamped on the agent
+    // span so a trace shows which skills surfaced (F-029). A JSON array string from the runner.
+    skills: parseSkillsLoaded(process.env.AGENTA_AGENT_SKILLS_LOADED),
   });
   otel.register(pi); // lifecycle handlers (spans + usage accumulation)
 

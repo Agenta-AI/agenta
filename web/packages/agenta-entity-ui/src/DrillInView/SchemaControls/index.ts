@@ -85,6 +85,26 @@ export type {ClaudePermissionsControlProps} from "./ClaudePermissionsControl"
 export {AgentConfigControl} from "./AgentConfigControl"
 export type {AgentConfigControlProps} from "./AgentConfigControl"
 
+// Agent config redesign (drawer/accordion config view + ported backend-aligned controls).
+export {HarnessSelectControl} from "./HarnessSelectControl"
+export type {HarnessSelectControlProps} from "./HarnessSelectControl"
+export {ConfigItemDrawer} from "./ConfigItemDrawer"
+export type {ConfigItemDrawerProps, ConfigItemView} from "./ConfigItemDrawer"
+export {JsonObjectEditor} from "./JsonObjectEditor"
+export type {JsonObjectEditorProps} from "./JsonObjectEditor"
+export {MarkdownEditor} from "./MarkdownEditor"
+export type {MarkdownEditorProps} from "./MarkdownEditor"
+export {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
+export type {CodeEditorProps, CodeEditorLanguage} from "./CodeEditor"
+export {ToolFormView} from "./ToolFormView"
+export type {ToolFormViewProps} from "./ToolFormView"
+export {McpServerFormView} from "./McpServerFormView"
+export type {McpServerFormViewProps} from "./McpServerFormView"
+export {SkillFormView} from "./SkillFormView"
+export type {SkillFormViewProps} from "./SkillFormView"
+export {agentConfigLayoutAtom, AGENT_CONFIG_LAYOUTS} from "./agentConfigLayout"
+export type {AgentConfigLayout} from "./agentConfigLayout"
+
 // ============================================================================
 // COMPOSITE CONTROLS
 // ============================================================================

@@ -87,6 +87,37 @@ function log(message: string): void {
 
 type Log = (message: string) => void;
 
+// In-flight sandbox handles, by run. The per-run `finally` deletes the sandbox on every normal /
+// error / client-disconnect path, but a process KILL (docker stop / SIGTERM / OOM mid-run) skips
+// the `finally` entirely — so a shutdown signal handler (see `server.ts`) drains this set to
+// best-effort delete any still-running sandbox before exit. Remote (Daytona) sandboxes also carry
+// the auto-stop backstop in `provider.ts` for the cases a signal can never reach (SIGKILL/OOM).
+const inFlightSandboxes = new Set<{
+  destroySandbox?: () => Promise<unknown>;
+}>();
+
+/**
+ * Best-effort delete every sandbox currently mid-run, bounded so it can never hang shutdown.
+ * Called from the process signal handler so `docker stop` reaps remote sandboxes instead of
+ * leaking them. Each delete is independent and its own failure is swallowed; the whole sweep is
+ * raced against `timeoutMs` so a slow Daytona API call cannot block the exit.
+ */
+export async function destroyInFlightSandboxes(
+  timeoutMs = 5000,
+): Promise<void> {
+  const pending = [...inFlightSandboxes];
+  if (pending.length === 0) return;
+  const sweep = Promise.allSettled(
+    pending.map((sandbox) =>
+      Promise.resolve(sandbox.destroySandbox?.()).catch(() => {}),
+    ),
+  );
+  await Promise.race([
+    sweep,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
 const CLAUDE_STRICT_DEPLOYMENTS = new Set([
   "custom",
   "bedrock",
@@ -190,6 +221,10 @@ export async function runSandboxAgent(
     ? buildPiExtensionEnv(request, !plan.isDaytona, {
         relayDir: plan.relayDir,
         usageOutPath: plan.usageOutPath,
+        // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
+        // records which skills loaded (F-029); local Pi self-instruments, so the runner's
+        // sandbox-agent otel has no span to stamp here.
+        skills: plan.skillDirs.map((s) => s.name),
       })
     : {};
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
@@ -246,6 +281,10 @@ export async function runSandboxAgent(
         ? (deps.createCookieFetch ?? createCookieFetch)()
         : (deps.createAcpFetch ?? createAcpFetch)(),
     });
+    // Track the live handle so a shutdown signal handler can delete it if the `finally` below is
+    // skipped by a process KILL (docker stop / SIGTERM / OOM); removed in the `finally` on every
+    // normal exit so it is never double-deleted.
+    if (sandbox) inFlightSandboxes.add(sandbox);
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
     // sandbox via the filesystem API (nothing secret is baked into the image). Locally
@@ -293,6 +332,9 @@ export async function runSandboxAgent(
       isPi: plan.isPi,
       capabilities,
       harness: plan.harness,
+      // Daytona: skip the internal loopback HTTP MCP channel (unreachable from the in-sandbox
+      // harness); gateway tools are delivered through the Daytona file relay started below.
+      isDaytona: plan.isDaytona,
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
@@ -321,6 +363,9 @@ export async function runSandboxAgent(
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
       model,
+      // The names of every skill that materialized for this run (author + forced `_agenta.*`),
+      // stamped on the agent span so the trace shows which skills loaded (F-029).
+      skills: plan.skillDirs.map((s) => s.name),
       traceparent: request.trace?.traceparent,
       baggage: request.trace?.baggage,
       endpoint: request.trace?.endpoint,
@@ -353,9 +398,32 @@ export async function runSandboxAgent(
     // decisions the HITLResponder falls back to the base policy and is byte-identical to the
     // old PolicyResponder, so `/invoke` is unchanged.
     const hasHumanSurface = !!(request.sessionId && request.sessionId.trim());
+    // A park (cross-turn HITL) must END the turn gracefully, not hold the ACP connection open
+    // forever (F-040): Claude does not end a turn on an unanswered gate, so `session.prompt()`
+    // would block indefinitely, the sandbox would leak, and the egress would never emit a
+    // `finish` frame. On the first park we `destroySession`, which (a) resolves the pending
+    // permission RPC with `{outcome:"cancelled"}` — NOT a reject, so no F-024 clobber — and
+    // (b) sends the managed `session/cancel` so the in-flight `prompt()` resolves with a
+    // cancelled stop reason. The resume then cold-replays as a fresh turn (#4854).
+    let parked = false;
+    let resolveParked: (() => void) | undefined;
+    const parkedSignal = new Promise<void>((resolve) => {
+      resolveParked = resolve;
+    });
+    const onPark = (): void => {
+      if (parked) return; // first park wins; later gates this turn are moot once we cancel
+      parked = true;
+      resolveParked?.();
+      // Cancel the in-flight prompt so `session.prompt()` returns instead of hanging. The
+      // managed cancel lives on the SandboxAgent handle (the `Session` wrapper has none).
+      // Best effort: the `finally` disposes the sandbox regardless, and the prompt is also
+      // raced against `parkedSignal` below so the turn ends even if this call rejects.
+      void sandbox.destroySession?.(session.id).catch(() => {});
+    };
     attachPermissionResponder({
       session,
       run,
+      onPark,
       responder:
         deps.responderFactory?.(request.permissionPolicy) ??
         new HITLResponder(
@@ -380,11 +448,29 @@ export async function runSandboxAgent(
       );
     }
 
-    const result = await session.prompt([
-      { type: "text", text: plan.turnText },
+    // Race the prompt against the park signal: on a HITL park the prompt either resolves with
+    // a cancelled stop reason (the managed `session/cancel` landed) or never resolves at all
+    // (the harness ignores it) — either way `parkedSignal` ends the turn so the runner returns
+    // promptly, the `finally` disposes the sandbox (no leak, F-040), and the egress emits a
+    // `finish` frame. When the park wins, the orphaned `prompt()` may later reject as the
+    // cancelled/torn-down connection unwinds; swallow that so it is not an `unhandledRejection`
+    // (the daemon teardown's `fetch failed` is expected on a cancel, not a run error).
+    const PARKED = Symbol("parked");
+    const promptPromise = Promise.resolve(
+      session.prompt([{ type: "text", text: plan.turnText }]),
+    );
+    promptPromise.catch(() => {});
+    const raced = await Promise.race([
+      promptPromise,
+      parkedSignal.then(() => PARKED),
     ]);
     await toolRelay?.stop();
-    const stopReason = (result as any)?.stopReason;
+    // A parked turn is terminal-but-incomplete: stop reason `paused` tells the egress to emit
+    // a clean `finish` (the FE then resumes on the user's decision). A real prompt result keeps
+    // the harness's own stop reason.
+    const stopReason =
+      raced === PARKED || parked ? "paused" : (raced as any)?.stopReason;
+    const result = raced === PARKED ? undefined : raced;
     logger(`prompt stopReason=${stopReason}`);
 
     // Usage: Pi writes its totals to a file via the extension. Other harnesses report the
@@ -400,34 +486,38 @@ export async function runSandboxAgent(
     });
     run.setUsage(usage);
 
+    // Peek for a swallowed model error BEFORE finishing the trace so the error message + provider
+    // can be stamped on the still-open agent span (F-030). When Pi's provider call fails
+    // (out-of-quota, bad key, rate limit, unknown model, ...), Pi's pi-acp bridge reports the
+    // turn as a plain `end_turn` with NO content, so without this the run would return an
+    // `ok:true` empty turn and the user would see a silent "No response" instead of the real
+    // failure. On the LOCAL Pi path the error is recoverable from Pi's own session transcript.
+    // Only checked when the turn produced no output and ran no tools (a real tool-only turn
+    // legitimately has empty text), and never on Daytona (the transcript lives in the remote
+    // sandbox).
+    const swallowedPiError =
+      plan.isPi &&
+      !plan.isDaytona &&
+      !run.output().trim() &&
+      !run.events().some((e) => e.type === "tool_call")
+        ? findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd)
+        : undefined;
+    let swallowedError: string | undefined;
+    if (swallowedPiError) {
+      swallowedError = conciseError(
+        new Error(swallowedPiError),
+        plan.harness,
+        request.provider,
+      );
+      run.recordError(swallowedError, request.provider);
+    }
+
     const output = run.finish();
     await run.flush();
 
-    // Fail loud on a swallowed model error (A7 / "fail loud, not silent"). When Pi's provider
-    // call fails (out-of-quota, bad key, rate limit, unknown model, ...), Pi's pi-acp bridge
-    // reports the turn as a plain `end_turn` with NO content, so without this the run would
-    // return an `ok:true` empty turn and the user would see a silent "No response" instead of
-    // the real failure. On the LOCAL Pi path the error is recoverable from Pi's own session
-    // transcript; surface it as a run error. Only checked when the turn produced no output and
-    // ran no tools (a real tool-only turn legitimately has empty text), and never on Daytona
-    // (the transcript lives in the remote sandbox).
-    if (
-      plan.isPi &&
-      !plan.isDaytona &&
-      !output.trim() &&
-      !run.events().some((e) => e.type === "tool_call")
-    ) {
-      const piError = findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd);
-      if (piError) {
-        return {
-          ok: false,
-          error: conciseError(
-            new Error(piError),
-            plan.harness,
-            request.provider,
-          ),
-        };
-      }
+    // Fail loud on the swallowed error detected above (A7 / "fail loud, not silent").
+    if (swallowedError) {
+      return { ok: false, error: swallowedError };
     }
 
     return {
@@ -450,13 +540,18 @@ export async function runSandboxAgent(
       traceId: run.traceId(),
     };
   } catch (err) {
+    const error = conciseError(err, plan.harness, request.provider);
+    // Stamp the error message + provider on the agent span before finishing it (F-030), so a
+    // trace carries the same diagnostic the response does (it previously held only a count).
+    otel?.recordError(error, request.provider);
     otel?.finish();
     await otel?.flush().catch(() => {});
     return {
       ok: false,
-      error: conciseError(err, plan.harness, request.provider),
+      error,
     };
   } finally {
+    if (sandbox) inFlightSandboxes.delete(sandbox);
     await toolRelay?.stop().catch(() => {});
     await closeToolMcp?.().catch(() => {});
     await sandbox?.destroySandbox().catch(() => {});

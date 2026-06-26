@@ -17,7 +17,10 @@ the wire models) plus ``protocol.ts`` and the goldens — the tests catch a one-
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional, Sequence
+
+from agenta.sdk.utils.logging import get_module_logger
 
 from ..dtos import (
     AgentEvent,
@@ -28,6 +31,38 @@ from ..dtos import (
     Message,
     TraceContext,
 )
+
+log = get_module_logger(__name__)
+
+# The user-facing error must not carry an internal stack/path dump. Cap the surfaced line and
+# strip the patterns that leak implementation detail; the full text is logged, never shown.
+_ERROR_MAX_LEN = 300
+# A stack frame leaked into the message ("at fn (/abs/path:12:3)" / 'File "/abs/path", line 12').
+_STACK_FRAME_RE = re.compile(r"\b(at\s+\S+\s*\(|File\s+\"|/[\w./-]+:\d+)")
+
+
+def sanitize_runner_error(error: Any) -> str:
+    """Reduce a runner ``error`` to one clean user-facing line, logging the full detail.
+
+    The runner already concise-formats its known auth/credit failures, but the fall-through case
+    returns the raw first line of an SDK/JS error, and the transport errors (HTTP/stderr/stdout
+    dumps) carry internal text. This is the single boundary that reaches the caller/UI, so it
+    keeps the actionable message, drops stack-frame and path noise, caps the length, and logs the
+    untruncated original for the trace/logs. A clean concise message passes through unchanged.
+    """
+    raw = "" if error is None else str(error)
+    if raw and (
+        len(raw) > _ERROR_MAX_LEN or "\n" in raw or _STACK_FRAME_RE.search(raw)
+    ):
+        log.warning("agent: runner reported a failure: %s", raw)
+    # Keep only the first line; a multi-line body is a stack dump, never the message.
+    message = raw.split("\n", 1)[0].strip()
+    # If even the first line is a raw stack frame, fall back to a generic line.
+    if not message or _STACK_FRAME_RE.match(message):
+        return "agent run failed"
+    if len(message) > _ERROR_MAX_LEN:
+        message = message[: _ERROR_MAX_LEN - 1].rstrip() + "…"
+    return message
 
 
 def request_to_wire(
@@ -91,10 +126,13 @@ def result_from_wire(data: Dict[str, Any]) -> AgentResult:
     """Parse a ``/run`` result JSON into an :class:`AgentResult`.
 
     Raises ``RuntimeError`` when the runner reported a failure, so the caller surfaces a
-    clear message rather than handing the model an empty reply.
+    clear message rather than handing the model an empty reply. The runner ``error`` is
+    sanitized at this boundary (one clean line, no stack/path leak); the full detail is logged.
     """
     if not data.get("ok"):
-        raise RuntimeError(f"Agent run failed: {data.get('error')}")
+        raise RuntimeError(
+            f"Agent run failed: {sanitize_runner_error(data.get('error'))}"
+        )
 
     messages: List[Message] = []
     for raw in data.get("messages") or []:

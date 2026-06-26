@@ -27,6 +27,12 @@ interface FakeOptions {
   promptError?: Error;
   permissionDecision?: PermissionDecision;
   emitPermission?: boolean;
+  // Model Claude-over-ACP: the prompt NEVER resolves on its own after a permission gate. The
+  // runner must end the turn another way (the park -> destroySession -> cancel path, F-040).
+  hangPrompt?: boolean;
+  // Make the managed cancel reject (and NOT resolve the hung prompt), so the only thing that
+  // ends the turn is the local park signal — proves the run still terminates if cancel fails.
+  destroySessionError?: Error;
 }
 
 function fakeHarness(options: FakeOptions = {}) {
@@ -43,6 +49,7 @@ function fakeHarness(options: FakeOptions = {}) {
     workspaceCleanup: 0,
     sandboxDestroyed: 0,
     sandboxDisposed: 0,
+    sessionDestroyed: 0,
     toolRelayArgs: undefined as unknown[] | undefined,
     toolRelayStops: 0,
     permissionReplies: [] as Array<{ id: string; reply: string }>,
@@ -52,10 +59,14 @@ function fakeHarness(options: FakeOptions = {}) {
     }>,
     runFinished: 0,
     runFlushed: 0,
+    recordedErrors: [] as Array<{ message: string; provider?: string }>,
   };
   const events: AgentEvent[] = [];
   let eventHandler: ((event: any) => void) | undefined;
   let permissionHandler: ((request: any) => void) | undefined;
+  // The in-flight prompt resolver, so a `destroySession` (the managed cancel) can resolve a
+  // hung prompt with a cancelled stop reason — mirroring the real sandbox-agent package.
+  let resolveHungPrompt: ((value: any) => void) | undefined;
 
   const session = {
     id: "session-1",
@@ -79,6 +90,13 @@ function fakeHarness(options: FakeOptions = {}) {
         });
       }
       if (options.promptError) throw options.promptError;
+      if (options.hangPrompt) {
+        // Claude does not end a turn on an unanswered gate: the prompt hangs until the
+        // managed cancel (destroySession) resolves it with a cancelled stop reason.
+        return new Promise((resolve) => {
+          resolveHungPrompt = resolve;
+        });
+      }
       return (
         options.promptResult ?? {
           stopReason: "complete",
@@ -92,6 +110,14 @@ function fakeHarness(options: FakeOptions = {}) {
     async createSession(opts: any) {
       calls.createSessionOptions = opts;
       return session;
+    },
+    async destroySession(id: string) {
+      calls.sessionDestroyed += 1;
+      void id;
+      if (options.destroySessionError) throw options.destroySessionError;
+      // Managed cancel: resolve any in-flight prompt with a cancelled stop reason (the runner
+      // races this against the park signal, so the turn ends either way). Mirrors the package.
+      resolveHungPrompt?.({ stopReason: "cancelled" });
     },
     async destroySandbox() {
       calls.sandboxDestroyed += 1;
@@ -119,6 +145,12 @@ function fakeHarness(options: FakeOptions = {}) {
     },
     finish() {
       calls.runFinished += 1;
+      return options.output ?? "assistant output";
+    },
+    recordError(message: string, provider?: string) {
+      calls.recordedErrors.push({ message, provider });
+    },
+    output() {
       return options.output ?? "assistant output";
     },
     async flush() {
@@ -204,7 +236,11 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness();
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "hello", model: "requested-model" },
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "requested-model",
+      },
       undefined,
       undefined,
       deps,
@@ -246,7 +282,7 @@ describe("runSandboxAgent orchestration", () => {
     const streamed: AgentEvent[] = [];
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "hello" },
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
       (event) => streamed.push(event),
       undefined,
       deps,
@@ -263,7 +299,10 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness({ emitPermission: true });
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "edit the file" },
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "edit the file" }],
+      },
       undefined,
       undefined,
       deps,
@@ -288,8 +327,9 @@ describe("runSandboxAgent orchestration", () => {
         },
       ],
     );
+    // allow -> once (per-call grant), never always: a turn-wide grant would skip re-gating.
     assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "always" },
+      { id: "perm-1", reply: "once" },
     ]);
   });
 
@@ -302,7 +342,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "pi_core",
-        prompt: "use the tool",
+        messages: [{ role: "user", content: "use the tool" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
       undefined,
@@ -338,7 +378,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "use the tool",
+        messages: [{ role: "user", content: "use the tool" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
       undefined,
@@ -383,7 +423,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "go",
+        messages: [{ role: "user", content: "go" }],
         mcpServers: [{ name: "github", transport: "stdio", command: "npx" }],
       } as AgentRunRequest,
       undefined,
@@ -407,7 +447,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "use the tool",
+        messages: [{ role: "user", content: "use the tool" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
       undefined,
@@ -433,7 +473,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "pi_core",
-        prompt: "use the tool",
+        messages: [{ role: "user", content: "use the tool" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
       undefined,
@@ -449,7 +489,7 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness({ promptError: new Error("boom") });
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "explode" },
+      { harness: "claude", messages: [{ role: "user", content: "explode" }] },
       undefined,
       undefined,
       deps,
@@ -474,7 +514,7 @@ describe("runSandboxAgent orchestration", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         sandboxPermission,
       },
       undefined,
@@ -492,7 +532,7 @@ describe("runSandboxAgent orchestration", () => {
     const controller = new AbortController();
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "hello" },
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
       undefined,
       controller.signal,
       deps,
@@ -508,7 +548,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         credentialMode: "env",
         secrets: { ANTHROPIC_API_KEY: "resolved" },
         endpoint: { baseUrl: "https://claude-gw.example/v1" },
@@ -534,7 +574,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         model: "anthropic.claude-x",
         deployment: "bedrock",
         credentialMode: "env",
@@ -565,7 +605,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         model: "claude-sonnet-4",
         deployment: "vertex_ai",
         credentialMode: "env",
@@ -592,7 +632,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         credentialMode: "runtime_provided",
       } as AgentRunRequest,
       undefined,
@@ -622,7 +662,10 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "edit the file" },
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "edit the file" }],
+      },
       undefined,
       undefined,
       deps,
@@ -630,9 +673,10 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     await flushPromises();
 
     assert.equal(result.ok, true);
-    // Old PolicyResponder("auto") would have replied "always"; the default must match.
+    // Headless auto-allow gates each call individually, so once (this call) is equivalent to
+    // the old always and strictly safer — no turn-wide grant that skips re-gating.
     assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "always" },
+      { id: "perm-1", reply: "once" },
     ]);
   });
 
@@ -668,7 +712,83 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     assert.deepEqual(calls.permissionReplies, []);
   });
 
-  it("human surface with a stored approval resumes the tool (always)", async () => {
+  it("park ENDS the turn even when the prompt hangs: terminal stopReason 'paused', no harness reply (F-040)", async () => {
+    // The real regression: Claude does NOT end a turn on an unanswered gate, so without the
+    // park->cancel path `session.prompt()` blocks forever and the run never returns. With
+    // hangPrompt the fake prompt never resolves on its own; the run must still RETURN, driven
+    // by the park signal + the managed cancel.
+    const { calls, deps } = (() => {
+      const { calls, deps } = fakeHarness({
+        emitPermission: true,
+        hangPrompt: true,
+      });
+      delete deps.responderFactory; // engine HITLResponder -> parks (human surface, no decision)
+      return { calls, deps };
+    })();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-1",
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    // The turn returns terminal-but-incomplete: `paused` tells the egress to emit a clean
+    // `finish` so the FE can resume on the user's decision (no immortal-park hang, F-040).
+    assert.equal(result.stopReason, "paused");
+    // No reply reached the harness (no F-024 clobber).
+    assert.deepEqual(calls.permissionReplies, []);
+    // The session was cancelled (managed `session/cancel` via destroySession) ...
+    assert.equal(calls.sessionDestroyed, 1);
+    // ... and the sandbox was disposed in the finally — the parked turn does NOT leak it.
+    assert.equal(calls.sandboxDestroyed, 1);
+    assert.equal(calls.sandboxDisposed, 1);
+    assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("park terminates even if the managed cancel rejects (local park signal still ends the turn)", async () => {
+    // Defense in depth: if destroySession throws (the daemon already tore down, a network
+    // blip, etc.) and the prompt never resolves, the local `parkedSignal` must STILL end the
+    // turn so the run returns and the `finally` disposes the sandbox (no hang, no leak).
+    const { calls, deps } = (() => {
+      const { calls, deps } = fakeHarness({
+        emitPermission: true,
+        hangPrompt: true,
+        destroySessionError: new Error("session already gone"),
+      });
+      delete deps.responderFactory;
+      return { calls, deps };
+    })();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-1",
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.equal(calls.sessionDestroyed, 1, "cancel was attempted");
+    // The turn still ended and the sandbox was disposed despite the failed cancel.
+    assert.equal(calls.sandboxDestroyed, 1);
+    assert.equal(calls.sandboxDisposed, 1);
+  });
+
+  it("human surface with a stored approval resumes the tool (once)", async () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
@@ -678,8 +798,8 @@ describe("runSandboxAgent default HITL responder wiring", () => {
         messages: [
           { role: "user", content: "edit the file" },
           {
-            // The cross-turn approval reply, keyed by the gated tool's name (cold replay
-            // mints a fresh tool-call id "tool-1" each turn, so the name is the anchor).
+            // The cross-turn approval reply. Cold replay mints a fresh tool-call id "tool-1"
+            // each turn, so the anchor is the tool's name + args (here a no-arg edit -> {}).
             role: "tool",
             content: [
               {
@@ -700,8 +820,9 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     await flushPromises();
 
     assert.equal(result.ok, true);
+    // Resumes via the name+args anchor, then grants ONCE (per call), not always.
     assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "always" },
+      { id: "perm-1", reply: "once" },
     ]);
   });
 });

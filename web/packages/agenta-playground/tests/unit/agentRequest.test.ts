@@ -42,6 +42,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 
+import {agentChannelModeAtom} from "../../src/state/execution/channelMode"
 import {buildAgentRequest, buildAgentReferences} from "../../src/state/execution/agentRequest"
 import {executionHeadersAtom} from "../../src/state/execution/webWorkerIntegration"
 
@@ -230,7 +231,17 @@ describe("buildAgentRequest", () => {
         expect(req!.headers.Accept).toBe("text/event-stream")
     })
 
-    it("selects the vercel UI-message projection via x-ag-messages-format", async () => {
+    it("requests batch JSON via Accept when the channel toggle is `batch`", async () => {
+        // Negotiation 1 (transport): the channel toggle drives Accept. `batch` asks /invoke
+        // for a single WorkflowBatchResponse, which AgentChatTransport replays as one frame.
+        store.set(agentChannelModeAtom, "batch")
+        seed(store, "e", {})
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        expect(req!.headers.Accept).toBe("application/json")
+        store.set(agentChannelModeAtom, "stream")
+    })
+
+    it("declares the Vercel message format via x-ag-messages-format", async () => {
         seed(store, "e", {})
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
         expect(req!.headers["x-ag-messages-format"]).toBe("vercel")
@@ -297,6 +308,52 @@ describe("buildAgentRequest", () => {
             {name: "calc", description: "do math", body: "# Calc"},
             embed,
         ])
+    })
+
+    it("rewrites a custom function tool to the typed client shape; leaves gateway/typed alone", async () => {
+        const gateway = {
+            type: "function",
+            function: {name: "tools__composio__github__create_issue__default"},
+        }
+        const builtinTyped = {type: "builtin", name: "web_search"}
+        seed(store, "e", {
+            config: {
+                tools: [
+                    {
+                        type: "function",
+                        function: {
+                            name: "get_weather",
+                            description: "Get current weather",
+                            parameters: {
+                                type: "object",
+                                properties: {location: {type: "string"}},
+                                required: ["location"],
+                            },
+                        },
+                        permission: "ask",
+                    },
+                    gateway,
+                    builtinTyped,
+                ],
+            },
+        })
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const tools = (req!.requestBody.data as any).parameters.tools
+        // custom function tool → client config
+        expect(tools[0]).toEqual({
+            type: "client",
+            name: "get_weather",
+            description: "Get current weather",
+            input_schema: {
+                type: "object",
+                properties: {location: {type: "string"}},
+                required: ["location"],
+            },
+            permission: "ask",
+        })
+        // gateway-slug function tool + already-typed tool pass through unchanged
+        expect(tools[1]).toEqual(gateway)
+        expect(tools[2]).toEqual(builtinTyped)
     })
 
     it("drops answer-less assistant turns from the sent history (keeps user + real answers)", async () => {

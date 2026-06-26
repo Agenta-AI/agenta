@@ -413,7 +413,8 @@
             "target":    { "type": "string", "description": "DAYTONA_TARGET." },
             "snapshot":  { "type": "string", "description": "DAYTONA_SNAPSHOT." },
             "image":     { "type": "string", "description": "DAYTONA_IMAGE." },
-            "installPi": { "type": ["boolean", "string"], "description": "AGENTA_AGENT_SANDBOX_PI_INSTALLED." }
+            "installPi": { "type": ["boolean", "string"], "description": "AGENTA_AGENT_SANDBOX_PI_INSTALLED." },
+            "autostopDelay": { "type": ["integer", "string"], "description": "DAYTONA_AUTOSTOP (idle minutes before a leaked sandbox self-reaps)." }
           }
         },
         "resources":   { "type": "object", "additionalProperties": true },

@@ -237,21 +237,12 @@ class WorkflowRequestData(BaseModel):
     #
     testcase: Optional[dict] = None
     inputs: Optional[dict] = None
-    # The agent ``/messages`` egress lifts the conversation out of ``inputs`` to this
-    # first-class member, in the Vercel ``UIMessage`` shape; ``/invoke`` ignores it.
-    messages: Optional[list] = None
-    # Transport mode for the agent ``/messages`` route: the endpoint sets this from the Accept
-    # negotiation so the shared agent handler streams (returns an async generator) instead of
-    # returning a batch dict. A sibling of ``messages`` / ``inputs`` / ``parameters`` on purpose
-    # — it must not live in ``parameters``, where it would leak into agent config / revision
-    # state / trace inputs. ``/invoke`` leaves it unset (batch).
-    stream: Optional[bool] = None
     #
     trace: Optional[dict] = None
     outputs: Optional[Any] = None
 
 
-# back-compat alias
+# alias
 WorkflowServiceRequestData = WorkflowRequestData
 
 

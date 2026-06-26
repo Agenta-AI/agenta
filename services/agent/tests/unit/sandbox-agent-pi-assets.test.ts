@@ -110,6 +110,41 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
   });
+
+  it("carries the loaded skill names under tracing (F-029)", () => {
+    const request = {
+      trace: {
+        traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+      },
+    } as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, true, {
+      skills: ["weather-oracle", "_agenta.agenta-getting-started"],
+    });
+
+    assert.deepEqual(JSON.parse(env.AGENTA_AGENT_SKILLS_LOADED ?? "[]"), [
+      "weather-oracle",
+      "_agenta.agenta-getting-started",
+    ]);
+  });
+
+  it("omits the loaded skills env when there are none or tracing is off", () => {
+    const request = {
+      trace: {
+        traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+      },
+    } as AgentRunRequest;
+
+    assert.equal(
+      buildPiExtensionEnv(request, true, { skills: [] }).AGENTA_AGENT_SKILLS_LOADED,
+      undefined,
+    );
+    assert.equal(
+      buildPiExtensionEnv(request, false, { skills: ["x"] })
+        .AGENTA_AGENT_SKILLS_LOADED,
+      undefined,
+    );
+  });
 });
 
 describe("writeSystemPromptLocal", () => {

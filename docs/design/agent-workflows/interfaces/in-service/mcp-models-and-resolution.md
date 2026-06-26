@@ -34,12 +34,18 @@ separate `headers` wire field). A missing secret raises under the error policy.
 **Transport delivery (runner side).** HTTP (`transport: "http"` + `url`) servers are delivered:
 the runner (`toAcpMcpServers`) reads each resolved `env` entry and emits it as an HTTP request
 header (so `secrets: {"Authorization": "vault-name"}` becomes an `Authorization` header on the
-remote call). Stdio (`transport: "stdio"` + `command`) servers are disabled in the sidecar — a
-stdio server runs an arbitrary process on the runner host, outside the sandbox boundary — so a
-run carrying one is refused (`USER_MCP_UNSUPPORTED_MESSAGE`). This is the USER MCP capability and
-is distinct from the runner's internal gateway-tool MCP channel (delivered over loopback HTTP;
-see `runner-to-mcp-server.md`). The SDK models, resolver, and wire are transport-agnostic; the
-enable/disable split lives entirely in the runner.
+remote call). Before attaching the credential, an SSRF guard (`validateUserMcpUrl`) requires the
+`url` to be `https` and to not target an internal/metadata host (loopback, `169.254.169.254`,
+private literals); `AGENTA_AGENT_MCP_HOST_ALLOWLIST` opts a host out. Stdio (`transport: "stdio"`
++ `command`) servers are disabled in the sidecar — a stdio server runs an arbitrary process on
+the runner host, outside the sandbox boundary — so a run carrying one is refused
+(`USER_MCP_UNSUPPORTED_MESSAGE`). On a Pi harness, ANY user MCP server (stdio or http) is refused
+up front (`PI_USER_MCP_UNSUPPORTED_MESSAGE`) because Pi delivers tools through its bundled
+extension, not MCP — refusing it loudly avoids the silent drop. This is the USER MCP capability and
+is distinct from the runner's internal gateway-tool MCP channel (delivered over loopback HTTP on
+the local sandbox, and via the file relay on Daytona; see `runner-to-mcp-server.md`). The SDK
+models, resolver, and wire are transport-agnostic; the enable/disable split lives entirely in the
+runner.
 
 ## Owned by
 

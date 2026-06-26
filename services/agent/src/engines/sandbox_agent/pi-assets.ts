@@ -33,7 +33,7 @@ export const EXTENSION_BUNDLE =
 export function buildPiExtensionEnv(
   request: AgentRunRequest,
   tracing: boolean,
-  opts: { relayDir?: string; usageOutPath?: string } = {},
+  opts: { relayDir?: string; usageOutPath?: string; skills?: string[] } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
   const trace = tracing ? request.trace : undefined;
@@ -43,6 +43,11 @@ export function buildPiExtensionEnv(
     env.OTEL_EXPORTER_OTLP_HEADERS = `Authorization=${trace.authorization}`;
   if (trace && trace.captureContent === false)
     env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED = "false";
+  // The skills that materialized for this run (author + forced `_agenta.*`), so Pi's own agent
+  // span records which skills loaded (F-029). Only set under tracing (the extension's only span
+  // consumer); a JSON array string the extension parses.
+  if (trace && opts.skills && opts.skills.length > 0)
+    env.AGENTA_AGENT_SKILLS_LOADED = JSON.stringify(opts.skills);
 
   const specs = publicToolSpecs(
     (request.customTools as ResolvedToolSpec[]) ?? [],

@@ -168,3 +168,5 @@ export function SectionSkeleton({lines = 4}: SectionSkeletonProps) {
         </SectionCard>
     )
 }
+
+export {ConfigAccordionSection, type ConfigAccordionSectionProps} from "./ConfigAccordionSection"

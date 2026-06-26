@@ -265,9 +265,9 @@ async def _agent(
     )
 
     # Both paths hand off to a helper that owns the environment lifecycle (setup/cleanup).
-    # They differ only in shape, as they must: the `/messages` SSE path (`stream` set) returns
-    # the Vercel UI Message Stream as an async generator the normalizer turns into a streaming
-    # response; `/invoke` and the `/messages` JSON path return the batch assistant message.
+    # They differ only in shape: the stream path (flags.stream) returns the Vercel UI Message
+    # Stream as an async generator the normalizer turns into a streaming response; the batch
+    # path returns the assistant message as a single WorkflowBatchResponse.
     if stream:
         return _agent_vercel_stream(harness, session_config, msgs)
     return await _agent_batch(harness, session_config, msgs)

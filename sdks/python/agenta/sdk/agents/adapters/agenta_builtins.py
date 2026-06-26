@@ -5,14 +5,17 @@ every run carries a fixed set of Agenta-shipped extras the author cannot turn of
 
 - a base **persona** appended to Pi's system prompt (``AGENTA_FORCED_APPEND_SYSTEM``),
 - a base **AGENTS.md preamble** the author's instructions are appended to (``AGENTA_PREAMBLE``),
-- a set of **forced tools** (``AGENTA_FORCED_TOOLS``).
+- a set of **forced tools** (``AGENTA_FORCED_TOOLS``),
+- a set of **forced platform skills** (``AGENTA_FORCED_SKILLS``).
 
-Forced skills are *not* a constant here. They are platform default skills served from a
-code-defined ``PlatformWorkflowCatalog`` under the reserved ``_agenta.*`` slug namespace and
-embedded into the agent config (resolved server-side into concrete
-:class:`~agenta.sdk.agents.skills.SkillConfig` packages before the runner). By the time this
-harness runs, those defaults already ride ``AgentConfig.skills``, so the adapter needs no name
-list. The catalogue is a separate workstream (see the skills-config proposal).
+The forced platform skills are the actually-forced part of "forced skills". The default agent
+config template embeds the platform default skill by reserved ``_agenta.*`` slug, but that embed
+only rides the *default* template: a custom ``pi_agenta`` config that drops the embed would
+otherwise lose the platform skill entirely. To make "forced" mean forced, ``AgentaHarness``
+unions ``AGENTA_FORCED_SKILLS`` into every run's skills via :func:`force_skills`, regardless of
+what the author's config carries. The canonical skill content lives here (in the SDK, the lowest
+layer); the server-side ``PlatformWorkflowCatalog`` imports the same constant so the embed path
+and the forced path stay one source of truth.
 
 Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAgentConfig`):
 the *persona* is an ``append_system`` (changes Pi's base prompt), while *project conventions*
@@ -23,6 +26,8 @@ is the persona layer.
 from __future__ import annotations
 
 from typing import List, Optional
+
+from ..skills import SkillConfig
 
 # The base AGENTS.md preamble. The author's own ``instructions`` are appended after this, so
 # the final AGENTS.md is ``AGENTA_PREAMBLE`` + the author's project conventions.
@@ -56,6 +61,48 @@ fabricate results."""
 # works via Pi defaults today).
 AGENTA_FORCED_TOOLS: List[str] = ["read", "bash"]
 
+# Reserved slug of the platform default skill. The default agent config template embeds the
+# skill by this slug; the server-side PlatformWorkflowCatalog resolves the slug to the
+# SkillConfig below. Kept here so the catalogue and the forced path share one slug constant.
+AGENTA_GETTING_STARTED_SLUG = "_agenta.agenta-getting-started"
+
+# Canonical SKILL.md body for the platform "getting started" skill. Single source of the body
+# text: the server-side PlatformWorkflowCatalog imports this constant rather than redeclaring it.
+_GETTING_STARTED_BODY = (
+    "# Getting started with Agenta agents\n"
+    "\n"
+    "This skill orients an agent running on the Agenta platform.\n"
+    "\n"
+    "## When to use it\n"
+    "\n"
+    "Use it at the start of a task to recall how Agenta agents are expected to behave: be "
+    "concise, ask for missing inputs, and prefer the tools and skills the agent was given over "
+    "guessing.\n"
+    "\n"
+    "## Conventions\n"
+    "\n"
+    "- Greet the user once, then get to work.\n"
+    "- State assumptions briefly when a request is ambiguous.\n"
+    "- When a skill or tool references a relative path, resolve it against the skill directory "
+    "(the parent of SKILL.md) before running it.\n"
+    "- Keep answers short unless the user asks for depth.\n"
+)
+
+# The platform default skill as a concrete inline package. This is the canonical content; the
+# server-side catalogue serves the same SkillConfig for the reserved slug above.
+AGENTA_GETTING_STARTED_SKILL = SkillConfig(
+    name="agenta-getting-started",
+    description=(
+        "Getting started on the Agenta platform: how an Agenta agent should behave, ask for "
+        "missing inputs, and use its tools and skills. Use at the start of a task."
+    ),
+    body=_GETTING_STARTED_BODY,
+)
+
+# Platform skills every pi_agenta run carries, regardless of the author's config. These are the
+# actually-forced skills (see module docstring); unioned in by `force_skills`.
+AGENTA_FORCED_SKILLS: List[SkillConfig] = [AGENTA_GETTING_STARTED_SKILL]
+
 
 def _join(*parts: Optional[str]) -> Optional[str]:
     """Join the non-empty parts with a blank line, or ``None`` when nothing remains."""
@@ -86,4 +133,20 @@ def force_tools(builtin_tools: List[str]) -> List[str]:
         if name and name not in seen:
             seen.add(name)
             out.append(name)
+    return out
+
+
+def force_skills(skills: List[SkillConfig]) -> List[SkillConfig]:
+    """Union the author's skills with the forced platform skills, de-duplicated by name.
+
+    The author's skills come first and win on a name clash (a config that already carries the
+    resolved platform skill — e.g. via the default template's embed — is not doubled), then any
+    forced platform skill not already present is appended. This is what makes the ``_agenta``
+    platform skill actually forced on a custom ``pi_agenta`` config that drops the embed."""
+    seen = {skill.name for skill in skills}
+    out: List[SkillConfig] = list(skills)
+    for forced in AGENTA_FORCED_SKILLS:
+        if forced.name not in seen:
+            seen.add(forced.name)
+            out.append(forced)
     return out

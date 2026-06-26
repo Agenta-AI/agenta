@@ -1044,16 +1044,33 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
 
+        // A builtin-agent DRAFT (not yet committed, so it has no server data) still needs inspect.
+        // The agent service publishes `harness_capabilities` (the provider + model catalog) per
+        // SERVICE, not per committed revision — `inspectWorkflow` keys on uri + serviceUrl, never a
+        // revision id. `invocationUrl` already derives the draft's builtin uri/url from the LOCAL
+        // entity (which is why a draft agent can be invoked before creation); mirror that here so the
+        // model picker resolves from inspect pre-creation instead of showing an empty catalog.
+        // Scoped to agents: a non-agent draft keeps its server-only behavior unchanged.
+        const localEntity = serverData ? null : get(workflowBaseEntityAtomFamily(revisionId))
+        const localIsAgent =
+            localEntity?.data?.uri === AGENT_BUILTIN_URI || (localEntity?.flags?.is_agent ?? false)
+        const localData = localIsAgent ? localEntity : null
+
         // Use stored URI, or derive one from builtin service URL pattern
-        const storedUri = serverData?.data?.uri ?? null
-        const storedUrl = serverData?.data?.url ?? null
+        const storedUri = serverData?.data?.uri ?? localData?.data?.uri ?? null
+        const storedUrl = serverData?.data?.url ?? localData?.data?.url ?? null
         const derivedServiceType = storedUri ? null : resolveServiceTypeFromUrl(storedUrl)
         const uri = storedUri ?? (derivedServiceType ? buildWorkflowUri(derivedServiceType) : null)
         // Service URL: prefer stored url, fall back to building from URI
         const serviceUrl = storedUrl ?? buildServiceUrlFromUri(uri)
 
-        // Skip inspect when the revision has no service endpoint (has_url: false)
-        const hasUrl = serverData?.flags?.has_url ?? true
+        // Skip inspect when the revision has no service endpoint (has_url: false). A builtin-agent
+        // DRAFT reports has_url: false (nothing is deployed yet), but its service URL is always
+        // derivable from the builtin uri (same URL `invocationUrl` invokes), so the capability
+        // catalog is still reachable — don't let the deploy-state flag gate it.
+        const hasUrl =
+            serverData?.flags?.has_url ??
+            (localIsAgent ? true : (localData?.flags?.has_url ?? true))
 
         // Skip inspect when the revision already carries all schemas inline.
         // The merge step (workflowEntityAtomFamily) gives server schemas

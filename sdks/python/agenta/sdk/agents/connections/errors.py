@@ -46,12 +46,16 @@ class MissingProviderError(ConnectionResolutionError):
     NOT a tolerated self-managed/OAuth fallback case: the config itself is underspecified.
     """
 
-    def __init__(self, *, model: str) -> None:
+    def __init__(self, *, model: str, hint_provider: str = "openai") -> None:
+        # The example provider in the hint is harness-appropriate: a Claude harness must read
+        # "anthropic/<model>", never "openai/<model>" (Claude reaches Anthropic only). The
+        # caller passes the harness's default provider so the suggested prefix is reachable.
         super().__init__(
-            f"model '{model}' needs a provider prefix (e.g. 'openai/{model}') "
+            f"model '{model}' needs a provider prefix (e.g. '{hint_provider}/{model}') "
             "or a structured {provider, model}; a bare model id can't resolve a credential"
         )
         self.model = model
+        self.hint_provider = hint_provider
 
 
 class AmbiguousConnectionError(ConnectionResolutionError):

@@ -1,35 +1,39 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {buildAgentRequest} from "@agenta/playground"
+import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
+import {generateId} from "@agenta/shared/utils"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {ArrowDown, Paperclip} from "@phosphor-icons/react"
-import {
-    DefaultChatTransport,
-    lastAssistantMessageIsCompleteWithApprovalResponses,
-    type UIMessage,
-} from "ai"
-import {Alert, Button, Modal, Tabs, Tag, Tooltip} from "antd"
+import {type UIMessage} from "ai"
+import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
+import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import AgentMessage from "./components/AgentMessage"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionTabLabel from "./components/SessionTabLabel"
+import {useChatScopeKey} from "./state/scope"
 import {
     type AgentChatSession,
-    activeSessionIdAtom,
-    addSessionAtom,
-    closeSessionAtom,
+    activeSessionIdAtomFamily,
+    addSessionAtomFamily,
+    closeSessionAtomFamily,
     persistSessionMessagesAtom,
-    renameSessionAtom,
+    renameSessionAtomFamily,
     sessionFirstUserTextAtomFamily,
     sessionMessagesAtom,
-    sessionsListAtom,
-    setActiveSessionAtom,
+    sessionsListAtomFamily,
+    setActiveSessionAtomFamily,
 } from "./state/sessions"
+
+/** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
+ * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
+ * Next.js dev Runtime Error overlay (F-033). */
+const ignoreStreamRejection = () => {}
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -44,6 +48,57 @@ import {
  *  - DT4 autoscroll: stick to bottom while streaming; pause when scrolled up; "jump to latest".
  *  - DT5 a11y: the message log is an aria-live region; controls are keyboard-operable.
  */
+
+/** A settled assistant turn with no content at all — no answer, reasoning, tool, file, or
+ * source part. Mirrors AgentMessage's `!hasContent`; used to collapse a run of "no response"
+ * bubbles (e.g. repeated failed runs) down to the first one. */
+const isEmptyAssistantTurn = (m: UIMessage): boolean =>
+    m.role === "assistant" &&
+    !m.parts.some(
+        (p) =>
+            (p.type === "text" && Boolean((p as {text?: string}).text?.trim())) ||
+            (p.type === "reasoning" && Boolean((p as {text?: string}).text?.trim())) ||
+            p.type === "file" ||
+            p.type === "source-url" ||
+            p.type.startsWith("tool-") ||
+            p.type === "dynamic-tool",
+    )
+
+interface ParsedRunError {
+    message: string
+    code?: number
+}
+
+/**
+ * Best-effort human reason from a useChat stream error. The server may hand us a clean string
+ * ("Agent run failed: …") or a JSON envelope (`{status:{code,message,…}}` / `{message}`) — pull
+ * the message out of either and drop the stacktrace / docs-url noise so it reads cleanly inline.
+ */
+const parseAgentRunError = (err: unknown): ParsedRunError => {
+    const raw =
+        err instanceof Error ? err.message : typeof err === "string" ? err : String(err ?? "")
+    const fallback = raw.trim() || "The agent run failed."
+    try {
+        const obj = JSON.parse(raw) as Record<string, unknown>
+        const status = (obj?.status && typeof obj.status === "object" ? obj.status : obj) as Record<
+            string,
+            unknown
+        >
+        const message =
+            typeof status?.message === "string"
+                ? status.message
+                : typeof obj?.message === "string"
+                  ? (obj.message as string)
+                  : null
+        if (message) {
+            return {message, code: typeof status?.code === "number" ? status.code : undefined}
+        }
+    } catch {
+        // raw isn't JSON — it's already the human message.
+    }
+    return {message: fallback}
+}
+
 const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
@@ -66,7 +121,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // placeholder that `prepareSendMessagesRequest` overrides per request.
     const transport = useMemo(
         () =>
-            new DefaultChatTransport<UIMessage>({
+            new AgentChatTransport({
                 api: "",
                 prepareSendMessagesRequest: async ({messages, id}) => {
                     const req = await buildAgentRequest(entityId, messages, {
@@ -96,13 +151,50 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         id: sessionId,
         messages: initialMessages,
         transport,
-        sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+        // Approve AND deny both resume — a deny-only decision must re-send so the runner
+        // gets the denial round-trip and the model continues (no `approval-responded` limbo).
+        sendAutomaticallyWhen: agentShouldResumeAfterApproval,
         onError: (err) => {
-            console.error("[AgentChatPanel] useChat error:", err)
+            // Render the error in-chat (the `error` alert below); swallow it here so an
+            // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).
+            console.warn("[AgentChatPanel] useChat error (rendered in-chat):", err)
         },
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
+    // it renders as a red error bubble with the real reason (and persists with the session via the
+    // effect below), instead of a transient top banner + a generic "no response". FE-only — it
+    // uses the error useChat already has; the backend doesn't need to attach it to the trace.
+    useEffect(() => {
+        if (!error) return
+        const parsed = parseAgentRunError(error)
+        setMessages((prev) => {
+            const last = prev.length > 0 ? prev[prev.length - 1] : undefined
+            const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
+                ?.runError
+            if (last?.role === "assistant") {
+                if (existing?.message === parsed.message) return prev // already stamped
+                const next = [...prev]
+                next[next.length - 1] = {
+                    ...last,
+                    metadata: {...(last.metadata as object | undefined), runError: parsed},
+                }
+                return next
+            }
+            // No trailing assistant turn (failed before one existed) — add a minimal carrier.
+            return [
+                ...prev,
+                {
+                    id: `run-error-${generateId()}`,
+                    role: "assistant",
+                    parts: [],
+                    metadata: {runError: parsed},
+                } as (typeof prev)[number],
+            ]
+        })
+    }, [error, setMessages])
 
     // Persist the conversation whenever its stream settles (skip mid-stream).
     useEffect(() => {
@@ -165,13 +257,15 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
         stickRef.current = true
         setShowJump(false)
+        // Swallow the rejection — a stream error/abort is already surfaced via `onError` and
+        // the in-chat `error` alert; without this it bubbles to the Next.js dev overlay (F-033).
         sendMessage(
             fileParts
                 ? trimmed
                     ? {text: trimmed, files: fileParts}
                     : {files: fileParts}
                 : {text: trimmed},
-        )
+        ).catch(ignoreStreamRejection)
         setInput("")
         setFiles([])
         setAttachmentsOpen(false)
@@ -190,7 +284,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 setInput(messageText(message))
                 requestAnimationFrame(() => senderRef.current?.focus())
             } else {
-                regenerate({messageId: message.id})
+                regenerate({messageId: message.id}).catch(ignoreStreamRejection)
             }
         }
 
@@ -212,10 +306,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     return (
         <div className="flex h-full min-h-0 w-full flex-col gap-3">
-            {error && (
-                <Alert type="error" showIcon message="Stream error" description={error.message} />
-            )}
-
+            {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
+                real reason), stamped in the effect above — no separate top-level banner. */}
             <div className="relative flex min-h-0 flex-1 flex-col">
                 <div
                     ref={(el) => {
@@ -237,10 +329,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         <div key={message.id} className="flex flex-col gap-1">
                             <AgentMessage
                                 message={message}
-                                busy={busy}
                                 isStreaming={busy && index === messages.length - 1}
                                 onRewind={() => handleRewind(message)}
                                 onApprovalResponse={addToolApprovalResponse}
+                                precededByEmptyAssistant={
+                                    index > 0 && isEmptyAssistantTurn(messages[index - 1])
+                                }
                             />
                             {stoppedIds.has(message.id) && (
                                 <div className="flex items-center gap-2 self-start pl-1">
@@ -251,7 +345,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                             size="small"
                                             className="!px-0 !text-xs"
                                             disabled={busy}
-                                            onClick={() => regenerate({messageId: message.id})}
+                                            onClick={() =>
+                                                regenerate({messageId: message.id}).catch(
+                                                    ignoreStreamRejection,
+                                                )
+                                            }
                                         >
                                             Resend
                                         </Button>
@@ -377,12 +475,13 @@ const TabLabel = ({
 }
 
 const AgentChatPanel = ({entityId}: {entityId: string}) => {
-    const sessions = useAtomValue(sessionsListAtom)
-    const rawActiveId = useAtomValue(activeSessionIdAtom)
-    const addSession = useSetAtom(addSessionAtom)
-    const closeSession = useSetAtom(closeSessionAtom)
-    const renameSession = useSetAtom(renameSessionAtom)
-    const setActiveSession = useSetAtom(setActiveSessionAtom)
+    const scope = useChatScopeKey()
+    const sessions = useAtomValue(sessionsListAtomFamily(scope))
+    const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
+    const addSession = useSetAtom(addSessionAtomFamily(scope))
+    const closeSession = useSetAtom(closeSessionAtomFamily(scope))
+    const renameSession = useSetAtom(renameSessionAtomFamily(scope))
+    const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
 
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode.

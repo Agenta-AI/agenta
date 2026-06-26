@@ -227,8 +227,8 @@ def _make_stream_response(
 
     if wire_format == "vercel":
         # The Vercel UI Message Stream: SSE framing terminated by `data: [DONE]`, plus the
-        # headers the AI SDK client and proxies require. Endpoint-selected (the agent
-        # `/messages` route passes "vercel"), not derived from Accept — a Vercel UI message
+        # headers the AI SDK client and proxies require. Selected by the
+        # `x-ag-messages-format: vercel` header, not derived from Accept — a Vercel UI message
         # stream and a plain SSE stream share the `text/event-stream` media type, so the
         # choice cannot come from the Accept header alone.
         res = StreamingResponse(

@@ -167,7 +167,9 @@ const ExecutionHeader = ({
                     </Tooltip>
                 )}
 
-                {renderTestsetActions?.({entityId, resultCount, isRunning})}
+                {/* Testset wiring drives testcase-row runs; the agent lane runs from the panel
+                    composer and has no rows, so the testset connector doesn't apply to agents. */}
+                {!isAgent && renderTestsetActions?.({entityId, resultCount, isRunning})}
 
                 {!isAgent &&
                     (!isRunning ? (

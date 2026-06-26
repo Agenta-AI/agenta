@@ -63,6 +63,10 @@ spec:
             - name: DAYTONA_IMAGE
               value: {{ $daytona.image | quote }}
             {{- end }}
+            {{- if $daytona.autostopDelay }}
+            - name: DAYTONA_AUTOSTOP
+              value: {{ $daytona.autostopDelay | quote }}
+            {{- end }}
             {{- if hasKey $daytona "installPi" }}
             - name: AGENTA_AGENT_SANDBOX_PI_INSTALLED
               value: {{ $daytona.installPi | quote }}

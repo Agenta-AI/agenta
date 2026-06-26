@@ -9,7 +9,7 @@ from uuid import UUID
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
     WorkflowServiceStatus,
-    WorkflowServiceRequestData,
+    WorkflowRequestData,
     WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
@@ -35,7 +35,7 @@ class NormalizerMiddleware:
        keyword arguments for the workflow handler function by:
        - Mapping request data fields to handler function parameters
        - Extracting inputs from request.data.inputs and mapping them to function parameters
-       - Handling special parameters like 'request' and WorkflowServiceRequestData fields
+       - Handling special parameters like 'request' and WorkflowRequestData fields
        - Supporting **kwargs expansion for additional fields
 
     2. **Response Normalization**: Transforms handler function results into standardized
@@ -51,9 +51,7 @@ class NormalizerMiddleware:
     while maintaining structured request/response formats at the service boundary.
     """
 
-    DATA_FIELDS = set(("request",)) | set(
-        WorkflowServiceRequestData.model_fields.keys()
-    )
+    DATA_FIELDS = set(("request",)) | set(WorkflowRequestData.model_fields.keys())
 
     async def _normalize_request(
         self,
