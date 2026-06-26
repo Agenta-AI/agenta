@@ -1,34 +1,26 @@
 from typing import Dict, List, Union, Optional, Sequence, Any
 
-from fastapi import HTTPException
-
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.common import is_ee
 
 from oss.src.models.db_models import (
     OrganizationDB,
     WorkspaceDB,
     ProjectDB,
 )
-from ee.src.core.access.permissions.types import Permission, RequiredRole
-from ee.src.core.access.controls import get_role, get_role_permissions
+from oss.src.core.access.permissions.types import Permission, RequiredRole
+from oss.src.core.access.controls import (
+    get_role,
+    get_role_permissions,
+    get_controls_hash,
+)
 
 from oss.src.services import db_manager
-from ee.src.services import db_manager_ee
-from ee.src.core.access.entitlements.service import (
-    check_entitlements,
-    scope_from,
-    Flag,
-)
-from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
+from oss.src.services.db_manager import get_user_org_and_workspace_id
 
 
 log = get_module_logger(__name__)
-
-FORBIDDEN_EXCEPTION = HTTPException(
-    status_code=403,
-    detail="You do not have access to perform this action. Please contact your organization admin.",
-)
 
 
 def _get_project_member(
@@ -101,11 +93,8 @@ def _project_has_permission(
 async def _get_workspace_member_ids(workspace: WorkspaceDB) -> List[str]:
     """
     Return all user IDs that are members of the given workspace.
-
-    This assumes db_manager_ee.get_workspace_members(workspace_id=...) exists
-    and returns workspace member rows with a .user_id attribute.
     """
-    members = await db_manager_ee.get_workspace_members(workspace_id=str(workspace.id))
+    members = await db_manager.get_workspace_members(workspace_id=str(workspace.id))
     return [str(m.user_id) for m in members]
 
 
@@ -114,7 +103,7 @@ async def check_user_org_access(
 ) -> bool:
     if check_owner:  # Check that the user is the owner of the organization
         user = await db_manager.get_user_with_id(user_id=kwargs["id"])
-        organization = await db_manager_ee.get_organization(organization_id)
+        organization = await db_manager.get_organization(organization_id)
         if not organization:
             log.error("Organization not found")
             raise Exception("Organization not found")
@@ -182,9 +171,9 @@ async def check_user_access_to_workspace(
 
 async def check_action_access(
     user_uid: str,
-    project_id: str = None,
-    permission: Permission = None,
-    role: str = None,
+    project_id: Optional[str] = None,
+    permission: Optional[Permission] = None,
+    role: Optional[Union[RequiredRole, str]] = None,
 ) -> bool:
     """
     Check if a user belongs to a workspace and has a certain permission.
@@ -208,6 +197,7 @@ async def check_action_access(
     cache_key = {
         "permission": permission.value if permission else None,
         "role": role,
+        "controls": get_controls_hash(),
     }
 
     has_permission = await get_cache(
@@ -239,53 +229,11 @@ async def check_action_access(
     return has_permission
 
 
-# async def check_apikey_action_access(
-#     api_key: str, user_id: str, permission: Permission
-# ):
-#     """
-#     Check if an api key belongs to a user for a workspace and has the right permission.
-
-#     Args:
-#         api_key (str): The api key
-#         user_id (str): The user (owner) ID of the api_key
-#         permission (Permission): The permission to check for.
-#     """
-
-#     api_key_prefix = api_key.split(".")[0]
-#     api_key_db = await db_manager.get_user_api_key_by_prefix(
-#         api_key_prefix=api_key_prefix, user_id=user_id
-#     )
-#     if api_key_db is None:
-#         raise HTTPException(
-#             404, {"message": f"API Key with prefix {api_key_prefix} not found"}
-#         )
-
-#     project_db = await db_manager.get_project_by_id(
-#         project_id=str(api_key_db.project_id)
-#     )
-#     if project_db is None:
-#         raise HTTPException(
-#             404,
-#             {"message": f"Project with ID {str(api_key_db.workspace_id)} not found"},
-#         )
-
-#     has_access = await check_project_has_role_or_permission(
-#         project_db, str(api_key_db.created_by_id), None, permission
-#     )
-#     if not has_access:
-#         raise HTTPException(
-#             403,
-#             {
-#                 "message": "You do not have access to perform this action. Please contact your organization admin."
-#             },
-#         )
-
-
 async def check_rbac_permission(
     user_org_workspace_data: Dict[str, Union[str, list]],
-    project_id: str = None,
-    permission: Permission = None,
-    role: str = None,
+    project_id: Optional[str] = None,
+    permission: Optional[Permission] = None,
+    role: Optional[Union[RequiredRole, str]] = None,
 ) -> bool:
     """
     Check if a user belongs to a workspace and has a certain permission.
@@ -319,9 +267,7 @@ async def check_rbac_permission(
             return False
 
         workspace = await db_manager.get_workspace(str(project.workspace_id))
-        organization = await db_manager_ee.get_organization(
-            str(project.organization_id)
-        )
+        organization = await db_manager.get_organization(str(project.organization_id))
 
     workspace_has_access = await check_user_access_to_workspace(
         user_org_workspace_data=user_org_workspace_data,
@@ -341,11 +287,10 @@ async def check_rbac_permission(
 
 
 async def check_project_has_role_or_permission(
-    # organization_id: str,
     project: ProjectDB,
     user_id: str,
-    role: Optional[str] = None,
-    permission: Optional[str] = None,
+    role: Optional[Union[RequiredRole, str]] = None,
+    permission: Optional[Permission] = None,
 ):
     """Check if a user has the provided role or permission in a project.
 
@@ -361,20 +306,24 @@ async def check_project_has_role_or_permission(
     )
 
     # Fetch project members first - needed for both demo check and permission check
-    project_members = await db_manager_ee.get_project_members(
-        project_id=str(project.id)
-    )
+    project_members = await db_manager.get_project_members(project_id=str(project.id))
 
     # Check if user is a demo member - demo members always have restricted access
     # regardless of the organization's RBAC setting
     is_demo = _is_demo_member(user_id, project_members)
 
-    if not is_demo:
-        # For non-demo members, check if RBAC is enabled
-        # If RBAC is disabled, grant full access (current behavior for paid plans).
+    if not is_demo and is_ee():
+        # EE only: gate enforcement on the org's RBAC entitlement. If RBAC is not
+        # entitled (free/legacy plans), grant full access — the historic bypass.
         # The flag is per-org; project it onto the target project's org so
-        # cross-org permission checks read the correct plan's RBAC setting
-        # rather than the ambient caller's plan.
+        # cross-org checks read the correct plan's RBAC setting. OSS has no
+        # subscriptions and always enforces, so it skips this gate entirely.
+        from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
+            check_entitlements,
+            scope_from,
+            Flag,
+        )
+
         check, _, _ = await check_entitlements(
             key=Flag.RBAC,
             scope=scope_from(organization_id=project.organization_id),
@@ -384,7 +333,7 @@ async def check_project_has_role_or_permission(
             return True
 
     # Check if user is organization owner - organization owners always have full permissions
-    organization = await db_manager_ee.get_organization(str(project.organization_id))
+    organization = await db_manager.get_organization(str(project.organization_id))
     if organization and str(organization.owner_id) == str(user_id):
         return True
 

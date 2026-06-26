@@ -6,7 +6,6 @@ from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Request, status, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.locking import acquire_lock, release_lock, renew_lock
@@ -22,9 +21,12 @@ from oss.src.services.db_manager import (
     get_organization_by_id,
 )
 
-from ee.src.services import db_manager_ee
-from ee.src.core.access.permissions.service import check_action_access
-from ee.src.core.access.permissions.types import Permission
+from oss.src.services import db_manager
+from ee.src.core.organizations.service import (
+    update_organization as update_organization_ee,
+)
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
 from ee.src.core.access.entitlements.types import Tracker, Quota, Period, Scope
 from ee.src.core.access.controls import get_plan_entitlements, get_plans
 from ee.src.core.subscriptions.settings import (
@@ -41,7 +43,7 @@ from ee.src.core.subscriptions.service import (
     SwitchException,
     EventException,
 )
-from ee.src.core.organizations.types import OrganizationUpdate
+from oss.src.models.api.organization_models import OrganizationUpdate
 
 
 log = get_module_logger(__name__)
@@ -213,7 +215,7 @@ class BillingRouter:
         )
 
     async def _reset_organization_flags(self, organization_id: str) -> None:
-        organization = await db_manager_ee.get_organization(organization_id)
+        organization = await db_manager.get_organization(organization_id)
         if not organization:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -230,7 +232,7 @@ class BillingRouter:
             "domains_only": False,
             "auto_join": False,
         }
-        await db_manager_ee.update_organization(
+        await update_organization_ee(
             organization_id,
             OrganizationUpdate(flags=default_flags),
         )
@@ -1161,13 +1163,12 @@ class BillingRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_portal(
             organization_id=request.state.organization_id,
@@ -1189,13 +1190,12 @@ class BillingRouter:
         plan: str = Query(...),
         success_url: str = Query(...),  # find a way to make this optional or moot
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_checkout(
             organization_id=request.state.organization_id,
@@ -1221,13 +1221,12 @@ class BillingRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_plans(
             organization_id=request.state.organization_id,
@@ -1239,13 +1238,12 @@ class BillingRouter:
         request: Request,
         plan: str = Query(...),
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.switch_plans(
             organization_id=request.state.organization_id,
@@ -1268,13 +1266,12 @@ class BillingRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_subscription(
             organization_id=request.state.organization_id,
@@ -1285,13 +1282,12 @@ class BillingRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.cancel_subscription(
             organization_id=request.state.organization_id,
@@ -1311,12 +1307,11 @@ class BillingRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_usage()

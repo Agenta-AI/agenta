@@ -9,7 +9,7 @@ from sqlalchemy.future import select
 from sqlalchemy import create_engine, delete, func
 from sqlalchemy.orm import sessionmaker, Session
 
-from oss.src.models.deprecated_models import (
+from oss.databases.postgres.migrations.core.deprecated_models import (
     DeprecatedEvaluatorConfigDBwApp as DeprecatedEvaluatorConfigDB,
     DeprecatedAppDB,
 )

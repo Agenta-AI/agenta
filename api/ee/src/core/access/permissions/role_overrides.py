@@ -1,17 +1,13 @@
-"""Role/permission controls: pure builders + parsers (no singleton).
+"""EE-only role-override parsing (custom roles are an EE feature).
 
-Builds the per-scope role catalogs (organization, workspace, project) and their
-role->permission mappings from code defaults or env overrides
-(`AGENTA_ACCESS_ROLES`, `AGENTA_ACCESS_ROLES_OVERLAY`).
+Parses and applies `AGENTA_ACCESS_ROLES` / `AGENTA_ACCESS_ROLES_OVERLAY` on top
+of the OSS code-default role catalog. Invoked from
+`oss.src.core.access.permissions.controls.build_role_controls()` via a
+function-local `is_ee()`-guarded import.
 
-This module holds no module-level state and no public accessors. The shared
-singleton + `get_role*` accessors live in `ee.src.core.access.controls`, which
-calls `build_role_controls()` once at import time.
-
-Minima contract: every scope MUST expose `owner`, `admin`, and `viewer` with
-code-defined permissions. Env overrides may add roles or customize permissions
-of non-minima roles, but the minima are always present and their slugs cannot be
-re-bound to a different permission set.
+The default-catalog builders and the minima contract live in OSS
+(`oss.src.core.access.permissions.controls`); this module only adds the
+override layer.
 """
 
 from typing import Any, Dict, List, Optional
@@ -19,12 +15,14 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from oss.src.utils.env import env
-
-from ee.src.core.access.entitlements.types import OWNER_PERMISSIONS, SCOPES
-from ee.src.core.access.permissions.types import (
+from oss.src.core.access.permissions.types import (
     Permission,
-    DefaultRole,
     RequiredRole,
+)
+from oss.src.core.access.permissions.controls import (
+    SCOPES,
+    _default_roles,
+    _minima_for,
 )
 
 
@@ -52,116 +50,6 @@ class _RoleOverlayEntry(BaseModel):
     permissions: Optional[List[str]] = None
 
     model_config = ConfigDict(extra="forbid")
-
-
-# ---------------------------------------------------------------------------
-# Role catalogs (scoped)
-# ---------------------------------------------------------------------------
-
-
-def _read_only_permissions() -> List[str]:
-    """Read-only permission set sourced from the code-default `DefaultRole.VIEWER`.
-
-    Used as the `viewer` minima permissions for the `workspace` and `project`
-    scopes where permissions are actually enforced. Organization-scope `viewer`
-    has no permissions (it's just a membership marker today).
-    """
-    return [p.value for p in Permission.default_permissions(DefaultRole.VIEWER)]
-
-
-def _viewer_permissions_for_scope(scope: str) -> List[str]:
-    """Per-scope code-default permissions for the `viewer` minima role.
-
-    - `organization`: empty — orgs have no permission concept today.
-    - `workspace` and `project`: the code-default `DefaultRole.VIEWER` read-only set.
-    """
-    if scope == "organization":
-        return []
-    return _read_only_permissions()
-
-
-def _admin_permissions_for_scope(scope: str) -> List[str]:
-    """Per-scope code-default permissions for the `admin` minima role.
-
-    - `organization`: empty — orgs have no permission concept today.
-    - `workspace` and `project`: the code-default `DefaultRole.ADMIN` set.
-    """
-    if scope == "organization":
-        return []
-    return [p.value for p in Permission.default_permissions(DefaultRole.ADMIN)]
-
-
-def _minima_for(scope: str) -> List[Dict[str, Any]]:
-    """Return the required role entries for a scope (owner + admin + viewer).
-
-    Application code relies on these slugs being present in every scope; the
-    builder synthesizes them up front and re-applies them after any env
-    overrides so they can never be dropped or relabeled.
-
-    `owner` is always wildcard. The permission sets for `admin` and `viewer`
-    vary per scope (see `_admin_permissions_for_scope` /
-    `_viewer_permissions_for_scope`): both are empty at organization scope
-    (orgs have no permission concept today) and code-default elsewhere.
-    """
-    return [
-        {
-            "role": RequiredRole.OWNER.value,
-            "description": "Full access (wildcard permissions).",
-            "permissions": list(OWNER_PERMISSIONS),
-        },
-        {
-            "role": RequiredRole.ADMIN.value,
-            "description": (
-                "Membership marker (no permissions)."
-                if scope == "organization"
-                else DefaultRole.get_description(DefaultRole.ADMIN)
-            ),
-            "permissions": _admin_permissions_for_scope(scope),
-        },
-        {
-            "role": RequiredRole.VIEWER.value,
-            "description": (
-                "Membership marker (no permissions)."
-                if scope == "organization"
-                else DefaultRole.get_description(DefaultRole.VIEWER)
-            ),
-            "permissions": _viewer_permissions_for_scope(scope),
-        },
-    ]
-
-
-def _default_roles() -> Dict[str, List[Dict[str, Any]]]:
-    """Return the code-default role catalog for each scope.
-
-    Workspace and project scopes expose the code-default `DefaultRole`
-    entries on top of the minima — project membership stores the same role
-    slugs (`admin`/`developer`/`editor`/`annotator`), and the runtime
-    permission check resolves them through this map. Organization scope
-    only gets the minima today; new roles can be added per-scope via
-    `AGENTA_ACCESS_ROLES`.
-    """
-    default_extras: List[Dict[str, Any]] = []
-    minima_slugs = {
-        RequiredRole.OWNER.value,
-        RequiredRole.ADMIN.value,
-        RequiredRole.VIEWER.value,
-    }
-    for role in DefaultRole:
-        if role.value in minima_slugs:
-            continue
-        default_extras.append(
-            {
-                "role": role.value,
-                "description": DefaultRole.get_description(role),
-                "permissions": [p.value for p in Permission.default_permissions(role)],
-            }
-        )
-
-    return {
-        "organization": _minima_for("organization"),
-        "workspace": _minima_for("workspace") + default_extras,
-        "project": _minima_for("project") + default_extras,
-    }
 
 
 def _validate_permission(slug: str) -> str:
@@ -390,10 +278,10 @@ def _apply_roles_overlay(
                     scope_entries[idx]["permissions"] = list(patch.permissions)
             else:
                 # New role: both fields must be present.
-                if patch.permissions is None:
+                if patch.permissions is None or patch.description is None:
                     raise ValueError(
-                        f"AGENTA_ACCESS_ROLES_OVERLAY['project']['{slug}']: "
-                        f"new role requires 'permissions' (scope '{scope_name}' "
+                        f"AGENTA_ACCESS_ROLES_OVERLAY['{slug}']: new role requires "
+                        f"both 'description' and 'permissions' (scope '{scope_name}' "
                         "has no existing role with this slug to patch)"
                     )
                 scope_entries.append(
@@ -408,15 +296,17 @@ def _apply_roles_overlay(
 
 
 # ---------------------------------------------------------------------------
-# Build (called once by ee.src.core.access.controls)
+# Entry point (called from OSS build_role_controls under is_ee())
 # ---------------------------------------------------------------------------
 
 
-def build_role_controls() -> tuple[Dict[str, List[Dict[str, Any]]], str]:
-    """Build the per-scope role catalogs from defaults or env overrides.
+def apply_role_overrides(
+    default_roles: Dict[str, List[Dict[str, Any]]],
+) -> tuple[Dict[str, List[Dict[str, Any]]], str]:
+    """Apply EE env overrides on top of the OSS code-default role catalog.
 
-    Returns ``(roles, source_label)`` where ``source_label`` is a short string
-    for startup logging (e.g. ``"roles=defaults roles_overlay=none"``).
+    Returns ``(roles, source_label)``. With no env overrides set, returns the
+    passed-in defaults unchanged.
     """
     roles_payload = env.agenta.access.roles
     roles_overlay_payload = env.agenta.access.roles_overlay
@@ -425,7 +315,7 @@ def build_role_controls() -> tuple[Dict[str, List[Dict[str, Any]]], str]:
         roles = _parse_roles_override(roles_payload)
         roles_source = "env"
     else:
-        roles = _default_roles()
+        roles = default_roles
         roles_source = "defaults"
 
     roles_overlay_source = "none"

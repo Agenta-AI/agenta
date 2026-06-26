@@ -3,7 +3,6 @@ from uuid import uuid4
 
 import pytest
 
-from ee.src.services import db_manager_ee
 from oss.src.services import db_manager
 
 
@@ -21,37 +20,6 @@ class _ExecuteResult:
 
     def scalars(self):
         return _ScalarsResult(self._memberships)
-
-
-class _Session:
-    def __init__(self, memberships):
-        self._memberships = memberships
-
-    async def execute(self, _query):
-        return _ExecuteResult(self._memberships)
-
-
-class _SessionContext:
-    def __init__(self, memberships):
-        self._memberships = memberships
-
-    async def __aenter__(self):
-        return _Session(self._memberships)
-
-    async def __aexit__(self, exc_type, exc, tb):
-        return False
-
-
-def _patch_core_session(monkeypatch, memberships):
-    # db_manager_ee calls get_transactions_engine() — patch where it's called
-    mock_engine = type(
-        "MockEngine", (), {"session": lambda self: _SessionContext(memberships)}
-    )()
-    monkeypatch.setattr(
-        db_manager_ee,
-        "get_transactions_engine",
-        lambda: mock_engine,
-    )
 
 
 class _PendingInviteSession:

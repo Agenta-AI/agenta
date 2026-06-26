@@ -39,6 +39,15 @@ from oss.src.services.db_manager import (
     admin_delete_accounts_batch as _db_delete_accounts_batch,
     admin_delete_user_with_cascade as _db_delete_user_with_cascade,
     admin_transfer_org_ownership_batch as _db_transfer_org_ownership_batch,
+    admin_delete_org_membership as _ee_delete_org_membership,
+    admin_delete_workspace_membership as _ee_delete_workspace_membership,
+    admin_delete_project_membership as _ee_delete_project_membership,
+    admin_delete_user_memberships as _ee_delete_user_memberships,
+    admin_get_member_org_ids as _ee_get_member_org_ids,
+    count_organization_members as _ee_count_organization_members,
+    admin_swap_org_memberships as _ee_swap_org_memberships,
+    admin_swap_workspace_memberships as _ee_swap_workspace_memberships,
+    admin_swap_project_memberships as _ee_swap_project_memberships,
 )
 from oss.src.core.environments.defaults import (
     create_default_environments as _create_default_environments,
@@ -55,17 +64,6 @@ from oss.src.models.db_models import (
 )
 
 try:
-    from ee.src.services.db_manager_ee import (  # type: ignore[import]
-        admin_delete_org_membership as _ee_delete_org_membership,
-        admin_delete_workspace_membership as _ee_delete_workspace_membership,
-        admin_delete_project_membership as _ee_delete_project_membership,
-        admin_delete_user_memberships as _ee_delete_user_memberships,
-        admin_get_member_org_ids as _ee_get_member_org_ids,
-        count_organization_members as _ee_count_organization_members,
-        admin_swap_org_memberships as _ee_swap_org_memberships,
-        admin_swap_workspace_memberships as _ee_swap_workspace_memberships,
-        admin_swap_project_memberships as _ee_swap_project_memberships,
-    )
     from ee.src.core.subscriptions.service import (  # type: ignore[import]
         SubscriptionsService as _EeSubscriptionsService,
     )
