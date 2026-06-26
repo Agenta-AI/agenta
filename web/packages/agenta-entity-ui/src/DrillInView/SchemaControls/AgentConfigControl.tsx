@@ -32,13 +32,16 @@ import {
     CaretDown,
     CaretRight,
     CaretUp,
+    Check,
     Cpu,
     FileText,
     GraduationCap,
+    Lightbulb,
     Plugs,
     Plus,
     SlidersHorizontal,
     Trash,
+    Warning,
     Wrench,
 } from "@phosphor-icons/react"
 import {Button, Select, Switch, Tabs, Tag, Tooltip, Typography} from "antd"
@@ -983,8 +986,242 @@ export function AgentConfigControl({
         )
     ) : null
 
-    // Model & harness drawer body (harness picker + model picker). Authentication lives in Advanced.
-    const modelHarnessDrawerBody = (
+    // Harness list + per-harness detail come from the inspect capabilities map. Compatibility is
+    // real (provider/model reachability + connection mode), all derived from that same data.
+    const harnessList = capabilities ? Object.keys(capabilities) : []
+    const modelReachable =
+        !modelId ||
+        !capabilities ||
+        !harnessValue ||
+        harnessAllowsModel(capabilities, harnessValue, modelId)
+    const authSupported = modeOptions.length === 0 || modeOptions.includes(connection.mode)
+
+    const harnessCards = (
+        <div className="flex flex-col gap-2">
+            {harnessList.map((h) => {
+                const caps = capabilities?.[h]
+                const selected = harnessValue === h
+                const providers = caps?.providers ?? []
+                const deployments = caps?.deployments ?? []
+                const modelCount = caps
+                    ? Object.values(caps.models ?? {}).reduce(
+                          (n, arr) => n + (Array.isArray(arr) ? arr.length : 0),
+                          0,
+                      )
+                    : 0
+                const keepsModel = !modelId || harnessAllowsModel(capabilities, h, modelId)
+                return (
+                    <button
+                        key={h}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => setField("harness", h)}
+                        className={cn(
+                            "flex w-full flex-col gap-1.5 rounded-lg border border-solid p-2.5 text-left transition-colors",
+                            disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                            selected
+                                ? "border-[var(--ant-color-primary)] bg-[var(--ant-color-fill-secondary)]"
+                                : "border-[var(--ag-c-EAEFF5,#eaeff5)] hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+                        )}
+                    >
+                        <div className="flex items-center gap-2">
+                            <span
+                                className={cn(
+                                    "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-solid",
+                                    selected
+                                        ? "border-[var(--ant-color-primary)]"
+                                        : "border-[var(--ag-c-97A4B0,#97a4b0)]",
+                                )}
+                            >
+                                {selected && (
+                                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--ant-color-primary)]" />
+                                )}
+                            </span>
+                            <span className="text-xs font-medium">
+                                {enumLabel(props.harness, h) || h}
+                            </span>
+                            {selected ? (
+                                <span className="ml-auto rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                                    Current
+                                </span>
+                            ) : modelId ? (
+                                <span
+                                    className={cn(
+                                        "ml-auto inline-flex items-center gap-1 text-[10.5px]",
+                                        keepsModel
+                                            ? "text-[var(--ant-color-success)]"
+                                            : "text-[var(--ant-color-warning)]",
+                                    )}
+                                >
+                                    {keepsModel ? <Check size={11} /> : <Warning size={11} />}
+                                    {keepsModel ? "keeps your model" : "clears your model"}
+                                </span>
+                            ) : null}
+                        </div>
+                        {providers.length > 0 || modelCount > 0 ? (
+                            <div className="pl-[22px] text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                {providers.slice(0, 4).join(", ")}
+                                {providers.length > 4 ? ` +${providers.length - 4}` : ""}
+                                {modelCount ? ` · ${modelCount} models` : ""}
+                            </div>
+                        ) : null}
+                        {deployments.length > 0 ? (
+                            <div className="pl-[22px] text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                Hosting: {deployments.join(" · ")}
+                            </div>
+                        ) : null}
+                    </button>
+                )
+            })}
+        </div>
+    )
+
+    const compatibilityPanel =
+        capabilities && harnessValue ? (
+            <div className="flex flex-col gap-4">
+                <div>
+                    <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        Current setup
+                    </div>
+                    <div className="flex flex-col gap-2 text-xs">
+                        {modelId ? (
+                            <div
+                                className={cn(
+                                    "flex items-start gap-1.5",
+                                    modelReachable
+                                        ? "text-[var(--ant-color-success)]"
+                                        : "text-[var(--ant-color-warning)]",
+                                )}
+                            >
+                                {modelReachable ? (
+                                    <Check size={14} className="mt-px shrink-0" />
+                                ) : (
+                                    <Warning size={14} className="mt-px shrink-0" />
+                                )}
+                                <span>
+                                    <span className="font-mono">{modelId}</span>{" "}
+                                    {modelReachable ? "is reachable." : "is not reachable here."}
+                                </span>
+                            </div>
+                        ) : (
+                            <span className="text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                No model selected.
+                            </span>
+                        )}
+                        {props.model ? (
+                            <div
+                                className={cn(
+                                    "flex items-start gap-1.5",
+                                    authSupported
+                                        ? "text-[var(--ant-color-success)]"
+                                        : "text-[var(--ant-color-warning)]",
+                                )}
+                            >
+                                {authSupported ? (
+                                    <Check size={14} className="mt-px shrink-0" />
+                                ) : (
+                                    <Warning size={14} className="mt-px shrink-0" />
+                                )}
+                                <span>
+                                    {connection.mode === "agenta"
+                                        ? "Agenta-managed"
+                                        : "Self-managed"}{" "}
+                                    auth{" "}
+                                    {authSupported ? "is supported." : "is not supported here."}
+                                </span>
+                            </div>
+                        ) : null}
+                    </div>
+                </div>
+
+                {modelId && harnessList.some((h) => h !== harnessValue) ? (
+                    <div>
+                        <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                            If you switch
+                        </div>
+                        <div className="flex flex-col gap-2 text-xs">
+                            {harnessList
+                                .filter((h) => h !== harnessValue)
+                                .map((h) => {
+                                    const keeps = harnessAllowsModel(capabilities, h, modelId)
+                                    return (
+                                        <div key={h} className="flex items-start gap-1.5">
+                                            {keeps ? (
+                                                <Check
+                                                    size={14}
+                                                    className="mt-px shrink-0 text-[var(--ant-color-success)]"
+                                                />
+                                            ) : (
+                                                <Warning
+                                                    size={14}
+                                                    className="mt-px shrink-0 text-[var(--ant-color-warning)]"
+                                                />
+                                            )}
+                                            <span className="text-[var(--ag-c-586673,#586673)]">
+                                                <span className="text-[var(--ag-c-1C2C3D,#1c2c3d)]">
+                                                    {enumLabel(props.harness, h) || h}
+                                                </span>{" "}
+                                                {keeps
+                                                    ? "keeps your model."
+                                                    : "clears your model — pick a new one."}
+                                            </span>
+                                        </div>
+                                    )
+                                })}
+                        </div>
+                    </div>
+                ) : null}
+
+                <div>
+                    <div className="mb-2 flex items-center gap-1.5">
+                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                            Version history
+                        </span>
+                        <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[10px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                            soon
+                        </span>
+                    </div>
+                    <div className="flex flex-col gap-2.5 opacity-50">
+                        {[42, 32, 38].map((w, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
+                                <span
+                                    className="h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]"
+                                    style={{width: `${w}%`}}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        ) : null
+
+    // Model & harness drawer body. With inspect capabilities: harness cards + model picker on the
+    // left, a real compatibility panel on the right. Without them: the plain harness select.
+    const modelHarnessDrawerBody = capabilities ? (
+        <div className="flex gap-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-4">
+                <div className="flex gap-2 rounded-md bg-[var(--ant-color-fill-quaternary)] p-2.5">
+                    <Lightbulb
+                        size={15}
+                        className="mt-px shrink-0 text-[var(--ag-c-586673,#586673)]"
+                    />
+                    <span className="text-[11.5px] leading-snug text-[var(--ag-c-586673,#586673)]">
+                        The harness is the runtime that executes your agent. It decides which
+                        providers, hosting and connection options you can use.
+                    </span>
+                </div>
+                <div>
+                    <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        Harness
+                    </div>
+                    {harnessCards}
+                </div>
+                {modelPicker}
+            </div>
+            <div className="w-[240px] shrink-0">{compatibilityPanel}</div>
+        </div>
+    ) : (
         <div className="flex flex-col gap-3">
             {props.harness && (
                 <HarnessSelectControl
@@ -1551,6 +1788,7 @@ export function AgentConfigControl({
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled}
+                width={capabilities ? 880 : 560}
             >
                 {modelHarnessDrawerBody}
             </SectionDrawer>
