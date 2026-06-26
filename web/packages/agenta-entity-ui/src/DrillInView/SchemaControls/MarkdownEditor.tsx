@@ -18,7 +18,7 @@
  * Controlled value: seeds from `value` and re-syncs when `value` changes from outside (e.g. a skill
  * upload populating the body), while leaving the cursor alone during local typing.
  */
-import {useEffect, useId, useLayoutEffect, useRef, useState} from "react"
+import {type CSSProperties, useEffect, useId, useLayoutEffect, useRef, useState} from "react"
 
 import {
     EditorProvider,
@@ -27,8 +27,7 @@ import {
     useLexicalComposerContext,
 } from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip} from "antd"
+import {Tag} from "antd"
 
 type MarkdownView = "source" | "rendered"
 
@@ -131,14 +130,14 @@ export function MarkdownEditor({
     }
 
     const viewToggle = canToggleView ? (
-        <Tooltip title={markdownView ? "Preview markdown" : "Edit source"}>
-            <Button
-                type="text"
-                icon={markdownView ? <MarkdownLogoIcon size={14} /> : <TextAa size={14} />}
-                onClick={() => setView(markdownView ? "rendered" : "source")}
-                disabled={disabled}
-            />
-        </Tooltip>
+        <button
+            type="button"
+            onClick={() => setView(markdownView ? "rendered" : "source")}
+            disabled={disabled}
+            className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-[var(--ag-c-97A4B0,#97a4b0)] transition-colors hover:text-[var(--ag-c-586673,#586673)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+            {markdownView ? "Rich text" : "Markdown"}
+        </button>
     ) : null
 
     // The toolbar lives in the editor's own header slot (inside its single border), so there is no
@@ -187,7 +186,10 @@ export function MarkdownEditor({
                 placeholder={placeholder}
                 editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
                 syncWithInitialValueChanges
-                style={fill ? {minHeight: "calc(100vh - 220px)"} : undefined}
+                // Bounded height (not min-height) so the toolbar header stays pinned and the content
+                // area scrolls inside the box instead of growing and pushing the toolbar away.
+                style={fill ? ({"--editor-h": "calc(100vh - 240px)"} as CSSProperties) : undefined}
+                editorClassName={fill ? "flex-1 min-h-0 overflow-y-auto" : undefined}
                 header={showToolbar ? toolbarHeader : plainHeader}
             />
             <MarkdownViewSync enabled={markdownView} />

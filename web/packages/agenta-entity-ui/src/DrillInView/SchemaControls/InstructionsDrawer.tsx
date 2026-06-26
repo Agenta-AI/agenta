@@ -39,23 +39,23 @@ export interface InstructionsDrawerProps {
 
 type DrawerMode = "edit" | "preview"
 
-// Suggested section scaffolds — clicking appends a heading plus a short prompt so the author has a
-// real starting point, not just an empty title. Purely additive; nothing is required.
+// Suggested section scaffolds — clicking appends a ready-to-edit starting point (a sentence plus a
+// couple of example bullets), not an instruction to the author. Purely additive; nothing is required.
 const SUGGESTIONS: {label: string; snippet: string}[] = [
     {
         label: "Output format",
         snippet:
-            "\n\n## Output format\n\nDescribe the exact shape the agent should return (for example, a JSON object with the fields the caller needs, or a short markdown summary).\n",
+            "\n\n## Output format\nRespond with a short, direct answer in plain text.\n- Lead with the answer, then a one-line reason.\n- Use bullet points for steps or lists.\n",
     },
     {
         label: "Tone & style",
         snippet:
-            "\n\n## Tone & style\n\nSet the voice: how formal or casual, how concise, and anything to avoid (jargon, hedging, emojis).\n",
+            "\n\n## Tone & style\nWrite in a warm, professional voice.\n- Keep it concise and free of jargon.\n- Mirror the user's language and level of formality.\n",
     },
     {
         label: "Guardrails",
         snippet:
-            "\n\n## Guardrails\n\nList what the agent must never do (for example, share internal data, give legal or medical advice, or promise things it can't deliver).\n",
+            "\n\n## Guardrails\nStay within the agent's scope.\n- Never share internal data or credentials.\n- Don't give legal, medical, or financial advice.\n- If a request is unclear, ask one clarifying question.\n",
     },
 ]
 
@@ -121,10 +121,10 @@ export function InstructionsDrawer({
                     </div>
                 </div>
             }
-            styles={{body: {padding: 16}}}
+            styles={{body: {padding: 16, overflow: "hidden"}}}
         >
-            <div className="flex h-full gap-6">
-                <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex h-full min-h-0 gap-6">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                     {mode === "edit" ? (
                         <MarkdownEditor
                             value={value}
