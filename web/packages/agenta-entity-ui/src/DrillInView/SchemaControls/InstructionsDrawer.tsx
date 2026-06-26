@@ -17,7 +17,7 @@
 import {useCallback, useState} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {ArrowsIn, ArrowsOut, FileText} from "@phosphor-icons/react"
+import {ArrowsIn, ArrowsOut, FileText, Lightbulb} from "@phosphor-icons/react"
 import {Button, Segmented, Tooltip} from "antd"
 
 import {MarkdownEditor} from "./MarkdownEditor"
@@ -39,12 +39,24 @@ export interface InstructionsDrawerProps {
 
 type DrawerMode = "edit" | "preview"
 
-// Suggested section scaffolds — clicking appends a heading to the draft so the author has a
-// starting point. Purely additive; nothing is required.
+// Suggested section scaffolds — clicking appends a heading plus a short prompt so the author has a
+// real starting point, not just an empty title. Purely additive; nothing is required.
 const SUGGESTIONS: {label: string; snippet: string}[] = [
-    {label: "Output format", snippet: "\n\n## Output format\n"},
-    {label: "Tone & style", snippet: "\n\n## Tone & style\n"},
-    {label: "Guardrails", snippet: "\n\n## Guardrails\n"},
+    {
+        label: "Output format",
+        snippet:
+            "\n\n## Output format\n\nDescribe the exact shape the agent should return (for example, a JSON object with the fields the caller needs, or a short markdown summary).\n",
+    },
+    {
+        label: "Tone & style",
+        snippet:
+            "\n\n## Tone & style\n\nSet the voice: how formal or casual, how concise, and anything to avoid (jargon, hedging, emojis).\n",
+    },
+    {
+        label: "Guardrails",
+        snippet:
+            "\n\n## Guardrails\n\nList what the agent must never do (for example, share internal data, give legal or medical advice, or promise things it can't deliver).\n",
+    },
 ]
 
 export function InstructionsDrawer({
@@ -111,8 +123,8 @@ export function InstructionsDrawer({
             }
             styles={{body: {padding: 16}}}
         >
-            <div className="flex gap-6">
-                <div className="min-w-0 flex-1">
+            <div className="flex h-full gap-6">
+                <div className="flex min-w-0 flex-1 flex-col">
                     {mode === "edit" ? (
                         <MarkdownEditor
                             value={value}
@@ -121,15 +133,13 @@ export function InstructionsDrawer({
                             showToolbar
                             defaultView="rendered"
                             hideHeader
+                            fill
                             placeholder={
                                 "# Role\n\nDescribe what the agent does and how it should behave…"
                             }
                         />
                     ) : (
-                        <div
-                            className="relative"
-                            style={{minHeight: expanded ? "70vh" : undefined}}
-                        >
+                        <div className="relative flex-1">
                             <Tooltip title={expanded ? "Collapse" : "Expand"}>
                                 <button
                                     type="button"
@@ -147,13 +157,33 @@ export function InstructionsDrawer({
                                 editable={false}
                                 hideHeader
                                 bordered={false}
+                                fill
                             />
                         </div>
                     )}
                 </div>
 
                 {!railHidden ? (
-                    <div className="flex w-[220px] shrink-0 flex-col gap-6">
+                    <div className="flex w-[240px] shrink-0 flex-col gap-6">
+                        {filename === "AGENTS.md" ? (
+                            <div className="rounded-md bg-[var(--ag-rgba-051729-04,rgba(5,23,41,0.04))] p-3">
+                                <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--ag-c-586673,#586673)]">
+                                    <Lightbulb size={14} />
+                                    Writing a good AGENTS.md
+                                </div>
+                                <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                    <li>
+                                        Open with the agent&apos;s role and goal in one or two
+                                        lines.
+                                    </li>
+                                    <li>
+                                        Keep short, labelled sections (Role, Tools, Guardrails).
+                                    </li>
+                                    <li>Be concrete about the output format and hard limits.</li>
+                                    <li>Prefer imperative instructions over long prose.</li>
+                                </ul>
+                            </div>
+                        ) : null}
                         <div>
                             <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
                                 Suggested

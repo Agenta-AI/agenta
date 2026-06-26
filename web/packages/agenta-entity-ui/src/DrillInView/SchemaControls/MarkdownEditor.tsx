@@ -50,9 +50,10 @@ export interface MarkdownEditorProps {
     editable?: boolean
     /** Drop the built-in filename/toggle header (the host supplies its own chrome). */
     hideHeader?: boolean
-    /** Draw a border around the editor. Ignored when `showToolbar` (toolbar+editor share a border).
-     * @default true */
+    /** Draw a border around the editor. @default true */
     bordered?: boolean
+    /** Fill the available height (tall min-height) instead of sizing to content. @default false */
+    fill?: boolean
 }
 
 /**
@@ -91,6 +92,7 @@ export function MarkdownEditor({
     editable = true,
     hideHeader = false,
     bordered = true,
+    fill = false,
 }: MarkdownEditorProps) {
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
@@ -139,38 +141,31 @@ export function MarkdownEditor({
         </Tooltip>
     ) : null
 
-    const sharedEditor = (
-        <SharedEditor
-            id={editorId}
-            noProvider
-            // When the toolbar wraps the editor, the editor itself is borderless so they share one
-            // outer border (no nested boxes).
-            editorType={showToolbar || !bordered ? "borderless" : "border"}
-            initialValue={text}
-            value={text}
-            handleChange={handleChange}
-            disabled={editorDisabled}
-            placeholder={placeholder}
-            editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
-            syncWithInitialValueChanges
-            header={
-                showToolbar || hideHeader ? undefined : (
-                    <div className="flex w-full items-center justify-between gap-2">
-                        {filename ? (
-                            <Tag
-                                bordered
-                                className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
-                            >
-                                {filename}
-                            </Tag>
-                        ) : (
-                            <span />
-                        )}
-                        {viewToggle}
-                    </div>
-                )
-            }
-        />
+    // The toolbar lives in the editor's own header slot (inside its single border), so there is no
+    // second wrapper border to flash on hover/focus. The negative margins bleed it to the border
+    // edges with a divider beneath.
+    const toolbarHeader = (
+        <div className="-mx-[11px] -mt-[11px] mb-2 flex items-center gap-1 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-1.5">
+            <MarkdownToolbar disabled={editorDisabled || markdownView} />
+            <span className="ml-auto" />
+            {viewToggle}
+        </div>
+    )
+
+    const plainHeader = hideHeader ? undefined : (
+        <div className="flex w-full items-center justify-between gap-2">
+            {filename ? (
+                <Tag
+                    bordered
+                    className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
+                >
+                    {filename}
+                </Tag>
+            ) : (
+                <span />
+            )}
+            {viewToggle}
+        </div>
     )
 
     return (
@@ -181,18 +176,20 @@ export function MarkdownEditor({
             showToolbar={false}
             disabled={editorDisabled}
         >
-            {showToolbar ? (
-                <div className="overflow-hidden rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]">
-                    <div className="flex items-center gap-1 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-2 py-1">
-                        <MarkdownToolbar disabled={editorDisabled || markdownView} />
-                        <span className="ml-auto" />
-                        {viewToggle}
-                    </div>
-                    {sharedEditor}
-                </div>
-            ) : (
-                sharedEditor
-            )}
+            <SharedEditor
+                id={editorId}
+                noProvider
+                editorType={bordered ? "border" : "borderless"}
+                initialValue={text}
+                value={text}
+                handleChange={handleChange}
+                disabled={editorDisabled}
+                placeholder={placeholder}
+                editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
+                syncWithInitialValueChanges
+                style={fill ? {minHeight: "calc(100vh - 220px)"} : undefined}
+                header={showToolbar ? toolbarHeader : plainHeader}
+            />
             <MarkdownViewSync enabled={markdownView} />
         </EditorProvider>
     )

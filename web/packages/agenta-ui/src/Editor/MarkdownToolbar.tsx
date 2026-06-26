@@ -84,6 +84,9 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
             aria-label={label}
             aria-pressed={isActive}
             disabled={disabled}
+            // Keep focus (and the selection) in the editor so the command applies to the selected
+            // text instead of being lost when the button steals focus.
+            onMouseDown={(e) => e.preventDefault()}
             onClick={onClick}
             className={[
                 "flex h-7 w-7 items-center justify-center rounded border-0 bg-transparent transition-colors",
