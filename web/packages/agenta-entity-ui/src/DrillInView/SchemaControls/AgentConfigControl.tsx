@@ -664,18 +664,12 @@ export function AgentConfigControl({
         [setField, modelId, connection, config.model, capabilities, harnessValue],
     )
 
-    // On harness switch, clear a model the new harness can't reach (rather than sending an
-    // unsupported model). Permissive when the new harness publishes no models.
-    useEffect(() => {
-        if (!harnessValue || !modelId) return
-        if (!harnessAllowsModel(capabilities, harnessValue, modelId)) {
-            // Drop the stale named connection too, not just the model id/provider.
-            writeModel({modelId: null, provider: null, slug: null})
-        }
-        // Only react to harness/capabilities changes, not every model edit.
-    }, [harnessValue, capabilities])
+    // NB: we deliberately do NOT clear the model when switching to a harness that can't reach it
+    // (Arda's call). The model is kept and the compatibility panel flags it as not reachable so the
+    // user can pick a new one — keeping their choice over silently wiping it. (Save can persist an
+    // unreachable model that errors at run time; that's the accepted trade-off.)
 
-    // Also reset a connection mode the new harness no longer allows. Guarded on a non-empty
+    // Reset a connection mode the new harness no longer allows. Guarded on a non-empty
     // option set so a harness that publishes no modes stays permissive (and we never loop).
     // Slug validity is intentionally NOT normalized here: connectionOptions is vault-secret
     // async, so an empty set during load would wrongly clear a valid slug.
@@ -1051,7 +1045,7 @@ export function AgentConfigControl({
                                     )}
                                 >
                                     {keepsModel ? <Check size={11} /> : <Warning size={11} />}
-                                    {keepsModel ? "keeps your model" : "clears your model"}
+                                    {keepsModel ? "supports your model" : "model not available"}
                                 </span>
                             ) : null}
                         </div>
@@ -1159,8 +1153,8 @@ export function AgentConfigControl({
                                                     {enumLabel(props.harness, h) || h}
                                                 </span>{" "}
                                                 {keeps
-                                                    ? "keeps your model."
-                                                    : "clears your model — pick a new one."}
+                                                    ? "supports your model."
+                                                    : "doesn't support your model — pick a new one."}
                                             </span>
                                         </div>
                                     )

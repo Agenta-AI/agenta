@@ -69,12 +69,14 @@ the Claude harness; a note that permission policy isn't used by Pi.
 models, and hosting/deployments**. It does NOT describe which **tools, skills, or MCP servers** a
 harness supports. Consequences:
 
-- The Model & harness compatibility panel + the per-card "keeps/clears your model" status only
-  reason about the MODEL and auth, not about tools/skills/MCP. Switching harness could silently
-  leave tools that the target harness can't run, and we do not warn or gate them.
-- Switching harness clears the model when the current model id isn't valid under the new harness
-  (different namespaces — Claude uses aliases like `sonnet`, Pi uses provider-qualified ids). This
-  is intended and pre-warned by the compatibility panel; we deliberately do NOT remap.
+- The Model & harness compatibility panel + the per-card model-support status only reason about the
+  MODEL and auth, not about tools/skills/MCP. Switching harness could silently leave tools that the
+  target harness can't run, and we do not warn or gate them.
+- Switching harness does NOT clear the model, even when the current model id isn't valid under the
+  new harness (different namespaces — Claude uses aliases like `sonnet`, Pi uses provider-qualified
+  ids). The model is kept and the compatibility panel flags it as not reachable so the user can pick
+  a new one (Arda's call: keep the choice over silently wiping it). Trade-off: Save can persist an
+  unreachable model that errors at run time. We deliberately do NOT auto-remap.
 
 When the backend extends `harness_capabilities` with tool/skill/MCP support, extend the
 compatibility panel to warn (and optionally lock the Tools/Skills/MCP sections) on an unsupported
