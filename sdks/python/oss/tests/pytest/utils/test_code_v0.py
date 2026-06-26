@@ -55,6 +55,32 @@ def run(coro):
     return asyncio.run(coro)
 
 
+# Markers that indicate the Daytona sandbox backend is unavailable (no usable
+# snapshot/region, depleted credits, suspended org) rather than a code defect.
+_DAYTONA_UNAVAILABLE_MARKERS = (
+    "Failed to create sandbox",
+    "is not available in region",
+    "No Daytona snapshot configured",
+    "Organization is suspended",
+    "Depleted credits",
+    "custom-code-server-error",
+)
+
+
+def maybe_xfail_for_daytona_error(exc: Exception, *, case_id: str) -> None:
+    """xfail when custom-code execution can't provision a Daytona sandbox.
+
+    code_v0 runs user code in a Daytona sandbox. When the environment lacks a
+    usable sandbox (no snapshot/region, depleted credits, suspended org), the
+    runner raises a CodeV0Error before the code can execute. That's an infra
+    gap, not a regression — so xfail rather than fail. When Daytona is properly
+    provisioned the marker never appears and the test runs normally (no XPASS).
+    """
+    text = str(exc)
+    if any(marker in text for marker in _DAYTONA_UNAVAILABLE_MARKERS):
+        pytest.xfail(f"[{case_id}] Daytona sandbox unavailable in this environment")
+
+
 def evaluate(body: str) -> str:
     """Wrap a one-liner body in a v2-compatible evaluate() function."""
     return f"def evaluate(inputs, output, trace):\n    {body}\n"
@@ -75,7 +101,13 @@ def call(
         params["threshold"] = threshold
     if version is not None:
         params["version"] = version
-    return run(_code_v0(parameters=params, inputs=inputs, outputs=outputs, trace=trace))
+    try:
+        return run(
+            _code_v0(parameters=params, inputs=inputs, outputs=outputs, trace=trace)
+        )
+    except CodeV0Error as exc:
+        maybe_xfail_for_daytona_error(exc, case_id=f"code_v0:{runtime}")
+        raise
 
 
 # ---------------------------------------------------------------------------

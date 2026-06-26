@@ -1,12 +1,22 @@
-from typing import Optional
+from os import getenv
+from json import loads
+from typing import List, Optional
+from traceback import format_exc
 from uuid import UUID
+
+from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.locking import acquire_lock, release_lock
-from oss.src.utils.common import env
+from oss.src.utils.common import env, is_ee
 
 from oss.src.middlewares import analytics
 from oss.src.services import db_manager
+from oss.src.services.db_manager import (
+    add_user_to_organization,
+    add_user_to_workspace,
+    add_user_to_project,
+)
 from oss.src.services.user_service import create_new_user, delete_user
 from oss.src.models.db_models import (
     OrganizationDB,
@@ -20,6 +30,58 @@ from oss.src.models.db_models import (
 from oss.src.core.organizations.exceptions import OrganizationCreationNotAllowedError
 
 log = get_module_logger(__name__)
+
+DEMOS = "AGENTA_DEMOS"
+DEMO_ROLE = "viewer"
+
+
+class Demo(BaseModel):
+    organization_id: str
+    workspace_id: str
+    project_id: str
+
+
+async def list_all_demos() -> List[Demo]:
+    demos = []
+
+    try:
+        demo_project_ids = loads(getenv(DEMOS) or "[]")
+
+        for project_id in demo_project_ids:
+            project = await db_manager.get_project_by_id(project_id)
+
+            if project is None:
+                continue
+
+            try:
+                demos.append(
+                    Demo(
+                        organization_id=str(project.organization_id),
+                        workspace_id=str(project.workspace_id),
+                        project_id=str(project.id),
+                    )
+                )
+
+            except Exception:
+                log.error(format_exc())
+
+    except Exception:
+        log.error(format_exc())
+
+    return demos
+
+
+async def add_user_to_demos(user_id: str) -> None:
+    demos = await list_all_demos()
+
+    for organization_id in {demo.organization_id for demo in demos}:
+        await add_user_to_organization(organization_id, user_id)
+
+    for workspace_id in {demo.workspace_id for demo in demos}:
+        await add_user_to_workspace(workspace_id, user_id, DEMO_ROLE)
+
+    for project_id in {demo.project_id for demo in demos}:
+        await add_user_to_project(project_id, user_id, DEMO_ROLE, is_demo=True)
 
 
 def can_create_organization(email: str) -> bool:
@@ -167,7 +229,11 @@ async def create_organization_for_signup(
     organization_name: Optional[str] = None,
     organization_description: Optional[str] = None,
 ) -> OrganizationDB:
-    """Create an organization for a newly signed-up user."""
+    """Create an organization for a newly signed-up user.
+
+    EE provisions the signup subscription + seeds the user gauge; OSS captures
+    a deployment-created analytics event for the first org.
+    """
 
     user = await db_manager.get_user(str(user_id))
     if not user:
@@ -183,7 +249,16 @@ async def create_organization_for_signup(
 
     log.info("[scopes] Organization [%s] created", organization.id)
 
-    if is_first_organization:
+    if is_ee():
+        from ee.src.core.organizations.service import (  # noqa: PLC0415
+            provision_signup_subscription,
+        )
+
+        await provision_signup_subscription(
+            organization,
+            organization_email=organization_email,
+        )
+    elif is_first_organization:
         analytics.capture_oss_deployment_created(
             user_email=organization_email,
             organization_id=str(organization.id),
@@ -197,7 +272,10 @@ async def create_organization_for_user(
     organization_name: Optional[str] = None,
     organization_description: Optional[str] = None,
 ) -> OrganizationDB:
-    """Create an organization for an existing user (POST /organizations/)."""
+    """Create an organization for an existing user (POST /organizations/).
+
+    EE starts the default plan + seeds the user gauge.
+    """
 
     user = await db_manager.get_user(str(user_id))
     if not user:
@@ -214,6 +292,13 @@ async def create_organization_for_user(
 
     log.info("[scopes] Organization [%s] created", organization.id)
 
+    if is_ee():
+        from ee.src.core.organizations.service import (  # noqa: PLC0415
+            provision_user_subscription,
+        )
+
+        await provision_user_subscription(organization)
+
     return organization
 
 
@@ -223,8 +308,9 @@ async def create_accounts(
 ) -> UserDB:
     """Create a user account and, when allowed, a personal organization.
 
-    Mirrors the EE signup flow minus EE-only concerns (demos, billing,
-    marketing emails).
+    Demo seeding runs in both editions. Subscription-backed org creation and
+    the Loops marketing contact layer on (EE) via `is_ee()` seams inside the
+    org-creation flow / below.
     """
 
     user_dict = {
@@ -261,6 +347,8 @@ async def create_accounts(
         if user_is_new and not user_has_organization:
             # If setup fails, delete the user to avoid orphaned records.
             try:
+                await add_user_to_demos(str(user.id))
+
                 if can_create_organization(email):
                     resolved_org_name = organization_name or user_dict["username"]
                     await create_organization_for_signup(
@@ -309,6 +397,15 @@ async def create_accounts(
                 "Error enforcing domain policies after signup",
                 exc_info=True,
             )
+
+        if is_ee():
+            try:
+                # Adds the contact to Loops for marketing emails.
+                from oss.src.utils import emailing  # noqa: PLC0415
+
+                emailing.add_contact(email)
+            except ConnectionError as ex:
+                log.warn("error adding contact to loops %s", ex)
 
         return user
 

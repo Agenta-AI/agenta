@@ -9,7 +9,6 @@ import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "a
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
-import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {updateUsername} from "@/oss/services/profile"
@@ -33,6 +32,7 @@ export const Actions: React.FC<{
 }> = ({member, hidden, organizationId, workspaceId, onResendInvite, selfMenu}) => {
     const {user} = member
     const isMember = user.status === "member"
+    const {canModifyRoles, canInviteMembers} = useWorkspacePermissions()
 
     const [resendLoading, setResendLoading] = useState(false)
     const {refetch} = useOrgData()
@@ -41,6 +41,7 @@ export const Actions: React.FC<{
     const [renameValue, setRenameValue] = useState(user.username || "")
 
     if (hidden && !selfMenu) return null
+    if (!selfMenu && !canInviteMembers && !canModifyRoles) return null
 
     const handleResendInvite = () => {
         if (!organizationId || !user.email || !workspaceId) return
@@ -114,7 +115,7 @@ export const Actions: React.FC<{
                               },
                           ]
                         : [
-                              ...(!isMember
+                              ...(!isMember && canInviteMembers
                                   ? [
                                         {
                                             key: "resend_invite",
@@ -127,16 +128,20 @@ export const Actions: React.FC<{
                                         },
                                     ]
                                   : []),
-                              {
-                                  key: "remove",
-                                  label: "Remove",
-                                  icon: <Trash size={16} />,
-                                  danger: true,
-                                  onClick: (e) => {
-                                      e.domEvent.stopPropagation()
-                                      handleRemove()
-                                  },
-                              },
+                              ...(canModifyRoles
+                                  ? [
+                                        {
+                                            key: "remove",
+                                            label: "Remove",
+                                            icon: <Trash size={16} />,
+                                            danger: true,
+                                            onClick: (e: any) => {
+                                                e.domEvent.stopPropagation()
+                                                handleRemove()
+                                            },
+                                        },
+                                    ]
+                                  : []),
                           ],
                 }}
             >
@@ -179,7 +184,6 @@ export const Roles: React.FC<{
     const {roles} = useWorkspaceRoles()
     const {selectedOrg, refetch} = useOrgData()
     const {canModifyRoles} = useWorkspacePermissions()
-    const {hasRBAC} = useEntitlements()
 
     const {user} = member
     const isOwner = user.id === selectedOrg?.owner_id
@@ -226,7 +230,7 @@ export const Roles: React.FC<{
                     </Tag>
                 </Tooltip>
             )}
-            {!readOnly && !loading && canModifyRoles && hasRBAC && (
+            {!readOnly && !loading && canModifyRoles && (
                 <Dropdown
                     trigger={["click"]}
                     menu={{

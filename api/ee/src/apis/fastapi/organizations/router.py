@@ -12,9 +12,9 @@ from ee.src.core.access.entitlements.service import (
     Flag,
 )
 
-from ee.src.services import db_manager_ee
-from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
-from ee.src.services.organization_service import (
+from oss.src.services import db_manager
+from oss.src.services.db_manager import get_user_org_and_workspace_id
+from ee.src.core.organizations.service import (
     OrganizationDomainsService,
     OrganizationProvidersService,
 )
@@ -51,7 +51,7 @@ async def verify_user_org_access(user_id: str, organization_id: str) -> None:
 
 async def require_email_or_social_or_root_enabled(organization_id: str) -> None:
     """Block domain/provider changes when SSO is the only allowed method."""
-    organization = await db_manager_ee.get_organization(organization_id)
+    organization = await db_manager.get_organization(organization_id)
     flags = organization.flags or {}
     allow_email = flags.get("allow_email", False)
     allow_social = flags.get("allow_social", False)
@@ -68,7 +68,7 @@ async def require_email_or_social_or_root_enabled(organization_id: str) -> None:
 
 async def require_domains_and_auto_join_disabled(organization_id: str) -> None:
     """Block edits to verified domains when domains-only or auto-join is enabled."""
-    organization = await db_manager_ee.get_organization(organization_id)
+    organization = await db_manager.get_organization(organization_id)
     flags = organization.flags or {}
     if flags.get("domains_only") or flags.get("auto_join"):
         raise HTTPException(

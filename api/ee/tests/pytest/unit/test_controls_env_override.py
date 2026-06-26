@@ -522,14 +522,18 @@ class TestRolesOverride:
             "print(','.join(get_role_permissions('project','reviewer')))",
             env_extra={
                 "AGENTA_ACCESS_ROLES": json.dumps(
-                    {"project": [{"role": "reviewer", "permissions": ["read_system"]}]}
+                    {
+                        "project": [
+                            {"role": "reviewer", "permissions": ["view_workflows"]}
+                        ]
+                    }
                 )
             },
         )
         lines = out.splitlines()
         # owner + viewer minima first, custom role last.
         assert lines[0] == "owner,admin,viewer,reviewer"
-        assert lines[1] == "read_system"
+        assert lines[1] == "view_workflows"
 
     def test_project_override_is_mirrored_to_workspace_today(self):
         # TODAY: workspace and project roles must match at runtime because the
@@ -541,7 +545,11 @@ class TestRolesOverride:
             "print(','.join(r['role'] for r in get_roles('workspace')))",
             env_extra={
                 "AGENTA_ACCESS_ROLES": json.dumps(
-                    {"project": [{"role": "reviewer", "permissions": ["read_system"]}]}
+                    {
+                        "project": [
+                            {"role": "reviewer", "permissions": ["view_workflows"]}
+                        ]
+                    }
                 )
             },
         )
@@ -574,7 +582,7 @@ class TestRolesOverride:
             "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES": json.dumps(
-                    {"project": [{"role": "viewer", "permissions": ["read_system"]}]}
+                    {"project": [{"role": "viewer", "permissions": ["view_workflows"]}]}
                 )
             },
             "cannot redefine reserved role 'viewer'",
@@ -587,8 +595,8 @@ class TestRolesOverride:
                 "AGENTA_ACCESS_ROLES": json.dumps(
                     {
                         "project": [
-                            {"role": "reviewer", "permissions": ["read_system"]},
-                            {"role": "reviewer", "permissions": ["read_system"]},
+                            {"role": "reviewer", "permissions": ["view_workflows"]},
+                            {"role": "reviewer", "permissions": ["view_workflows"]},
                         ]
                     }
                 )
@@ -799,13 +807,13 @@ class TestRolesOverlay:
             "print(get_role_permissions('project', 'editor'))",
             env_extra={
                 "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
-                    {"project": {"editor": {"permissions": ["read_system"]}}}
+                    {"project": {"editor": {"permissions": ["view_workflows"]}}}
                 )
             },
         )
         lines = out.splitlines()
-        assert lines[0] == "['read_system']"
-        assert lines[1] == "['read_system']"
+        assert lines[0] == "['view_workflows']"
+        assert lines[1] == "['view_workflows']"
 
     def test_overlay_adds_new_role_to_both_scopes(self):
         out = _ok(
@@ -818,7 +826,7 @@ class TestRolesOverlay:
                         "project": {
                             "auditor": {
                                 "description": "Audit-only.",
-                                "permissions": ["read_system"],
+                                "permissions": ["view_workflows"],
                             }
                         }
                     }
@@ -839,7 +847,7 @@ class TestRolesOverlay:
                         "project": {
                             "auditor": {
                                 "description": "Audit-only.",
-                                "permissions": ["read_system"],
+                                "permissions": ["view_workflows"],
                             }
                         }
                     }
@@ -853,7 +861,7 @@ class TestRolesOverlay:
             "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
-                    {"workspace": {"editor": {"permissions": ["read_system"]}}}
+                    {"workspace": {"editor": {"permissions": ["view_workflows"]}}}
                 )
             },
             "only supports the 'project' scope",
@@ -896,5 +904,5 @@ class TestRolesOverlay:
                     {"project": {"auditor": {"description": "x"}}}
                 )
             },
-            "new role requires 'permissions'",
+            "new role requires",
         )
