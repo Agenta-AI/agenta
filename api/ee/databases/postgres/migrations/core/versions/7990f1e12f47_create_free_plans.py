@@ -20,10 +20,12 @@ import stripe
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.models.db_models import UserDB
-from oss.src.models.deprecated_models import AppDB
-from ee.src.models.db_models import OrganizationMemberDB
+from oss.databases.postgres.migrations.core.deprecated_models import AppDB
+from oss.src.models.db_models import OrganizationMemberDB
 from oss.src.models.db_models import ProjectDB
-from ee.src.models.extended.deprecated_models import DeprecatedOrganizationDB
+from ee.databases.postgres.migrations.core.deprecated_models import (
+    DeprecatedOrganizationDB,
+)
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 
 # Historical reference: both `Gauge.APPLICATIONS` and the legacy `Gauge.USERS`

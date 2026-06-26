@@ -11,7 +11,7 @@ from sqlalchemy.future import select
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-from ee.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
+from oss.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
 from oss.src.models.db_models import ProjectDB as ProjectDBE
 from oss.src.dbs.postgres.testcases.dbes import (
     TestcaseBlobDBE,
@@ -26,7 +26,7 @@ from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testcases.service import TestcasesService
-from oss.src.models.deprecated_models import DeprecatedTestsetDB
+from oss.databases.postgres.migrations.core.deprecated_models import DeprecatedTestsetDB
 from oss.src.core.testsets.dtos import (
     TestsetRevisionCommit,
     TestsetRevisionData,

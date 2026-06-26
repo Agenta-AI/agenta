@@ -23,7 +23,7 @@ class DefaultPlan(str, Enum):
 
 # Permission slugs that the OWNER role always implies. `"*"` is the wildcard
 # permission recognized by `permissions.py`. The `RequiredRole` enum itself now
-# lives in `ee.src.core.access.permissions.types`.
+# lives in `oss.src.core.access.permissions.types`.
 OWNER_PERMISSIONS: list[str] = ["*"]
 
 

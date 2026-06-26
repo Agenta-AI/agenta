@@ -127,8 +127,12 @@ def _parse_bool_env(name: str, default: bool) -> bool:
 class AccessConfig(BaseModel):
     """Access controls (allow/block lists, plans + roles, default plan).
 
-    JSON env vars are parsed here at startup. Schema validation happens in
-    ``ee.src.core.access.controls``.
+    JSON env vars are parsed here at startup. The auth/onboarding controls
+    (allow/block lists, allowed owner emails, email kill-switch) are OSS and
+    consumed in both editions. Plans (`plans`, `default_plan*`) and custom-role
+    overrides (`roles`, `roles_overlay`) are EE features: they are parsed here
+    but only validated/applied by EE (`ee.src.core.access`). OSS enforces the
+    code-default role catalog regardless of `roles`/`roles_overlay`.
 
     `default_plan` lives here (not under `agenta`) because it's part of the
     access-controls surface: it selects which entry of the effective plan

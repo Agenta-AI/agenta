@@ -8,7 +8,7 @@ from sqlalchemy import and_, distinct, func
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.future import select
 
-from ee.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
+from oss.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
 from oss.src.core.environments.dtos import (
     EnvironmentCreate,
     EnvironmentRevisionCommit,

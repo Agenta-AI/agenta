@@ -99,19 +99,22 @@ export const useProjectPermissions = () => {
         return Boolean(selectedOrgId && selectedProjectId && !orgLoading && !projectLoading)
     }, [orgLoading, projectLoading, selectedOrgId, selectedProjectId])
 
+    // OSS always enforces; EE only when RBAC-entitled.
+    const rbacActive = !isEE() || hasRBAC
+
     const hasPermission = useCallback(
         (permission: ProjectPermission) => {
-            if (!isEE() || !hasRBAC) return true
+            if (!rbacActive) return true
             if (isOrgOwner) return true
             if (!isReady) return false
             return rolePermissions.has("*") || rolePermissions.has(permission)
         },
-        [hasRBAC, isOrgOwner, isReady, rolePermissions],
+        [rbacActive, isOrgOwner, isReady, rolePermissions],
     )
 
     const hasRole = useCallback(
         (role: ProjectRole) => {
-            if (!isEE() || !hasRBAC) return true
+            if (!rbacActive) return true
             if (isOrgOwner) return true
             if (!isReady) return false
             if (role === "owner") {
@@ -119,7 +122,7 @@ export const useProjectPermissions = () => {
             }
             return roles.has(role)
         },
-        [hasRBAC, isOrgOwner, isReady, roles, selectedProjectRole],
+        [rbacActive, isOrgOwner, isReady, roles, selectedProjectRole],
     )
 
     return {

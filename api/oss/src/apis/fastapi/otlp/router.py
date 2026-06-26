@@ -18,13 +18,12 @@ from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
 
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
 
 if TYPE_CHECKING:
     from oss.src.core.tracing.service import TracingService
@@ -114,13 +113,12 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         # Permission check
         # -------------------------------------------------------------------- #
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # -------------------------------------------------------------------- #
         # Parse request into OTLP stream
