@@ -56,15 +56,42 @@ async def deliver_http(
     url = base_url.rstrip("/") + "/run"
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(url, json=payload, headers=_runner_auth_headers())
-    # Any non-2xx is a transport failure; 4xx left to fall through surfaces as an opaque
-    # JSON parse error instead of a clear runner failure. The response body can carry internal
-    # detail, so it is logged, not surfaced.
+    # A run failure comes back as HTTP 500 with a runner *result* body (``{"ok": false,
+    # "error": <concise message>}``; see ``server.ts``). That ``error`` is the actionable,
+    # already-sanitized provider message (e.g. "insufficient credit — add the project's
+    # Anthropic key"), and it is the SAME body the streaming path surfaces. Returning it lets
+    # ``result_from_wire`` raise with that message, so the batch path (``/invoke`` + the
+    # ``/messages`` JSON path) matches SSE instead of collapsing to a generic "HTTP 500".
+    body = _runner_result_body(response)
+    if body is not None:
+        return body
+    # Anything else at >=400 is a genuine transport failure (proxy error, auth gate, non-result
+    # body). The response text can carry internal detail, so it is logged, not surfaced.
     if response.status_code >= 400:
         raise _transport_error(
             f"Agent runner HTTP {response.status_code}",
             detail=response.text[:1000],
         )
     return response.json()
+
+
+def _runner_result_body(response: Any) -> Optional[Dict[str, Any]]:
+    """The runner result JSON when ``response`` carries one, else ``None``.
+
+    A successful 2xx is always a result. A run-failure 500 carries the same result shape
+    (``{"ok": ..., "error": ...}``); recognizing it here keeps the actionable ``error`` instead
+    of discarding it as an opaque transport failure. A non-result error body (no ``ok`` key)
+    returns ``None`` so the caller falls through to the generic transport error.
+    """
+    if response.status_code < 400:
+        return response.json()
+    try:
+        data = response.json()
+    except Exception:  # pylint: disable=broad-except
+        return None
+    if isinstance(data, dict) and "ok" in data:
+        return data
+    return None
 
 
 async def deliver_subprocess(
