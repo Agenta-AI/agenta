@@ -22,7 +22,6 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceResponseData,
 )
 from agenta.sdk.agents.adapters.vercel.routing import (
-    register_agent_message_routes,
     set_vercel_message_protocol_headers,
 )
 from agenta.sdk.agents.adapters.vercel.messages import (
@@ -577,10 +576,6 @@ class route:
             except Exception as exception:
                 return await handle_inspect_failure(exception)
 
-        # Agent-only endpoints are Vercel/browser-protocol adapters. Keep their request
-        # folding, session id handling, and UI Message Stream details out of the generic
-        # workflow route decorator.
-
         invoke_responses: dict = {
             200: {
                 "description": "Negotiated response — format determined by Accept header",
@@ -619,25 +614,6 @@ class route:
             },
         }
 
-        agent_enabled = bool(self.flags and self.flags.get("is_agent"))
-
-        def _add_agent_routes(target: Any, prefix: str) -> None:
-            """Register the agent-only /messages route on a target
-            (sub-app / router / mount root), mirroring how /invoke + /inspect are added."""
-            register_agent_message_routes(
-                target,
-                prefix,
-                wf=wf,
-                invoke_responses=invoke_responses,
-                get_request_tracing_context=_get_request_tracing_context,
-                parse_accept=_parse_accept,
-                stream_media_types=STREAM_MEDIA_TYPES,
-                make_json_response=_make_json_response,
-                make_not_acceptable_response=_make_not_acceptable_response,
-                make_stream_response=_make_stream_response,
-                handle_failure=handle_invoke_failure,
-            )
-
         # ------------------------------------------------------------------
         # Legacy path: router= was provided.
         # Registers prefixed routes on the APIRouter without isolation.
@@ -655,8 +631,6 @@ class route:
                 methods=["POST"],
                 response_model=WorkflowInspectResponse,
             )
-            if agent_enabled:
-                _add_agent_routes(self.router_fallback, self.path)
             return foo
 
         # ------------------------------------------------------------------
@@ -679,8 +653,6 @@ class route:
                 methods=["POST"],
                 response_model=WorkflowInspectResponse,
             )
-            if agent_enabled:
-                _add_agent_routes(self.mount_root, "")
 
             return foo
 
@@ -698,8 +670,6 @@ class route:
             methods=["POST"],
             response_model=WorkflowInspectResponse,
         )
-        if agent_enabled:
-            _add_agent_routes(sub_app, "")
 
         self.mount_root.mount(self.path, sub_app)
 

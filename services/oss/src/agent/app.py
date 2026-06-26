@@ -341,8 +341,7 @@ def create_agent_app():
     )
     register_meta(meta, uri=AGENT_URI)
     routed = ag.workflow(uri=AGENT_URI, schemas=AGENT_SCHEMAS, meta=meta)(_agent)
-    # is_agent gates the agent-only `/messages` route (next to /invoke).
-    ag.route("/", app=app, flags={"is_chat": True, "is_agent": True})(routed)
+    ag.route("/", app=app, flags={"is_chat": True})(routed)
     return app
 
 

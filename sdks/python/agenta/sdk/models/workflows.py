@@ -76,10 +76,10 @@ class WorkflowFlags(BaseModel):
     is_code: bool = False
     is_match: bool = False
     is_feedback: bool = False
+    is_agent: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
-    is_agent: bool = False
     ## hook
     has_url: bool = False
     ## code
@@ -108,10 +108,10 @@ class WorkflowQueryFlags(BaseModel):
     is_code: Optional[bool] = None
     is_match: Optional[bool] = None
     is_feedback: Optional[bool] = None
+    is_agent: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
-    is_agent: Optional[bool] = None
     ## hook
     has_url: Optional[bool] = None
     ## code

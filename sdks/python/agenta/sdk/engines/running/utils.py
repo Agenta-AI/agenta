@@ -687,6 +687,7 @@ def infer_flags_from_data(
     is_code = key == "code"
     is_match = key == "match"
     is_feedback = key == "feedback"
+    is_agent = key == "agent"
 
     # schema-derived flags
     inputs_schema = (
@@ -741,6 +742,7 @@ def infer_flags_from_data(
         is_code=is_code,
         is_match=is_match,
         is_feedback=is_feedback,
+        is_agent=is_agent,
         # schema-derived
         is_chat=is_chat,
         # interface-derived

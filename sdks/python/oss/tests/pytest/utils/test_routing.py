@@ -133,43 +133,23 @@ class TestRouteIsolation:
 
 
 # ---------------------------------------------------------------------------
-# 2b. Agent-only endpoints (/messages), gated on is_agent
+# 2b. /messages was removed — /invoke is the single agent-capable endpoint
 # ---------------------------------------------------------------------------
 
 
-class TestAgentEndpoints:
-    def test_is_agent_sub_app_has_messages(self):
+class TestNoMessagesEndpoint:
+    def test_route_never_registers_messages(self):
+        # /messages and the is_agent gate are gone; an agent-flagged route exposes
+        # only /invoke + /inspect, and the agent serves its UI Message Stream there.
         app = create_app()
 
-        @route("/chat", app=app, flags={"is_agent": True})
-        async def chat():
-            return {"role": "assistant", "content": "hi"}
-
-        schema = _mounts(app)["/chat"].app.openapi()
-        assert "/messages" in schema["paths"]
-        assert "/invoke" in schema["paths"]  # the base routes are still present
-
-    def test_non_agent_route_has_no_agent_endpoints(self):
-        app = create_app()
-
-        @route("/qa", app=app)
-        async def qa():
-            return "answer"
-
-        schema = _mounts(app)["/qa"].app.openapi()
-        assert "/messages" not in schema["paths"]
-
-    def test_root_agent_route_registers_on_mount_root(self):
-        # The agent app uses route("/", app=app, flags={"is_agent": True}); the endpoints
-        # land on the app itself, not a mounted sub-app.
-        app = create_app()
-
-        @route("/", app=app, flags={"is_agent": True})
+        @route("/", app=app, flags={"is_chat": True})
         async def agent():
             return {"role": "assistant", "content": "hi"}
 
         schema = app.openapi()
-        assert "/messages" in schema["paths"]
+        assert "/messages" not in schema["paths"]
+        assert "/invoke" in schema["paths"]
 
 
 # ---------------------------------------------------------------------------
