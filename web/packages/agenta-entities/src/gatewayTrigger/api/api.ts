@@ -317,11 +317,12 @@ export const createTriggerSubscription = async (
  */
 export const testTriggerSubscription = async (
     subscription: TriggerSubscriptionCreate,
+    options?: {signal?: AbortSignal},
 ): Promise<TriggerDeliveryResponse> => {
     const {data} = await axios.post(
         `${triggersBaseUrl()}/subscriptions/test`,
         {subscription},
-        {...projectScopedParams(), timeout: 70_000},
+        {...projectScopedParams(), timeout: 70_000, signal: options?.signal},
     )
     return (
         safeParseWithLogging(triggerDeliveryResponseSchema, data, "[testTriggerSubscription]") ?? {

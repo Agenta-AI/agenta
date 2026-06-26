@@ -177,7 +177,8 @@ class TriggerSubscriptionData(BaseModel):
     trigger_config: Optional[Dict[str, Any]] = None
     #
     # MAPPING — inputs-only template resolved into WorkflowServiceRequest.data.inputs.
-    inputs_fields: Optional[Dict[str, Any]] = None
+    # A bare selector string (e.g. "$") is allowed at top level = whole context.
+    inputs_fields: Optional[Union[Dict[str, Any], str]] = None
     #
     # DESTINATION — the bound workflow, by reference (the /retrieve shape).
     references: Optional[Dict[str, Reference]] = None
@@ -241,7 +242,8 @@ class TriggerScheduleData(BaseModel):
     end_time: Optional[datetime] = None
     #
     # MAPPING — inputs-only template resolved into WorkflowServiceRequest.data.inputs.
-    inputs_fields: Optional[Dict[str, Any]] = None
+    # A bare selector string (e.g. "$") is allowed at top level = whole context.
+    inputs_fields: Optional[Union[Dict[str, Any], str]] = None
     #
     # DESTINATION — the bound workflow, by reference (the /retrieve shape).
     references: Optional[Dict[str, Reference]] = None

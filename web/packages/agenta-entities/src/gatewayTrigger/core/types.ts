@@ -216,7 +216,8 @@ export const triggerSubscriptionDataSchema = z
     .object({
         event_key: z.string(),
         trigger_config: z.record(z.string(), z.unknown()).nullish(),
-        inputs_fields: z.record(z.string(), z.unknown()).nullish(),
+        // Object (field-by-field) or a bare selector string (e.g. "$" = whole context).
+        inputs_fields: z.union([z.record(z.string(), z.unknown()), z.string()]).nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
         selector: triggerSelectorSchema.nullish(),
     })
@@ -380,7 +381,8 @@ export const triggerScheduleDataSchema = z
         // Optional UTC window bounds; ISO strings, [start_time, end_time).
         start_time: z.string().nullish(),
         end_time: z.string().nullish(),
-        inputs_fields: z.record(z.string(), z.unknown()).nullish(),
+        // Object (field-by-field) or a bare selector string (e.g. "$" = whole context).
+        inputs_fields: z.union([z.record(z.string(), z.unknown()), z.string()]).nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
         selector: triggerSelectorSchema.nullish(),
     })

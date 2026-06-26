@@ -33,6 +33,10 @@ import {
 
 const DEFAULT_PROVIDER = "composio"
 
+// Default demonstrates the object shape (so users learn they can map field-by-field)
+// while `$` captures the whole context. A bare "$" string is also valid.
+const DEFAULT_INPUTS_MAPPING = '{"context": "$"}'
+
 // The bound reference is always `application_*` (see handleSubmit), so the picker
 // only offers application workflows (is_application=True).
 const applicationRevisionAdapter = createWorkflowRevisionAdapter({
@@ -98,7 +102,9 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     const [workflowSelection, setWorkflowSelection] =
         useState<WorkflowRevisionSelectionResult | null>(null)
     const [workflowLabel, setWorkflowLabel] = useState<string | null>(null)
-    const [inputsText, setInputsText] = useState("{}")
+    // Default maps the whole event context under `context` so a fresh test shows
+    // everything; `$` resolves to the full resolution context.
+    const [inputsText, setInputsText] = useState(DEFAULT_INPUTS_MAPPING)
     const [inputsError, setInputsError] = useState<string | null>(null)
 
     // Test = fire-and-inspect: create a transient is_test subscription, wait for
@@ -106,6 +112,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     // down server-side). The binding is NOT required to test.
     const [isTesting, setIsTesting] = useState(false)
     const [testResult, setTestResult] = useState<TriggerDelivery | null>(null)
+    const testAbortRef = useRef<AbortController | null>(null)
 
     const [configForm] = Form.useForm()
     const configFormRef = useRef<SchemaFormHandle>(null)
@@ -123,7 +130,11 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
             null
         setWorkflowRevId(wfId)
         setWorkflowLabel(wfId)
-        setInputsText(JSON.stringify(subscription.data?.inputs_fields ?? {}, null, 2))
+        setInputsText(
+            subscription.data?.inputs_fields
+                ? JSON.stringify(subscription.data.inputs_fields, null, 2)
+                : DEFAULT_INPUTS_MAPPING,
+        )
     }, [isEdit, subscription])
 
     const selectedConnection = useMemo<TriggerConnection | undefined>(
@@ -166,7 +177,9 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 return null
             }
 
-            let inputsFields: Record<string, unknown> = {}
+            // inputs_fields is either a JSON object (field-by-field) or a bare
+            // selector string (e.g. "$" = whole context).
+            let inputsFields: Record<string, unknown> | string = {}
             try {
                 inputsFields = inputsText.trim() ? JSON.parse(inputsText) : {}
                 setInputsError(null)
@@ -260,14 +273,15 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         const data = await buildData(false)
         if (!data || !connectionId) return
 
+        const controller = new AbortController()
+        testAbortRef.current = controller
         setIsTesting(true)
         setTestResult(null)
         try {
-            const {delivery} = await testTriggerSubscription({
-                name: name || null,
-                connection_id: connectionId,
-                data,
-            })
+            const {delivery} = await testTriggerSubscription(
+                {name: name || null, connection_id: connectionId, data},
+                {signal: controller.signal},
+            )
             if (delivery) {
                 setTestResult(delivery)
                 message.success("Captured a test event")
@@ -275,11 +289,20 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 message.info("No event arrived before the test timed out")
             }
         } catch (error) {
-            message.error(triggerApiErrorMessage(error, "Test failed"))
+            // A user-initiated cancel isn't an error; the server tears the test
+            // subscription down regardless of the dropped request.
+            if (!controller.signal.aborted) {
+                message.error(triggerApiErrorMessage(error, "Test failed"))
+            }
         } finally {
+            testAbortRef.current = null
             setIsTesting(false)
         }
     }, [buildData, connectionId, name])
+
+    const handleCancelTest = useCallback(() => {
+        testAbortRef.current?.abort()
+    }, [])
 
     if (isEdit && subLoading) {
         return (
@@ -398,20 +421,23 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
             <Divider className="!m-0" />
 
             <div className="flex items-center justify-between gap-2 px-6 py-3 shrink-0">
-                <Button loading={isTesting} disabled={isMutating} onClick={handleTest}>
-                    Test
-                </Button>
-                <div className="flex gap-2">
-                    <Button onClick={onClose}>Cancel</Button>
-                    <Button
-                        type="primary"
-                        loading={isMutating}
-                        disabled={isTesting}
-                        onClick={handleSubmit}
-                    >
-                        {isEdit ? "Save" : "Create"}
+                {isTesting ? (
+                    <Button danger onClick={handleCancelTest}>
+                        Cancel
                     </Button>
-                </div>
+                ) : (
+                    <Button disabled={isMutating} onClick={handleTest}>
+                        Test
+                    </Button>
+                )}
+                <Button
+                    type="primary"
+                    loading={isMutating}
+                    disabled={isTesting}
+                    onClick={handleSubmit}
+                >
+                    {isEdit ? "Save" : "Create"}
+                </Button>
             </div>
         </div>
     )
@@ -678,8 +704,23 @@ function analyzeMapping(
     } catch (e) {
         return {leaves: [], parseError: e instanceof Error ? e.message : "Invalid JSON"}
     }
+    // A bare selector string at top level maps the whole resolution to the inputs.
+    if (typeof parsed === "string") {
+        const isSelector = parsed.startsWith("$") || parsed.startsWith("/")
+        const resolved = isSelector && context ? resolveSelectorPreview(parsed, context) : undefined
+        return {
+            leaves: [
+                {
+                    key: "(whole context)",
+                    isSelector,
+                    resolved: resolved === undefined ? undefined : previewValue(resolved),
+                },
+            ],
+            parseError: null,
+        }
+    }
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        return {leaves: [], parseError: "Mapping must be a JSON object"}
+        return {leaves: [], parseError: "Mapping must be a JSON object or a selector string"}
     }
 
     const leaves: MappingLeaf[] = []
