@@ -19,7 +19,7 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {nestEvaluatorConfiguration, nestEvaluatorSchema} from "../../runnable/evaluatorTransforms"
+import {nestEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
@@ -1264,22 +1264,13 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
                 const nestedParams = flatParams
                     ? nestEvaluatorConfiguration(flatParams, flatSchema)
                     : undefined
-                const nestedSchema = flatSchema ? nestEvaluatorSchema(flatSchema) : undefined
 
-                if (nestedParams || nestedSchema) {
+                if (nestedParams) {
                     localData = {
                         ...localData,
                         data: {
                             ...localData.data,
                             ...(nestedParams ? {parameters: nestedParams} : {}),
-                            ...(nestedSchema
-                                ? {
-                                      schemas: {
-                                          ...localData.data?.schemas,
-                                          parameters: nestedSchema,
-                                      },
-                                  }
-                                : {}),
                         },
                     } as Workflow
                 }
@@ -1313,14 +1304,6 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
                         data: {
                             ...localMerged.data,
                             parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
-                            ...(reNestSchema
-                                ? {
-                                      schemas: {
-                                          ...localMerged.data?.schemas,
-                                          parameters: nestEvaluatorSchema(reNestSchema),
-                                      },
-                                  }
-                                : {}),
                         },
                     } as Workflow
                 }
@@ -1350,22 +1333,13 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
             const nestedParams = flatParams
                 ? nestEvaluatorConfiguration(flatParams, flatSchema)
                 : undefined
-            const nestedSchema = flatSchema ? nestEvaluatorSchema(flatSchema) : undefined
 
-            if (nestedParams || nestedSchema) {
+            if (nestedParams) {
                 merged = {
                     ...merged,
                     data: {
                         ...merged.data,
                         ...(nestedParams ? {parameters: nestedParams} : {}),
-                        ...(nestedSchema
-                            ? {
-                                  schemas: {
-                                      ...merged.data?.schemas,
-                                      parameters: nestedSchema,
-                                  },
-                              }
-                            : {}),
                     },
                 } as Workflow
             }
@@ -1397,14 +1371,6 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
                     data: {
                         ...finalMerged.data,
                         parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
-                        ...(reNestSchema
-                            ? {
-                                  schemas: {
-                                      ...finalMerged.data?.schemas,
-                                      parameters: nestEvaluatorSchema(reNestSchema),
-                                  },
-                              }
-                            : {}),
                     },
                 } as Workflow
             }
@@ -1452,22 +1418,13 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
                 const nestedParams = flatParams
                     ? nestEvaluatorConfiguration(flatParams, flatSchema)
                     : undefined
-                const nestedSchema = flatSchema ? nestEvaluatorSchema(flatSchema) : undefined
 
-                if (nestedParams || nestedSchema) {
+                if (nestedParams) {
                     localData = {
                         ...localData,
                         data: {
                             ...localData.data,
                             ...(nestedParams ? {parameters: nestedParams} : {}),
-                            ...(nestedSchema
-                                ? {
-                                      schemas: {
-                                          ...localData.data?.schemas,
-                                          parameters: nestedSchema,
-                                      },
-                                  }
-                                : {}),
                         },
                     } as Workflow
                 }
@@ -1501,14 +1458,6 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
                         data: {
                             ...localMerged.data,
                             parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
-                            ...(reNestSchema
-                                ? {
-                                      schemas: {
-                                          ...localMerged.data?.schemas,
-                                          parameters: nestEvaluatorSchema(reNestSchema),
-                                      },
-                                  }
-                                : {}),
                         },
                     } as Workflow
                 }
@@ -1651,22 +1600,13 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
             const nestedParams = flatParams
                 ? nestEvaluatorConfiguration(flatParams, flatSchema)
                 : undefined
-            const nestedSchema = flatSchema ? nestEvaluatorSchema(flatSchema) : undefined
 
-            if (nestedParams || nestedSchema) {
+            if (nestedParams) {
                 merged = {
                     ...merged,
                     data: {
                         ...merged.data,
                         ...(nestedParams ? {parameters: nestedParams} : {}),
-                        ...(nestedSchema
-                            ? {
-                                  schemas: {
-                                      ...merged.data?.schemas,
-                                      parameters: nestedSchema,
-                                  },
-                              }
-                            : {}),
                     },
                 } as Workflow
             }
@@ -1698,14 +1638,6 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
                     data: {
                         ...finalMerged.data,
                         parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
-                        ...(reNestSchema
-                            ? {
-                                  schemas: {
-                                      ...finalMerged.data?.schemas,
-                                      parameters: nestEvaluatorSchema(reNestSchema),
-                                  },
-                              }
-                            : {}),
                     },
                 } as Workflow
             }
@@ -1825,19 +1757,10 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             return sortObjectKeys(normalized)
         }
 
-        // Server schemas.parameters stays flat for evaluators while the entity
-        // side is nested (nestEvaluatorSchema in workflowBaseEntityAtomFamily).
-        // Nest the server schema too so the whole-data diff is like-for-like.
-        const rawServerSchemaParams = serverData.data?.schemas?.parameters as
-            | Record<string, unknown>
-            | undefined
-        const serverSchemas =
-            rawServerSchemaParams && serverData.flags?.is_evaluator
-                ? {
-                      ...serverData.data?.schemas,
-                      parameters: nestEvaluatorSchema(rawServerSchemaParams),
-                  }
-                : serverData.data?.schemas
+        // Both entity and server schemas.parameters are now flat for evaluators
+        // (schema nesting was removed from the entity layer — see #4808),
+        // so no re-nesting is needed for a like-for-like comparison.
+        const serverSchemas = serverData.data?.schemas
 
         // Compare the whole data object (so code/hook fields register as dirty),
         // keeping parameters and schemas normalized to avoid false positives.

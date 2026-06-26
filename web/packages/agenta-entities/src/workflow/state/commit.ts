@@ -86,19 +86,13 @@ function prepareCommitParameters(
 
 /**
  * Prepare schemas for the commit API.
- * Commits the edited `data.schemas` so input/output schema edits persist.
- * For evaluators the `parameters` subkey carries a display-only nesting transform
- * with no flatten inverse, so it is restored from the flat server schema.
+ * Commits the edited `data.schemas` so input/output AND parameters schema
+ * edits persist. Evaluator schemas are kept flat at the entity layer (see
+ * #4808), so no special-casing or restoration from the flat server schema
+ * is needed here anymore — the edited schema commits as-is.
  */
-function prepareCommitSchemas(
-    entity: Workflow,
-    flatSchemas: WorkflowData["schemas"] | null,
-): WorkflowData["schemas"] | undefined {
-    const edited = entity.data?.schemas
-    if (!entity.flags?.is_evaluator || !edited) {
-        return edited
-    }
-    return {...edited, parameters: flatSchemas?.parameters ?? edited.parameters}
+function prepareCommitSchemas(entity: Workflow): WorkflowData["schemas"] | undefined {
+    return entity.data?.schemas
 }
 
 // ============================================================================
@@ -260,7 +254,6 @@ export const commitWorkflowRevisionAtom = atom(
             const flatSource = getFlatSourceData(get, revisionId)
             const flatParams =
                 (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
-            const flatSchemas = flatSource?.data?.schemas ?? null
 
             // 2. Call the revision commit endpoint directly.
             // We do NOT use `updateWorkflow` here — that function also fires a
@@ -288,7 +281,7 @@ export const commitWorkflowRevisionAtom = atom(
                     script: entity.data.script,
                     runtime: entity.data.runtime,
                     parameters: prepareCommitParameters(entity, flatParams),
-                    schemas: prepareCommitSchemas(entity, flatSchemas),
+                    schemas: prepareCommitSchemas(entity),
                 },
             })
 
@@ -419,7 +412,6 @@ export const createWorkflowVariantAtom = atom(
             const flatSource = getFlatSourceData(get, baseRevisionId)
             const flatParams =
                 (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
-            const flatSchemas = flatSource?.data?.schemas ?? null
 
             const workflowId = entity.workflow_id ?? entity.id
             if (!entity.data) {
@@ -470,7 +462,7 @@ export const createWorkflowVariantAtom = atom(
                     script: entity.data.script,
                     runtime: entity.data.runtime,
                     parameters: prepareCommitParameters(entity, flatParams),
-                    schemas: prepareCommitSchemas(entity, flatSchemas),
+                    schemas: prepareCommitSchemas(entity),
                 },
             })
 
@@ -578,7 +570,6 @@ export const createWorkflowFromEphemeralAtom = atom(
             const flatSource = getFlatSourceData(get, revisionId)
             const flatParams =
                 (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
-            const flatSchemas = flatSource?.data?.schemas ?? null
 
             // 2. Generate a unique slug (never use the template key)
             const workflowName = name || entity.name || "Workflow"
@@ -600,7 +591,7 @@ export const createWorkflowFromEphemeralAtom = atom(
                     ? {
                           uri: entity.data.uri,
                           parameters: prepareCommitParameters(entity, flatParams),
-                          schemas: prepareCommitSchemas(entity, flatSchemas),
+                          schemas: prepareCommitSchemas(entity),
                       }
                     : undefined,
             })
