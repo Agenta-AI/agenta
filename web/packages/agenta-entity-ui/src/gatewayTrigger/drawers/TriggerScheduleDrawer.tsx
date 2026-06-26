@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
 import {
     describeCron,
     isEntityActive,
@@ -24,12 +25,14 @@ import {
     Drawer,
     Form,
     Input,
+    Segmented,
     Spin,
     Switch,
+    Select,
     Typography,
     message,
 } from "antd"
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 
 import {
     createWorkflowRevisionAdapter,
@@ -109,6 +112,14 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
     const [inputsText, setInputsText] = useState("{}")
     const [inputsError, setInputsError] = useState<string | null>(null)
 
+    // Run agent version: bind to a specific revision (the picker) or to an
+    // environment (always runs whatever is deployed there).
+    const [bindMode, setBindMode] = useState<"revision" | "environment">("revision")
+    const [environmentSlug, setEnvironmentSlug] = useState<string | null>(null)
+    const [appSlug, setAppSlug] = useState<string | null>(null)
+    const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
+    const environments = envQuery.data?.environments ?? []
+
     // Prefill from the freshly-fetched schedule (edit mode).
     useEffect(() => {
         if (!isEdit || !schedule) return
@@ -117,13 +128,21 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
         setStartTime(schedule.data?.start_time ?? null)
         setEndTime(schedule.data?.end_time ?? null)
         setEnabled(isEntityActive(schedule))
-        const wfId =
-            schedule.data?.references?.application_revision?.id ??
-            schedule.data?.references?.application_variant?.id ??
-            schedule.data?.references?.workflow_revision?.id ??
-            null
-        setWorkflowRevId(wfId)
-        setWorkflowLabel(wfId)
+        const refs = schedule.data?.references
+        const envRef = refs?.environment
+        if (envRef) {
+            setBindMode("environment")
+            setEnvironmentSlug(envRef.slug ?? null)
+            setAppSlug(refs?.application?.slug ?? null)
+        } else {
+            const wfId =
+                refs?.application_revision?.id ??
+                refs?.application_variant?.id ??
+                refs?.workflow_revision?.id ??
+                null
+            setWorkflowRevId(wfId)
+            setWorkflowLabel(wfId)
+        }
         setInputsText(JSON.stringify(schedule.data?.inputs_fields ?? {}, null, 2))
     }, [isEdit, schedule])
 
@@ -135,6 +154,7 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
     useEffect(() => {
         if (isEdit) return
         const refs = state?.defaultReferences
+        setAppSlug(refs?.application?.slug ?? null)
         const variantId = refs?.application_variant?.id ?? refs?.application_revision?.id ?? null
         if (!variantId) return
         const appId = refs?.application?.id ?? null
@@ -164,7 +184,11 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
             message.error(cronValidation.error ?? "Invalid cron expression")
             return
         }
-        if (!workflowRevId) {
+        if (bindMode === "environment" && !environmentSlug) {
+            message.error("Select an environment")
+            return
+        }
+        if (bindMode === "revision" && !workflowRevId) {
             message.error("Bind a workflow")
             return
         }
@@ -186,13 +210,25 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
         // On a fresh pick, send the application family by the picker's ids (its
         // leaf is the variant id). Without a re-pick (edit), resend the stored
         // already-complete references. The BE completes the family either way.
-        const meta = workflowSelection?.metadata
-        const references = meta
-            ? {
-                  ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
-                  application_variant: {id: workflowRevId},
-              }
-            : (schedule?.data?.references ?? {application_variant: {id: workflowRevId}})
+        let references: TriggerScheduleData["references"]
+        if (bindMode === "environment") {
+            references = environmentSlug
+                ? {
+                      environment: {slug: environmentSlug},
+                      ...(appSlug ? {application: {slug: appSlug}} : {}),
+                  }
+                : undefined
+        } else {
+            const meta = workflowSelection?.metadata
+            references = meta
+                ? {
+                      ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
+                      application_variant: {id: workflowRevId as string},
+                  }
+                : (schedule?.data?.references ?? {
+                      application_variant: {id: workflowRevId as string},
+                  })
+        }
 
         const data: TriggerScheduleData = {
             event_key: schedule?.data?.event_key ?? SCHEDULE_EVENT_KEY,
@@ -242,6 +278,9 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
         cron,
         startTime,
         endTime,
+        bindMode,
+        environmentSlug,
+        appSlug,
         workflowRevId,
         workflowSelection,
         inputsText,
@@ -283,19 +322,48 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
                         onChangeEnd={setEndTime}
                     />
 
-                    <Form.Item label="Bound workflow" required>
-                        <div className="flex items-center gap-2">
-                            <EntityPicker<WorkflowRevisionSelectionResult>
-                                variant="popover-cascader"
-                                adapter={applicationRevisionAdapter}
-                                onSelect={(selection) => {
-                                    setWorkflowRevId(selection.id)
-                                    setWorkflowSelection(selection)
-                                    setWorkflowLabel(selection.label)
-                                }}
-                                size="small"
-                                placeholder={workflowLabel ?? "Select workflow revision"}
+                    <Form.Item label="Run agent version" required>
+                        <div className="flex flex-col gap-2">
+                            <Segmented
+                                value={bindMode}
+                                onChange={(v) => setBindMode(v as "revision" | "environment")}
+                                options={[
+                                    {label: "By revision", value: "revision"},
+                                    {label: "By environment", value: "environment"},
+                                ]}
                             />
+                            {bindMode === "revision" ? (
+                                <EntityPicker<WorkflowRevisionSelectionResult>
+                                    variant="popover-cascader"
+                                    adapter={applicationRevisionAdapter}
+                                    onSelect={(selection) => {
+                                        setWorkflowRevId(selection.id)
+                                        setWorkflowSelection(selection)
+                                        setWorkflowLabel(selection.label)
+                                    }}
+                                    size="small"
+                                    placeholder={workflowLabel ?? "Select workflow revision"}
+                                />
+                            ) : (
+                                <>
+                                    <Select
+                                        placeholder="Select an environment"
+                                        value={environmentSlug ?? undefined}
+                                        onChange={(v) => setEnvironmentSlug(v)}
+                                        loading={envQuery.isLoading}
+                                        options={environments.map((e) => ({
+                                            value: e.slug,
+                                            label: e.name || e.slug,
+                                        }))}
+                                    />
+                                    <Typography.Text
+                                        type="secondary"
+                                        className="!text-[11px] leading-snug"
+                                    >
+                                        Runs whatever revision is deployed to this environment.
+                                    </Typography.Text>
+                                </>
+                            )}
                         </div>
                     </Form.Item>
 

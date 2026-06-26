@@ -40,7 +40,7 @@ export interface SubscriptionDrawerState {
     // workflow (e.g. opened from an agent's config panel). Keyed like
     // `data.references` (`application`/`application_variant`); each value is a
     // `{id}` reference. Ignored in edit mode.
-    defaultReferences?: Record<string, {id: string}>
+    defaultReferences?: Record<string, {id?: string; slug?: string}>
     // Human-readable label for `defaultReferences` (e.g. the agent's name), so
     // the bound-workflow field shows a name instead of a raw id. Ignored in edit mode.
     defaultBoundLabel?: string
@@ -58,7 +58,7 @@ export interface ScheduleDrawerState {
     // (e.g. opened from an agent's config panel). Keyed like `data.references`
     // (`application`/`application_variant`); each value is a `{id}` reference.
     // Ignored in edit mode.
-    defaultReferences?: Record<string, {id: string}>
+    defaultReferences?: Record<string, {id?: string; slug?: string}>
     // Human-readable label for `defaultReferences` (e.g. the agent's name), so
     // the bound-workflow field shows a name instead of a raw id. Ignored in edit mode.
     defaultBoundLabel?: string

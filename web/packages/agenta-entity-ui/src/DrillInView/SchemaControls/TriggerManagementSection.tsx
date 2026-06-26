@@ -90,6 +90,9 @@ export function useAgentTriggers(entityId: string | null) {
     )
     const appId = revision?.workflow_id ?? null
     const variantId = revision?.workflow_variant_id ?? revision?.variant_id ?? null
+    // The app slug — needed for "By environment" binding, which resolves via the
+    // application slug + environment (see triggers/service.py `_normalize_references`).
+    const appSlug = (revision as {slug?: string} | null)?.slug ?? null
     // Readable label for the default binding so the drawer's bound-workflow field
     // shows the agent's name instead of a raw id. Falls back when the name is unresolved.
     const defaultBoundLabel = (revision as {name?: string} | null)?.name ?? "Current agent"
@@ -106,12 +109,14 @@ export function useAgentTriggers(entityId: string | null) {
     // store the picker's leaf id under `application_variant` (the BE completes the
     // family), so use the variant id when known, else the revision id.
     const defaultReferences = useMemo(() => {
-        const refs: Record<string, {id: string}> = {}
-        if (appId) refs.application = {id: appId}
+        const refs: Record<string, {id?: string; slug?: string}> = {}
+        if (appId || appSlug) {
+            refs.application = {...(appId ? {id: appId} : {}), ...(appSlug ? {slug: appSlug} : {})}
+        }
         const variantRef = variantId ?? entityId
         if (variantRef) refs.application_variant = {id: variantRef}
         return refs
-    }, [appId, variantId, entityId])
+    }, [appId, appSlug, variantId, entityId])
 
     const {subscriptions} = useTriggerSubscriptions()
     const {schedules} = useTriggerSchedules()

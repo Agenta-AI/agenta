@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
 import {
     isEntityActive,
     isEntityValid,
@@ -21,8 +22,20 @@ import {
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {Editor} from "@agenta/ui/editor"
 import {Lightning} from "@phosphor-icons/react"
-import {Button, Divider, Drawer, Form, Input, Select, Spin, Switch, Typography, message} from "antd"
-import {useAtom} from "jotai"
+import {
+    Button,
+    Divider,
+    Drawer,
+    Form,
+    Input,
+    Segmented,
+    Select,
+    Spin,
+    Switch,
+    Typography,
+    message,
+} from "antd"
+import {useAtom, useAtomValue} from "jotai"
 
 import SchemaForm, {type SchemaFormHandle} from "../../gatewayTool/components/SchemaForm"
 import {
@@ -107,6 +120,15 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     const [inputsText, setInputsText] = useState(DEFAULT_INPUTS_MAPPING)
     const [inputsError, setInputsError] = useState<string | null>(null)
 
+    // Run agent version: bind to a specific revision (the picker) or to an
+    // environment (always runs whatever is deployed there). Environment binding
+    // resolves via the app slug + environment (triggers/service.py).
+    const [bindMode, setBindMode] = useState<"revision" | "environment">("revision")
+    const [environmentSlug, setEnvironmentSlug] = useState<string | null>(null)
+    const [appSlug, setAppSlug] = useState<string | null>(null)
+    const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
+    const environments = envQuery.data?.environments ?? []
+
     // Test = fire-and-inspect: create a transient is_test subscription, wait for
     // the first captured event, show it. Independent of Save (separate row, torn
     // down server-side). The binding is NOT required to test.
@@ -124,12 +146,17 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         setConnectionId(subscription.connection_id)
         setEventKey(subscription.data?.event_key ?? "")
         setEnabled(isEntityActive(subscription))
-        const wfId =
-            subscription.data?.references?.application_revision?.id ??
-            subscription.data?.references?.workflow_revision?.id ??
-            null
-        setWorkflowRevId(wfId)
-        setWorkflowLabel(wfId)
+        const refs = subscription.data?.references
+        const envRef = refs?.environment
+        if (envRef) {
+            setBindMode("environment")
+            setEnvironmentSlug(envRef.slug ?? null)
+            setAppSlug(refs?.application?.slug ?? null)
+        } else {
+            const wfId = refs?.application_revision?.id ?? refs?.workflow_revision?.id ?? null
+            setWorkflowRevId(wfId)
+            setWorkflowLabel(wfId)
+        }
         setInputsText(
             subscription.data?.inputs_fields
                 ? JSON.stringify(subscription.data.inputs_fields, null, 2)
@@ -145,6 +172,9 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     useEffect(() => {
         if (isEdit) return
         const refs = state?.defaultReferences
+        // Capture the app slug up front so "By environment" mode can build its
+        // reference even though the default mode is "By revision".
+        setAppSlug(refs?.application?.slug ?? null)
         const variantId = refs?.application_variant?.id ?? refs?.application_revision?.id ?? null
         if (!variantId) return
         const appId = refs?.application?.id ?? null
@@ -202,9 +232,15 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 message.error("Select an event")
                 return null
             }
-            if (requireBinding && !workflowRevId) {
-                message.error("Bind a workflow")
-                return null
+            if (requireBinding) {
+                if (bindMode === "environment" && !environmentSlug) {
+                    message.error("Select an environment")
+                    return null
+                }
+                if (bindMode === "revision" && !workflowRevId) {
+                    message.error("Bind a workflow")
+                    return null
+                }
             }
 
             // inputs_fields is either a JSON object (field-by-field) or a bare
@@ -227,18 +263,31 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 return null
             }
 
-            // On a fresh pick, send the application family by the picker's ids (its
-            // leaf is the variant id). Without a re-pick (edit), resend the stored
-            // already-complete references. The BE completes the family either way.
-            const meta = workflowSelection?.metadata
-            const references = meta
-                ? {
-                      ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
-                      application_variant: {id: workflowRevId},
-                  }
-                : workflowRevId
-                  ? (subscription?.data?.references ?? {application_variant: {id: workflowRevId}})
-                  : undefined
+            // "By environment" binds {environment, application(slug)} — the BE resolves
+            // the deployed revision. "By revision": on a fresh pick send the application
+            // family by the picker's ids (leaf = variant id); without a re-pick (edit)
+            // resend the stored family. The BE completes either family.
+            let references: TriggerSubscriptionData["references"]
+            if (bindMode === "environment") {
+                references = environmentSlug
+                    ? {
+                          environment: {slug: environmentSlug},
+                          ...(appSlug ? {application: {slug: appSlug}} : {}),
+                      }
+                    : undefined
+            } else {
+                const meta = workflowSelection?.metadata
+                references = meta
+                    ? {
+                          ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
+                          application_variant: {id: workflowRevId as string},
+                      }
+                    : workflowRevId
+                      ? (subscription?.data?.references ?? {
+                            application_variant: {id: workflowRevId},
+                        })
+                      : undefined
+            }
 
             return {
                 event_key: eventKey,
@@ -247,7 +296,17 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 references,
             }
         },
-        [connectionId, eventKey, workflowRevId, inputsText, workflowSelection, subscription],
+        [
+            connectionId,
+            eventKey,
+            bindMode,
+            environmentSlug,
+            appSlug,
+            workflowRevId,
+            inputsText,
+            workflowSelection,
+            subscription,
+        ],
     )
 
     const handleSubmit = useCallback(async () => {
@@ -384,19 +443,48 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                         </Typography.Text>
                     </Form.Item>
 
-                    <Form.Item label="Bound workflow" required>
-                        <div className="flex items-center gap-2">
-                            <EntityPicker<WorkflowRevisionSelectionResult>
-                                variant="popover-cascader"
-                                adapter={applicationRevisionAdapter}
-                                onSelect={(selection) => {
-                                    setWorkflowRevId(selection.id)
-                                    setWorkflowSelection(selection)
-                                    setWorkflowLabel(selection.label)
-                                }}
-                                size="small"
-                                placeholder={workflowLabel ?? "Select workflow revision"}
+                    <Form.Item label="Run agent version" required>
+                        <div className="flex flex-col gap-2">
+                            <Segmented
+                                value={bindMode}
+                                onChange={(v) => setBindMode(v as "revision" | "environment")}
+                                options={[
+                                    {label: "By revision", value: "revision"},
+                                    {label: "By environment", value: "environment"},
+                                ]}
                             />
+                            {bindMode === "revision" ? (
+                                <EntityPicker<WorkflowRevisionSelectionResult>
+                                    variant="popover-cascader"
+                                    adapter={applicationRevisionAdapter}
+                                    onSelect={(selection) => {
+                                        setWorkflowRevId(selection.id)
+                                        setWorkflowSelection(selection)
+                                        setWorkflowLabel(selection.label)
+                                    }}
+                                    size="small"
+                                    placeholder={workflowLabel ?? "Select workflow revision"}
+                                />
+                            ) : (
+                                <>
+                                    <Select
+                                        placeholder="Select an environment"
+                                        value={environmentSlug ?? undefined}
+                                        onChange={(v) => setEnvironmentSlug(v)}
+                                        loading={envQuery.isLoading}
+                                        options={environments.map((e) => ({
+                                            value: e.slug,
+                                            label: e.name || e.slug,
+                                        }))}
+                                    />
+                                    <Typography.Text
+                                        type="secondary"
+                                        className="!text-[11px] leading-snug"
+                                    >
+                                        Runs whatever revision is deployed to this environment.
+                                    </Typography.Text>
+                                </>
+                            )}
                         </div>
                     </Form.Item>
 

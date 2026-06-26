@@ -70,7 +70,7 @@ interface Props {
      * to a workflow — e.g. the current agent when opened from its config panel.
      * Keyed like `data.references` (`application`/`application_variant`).
      */
-    defaultReferences?: Record<string, {id: string}>
+    defaultReferences?: Record<string, {id?: string; slug?: string}>
     /** Human-readable label for `defaultReferences` (e.g. the agent's name). */
     defaultBoundLabel?: string
 }
