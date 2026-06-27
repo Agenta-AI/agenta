@@ -16,7 +16,7 @@ import pytest
 
 from agenta.sdk.agents import AgentResult, HarnessType
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
-from agenta.sdk.agents.streaming import AgentRun
+from agenta.sdk.agents.streaming import AgentStream
 
 
 class _FakeSandbox(Sandbox):
@@ -43,16 +43,24 @@ class _FakeSession(Session):
     async def prompt(self, messages, *, on_event=None) -> AgentResult:
         return self._result
 
-    def stream(self, messages) -> AgentRun:
+    def stream(self, messages) -> AgentStream:
         result = self._result
 
         async def _records():
+            # The terminal record carries the same coalesced result the one-shot path would
+            # return (output + usage + session id), so the handler's drain-and-coalesce sees
+            # usage exactly as a live run does.
             yield {
                 "kind": "result",
-                "result": {"ok": True, "output": result.output},
+                "result": {
+                    "ok": True,
+                    "output": result.output,
+                    "usage": result.usage,
+                    "sessionId": result.session_id,
+                },
             }
 
-        return AgentRun(_records())
+        return AgentStream(_records())
 
     async def destroy(self) -> None:
         self.destroyed = True

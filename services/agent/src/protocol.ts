@@ -207,9 +207,9 @@ export type AgentEvent =
   | { type: "message_start"; id: string }
   | { type: "message_delta"; id: string; delta: string }
   | { type: "message_end"; id: string }
-  | { type: "reasoning_start"; id: string }
-  | { type: "reasoning_delta"; id: string; delta: string }
-  | { type: "reasoning_end"; id: string }
+  | { type: "thought_start"; id: string }
+  | { type: "thought_delta"; id: string; delta: string }
+  | { type: "thought_end"; id: string }
   | {
       type: "tool_call";
       id?: string;

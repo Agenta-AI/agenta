@@ -22,11 +22,11 @@ from agenta.sdk.agents.dtos import (
     TraceContext,
 )
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
-from agenta.sdk.agents.streaming import AgentRun
+from agenta.sdk.agents.streaming import AgentStream
 from agenta.sdk.agents.utils import (
-    deliver_http,
+    deliver_http_result,
     deliver_http_stream,
-    deliver_subprocess,
+    deliver_subprocess_result,
     deliver_subprocess_stream,
     request_to_wire,
     result_from_wire,
@@ -91,7 +91,7 @@ class FakeRunnerSession(Session):
         *,
         on_event: Optional[EventSink] = None,
     ) -> AgentResult:
-        data = await self._backend._deliver(self._wire_payload(messages))
+        data = await self._backend._deliver_result(self._wire_payload(messages))
         result = result_from_wire(data)
         self._absorb_result(result)
         if on_event:
@@ -102,10 +102,10 @@ class FakeRunnerSession(Session):
                     pass
         return result
 
-    def stream(self, messages: Sequence[Message]) -> AgentRun:
-        """Run one turn over the streaming transport, yielding events live (see AgentRun)."""
+    def stream(self, messages: Sequence[Message]) -> AgentStream:
+        """Run one turn over the streaming transport, yielding events live (see AgentStream)."""
         records = self._backend._deliver_stream(self._wire_payload(messages))
-        return AgentRun(records).on_result(self._absorb_result)
+        return AgentStream(records).on_result(self._absorb_result)
 
 
 class FakeRunnerBackend(Backend):
@@ -159,15 +159,15 @@ class FakeRunnerBackend(Backend):
             session_id=session_id,
         )
 
-    async def _deliver(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _deliver_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         if self._url:
-            return await deliver_http(self._url, payload, timeout=self._timeout)
-        return await deliver_subprocess(
+            return await deliver_http_result(self._url, payload, timeout=self._timeout)
+        return await deliver_subprocess_result(
             self._command, payload, cwd=self._cwd, timeout=self._timeout
         )
 
     def _deliver_stream(self, payload: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
-        """The live counterpart of ``_deliver``: an NDJSON record stream from the runner."""
+        """The live counterpart of ``_deliver_result``: an NDJSON record stream from the runner."""
         if self._url:
             return deliver_http_stream(self._url, payload, timeout=self._timeout)
         return deliver_subprocess_stream(

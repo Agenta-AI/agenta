@@ -55,7 +55,7 @@ from .connections import (
 from .dtos import (
     AgentaAgentConfig,
     AgentConfig,
-    AgentEvent,
+    Event,
     AgentResult,
     ClaudeAgentConfig,
     ContentBlock,
@@ -105,7 +105,7 @@ from .skills import (
     skill_to_wire,
     skills_to_wire,
 )
-from .streaming import AgentRun
+from .streaming import AgentStream
 from .tools import (
     BuiltinToolConfig,
     CallbackToolSpec,
@@ -155,9 +155,9 @@ __all__ = [
     "ContentBlock",
     "Message",
     "to_messages",
-    "AgentEvent",
+    "Event",
     "AgentResult",
-    "AgentRun",
+    "AgentStream",
     # Former flat Vercel adapter names (compatibility; new code uses adapters.vercel)
     "from_ui_messages",
     "to_ui_message",

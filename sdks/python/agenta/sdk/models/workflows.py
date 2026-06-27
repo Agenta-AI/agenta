@@ -23,6 +23,7 @@ from pydantic import (
 from agenta.sdk.models.shared import (
     TraceID,
     SpanID,
+    SessionID,
     Link,
     Identifier,
     Slug,
@@ -126,11 +127,13 @@ class WorkflowQueryFlags(BaseModel):
     is_platform: Optional[bool] = None
 
 
-class WorkflowRequestFlags(BaseModel):
+class WorkflowInvokeRequestFlags(BaseModel):
     """Per-call command directives on an invoke request.
 
-    Distinct from ``WorkflowFlags`` (which describes what a workflow *is*):
-    these say what *this call* should do. All boolean; ``None`` means unset
+    These are *commands* (what this invoke call should do), categorically
+    distinct from the entity descriptor flags (``WorkflowFlags`` /
+    ``WorkflowQueryFlags``, which describe what a workflow *is*). All boolean;
+    ``None`` means unset
     (read as ``False``, but kept tri-state so "unset" stays distinguishable).
 
     - ``stream``  — stream the output (generator); else aggregate to a batch.
@@ -250,13 +253,13 @@ class WorkflowServiceResponseData(BaseModel):
     outputs: Optional[Any] = None
 
 
-class WorkflowBaseRequest(Metadata):
+class WorkflowBaseRequest(Metadata, SessionID):
     version: Optional[str] = "2025.07.14"
 
     # ``flags`` stays the loose dict from ``Metadata`` (the request boundary is
     # intentionally dict-ish, forgiving). Per-call COMMAND directives carried in it
     # — ``stream`` / ``history`` / ``control`` / ``resolve`` — are described and
-    # parsed by ``WorkflowRequestFlags`` in the running layer; it is the typed
+    # parsed by ``WorkflowInvokeRequestFlags`` in the running layer; it is the typed
     # accessor, not the wire type.
 
     references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None
@@ -267,9 +270,7 @@ class WorkflowBaseRequest(Metadata):
     secrets: Optional[Dict[str, Any]] = None
     credentials: Optional[str] = None
 
-    # The agent ``/messages`` session this turn belongs to (opaque, project-scoped). Optional;
-    # absent on ``/invoke`` and on the first turn of a server-minted session.
-    session_id: Optional[str] = None
+    # ``session_id`` is contributed by the SessionID mixin.
 
     @model_validator(mode="before")
     def _coerce_nested_models(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -300,8 +301,11 @@ class WorkflowInvokeRequest(WorkflowBaseRequest):
 WorkflowServiceRequest = WorkflowInvokeRequest
 
 
-class WorkflowInspectRequest(Metadata):
+class WorkflowInspectRequest(Metadata, SessionID):
     version: Optional[str] = "2025.07.14"
+
+    # ``session_id`` is contributed by the SessionID mixin — at the same level as
+    # on the invoke request, so inspect can be scoped to a session too.
 
     revision: Optional[Dict[str, Any]] = None
 
@@ -324,7 +328,7 @@ class WorkflowInspectRequest(Metadata):
 WorkflowServiceInspectRequest = WorkflowInspectRequest
 
 
-class WorkflowInspectResponse(Metadata):
+class WorkflowInspectResponse(Metadata, SessionID):
     """The canonical ``/inspect`` response: the resolved interface, flat and self-describing.
 
     ``/inspect`` is a public edge — it tells the browser which form to render and which inputs,
@@ -339,10 +343,9 @@ class WorkflowInspectResponse(Metadata):
     - ``configuration`` and ``meta`` carry the resolved config and any interface metadata (the
       agent workflow rides its per-harness connection capability in ``meta``).
 
-    Typed outputs (POC, no back-compat field): ``revision.schemas.outputs`` may be keyed per
-    output type (for example ``{"messages": {...}, "invoke": {...}}``) so a workflow with more
-    than one output surface describes each one. A single-output workflow still uses a plain
-    output schema. Consumers read the keyed shape when present and fall back to the plain one.
+    ``revision.schemas.outputs`` is a plain JSON Schema — never keyed by output surface. A
+    workflow has exactly one output schema (the agent's is the plural ``messages`` list).
+    ``session_id`` (from the SessionID mixin) is set when the inspect is session-scoped.
     """
 
     version: Optional[str] = "2025.07.14"
@@ -355,14 +358,14 @@ class WorkflowInspectResponse(Metadata):
 WorkflowServiceInspectResponse = WorkflowInspectResponse
 
 
-class WorkflowBaseResponse(TraceID, SpanID):
+class WorkflowBaseResponse(TraceID, SpanID, SessionID):
     version: Optional[str] = "2025.07.14"
 
     status: Optional[WorkflowServiceStatus] = WorkflowServiceStatus()
 
-    # The resolved agent session id (minted or echoed) on the ``/messages`` response, alongside
-    # ``trace_id`` / ``span_id``. ``None`` for plain ``/invoke`` responses.
-    session_id: Optional[str] = None
+    # ``session_id`` (from the SessionID mixin) is the resolved session id, minted or
+    # echoed by the running normalizer, alongside ``trace_id`` / ``span_id``. ``None``
+    # when no session is in play.
 
 
 # back-compat alias

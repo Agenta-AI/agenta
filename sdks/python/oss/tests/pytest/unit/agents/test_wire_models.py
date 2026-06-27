@@ -87,7 +87,7 @@ def test_request_schema_properties_equal_known_request_keys():
 def test_goldens_parse_into_the_wire_models(golden, golden_name, model):
     # Every golden parses cleanly into its wire model (by camelCase alias), proving the models
     # accept the real wire. The ok-result golden includes a deliberately typeless event; the
-    # open `WireAgentEvent` (type optional) tolerates it, mirroring the parser's drop behavior.
+    # open `WireEvent` (type optional) tolerates it, mirroring the parser's drop behavior.
     model.model_validate(golden(golden_name))
 
 

@@ -31,7 +31,7 @@ from .dtos import (
     TraceContext,
 )
 from .errors import UnsupportedHarnessError
-from .streaming import AgentRun
+from .streaming import AgentStream
 
 
 # ---------------------------------------------------------------------------
@@ -74,11 +74,11 @@ class Session(ABC):
         """Run one turn and return the structured result (the one-shot path)."""
 
     @abstractmethod
-    def stream(self, messages: Sequence[Message]) -> AgentRun:
+    def stream(self, messages: Sequence[Message]) -> AgentStream:
         """Run one turn, yielding events live across the boundary.
 
-        Returns an :class:`~agenta.sdk.agents.streaming.AgentRun`: an async-iterable of
-        ``AgentEvent`` that also carries the terminal ``AgentResult`` once consumed. This is
+        Returns an :class:`~agenta.sdk.agents.streaming.AgentStream`: an async-iterable of
+        ``Event`` that also carries the terminal ``AgentResult`` once consumed. This is
         the live counterpart of :meth:`prompt`.
         """
 
@@ -266,7 +266,7 @@ class Harness(ABC):
         self,
         config: SessionConfig,
         messages: Sequence[Message],
-    ) -> AgentRun:
+    ) -> AgentStream:
         """Convenience: open a cold session and stream one turn (the live counterpart of
         :meth:`prompt`).
 

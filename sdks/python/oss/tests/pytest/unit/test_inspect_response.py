@@ -32,10 +32,11 @@ _RESOLVED_REVISION = WorkflowRevisionData(
     schemas={
         "inputs": {"type": "object", "properties": {"messages": {"type": "array"}}},
         "parameters": {"type": "object"},
-        # Typed outputs keyed per output surface (issue 4): the POC shape, no flat field.
+        # Outputs mirror inputs: an object with a `messages` field of type `messages` (NOT
+        # keyed by output surface — the old invoke/messages keying is gone).
         "outputs": {
-            "invoke": {"x-ag-type-ref": "message", "type": "object"},
-            "messages": {"x-ag-type-ref": "messages", "type": "array"},
+            "type": "object",
+            "properties": {"messages": {"x-ag-type-ref": "messages", "type": "array"}},
         },
     },
     parameters={"agent": {"model": "gpt-5.5"}},
@@ -87,14 +88,15 @@ def test_inspect_response_serializes_schemas_at_revision_schemas():
     assert "data" not in body
 
 
-def test_inspect_response_outputs_are_keyed_per_surface():
-    # Issue 4: outputs carry the typed shape keyed per output surface (messages / invoke).
+def test_inspect_response_outputs_mirror_inputs_messages_field():
+    # outputs is an object with a `messages` field of type `messages`, symmetric with
+    # inputs.messages — NOT keyed by output surface (no `invoke` surface).
     response = _to_inspect_response(_built_invoke_request())
     outputs = response.revision.schemas.outputs
 
-    assert set(outputs) == {"invoke", "messages"}
-    assert outputs["invoke"]["x-ag-type-ref"] == "message"
-    assert outputs["messages"]["x-ag-type-ref"] == "messages"
+    assert outputs["type"] == "object"
+    assert outputs["properties"]["messages"]["x-ag-type-ref"] == "messages"
+    assert "invoke" not in outputs.get("properties", {})
 
 
 def test_inspect_response_handles_a_request_with_no_revision():
