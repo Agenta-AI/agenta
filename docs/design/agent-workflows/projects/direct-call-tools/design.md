@@ -13,6 +13,7 @@ call: {
   method: "POST" | "GET",
   path: string,            // absolute path from the Agenta origin, e.g. "/api/annotations/"
   body?: object,           // server-fixed fields, baked at resolve time
+  context?: object,        // {body-path: "$ctx.<run-context-key>"} filled by the runner at dispatch
   args_into?: string,      // dotted path where the model's args are placed; absent = root
 }
 ```
@@ -31,13 +32,66 @@ Rules the sidecar applies:
   client, so the `call` descriptor adds no SSRF surface. (Per the Codex review.)
 - Auth is the run's single `toolCallback.authorization` (the caller credential), reused for
   every direct call. No per-tool auth.
-- Body assembly:
-  - If `args_into` is set: deep-clone `body`, set the `args_into` path to the model's args,
-    POST it. (Reference: `args_into = "data.inputs"`.)
-  - Else: `POST { ...modelArgs, ...body }` so **fixed fields win**. This is what stops the
-    model from overriding a locked field (e.g. a reference tool's baked `workflow_revision` id).
+- Body assembly (merge order: model args, then `body`, then `context` — later wins):
+  - Start from the model's args, placed at `args_into` if set (e.g. `data.inputs` for a
+    reference) else at the root.
+  - Overlay `body` (static server-fixed fields, e.g. a reference tool's baked `workflow_revision`
+    id).
+  - Overlay `context`: for each `body-path: "$ctx.<key>"`, resolve `<key>` against the run's
+    `runContext` blob (passed on `/run`, refreshed per turn) and deep-set it. Context is filled
+    LAST, so a model arg can never collide into a bound field.
+  - **Hardening (Codex): "context last" is necessary but not sufficient.** Reject at resolve time
+    any path overlap across `args_into` / `body` / `context` (including nested/prefix collisions);
+    parse dotted paths strictly; deep-set with prototype-pollution-safe assignment (reject
+    `__proto__` / `constructor` / `prototype`); validate the merged body against the endpoint
+    schema before POSTing.
 
 `callRef` stays for gateway. A spec has either `call` (direct) or `callRef` (gateway), not both.
+
+### Context binding (how a catalog entry fills a field from run context)
+
+This is the mechanism behind server-binding self-identity (see `run-context.md`). A platform-op
+catalog entry declares a `bind` map — endpoint field → run-context key — and that map is the
+entire "transformation"; the runner stays generic (it never knows what a "variant" is).
+
+- **Catalog entry:** `{ method, path, input_schema_ref, bind: { "<endpoint-field>": "$ctx.<key>" } }`.
+- **Resolve time (service):** delete every `bind` key from the model-visible `input_schema` (and
+  from `required`), and emit `call.context = bind` on the spec. The model never sees the bound
+  field.
+- **`/run` (service → runner):** carry a `runContext` blob — `{ workflow: { variant_id,
+  variant_name, revision_id, is_draft, latest_revision_id }, trace: { trace_id, span_id },
+  session_id }` — refreshed per turn so mutable values (trace, latest revision) never go stale.
+- **Dispatch (runner):** fill each `call.context` entry from `runContext`, deep-set it into the
+  body last in the merge order above, POST.
+
+Worked example (`update_self`): `bind: { "workflow_variant_id": "$ctx.workflow.variant_id" }` →
+the model schema drops `workflow_variant_id` → the model calls `update_self({ parameters, message })`
+→ the runner POSTs `{ workflow_variant_id: <own, from runContext>, parameters, message }`. The
+agent can only ever target itself.
+
+Resolved (Codex binding review):
+
+- **Binding resolution is hybrid.** Immutable identity (the running `variant_id`) is baked at
+  resolve time into `call.body`; mutable values (`trace_id`, `latest_revision_id`) are filled at
+  dispatch from the per-turn `runContext` via `call.context`. Dispatch-time-for-all is simpler but
+  still risks stale-within-a-turn, so commits should also carry a revision precondition.
+- **Schema stripping is path-aware.** Remove exactly the bound paths (and their `required`
+  entries), and verify the stripped schema still satisfies the endpoint's real required contract
+  (do not drop a field the endpoint needs that the model should still provide).
+- **`runContext` is its own field on the `/run` contract** (explicit run metadata, NOT inside
+  `TraceContext`), with the MCP-resource / context-file fallback for local backends that cannot
+  read it (see `run-context.md`).
+- **Merge hardening** as in the body-assembly rule above (path-conflict rejection, strict path
+  parsing, prototype-pollution-safe deep-set, post-merge validation).
+
+Implementation checklist (this PR is design-only; Codex confirmed none of it is built yet — that
+is the build plan, dispatched separately):
+1. Wire types: add `runContext` + the `call` descriptor (`method/path/body/context/args_into`) to
+   `protocol.ts` and the Python wire models; keep `callRef` as the gateway fallback.
+2. Platform-op resolver: the catalog + path-aware schema stripping + bind-path handling + required
+   pruning.
+3. Dispatch: context assembly with the conflict checks + safe deep-set, in BOTH the direct and the
+   Daytona-relay paths.
 
 ## Per-tool-type table
 
