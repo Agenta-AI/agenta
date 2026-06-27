@@ -50,29 +50,36 @@ Add to `api/oss/src/core/tools/service.py` (or a focused `ToolDiscoveryService`)
   `guidance`, `ready`.
 - Unit tests for translation and the three connection states (fixtures, no network).
 
-## Phase 3 — REST endpoint (DEFERRED — needs `tools/router.py`)
+## Phase 3 — REST endpoint (DONE)
 
-Add `POST /tools/discover` to `api/oss/src/apis/fastapi/tools/router.py`, project-scoped via the
-existing auth dependency (gives `project_id`). The handler calls
-`ToolsService.discover_capabilities(...)` (already built in Phase 2) and serializes
-`CapabilitiesResult`.
+`POST /tools/discover` is wired in `api/oss/src/apis/fastapi/tools/router.py`
+(`discover_capabilities`), project-scoped via the existing auth dependency (gives `project_id`),
+`VIEW_TOOLS`. The handler calls `ToolsService.discover_capabilities(...)` (built in Phase 2) and
+returns `CapabilitiesResult`; `DiscoveryUnsupportedError` maps to 422.
 
-- Request/response models in `api/oss/src/apis/fastapi/tools/models.py` (reuse the core
-  `CapabilitiesResult` DTO; add a thin `CapabilitiesQuery` request).
-- Caching (D6) is already implemented in the core service (Phase 2): `ToolsService._cached_search`
+- Request model `CapabilitiesQuery` in `api/oss/src/apis/fastapi/tools/models.py`; the response
+  is the core `CapabilitiesResult` DTO directly (the agent-facing contract from `design.md`).
+- Caching (D6) is implemented in the core service (Phase 2): `ToolsService._cached_search`
   caches the tool/schema half project-agnostically with the standard 5-min TTL and recomputes
   connection state fresh each call. The endpoint just calls `discover_capabilities`.
-- Add a worked example to `api/oss/tests/manual/tools/tools.http`.
+- Worked example added to `api/oss/tests/manual/tools/tools.http`.
 
-## Phase 4 — Agent-facing tool (DEFERRED — needs the SDK `tools/models.py`)
+## Phase 4 — Agent-facing tool (SERVER side DONE; SDK declaration PENDING)
 
-Expose `find_capabilities` to harnesses through the gateway/builtin tool path, consistent with
+Expose `find_capabilities` to harnesses, consistent with
 [`../agent-creation-skills/custom-tools-design.md`](../agent-creation-skills/custom-tools-design.md).
 
-- The tool calls `POST /tools/discover` with the run's caller auth (project scope flows
-  through).
-- Register it as the reserved `tools.agenta.find_capabilities` tool (D1) where builder tools
-  are defined (SDK `agenta.sdk.agents`, service tool wiring, runner `buildCustomTools`).
+- **Server side (DONE):** the reserved `tools.agenta.find_capabilities` tool (D1, out of the
+  Composio namespace) is routable over `/tools/call` — `call_tool` dispatches the `tools.agenta.`
+  prefix to `_call_agenta_tool`, which runs `discover_capabilities` and returns the
+  `CapabilitiesResult` as the tool result. The canonical reserved-tool spec (call_ref,
+  input_schema, description) lives in `core/tools/discovery.py`.
+- **SDK declaration/resolution (PENDING):** the only open piece. For an agent config to carry
+  the tool, the SDK resolver must emit a `CallbackToolSpec` with `call_ref =
+  tools.agenta.find_capabilities` + the shared `ToolCallback`. This belongs on the in-flight
+  direct-call-tools "platform-op catalog" seam (which adds `CallbackToolSpec.call` and a
+  platform-op mechanism); building a parallel mechanism now would duplicate/conflict. **The
+  runner needs no change** — it forwards the `call_ref` opaquely (no `buildCustomTools` change).
 - The setup agent learns the discover -> resolve-connections -> create -> test loop from the
   **skill shipped in this PR** (plan.md:76): `skills/discover-and-wire-tools/SKILL.md`. The
   skill is the teaching surface (not an `agents_md` blob); it pairs with `create-agenta-agent`.
@@ -106,11 +113,13 @@ Expose `find_capabilities` to harnesses through the gateway/builtin tool path, c
 
 - API tests: `cd api && py-run-tests` (see root `AGENTS.md`). Lint: `ruff format` then
   `ruff check --fix` in `api/` before committing.
-- Keep docs in sync (the `keep-docs-in-sync` skill): the interface inventory + the living
-  `documentation/tools.md` get the `POST /tools/discover` endpoint + the reserved tool when
-  Phase 3/4 land (nothing public crosses a service boundary in Phase 1, so they are unchanged
-  for now). The reverse pointer from the `search_tools` stub in
-  `agent-creation-skills/custom-tools-design.md` to this project is DEFERRED: that file is owned
-  by the still-open #4863 lane, so its owner adds the pointer there rather than this PR editing
+- Keep docs in sync (the `keep-docs-in-sync` skill): DONE for Phase 3/4 — `documentation/tools.md`
+  (the new "Tool discovery" section + Where-this-lives rows + status note), the interface
+  inventory (`cross-service/runner-to-tool-callback.md` third call_ref grammar,
+  `in-service/tool-models-and-resolution.md` reserved-tool note, the `interfaces/README.md` index
+  row), and a worked example in `api/oss/tests/manual/tools/tools.http`. The reverse pointer from
+  the `search_tools` stub in `agent-creation-skills/custom-tools-design.md` to this project is
+  DEFERRED: that file is owned by the still-open #4863 lane, so its owner adds the pointer there
+  rather than this PR editing
   another lane's file. This project's README/design already link to it.
 - Branch and PR via GitButler stacked lane (never a worktree), base `big-agents`.

@@ -6,22 +6,38 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 
+from oss.src.apis.fastapi.tools.models import CapabilitiesQuery
+from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.tools.discovery import (
+    FIND_CAPABILITIES_CALL_REF,
+    FIND_CAPABILITIES_INPUT_SCHEMA,
     looks_like_trigger,
     map_guidance_text,
+    parse_find_capabilities_arguments,
     referenced_integrations,
     split_composio_slug,
     translate_search_result,
 )
 from oss.src.core.tools.dtos import (
+    CapabilitiesResult,
+    Capability,
+    CapabilityConnection,
     ConnectAffordance,
     ConnectionRequirement,
+    DiscoveredTool,
     ToolAuthScheme,
+    ToolCall,
+    ToolCallData,
+    ToolCallFunction,
     ToolConnectionState,
 )
-from oss.src.core.tools.providers.composio.dtos import ComposioSearchResult
-from oss.src.core.tools.exceptions import DiscoveryUnsupportedError
+from oss.src.core.tools.providers.composio.dtos import (
+    ComposioSearchQueryResult,
+    ComposioSearchResult,
+)
+from oss.src.core.tools.exceptions import AdapterError, DiscoveryUnsupportedError
 from oss.src.core.tools.service import ToolsService
 
 FIXTURE = Path(__file__).parent / "fixtures" / "composio_search_tools.json"
@@ -84,6 +100,34 @@ async def test_adapter_search_capabilities_parses_recorded_response(monkeypatch)
     assert statuses == {"github": True, "slack": False, "slackbot": False}
 
 
+@pytest.mark.parametrize(
+    "envelope",
+    [
+        # successful=false with an error message (HTTP 200, tool-level failure).
+        {"successful": False, "error": "rate limited", "data": {}},
+        # successful=true but data is missing/None.
+        {"successful": True, "error": None, "data": None},
+        # successful=true but data is malformed (results is not a list).
+        {"successful": True, "error": None, "data": {"results": "nope"}},
+    ],
+)
+async def test_adapter_search_capabilities_raises_on_bad_envelope(
+    monkeypatch, envelope
+):
+    from oss.src.core.tools.providers.composio.adapter import ComposioToolsAdapter
+
+    adapter = object.__new__(ComposioToolsAdapter)
+
+    async def _post(path, *, json=None):
+        return envelope
+
+    monkeypatch.setattr(adapter, "_post", _post)
+
+    # A failed/empty/malformed envelope is an adapter error, not a silent empty result.
+    with pytest.raises(AdapterError):
+        await adapter.search_capabilities(use_cases=["x"], user_id="proj-123")
+
+
 # ---------------------------------------------------------------------------
 # Pure translation helpers
 # ---------------------------------------------------------------------------
@@ -131,6 +175,21 @@ def test_referenced_integrations_caps_alternatives_and_dedupes():
     integrations = referenced_integrations(search, limit_alternatives=3)
     # github (from issues + create), slack + slackbot (slack reply), in first-seen order.
     assert integrations == ["github", "slack", "slackbot"]
+
+
+def test_referenced_integrations_uses_only_first_primary():
+    # _translate_one exposes only primary_tool_slugs[0] as the tool, so the extra
+    # primary's integration must not appear in connections[].
+    search = ComposioSearchResult(
+        results=[
+            ComposioSearchQueryResult(
+                use_case="do a thing",
+                primary_tool_slugs=["GITHUB_CREATE_AN_ISSUE", "STRIPE_CREATE_CHARGE"],
+                toolkits=["github", "stripe"],
+            )
+        ]
+    )
+    assert referenced_integrations(search, limit_alternatives=3) == ["github"]
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +293,36 @@ def test_translate_ready_true_when_all_primary_connections_ready():
     }
     result = translate_search_result(search, all_ready, limit_alternatives=3)
     assert result.ready is True
+
+
+def test_translate_ready_false_when_a_use_case_has_no_primary():
+    # One use_case resolves; the other has no primary tool. ready must stay False
+    # rather than silently dropping the unresolved use_case from the readiness check.
+    search = ComposioSearchResult(
+        results=[
+            ComposioSearchQueryResult(
+                use_case="create a github issue",
+                primary_tool_slugs=["GITHUB_CREATE_AN_ISSUE"],
+                toolkits=["github"],
+            ),
+            ComposioSearchQueryResult(
+                use_case="do something composio cannot match",
+                primary_tool_slugs=[],
+                toolkits=[],
+            ),
+        ]
+    )
+    states = {
+        "github": ConnectionRequirement(
+            integration="github",
+            state=ToolConnectionState.READY,
+            slug="github-main",
+        )
+    }
+    result = translate_search_result(search, states, limit_alternatives=3)
+    assert result.ready is False
+    unresolved = next(c for c in result.capabilities if c.tool is None)
+    assert unresolved.connection is None
 
 
 # ---------------------------------------------------------------------------
@@ -430,3 +519,223 @@ async def test_discover_raises_when_provider_lacks_search(monkeypatch):
             use_cases=["do a thing"],
             provider_key="agenta",
         )
+
+
+# ---------------------------------------------------------------------------
+# Reserved tool: parse_find_capabilities_arguments + input schema
+# ---------------------------------------------------------------------------
+
+
+def test_find_capabilities_input_schema_shape():
+    assert FIND_CAPABILITIES_CALL_REF == "tools.agenta.find_capabilities"
+    assert FIND_CAPABILITIES_INPUT_SCHEMA["required"] == ["use_cases"]
+    assert FIND_CAPABILITIES_INPUT_SCHEMA["properties"]["use_cases"]["type"] == "array"
+
+
+def test_parse_find_capabilities_arguments_normalizes():
+    use_cases, provider, limit = parse_find_capabilities_arguments(
+        {"use_cases": ["a", "  ", "b"], "provider": "composio", "limit_alternatives": 5}
+    )
+    assert use_cases == ["a", "b"]
+    assert provider == "composio"
+    assert limit == 5
+
+    # Defaults + bad limit fall back cleanly.
+    use_cases, provider, limit = parse_find_capabilities_arguments(
+        {"use_cases": ["x"], "limit_alternatives": "oops"}
+    )
+    assert (use_cases, provider, limit) == (["x"], "composio", 3)
+
+
+def test_parse_find_capabilities_arguments_coerces_scalar_string():
+    # A bare string is one use_case, not iterated character-by-character.
+    use_cases, _provider, _limit = parse_find_capabilities_arguments(
+        {"use_cases": "create a github issue"}
+    )
+    assert use_cases == ["create a github issue"]
+
+    # A non-list, non-string value yields no use_cases.
+    use_cases, _provider, _limit = parse_find_capabilities_arguments({"use_cases": 42})
+    assert use_cases == []
+
+
+# ---------------------------------------------------------------------------
+# Router: POST /tools/discover + the tools.agenta.find_capabilities call branch
+# ---------------------------------------------------------------------------
+
+
+def _capabilities_result() -> CapabilitiesResult:
+    return CapabilitiesResult(
+        capabilities=[
+            Capability(
+                use_case="create a github issue",
+                integration="github",
+                tool=DiscoveredTool(
+                    integration="github",
+                    action="CREATE_AN_ISSUE",
+                    connection="github-main",
+                    provider_action="GITHUB_CREATE_AN_ISSUE",
+                ),
+                connection=CapabilityConnection(
+                    state=ToolConnectionState.READY, slug="github-main"
+                ),
+            )
+        ],
+        ready=True,
+    )
+
+
+def _router_with_discover(discover_fn):
+    return ToolsRouter(
+        tools_service=SimpleNamespace(discover_capabilities=discover_fn),
+        workflows_service=None,
+    )
+
+
+def _request():
+    return SimpleNamespace(
+        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4()))
+    )
+
+
+def _call(name, arguments) -> ToolCall:
+    return ToolCall(
+        data=ToolCallData(
+            id="call_1",
+            function=ToolCallFunction(name=name, arguments=arguments),
+        )
+    )
+
+
+async def test_discover_route_returns_capabilities(monkeypatch):
+    captured = {}
+
+    async def _discover(*, project_id, use_cases, provider_key, limit_alternatives):
+        captured.update(
+            project_id=project_id,
+            use_cases=use_cases,
+            provider_key=provider_key,
+            limit_alternatives=limit_alternatives,
+        )
+        return _capabilities_result()
+
+    async def _allow(**_kwargs):
+        return True
+
+    monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
+
+    router = _router_with_discover(_discover)
+    request = _request()
+    result = await router.discover_capabilities(
+        request,
+        body=CapabilitiesQuery(
+            use_cases=["create a github issue"], provider="composio"
+        ),
+    )
+
+    assert isinstance(result, CapabilitiesResult)
+    assert result.ready is True
+    assert str(captured["project_id"]) == request.state.project_id
+    assert captured["use_cases"] == ["create a github issue"]
+
+
+async def test_discover_route_maps_unsupported_provider_to_422(monkeypatch):
+    async def _discover(**_kwargs):
+        raise DiscoveryUnsupportedError("agenta")
+
+    async def _allow(**_kwargs):
+        return True
+
+    monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
+
+    with pytest.raises(HTTPException) as caught:
+        await _router_with_discover(_discover).discover_capabilities(
+            _request(),
+            body=CapabilitiesQuery(use_cases=["x"], provider="agenta"),
+        )
+    assert caught.value.status_code == 422
+
+
+def test_capabilities_query_rejects_empty_use_cases():
+    with pytest.raises(Exception):
+        CapabilitiesQuery(use_cases=["  ", ""])
+
+
+def test_capabilities_query_rejects_scalar_string():
+    # A bare string must be rejected, not iterated into one-char fragments.
+    with pytest.raises(Exception):
+        CapabilitiesQuery(use_cases="create a github issue")
+
+
+async def test_call_agenta_tool_runs_find_capabilities():
+    captured = {}
+
+    async def _discover(*, project_id, use_cases, provider_key, limit_alternatives):
+        captured.update(use_cases=use_cases, provider_key=provider_key)
+        return _capabilities_result()
+
+    router = _router_with_discover(_discover)
+    response = await router._call_agenta_tool(
+        request=_request(),
+        body=_call(
+            "tools.agenta.find_capabilities",
+            {"use_cases": ["create a github issue"]},
+        ),
+    )
+
+    assert captured["use_cases"] == ["create a github issue"]
+    assert response.call.status.code == "STATUS_CODE_OK"
+    payload = json.loads(response.call.data.content)
+    assert payload["ready"] is True
+    assert payload["capabilities"][0]["tool"]["action"] == "CREATE_AN_ISSUE"
+    assert response.call.data.tool_call_id == "call_1"
+
+
+async def test_call_agenta_tool_parses_json_string_arguments():
+    async def _discover(*, project_id, use_cases, provider_key, limit_alternatives):
+        return _capabilities_result()
+
+    response = await _router_with_discover(_discover)._call_agenta_tool(
+        request=_request(),
+        body=_call("tools__agenta__find_capabilities", '{"use_cases": ["x"]}'),
+    )
+    assert response.call.status.code == "STATUS_CODE_OK"
+
+
+async def test_call_agenta_tool_unknown_op_404():
+    async def _discover(**_kwargs):
+        return _capabilities_result()
+
+    with pytest.raises(HTTPException) as caught:
+        await _router_with_discover(_discover)._call_agenta_tool(
+            request=_request(),
+            body=_call("tools.agenta.unknown_op", {"use_cases": ["x"]}),
+        )
+    assert caught.value.status_code == 404
+
+
+async def test_call_agenta_tool_empty_use_cases_400():
+    async def _discover(**_kwargs):
+        return _capabilities_result()
+
+    with pytest.raises(HTTPException) as caught:
+        await _router_with_discover(_discover)._call_agenta_tool(
+            request=_request(),
+            body=_call("tools.agenta.find_capabilities", {"use_cases": []}),
+        )
+    assert caught.value.status_code == 400
+
+
+async def test_call_agenta_tool_unsupported_provider_422():
+    async def _discover(**_kwargs):
+        raise DiscoveryUnsupportedError("agenta")
+
+    with pytest.raises(HTTPException) as caught:
+        await _router_with_discover(_discover)._call_agenta_tool(
+            request=_request(),
+            body=_call(
+                "tools.agenta.find_capabilities",
+                {"use_cases": ["x"], "provider": "agenta"},
+            ),
+        )
+    assert caught.value.status_code == 422

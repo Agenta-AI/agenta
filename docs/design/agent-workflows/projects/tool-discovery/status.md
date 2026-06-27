@@ -4,13 +4,17 @@ Source of truth for this project. Update as work proceeds.
 
 ## Current state — 2026-06-27
 
-D1-D6 settled (Mahmoud: "go with the recommendations"). Implementation Phase 1 landed on PR
-#4884 (the design/plan docs lane, reused for the implementation): the Composio adapter search
-method, the Composio→Agenta translation, connection-state reporting, structured guidance, the
-v1 action-only scope + trigger note, the cache split, a recorded-fixture replay test, and the
-setup-agent skill. The REST endpoint + reserved agent tool (Phase 3/4) are deferred because
-they touch `apis/fastapi/tools/router.py` and the SDK `tools/models.py`, owned by a concurrent
-Workstream-B task; they resume once those files are free.
+D1-D6 settled (Mahmoud: "go with the recommendations"). Phases 1-3 plus the server side of
+Phase 4 landed on PR #4884. Phase 1-2: the Composio adapter search, the Composio→Agenta
+translation, connection-state reporting, structured guidance, the v1 action-only scope +
+trigger note, the cache split, a recorded-fixture replay test, and the setup-agent skill. Phase
+3: `POST /tools/discover`. Phase 4 (server side): the `tools.agenta.find_capabilities` reserved
+tool is routable over `/tools/call` (`_call_agenta_tool` → `discover_capabilities`). The one
+remaining piece is the **SDK-side reserved-tool declaration/resolution** — how an agent config
+surfaces `find_capabilities` and how `platform.resolve_tools` emits its `CallbackToolSpec`. That
+rides the in-flight direct-call-tools "platform-op catalog" seam (which adds `CallbackToolSpec.call`
+and a platform-op mechanism), so building it separately now would duplicate/conflict; it is
+deferred to that seam. The runner needs no change (it forwards the call_ref opaquely).
 
 - [x] Phase 0: spike + verify (`research.md`)
 - [x] Design + field-usefulness analysis (`design.md`)
@@ -19,15 +23,45 @@ Workstream-B task; they resume once those files are free.
 - [x] Phase 1: adapter method (`ComposioToolsAdapter.search_capabilities`)
 - [x] Phase 2: core service + translation (`ToolsService.discover_capabilities`,
       `core/tools/discovery.py`, the discovery DTOs, the D6 cache split) + unit tests
-- [ ] Phase 3: REST endpoint `POST /tools/discover` (DEFERRED — needs `tools/router.py`)
-- [ ] Phase 4: agent-facing reserved tool `tools.agenta.find_capabilities`
-      (DEFERRED — needs the SDK `tools/models.py` + reserved-tool registration)
+- [x] Phase 3: REST endpoint `POST /tools/discover` (`CapabilitiesQuery` →
+      `discover_capabilities` → `CapabilitiesResult`; `DiscoveryUnsupportedError` → 422)
+- [~] Phase 4: agent-facing reserved tool `tools.agenta.find_capabilities` — SERVER side wired
+      (`/tools/call` `_call_agenta_tool` route + the canonical reserved-tool spec in
+      `discovery.py`); SDK-side declaration/resolution PENDING (rides direct-call-tools platform-op)
 - [ ] Phase 5: live E2E + replay-fixture upgrade from a real captured run
 
 The setup-agent skill (plan.md:76) shipped in this PR:
 `skills/discover-and-wire-tools/SKILL.md` (the discover -> resolve-connections -> create ->
 test loop). Testing it with a subagent and the `/debug-local` exploratory QA (plan.md:84) are
-orchestrator follow-ups once Phase 3/4 land.
+orchestrator follow-ups once the SDK reserved-tool declaration lands.
+
+## What landed in Phase 2 (router + reserved tool, file map)
+
+- `api/oss/src/apis/fastapi/tools/router.py` — `POST /tools/discover` route + handler
+  (`discover_capabilities`, `VIEW_TOOLS`, `DiscoveryUnsupportedError` → 422); `_call_agenta_tool`
+  + the `tools.agenta.` prefix branch in `call_tool` (server side of the reserved tool).
+- `api/oss/src/apis/fastapi/tools/models.py` — `CapabilitiesQuery` request model.
+- `api/oss/src/core/tools/discovery.py` — the reserved-tool constants/spec
+  (`AGENTA_TOOL_CALL_REF_PREFIX`, `FIND_CAPABILITIES_*`, `parse_find_capabilities_arguments`).
+- docs: `documentation/tools.md`, the interface inventory
+  (`cross-service/runner-to-tool-callback.md`, `in-service/tool-models-and-resolution.md`,
+  `interfaces/README.md`), and a worked example in `api/oss/tests/manual/tools/tools.http`.
+
+## Remaining: the SDK reserved-tool declaration/resolution (the only open piece)
+
+For a setup agent to actually call `find_capabilities`, the SDK must emit a `CallbackToolSpec`
+for it so it reaches the runner as a custom tool. The server already accepts the call. The spec
+the SDK needs to emit is fixed and lives in `core/tools/discovery.py`:
+
+- `call_ref = "tools.agenta.find_capabilities"` (`FIND_CAPABILITIES_CALL_REF`)
+- `name = "find_capabilities"`, `description = FIND_CAPABILITIES_DESCRIPTION`
+- `input_schema = FIND_CAPABILITIES_INPUT_SCHEMA` (`use_cases[]` required; `provider`,
+  `limit_alternatives` optional)
+- the shared `ToolCallback` to `{api}/tools/call` (same as gateway/reference tools)
+
+It belongs on the direct-call-tools platform-op seam (a config kind / reserved name that
+`platform.resolve_tools` recognizes and resolves to the above), not a parallel mechanism. No
+runner change.
 
 ## What landed in Phase 1 (file map)
 

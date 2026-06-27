@@ -39,9 +39,9 @@ Two details bite. The LLM cannot put dots in a function name, so the slug travel
 separators and the router normalizes them back to dots. And `arguments` may arrive as a JSON
 string (from the model) or an object; the router normalizes to a dict before executing.
 
-## Two call_ref grammars on one endpoint
+## Three call_ref grammars on one endpoint
 
-The same `POST /tools/call` serves two kinds of callback tool, routed by the `call_ref` prefix:
+The same `POST /tools/call` serves three kinds of callback tool, routed by the `call_ref` prefix:
 
 - **`tools.{provider}.{integration}.{action}.{connection}`** — a Composio gateway action; the
   router re-resolves the connection and runs it through the provider adapter.
@@ -56,9 +56,16 @@ The same `POST /tools/call` serves two kinds of callback tool, routed by the `ca
   `response.data.outputs` is serialized into `call.data.content`. Auth is minted server-side from
   the caller's project + user, so the workflow's own connections/secrets stay server-side — the
   same safety property as a gateway tool.
+- **`tools.agenta.{op}`** — a reserved Agenta platform tool (out of the Composio 5-segment
+  namespace). v1 op: `tools.agenta.find_capabilities`, routed by `_call_agenta_tool` to
+  `ToolsService.discover_capabilities` (same logic as the `POST /tools/discover` endpoint). The
+  `CapabilitiesResult` is serialized into `call.data.content`. **Status:** the server-side route
+  is wired; the SDK-side declaration/resolution that puts this `call_ref` on a `CallbackToolSpec`
+  is pending (it rides the direct-call-tools platform-op seam), so no agent can declare the tool
+  yet. The runner needs no change — it forwards the `call_ref` opaquely, as for the other two.
 
-The runner is unchanged for both: it relays a `callback` spec with whatever `call_ref` the
-resolver put on it. Only the router's prefix dispatch is aware of the two grammars.
+The runner is unchanged for all three: it relays a `callback` spec with whatever `call_ref` the
+resolver put on it. Only the router's prefix dispatch is aware of the grammars.
 
 ## Owned by
 
@@ -71,9 +78,10 @@ resolver put on it. Only the router's prefix dispatch is aware of the two gramma
 
 - **The tool slug format.** The `tools.{provider}.{integration}.{action}.{connection}`
   reference, the `workflow.{axis}.*` reference (`workflow.variant.{slug}[.{version}]` /
-  `workflow.environment.{environment}.{slug}`), and the `__`/`.` normalization are a paired
-  contract across runner and router. The router dispatches by the `tools.*` vs `workflow.*`
-  prefix; keep the SDK resolvers and the router parser in agreement.
+  `workflow.environment.{environment}.{slug}`), the reserved `tools.agenta.{op}` reference, and
+  the `__`/`.` normalization are a paired contract across runner and router. The router
+  dispatches by prefix: `workflow.` → `_call_workflow_tool`, `tools.agenta.` → `_call_agenta_tool`,
+  else the 5-segment Composio parse. Keep the SDK resolvers and the router parser in agreement.
 - **Tool result content.** `call.data.content` is a JSON string already; do not double-encode
   it on the way out.
 - **Argument normalization.** Keep accepting both string and object arguments.

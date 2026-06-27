@@ -11,7 +11,7 @@ The contract and the Composio→Agenta mapping are documented in
 """
 
 import re
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from oss.src.core.tools.dtos import (
     Capability,
@@ -22,11 +22,80 @@ from oss.src.core.tools.dtos import (
     DiscoveredAlternative,
     DiscoveredTool,
     ToolConnectionState,
+    ToolProviderKind,
 )
 from oss.src.core.tools.providers.composio.dtos import (
     ComposioSearchQueryResult,
     ComposioSearchResult,
 )
+
+
+# ---------------------------------------------------------------------------
+# The reserved agent-facing tool: tools.agenta.find_capabilities (D1)
+# ---------------------------------------------------------------------------
+#
+# The agent calls this reserved tool; its call routes back through ``POST /tools/call``
+# (server-side, by the ``tools.agenta.`` prefix) to ``ToolsService.discover_capabilities``.
+# It lives outside the Composio 5-segment namespace. The SDK-side declaration/resolution
+# (how an agent config surfaces this tool and how ``platform.resolve_tools`` emits its
+# ``CallbackToolSpec``) is a follow-up that rides the direct-call-tools platform-op seam;
+# the runner forwards the call_ref opaquely, so it needs no change.
+
+AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
+FIND_CAPABILITIES_OP = "find_capabilities"
+FIND_CAPABILITIES_CALL_REF = f"{AGENTA_TOOL_CALL_REF_PREFIX}{FIND_CAPABILITIES_OP}"
+FIND_CAPABILITIES_DESCRIPTION = (
+    "Discover the Agenta tools that fit a set of plain-language use cases. Returns the "
+    "best-match tool per use case (with its input schema), companion/alternative tools, "
+    "each integration's connection state and how to connect it, and operating guidance. "
+    "Use it while wiring tools for an agent you are building."
+)
+FIND_CAPABILITIES_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "use_cases": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "One short fragment per capability the agent needs "
+            "(e.g. 'create a github issue').",
+        },
+        "provider": {
+            "type": "string",
+            "default": ToolProviderKind.COMPOSIO.value,
+            "description": "Tool provider to search.",
+        },
+        "limit_alternatives": {
+            "type": "integer",
+            "default": 3,
+            "minimum": 0,
+            "description": "Max alternative tools to return per use case.",
+        },
+    },
+    "required": ["use_cases"],
+}
+
+
+def parse_find_capabilities_arguments(
+    arguments: Dict[str, Any],
+) -> Tuple[List[str], str, int]:
+    """Normalize the reserved tool's call arguments into discovery inputs.
+
+    Returns ``(use_cases, provider, limit_alternatives)``. Drops blank fragments.
+    A bare string is treated as one use_case, never iterated character-by-character.
+    """
+    raw_use_cases = arguments.get("use_cases")
+    if isinstance(raw_use_cases, str):
+        raw_use_cases = [raw_use_cases]
+    elif not isinstance(raw_use_cases, list):
+        raw_use_cases = []
+    use_cases = [str(u).strip() for u in raw_use_cases if str(u).strip()]
+    provider = str(arguments.get("provider") or ToolProviderKind.COMPOSIO.value).strip()
+    limit_raw = arguments.get("limit_alternatives", 3)
+    try:
+        limit_alternatives = max(int(limit_raw), 0)
+    except (TypeError, ValueError):
+        limit_alternatives = 3
+    return use_cases, provider, limit_alternatives
 
 
 # A use_case that reads like an event subscription rather than an action. Composio
@@ -130,13 +199,15 @@ def referenced_integrations(
     """The integrations a translation will surface (primary + capped alternatives).
 
     Order-stable and deduped. The service computes connection state only for these,
-    so ``connections[]`` mirrors exactly what the agent is offered.
+    so ``connections[]`` mirrors exactly what the agent is offered. Only the first
+    primary slug is exposed as a capability's ``tool`` (see ``_translate_one``), so
+    only that one feeds the referenced set — never the unused extra primaries.
     """
     seen: Set[str] = set()
     out: List[str] = []
     for result in search.results:
         for slug in (
-            _primary_slugs(result)
+            _primary_slugs(result)[:1]
             + result.related_tool_slugs[: max(limit_alternatives, 0)]
         ):
             integration, _ = split_composio_slug(slug, result.toolkits)
@@ -185,13 +256,14 @@ def translate_search_result(
         if integration in connection_states
     ]
 
-    primary_states = [
-        capability.connection.state
+    # ready means create-and-run now: every requested use_case must resolve to a
+    # primary tool whose connection is ready. A use_case with no primary match (no
+    # tool/connection) keeps the result not-ready instead of being silently dropped.
+    ready = bool(capabilities) and all(
+        capability.tool is not None
+        and capability.connection is not None
+        and capability.connection.state == ToolConnectionState.READY
         for capability in capabilities
-        if capability.connection is not None
-    ]
-    ready = bool(primary_states) and all(
-        state == ToolConnectionState.READY for state in primary_states
     )
 
     notes: List[str] = []
