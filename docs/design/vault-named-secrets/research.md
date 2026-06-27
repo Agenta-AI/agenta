@@ -37,15 +37,18 @@ All references verified against the repo at planning time.
   → `op.execute("ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'WEBHOOK_PROVIDER'")`
 - `.../core/versions/c3b2a1d4e5f6_add_secret_org_scope.py:25` does the same for `SSO_PROVIDER`.
 
-Two facts to copy exactly:
+Facts to copy exactly:
 1. The label added is the **uppercase member NAME** (`CUSTOM_SECRET`), even though the
    stored `.value` is lowercase. That is how the existing four members already work, so
    mirror it.
-2. Migrations are **duplicated in both trees**: `api/oss/databases/postgres/migrations/core/versions/`
-   and `api/ee/databases/postgres/migrations/core/versions/`. Add the new revision to both.
-3. Current core head at planning time: **`b3c4d5e6f7a9`**
-   (`b3c4d5e6f7a9_repair_workflow_revision_versions.py`). Re-confirm the head before writing
-   `down_revision` (compute by elimination over the `versions/` dir).
+2. **Migration target corrected post-convergence.** The legacy `core` chain is parked at
+   `park00000000`; new core revisions live in the post-alignment **`core_oss`** chain
+   (`api/oss/databases/postgres/migrations/core_oss/versions/`, version table
+   `alembic_version_oss`). This chain ships in the OSS tree and **EE runs it from there** —
+   there is **no EE duplicate**. The actual head was `oss000000004`; the new revision is
+   `oss000000005_add_custom_secret_kind.py`. (The old "duplicate into both `core/` trees"
+   note was the pre-convergence layout.) See
+   `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
 
 ## Runtime consumption today (left untouched this iteration)
 
@@ -57,7 +60,9 @@ Two facts to copy exactly:
 
 - Entry: Settings -> "Providers & Models" renders
   `web/oss/src/components/pages/settings/Secrets/Secrets.tsx`, which today mounts two
-  `<SecretProviderTable type="standard" | "custom" />`.
+  `<SecretProviderTable type="standard" | "custom" />`. Named secrets do **not** go here —
+  they get their own Vault Settings section (see plan 4e). Find where the "Providers &
+  Models" tab is declared in the Settings layout to register the new tab as a sibling.
 - Table: `web/oss/src/components/pages/settings/Secrets/SecretProviderTable/index.tsx` —
   heavily provider-specific (LLM icons, provider tag, model tags). Reusing it for a plain
   secret would mean threading a third `type` through many branches. A small dedicated
@@ -87,5 +92,7 @@ Two facts to copy exactly:
 ## Existing tests to mirror
 
 - `api/oss/tests/legacy/vault_router/test_vault_secrets_apis.py` exercises the vault CRUD.
-  Add a `custom_secret` case here (create -> list -> get -> update -> delete, value masked
-  on the wire and decrypted round-trips).
+  Add `custom_secret` cases here: one `text` and one `json` (create -> list -> get ->
+  update -> delete, value masked on the wire and decrypted round-trips). Plus rejection
+  cases: a `json` secret with a nested object or array must be **rejected**, and a `text`
+  secret with a non-string value must be rejected.

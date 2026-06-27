@@ -22,9 +22,13 @@ import {userAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import type {NamedSecretRow} from "../core/types"
+
 import {
+    createCustomNamedSecretAtom,
     createCustomSecretAtom,
     createStandardSecretAtom,
+    customNamedSecretsAtom,
     customSecretsAtom,
     deleteSecretAtom,
     migrateVaultKeysAtom,
@@ -54,9 +58,11 @@ export const useVaultSecret = () => {
     const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
     const standardSecrets = useAtomValue(standardSecretsAtom)
     const customSecrets = useAtomValue(customSecretsAtom)
+    const namedSecrets = useAtomValue(customNamedSecretsAtom)
 
     const createStandardSecret = useSetAtom(createStandardSecretAtom)
     const createCustomSecret = useSetAtom(createCustomSecretAtom)
+    const createCustomNamedSecret = useSetAtom(createCustomNamedSecretAtom)
     const deleteSecret = useSetAtom(deleteSecretAtom)
     const migrateKeys = useSetAtom(migrateVaultKeysAtom)
 
@@ -86,6 +92,14 @@ export const useVaultSecret = () => {
         [createCustomSecret, vaultQuery],
     )
 
+    const handleModifyNamedSecret = useCallback(
+        async (secret: NamedSecretRow) => {
+            await createCustomNamedSecret(secret)
+            vaultQuery.refetch()
+        },
+        [createCustomNamedSecret, vaultQuery],
+    )
+
     const handleDeleteVaultSecret = useCallback(
         async (provider: LlmProvider) => {
             await deleteSecret(provider)
@@ -106,9 +120,11 @@ export const useVaultSecret = () => {
         loading,
         secrets: standardSecrets,
         customRowSecrets: customSecrets,
+        namedSecrets,
         mutate,
         handleModifyVaultSecret,
         handleDeleteVaultSecret,
         handleModifyCustomVaultSecret,
+        handleModifyNamedSecret,
     }
 }

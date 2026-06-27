@@ -1,12 +1,22 @@
 # Vault named secrets
 
-Add arbitrary user-named secrets to the project model vault. Today the vault only stores
-LLM provider keys and custom providers. This feature lets a user save any `name -> value`
-secret (for example `GITHUB_TOKEN`) alongside the existing provider keys, scoped to the
-project, and manage them from Settings.
+Add arbitrary user-named secrets to the project vault. Today the vault only stores LLM
+provider keys and custom providers. This feature lets a user save any named secret (for
+example `GITHUB_TOKEN`) scoped to the project, and manage it from a dedicated **Vault**
+section in Settings.
+
+Each secret declares a **format** (the AWS Secrets Manager model):
+
+- **`text`** — an opaque string, stored verbatim (no re-serialization).
+- **`json`** — a **flat** object of primitives (no nested objects, no arrays); the shape
+  that maps onto environment variables. The backend rejects nesting.
+
+How a value is displayed (raw vs prettified text; JSON editor vs key/value grid) is a UI
+choice; `format` is what changes validation.
 
 Scope for this iteration: **storage + management UI only**. We do not wire these secrets
-into the agent runtime / sandbox yet. That is a separate follow-up.
+into the agent runtime / sandbox yet. That is a separate follow-up — but `format` is
+designed with that consumption in mind (`json` → env vars, `text` → file/single value).
 
 ## Files in this folder
 
@@ -22,4 +32,8 @@ into the agent runtime / sandbox yet. That is a separate follow-up.
 - Frontend vault UI: `web/oss/src/components/pages/settings/Secrets/` + entity package
   `web/packages/agenta-entities/src/secret/`.
 - The vault is `kind`-driven. We add one new `SecretKind` (`custom_secret`) and reuse the
-  generic CRUD, encryption, DAO, and mapping layers unchanged.
+  generic CRUD, encryption, DAO, and mapping layers unchanged. The `text`/`json` split is a
+  `format` field **inside** the secret data, not a second kind — one kind, two validation
+  rules.
+- The management UI is a **new Vault Settings section**, separate from "Providers & Models"
+  (which is LLM-scoped and also holds internal webhook/SSO secrets).

@@ -68,7 +68,7 @@ class WebhooksService:
     ) -> Optional[str]:
         """Fetch a subscription's signing secret from the vault."""
         try:
-            secret_dto = await self.vault_service.get_secret(
+            secret_dto = await self.vault_service.get_secret_by_id(
                 secret_id=secret_id,
                 project_id=project_id,
             )
