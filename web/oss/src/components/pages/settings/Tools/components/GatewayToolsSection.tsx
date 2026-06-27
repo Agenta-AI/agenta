@@ -14,7 +14,7 @@ import {
     ToolExecutionDrawer,
 } from "@agenta/entity-ui/gatewayTool"
 import {MoreOutlined} from "@ant-design/icons"
-import {ArrowClockwise, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
+import {ArrowClockwise, GearSix, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Table, Tag, Tooltip, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
@@ -225,7 +225,7 @@ export default function GatewayToolsSection() {
                     value ? formatDay({date: value, outputFormat: "YYYY-MM-DD HH:mm"}) : "-",
             },
             {
-                title: "",
+                title: <GearSix size={16} />,
                 key: "actions",
                 width: 48,
                 fixed: "right",

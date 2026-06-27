@@ -291,7 +291,7 @@ async def _get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderIn
 
         # Extract OIDC config
         vault_service = VaultService(SecretsDAO())
-        secret = await vault_service.get_secret(
+        secret = await vault_service.get_secret_by_id(
             secret_id=provider.secret_id,
             organization_id=organization.id,
         )

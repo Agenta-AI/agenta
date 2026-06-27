@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {CopyOutlined, DeleteOutlined} from "@ant-design/icons"
-import {Plus} from "@phosphor-icons/react"
+import {ArrowClockwise, GearSix, Plus} from "@phosphor-icons/react"
 import {Alert, Button, Modal, Table, Tooltip, Typography, theme} from "antd"
 import {ColumnsType} from "antd/es/table"
 
@@ -199,14 +199,20 @@ const APIKeys: React.FC = () => {
         return [
             ...baseColumns,
             {
+                title: <GearSix size={16} />,
                 key: "action",
+                width: 96,
+                fixed: "right" as const,
+                align: "center" as const,
                 render: (_: unknown, record: APIKey) => (
-                    <Tooltip title="Delete">
-                        <DeleteOutlined
-                            onClick={() => deleteKey(record.prefix)}
-                            style={{color: token.colorError}}
-                        />
-                    </Tooltip>
+                    <div className="flex items-center justify-center gap-1">
+                        <Tooltip title="Delete">
+                            <DeleteOutlined
+                                onClick={() => deleteKey(record.prefix)}
+                                style={{color: token.colorError}}
+                            />
+                        </Tooltip>
+                    </div>
                 ),
             },
         ]
@@ -225,20 +231,32 @@ const APIKeys: React.FC = () => {
     return (
         <div className="flex flex-col gap-2">
             {canEditApiKeys ? (
-                <div>
+                <div className="flex items-center gap-2">
                     <Button
                         type="primary"
+                        size="small"
                         loading={loading[Loading.CREATE]}
-                        icon={<Plus size={14} className="mt-0.2" />}
+                        icon={<Plus size={14} />}
                         onClick={createKey}
                     >
                         Generate
                     </Button>
+                    <Tooltip title="Reload API keys">
+                        <Button
+                            icon={<ArrowClockwise size={14} />}
+                            type="text"
+                            size="small"
+                            aria-label="Reload API keys"
+                            loading={loading[Loading.LIST]}
+                            onClick={listKeys}
+                        />
+                    </Tooltip>
                 </div>
             ) : null}
             <Table<APIKey>
                 dataSource={keys}
                 rowKey="prefix"
+                bordered
                 pagination={false}
                 loading={loading[Loading.LIST]}
                 columns={columns}

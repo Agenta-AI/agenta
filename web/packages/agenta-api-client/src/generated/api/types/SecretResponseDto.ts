@@ -3,9 +3,10 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SecretResponseDto {
+    id?: (string | null) | undefined;
+    slug?: (string | null) | undefined;
     kind: AgentaApi.SecretKind;
     data: SecretResponseDto.Data;
-    id?: (string | null) | undefined;
     header: AgentaApi.Header;
     lifecycle?: (AgentaApi.LegacyLifecycleDto | null) | undefined;
 }
@@ -15,5 +16,6 @@ export namespace SecretResponseDto {
         | AgentaApi.StandardProviderDto
         | AgentaApi.CustomProviderDto
         | AgentaApi.SsoProviderDto
-        | AgentaApi.WebhookProviderDto;
+        | AgentaApi.WebhookProviderDto
+        | AgentaApi.CustomSecretDto;
 }

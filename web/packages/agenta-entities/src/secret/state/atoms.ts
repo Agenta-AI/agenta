@@ -41,8 +41,17 @@ import {atom} from "jotai"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
-import {getEnvNameMap, transformCustomProviderPayloadData} from "../core/transforms"
-import {SecretKind, type CreateSecretDto, type VaultMigrationStatus} from "../core/types"
+import {
+    getEnvNameMap,
+    transformCustomProviderPayloadData,
+    transformCustomSecretPayloadData,
+} from "../core/transforms"
+import {
+    SecretKind,
+    type CreateSecretDto,
+    type NamedSecretRow,
+    type VaultMigrationStatus,
+} from "../core/types"
 
 interface CreateMutationArgs {
     projectId: string
@@ -132,6 +141,17 @@ export const customSecretsAtom = atom((get) => {
     const data = queryResult.data || []
 
     return data.filter((secret) => secret.type === SecretKind.CustomProvider)
+})
+
+/**
+ * Derived atom for user-named secrets (`custom_secret`).
+ * Filters vault data for named-secret rows (text/json blobs).
+ */
+export const customNamedSecretsAtom = atom((get) => {
+    const queryResult = get(vaultSecretsQueryAtom)
+    const data = queryResult.data || []
+
+    return data.filter((secret) => secret.type === SecretKind.CustomSecret) as NamedSecretRow[]
 })
 
 /**
@@ -249,6 +269,40 @@ export const createCustomSecretAtom = atom(null, async (get, set, provider: LlmP
         }
     } catch (error) {
         console.error("Failed to create/update custom secret:", error)
+        throw error
+    }
+})
+
+/**
+ * Atom for creating/updating user-named secrets (`custom_secret`).
+ *
+ * Unlike the provider atoms, the payload is NOT run through
+ * `removeEmptyFromObjects`: a `text` secret may legitimately be an empty
+ * string and a `json` secret may carry `null` values — both must survive to
+ * the backend verbatim.
+ */
+export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: NamedSecretRow) => {
+    const namedSecrets = get(customNamedSecretsAtom)
+    const createMutation = get(createVaultSecretMutationAtom)
+    const updateMutation = get(updateVaultSecretMutationAtom)
+    const projectId = get(projectIdAtom)
+    if (!projectId) {
+        throw new Error("[vault] Missing projectId for createCustomNamedSecret")
+    }
+
+    try {
+        const payload = transformCustomSecretPayloadData(secret)
+
+        const findSecret = namedSecrets.find((s) => s.id === secret.id)
+        const secretId = findSecret?.id ?? secret.id
+
+        if (secretId) {
+            await updateMutation.mutateAsync({projectId, secret_id: secretId, payload})
+        } else {
+            await createMutation.mutateAsync({projectId, payload})
+        }
+    } catch (error) {
+        console.error("Failed to create/update named secret:", error)
         throw error
     }
 })
