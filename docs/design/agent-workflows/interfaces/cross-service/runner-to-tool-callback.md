@@ -39,6 +39,27 @@ Two details bite. The LLM cannot put dots in a function name, so the slug travel
 separators and the router normalizes them back to dots. And `arguments` may arrive as a JSON
 string (from the model) or an object; the router normalizes to a dict before executing.
 
+## Two call_ref grammars on one endpoint
+
+The same `POST /tools/call` serves two kinds of callback tool, routed by the `call_ref` prefix:
+
+- **`tools.{provider}.{integration}.{action}.{connection}`** — a Composio gateway action; the
+  router re-resolves the connection and runs it through the provider adapter.
+- **`workflow.variant.{slug}[.{version}]`** / **`workflow.environment.{environment}.{slug}`** — a
+  `type: "reference"` workflow tool; the router (`_call_workflow_tool`) parses the targeting axis
+  and builds a `WorkflowServiceRequest` — the variant axis sets
+  `references={"workflow": Reference(slug, version)}`; the environment axis sets
+  `references={"environment": Reference(slug=environment), "workflow": Reference(slug)}` (the
+  environment selects the deployed revision via the derived `{slug}.revision` key) — with
+  `data.inputs = arguments`, and calls
+  `WorkflowsService.invoke_workflow(project_id, user_id, request)`. The workflow's
+  `response.data.outputs` is serialized into `call.data.content`. Auth is minted server-side from
+  the caller's project + user, so the workflow's own connections/secrets stay server-side — the
+  same safety property as a gateway tool.
+
+The runner is unchanged for both: it relays a `callback` spec with whatever `call_ref` the
+resolver put on it. Only the router's prefix dispatch is aware of the two grammars.
+
 ## Owned by
 
 - `services/agent/src/tools/callback.ts`: the runner caller (sends the envelope, reads `content`).
@@ -49,7 +70,10 @@ string (from the model) or an object; the router normalizes to a dict before exe
 ## Watch for when changing
 
 - **The tool slug format.** The `tools.{provider}.{integration}.{action}.{connection}`
-  reference and the `__`/`.` normalization are a paired contract across runner and router.
+  reference, the `workflow.{axis}.*` reference (`workflow.variant.{slug}[.{version}]` /
+  `workflow.environment.{environment}.{slug}`), and the `__`/`.` normalization are a paired
+  contract across runner and router. The router dispatches by the `tools.*` vs `workflow.*`
+  prefix; keep the SDK resolvers and the router parser in agreement.
 - **Tool result content.** `call.data.content` is a JSON string already; do not double-encode
   it on the way out.
 - **Argument normalization.** Keep accepting both string and object arguments.

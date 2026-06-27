@@ -6,6 +6,7 @@ from agenta.sdk.agents.tools import (
     BuiltinToolConfig,
     ClientToolConfig,
     GatewayToolConfig,
+    ReferenceToolConfig,
     ToolConfigurationError,
     coerce_tool_config,
     coerce_tool_configs,
@@ -178,3 +179,70 @@ def test_default_compat_mode_raises_with_index():
     with pytest.raises(ToolConfigurationError) as caught:
         coerce_tool_configs(["read", {"invalid": True}])
     assert caught.value.index == 1
+
+
+# --- type:"reference" workflow tool ------------------------------------------
+
+
+def test_typed_reference_config_round_trips():
+    tool = parse_tool_config(
+        {
+            "type": "reference",
+            "slug": "summarize",
+            "name": "summarize",
+            "description": "Summarize text",
+            "input_schema": {
+                "type": "object",
+                "properties": {"text": {"type": "string"}},
+            },
+        }
+    )
+    assert isinstance(tool, ReferenceToolConfig)
+    assert tool.ref_by == "variant"
+    assert tool.slug == "summarize"
+    assert tool.version is None
+    assert tool.call_ref == "workflow.variant.summarize"
+    assert tool.tool_name == "summarize"
+    assert tool.input_schema["properties"]["text"]["type"] == "string"
+
+
+def test_typed_reference_version_builds_versioned_call_ref():
+    tool = coerce_tool_config({"type": "reference", "slug": "wf", "version": "3"})
+    assert isinstance(tool, ReferenceToolConfig)
+    assert tool.call_ref == "workflow.variant.wf.3"
+    # No authored name -> the model-visible name defaults to the workflow slug.
+    assert tool.tool_name == "wf"
+
+
+def test_typed_reference_environment_axis():
+    tool = coerce_tool_config(
+        {
+            "type": "reference",
+            "ref_by": "environment",
+            "environment": "production",
+            "slug": "wf",
+        }
+    )
+    assert isinstance(tool, ReferenceToolConfig)
+    assert tool.call_ref == "workflow.environment.production.wf"
+
+
+def test_typed_reference_carries_tool_axes():
+    tool = coerce_tool_config(
+        {
+            "type": "reference",
+            "slug": "wf",
+            "needs_approval": True,
+            "render": {"kind": "component", "component": "Card"},
+            "permission": "ask",
+        }
+    )
+    assert isinstance(tool, ReferenceToolConfig)
+    assert tool.needs_approval is True
+    assert tool.render == {"kind": "component", "component": "Card"}
+    assert tool.permission == "ask"
+
+
+def test_typed_reference_without_slug_raises():
+    with pytest.raises(ToolConfigurationError):
+        coerce_tool_config({"type": "reference"})

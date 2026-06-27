@@ -7,7 +7,52 @@ from agenta.sdk.agents.tools import (
     CallbackToolSpec,
     CodeToolConfig,
     CodeToolSpec,
+    ReferenceToolConfig,
 )
+
+
+def test_reference_tool_variant_call_ref_grammar():
+    # variant axis -> workflow.variant.{slug}; pinned -> workflow.variant.{slug}.{version}.
+    # Distinct from the Composio 5-segment grammar so the server routes by the `workflow.` prefix.
+    assert ReferenceToolConfig(slug="wf").call_ref == "workflow.variant.wf"
+    assert (
+        ReferenceToolConfig(slug="wf", version="2").call_ref == "workflow.variant.wf.2"
+    )
+    # ref_by defaults to "variant".
+    assert ReferenceToolConfig(slug="wf").ref_by == "variant"
+    # The model-visible name defaults to the slug when none is authored.
+    assert ReferenceToolConfig(slug="wf").tool_name == "wf"
+    assert ReferenceToolConfig(slug="wf", name="run").tool_name == "run"
+
+
+def test_reference_tool_environment_call_ref_grammar():
+    # environment axis -> workflow.environment.{environment}.{slug}; the environment is the pin.
+    config = ReferenceToolConfig(
+        ref_by="environment", environment="production", slug="wf"
+    )
+    assert config.call_ref == "workflow.environment.production.wf"
+
+
+def test_reference_tool_environment_requires_environment_slug():
+    with pytest.raises(ValidationError):
+        ReferenceToolConfig(ref_by="environment", slug="wf")
+
+
+def test_reference_tool_environment_forbids_version():
+    with pytest.raises(ValidationError):
+        ReferenceToolConfig(
+            ref_by="environment", environment="production", slug="wf", version="2"
+        )
+
+
+def test_reference_tool_variant_forbids_environment_slug():
+    with pytest.raises(ValidationError):
+        ReferenceToolConfig(ref_by="variant", environment="production", slug="wf")
+
+
+def test_reference_tool_discriminator_is_reference():
+    config = ReferenceToolConfig(slug="wf")
+    assert config.type == "reference"
 
 
 def test_canonical_config_forbids_unexpected_fields():

@@ -234,6 +234,9 @@ def test_request_to_wire_claude_matches_golden(golden):
     assert "sandboxPermission" not in payload
     # The claude adapter (Python) translated the author's permissions slice into a rendered
     # `.claude/settings.json`, carried on the generic `harnessFiles` seam. The runner writes it blind.
+    # The `allow` list also carries the per-resolved-tool rule for the internal `agenta-tools` MCP
+    # server (F-046): `_CUSTOM_TOOL` is a read-only callback tool -> effective `allow` ->
+    # `mcp__agenta-tools__get_user`, so Claude runs it instead of parking on its own permission gate.
     assert payload["harnessFiles"] == [
         {
             "path": ".claude/settings.json",
@@ -241,7 +244,11 @@ def test_request_to_wire_claude_matches_golden(golden):
                 {
                     "permissions": {
                         "defaultMode": "acceptEdits",
-                        "allow": ["Read", "Bash(npm run:*)"],
+                        "allow": [
+                            "Read",
+                            "Bash(npm run:*)",
+                            "mcp__agenta-tools__get_user",
+                        ],
                         "deny": ["WebFetch"],
                     }
                 },

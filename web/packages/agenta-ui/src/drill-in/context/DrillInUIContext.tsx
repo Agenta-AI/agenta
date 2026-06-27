@@ -85,6 +85,67 @@ export interface GatewayToolsBridge {
     }>
 }
 
+export interface WorkflowReferenceUI {
+    id: string
+    slug: string
+    name?: string
+    description?: string
+}
+
+/** A selectable revision of a referenced workflow, for the variant-axis "pin a version" picker. */
+export interface WorkflowRevisionUI {
+    /** The version identifier emitted as `ReferenceToolConfig.version` (e.g. "3"). */
+    version: string
+    /** Optional label (commit message / name) shown next to the version. */
+    label?: string
+}
+
+/** A deployment environment a workflow can be referenced through (the environment axis). */
+export interface WorkflowEnvironmentUI {
+    slug: string
+    name?: string
+}
+
+/**
+ * What the WorkflowReferenceSelector emits when the author confirms a reference. Mirrors the
+ * backend `ReferenceToolConfig`: an axis, the workflow slug, then either a pinned version
+ * (variant axis) or an environment (environment axis).
+ */
+export interface WorkflowReferencePayload {
+    slug: string
+    refBy: "variant" | "environment"
+    /** Pinned workflow revision version; variant axis only, omitted = latest. */
+    version?: string
+    /** Environment slug; environment axis only. */
+    environment?: string
+}
+
+/**
+ * Bridge for the "reference a workflow as a tool" source in the tool selector (#4860).
+ * OSS supplies the project's workflows plus resolvers for a workflow's input schema, its
+ * revisions (variant axis), and its environments (environment axis); the selector emits a
+ * `type:"reference"` tools[] entry that the backend runs server-side as a callback tool.
+ * Parallels {@link GatewayToolsBridge}.
+ */
+export interface WorkflowReferenceBridge {
+    enabled: boolean
+    workflows: WorkflowReferenceUI[]
+    workflowsLoading: boolean
+    /** Resolve the referenced workflow's input JSON-schema to pre-fill the tool's `input_schema`.
+     * Returns null when unavailable; the caller falls back to an empty object schema. */
+    resolveInputSchema: (workflow: WorkflowReferenceUI) => Promise<Record<string, unknown> | null>
+    /** List a workflow's revisions for the variant-axis "pin a version" picker. */
+    useWorkflowRevisions: (workflow: WorkflowReferenceUI | null) => {
+        revisions: WorkflowRevisionUI[]
+        isLoading: boolean
+    }
+    /** List a workflow's deployment environments for the environment axis. */
+    useWorkflowEnvironments: (workflow: WorkflowReferenceUI | null) => {
+        environments: WorkflowEnvironmentUI[]
+        isLoading: boolean
+    }
+}
+
 /**
  * Interface for injectable UI components
  */
@@ -191,6 +252,9 @@ export interface DrillInUIComponents {
 
     /** Gateway tools integration for the tool selector */
     gatewayTools?: GatewayToolsBridge
+
+    /** Workflow-as-tool reference integration for the tool selector (#4860) */
+    workflowReference?: WorkflowReferenceBridge
 
     /**
      * Lexical editor context hook
