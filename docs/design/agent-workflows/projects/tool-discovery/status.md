@@ -4,18 +4,58 @@ Source of truth for this project. Update as work proceeds.
 
 ## Current state — 2026-06-27
 
-Planning + spike complete. No code written. The Composio engine is verified live; the design
-and the use-case walkthrough are written. Awaiting decisions on D1-D6 before Phase 1.
+D1-D6 settled (Mahmoud: "go with the recommendations"). Implementation Phase 1 landed on PR
+#4884 (the design/plan docs lane, reused for the implementation): the Composio adapter search
+method, the Composio→Agenta translation, connection-state reporting, structured guidance, the
+v1 action-only scope + trigger note, the cache split, a recorded-fixture replay test, and the
+setup-agent skill. The REST endpoint + reserved agent tool (Phase 3/4) are deferred because
+they touch `apis/fastapi/tools/router.py` and the SDK `tools/models.py`, owned by a concurrent
+Workstream-B task; they resume once those files are free.
 
 - [x] Phase 0: spike + verify (`research.md`)
 - [x] Design + field-usefulness analysis (`design.md`)
 - [x] Use-case walkthrough with real outputs (`use-case-walkthrough.md`)
-- [ ] Decisions D1-D6 settled
-- [ ] Phase 1: adapter method
-- [ ] Phase 2: core service + translation
-- [ ] Phase 3: REST endpoint
-- [ ] Phase 4: agent-facing tool
-- [ ] Phase 5: live E2E + replay test
+- [x] Decisions D1-D6 settled (recommendations accepted)
+- [x] Phase 1: adapter method (`ComposioToolsAdapter.search_capabilities`)
+- [x] Phase 2: core service + translation (`ToolsService.discover_capabilities`,
+      `core/tools/discovery.py`, the discovery DTOs, the D6 cache split) + unit tests
+- [ ] Phase 3: REST endpoint `POST /tools/discover` (DEFERRED — needs `tools/router.py`)
+- [ ] Phase 4: agent-facing reserved tool `tools.agenta.find_capabilities`
+      (DEFERRED — needs the SDK `tools/models.py` + reserved-tool registration)
+- [ ] Phase 5: live E2E + replay-fixture upgrade from a real captured run
+
+The setup-agent skill (plan.md:76) shipped in this PR:
+`skills/discover-and-wire-tools/SKILL.md` (the discover -> resolve-connections -> create ->
+test loop). Testing it with a subagent and the `/debug-local` exploratory QA (plan.md:84) are
+orchestrator follow-ups once Phase 3/4 land.
+
+## What landed in Phase 1 (file map)
+
+- `api/oss/src/core/tools/providers/composio/adapter.py` — `search_capabilities` (the
+  `POST /tools/execute/COMPOSIO_SEARCH_TOOLS` call).
+- `api/oss/src/core/tools/providers/composio/dtos.py` — typed `ComposioSearchResult`
+  (results, tool_schemas, toolkit_connection_statuses); `status_message` deliberately dropped.
+- `api/oss/src/core/tools/dtos.py` — the Agenta-native response DTOs (`CapabilitiesResult`,
+  `Capability`, `DiscoveredTool`, `ConnectionRequirement`, `CapabilityGuidance`,
+  `ToolConnectionState`, `ConnectAffordance`).
+- `api/oss/src/core/tools/discovery.py` — pure Composio→Agenta translation (slug split,
+  guidance slug-rewrite, alternatives cap, trigger detection).
+- `api/oss/src/core/tools/service.py` — `discover_capabilities` orchestration: cached search +
+  fresh connection-state join + translate; `_discovery_connection_state` / `_connection_auth_state`.
+- `api/oss/src/core/tools/exceptions.py` — `DiscoveryUnsupportedError`.
+- `api/oss/tests/pytest/unit/tools/test_discovery.py` + `fixtures/composio_search_tools.json`
+  — recorded-fixture replay + translation + connection-state + cache-split tests.
+
+## Implementation note — connection-state source (small refinement of the design)
+
+The design's state machine reads `ready` as "Composio `has_active_connection: true` AND a valid
+`gateway_connections` row." The implementation derives `ready` from our own rows only (active +
+valid + a usable provider connection — exactly what `resolve_connection_by_slug` accepts at
+invoke time). Reason: D6 caches the tool/schema half, so the Composio per-user status in that
+blob would go stale; our DB row is always fresh (the OAuth callback sets `is_valid`) and is the
+authority for whether the tool will actually resolve. The two agree when `user_id = project_id`
+(research.md §3), so this is a freshness refinement, not a behavior change. The cached blob has
+`toolkit_connection_statuses` stripped to keep it project-agnostic.
 
 ## Key verified facts (do not relitigate)
 
@@ -25,28 +65,33 @@ and the use-case walkthrough are written. Awaiting decisions on D1-D6 before Pha
   (`gateway/connections/service.py:172,324`). So pass `project_id` to get the project's state.
 - No rerank, no embeddings on our side. Composio does the semantic ranking. (Explicit ask.)
 
-## Open decisions (need the user)
+## Decisions (all SETTLED 2026-06-27 — Mahmoud: "go with the recommendations")
 
-- **D1 — endpoint + tool naming. SETTLED 2026-06-27 (user approved).** New `POST /tools/discover`
-  endpoint, agent tool as reserved `tools.agenta.find_capabilities` (out of the Composio
-  namespace).
-- **D2 — translate vs pass through.** Lean: translate fully to Agenta concepts
-  (`integration` + `action`, connection slugs, our connection-create affordance); keep raw
-  Composio slug only as an opaque `provider_action` and the plan/pitfalls as guidance text.
-- **D3 — report vs act on connections.** Lean: report state + return the create affordance; do
-  not auto-create (a human approves OAuth). Matches the connection state machine in `design.md`.
-- **D4 — agents_md draft.** Return plan + pitfalls as structured `guidance` and let the setup
-  agent compose `agents_md`, or also return a ready-made draft? Lean: structured now, optional
-  draft later.
-- **D5 — triggers in scope?** Stronger lean now, backed by a finding: Composio has NO semantic
+- **D1 — endpoint + tool naming. SETTLED.** New `POST /tools/discover` endpoint, agent tool as
+  reserved `tools.agenta.find_capabilities` (out of the Composio namespace). (Both are Phase
+  3/4, deferred behind `router.py`/`models.py`.)
+- **D2 — translate vs pass through. SETTLED: translate fully** to Agenta concepts (`integration`
+  + `action`, connection slugs, our `POST /tools/connections/` affordance). The raw Composio
+  slug rides along only as an opaque `provider_action`; plan/pitfalls are guidance text with
+  slugs rewritten to `integration.action`. Implemented in `core/tools/discovery.py`.
+- **D3 — report vs act on connections. SETTLED: report + affordance.** Report the connection
+  state and return the create affordance; do not auto-create (a human approves OAuth). The
+  connection state machine in `design.md` is implemented as `ToolConnectionState`.
+- **D4 — agents_md draft. SETTLED: structured guidance now.** Return plan + pitfalls as
+  structured `guidance` and let the setup agent compose `agents_md` (the new skill teaches it).
+  A ready-made `agents_md` draft is a later convenience (Phase 6).
+- **D5 — triggers in scope? SETTLED: scope v1 to action tools.** Composio has NO semantic
   search for triggers (`COMPOSIO_SEARCH_TRIGGERS` 404; the tool search ignores trigger
   phrasing; only keyword `/triggers_types` + `COMPOSIO_LIST_TRIGGERS` exist, see research.md
-  §4). So triggers cannot share the one-call semantic path. Lean: scope the first slice to
-  action tools, return a clear "this needs a trigger subscription" note, and handle the
-  listen side as a follow-up over the keyword triggers catalog (Phase 6).
-- **D6 — connection-state freshness vs caching.** Cache the tool/schema half; re-check
-  connection state fresh (it flips when a user connects). Lean: split cache keys, short TTL on
-  the connection part.
+  §4). v1 returns action tools and flags a trigger-shaped use case with a clear note
+  (`Capability.note` + top-level `notes`); the listen side is a follow-up over the keyword
+  triggers catalog (Phase 6). Implemented as `discovery.looks_like_trigger`.
+- **D6 — connection-state freshness vs caching. SETTLED: split.** Cache the tool/schema half
+  (the expensive search) project-agnostically; recompute connection state fresh from
+  `gateway_connections` every call so it flips the moment a user connects. Implemented in
+  `ToolsService._cached_search` (strips per-project state before caching) +
+  `_discovery_connection_state`. See the implementation note above on the connection-state
+  source.
 
 ## Risks / things to watch
 

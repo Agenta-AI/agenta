@@ -129,7 +129,7 @@ it does not run a connection query.
   ],
   "guidance": {                                   // for composing the created agent's agents_md
     "plan_steps": [ "Resolve the channel with github... ", "..." ],
-    "pitfalls":   [ "SLACK_SEND_MESSAGE is not idempotent; avoid duplicate posts", "..." ]
+    "pitfalls":   [ "slack.SEND_MESSAGE is not idempotent; avoid duplicate posts", "..." ]
   },
   "ready": false                                  // true only when every connection is ready
 }

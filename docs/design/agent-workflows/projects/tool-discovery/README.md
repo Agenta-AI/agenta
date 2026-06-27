@@ -21,7 +21,9 @@ This is the deep implementation of the `search_tools` stub in
   first principles: the original request, how a naive agent solved it (~20 calls), and what it
   looks like with `find_capabilities`, with real example outputs.
 - [`plan.md`](plan.md) — phased implementation plan.
-- [`status.md`](status.md) — current state, open decisions (D1-D6), source of truth.
+- [`status.md`](status.md) — current state, settled decisions (D1-D6), source of truth.
+- [`skills/discover-and-wire-tools/SKILL.md`](skills/discover-and-wire-tools/SKILL.md) — the
+  setup-agent skill that teaches the discover -> resolve-connections -> create -> test loop.
 
 ## One-line summary
 

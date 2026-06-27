@@ -3,6 +3,12 @@
 Layered bottom-up so each phase is independently testable. The engine (Composio) is verified;
 the work is the Agenta-native wrapper and the translation.
 
+> **Status (2026-06-27):** Phases 1-2 landed on PR #4884 (with the setup-agent skill, see
+> below). Phases 3-4 (the `POST /tools/discover` endpoint and the reserved
+> `tools.agenta.find_capabilities` tool) are DEFERRED: they touch
+> `api/oss/src/apis/fastapi/tools/router.py` and the SDK `tools/models.py`, owned by a
+> concurrent Workstream-B task. They resume once those files are free. See `status.md`.
+
 ## Phase 0 — Spike and verify (done)
 
 - Confirmed `COMPOSIO_SEARCH_TOOLS` runs via `POST /tools/execute/{slug}` (no MCP session).
@@ -11,7 +17,7 @@ the work is the Agenta-native wrapper and the translation.
 - Confirmed connection state is per `user_id`, and Agenta sets Composio `user_id = project_id`.
 - All recorded in `research.md`. Decisions to settle before Phase 1: D1-D6 in `status.md`.
 
-## Phase 1 — Adapter method
+## Phase 1 — Adapter method (DONE)
 
 Add `search_capabilities` to `ComposioToolsAdapter`
 (`api/oss/src/core/tools/providers/composio/adapter.py`, near `execute` at L164).
@@ -25,7 +31,10 @@ Add `search_capabilities` to `ComposioToolsAdapter`
 - Unit test with a recorded fixture (the real response captured in Phase 0). No live LLM in
   CI.
 
-## Phase 2 — Core discovery service and translation
+## Phase 2 — Core discovery service and translation (DONE)
+
+Landed as `ToolsService.discover_capabilities` plus the pure translation module
+`api/oss/src/core/tools/discovery.py` and the response DTOs in `core/tools/dtos.py`.
 
 Add to `api/oss/src/core/tools/service.py` (or a focused `ToolDiscoveryService`):
 
@@ -41,30 +50,42 @@ Add to `api/oss/src/core/tools/service.py` (or a focused `ToolDiscoveryService`)
   `guidance`, `ready`.
 - Unit tests for translation and the three connection states (fixtures, no network).
 
-## Phase 3 — REST endpoint
+## Phase 3 — REST endpoint (DEFERRED — needs `tools/router.py`)
 
 Add `POST /tools/discover` to `api/oss/src/apis/fastapi/tools/router.py`, project-scoped via the
-existing auth dependency (gives `project_id`).
+existing auth dependency (gives `project_id`). The handler calls
+`ToolsService.discover_capabilities(...)` (already built in Phase 2) and serializes
+`CapabilitiesResult`.
 
-- Request/response models in `api/oss/src/apis/fastapi/tools/models.py`.
-- Caching: cache the tool/schema half (per use_case, provider) with the existing 5-min TTL;
-  re-resolve connection state fresh each call (it changes when a user connects). Split keys or
-  short TTL for the connection part.
+- Request/response models in `api/oss/src/apis/fastapi/tools/models.py` (reuse the core
+  `CapabilitiesResult` DTO; add a thin `CapabilitiesQuery` request).
+- Caching (D6) is already implemented in the core service (Phase 2): `ToolsService._cached_search`
+  caches the tool/schema half project-agnostically with the standard 5-min TTL and recomputes
+  connection state fresh each call. The endpoint just calls `discover_capabilities`.
 - Add a worked example to `api/oss/tests/manual/tools/tools.http`.
 
-## Phase 4 — Agent-facing tool
+## Phase 4 — Agent-facing tool (DEFERRED — needs the SDK `tools/models.py`)
 
 Expose `find_capabilities` to harnesses through the gateway/builtin tool path, consistent with
 [`../agent-creation-skills/custom-tools-design.md`](../agent-creation-skills/custom-tools-design.md).
 
 - The tool calls `POST /tools/discover` with the run's caller auth (project scope flows
   through).
-- Register it where builder tools are defined (SDK `agenta.sdk.agents`, service tool wiring,
-  runner `buildCustomTools`). Decide reserved provider (`tools.agenta.*`) vs builtin name (D1).
-- The builder agent's `agents_md` documents the discover -> resolve-connections -> create ->
-  test loop.
+- Register it as the reserved `tools.agenta.find_capabilities` tool (D1) where builder tools
+  are defined (SDK `agenta.sdk.agents`, service tool wiring, runner `buildCustomTools`).
+- The setup agent learns the discover -> resolve-connections -> create -> test loop from the
+  **skill shipped in this PR** (plan.md:76): `skills/discover-and-wire-tools/SKILL.md`. The
+  skill is the teaching surface (not an `agents_md` blob); it pairs with `create-agenta-agent`.
+  Testing the skill with a subagent is an orchestrator follow-up.
 
 ## Phase 5 — Live end to end and a replay test
+
+> Phase 1 already ships a recorded-fixture replay test
+> (`api/oss/tests/pytest/unit/tools/test_discovery.py` + `fixtures/composio_search_tools.json`,
+> shapes taken verbatim from the 2026-06-27 live capture). Phase 5 upgrades it with a freshly
+> captured pair once the endpoint is live, and adds the live walkthrough below. A `/debug-local`
+> exploratory QA of the live endpoint (plan.md:84) is an orchestrator follow-up after Phase 3/4
+> land — it is not run from the implementation subagent.
 
 - Run on the dev stack with a project that has GitHub `ready` and Slack `needs_auth`. Confirm
   `find_capabilities` returns the right states and a usable `tool` config.
@@ -85,6 +106,11 @@ Expose `find_capabilities` to harnesses through the gateway/builtin tool path, c
 
 - API tests: `cd api && py-run-tests` (see root `AGENTS.md`). Lint: `ruff format` then
   `ruff check --fix` in `api/` before committing.
-- Keep docs in sync (the `keep-docs-in-sync` skill): update the `search_tools` stub in
-  agent-creation-skills to point here, and the interface inventory when the endpoint lands.
+- Keep docs in sync (the `keep-docs-in-sync` skill): the interface inventory + the living
+  `documentation/tools.md` get the `POST /tools/discover` endpoint + the reserved tool when
+  Phase 3/4 land (nothing public crosses a service boundary in Phase 1, so they are unchanged
+  for now). The reverse pointer from the `search_tools` stub in
+  `agent-creation-skills/custom-tools-design.md` to this project is DEFERRED: that file is owned
+  by the still-open #4863 lane, so its owner adds the pointer there rather than this PR editing
+  another lane's file. This project's README/design already link to it.
 - Branch and PR via GitButler stacked lane (never a worktree), base `big-agents`.
