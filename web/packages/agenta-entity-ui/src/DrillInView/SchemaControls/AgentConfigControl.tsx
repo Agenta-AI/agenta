@@ -24,7 +24,7 @@ import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
-import {useDrillInUI} from "@agenta/ui/drill-in"
+import {useDrillInUI, type WorkflowReferencePayload} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -32,6 +32,7 @@ import {
     Cpu,
     FileText,
     GraduationCap,
+    GraphIcon,
     Plugs,
     Plus,
     SlidersHorizontal,
@@ -70,6 +71,7 @@ import {SkillFormView} from "./SkillFormView"
 import {ToolFormView} from "./ToolFormView"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
 import {parseGatewayFunctionName, type ToolObj} from "./toolUtils"
+import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 export interface AgentConfigControlProps {
     schema?: SchemaProperty | null
@@ -89,6 +91,18 @@ function toolName(tool: unknown): string | undefined {
     if (!fn || typeof fn !== "object") return undefined
     const name = (fn as Record<string, unknown>).name
     return typeof name === "string" ? name : undefined
+}
+
+/** The workflow slug a reference tool (`type:"reference"`) targets, else the function name (the
+ * gateway slug). Used to dedupe the workflows offered in the reference drawer. */
+function toolReferenceSlug(tool: unknown): string | undefined {
+    if (!tool || typeof tool !== "object") return undefined
+    const t = tool as Record<string, unknown>
+    if (t.type === "reference") {
+        return typeof t.slug === "string" ? (t.slug as string) : undefined
+    }
+    const fn = asObj(t.function)
+    return fn && typeof fn.name === "string" ? (fn.name as string) : undefined
 }
 
 function isBuiltinPayloadMatch(tool: unknown, payload: ToolObj): boolean {
@@ -176,6 +190,31 @@ function describeTool(tool: unknown): ItemDescriptor {
     const fn = t.function as Record<string, unknown> | undefined
     const fnName = typeof fn?.name === "string" ? (fn.name as string) : undefined
     const description = typeof fn?.description === "string" ? (fn.description as string) : undefined
+
+    // Workflow reference tool (type:"reference", #4860): a referenced workflow the backend runs
+    // server-side as a callback tool. Detected by the discriminator BEFORE the builtin fallback
+    // (which would otherwise misclassify it as built-in).
+    if (t.type === "reference") {
+        const slug = typeof t.slug === "string" ? (t.slug as string) : undefined
+        const refName = typeof t.name === "string" ? (t.name as string) : undefined
+        const target =
+            t.ref_by === "environment" && typeof t.environment === "string"
+                ? `${slug ?? ""} @ ${t.environment as string}`
+                : typeof t.version === "string"
+                  ? `${slug ?? ""} v${t.version as string}`
+                  : slug
+        return {
+            name: refName ?? slug ?? "Workflow tool",
+            description: typeof t.description === "string" ? (t.description as string) : undefined,
+            mono: "",
+            color: "#0d9488",
+            icon: <GraphIcon size={15} weight="fill" />,
+            tags: ["workflow"],
+            typeLabel: "workflow",
+            typeColor: "geekblue",
+            subtitle: target ? `Referenced workflow · ${target}` : "Referenced workflow",
+        }
+    }
 
     // Third-party / gateway tool: tools__provider__integration__action__connection.
     const gateway = fnName ? parseGatewayFunctionName(fnName) : null
@@ -411,7 +450,7 @@ export function AgentConfigControl({
     disabled,
     className,
 }: AgentConfigControlProps) {
-    const {gatewayTools} = useDrillInUI()
+    const {gatewayTools, workflowReference} = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
 
     // The item-config drawer (tools / MCP servers). Edits happen on a local `draft`; they only
@@ -424,6 +463,7 @@ export function AgentConfigControl({
     } | null>(null)
     const [draft, setDraft] = useState<Record<string, unknown>>({})
     const [drawerView, setDrawerView] = useState<ConfigItemView>("form")
+    const [referenceSelectorOpen, setReferenceSelectorOpen] = useState(false)
     const openCreate = useCallback(
         (kind: "tool" | "mcp" | "skill", seed: Record<string, unknown>, view: ConfigItemView) => {
             setDraft(seed)
@@ -664,6 +704,40 @@ export function AgentConfigControl({
         [tools, setTools, openCreate],
     )
 
+    // Append a `type:"reference"` tool for a workflow chosen in the reference drawer (#4860),
+    // auto-deriving its model-facing input schema from the workflow's latest revision. The axis
+    // (variant/environment), pinned version, and environment come from the drawer's payload.
+    const handleAddWorkflowReference = useCallback(
+        async (payload: WorkflowReferencePayload) => {
+            // Don't reference the same workflow twice.
+            if (tools.some((t) => toolReferenceSlug(t) === payload.slug)) return
+            const wf = workflowReference?.workflows.find((w) => w.slug === payload.slug)
+            let inputSchema: Record<string, unknown> | null = null
+            try {
+                inputSchema = wf
+                    ? ((await workflowReference?.resolveInputSchema(wf)) ?? null)
+                    : null
+            } catch {
+                inputSchema = null
+            }
+            handleAddTool({
+                type: "reference",
+                ref_by: payload.refBy,
+                slug: payload.slug,
+                ...(payload.refBy === "variant" && payload.version
+                    ? {version: payload.version}
+                    : {}),
+                ...(payload.refBy === "environment" && payload.environment
+                    ? {environment: payload.environment}
+                    : {}),
+                name: payload.slug,
+                description: wf?.description ?? wf?.name ?? "",
+                input_schema: inputSchema ?? {type: "object", properties: {}},
+            } as ToolObj)
+        },
+        [tools, workflowReference, handleAddTool],
+    )
+
     const handleToolDelete = useCallback(
         (index: number) => setTools(tools.filter((_, i) => i !== index)),
         [tools, setTools],
@@ -815,7 +889,18 @@ export function AgentConfigControl({
         selectedTools: tools as ToolObj[],
         existingToolCount: tools.length,
         gatewayTools,
+        onReferenceWorkflow: workflowReference?.enabled
+            ? () => setReferenceSelectorOpen(true)
+            : undefined,
     }
+
+    // Workflows not yet referenced as a tool — the pool the selector drawer offers.
+    const referenceableWorkflows = useMemo(() => {
+        const referenced = new Set(
+            tools.map((t) => toolReferenceSlug(t)).filter((s): s is string => Boolean(s)),
+        )
+        return (workflowReference?.workflows ?? []).filter((w) => !referenced.has(w.slug))
+    }, [tools, workflowReference])
 
     // A compact "+" affordance for a section header, so an item can be added without first
     // expanding the section. Rendered in the header's `extra` slot (which stops propagation, so it
@@ -1399,6 +1484,19 @@ export function AgentConfigControl({
                             disabled={disabled || isPlatformSkill(draft)}
                         />
                     }
+                />
+            )}
+
+            {workflowReference?.enabled && (
+                <WorkflowReferenceSelector
+                    open={referenceSelectorOpen}
+                    onClose={() => setReferenceSelectorOpen(false)}
+                    workflows={referenceableWorkflows}
+                    bridge={workflowReference}
+                    onSelect={(payload) => {
+                        void handleAddWorkflowReference(payload)
+                        setReferenceSelectorOpen(false)
+                    }}
                 />
             )}
         </div>
