@@ -19,7 +19,6 @@ import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
 import {
-    Badge,
     Button,
     Card,
     Divider,
@@ -147,7 +146,7 @@ export default function TriggerCatalogDrawer({
             <Drawer
                 open={open}
                 onClose={handleClose}
-                title={selectedIntegration ? "Browse Events" : "Browse Integrations"}
+                title={selectedIntegration ? "Choose an event" : "Add an app trigger"}
                 size="large"
                 destroyOnClose
                 styles={{
@@ -280,13 +279,10 @@ function IntegrationsView({
                                                 <Typography.Text strong className="truncate">
                                                     {integration.name}
                                                 </Typography.Text>
-                                                {integration.actions_count != null && (
-                                                    <Badge
-                                                        count={`${integration.actions_count} actions`}
-                                                        size="small"
-                                                        color="blue"
-                                                    />
-                                                )}
+                                                {/* `actions_count` is the tool-action count from the
+                                                    shared catalog — misleading here, so it's not shown.
+                                                    A trigger/event count would require a backend that
+                                                    filters to trigger-capable integrations. */}
                                             </div>
                                             {integration.description && (
                                                 <Typography.Text
@@ -472,7 +468,10 @@ function EventsView({
                         <Spin />
                     </div>
                 ) : events.length === 0 ? (
-                    <Empty description="No events found" />
+                    <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description="This app has no triggers"
+                    />
                 ) : (
                     <div className="flex flex-col gap-2">
                         {events.map((event: TriggerCatalogEvent, i) => (

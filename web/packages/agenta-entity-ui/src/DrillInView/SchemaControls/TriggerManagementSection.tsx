@@ -25,6 +25,7 @@ import {
     triggerDeliveriesDrawerAtom,
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
+    queryTriggerDeliveries,
     useTriggerConnectionsQuery,
     useTriggerSchedule,
     useTriggerSchedules,
@@ -35,6 +36,7 @@ import {
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {MoreOutlined} from "@ant-design/icons"
 import {
     ArrowsClockwise,
@@ -43,6 +45,7 @@ import {
     Lightning,
     ListChecks,
     PencilSimpleLine,
+    Play,
     Plus,
     Sparkle,
     Trash,
@@ -233,6 +236,51 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId ?? ""))
+
+    // Row "Run in playground": replay the trigger's latest captured delivery (a real
+    // event) into the agent's active chat session. A fired trigger only runs
+    // server-side, so this is how you observe it in the playground. No delivery yet
+    // → tell the user to Test first.
+    const runInPlayground = useCallback(
+        async (args: {
+            kind: "subscription" | "schedule"
+            id: string
+            label: string
+            eventKey?: string
+        }) => {
+            if (!entityId) {
+                message.info("Open this agent in the playground first")
+                return
+            }
+            try {
+                const {deliveries} = await queryTriggerDeliveries(
+                    args.kind === "subscription"
+                        ? {subscription_id: args.id}
+                        : {schedule_id: args.id},
+                )
+                const hit = deliveries.find(
+                    (d) => d.data?.inputs && Object.keys(d.data.inputs).length > 0,
+                )
+                if (!hit?.data?.inputs) {
+                    message.info(
+                        "No captured events yet — open the trigger and Test to capture one",
+                    )
+                    return
+                }
+                const text = `[Triggered by ${args.label}${args.eventKey ? ` · ${args.eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
+                    hit.data.inputs,
+                    null,
+                    2,
+                )}\n\`\`\``
+                setPendingRun({text, nonce: Date.now()})
+                message.success("Running in playground")
+            } catch {
+                message.error("Couldn't load the trigger's events")
+            }
+        },
+        [entityId, setPendingRun],
+    )
 
     const connectionLabel = useCallback(
         (connectionId?: string) => {
@@ -262,6 +310,21 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                         openDeliveries({
                             owner: {kind: "subscription", id: record.id},
                             name: record.name ?? undefined,
+                        })
+                },
+            },
+            {
+                key: "run-in-playground",
+                label: "Run in playground",
+                icon: <Play size={16} />,
+                onClick: (e) => {
+                    e.domEvent.stopPropagation()
+                    if (record.id)
+                        runInPlayground({
+                            kind: "subscription",
+                            id: record.id,
+                            label: record.name || record.data?.event_key || "trigger",
+                            eventKey: record.data?.event_key ?? undefined,
                         })
                 },
             },
@@ -333,6 +396,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
             refreshSubscription,
             revokeSubscription,
             removeSubscription,
+            runInPlayground,
         ],
     )
 
@@ -356,6 +420,21 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                         openDeliveries({
                             owner: {kind: "schedule", id: record.id},
                             name: record.name ?? undefined,
+                        })
+                },
+            },
+            {
+                key: "run-in-playground",
+                label: "Run in playground",
+                icon: <Play size={16} />,
+                onClick: (e) => {
+                    e.domEvent.stopPropagation()
+                    if (record.id)
+                        runInPlayground({
+                            kind: "schedule",
+                            id: record.id,
+                            label: record.name || "schedule",
+                            eventKey: record.data?.event_key ?? undefined,
                         })
                 },
             },
@@ -386,7 +465,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 },
             },
         ],
-        [openDeliveries, openScheduleDrawer, removeSchedule],
+        [openDeliveries, openScheduleDrawer, removeSchedule, runInPlayground],
     )
 
     return (
