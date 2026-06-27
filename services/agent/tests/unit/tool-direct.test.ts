@@ -23,6 +23,7 @@ import { join } from "node:path";
 
 import {
   assembleBody,
+  deepDelete,
   deepMerge,
   deepSet,
   directCallUrl,
@@ -39,9 +40,12 @@ import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
 // A fake run context (direct-call tools, Phase 3a). The keys are the snake_case binding namespace
 // a `call.context` value (`"$ctx.<dotted.path>"`) addresses.
 const RUN_CONTEXT: RunContext = {
-  workflow: { variant_id: "own-variant", revision_id: "rev_self" },
+  workflow: {
+    variant: { id: "own-variant" },
+    revision: { id: "rev_self" },
+    is_draft: false,
+  },
   trace: { trace_id: "trace-self", span_id: "span-self" },
-  session_id: "sess-1",
 };
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
@@ -181,11 +185,39 @@ describe("assembleBody context binding", () => {
     const call: DirectCall = {
       method: "POST",
       path: "/api/x",
-      context: { latest: "$ctx.workflow.latest_revision_id" }, // not in RUN_CONTEXT
+      context: { latest: "$ctx.workflow.revision.missing" }, // not in RUN_CONTEXT
     };
     const body = assembleBody(call, { a: 1 }, RUN_CONTEXT);
     assert.deepEqual(body, { a: 1 });
     assert.ok(!("latest" in body));
+  });
+
+  it("clears a colliding model arg when the bound key is missing (model-invisible)", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/x",
+      // The bound field is owned by run context; a missing key must leave it ABSENT, never let the
+      // model's value survive.
+      context: { workflow_variant_id: "$ctx.workflow.revision.missing" },
+    };
+    const body = assembleBody(
+      call,
+      { workflow_variant_id: "someone-elses", keep: 1 },
+      RUN_CONTEXT,
+    );
+    assert.ok(!("workflow_variant_id" in body));
+    assert.equal(body.keep, 1);
+  });
+
+  it("clears a colliding static body field when the bound key is missing", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/x",
+      body: { trace_id: "from-body" },
+      context: { trace_id: "$ctx.trace.missing" },
+    };
+    const body = assembleBody(call, {}, RUN_CONTEXT);
+    assert.ok(!("trace_id" in body));
   });
 
   it("handles an absent run context safely (no binding applied)", () => {
@@ -202,7 +234,7 @@ describe("assembleBody context binding", () => {
     const call: DirectCall = {
       method: "POST",
       path: "/api/workflows/revisions/commit",
-      context: { workflow_variant_id: "$ctx.workflow.variant_id" },
+      context: { workflow_variant_id: "$ctx.workflow.variant.id" },
     };
     const body = assembleBody(
       call,
@@ -252,15 +284,33 @@ describe("assembleBody context binding", () => {
 describe("resolveCtxToken", () => {
   it("navigates a dotted path against the run context", () => {
     assert.equal(
-      resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.variant_id"),
+      resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.variant.id"),
       "own-variant",
     );
+    assert.equal(resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.is_draft"), false);
   });
 
   it("returns undefined for a missing key, a malformed token, or no run context", () => {
-    assert.equal(resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.missing"), undefined);
-    assert.equal(resolveCtxToken(RUN_CONTEXT, "workflow.variant_id"), undefined);
+    assert.equal(
+      resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.variant.missing"),
+      undefined,
+    );
+    assert.equal(resolveCtxToken(RUN_CONTEXT, "workflow.variant.id"), undefined);
     assert.equal(resolveCtxToken(undefined, "$ctx.trace.trace_id"), undefined);
+  });
+
+  it("rejects unsafe / inherited segments in the token (prototype-safe at the source)", () => {
+    // The token is untrusted: it must never walk the prototype chain out of the run-context blob,
+    // even though `__proto__`/`constructor` resolve on any object.
+    assert.equal(resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.__proto__"), undefined);
+    assert.equal(
+      resolveCtxToken(RUN_CONTEXT, "$ctx.__proto__.polluted"),
+      undefined,
+    );
+    assert.equal(
+      resolveCtxToken(RUN_CONTEXT, "$ctx.constructor.name"),
+      undefined,
+    );
   });
 });
 
@@ -285,6 +335,15 @@ describe("deepSet / deepMerge", () => {
     const out = deepMerge(base, overlay);
     assert.deepEqual(out, { a: { x: 1, y: 2 }, keep: 9 });
     assert.deepEqual(base, { a: { x: 1 }, keep: 1 }, "base is untouched");
+  });
+
+  it("deepDelete removes a nested leaf and no-ops a missing parent, proto-safely", () => {
+    const target: Record<string, unknown> = { a: { b: 1, c: 2 }, keep: 3 };
+    deepDelete(target, "a.b");
+    assert.deepEqual(target, { a: { c: 2 }, keep: 3 });
+    deepDelete(target, "x.y.z"); // missing parent -> no-op, no throw
+    assert.deepEqual(target, { a: { c: 2 }, keep: 3 });
+    assert.throws(() => deepDelete(target, "__proto__.polluted"), /unsafe path segment/);
   });
 });
 
@@ -476,7 +535,7 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
       call: {
         method: "POST",
         path: "/api/workflows/revisions/commit",
-        context: { workflow_variant_id: "$ctx.workflow.variant_id" },
+        context: { workflow_variant_id: "$ctx.workflow.variant.id" },
       },
     };
     const res = await relayOnce(

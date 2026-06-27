@@ -122,17 +122,25 @@ class WireToolCallback(_WireModel):
     authorization: Optional[str] = None
 
 
-class WireRunContextWorkflow(_WireModel):
-    """The running workflow/variant identity inside ``runContext`` (mirrors
-    ``RunContextWorkflow``). The keys stay snake_case on purpose — see ``WireRunContext``."""
+class WireRunContextReference(_WireModel):
+    """One workflow entity (artifact / variant / revision) inside ``runContext.workflow``
+    (mirrors ``RunContextReference``), the platform's ``{id, slug, version}`` reference shape.
+    The keys stay snake_case on purpose — see ``WireRunContext``."""
 
-    artifact_id: Optional[str] = None
-    variant_id: Optional[str] = None
-    variant_name: Optional[str] = None
-    revision_id: Optional[str] = None
+    id: Optional[str] = None
+    slug: Optional[str] = None
     version: Optional[str] = None
+
+
+class WireRunContextWorkflow(_WireModel):
+    """The running workflow identity inside ``runContext`` (mirrors ``RunContextWorkflow``),
+    grouped into the platform's three workflow entities. The keys stay snake_case on purpose —
+    see ``WireRunContext``."""
+
+    artifact: Optional[WireRunContextReference] = None
+    variant: Optional[WireRunContextReference] = None
+    revision: Optional[WireRunContextReference] = None
     is_draft: Optional[bool] = None
-    latest_revision_id: Optional[str] = None
 
 
 class WireRunContextTrace(_WireModel):
@@ -148,14 +156,14 @@ class WireRunContext(_WireModel):
 
     Consumed only by a tool's ``call.context`` binding at dispatch, server-side and hidden from
     the model. Unlike the rest of the wire, the INNER keys are snake_case
-    (``workflow.variant_id`` / ``trace.trace_id`` / ``session_id``): they are the binding
-    NAMESPACE a catalog entry's ``$ctx.<dotted.path>`` token addresses, so they must match those
-    tokens exactly rather than follow the camelCase wire convention. The top-level field is still
-    the camelCase ``runContext`` on the request."""
+    (``workflow.variant.id`` / ``trace.trace_id``): they are the binding NAMESPACE a catalog
+    entry's ``$ctx.<dotted.path>`` token addresses, so they must match those tokens exactly rather
+    than follow the camelCase wire convention. The conversation id is NOT carried here — it rides
+    the top-level camelCase ``sessionId`` field. The top-level field is still the camelCase
+    ``runContext`` on the request."""
 
     workflow: Optional[WireRunContextWorkflow] = None
     trace: Optional[WireRunContextTrace] = None
-    session_id: Optional[str] = None
 
 
 class WireRenderHint(_WireModel):

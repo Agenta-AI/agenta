@@ -249,9 +249,10 @@ async def _agent(
         resolved_connection=resolved_connection,
         permission_policy=agent_config.permission_policy,
         trace=trace_context(),
-        # The run's own context (trace + variant identity), refreshed each turn and consumed only
-        # by a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a).
-        run_context=run_context(session_id=session_id),
+        # The run's own context (trace + workflow identity), refreshed each turn and consumed only
+        # by a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). The
+        # conversation id is threaded separately as `session_id` below, not duplicated in here.
+        run_context=run_context(),
         session_id=session_id,
         builtin_names=resolved_tools.builtin_names,
         tool_specs=resolved_tools.tool_specs,

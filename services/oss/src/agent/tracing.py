@@ -18,6 +18,7 @@ from agenta.sdk.utils.logging import get_module_logger
 
 from agenta.sdk.agents import (
     RunContext,
+    RunContextReference,
     RunContextTrace,
     RunContextWorkflow,
     TraceContext,
@@ -86,24 +87,48 @@ def _reference_field(
     return str(value) if value is not None else None
 
 
+def _run_context_reference(
+    references: Optional[Dict[str, Any]], key: str, *, with_version: bool = False
+) -> Optional[RunContextReference]:
+    """Build one ``{id, slug, version}`` reference for a workflow entity, or ``None`` when empty.
+
+    ``with_version`` is set only for the revision; the artifact and the variant carry no version
+    in the tracing references."""
+    reference = RunContextReference(
+        id=_reference_field(references, key, "id"),
+        slug=_reference_field(references, key, "slug"),
+        version=_reference_field(references, key, "version") if with_version else None,
+    )
+    if reference.model_dump(exclude_none=True):
+        return reference
+    return None
+
+
 def _run_context_workflow() -> Optional[RunContextWorkflow]:
-    """The running workflow/variant identity, best-effort, from the resolved tracing references.
+    """The running workflow identity, best-effort, from the resolved tracing references.
 
     The references land on the tracing context after the resolver hydrates a stored
-    variant/environment reference (``workflow`` / ``workflow_variant`` / ``workflow_revision``).
-    A playground run of an unsaved inline config carries no references, so this returns ``None``
-    and the binding simply has no value — every field is optional."""
+    variant/environment reference, grouped into the platform's three workflow entities — the
+    artifact (``workflow``), the variant (``workflow_variant``), and the revision
+    (``workflow_revision``). A playground run of an unsaved inline config carries no revision
+    reference, so ``is_draft`` is ``True``; a run pinned to a stored revision is not a draft. A run
+    with no workflow identity at all returns ``None`` and the binding simply has no value — every
+    field is optional."""
     references = TracingContext.get().references
-    workflow = RunContextWorkflow(
-        artifact_id=_reference_field(references, "workflow", "id"),
-        variant_id=_reference_field(references, "workflow_variant", "id"),
-        variant_name=_reference_field(references, "workflow_variant", "slug"),
-        revision_id=_reference_field(references, "workflow_revision", "id"),
-        version=_reference_field(references, "workflow_revision", "version"),
+    revision = _run_context_reference(
+        references, "workflow_revision", with_version=True
     )
-    if workflow.model_dump(exclude_none=True):
-        return workflow
-    return None
+    workflow = RunContextWorkflow(
+        artifact=_run_context_reference(references, "workflow"),
+        variant=_run_context_reference(references, "workflow_variant"),
+        revision=revision,
+    )
+    if not workflow.model_dump(exclude_none=True):
+        return None
+    # A run is a draft when it carries some workflow identity but no committed revision (the
+    # playground inline-config case); a run pinned to a stored revision is not a draft.
+    workflow.is_draft = revision is None
+    return workflow
 
 
 def _run_context_trace() -> Optional[RunContextTrace]:
@@ -120,21 +145,21 @@ def _run_context_trace() -> Optional[RunContextTrace]:
     )
 
 
-def run_context(session_id: Optional[str] = None) -> Optional[RunContext]:
+def run_context() -> Optional[RunContext]:
     """Capture the run's own context for tool ``call.context`` binding (direct-call tools, Phase 3a).
 
-    Assembles the run's own trace + variant identity plus the session id into a :class:`RunContext`
-    the service sends on ``/run`` (refreshed per turn). It is consumed ONLY by a tool's
-    ``call.context`` binding at dispatch, server-side and hidden from the model (see
-    ``projects/direct-call-tools/run-context.md``). Best-effort: any failure (or an entirely empty
+    Assembles the run's own trace + workflow identity into a :class:`RunContext` the service sends
+    on ``/run`` (refreshed per turn). It is consumed ONLY by a tool's ``call.context`` binding at
+    dispatch, server-side and hidden from the model (see
+    ``projects/direct-call-tools/run-context.md``). The conversation id is not part of this blob —
+    it rides the top-level ``sessionId`` field. Best-effort: any failure (or an entirely empty
     context) returns ``None`` so the run proceeds and the ``runContext`` key is simply omitted."""
     try:
         workflow = _run_context_workflow()
         trace = _run_context_trace()
-        session = session_id if session_id and session_id.strip() else None
-        if workflow is None and trace is None and session is None:
+        if workflow is None and trace is None:
             return None
-        return RunContext(workflow=workflow, trace=trace, session_id=session)
+        return RunContext(workflow=workflow, trace=trace)
     except Exception:  # pylint: disable=broad-except
         log.warning("agent: failed to capture run context", exc_info=True)
         return None

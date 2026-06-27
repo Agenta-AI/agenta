@@ -71,6 +71,28 @@ export function deepSet(
 }
 
 /**
+ * Delete the value at a dotted `path` in `target`, if present. Each segment is validated the same
+ * way `deepSet` does (no empty segments, no prototype-polluting keys), so this can never reach
+ * through the prototype chain. A path whose parent is missing or not a plain object is a no-op.
+ */
+export function deepDelete(target: Record<string, unknown>, path: string): void {
+  const parts = path.split(".");
+  for (const part of parts) {
+    if (!part) throw new Error(`invalid empty segment in path '${path}'`);
+    if (UNSAFE_KEYS.has(part)) {
+      throw new Error(`unsafe path segment '${part}' in '${path}'`);
+    }
+  }
+  let cursor: Record<string, unknown> = target;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const next = cursor[parts[i]];
+    if (!isPlainObject(next)) return;
+    cursor = next;
+  }
+  delete cursor[parts[parts.length - 1]];
+}
+
+/**
  * Recursively merge `overlay` onto `base`. `overlay` WINS on every conflict (so server-fixed
  * fields override the model's args); two plain objects at the same key merge, anything else
  * replaces. Prototype-polluting keys in `overlay` are skipped. Returns a new object; inputs are
@@ -99,6 +121,10 @@ export function deepMerge(
  * skipped rather than trusted: it returns `undefined`. A path that does not resolve in the blob
  * (no `runContext`, a missing sub-object, or a missing key) also returns `undefined`. Only a
  * non-`undefined` resolved value is bound — `null` is a real value and binds, `undefined` does not.
+ *
+ * Traversal follows ONLY own, safe keys: an unsafe segment (`__proto__`/`constructor`/`prototype`)
+ * or a key inherited from the prototype chain returns `undefined`, so a crafted token can never
+ * resolve a value outside the run-context blob.
  */
 export function resolveCtxToken(
   runContext: RunContext | undefined,
@@ -112,7 +138,9 @@ export function resolveCtxToken(
   if (!path) return undefined;
   let cursor: unknown = runContext;
   for (const part of path.split(".")) {
-    if (!part || !isPlainObject(cursor)) return undefined;
+    if (!part || UNSAFE_KEYS.has(part)) return undefined;
+    if (!isPlainObject(cursor)) return undefined;
+    if (!Object.prototype.hasOwnProperty.call(cursor, part)) return undefined;
     cursor = cursor[part];
   }
   return cursor;
@@ -150,11 +178,14 @@ export function assembleBody(
   // 2. Server-fixed fields win over the model's args.
   if (call.body) body = deepMerge(body, call.body);
   // 3. Run-context binding wins over everything (filled LAST). For each [bodyPath, token] in
-  //    call.context, resolve the token against runContext and deep-set it; a token that does not
-  //    resolve is skipped so a missing run-context value never clobbers the body with `undefined`.
-  //    deepSet is prototype-pollution-safe and rejects unsafe path segments.
+  //    call.context, the field is owned by run context alone: first clear whatever the model's args
+  //    or the static `body` put at that path, then deep-set the resolved value. A token that does
+  //    not resolve leaves the field ABSENT (the cleared state), so a missing run-context value can
+  //    never let a model-supplied value survive in a bound field — the model-invisible guarantee.
+  //    deepDelete / deepSet are prototype-pollution-safe and reject unsafe path segments.
   if (call.context) {
     for (const [bodyPath, token] of Object.entries(call.context)) {
+      deepDelete(body, bodyPath);
       const value = resolveCtxToken(runContext, token);
       if (value !== undefined) deepSet(body, bodyPath, value);
     }

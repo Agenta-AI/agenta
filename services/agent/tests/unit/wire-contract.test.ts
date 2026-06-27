@@ -110,13 +110,17 @@ describe("wire contract: requests (vs Python golden)", () => {
       references: { workflow_revision: { id: "rev_abc123" } },
     });
     // The run's own context (direct-call tools, Phase 3a) reaches the runner as `runContext`, with
-    // snake_case inner keys (the `$ctx.<key>` binding namespace). The runner fills a tool's
-    // `call.context` from this blob at dispatch (see tools/direct.ts `assembleBody`); the model
-    // never reads it.
-    assert.equal(req.runContext!.workflow!.variant_id, "var_abc");
-    assert.equal(req.runContext!.workflow!.revision_id, "rev_abc123");
+    // snake_case inner keys (the `$ctx.<key>` binding namespace) and the workflow grouped into the
+    // platform's artifact / variant / revision entities. The runner fills a tool's `call.context`
+    // from this blob at dispatch (see tools/direct.ts `assembleBody`); the model never reads it.
+    assert.equal(req.runContext!.workflow!.variant!.id, "var_abc");
+    assert.equal(req.runContext!.workflow!.variant!.slug, "weather-agent");
+    assert.equal(req.runContext!.workflow!.revision!.id, "rev_abc123");
+    assert.equal(req.runContext!.workflow!.is_draft, false);
     assert.equal(req.runContext!.trace!.trace_id, "0af7651916cd43dd8448eb211c80319c");
-    assert.equal(req.runContext!.session_id, "sess-1");
+    // The conversation id is NOT duplicated in run context; it rides the top-level `sessionId`.
+    assert.equal((req.runContext as Record<string, unknown>).session_id, undefined);
+    assert.equal(req.sessionId, "sess-1");
     // Pi exposes the prompt overrides.
     assert.equal(req.systemPrompt, "You are Pi.");
     assert.equal(req.appendSystemPrompt, "Be terse.");

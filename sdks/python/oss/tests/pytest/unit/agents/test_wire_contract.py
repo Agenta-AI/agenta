@@ -28,6 +28,7 @@ from agenta.sdk.agents import (
     PiAgentConfig,
     ResolvedConnection,
     RunContext,
+    RunContextReference,
     RunContextTrace,
     RunContextWorkflow,
     SandboxPermission,
@@ -135,21 +136,22 @@ def _pi_payload():
             authorization="Access tok-123",
             capture_content=True,
         ),
-        # The run's own context (trace + variant identity), refreshed per turn and consumed only by
-        # a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). `to_wire` drops
-        # the unset workflow fields (artifact_id / is_draft / latest_revision_id).
+        # The run's own context (trace + workflow identity), refreshed per turn and consumed only by
+        # a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). The workflow is
+        # grouped into the platform's three entities (artifact / variant / revision); `to_wire`
+        # drops the unset reference fields. The conversation id rides the top-level `session_id`,
+        # not run context.
         run_context=RunContext(
             workflow=RunContextWorkflow(
-                variant_id="var_abc",
-                variant_name="weather-agent",
-                revision_id="rev_abc123",
-                version="3",
+                artifact=RunContextReference(id="wf_abc"),
+                variant=RunContextReference(id="var_abc", slug="weather-agent"),
+                revision=RunContextReference(id="rev_abc123", version="3"),
+                is_draft=False,
             ),
             trace=RunContextTrace(
                 trace_id="0af7651916cd43dd8448eb211c80319c",
                 span_id="b7ad6b7169203331",
             ),
-            session_id="sess-1",
         ),
         session_id="sess-1",
     )
@@ -253,21 +255,22 @@ def test_request_to_wire_pi_matches_golden(golden):
         "args_into": "data.inputs",
     }
     # The run's own context rides as `runContext` (direct-call tools, Phase 3a): the workflow +
-    # trace identity plus the session id, with snake_case inner keys (the `$ctx.<key>` binding
-    # namespace) and the unset workflow fields dropped by `to_wire`.
+    # trace identity, with snake_case inner keys (the `$ctx.<key>` binding namespace), the workflow
+    # grouped into artifact / variant / revision references, and the unset reference fields dropped
+    # by `to_wire`. The conversation id is NOT here — it rides the top-level `sessionId`.
     assert payload["runContext"] == {
         "workflow": {
-            "variant_id": "var_abc",
-            "variant_name": "weather-agent",
-            "revision_id": "rev_abc123",
-            "version": "3",
+            "artifact": {"id": "wf_abc"},
+            "variant": {"id": "var_abc", "slug": "weather-agent"},
+            "revision": {"id": "rev_abc123", "version": "3"},
+            "is_draft": False,
         },
         "trace": {
             "trace_id": "0af7651916cd43dd8448eb211c80319c",
             "span_id": "b7ad6b7169203331",
         },
-        "session_id": "sess-1",
     }
+    assert "session_id" not in payload["runContext"]
     # The declared sandbox boundary rides the wire as nested camelCase `sandboxPermission`;
     # the unset `filesystem` is dropped (declared, not enforced) so it never appears.
     assert payload["sandboxPermission"] == {
