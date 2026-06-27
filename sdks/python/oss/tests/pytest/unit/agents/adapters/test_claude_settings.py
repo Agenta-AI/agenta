@@ -11,9 +11,21 @@ from __future__ import annotations
 
 import json
 
-from agenta.sdk.agents.adapters.claude_settings import build_claude_settings_files
+from agenta.sdk.agents.adapters.claude_settings import (
+    INTERNAL_TOOL_MCP_SERVER,
+    build_claude_settings_files,
+)
 from agenta.sdk.agents.dtos import SandboxPermission
 from agenta.sdk.agents.mcp import ResolvedMCPServer
+from agenta.sdk.agents.tools.models import (
+    CallbackToolSpec,
+    ClientToolSpec,
+    CodeToolSpec,
+)
+
+
+def _rule(name: str) -> str:
+    return f"mcp__{INTERNAL_TOOL_MCP_SERVER}__{name}"
 
 
 def _settings(files):
@@ -174,3 +186,137 @@ def test_empty_inputs_render_nothing():
 def test_non_claude_slice_renders_nothing():
     # Only the `claude` slice is the claude adapter's concern; a `pi` slice contributes nothing.
     assert build_claude_settings_files({"pi": {"system": "You are Pi."}}) == []
+
+
+# --------------------------------------------------------------------------- F-046:
+# per-resolved-tool rules for the internal `agenta-tools` MCP server. Backend-resolved
+# executable tools (callback/code) are delivered to Claude as `mcp__agenta-tools__<name>`;
+# Claude's own permission gate fires before the runner relay, so the tool's permission must be
+# rendered here or an `allow` tool always parks.
+
+
+def test_allow_executable_tool_renders_allow_rule():
+    # An explicit-`allow` callback tool produces `mcp__agenta-tools__<name>` in `permissions.allow`
+    # so Claude runs it without raising its gate (no park).
+    spec = CallbackToolSpec(
+        name="capital_lookup",
+        description="d",
+        call_ref="workflow.x",
+        permission="allow",
+    )
+    perms = _settings(build_claude_settings_files(None, None, None, [spec]))[
+        "permissions"
+    ]
+    assert perms["allow"] == [_rule("capital_lookup")]
+    assert "ask" not in perms
+    assert "deny" not in perms
+
+
+def test_read_only_executable_tool_derives_allow_rule():
+    # No explicit permission + read_only=True -> effective `allow` -> an allow rule.
+    spec = CallbackToolSpec(
+        name="get_user", description="d", call_ref="tools__x", read_only=True
+    )
+    perms = _settings(build_claude_settings_files(None, None, None, [spec]))[
+        "permissions"
+    ]
+    assert perms["allow"] == [_rule("get_user")]
+
+
+def test_code_tool_allow_renders_allow_rule():
+    # `code` tools are executable too, so they get a rule.
+    spec = CodeToolSpec(
+        name="calc", description="d", code="print(1)", permission="allow"
+    )
+    perms = _settings(build_claude_settings_files(None, None, None, [spec]))[
+        "permissions"
+    ]
+    assert perms["allow"] == [_rule("calc")]
+
+
+def test_ask_tool_not_in_allow():
+    # An `ask` tool emits no allow rule -> the gate stays raised -> HITL park preserved. It rides
+    # the `ask` list (mirrors the per-MCP-server helper), never the `allow` list.
+    spec = CallbackToolSpec(
+        name="writer", description="d", call_ref="workflow.x", permission="ask"
+    )
+    perms = _settings(build_claude_settings_files(None, None, None, [spec]))[
+        "permissions"
+    ]
+    assert perms["ask"] == [_rule("writer")]
+    assert "allow" not in perms
+
+
+def test_unset_tool_renders_no_rule():
+    # No explicit permission, no read_only, no needs_approval -> effective permission is None ->
+    # no rule at all (falls back to the global `permission_policy`). With nothing else to write,
+    # the whole file is omitted.
+    spec = CallbackToolSpec(name="mystery", description="d", call_ref="workflow.x")
+    assert build_claude_settings_files(None, None, None, [spec]) == []
+
+
+def test_deny_tool_renders_deny_rule():
+    # `deny` emits a deny rule (also closes a local-Claude execution-path gap).
+    spec = CallbackToolSpec(
+        name="danger", description="d", call_ref="workflow.x", permission="deny"
+    )
+    perms = _settings(build_claude_settings_files(None, None, None, [spec]))[
+        "permissions"
+    ]
+    assert perms["deny"] == [_rule("danger")]
+    assert "allow" not in perms
+
+
+def test_client_tool_excluded():
+    # `client` tools are browser-fulfilled, never delivered over the `agenta-tools` channel, so
+    # they contribute no rule even with an explicit `allow`.
+    spec = ClientToolSpec(name="ui_pick", description="d", permission="allow")
+    assert build_claude_settings_files(None, None, None, [spec]) == []
+
+
+def test_tool_rules_merge_with_author_and_mcp():
+    # Author allow/deny first, then the per-MCP-server rule, then the per-tool rule append (deduped,
+    # first-seen order preserved).
+    server = ResolvedMCPServer(
+        name="github", transport="http", url="https://x", permission="allow"
+    )
+    allow_tool = CallbackToolSpec(
+        name="capital_lookup",
+        description="d",
+        call_ref="workflow.x",
+        permission="allow",
+    )
+    deny_tool = CodeToolSpec(name="rm", description="d", code="x", permission="deny")
+    perms = _settings(
+        build_claude_settings_files(
+            _claude({"allow": ["Read"], "deny": ["Write"]}),
+            None,
+            [server],
+            [allow_tool, deny_tool],
+        )
+    )["permissions"]
+    assert perms["allow"] == ["Read", "mcp__github", _rule("capital_lookup")]
+    assert perms["deny"] == ["Write", _rule("rm")]
+
+
+def test_tool_rules_accept_plain_dicts():
+    # The builder coerces plain wire dicts so the same permission ladder applies; a `client` dict
+    # is excluded.
+    perms = _settings(
+        build_claude_settings_files(
+            None,
+            None,
+            None,
+            [
+                {
+                    "name": "get_user",
+                    "description": "d",
+                    "callRef": "tools__x",
+                    "kind": "callback",
+                    "readOnly": True,
+                },
+                {"name": "ui_pick", "description": "d", "kind": "client"},
+            ],
+        )
+    )["permissions"]
+    assert perms["allow"] == [_rule("get_user")]
