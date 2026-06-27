@@ -5,6 +5,7 @@ import {
     isEntityActive,
     isEntityValid,
     previewValue,
+    queryTriggerDeliveries,
     resolveSelectorPreview,
     testTriggerSubscription,
     triggerApiErrorMessage,
@@ -382,10 +383,62 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         }
     }, [buildData, connectionId, isEdit, subscription, name, enabled, edit, create, onClose])
 
-    // Fire-and-inspect: the /test endpoint creates an is_test subscription,
-    // long-polls for the first captured event, then tears it down server-side.
-    // The drawer stays open; re-clicking runs another capture.
+    // Fire-and-inspect. Two paths:
+    //
+    // - Edit mode: the subscription is already live and occupies this
+    //   (connection, event) on the provider, so spinning up a transient is_test
+    //   sub would collide (the provider keeps one trigger instance per pair).
+    //   Instead, poll the live subscription's own deliveries for a fresh one —
+    //   the user fires the real event and we capture it.
+    // - Create mode: the /test endpoint creates a throwaway is_test subscription,
+    //   long-polls for the first captured event, then tears it down server-side.
+    //
+    // Either way the drawer stays open; re-clicking runs another capture.
     const handleTest = useCallback(async () => {
+        if (isEdit) {
+            if (!subscriptionId) return
+            const controller = new AbortController()
+            testAbortRef.current = controller
+            setIsTesting(true)
+            setTestResult(null)
+            try {
+                // Baseline against the newest existing delivery so we only surface
+                // an event captured after this test started.
+                const {deliveries: baseline} = await queryTriggerDeliveries({
+                    subscription_id: subscriptionId,
+                })
+                const baselineId = baseline[0]?.id ?? null
+                const deadline = Date.now() + 300_000
+                while (Date.now() < deadline) {
+                    if (controller.signal.aborted) return
+                    const {deliveries} = await queryTriggerDeliveries({
+                        subscription_id: subscriptionId,
+                    })
+                    const fresh = deliveries.find(
+                        (d) =>
+                            d.id !== baselineId &&
+                            d.data?.inputs &&
+                            Object.keys(d.data.inputs).length > 0,
+                    )
+                    if (fresh) {
+                        setTestResult(fresh)
+                        message.success("Captured an event")
+                        return
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 2000))
+                }
+                message.info("No event arrived before the test timed out")
+            } catch (error) {
+                if (!controller.signal.aborted) {
+                    message.error(triggerApiErrorMessage(error, "Test failed"))
+                }
+            } finally {
+                testAbortRef.current = null
+                setIsTesting(false)
+            }
+            return
+        }
+
         const data = await buildData(false)
         if (!data || !connectionId) return
 
@@ -414,7 +467,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
             testAbortRef.current = null
             setIsTesting(false)
         }
-    }, [buildData, connectionId, name])
+    }, [isEdit, subscriptionId, buildData, connectionId, name])
 
     // Clear the wait if the drawer closes mid-test (the form unmounts via
     // destroyOnClose) — abort the in-flight long-poll so it doesn't linger.
@@ -585,6 +638,11 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
 
             <Divider className="!m-0" />
 
+            {/* In the playground, Test (capture a live event → Run in playground) is
+                the primary action — it's the only one whose effect is visible here, and
+                it persists nothing (the test subscription is always torn down server-side).
+                Saving persists a server-side trigger whose effect shows up in observability,
+                so it's secondary. In settings/edit, persisting is the primary action. */}
             <div className="flex items-center justify-between gap-2 px-6 py-3 shrink-0">
                 {isTesting ? (
                     <Button danger onClick={handleCancelTest}>
@@ -592,28 +650,40 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                     </Button>
                 ) : (
                     <Tooltip
-                        title={alreadySubscribed ? "Already subscribed — revoke it to test" : ""}
+                        title={
+                            alreadySubscribed
+                                ? "This event already has a subscription — remove it from the Triggers list to test"
+                                : ""
+                        }
                     >
                         {/* span wrapper so the tooltip still shows over a disabled button */}
                         <span>
-                            <Button disabled={isMutating || alreadySubscribed} onClick={handleTest}>
+                            <Button
+                                type={playgroundEntityId ? "primary" : "default"}
+                                disabled={isMutating || alreadySubscribed}
+                                onClick={handleTest}
+                            >
                                 Test
                             </Button>
                         </span>
                     </Tooltip>
                 )}
                 <Tooltip
-                    title={alreadySubscribed ? "Already subscribed — revoke it to replace" : ""}
+                    title={
+                        alreadySubscribed
+                            ? "This event already has a subscription — remove it from the Triggers list to replace"
+                            : ""
+                    }
                 >
                     {/* span wrapper so the tooltip still shows over a disabled button */}
                     <span>
                         <Button
-                            type="primary"
+                            type={playgroundEntityId ? "default" : "primary"}
                             loading={isMutating}
                             disabled={isTesting || alreadySubscribed}
                             onClick={handleSubmit}
                         >
-                            {isEdit ? "Save" : "Create"}
+                            {isEdit ? "Save" : playgroundEntityId ? "Save trigger" : "Create"}
                         </Button>
                     </span>
                 </Tooltip>
