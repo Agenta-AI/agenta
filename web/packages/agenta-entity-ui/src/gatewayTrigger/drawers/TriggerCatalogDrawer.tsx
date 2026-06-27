@@ -17,7 +17,14 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
-import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import {
+    ArrowLeft,
+    CaretDown,
+    CaretRight,
+    Lightning,
+    MagnifyingGlass,
+    Plus,
+} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
 import {
     Button,
@@ -153,6 +160,25 @@ export default function TriggerCatalogDrawer({
         } as TriggerCatalogIntegration)
     }, [])
 
+    // Picking an event under an existing connection creates the trigger directly —
+    // same as the browse → event path, but the connection is already known.
+    const handleCreateFromConnectionEvent = useCallback(
+        (connection: TriggerConnection, eventKey: string) => {
+            if (!connection.id) return
+            handleClose()
+            openSubscription({
+                connectionId: connection.id,
+                integrationKey: connection.integration_key,
+                integrationName: connection.name ?? connection.integration_key,
+                eventKey,
+                defaultReferences,
+                defaultBoundLabel,
+                playgroundEntityId,
+            })
+        },
+        [handleClose, openSubscription, defaultReferences, defaultBoundLabel, playgroundEntityId],
+    )
+
     return (
         <>
             <Drawer
@@ -181,6 +207,7 @@ export default function TriggerCatalogDrawer({
                     <IntegrationsView
                         onSelect={setSelectedIntegration}
                         onPickConnection={handlePickConnection}
+                        onCreateFromConnectionEvent={handleCreateFromConnectionEvent}
                     />
                 )}
             </Drawer>
@@ -202,20 +229,83 @@ export default function TriggerCatalogDrawer({
 }
 
 // ---------------------------------------------------------------------------
+// ConnectionEventsList — lazy-loaded trigger events for one connection's
+// integration (mounted only when its accordion row is expanded). Picking an
+// event creates the trigger directly.
+// ---------------------------------------------------------------------------
+
+function ConnectionEventsList({
+    connection,
+    onPickEvent,
+    onViewAll,
+}: {
+    connection: TriggerConnection
+    onPickEvent: (eventKey: string) => void
+    onViewAll: () => void
+}) {
+    const {events, isLoading, hasNextPage} = useTriggerCatalogEvents(connection.integration_key)
+
+    if (isLoading && events.length === 0) {
+        return (
+            <div className="flex justify-center py-3">
+                <Spin size="small" />
+            </div>
+        )
+    }
+    if (events.length === 0) {
+        return (
+            <div className="px-3 py-2 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                No events for this app
+            </div>
+        )
+    }
+    return (
+        <div className="flex flex-col gap-0.5 p-1">
+            {events.map((ev) => (
+                <button
+                    key={ev.key}
+                    type="button"
+                    onClick={() => onPickEvent(ev.key)}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-1.5 text-left hover:bg-[var(--ag-colorFillSecondary)]"
+                >
+                    <Lightning size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                    <span className="min-w-0 flex-1 truncate text-[12.5px]">
+                        {ev.name || ev.key}
+                    </span>
+                    <Plus size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                </button>
+            ))}
+            {hasNextPage && (
+                <button
+                    type="button"
+                    onClick={onViewAll}
+                    className="flex w-full cursor-pointer border-0 bg-transparent px-2 py-1.5 text-left text-[12px] text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillSecondary)]"
+                >
+                    View all events…
+                </button>
+            )}
+        </div>
+    )
+}
+
+// ---------------------------------------------------------------------------
 // Integrations view
 // ---------------------------------------------------------------------------
 
 function IntegrationsView({
     onSelect,
     onPickConnection,
+    onCreateFromConnectionEvent,
 }: {
     onSelect: (integration: TriggerCatalogIntegration) => void
     onPickConnection: (connection: TriggerConnection) => void
+    onCreateFromConnectionEvent: (connection: TriggerConnection, eventKey: string) => void
 }) {
     const setAtom = useSetAtom(triggerIntegrationsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
     const {connections} = useTriggerConnectionsQuery()
+    const [expandedConn, setExpandedConn] = useState<string | null>(null)
 
     const {
         integrations,
@@ -232,142 +322,168 @@ function IntegrationsView({
         [integrations.length, prefetchThreshold],
     )
 
-    if (isLoading && integrations.length === 0) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Spin />
-            </div>
-        )
-    }
+    const hasConnections = connections.length > 0
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            <div className="flex flex-col gap-3 px-6 pt-4 pb-3 shrink-0">
-                {connections.length > 0 && (
-                    <div className="flex flex-col gap-1.5">
+        <div className="flex h-full min-h-0 overflow-hidden">
+            {hasConnections && (
+                <div className="flex w-[280px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
+                    <div className="shrink-0 px-4 pb-2 pt-4">
                         <Typography.Text type="secondary" className="text-xs">
                             Your connections
                         </Typography.Text>
-                        {connections.map((conn) => (
-                            <Card
-                                key={conn.id ?? conn.slug ?? conn.integration_key}
-                                hoverable
-                                size="small"
-                                className="cursor-pointer"
-                                onClick={() => onPickConnection(conn)}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <div className="flex min-w-0 flex-1 flex-col">
-                                        <Typography.Text strong className="truncate">
-                                            {conn.name || conn.slug || conn.integration_key}
-                                        </Typography.Text>
-                                        <Typography.Text
-                                            type="secondary"
-                                            className="truncate text-xs"
-                                        >
-                                            {conn.integration_key}
-                                        </Typography.Text>
-                                    </div>
-                                    {isConnectionActive(conn) && (
-                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
-                                    )}
-                                </div>
-                            </Card>
-                        ))}
-                        <Divider className="!my-1" />
-                        <Typography.Text type="secondary" className="text-xs">
-                            Or connect a new app
-                        </Typography.Text>
                     </div>
-                )}
-                <Input
-                    placeholder="Search integrations…"
-                    prefix={<MagnifyingGlass size={16} />}
-                    value={search.value}
-                    onChange={(e) => search.onChange(e.target.value)}
-                    allowClear
-                    onClear={() => search.onChange("")}
-                />
-                <Typography.Text type="secondary" className="text-xs">
-                    {total} integration{total !== 1 ? "s" : ""}
-                </Typography.Text>
-            </div>
-
-            <Divider className="!m-0" />
-
-            <div
-                ref={scrollRef}
-                className="flex-1 overflow-y-auto overscroll-contain px-6 py-3 relative"
-            >
-                {integrations.length === 0 ? (
-                    <Empty description="No integrations found" />
-                ) : (
-                    <div className="flex flex-col gap-2">
-                        {integrations.map((integration, i) => (
-                            <React.Fragment key={integration.key}>
-                                {i === sentinelIndex && (
-                                    <ScrollSentinel
-                                        onVisible={requestMore}
-                                        hasMore={hasNextPage}
-                                        isFetching={isFetchingNextPage}
-                                    />
-                                )}
-                                <Card
-                                    hoverable
-                                    onClick={() => onSelect(integration)}
-                                    className="cursor-pointer"
-                                    size="small"
+                    <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-3 pb-2">
+                        {connections.map((conn) => {
+                            const cid = conn.id ?? conn.slug ?? conn.integration_key ?? ""
+                            const isOpen = expandedConn === cid
+                            return (
+                                <div
+                                    key={cid}
+                                    className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]"
                                 >
-                                    <div className="flex items-start gap-3">
-                                        {integration.logo && (
-                                            <Image
-                                                src={integration.logo}
-                                                alt={integration.name}
-                                                width={32}
-                                                height={32}
-                                                className="w-8 h-8 rounded object-contain shrink-0"
-                                                unoptimized
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpandedConn(isOpen ? null : cid)}
+                                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.5 py-2 text-left hover:bg-[var(--ag-colorFillSecondary)]"
+                                    >
+                                        {isOpen ? (
+                                            <CaretDown
+                                                size={12}
+                                                className="shrink-0 text-[var(--ag-colorTextTertiary)]"
+                                            />
+                                        ) : (
+                                            <CaretRight
+                                                size={12}
+                                                className="shrink-0 text-[var(--ag-colorTextTertiary)]"
                                             />
                                         )}
-                                        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                            <div className="flex items-center gap-2">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate text-xs font-medium">
+                                                {conn.name || conn.slug || conn.integration_key}
+                                            </div>
+                                            <div className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                                {conn.integration_key}
+                                            </div>
+                                        </div>
+                                        {isConnectionActive(conn) && (
+                                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                                        )}
+                                    </button>
+                                    {isOpen && (
+                                        <div className="border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)]">
+                                            <ConnectionEventsList
+                                                connection={conn}
+                                                onPickEvent={(eventKey) =>
+                                                    onCreateFromConnectionEvent(conn, eventKey)
+                                                }
+                                                onViewAll={() => onPickConnection(conn)}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                    <div className="mt-auto flex shrink-0 items-start gap-1.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-4 py-3 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                        <Lightning size={13} className="mt-[1px] shrink-0" />
+                        <span>Pick an event to create a trigger — no setup needed.</span>
+                    </div>
+                </div>
+            )}
+
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <div className="flex shrink-0 flex-col gap-2 px-6 pb-3 pt-4">
+                    <Typography.Text type="secondary" className="text-xs">
+                        {hasConnections ? "Or connect a new app" : "Connect an app"}
+                    </Typography.Text>
+                    <Input
+                        placeholder="Search integrations…"
+                        prefix={<MagnifyingGlass size={16} />}
+                        value={search.value}
+                        onChange={(e) => search.onChange(e.target.value)}
+                        allowClear
+                        onClear={() => search.onChange("")}
+                    />
+                    <Typography.Text type="secondary" className="text-xs">
+                        {total} integration{total !== 1 ? "s" : ""}
+                    </Typography.Text>
+                </div>
+
+                <Divider className="!m-0" />
+
+                <div
+                    ref={scrollRef}
+                    className="relative flex-1 overflow-y-auto overscroll-contain px-6 py-3"
+                >
+                    {isLoading && integrations.length === 0 ? (
+                        <div className="flex items-center justify-center py-12">
+                            <Spin />
+                        </div>
+                    ) : integrations.length === 0 ? (
+                        <Empty description="No integrations found" />
+                    ) : (
+                        <div className="flex flex-col gap-2">
+                            {integrations.map((integration, i) => (
+                                <React.Fragment key={integration.key}>
+                                    {i === sentinelIndex && (
+                                        <ScrollSentinel
+                                            onVisible={requestMore}
+                                            hasMore={hasNextPage}
+                                            isFetching={isFetchingNextPage}
+                                        />
+                                    )}
+                                    <Card
+                                        hoverable
+                                        onClick={() => onSelect(integration)}
+                                        className="cursor-pointer"
+                                        size="small"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            {integration.logo && (
+                                                <Image
+                                                    src={integration.logo}
+                                                    alt={integration.name}
+                                                    width={32}
+                                                    height={32}
+                                                    className="w-8 h-8 rounded object-contain shrink-0"
+                                                    unoptimized
+                                                />
+                                            )}
+                                            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                                                 <Typography.Text strong className="truncate">
                                                     {integration.name}
                                                 </Typography.Text>
-                                                {/* `actions_count` is the tool-action count from the
-                                                    shared catalog — misleading here, so it's not shown.
-                                                    A trigger/event count would require a backend that
-                                                    filters to trigger-capable integrations. */}
+                                                {integration.description && (
+                                                    <Typography.Text
+                                                        type="secondary"
+                                                        className="text-xs line-clamp-2"
+                                                    >
+                                                        {integration.description}
+                                                    </Typography.Text>
+                                                )}
                                             </div>
-                                            {integration.description && (
-                                                <Typography.Text
-                                                    type="secondary"
-                                                    className="text-xs line-clamp-2"
-                                                >
-                                                    {integration.description}
-                                                </Typography.Text>
-                                            )}
                                         </div>
-                                    </div>
-                                </Card>
-                            </React.Fragment>
-                        ))}
+                                    </Card>
+                                </React.Fragment>
+                            ))}
 
-                        <ScrollSentinel
-                            onVisible={requestMore}
-                            hasMore={hasNextPage}
-                            isFetching={isFetchingNextPage}
-                        />
+                            <ScrollSentinel
+                                onVisible={requestMore}
+                                hasMore={hasNextPage}
+                                isFetching={isFetchingNextPage}
+                            />
 
-                        {isFetchingNextPage && (
-                            <div className="flex items-center justify-center py-4">
-                                <Spin size="small" />
-                            </div>
-                        )}
-                    </div>
-                )}
+                            {isFetchingNextPage && (
+                                <div className="flex items-center justify-center py-4">
+                                    <Spin size="small" />
+                                </div>
+                            )}
+                        </div>
+                    )}
 
-                <ScrollToTopButton scrollRef={scrollRef} />
+                    <ScrollToTopButton scrollRef={scrollRef} />
+                </div>
             </div>
         </div>
     )
