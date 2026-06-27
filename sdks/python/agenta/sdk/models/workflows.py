@@ -329,29 +329,33 @@ WorkflowServiceInspectRequest = WorkflowInspectRequest
 
 
 class WorkflowInspectResponse(Metadata, SessionID):
-    """The canonical ``/inspect`` response: the resolved interface, flat and self-describing.
+    """The ``/inspect`` response: the resolved workflow revision, plus a ready-made request.
 
-    ``/inspect`` is a public edge — it tells the browser which form to render and which inputs,
-    parameters, and outputs a workflow has. The response used to be a ``WorkflowInvokeRequest``
-    (a REQUEST model carrying response semantics), which nested the schemas under
-    ``data.revision.data.schemas`` and made every client guess the envelope. This model is the
-    explicit response contract instead:
+    ``/inspect`` is a public edge — it tells a client which form to render and which inputs,
+    parameters, and outputs a workflow has. On main, ``/inspect`` returned a whole
+    ``WorkflowInvokeRequest`` AS the response; this model makes the response explicit while
+    keeping that request available, demoted to a field:
 
-    - ``revision`` is a :class:`WorkflowRevisionData` directly (it already owns ``uri`` / ``url``
-      / ``headers`` / ``schemas`` / ``parameters``), so the schemas live at the obvious
-      ``response.revision.schemas`` — no ``data.revision.data`` nesting.
-    - ``configuration`` and ``meta`` carry the resolved config and any interface metadata (the
-      agent workflow rides its per-harness connection capability in ``meta``).
+    - ``revision`` is a :class:`WorkflowRevision`, UNMODIFIED. Its ``data`` is the
+      :class:`WorkflowRevisionData`, so the schemas live where they always do, at
+      ``response.revision.data.schemas`` — never lifted out, never reshaped.
+    - ``request`` is the ready-made :class:`WorkflowInvokeRequest` (what main used to return as
+      the whole response). A client that wants a prepared request reads ``response.request``;
+      a client that wants the revision reads ``response.revision``. Neither is derived from or
+      mutates the other.
 
-    ``revision.schemas.outputs`` is a plain JSON Schema — never keyed by output surface. A
-    workflow has exactly one output schema (the agent's is the plural ``messages`` list).
+    ``revision.data.schemas.outputs`` is a plain JSON Schema — never keyed by output surface.
     ``session_id`` (from the SessionID mixin) is set when the inspect is session-scoped.
     """
 
     version: Optional[str] = "2025.07.14"
 
-    revision: Optional[WorkflowRevisionData] = None
-    configuration: Optional[Dict[str, Any]] = None
+    # Loose dicts at the wire boundary, like ``WorkflowRequestData.revision`` /
+    # ``WorkflowInspectRequest.revision`` (move to typed later, consistently across all of them):
+    #   ``revision`` carries a ``WorkflowRevision`` shape  -> schemas at ``revision.data.schemas``
+    #   ``request``  carries a ``WorkflowInvokeRequest`` shape (the ready-made request)
+    revision: Optional[dict] = None
+    request: Optional[dict] = None
 
 
 # back-compat alias

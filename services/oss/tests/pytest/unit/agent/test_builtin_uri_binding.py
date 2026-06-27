@@ -17,12 +17,12 @@ from __future__ import annotations
 
 import pytest
 
+from agenta.sdk.agents.capabilities import harness_catalog_document
 from agenta.sdk.decorators.routing import _to_inspect_response
 from agenta.sdk.decorators.running import inspect_workflow
 from agenta.sdk.engines.running.utils import (
     retrieve_handler,
     retrieve_interface,
-    retrieve_meta,
 )
 from agenta.sdk.models.workflows import WorkflowInspectRequest
 
@@ -68,29 +68,26 @@ def test_rebuilding_the_app_keeps_the_binding_stable():
     assert interface is not None and interface.uri == _AGENT_URI
 
 
-def test_register_meta_publishes_harness_capabilities():
-    # The interface registry carries only schemas (`WorkflowRevisionData` has no `meta`), so the
-    # agent's `harness_capabilities` rides the meta registry instead.
-    meta = retrieve_meta(_AGENT_URI)
-    assert meta is not None
-    assert "harness_capabilities" in meta
-    assert set(meta["harness_capabilities"]) == {"pi_core", "pi_agenta", "claude"}
+def test_harness_capabilities_live_in_the_catalog_not_inspect_meta():
+    # Harness capabilities are NOT published on inspect meta (inspect must not behave differently
+    # for agent vs non-agent). They live in the `harnesses` catalog, keyed by harness, with
+    # `capabilities` as a field. The frontend resolves them via `x-ag-harness-ref`.
+    doc = harness_catalog_document()
+    assert set(doc) == {"pi_core", "pi_agenta", "claude"}
+    # Each record is {harness, capabilities: {...}}; claude reaches anthropic, Pi per-provider.
+    assert doc["claude"]["harness"] == "claude"
+    assert doc["claude"]["capabilities"]["models"]["anthropic"]
+    assert doc["pi_core"]["capabilities"]["models"]["openai"]
 
 
 @pytest.mark.asyncio
-async def test_request_driven_inspect_emits_harness_capabilities():
-    # The exact broken path: the playground posts `/inspect` with a `revision`, so the endpoint
-    # takes the request-driven `inspect_workflow` branch (NOT `wf.inspect()`). The request carries
-    # no `meta`, so without the meta registry the per-harness models would be dropped. Assert the
-    # normalized response carries them — and that each harness publishes its model map.
+async def test_request_driven_inspect_carries_no_harness_meta():
+    # The playground posts `/inspect` with a `revision`, taking the request-driven
+    # `inspect_workflow` branch. The agent no longer injects any harness meta, so the normalized
+    # response carries none — inspect is uniform across workflows.
     built = await inspect_workflow(
         request=WorkflowInspectRequest(revision={"uri": _AGENT_URI})
     )
     response = _to_inspect_response(built)
 
-    assert response.meta is not None
-    caps = response.meta["harness_capabilities"]
-    assert set(caps) == {"pi_core", "pi_agenta", "claude"}
-    # Claude reaches anthropic only, with its alias set; Pi publishes per-provider model lists.
-    assert caps["claude"]["models"]["anthropic"]
-    assert caps["pi_core"]["models"]["openai"]
+    assert not (response.meta and "harness_capabilities" in response.meta)

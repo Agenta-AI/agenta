@@ -828,7 +828,7 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
     try {
         const serviceUrl = buildServiceUrlFromUri(uri)
         const inspectData = await inspectWorkflow(uri, projectId, serviceUrl)
-        const inspectSchemas = inspectData?.revision?.schemas ?? inspectData?.interface?.schemas
+        const inspectSchemas = inspectData?.revision?.data?.schemas
         if (inspectSchemas) {
             schemas = {
                 inputs: inspectSchemas.inputs ?? null,

@@ -1,17 +1,14 @@
-"""The ``/inspect`` response is the canonical :class:`WorkflowInspectResponse`.
+"""The ``/inspect`` response is the :class:`WorkflowInspectResponse`.
 
-Architecture-followups issue 1: ``/inspect`` used to return a ``WorkflowInvokeRequest`` (a
-REQUEST model carrying response semantics), nesting the resolved interface at
-``data.revision.data.schemas`` so every client had to guess the envelope. ``handle_inspect_success``
-now normalizes that internally-built request into a flat :class:`WorkflowInspectResponse` whose
-``revision`` IS the :class:`WorkflowRevisionData`, so schemas live at the obvious
-``response["revision"]["schemas"]``.
+On main, ``/inspect`` returned a whole ``WorkflowInvokeRequest`` AS the response. This model
+makes the response explicit while keeping that request available as a field:
 
-These are the acceptance criteria from
-``docs/design/agent-workflows/interfaces/architecture-followups.md`` issue 1:
-
-- The response exposes schemas at ``response["revision"]["schemas"]`` (not ``data.revision.data``).
-- The frontend can resolve schemas from the new shape.
+- ``revision`` is the ``WorkflowRevision`` shape, UNMODIFIED — its ``data`` holds the
+  ``WorkflowRevisionData``, so schemas stay at ``response["revision"]["data"]["schemas"]``
+  (never lifted out, never reshaped).
+- ``request`` is the ready-made ``WorkflowInvokeRequest`` (what main returned as the whole
+  response), demoted to a field.
+- There is no ``configuration``.
 """
 
 from __future__ import annotations
@@ -44,7 +41,11 @@ _RESOLVED_REVISION = WorkflowRevisionData(
 
 
 def _built_invoke_request() -> WorkflowInvokeRequest:
-    """The internally-built inspect result (what ``workflow.inspect()`` returns today)."""
+    """The internally-built inspect result (what ``workflow.inspect()`` returns today).
+
+    ``data.revision`` carries a ``WorkflowRevision`` shape, so schemas live at
+    ``data.revision.data.schemas``.
+    """
     return WorkflowInvokeRequest(
         meta={"harness_capabilities": {"pi_core": {}}},
         data=WorkflowRequestData(
@@ -59,40 +60,56 @@ def _built_invoke_request() -> WorkflowInvokeRequest:
     )
 
 
-def test_inspect_response_lifts_revision_to_top_level():
+def test_inspect_response_keeps_revision_unmodified():
     response = _to_inspect_response(_built_invoke_request())
 
     assert isinstance(response, WorkflowInspectResponse)
     assert response.revision is not None
-    # Schemas live at response.revision.schemas — not nested under data.revision.data.
-    assert response.revision.schemas is not None
-    assert response.revision.schemas.inputs == _RESOLVED_REVISION.schemas.inputs
-    assert response.revision.uri == "agenta:builtin:agent:v0"
-    assert response.revision.parameters == {"agent": {"model": "gpt-5.5"}}
-    # Resolved config is preserved at the public boundary, not dropped.
-    assert response.configuration == {"parameters": {"agent": {"model": "gpt-5.5"}}}
+    # The revision is the WorkflowRevision shape, unmodified: schemas stay at revision.data.schemas.
+    assert response.revision["data"]["uri"] == "agenta:builtin:agent:v0"
+    assert (
+        response.revision["data"]["schemas"]["inputs"]
+        == _RESOLVED_REVISION.schemas.inputs
+    )
+    assert response.revision["data"]["parameters"] == {"agent": {"model": "gpt-5.5"}}
     # Interface metadata rides top-level meta.
     assert response.meta == {"harness_capabilities": {"pi_core": {}}}
 
 
-def test_inspect_response_serializes_schemas_at_revision_schemas():
+def test_inspect_response_carries_the_ready_made_request():
+    # The ready-made WorkflowInvokeRequest is available at response.request, not as the whole
+    # response. A client that wants a prepared request reads it directly.
+    response = _to_inspect_response(_built_invoke_request())
+
+    assert response.request is not None
+    # It is the invoke request envelope (carries data.revision), unreshaped.
+    assert "data" in response.request
+    assert "revision" in response.request["data"]
+
+
+def test_inspect_response_has_no_configuration():
+    response = _to_inspect_response(_built_invoke_request())
+    assert not hasattr(response, "configuration")
+    body = json.loads(response.model_dump_json(exclude_none=True))
+    assert "configuration" not in body
+
+
+def test_inspect_response_serializes_schemas_at_revision_data_schemas():
     # The acceptance criterion in the words of a client: post /inspect, read response body,
-    # find schemas at body["revision"]["schemas"]. This is the exact path the frontend reads.
+    # find schemas at body["revision"]["data"]["schemas"]. Schemas are never lifted out of data.
     response = _to_inspect_response(_built_invoke_request())
     body = json.loads(response.model_dump_json(exclude_none=True))
 
     assert "revision" in body
-    assert "schemas" in body["revision"]
-    assert "inputs" in body["revision"]["schemas"]
-    # No request-envelope leakage: there is no top-level `data.revision.data` nesting.
-    assert "data" not in body
+    assert "schemas" in body["revision"]["data"]
+    assert "inputs" in body["revision"]["data"]["schemas"]
 
 
 def test_inspect_response_outputs_mirror_inputs_messages_field():
     # outputs is an object with a `messages` field of type `messages`, symmetric with
     # inputs.messages — NOT keyed by output surface (no `invoke` surface).
     response = _to_inspect_response(_built_invoke_request())
-    outputs = response.revision.schemas.outputs
+    outputs = response.revision["data"]["schemas"]["outputs"]
 
     assert outputs["type"] == "object"
     assert outputs["properties"]["messages"]["x-ag-type-ref"] == "messages"
@@ -100,9 +117,10 @@ def test_inspect_response_outputs_mirror_inputs_messages_field():
 
 
 def test_inspect_response_handles_a_request_with_no_revision():
-    # A built request with no resolved revision normalizes to an empty-revision response, not a
-    # crash (the inspect path can resolve nothing for an unknown URI).
+    # A built request with no resolved revision yields an empty-revision response, not a crash
+    # (the inspect path can resolve nothing for an unknown URI). The request field still carries
+    # the (empty) invoke request.
     response = _to_inspect_response(WorkflowInvokeRequest())
     assert isinstance(response, WorkflowInspectResponse)
     assert response.revision is None
-    assert response.configuration is None
+    assert response.request is not None

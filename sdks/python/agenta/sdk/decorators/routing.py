@@ -456,26 +456,19 @@ async def handle_invoke_failure(exception: Exception) -> Response:
 def _to_inspect_response(
     request: WorkflowInvokeRequest,
 ) -> WorkflowInspectResponse:
-    """Normalize the internally-built ``WorkflowInvokeRequest`` into the canonical response.
+    """Wrap the internally-built ``WorkflowInvokeRequest`` as the ``/inspect`` response.
 
-    ``workflow.inspect()`` builds its result as a ``WorkflowInvokeRequest`` (a REQUEST model), so
-    the resolved interface lands nested at ``data.revision.data``. The public ``/inspect``
-    contract is :class:`WorkflowInspectResponse` instead, which lifts that
-    :class:`WorkflowRevisionData` up to a flat top-level ``revision`` — so a client reads schemas
-    at ``response.revision.schemas`` rather than guessing the request envelope.
+    ``workflow.inspect()`` builds its result as a ``WorkflowInvokeRequest`` (the REQUEST model),
+    which carries a ``WorkflowRevision`` shape at ``data.revision`` (so schemas live at
+    ``data.revision.data.schemas``). The response keeps that revision UNMODIFIED at
+    ``response.revision`` (schemas stay at ``revision.data.schemas``) and also exposes the whole
+    ready-made request at ``response.request`` — neither is reshaped or derived from the other.
     """
-    nested = (request.data.revision or {}) if request.data else {}
-    revision_data = nested.get("data") if isinstance(nested, dict) else None
-    # Carry the resolved config so the public boundary doesn't drop it: the FE reads
-    # ``configuration.parameters`` as a fallback when ``revision.parameters`` is absent.
-    parameters = (
-        revision_data.get("parameters") if isinstance(revision_data, dict) else None
-    )
-    configuration = {"parameters": parameters} if parameters is not None else None
+    revision = (request.data.revision or None) if request.data else None
     return WorkflowInspectResponse(
         version=request.version,
-        revision=revision_data,
-        configuration=configuration,
+        revision=revision,
+        request=request.model_dump(mode="json", exclude_none=True),
         meta=request.meta,
     )
 

@@ -34,7 +34,6 @@ from agenta.sdk.agents.capabilities import (
     harness_allows_deployment,
     harness_allows_mode,
     harness_allows_provider,
-    harness_capabilities_document,
 )
 from agenta.sdk.agents.connections import (
     UnsupportedConnectionModeError,
@@ -48,7 +47,6 @@ from agenta.sdk.decorators.tracing import auto_instrument
 from agenta.sdk.engines.running.utils import (
     register_handler,
     register_interface,
-    register_meta,
 )
 from agenta.sdk.models.workflows import (
     WorkflowInvokeRequestFlags,
@@ -332,28 +330,22 @@ def create_agent_app():
     #    instrumented one keeps it (mirrors chat.py, whose registry handler is pre-instrumented).
     # 2. OVERRIDE the interface registry with the service interface (AGENT_SCHEMAS), so
     #    `retrieve_interface(AGENT_URI)` returns the SAME schemas `/inspect` advertises.
-    #    `register_interface` replaces (not setdefault), unlike the SDK's minimal seed. It carries
-    #    only `WorkflowRevisionData` (schemas), which has no `meta` field — so the inspect `meta`
-    #    goes through `register_meta` (step 3), not here.
-    # 3. Register the inspect `meta` for the URI. The request-driven `/inspect` path builds a fresh
-    #    workflow from the request (which has no `meta`), so the routed instance's `meta=` below
-    #    would not survive; the meta registry is what `workflow.inspect()` reads to emit it.
-    # 4. Build the workflow against the URI. `ag.workflow.__init__` resolves the (instrumented)
-    #    handler and merges the registered interface; the passed `schemas`/`meta` still win.
+    #    `register_interface` replaces (not setdefault), unlike the SDK's minimal seed.
+    # 3. Build the workflow against the URI. `ag.workflow.__init__` resolves the (instrumented)
+    #    handler and merges the registered interface; the passed `schemas` still win.
     #
-    # The per-harness connection capability rides the inspect response `meta`, NOT a fourth
-    # `AGENT_SCHEMAS` schema key (`JsonSchemas` allows only inputs/parameters/outputs). The frontend
-    # reads `meta.harness_capabilities` and intersects it with the existing `/secrets/` payload
-    # projected as connections; the agent service imports the SAME SDK table (above) for its
-    # server-side reject, never calling its own `/inspect`.
-    meta = {"harness_capabilities": harness_capabilities_document()}
+    # `/inspect` carries NO behavior-changing `meta`: it must not differ for agent vs non-agent.
+    # Harness connection capabilities live in the `harnesses` catalog
+    # (`GET /catalog/harnesses/{ag_harness}`, built from the SDK's `harness_catalog_document`) and
+    # are resolved by the frontend via `x-ag-harness-ref` on the agent-config harness field — the
+    # same catalog/ref mechanism as every other type. The agent service still imports the SDK
+    # capability table directly for its server-side reject; it never publishes it on inspect.
     register_handler(auto_instrument(_agent), uri=AGENT_URI)
     register_interface(
         WorkflowRevisionData(uri=AGENT_URI, schemas=AGENT_SCHEMAS),
         uri=AGENT_URI,
     )
-    register_meta(meta, uri=AGENT_URI)
-    routed = ag.workflow(uri=AGENT_URI, schemas=AGENT_SCHEMAS, meta=meta)(_agent)
+    routed = ag.workflow(uri=AGENT_URI, schemas=AGENT_SCHEMAS)(_agent)
     ag.route("/", app=app, flags={"is_chat": True})(routed)
     return app
 

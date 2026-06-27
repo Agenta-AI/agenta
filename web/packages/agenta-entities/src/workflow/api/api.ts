@@ -417,47 +417,34 @@ export async function fetchWorkflowRevisionById(
 /**
  * Response shape from the `/inspect` endpoint.
  *
- * The canonical backend model is `WorkflowInspectResponse`
- * (sdks/python/agenta/sdk/models/workflows.py): a flat response whose `revision` IS the
- * resolved `WorkflowRevisionData`, so schemas live at `revision.schemas`. The endpoint no
- * longer returns the old `WorkflowInvokeRequest` envelope that nested them under
- * `data.revision.data.schemas`.
+ * The backend model is `WorkflowInspectResponse` (sdks/python/agenta/sdk/models/workflows.py):
+ * `revision` is a `WorkflowRevision` (UNMODIFIED), so the resolved interface lives at
+ * `revision.data.schemas` and the resolved parameters at `revision.data.parameters` — never
+ * lifted out of `data`. `request` carries the ready-made `WorkflowInvokeRequest` (what the
+ * endpoint used to return as the whole response), demoted to a field. There is no
+ * `configuration`.
  *
- * `outputs` is typed per output surface (POC): `{invoke, messages}` for the agent workflow,
- * or a single schema for a one-output workflow. The store reads either shape.
+ * `outputs` is a plain JSON Schema (the agent's is an object with a `messages` field), never
+ * keyed by output surface.
  */
 export interface InspectWorkflowResponse {
     version?: string
     revision?: {
-        uri?: string
-        url?: string
-        headers?: Record<string, unknown>
-        schemas?: {
+        // The WorkflowRevision shape: schemas/parameters live under `data`.
+        data?: {
+            uri?: string
+            url?: string
+            headers?: Record<string, unknown>
+            schemas?: {
+                parameters?: Record<string, unknown>
+                inputs?: Record<string, unknown>
+                outputs?: Record<string, unknown>
+            }
             parameters?: Record<string, unknown>
-            inputs?: Record<string, unknown>
-            outputs?: Record<string, unknown>
         }
-        parameters?: Record<string, unknown>
     }
-    configuration?: Record<string, unknown>
+    request?: Record<string, unknown>
     meta?: Record<string, unknown>
-    /**
-     * @deprecated Migration bridge for the old `WorkflowInvokeRequest` inspect envelope. The
-     * canonical response puts schemas at `revision.schemas`; read that first. Remove this once
-     * every reader (appUtils / evaluatorUtils) no longer needs the `?? interface?.schemas`
-     * fallback — i.e. once no deployed service returns the old envelope.
-     */
-    interface?: {
-        version?: string
-        uri?: string
-        url?: string
-        headers?: Record<string, unknown>
-        schemas?: {
-            parameters?: Record<string, unknown>
-            inputs?: Record<string, unknown>
-            outputs?: Record<string, unknown>
-        }
-    }
 }
 
 /**
@@ -1287,6 +1274,29 @@ export async function fetchAgTypeSchema(agType: string): Promise<Record<string, 
     }
 
     return jsonSchema as Record<string, unknown>
+}
+
+/**
+ * Fetch the harness catalog (`GET /workflows/catalog/harnesses/`) as a map keyed by harness id.
+ *
+ * Each record carries its `capabilities` (providers / deployments / connection_modes /
+ * model_selection / models). The agent-config harness field declares `x-ag-harness-ref`, and the
+ * playground resolves the selected harness's capabilities from this map to drive the
+ * provider/model picker — instead of reading an inlined inspect `meta` field.
+ */
+export async function fetchHarnessCapabilities(): Promise<Record<string, Record<string, unknown>>> {
+    const response = await axios.get(`${getAgentaApiUrl()}/workflows/catalog/harnesses/`)
+    const harnesses = (response.data?.harnesses ?? []) as {
+        key?: string
+        capabilities?: Record<string, unknown>
+    }[]
+    const byHarness: Record<string, Record<string, unknown>> = {}
+    for (const record of harnesses) {
+        if (record?.key && record.capabilities) {
+            byHarness[record.key] = record.capabilities
+        }
+    }
+    return byHarness
 }
 
 // ============================================================================

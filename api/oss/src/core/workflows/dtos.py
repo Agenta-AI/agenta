@@ -450,6 +450,14 @@ class WorkflowCatalogType(WorkflowCatalogMappingMixin, Header):
     json_schema: Schema
 
 
+class WorkflowCatalogHarness(WorkflowCatalogMappingMixin, Header):
+    # One harness record in the `harnesses` catalog, resolved by `x-ag-harness-ref`. `capabilities`
+    # is a field (not the whole record) so a record can grow other harness facts later.
+    key: str
+
+    capabilities: Optional[dict] = None
+
+
 class WorkflowCatalogTemplate(WorkflowCatalogMappingMixin, Header):
     key: str
 

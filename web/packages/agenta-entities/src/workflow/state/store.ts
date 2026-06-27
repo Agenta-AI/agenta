@@ -1568,24 +1568,22 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         let resolvedParams: Record<string, unknown> | null | undefined = null
 
         // (a) Inspect — primary source for any workflow with a URI.
-        // The canonical `WorkflowInspectResponse` puts the resolved interface at
-        // `revision.schemas.{inputs, parameters, outputs}` (revision IS the WorkflowRevisionData),
-        // so we read it directly. `outputs` may be typed per output surface ({invoke, messages}).
+        // The `WorkflowInspectResponse.revision` is a WorkflowRevision (unmodified), so the
+        // resolved interface lives at `revision.data.schemas.{inputs, parameters, outputs}` and
+        // the resolved parameters at `revision.data.parameters`. `outputs` is a plain schema
+        // (the agent's is an object with a `messages` field), never keyed by output surface.
         const inspectQuery = get(workflowInspectAtomFamily(workflowId))
         const inspectData = inspectQuery.data ?? null
         if (inspectData) {
-            const inspectSchemas = inspectData.revision?.schemas
+            const inspectRevisionData = inspectData.revision?.data
+            const inspectSchemas = inspectRevisionData?.schemas
             if (inspectSchemas) {
                 resolvedInputs = inspectSchemas.inputs
                 resolvedOutputs = inspectSchemas.outputs
                 resolvedParameters = inspectSchemas.parameters
             }
             resolvedParams =
-                (inspectData.revision?.parameters as Record<string, unknown> | undefined) ??
-                ((inspectData.configuration as Record<string, unknown> | undefined)?.parameters as
-                    | Record<string, unknown>
-                    | undefined) ??
-                null
+                (inspectRevisionData?.parameters as Record<string, unknown> | undefined) ?? null
         }
 
         // (b) OpenAPI fallback — only for legacy custom apps without URI.

@@ -172,7 +172,7 @@ export async function createEphemeralAppFromTemplate({
         const serviceUrl = buildServiceUrlFromUri(uri)
         const inspectData = await inspectWorkflow(uri, projectId, serviceUrl)
         if (signal?.aborted) return null
-        const inspectSchemas = inspectData?.revision?.schemas ?? inspectData?.interface?.schemas
+        const inspectSchemas = inspectData?.revision?.data?.schemas
         if (inspectSchemas) {
             schemas = {
                 inputs: inspectSchemas.inputs ?? schemas.inputs,
