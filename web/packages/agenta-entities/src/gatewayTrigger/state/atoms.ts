@@ -81,5 +81,9 @@ export const triggerScheduleDrawerAtom = atom<ScheduleDrawerState | null>(null)
 export interface DeliveriesDrawerState {
     owner: {kind: "subscription" | "schedule"; id: string}
     name?: string
+    // When opened from an agent playground: the agent's entityId. Enables the
+    // per-delivery "Run in playground" action (replays a captured delivery's
+    // inputs into that agent's chat session). Absent in workspace settings.
+    playgroundEntityId?: string
 }
 export const triggerDeliveriesDrawerAtom = atom<DeliveriesDrawerState | null>(null)

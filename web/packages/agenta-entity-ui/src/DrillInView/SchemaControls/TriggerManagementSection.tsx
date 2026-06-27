@@ -310,6 +310,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                         openDeliveries({
                             owner: {kind: "subscription", id: record.id},
                             name: record.name ?? undefined,
+                            playgroundEntityId: entityId ?? undefined,
                         })
                 },
             },
@@ -420,6 +421,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                         openDeliveries({
                             owner: {kind: "schedule", id: record.id},
                             name: record.name ?? undefined,
+                            playgroundEntityId: entityId ?? undefined,
                         })
                 },
             },
