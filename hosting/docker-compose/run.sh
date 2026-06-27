@@ -62,6 +62,8 @@ show_usage() {
     echo "Triggers:"
     echo "  --no-tunnel             Disable the Composio trigger-event tunnel"
     echo "                          (use when the host has a public ingress URL)"
+    echo "                          The tunnel only starts when COMPOSIO_API_KEY is set;"
+    echo "                          without a key it is skipped automatically."
     echo ""
     echo "Miscellaneous:"
     echo "  --help                  Show this help message and exit"
@@ -72,6 +74,22 @@ show_usage() {
 error_exit() {
     echo "Error: $1" >&2
     exit 1
+}
+
+# Returns 0 when COMPOSIO_API_KEY is available — checked in the shell environment first
+# (e.g. exported via `load-env`), then in the resolved env file, where it normally lives.
+# Used to gate the Composio trigger tunnel so it never starts (and crash-loops) without a key.
+composio_key_set() {
+    if [[ -n "${COMPOSIO_API_KEY:-}" ]]; then
+        return 0
+    fi
+    if [[ -n "${ENV_FILE_PATH:-}" && -f "$ENV_FILE_PATH" ]]; then
+        # An uncommented assignment with a non-empty, non-comment value after `=`.
+        if grep -Eq '^[[:space:]]*COMPOSIO_API_KEY[[:space:]]*=[[:space:]]*[^[:space:]#]' "$ENV_FILE_PATH"; then
+            return 0
+        fi
+    fi
+    return 1
 }
 
 set_image_mode() {
@@ -350,8 +368,15 @@ else
     COMPOSE_CMD+=" --profile with-traefik"
 fi
 
+# Composio trigger tunnel: only activate when a COMPOSIO_API_KEY is available. Without a key
+# `dispatcher_composio.py` exits immediately, so under `restart: always` the container would
+# crash-loop (start → pip install → exit → restart …). Skip the profile so it never starts.
 if $WITH_TUNNEL; then
-    COMPOSE_CMD+=" --profile with-tunnel"
+    if composio_key_set; then
+        COMPOSE_CMD+=" --profile with-tunnel"
+    else
+        echo "Composio tunnel disabled: COMPOSIO_API_KEY not set"
+    fi
 fi
 
 if $NO_CACHE; then
