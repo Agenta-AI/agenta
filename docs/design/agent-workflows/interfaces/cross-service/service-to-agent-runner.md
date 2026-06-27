@@ -53,7 +53,7 @@ group by job:
 
   // tools + skills (see runner-to-tool-callback.md, runner-to-mcp-server.md)
   "tools":        [ "read", "edit" ],    // built-in tool names
-  "customTools":  [ /* ResolvedToolSpec[] */ ],
+  "customTools":  [ /* ResolvedToolSpec[]; a callback spec carries `call_ref` (gateway) XOR an optional `call` direct-call descriptor — plumbing only, see runner-to-tool-callback.md */ ],
   "toolCallback": { "endpoint": "...", "authorization": "..." },  // required if customTools set
   "mcpServers":   [ /* McpServerConfig[] */ ],
   "skills":       [ /* inline skill packages */ ],

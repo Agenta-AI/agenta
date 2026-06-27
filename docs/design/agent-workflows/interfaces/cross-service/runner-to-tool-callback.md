@@ -67,6 +67,22 @@ The same `POST /tools/call` serves three kinds of callback tool, routed by the `
 The runner is unchanged for all three: it relays a `callback` spec with whatever `call_ref` the
 resolver put on it. Only the router's prefix dispatch is aware of the grammars.
 
+## Direct-call descriptor (`call`, declared not wired)
+
+A resolved callback spec can carry an optional `call` descriptor instead of a `call_ref`
+(`ResolvedToolSpec.call` in `protocol.ts`; `CallbackToolSpec.call` in the SDK `tools/models.py`;
+mirrored in `wire_models.py` and pinned by the golden `/run` fixtures). When present it tells the
+runner to call an Agenta endpoint **directly** — reusing the run's `toolCallback.authorization`,
+with `path` an absolute path from the Agenta origin (derived from `toolCallback.endpoint`) — rather
+than posting back through `/tools/call`. Shape: `{ method: "GET"|"POST", path, body?, context?,
+args_into? }`. A spec carries `call` XOR `call_ref`.
+
+**Status (direct-call tools, Phase 1):** plumbing only. The field rides the wire and round-trips
+on both sides, but no resolver emits it and no runner dispatch reads it yet, so live behavior is
+unchanged (gateway and reference tools still route through `/tools/call`). The body-merge rules
+and SSRF guardrails land with the dispatch branch in a later phase. Full spec:
+`docs/design/agent-workflows/projects/direct-call-tools/interfaces.md`.
+
 ## Owned by
 
 - `services/agent/src/tools/callback.ts`: the runner caller (sends the envelope, reads `content`).
@@ -82,6 +98,10 @@ resolver put on it. Only the router's prefix dispatch is aware of the grammars.
   the `__`/`.` normalization are a paired contract across runner and router. The router
   dispatches by prefix: `workflow.` → `_call_workflow_tool`, `tools.agenta.` → `_call_agenta_tool`,
   else the 5-segment Composio parse. Keep the SDK resolvers and the router parser in agreement.
+- **The `call` descriptor (direct path).** A callback spec carries `call` XOR `call_ref`; the
+  descriptor (`method`/`path`/`body`/`context`/`args_into`) must stay mirrored across
+  `protocol.ts`, the SDK `CallbackToolSpec`, `wire_models.py`, and the golden fixtures. Phase 1 is
+  plumbing only — nothing emits or dispatches it yet.
 - **Tool result content.** `call.data.content` is a JSON string already; do not double-encode
   it on the way out.
 - **Argument normalization.** Keep accepting both string and object arguments.

@@ -280,12 +280,66 @@ class ToolSpecBase(BaseModel):
         return wire
 
 
+class ToolCall(BaseModel):
+    """The direct-call descriptor on a resolved callback tool (direct-call tools, Phase 1).
+
+    When a resolved :class:`CallbackToolSpec` carries ``call`` the runner dispatches the tool by
+    calling this Agenta endpoint DIRECTLY (reusing the run's single ``toolCallback.authorization``)
+    instead of routing through the shared ``/tools/call`` gateway. A spec carries ``call`` (direct)
+    XOR ``call_ref`` (gateway), never both.
+
+    - ``method`` is restricted to ``GET`` / ``POST`` (the runner is a constrained dispatcher,
+      never an arbitrary HTTP client).
+    - ``path`` is an absolute path from the Agenta ORIGIN; the runner derives that origin from the
+      run's ``toolCallback.endpoint``, so a tool can never reach a non-Agenta host.
+    - ``body`` holds static, server-fixed fields baked at resolve time (e.g. a reference tool's
+      resolved ``workflow_revision`` id).
+    - ``context`` maps a dotted body path to a ``"$ctx.<run-context-key>"`` token the runner fills
+      from the run's context at dispatch (e.g. a self-targeting variant/trace id).
+    - ``args_into`` is the dotted path where the model's arguments are placed (absent = the body
+      root).
+
+    Plumbing only in this phase: the field rides the wire and round-trips, but no resolver emits it
+    and no dispatch reads it yet (see the direct-call-tools project plan, Phase 1). The body-merge
+    rules (args -> ``body`` -> ``context``, context last) and SSRF guardrails land in later phases.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+    method: Literal["GET", "POST"]
+    path: str = Field(min_length=1)
+    body: Optional[Dict[str, Any]] = None
+    context: Optional[Dict[str, str]] = None
+    args_into: Optional[str] = None
+
+
 class CallbackToolSpec(ToolSpecBase):
     kind: Literal["callback"] = "callback"
-    call_ref: str = Field(
+    # Gateway target (the slug the runner sends back to ``/tools/call``). Optional now that a
+    # callback spec can instead carry a direct ``call`` descriptor; a spec carries ``call_ref``
+    # (gateway) XOR ``call`` (direct). Every producer today still sets ``call_ref``, so existing
+    # specs and the golden wire are unchanged.
+    call_ref: Optional[str] = Field(
+        default=None,
         validation_alias=AliasChoices("call_ref", "callRef"),
         serialization_alias="callRef",
     )
+    # Direct-call descriptor (direct-call tools, Phase 1). When set the runner calls the endpoint
+    # directly instead of the gateway. Plumbing only: nothing emits or dispatches it yet.
+    call: Optional[ToolCall] = None
+
+    @model_validator(mode="after")
+    def _check_call_target(self) -> "CallbackToolSpec":
+        # A callback tool must have exactly one place to call: the gateway slug (``call_ref``) or
+        # the direct descriptor (``call``). This encodes the design's ``call`` XOR ``call_ref``
+        # rule and preserves the prior invariant that a callback spec always has a target (back
+        # when ``call_ref`` was required).
+        if (self.call_ref is None) == (self.call is None):
+            raise ValueError(
+                "a callback tool spec must carry exactly one of `call_ref` (gateway) "
+                "or `call` (direct)"
+            )
+        return self
 
 
 class CodeToolSpec(ToolSpecBase):
@@ -313,7 +367,7 @@ def coerce_tool_spec(value: Any) -> ToolSpec:
         raise TypeError("tool spec must be a mapping")
     data = dict(value)
     if not data.get("kind"):
-        if data.get("callRef") or data.get("call_ref"):
+        if data.get("callRef") or data.get("call_ref") or data.get("call"):
             data["kind"] = "callback"
         elif data.get("code") is not None:
             data["kind"] = "code"

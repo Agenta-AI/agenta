@@ -75,6 +75,21 @@ _CUSTOM_TOOL = {
     "kind": "callback",
     "readOnly": True,
 }
+# A DIRECT-CALL tool (direct-call tools, Phase 1): a callback spec that carries a `call`
+# descriptor instead of a `callRef` (the `call` XOR `callRef` rule). Plumbing only — nothing
+# emits or dispatches it yet; the golden pins the wire shape so the optional field round-trips.
+_DIRECT_CALL_TOOL = {
+    "name": "get_weather",
+    "description": "Look up weather for a city",
+    "inputSchema": {"type": "object", "properties": {"city": {"type": "string"}}},
+    "kind": "callback",
+    "call": {
+        "method": "POST",
+        "path": "/api/workflows/invoke",
+        "body": {"references": {"workflow_revision": {"id": "rev_abc123"}}},
+        "args_into": "data.inputs",
+    },
+}
 _CALLBACK = ToolCallback(
     endpoint="https://api.example/tools/call", authorization="Access tok-123"
 )
@@ -97,7 +112,7 @@ def _pi_payload():
         agents_md="You are a helpful assistant.",
         model="openai-codex/gpt-5.5",
         builtin_tools=["read", "write"],
-        custom_tools=[dict(_CUSTOM_TOOL)],
+        custom_tools=[dict(_CUSTOM_TOOL), dict(_DIRECT_CALL_TOOL)],
         tool_callback=_CALLBACK,
         skills=[dict(_SKILL)],
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
@@ -204,6 +219,19 @@ def test_request_to_wire_pi_matches_golden(golden):
     assert payload["customTools"][0]["readOnly"] is True
     # No explicit author permission + read_only=True -> derived `allow` rides the wire.
     assert payload["customTools"][0]["permission"] == "allow"
+    # The direct-call tool rides the wire carrying its `call` descriptor and NO `callRef`
+    # (the `call` XOR `callRef` rule). The descriptor keeps method/path/body and the snake_case
+    # `args_into`; `context` is unset so it is omitted. Plumbing only — the runner forwards it
+    # opaquely in Phase 1.
+    direct = payload["customTools"][1]
+    assert direct["kind"] == "callback"
+    assert "callRef" not in direct
+    assert direct["call"] == {
+        "method": "POST",
+        "path": "/api/workflows/invoke",
+        "body": {"references": {"workflow_revision": {"id": "rev_abc123"}}},
+        "args_into": "data.inputs",
+    }
     # The declared sandbox boundary rides the wire as nested camelCase `sandboxPermission`;
     # the unset `filesystem` is dropped (declared, not enforced) so it never appears.
     assert payload["sandboxPermission"] == {
