@@ -1,5 +1,14 @@
 # Custom tools for agent self-creation: design note
 
+> **⚠️ SUPERSEDED (2026-06-27).** The framing below — bespoke tools that wrap business logic
+> (`create_workflow`, `update_own_workflow`, `invoke_workflow`, `add_trace_annotation`, …) — was
+> the **first version** and is **not** what we are building. The decision: **platform tools are a
+> thin wrapper that exposes EXISTING Agenta endpoints to the harness** — no new endpoints, no
+> hidden logic. The harness calls raw endpoints and composes multi-step operations via a skill,
+> using its own run context (its trace_id / variant). See
+> `../direct-call-tools/` (`design.md` + `run-context.md`) for the current design. Treat the named
+> "tools" below as illustrative endpoint targets, not as logic-wrapping tools to build.
+
 Design only. These are the Agenta-default tools a harness would get so it can create, run,
 and improve agents from inside a run, the same way a person does through the API. The skills
 in this workspace teach a model to do this with raw HTTP; these tools make it a first-class,
