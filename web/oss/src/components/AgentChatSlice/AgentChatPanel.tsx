@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
 import {generateId} from "@agenta/shared/utils"
@@ -99,6 +99,23 @@ const parseAgentRunError = (err: unknown): ParsedRunError => {
     return {message: fallback}
 }
 
+/** The last real content element in the log (the last turn's last child). Used to measure the REAL
+ * content bottom and ignore the min-h-full reserve that pads a streaming turn — so the jump pill and
+ * stick-to-bottom track the latest message, not the bottom of the empty reserved space. */
+const lastContentEl = (el: HTMLElement): HTMLElement | null => {
+    const wrappers = el.querySelectorAll<HTMLElement>("[data-mid]")
+    const wrapper = wrappers[wrappers.length - 1]
+    if (!wrapper) return null
+    return (wrapper.lastElementChild as HTMLElement | null) ?? wrapper
+}
+
+/** True when the latest message content sits at or above the viewport bottom (i.e. fully visible). */
+const atLiveEdge = (el: HTMLElement): boolean => {
+    const last = lastContentEl(el)
+    if (!last) return true
+    return last.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom < 24
+}
+
 const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
@@ -106,8 +123,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const [input, setInput] = useState("")
     const [files, setFiles] = useState<UploadFile[]>([])
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
-    // Ids of assistant turns whose stream was stopped (user-cancel or teardown).
-    const [stoppedIds, setStoppedIds] = useState<Set<string>>(() => new Set())
+    // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last) turn,
+    // so this is a single boolean gated on position at render time — independent of message ids (which
+    // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
+    // turn). Cleared on the next send/resend.
+    const [stopped, setStopped] = useState(false)
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
 
@@ -116,6 +136,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const scrollRef = useRef<HTMLDivElement>(null)
     const stickRef = useRef(true)
     const [showJump, setShowJump] = useState(false)
+    // SC-1: arm a one-shot scroll that pins the new user message to the top after it mounts. The room
+    // for the answer to stream into comes from `min-h-full` on the last turn (CSS), not a JS spacer.
+    const armPinRef = useRef(false)
+    // Set while we move the scroll position ourselves (the SC-1 pin). onScroll ignores the resulting
+    // event so a programmatic pin isn't mistaken for the user reaching the live edge (which would flip
+    // stick-to-bottom on and jam the view back down, undoing the pin).
+    const programmaticScrollRef = useRef(false)
 
     // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
     // placeholder that `prepareSendMessagesRequest` overrides per request.
@@ -205,9 +232,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const markStopped = useCallback(() => {
         const last = messages[messages.length - 1]
-        if (last && last.role === "assistant") {
-            setStoppedIds((prev) => new Set(prev).add(last.id))
-        }
+        if (last && last.role === "assistant") setStopped(true)
     }, [messages])
 
     const handleStop = useCallback(() => {
@@ -224,7 +249,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         }
     }, [sessionId, stop])
 
-    // ── DT4 autoscroll: stick to bottom while streaming unless scrolled up ──
+    // ── DT4 autoscroll: stick to the bottom of the scrollable area while following ──
+    // The fill (min-h-full turn group) makes "question at top" the scroll bottom for a short answer
+    // and the answer's end the bottom for a long one, so scrollHeight is the right target (+ pb-6 gap).
     const scrollToBottom = useCallback(() => {
         const el = scrollRef.current
         if (el) el.scrollTop = el.scrollHeight
@@ -237,9 +264,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const onScroll = useCallback(() => {
         const el = scrollRef.current
         if (!el) return
-        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24
-        stickRef.current = atBottom
-        setShowJump(!atBottom)
+        // Ignore the scroll event our own pin produced — only a real user scroll changes follow state.
+        if (programmaticScrollRef.current) return
+        // Follow ONLY when at the very bottom of the scrollable area; a partial scroll must not enable
+        // it (that was the yank). The jump pill instead tracks whether the real latest message is in view.
+        stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+        setShowJump(!atLiveEdge(el))
     }, [])
 
     const jumpToLatest = useCallback(() => {
@@ -248,6 +278,39 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         scrollToBottom()
     }, [scrollToBottom])
 
+    // SC-1: once the optimistic user message has mounted, pin it to the top of the viewport (one
+    // time). The last turn carries `min-h-full`, so the answer streams into the space below it without
+    // any JS spacer math.
+    useLayoutEffect(() => {
+        if (!armPinRef.current) return
+        const el = scrollRef.current
+        if (!el) return
+        const lastUser = [...messages].reverse().find((m) => m.role === "user")
+        if (!lastUser) return
+        let node: HTMLElement | null = null
+        try {
+            node = el.querySelector<HTMLElement>(`[data-mid="${lastUser.id}"]`)
+        } catch {
+            node = null
+        }
+        if (!node) return
+        armPinRef.current = false
+        programmaticScrollRef.current = true
+        const top = node.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
+        el.scrollTop = Math.max(0, top - 12)
+        requestAnimationFrame(() => {
+            programmaticScrollRef.current = false
+        })
+    }, [messages])
+
+    // Keep the jump pill honest as content streams/settles: show it when the real latest message is
+    // below the fold (e.g. a long answer growing past the viewport while parked at the top), and hide
+    // it once that message is visible or while we're following.
+    useLayoutEffect(() => {
+        const el = scrollRef.current
+        if (el) setShowJump(!stickRef.current && !atLiveEdge(el))
+    }, [messages, status])
+
     const handleSubmit = async (text: string) => {
         const trimmed = text.trim()
         const fileObjs = files
@@ -255,8 +318,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             .filter((f): f is File => Boolean(f))
         if ((!trimmed && fileObjs.length === 0) || busy) return
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
-        stickRef.current = true
+        // SC-1: pin the new turn to the top; the answer streams into the space below it. We park the
+        // view (not following) and clear any prior "stopped" marker — it's resolved by asking again.
+        stickRef.current = false
+        armPinRef.current = true
         setShowJump(false)
+        setStopped(false)
         // Swallow the rejection — a stream error/abort is already surfaced via `onError` and
         // the in-chat `error` alert; without this it bubbles to the Next.js dev overlay (F-033).
         sendMessage(
@@ -302,7 +369,58 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         }
     }
 
-    const lastId = messages[messages.length - 1]?.id
+    // Group the ACTIVE turn (the last user message + its response) into one wrapper that carries the
+    // fill. Keeping the fill on a STABLE element — not hopping it from the user bubble to the assistant
+    // bubble when the answer arrives — avoids the mid-stream layout jump.
+    const lastUserIndex = (() => {
+        for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "user") return i
+        return -1
+    })()
+    const activeStart = lastUserIndex >= 0 ? lastUserIndex : messages.length
+    // The fill = min-h-full on the active turn whenever there's PRIOR conversation above it (so the
+    // question can sit at the top). Derived from layout, NOT from `busy` — so it persists when the turn
+    // settles instead of being yanked away (which clamped the scroll and jumped the view).
+    const reserveActive = activeStart > 0
+
+    const renderMessage = (message: UIMessage, index: number) => {
+        const isLast = index === messages.length - 1
+        return (
+            <div key={message.id} data-mid={message.id} className="flex flex-col gap-1">
+                <AgentMessage
+                    message={message}
+                    isStreaming={busy && isLast}
+                    onRewind={() => handleRewind(message)}
+                    onApprovalResponse={addToolApprovalResponse}
+                    precededByEmptyAssistant={
+                        index > 0 && isEmptyAssistantTurn(messages[index - 1])
+                    }
+                />
+                {/* Waiting indicator stays inside the last message so the reserve keeps it on-screen. */}
+                {isLast && status === "submitted" && message.role !== "assistant" && (
+                    <Bubble placement="start" variant="outlined" loading content="" />
+                )}
+                {/* Stopped tag + Resend belong only to the LAST assistant turn (the one you cancelled),
+                    gated on position so it can never smear onto past turns. Cleared on resend / ask. */}
+                {stopped && isLast && message.role === "assistant" && (
+                    <div className="flex items-center gap-2 self-start pl-1">
+                        <Tag className="!m-0 !text-[11px]">Stopped</Tag>
+                        <Button
+                            type="link"
+                            size="small"
+                            className="!px-0 !text-xs"
+                            disabled={busy}
+                            onClick={() => {
+                                setStopped(false)
+                                regenerate({messageId: message.id}).catch(ignoreStreamRejection)
+                            }}
+                        >
+                            Resend
+                        </Button>
+                    </div>
+                )}
+            </div>
+        )
+    }
 
     return (
         <div className="flex h-full min-h-0 w-full flex-col gap-3">
@@ -318,50 +436,24 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     role="log"
                     aria-live="polite"
                     aria-label="Agent conversation"
-                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3"
+                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pb-6"
                 >
                     {messages.length === 0 && (
                         <div className="m-auto text-center text-xs text-colorTextTertiary">
                             Ask a question to start the agent conversation.
                         </div>
                     )}
-                    {messages.map((message, index) => (
-                        <div key={message.id} className="flex flex-col gap-1">
-                            <AgentMessage
-                                message={message}
-                                isStreaming={busy && index === messages.length - 1}
-                                onRewind={() => handleRewind(message)}
-                                onApprovalResponse={addToolApprovalResponse}
-                                precededByEmptyAssistant={
-                                    index > 0 && isEmptyAssistantTurn(messages[index - 1])
-                                }
-                            />
-                            {stoppedIds.has(message.id) && (
-                                <div className="flex items-center gap-2 self-start pl-1">
-                                    <Tag className="!m-0 !text-[11px]">Stopped</Tag>
-                                    {message.id === lastId && (
-                                        <Button
-                                            type="link"
-                                            size="small"
-                                            className="!px-0 !text-xs"
-                                            disabled={busy}
-                                            onClick={() =>
-                                                regenerate({messageId: message.id}).catch(
-                                                    ignoreStreamRejection,
-                                                )
-                                            }
-                                        >
-                                            Resend
-                                        </Button>
-                                    )}
-                                </div>
-                            )}
+                    {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
+                    {activeStart < messages.length && (
+                        // SC-1: the active turn reserves a viewport (min-h-full) while streaming with
+                        // prior conversation above, so the question pins to the top and the answer
+                        // lands below it. One stable wrapper for the whole turn → no mid-stream jump.
+                        <div className={`flex flex-col gap-3${reserveActive ? " min-h-full" : ""}`}>
+                            {messages
+                                .slice(activeStart)
+                                .map((m, i) => renderMessage(m, activeStart + i))}
                         </div>
-                    ))}
-                    {status === "submitted" &&
-                        messages[messages.length - 1]?.role !== "assistant" && (
-                            <Bubble placement="start" variant="outlined" loading content="" />
-                        )}
+                    )}
                 </div>
 
                 {showJump && (
@@ -370,7 +462,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         shape="round"
                         icon={<ArrowDown size={14} />}
                         onClick={jumpToLatest}
-                        className="!absolute bottom-2 left-1/2 -translate-x-1/2 shadow"
+                        // Solid elevated surface + border + shadow so the pill reads clearly when it
+                        // floats over streamed text (a transparent pill let the text bleed through).
+                        className="!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md"
                         aria-label="Jump to latest message"
                     >
                         Jump to latest
