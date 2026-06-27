@@ -229,6 +229,9 @@ export default function TriggerDeliveriesDrawer() {
             <div className="flex h-full min-h-0 grow flex-col">
                 <InfiniteVirtualTableFeatureShell<TriggerDeliveryRow>
                     {...table.shellProps}
+                    // Read-only audit log: no table-level multi-row actions, so no
+                    // selection column.
+                    rowSelection={undefined}
                     columns={columns}
                     tableProps={tableProps}
                     autoHeight
