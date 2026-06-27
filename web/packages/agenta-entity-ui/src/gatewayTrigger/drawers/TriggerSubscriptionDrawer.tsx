@@ -61,6 +61,16 @@ const applicationRevisionAdapter = createWorkflowRevisionAdapter({
     workflowListAtom: appWorkflowsListQueryStateAtom,
 })
 
+// Compact a JSON string for stable comparison (so formatting/whitespace don't
+// register as edits when computing the dirty state).
+function normalizeJson(text: string): string {
+    try {
+        return JSON.stringify(JSON.parse(text))
+    } catch {
+        return text
+    }
+}
+
 // ---------------------------------------------------------------------------
 // TriggerSubscriptionDrawer (root) — create or edit a subscription.
 //
@@ -148,6 +158,65 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                     s.data?.event_key === eventKey,
             ),
         [subscriptions, connectionId, eventKey, subscriptionId],
+    )
+
+    // Save is enabled only when the config differs from its starting point: the
+    // loaded subscription (edit) or the empty/prefilled defaults (new). Compared
+    // as normalized JSON so formatting doesn't count as a change.
+    const baselineSnapshot = useMemo(() => {
+        if (isEdit && subscription) {
+            const refs = subscription.data?.references
+            const envRef = refs?.environment
+            return JSON.stringify({
+                name: subscription.name ?? "",
+                connectionId: subscription.connection_id ?? null,
+                eventKey: subscription.data?.event_key ?? "",
+                enabled: isEntityActive(subscription),
+                bindMode: envRef ? "environment" : "revision",
+                environmentSlug: envRef?.slug ?? null,
+                workflowRevId:
+                    refs?.application_revision?.id ?? refs?.workflow_revision?.id ?? null,
+                inputs: subscription.data?.inputs_fields
+                    ? JSON.stringify(subscription.data.inputs_fields)
+                    : normalizeJson(DEFAULT_INPUTS_MAPPING),
+            })
+        }
+        return JSON.stringify({
+            name: "",
+            connectionId: state?.connectionId ?? null,
+            eventKey: state?.eventKey ?? "",
+            enabled: true,
+            bindMode: "revision",
+            environmentSlug: null,
+            workflowRevId: null,
+            inputs: normalizeJson(DEFAULT_INPUTS_MAPPING),
+        })
+    }, [isEdit, subscription, state?.connectionId, state?.eventKey])
+
+    const isDirty = useMemo(
+        () =>
+            baselineSnapshot !==
+            JSON.stringify({
+                name,
+                connectionId: connectionId ?? null,
+                eventKey,
+                enabled,
+                bindMode,
+                environmentSlug: environmentSlug ?? null,
+                workflowRevId: workflowRevId ?? null,
+                inputs: normalizeJson(inputsText),
+            }),
+        [
+            baselineSnapshot,
+            name,
+            connectionId,
+            eventKey,
+            enabled,
+            bindMode,
+            environmentSlug,
+            workflowRevId,
+            inputsText,
+        ],
     )
 
     // Only the right-hand TestPlaygroundPanel runs/captures events; the form just
@@ -538,8 +607,9 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
             <Divider className="!m-0" />
 
             {/* Footer spans the whole drawer; it persists only — testing/running
-                lives in the right panel. */}
+                lives in the right panel. Save enables only on draft changes. */}
             <div className="flex items-center justify-end gap-2 px-6 py-3 shrink-0">
+                <Button onClick={onClose}>Cancel</Button>
                 <Tooltip
                     title={
                         alreadySubscribed
@@ -552,7 +622,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                         <Button
                             type="primary"
                             loading={isMutating}
-                            disabled={alreadySubscribed}
+                            disabled={!isDirty || alreadySubscribed}
                             onClick={handleSubmit}
                         >
                             {isEdit ? "Save" : "Create"}
