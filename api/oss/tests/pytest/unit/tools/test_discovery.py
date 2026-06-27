@@ -109,6 +109,9 @@ async def test_adapter_search_capabilities_parses_recorded_response(monkeypatch)
         {"successful": True, "error": None, "data": None},
         # successful=true but data is malformed (results is not a list).
         {"successful": True, "error": None, "data": {"results": "nope"}},
+        # a non-object envelope (list / scalar) must not raise AttributeError on .get().
+        [],
+        "unexpected string body",
     ],
 )
 async def test_adapter_search_capabilities_raises_on_bad_envelope(
@@ -739,3 +742,29 @@ async def test_call_agenta_tool_unsupported_provider_422():
             ),
         )
     assert caught.value.status_code == 422
+
+
+async def test_call_tool_agenta_branch_requires_view_tools(monkeypatch):
+    # The reserved tool exposes per-project connection state, so RUN_TOOLS alone (the
+    # outer gate) must not reach it: the tools.agenta.* branch also needs VIEW_TOOLS.
+    from oss.src.core.access.permissions.types import Permission
+
+    async def _discover(**_kwargs):  # pragma: no cover - must not be reached
+        return _capabilities_result()
+
+    async def _access(*, permission, **_kwargs):
+        return permission != Permission.VIEW_TOOLS
+
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.tools.router.check_action_access", _access
+    )
+
+    with pytest.raises(HTTPException) as caught:
+        await _router_with_discover(_discover).call_tool(
+            _request(),
+            body=_call(
+                "tools.agenta.find_capabilities",
+                {"use_cases": ["create a github issue"]},
+            ),
+        )
+    assert caught.value.status_code == 403

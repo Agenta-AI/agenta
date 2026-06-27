@@ -1046,6 +1046,15 @@ class ToolsRouter:
         if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
             return await self._call_workflow_tool(request=request, body=body)
         if call_ref.startswith(AGENTA_TOOL_CALL_REF_PREFIX):
+            # Reserved discovery tools expose per-project connection state, so gate them
+            # with VIEW_TOOLS at the boundary on top of the outer RUN_TOOLS check.
+            has_view_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TOOLS,
+            )
+            if not has_view_permission:
+                raise FORBIDDEN_EXCEPTION
             return await self._call_agenta_tool(request=request, body=body)
 
         # Parse tool slug — accept both dot and double-underscore formats.

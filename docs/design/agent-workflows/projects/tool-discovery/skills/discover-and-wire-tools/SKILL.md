@@ -13,6 +13,12 @@ discovery in one step so you do not guess slugs or stitch the catalog by hand.
 This skill is the discover -> resolve-connections -> create -> test loop. It pairs with the
 `create-agenta-agent` skill (which creates and runs the agent once the tools are chosen).
 
+> **Availability (2026-06-27):** the server side is live, but the SDK does not yet declare
+> `find_capabilities` as a tool the model can call directly (that lands in Workstream A). Until
+> then, reach the same discovery from setup code: `POST /tools/discover` with
+> `{"use_cases": [...]}`, or `POST /tools/call` with call_ref `tools.agenta.find_capabilities`.
+> The response below is identical either way.
+
 ## When to use it
 
 Use it whenever you are wiring tools for an agent and the task is described in plain language

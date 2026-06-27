@@ -41,7 +41,7 @@ from oss.src.core.tools.providers.composio.dtos import (
 # ``CallbackToolSpec``) is a follow-up that rides the direct-call-tools platform-op seam;
 # the runner forwards the call_ref opaquely, so it needs no change.
 
-AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
+AGENTA_TOOL_CALL_REF_PREFIX = f"tools.{ToolProviderKind.AGENTA.value}."
 FIND_CAPABILITIES_OP = "find_capabilities"
 FIND_CAPABILITIES_CALL_REF = f"{AGENTA_TOOL_CALL_REF_PREFIX}{FIND_CAPABILITIES_OP}"
 FIND_CAPABILITIES_DESCRIPTION = (

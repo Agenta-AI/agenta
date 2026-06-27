@@ -35,7 +35,7 @@ The setup-agent skill (plan.md:76) shipped in this PR:
 test loop). Testing it with a subagent and the `/debug-local` exploratory QA (plan.md:84) are
 orchestrator follow-ups once the SDK reserved-tool declaration lands.
 
-## What landed in Phase 2 (router + reserved tool, file map)
+## What landed in Phases 3-4 (router + reserved tool, file map)
 
 - `api/oss/src/apis/fastapi/tools/router.py` — `POST /tools/discover` route + handler
   (`discover_capabilities`, `VIEW_TOOLS`, `DiscoveryUnsupportedError` → 422); `_call_agenta_tool`
@@ -102,8 +102,8 @@ authority for whether the tool will actually resolve. The two agree when `user_i
 ## Decisions (all SETTLED 2026-06-27 — Mahmoud: "go with the recommendations")
 
 - **D1 — endpoint + tool naming. SETTLED.** New `POST /tools/discover` endpoint, agent tool as
-  reserved `tools.agenta.find_capabilities` (out of the Composio namespace). (Both are Phase
-  3/4, deferred behind `router.py`/`models.py`.)
+  reserved `tools.agenta.find_capabilities` (out of the Composio namespace). Both landed
+  server-side in this PR; only the SDK-side reserved-tool declaration remains.
 - **D2 — translate vs pass through. SETTLED: translate fully** to Agenta concepts (`integration`
   + `action`, connection slugs, our `POST /tools/connections/` affordance). The raw Composio
   slug rides along only as an opaque `provider_action`; plan/pitfalls are guidance text with

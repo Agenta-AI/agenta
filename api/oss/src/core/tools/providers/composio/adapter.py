@@ -247,6 +247,15 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
                 detail=composio_error_detail(e),
             ) from e
 
+        # A non-object JSON body would make ``.get`` below raise AttributeError and leak
+        # a 500; treat it as a malformed envelope instead.
+        if not isinstance(result, dict):
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail="tool search returned a malformed envelope",
+            )
+
         # Composio returns HTTP 200 with successful=false on a tool-level failure, so
         # the HTTP guards above never catch it. Treat an unsuccessful or malformed
         # envelope as an adapter error rather than silently reporting no capabilities.

@@ -3,11 +3,12 @@
 Layered bottom-up so each phase is independently testable. The engine (Composio) is verified;
 the work is the Agenta-native wrapper and the translation.
 
-> **Status (2026-06-27):** Phases 1-2 landed on PR #4884 (with the setup-agent skill, see
-> below). Phases 3-4 (the `POST /tools/discover` endpoint and the reserved
-> `tools.agenta.find_capabilities` tool) are DEFERRED: they touch
-> `api/oss/src/apis/fastapi/tools/router.py` and the SDK `tools/models.py`, owned by a
-> concurrent Workstream-B task. They resume once those files are free. See `status.md`.
+> **Status (2026-06-27):** Phases 1-4 (server side) landed on PR #4884: the adapter, the
+> core discovery service and translation, `POST /tools/discover`, the reserved
+> `tools.agenta.find_capabilities` tool routable over `/tools/call`, and the setup-agent
+> skill. The one open piece is the SDK-side reserved-tool declaration (so an agent config
+> surfaces the tool to the model); it rides the direct-call-tools platform-op seam in
+> Workstream A. See `status.md`.
 
 ## Phase 0 — Spike and verify (done)
 
