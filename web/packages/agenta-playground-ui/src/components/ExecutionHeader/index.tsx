@@ -102,6 +102,10 @@ const ExecutionHeader = ({
     const showCollapseToggle = !isComparisonView
     // const showRunOptions = !isComparisonView && entityId
 
+    // The agent panel owns its own chat composer and has no generation rows, so this execution
+    // header (a "Chat" label + collapse toggle + run controls) serves no purpose in agent mode.
+    if (isAgent) return null
+
     return (
         <div
             className={clsx(
