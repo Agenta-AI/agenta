@@ -114,15 +114,17 @@ Scope the plan will cover:
    `trace_id`; the sub-run nests in the trace for the user, the model gets the final output.
    Remove the `/tools/call` `workflow.*` routing. Move the recursion/budget guard to the
    invoke endpoint.
-4. **Platform tools.** New `type:"platform"` config (`op` + permission/approval overrides). A
-   platform-op catalog where **descriptions live in the SDK** and **input schemas reuse the
-   in-process schema catalog** (the `CATALOG_TYPES` mechanism, built from `model_json_schema()`,
-   referenced via `x-ag-type-ref`). The SDK owns the `op → {method, relative path}` table and
-   emits the `call`. Mirror the reserved-tool pattern from PR #4884
+4. **Platform tools (thin wrappers over EXISTING endpoints).** New `type:"platform"` config
+   (`op` = which existing endpoint to expose, + permission/approval overrides). A platform-op
+   catalog where **descriptions live in the SDK** and **input schemas reuse the in-process schema
+   catalog** (`CATALOG_TYPES`, via `x-ag-type-ref`). The SDK owns the `op → {method, relative
+   path}` table and emits the `call`. Mirror the reserved-tool pattern from PR #4884
    (`tools.agenta.find_capabilities`); `find_capabilities` is the first platform tool (its SDK
-   emission is the deferred item below). Add a `create_workflow` convenience endpoint so it is one
-   call, not three. Each op is gated by its endpoint's own permission plus spec-level
-   `needs_approval`.
+   emission is the deferred item below). **No new endpoints and no logic-wrapping tools** (no
+   `update_own_workflow` / `add_trace_annotation` — those are the rejected first version; the
+   harness calls raw endpoints and composes multi-step ops via a skill). Each op is gated by its
+   endpoint's own permission plus spec-level `needs_approval`. Depends on the run-context delivery
+   mechanism (see `run-context.md`) so the agent can supply its own trace/variant.
 5. **Gateway unchanged**, and `/tools/call` shrinks to the gateway-only executor.
 6. **Stretch (flag out-of-scope unless cheap):** forward the trace context to the sub-workflow
    on a reference invoke, so the child run links under the parent.
@@ -171,13 +173,14 @@ gateway path never breaks and the live stack stays green between milestones.
   handler (`relay.ts executeRelayedTool`), with `assembleBody` (the `args_into` deep-set vs the
   fixed-wins merge). Unit-test with fake `call` specs. Live behavior still unchanged (nothing
   emits `call`). Runner vitest green.
-- **Phase 3 — platform tools.** New `type:"platform"` config; the platform-op catalog
-  (descriptions in the SDK, input schema via the in-process `CATALOG_TYPES` catalog; mirrors the
-  reserved `tools.agenta.*` pattern from PR #4884); resolver emits `call` for platform ops;
-  `create_workflow` convenience endpoint. First op = `find_capabilities` (its SDK emission is the
-  Deferred item below, from PR #4884), then a small set (`add_trace_annotation`,
-  `create_workflow`, `update_own_workflow`, `inspect_harnesses`). Largely independent of B. SDK +
-  service tests + a live E2E.
+- **Phase 3 — platform tools (thin endpoint wrappers).** New `type:"platform"` config; the
+  platform-op catalog (descriptions in the SDK, input schema via the in-process `CATALOG_TYPES`
+  catalog; mirrors the reserved `tools.agenta.*` pattern from PR #4884); resolver emits `call` for
+  platform ops. First op = `find_capabilities` (its SDK emission is the Deferred item below, from
+  PR #4884), then a small set of EXISTING endpoints exposed as-is (e.g. commit-revision,
+  create-annotation-trace, workflow create/query, `/inspect`). No new endpoints, no logic-wrapping
+  tools. Includes the run-context delivery mechanism (see `run-context.md`) so the agent can pass
+  its own trace/variant. Largely independent of B. SDK + service tests + a live E2E.
 - **Phase 4 — reference goes direct (gated on B).** Resolver emits `call` for reference using
   B's env/variant schema; confirm/clean the `/api/workflows/invoke`-style endpoint and move the
   recursion/budget guard there; remove the `/tools/call` `workflow.*` routing. Tests + live E2E.

@@ -35,7 +35,7 @@ Rules the sidecar applies:
   - If `args_into` is set: deep-clone `body`, set the `args_into` path to the model's args,
     POST it. (Reference: `args_into = "data.inputs"`.)
   - Else: `POST { ...modelArgs, ...body }` so **fixed fields win**. This is what stops the
-    model from overriding a locked field (e.g. `update_own_workflow`'s owning variant id).
+    model from overriding a locked field (e.g. a reference tool's baked `workflow_revision` id).
 
 `callRef` stays for gateway. A spec has either `call` (direct) or `callRef` (gateway), not both.
 
@@ -106,34 +106,47 @@ service already does the resolve-time API work for gateway/embed/secrets, so a r
 more thing it resolves there. Removing the `workflow.*` branch from `/tools/call` is coupled to
 this; when exactly it lands is the orchestrator's sequencing call (see `status.md`).
 
-### Platform (an Agenta operation)
+### Platform (an existing Agenta endpoint exposed to the harness)
+
+A platform tool is a **thin wrapper over an existing endpoint** — no new endpoint, no hidden
+logic, no "operation" abstraction. The config names which endpoint to expose; the resolver fills
+the description + input schema from the catalog and emits the `call`. The harness supplies the
+arguments (including its own run context — see "Run context"); the "how" of an operation is taught
+by a **skill**, not encoded in the tool.
 
 | Stage | Shape |
 |---|---|
-| config | `{ type:"platform", op:"create_workflow", needs_approval?, permission? }` |
-| resolved | `CallbackToolSpec` with `call`; `description` from the SDK catalog; `input_schema` fetched from the schema catalog at resolve time |
-| dispatch | sidecar → direct POST to that op's endpoint (a plain authenticated endpoint that does in-process service work) |
+| config | `{ type:"platform", op:"<exposed-endpoint-key>", needs_approval?, permission? }` |
+| resolved | `CallbackToolSpec` with `call`; `description` + `input_schema` from the catalog |
+| dispatch | sidecar → direct call to that existing endpoint with the caller credential |
 
-Resolved examples:
-
-```json
-{ "name": "add_trace_annotation", "description": "Record a finding on a trace",
-  "inputSchema": { "...from catalog..." },
-  "call": { "method":"POST", "path":"/api/annotations/" } }
-```
+Resolved example — expose the commit-revision endpoint as a tool:
 
 ```json
-{ "name": "update_own_workflow", "description": "Commit a new revision to your own workflow",
-  "inputSchema": { "type":"object", "properties": { "agent_config":{}, "message":{} } },
-  "call": { "method":"POST", "path":"/api/workflows/revisions/commit",
-            "body": { "workflow_variant_id": "<the running agent's own variant>" } } }
+{ "name": "commit_revision", "description": "Commit a new revision to a workflow variant",
+  "inputSchema": { "...the endpoint's request schema, from the catalog..." },
+  "call": { "method":"POST", "path":"/api/workflows/revisions/commit" } }
 ```
 
-For platform tools `args_into` is usually absent (the args are the body). The owning variant id
-is server-fixed in `body`, so the model cannot retarget another agent.
+The harness fills the body with the payload (the new config, the annotation content). There is
+**no** `update_own_workflow` or `add_trace_annotation` tool — those were the rejected logic-wrapping
+idea. "Annotate my trace" is just creating a new trace that links to the agent's own `trace_id`;
+"update myself" is just committing a revision to the agent's own variant. The raw endpoints are
+exposed; a skill teaches composition.
 
-This is the line-67 fix: each platform op is one direct call to an endpoint that does its own
-in-process service work. No `/tools/call`, and no endpoint calling another endpoint.
+For a **self-targeting** op, the agent's own identity (its variant / its trace) is **server-bound**
+into `call.body` at resolve time and omitted from the model-visible schema, so the model supplies
+only the payload and cannot retarget a different variant/trace within the project. This is the
+Codex finding (project-scoped auth does not stop within-project lateral movement) and it is still a
+thin wrapper — just a fixed field. General (non-self) endpoint wrappers leave the target to the
+model, bounded by the endpoint's own permission. See `run-context.md`.
+
+`body` / `args_into` on `call` are exactly the mechanism for those server-bound fields (and for the
+reference tool's baked revision id); a plain non-self endpoint wrapper needs neither — the model
+args are the request body.
+
+This is the line-67 fix: platform tools call existing endpoints directly, instead of `/tools/call`
+re-dispatching to other Agenta endpoints. We do not add new endpoints; we expose the ones we have.
 
 ### Code / client — unchanged
 
@@ -155,11 +168,20 @@ across all tool types, so the refactor can lift it uniformly later.
 ## Run context
 
 Some tools need the run's own context (the current trace, the running workflow/variant + draft
-state + latest revision, the session_id). The resolved direction (Codex-reviewed): run context
-rides the **run contract** as a run-level `runContext` payload on `/run`, and the runner/SDK
-**binds the protected fields server-side** into the call so the model cannot override them;
-endpoints also harden (own-variant + revision-precondition checks). It is NOT modeled as a tool
-argument or a static tool. Full options, tradeoffs, and the open A-vs-C decision: `run-context.md`.
+state + latest revision, the session_id). The resolved direction (Codex rev-2):
+
+- Run context rides the **run contract** as a run-level `runContext` payload on `/run` — data, not
+  a callable tool, and not modeled as a `get_context` primitive.
+- **Protected self-identity** (the agent's own variant / trace) is **bound server-side** into the
+  `call.body` of self-targeting tools and hidden from the model, so the model cannot retarget
+  within the project. Endpoints also harden (revision-precondition on commit).
+- **Non-authority context the model needs to read** is delivered as an **MCP resource** (primary)
+  with a **context-file fallback** for harnesses without resource support.
+- **Refresh per turn** — `latest_revision` changes after a commit, so a once-at-start snapshot
+  goes stale.
+
+Full options, tradeoffs, and the one open decision (server-bind self-identity vs "own is
+convention"): `run-context.md`.
 
 ## The platform-op catalog
 
@@ -193,8 +215,9 @@ deterministic UUIDs, a virtual revision provider) is current and correct for pla
 **workflows/skills**, but heavier than platform ops need. Mirror its "code-defined,
 reserved-namespace, validated-at-import" spirit, not its versioned-revision machinery.
 
-`create_workflow` today is three calls (artifact, variant, revision). Add one convenience endpoint
-so the platform tool is a single direct call, atomic, with its own permission check.
+Multi-step operations (e.g. create-then-commit) are composed by the harness across several
+endpoint-wrapper calls, guided by a skill — not collapsed into a new convenience endpoint. The
+thin-wrapper rule holds: we expose existing endpoints, we do not add new ones.
 
 ## Sidecar dispatch algorithm
 
