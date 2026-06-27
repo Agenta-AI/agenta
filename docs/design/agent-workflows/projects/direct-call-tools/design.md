@@ -25,6 +25,10 @@ Rules the sidecar applies:
   non-Agenta host. A run carrying any direct tool therefore also carries a `toolCallback` (it
   does whenever any callback tool is present). All direct targets, platform ops and the
   reference invoke, live under that one origin.
+- **Guardrail — the `call` is untrusted input.** The runner validates `method` against an
+  allowlist (`GET`/`POST`), `path` against a relative-path regex with an `/api/...` prefix, and
+  binds the origin as above. The sidecar is a constrained dispatcher, never an arbitrary HTTP
+  client, so the `call` descriptor adds no SSRF surface. (Per the Codex review.)
 - Auth is the run's single `toolCallback.authorization` (the caller credential), reused for
   every direct call. No per-tool auth.
 - Body assembly:
@@ -147,6 +151,15 @@ A later PR will refactor tool config into a typed shape (a `type` plus a per-typ
 including a dedicated permissions block) instead of today's flat fields. That hierarchy is out of
 scope here. The requirement this design holds is narrower: permission handling stays consistent
 across all tool types, so the refactor can lift it uniformly later.
+
+## Run context
+
+Some tools need the run's own context (the current trace, the running workflow/variant + draft
+state + latest revision, the session_id). The resolved direction (Codex-reviewed): run context
+rides the **run contract** as a run-level `runContext` payload on `/run`, and the runner/SDK
+**binds the protected fields server-side** into the call so the model cannot override them;
+endpoints also harden (own-variant + revision-precondition checks). It is NOT modeled as a tool
+argument or a static tool. Full options, tradeoffs, and the open A-vs-C decision: `run-context.md`.
 
 ## The platform-op catalog
 
