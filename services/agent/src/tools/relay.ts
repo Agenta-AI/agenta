@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
+import { assembleBody, callDirect, directCallUrl } from "./direct.ts";
 import type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 import type { PermissionPolicy } from "../responder.ts";
 
@@ -141,6 +142,16 @@ async function executeRelayedTool(
   if (!callback?.endpoint) {
     throw new Error(`missing toolCallback endpoint for '${spec.name}'`);
   }
+  // Direct-call tools (reference / platform): the host makes the call directly so the sandbox
+  // child still sends only name + args. The origin is bound to the run's own callback endpoint
+  // and the run's authorization is reused (see tools/direct.ts). A spec carries `call` XOR
+  // `callRef`, so this is checked before the gateway fallback.
+  if (spec.call) {
+    const url = directCallUrl(callback.endpoint, spec.call);
+    const body = assembleBody(spec.call, req.args);
+    return callDirect(spec.call.method, url, callback.authorization, body);
+  }
+  // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.
   return callAgentaTool(
     callback.endpoint,
     callback.authorization,
