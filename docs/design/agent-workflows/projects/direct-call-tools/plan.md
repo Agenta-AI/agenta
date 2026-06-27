@@ -124,7 +124,8 @@ Scope the plan will cover:
    `update_own_workflow` / `add_trace_annotation` — those are the rejected first version; the
    harness calls raw endpoints and composes multi-step ops via a skill). Each op is gated by its
    endpoint's own permission plus spec-level `needs_approval`. Depends on the run-context delivery
-   mechanism (see `run-context.md`) so the agent can supply its own trace/variant.
+   mechanism (`runContext` on `/run` + tool `bind`; see `run-context.md`) so tools can bind the
+   agent's own trace/variant server-side.
 5. **Gateway unchanged**, and `/tools/call` shrinks to the gateway-only executor.
 6. **Stretch (flag out-of-scope unless cheap):** forward the trace context to the sub-workflow
    on a reference invoke, so the child run links under the parent.
@@ -179,8 +180,9 @@ gateway path never breaks and the live stack stays green between milestones.
   platform ops. First op = `find_capabilities` (its SDK emission is the Deferred item below, from
   PR #4884), then a small set of EXISTING endpoints exposed as-is (e.g. commit-revision,
   create-annotation-trace, workflow create/query, `/inspect`). No new endpoints, no logic-wrapping
-  tools. Includes the run-context delivery mechanism (see `run-context.md`) so the agent can pass
-  its own trace/variant. Largely independent of B. SDK + service tests + a live E2E.
+  tools. Includes the run-context mechanism (`runContext` on `/run` + tool `bind`; see
+  `run-context.md`) so self-targeting tools bind the agent's own trace/variant server-side.
+  Largely independent of B. SDK + service tests + a live E2E.
 - **Phase 4 — reference goes direct (gated on B).** Resolver emits `call` for reference using
   B's env/variant schema; confirm/clean the `/api/workflows/invoke`-style endpoint and move the
   recursion/budget guard there; remove the `/tools/call` `workflow.*` routing. Tests + live E2E.

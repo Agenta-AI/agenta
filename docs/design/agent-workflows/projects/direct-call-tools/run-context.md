@@ -1,140 +1,63 @@
-# Run context propagation — boundaries, options, tradeoffs
+# Run context propagation — decision and mechanics
 
-Date: 2026-06-27 (rev 2 — corrected framing)
-Status: options for review. Re-asked Codex with the corrected framing (see the bottom). Open
-question; Mahmoud is weighing options.
+Date: 2026-06-27 (rev 3 — DECIDED)
+Status: **decided** — this is the design to implement. Options weighed and dropped are at the end.
 
-## What platform tools actually are (correcting a misframe)
+## Decision
 
-Platform tools are a **thin wrapper** that exposes **existing** Agenta API endpoints to the
-harness. No new endpoints, no hidden logic, no "operation" abstraction. A platform tool = an
-existing endpoint (method + path) + a description of how/when to use it + its input schema. The
-harness calls it with arguments; the sidecar makes the HTTP call with the caller credential.
+1. **Run context is delivered as part of the run/session.** The service computes a `runContext`
+   blob — the running workflow/variant, whether it is a draft, the latest revision, the variant
+   name, the current trace, the session_id (all of which it already holds; no API calls) — and
+   sends it on the `/run` request, **refreshed per turn**.
+2. **Tool definitions may declare a `bind` map.** A platform tool's catalog entry can bind a
+   run-context value into a specific request field. The runner fills bound fields at dispatch from
+   `runContext`, **server-side and hidden from the model**. This is how tools that act on the run's
+   own context work: "update myself" binds the agent's own `variant_id`; "annotate my trace" binds
+   the agent's own `trace_id`. The model supplies only the payload, never the identity.
+3. **The model does not read run context directly.** No MCP resource, no `get_context` tool, no
+   context file, no system-prompt injection. Run context is consumed **only** by `bind`.
 
-There is **no `update_own_workflow` tool and no `add_trace_annotation` tool.** Those were the
-rejected first-version idea (tools that wrap business logic; see the superseded banner on #4863's
-`custom-tools-design.md`). The real operations are done by calling the RAW endpoints:
+This keeps the boundary clean: the service owns and refreshes the context, the runner applies a
+declarative `bind` against it, each tool stays a thin wrapper over an existing endpoint, and the
+model can only act on its own run because the protected fields are bound, not chosen.
 
-- **"Annotate my trace"** is the existing annotation mechanism: create a new trace that carries
-  the annotation and **links** to the target trace. To annotate its OWN trace, the harness must
-  know its own `trace_id` (it is the link target). The endpoint minting a new linking trace is
-  correct, not a gap.
-- **"Update myself"** is commit-a-new-revision. The harness must know which variant it is working
-  on (and the variant name if it publishes).
+## Why (thin-wrapper recap)
 
-The harness learns HOW to compose these calls from a **skill** ("to update yourself: know your
-variant, then call the commit-revision tool with it; to annotate your trace, create a trace
-linking to your own trace_id"). The skill is the logic; the tools are raw endpoints; the model
-orchestrates.
+Platform tools are a thin wrapper over EXISTING Agenta endpoints — no new endpoints, no
+logic-wrapping tools. "Annotate my trace" is creating a new trace that links to my own trace;
+"update myself" is committing a revision to my own variant. The one thing such a tool needs that
+the model must not choose is the run's own identity — and `bind` supplies exactly that.
 
-## The real problem
+## Mechanics (summary; full detail and the implementation checklist in `design.md`)
 
-Because the tools are raw endpoints and the model orchestrates, **the harness must know its run
-context** to make the right calls: its own `trace_id`, the variant/revision it is running, the
-`session_id`. The service already has all of this with no API calls. The only question is **how
-to get that context into the harness.**
+- **Catalog entry:** `{ method, path, input_schema_ref, bind: { "<endpoint-field>": "$ctx.<key>" } }`.
+- **Resolve time (service):** strip each bound field from the model-visible input schema (and
+  `required`); emit `call.context = bind` on the resolved spec.
+- **`/run`:** carry the `runContext` blob, refreshed per turn.
+- **Dispatch (runner):** fill `call.context` from `runContext` and deep-set it into the body LAST
+  (after the model args and the static `body`), with path-conflict rejection, strict path parsing,
+  prototype-pollution-safe deep-set, and post-merge schema validation. Immutable identity
+  (`variant_id`) may instead be baked at resolve time into `call.body` (hybrid); mutable values
+  (`trace_id`, `latest_revision_id`) are always dispatch-time, plus a revision precondition on
+  commit so a stale value fails loudly.
 
-Two consequences of the thin-wrapper model:
+See `design.md` → "The `call` descriptor" and "Context binding" for the full mechanics.
 
-- **The model must SEE the context** (it constructs the calls), so "inject it server-side so the
-  model can't supply it" does not apply here. The model supplies its own trace/variant.
-- **Security is the normal endpoint permission on the caller credential**, project-scoped. The
-  harness acts as the caller within their project. "Own" is a convention the skill teaches, not a
-  server-enforced constraint — a thin wrapper has nowhere to enforce it, and it doesn't need to
-  (the credential already bounds the blast radius to the project).
+## Considered but not used (do NOT implement — recorded so they are not re-proposed)
 
-## System boundaries (who does what)
+- **MCP resource for run context** — semantically clean (data, not an action) but
+  harness-dependent (Pi/Codex vary), and it adds a model-read path we do not need once context is
+  consumed only by `bind`.
+- **`get_context` static-return tool** — a tool that returns embedded JSON. Rejected as a
+  canonical primitive (data is not an action; it muddies the runner's `callback / code / client`
+  set) and unnecessary since the model does not read context directly.
+- **Context file in the run workspace** — out-of-band; not needed.
+- **System-prompt preamble** — static, cannot refresh per turn, bloats the prompt.
+- **AGENTS.md injection** — we do not mutate the user's AGENTS.md.
+- **"Own is a convention" (model supplies its own variant/trace)** — rejected: project-scoped auth
+  does not stop within-project lateral movement, so protected self-identity is bound server-side
+  instead.
 
-- **Service**: knows the run context; declares which endpoints to expose as platform tools (with
-  descriptions + schemas); delivers the context to the harness (the mechanism is the open
-  question below); ships the skill(s) that teach the harness how to compose the calls.
-- **Sidecar / runner**: materializes the tools, exposes the context, dispatches the endpoint
-  calls (direct, with the caller credential). Generic — a small canonical primitive set.
-- **SDK local backend** (claude / pi / codex in a folder, where we generate the MCPs): same, in
-  one process.
-- **API endpoints**: the existing endpoints, unchanged, enforcing their normal permissions.
-
-## Options for delivering the context to the harness
-
-1. **AGENTS.md injection** — rejected. We do not want to mutate the user's AGENTS.md.
-2. **`get_context` tool, hard-coded in the sidecar** — always present; the service flags it on
-   per session. Works, but "always there" bakes a specific tool into the generic runner and is
-   not generalizable.
-3. **`get_context` as a new "static-return" tool type** (Mahmoud's lean) — like a code tool, but
-   instead of running code it returns a pre-defined JSON. The service declares the tool and embeds
-   the run-context JSON; the sidecar materializes a tool that just returns it. The harness calls
-   `get_context`, reads its trace/variant/session, then calls the endpoint-wrapper tools. General
-   (a tool type the service declares per session); no specific logic baked into the runner.
-4. **Run context as an MCP *resource*** (not listed before) — MCP separates *resources*
-   (read-only data) from *tools* (actions). Run context is data, so a `run-context` MCP resource
-   is the semantically correct shape, and it fits the "we generate the MCPs" local-backend model.
-   Caveat: depends on the harness supporting MCP resources (Claude does; Pi/Codex vary).
-5. **A context file in the run workspace** (not listed before) — the sidecar/SDK writes
-   `.agenta/run-context.json` into the run cwd; the skill tells the harness to read it. No
-   protocol support needed; fits the folder-based local backend especially. Out-of-band (the model
-   has to be told to read it).
-6. **System-prompt preamble** — the service prepends the context to the agent's system prompt.
-   Universal, no round-trip, but static (a multi-turn `trace_id` can change) and bloats context.
-
-## Tradeoffs
-
-| | Universal across harnesses | New primitive | Refreshable per turn | local-backend fit | Boundary cleanliness |
-|---|---|---|---|---|---|
-| 2 hard-coded tool | yes | none (baked) | yes | medium | bakes a specific tool into the runner |
-| 3 static-return tool | yes | +1 (static) | yes (re-declared) | strong | clean (service declares it) |
-| 4 MCP resource | harness-dependent | uses MCP | yes | strong (we author the MCPs) | cleanest semantically |
-| 5 context file | yes | none | yes (rewrite) | strong (folders) | out-of-band |
-| 6 system prompt | yes | none | weak | medium | simple but static |
-
-## Recommendation (after the Codex rev-2 review)
-
-Codex reframed this usefully: **split run context by trust, and treat it as data, not a tool.**
-
-1. **Protected self-identity (the agent's own variant / own trace): server-bind it.** For a
-   self-targeting op — "update myself" (commit to my own variant), "annotate my trace" — the
-   identity is **locked into `call.body` at resolve time and omitted from the model-visible input
-   schema.** The model supplies only the payload (the new config / the annotation content), never
-   which variant or trace. Still a thin wrapper over the existing endpoint, just with the identity
-   fixed. This removes the real risk Codex flagged: project-scoped auth stops cross-project access
-   but NOT within-project lateral movement (a model retargeting a different variant/trace in the
-   same project). So we do **not** rely on "own is convention" for these fields; we bind them.
-2. **General model-readable context (what the model needs to reason/orchestrate): run-level data,
-   delivered as an MCP resource (primary) with a context-file fallback.** It rides the run
-   contract (service → runner metadata), not a tool. Codex is against making a `get_context`
-   static-return tool a canonical primitive — it is a tool-shaped escape hatch for data and
-   muddies the runner's `callback / code / client` set. Keep the static-return tool only as a
-   temporary per-harness compatibility shim if a harness supports neither resources nor a file.
-3. **Refresh semantics (Codex P3): refresh per turn.** `latest_revision` changes mid-run (after a
-   commit), so a once-at-start snapshot goes stale. Refresh the context each turn, or — better for
-   commits — have the commit endpoint take an expected-revision precondition so a stale value
-   fails loudly instead of clobbering.
-
-Net: the sensitive path needs no model-visible delivery at all (server-bound); the delivery
-question (resource vs file) only covers non-authority context the model reads, and we pick MCP
-resource + file fallback.
-
-### The one decision for Mahmoud
-
-You framed it as "the model supplies its own trace/variant; own is a convention." Codex and I
-land on **server-binding the self-identity fields** for the sensitive ops instead (locked in
-`call.body`, hidden from the model), because convention does not stop within-project lateral
-movement. It is still a thin wrapper. Confirm server-bind, or say why convention is enough.
-
-## Codex review (rev 2, xhigh)
-
-- **Verdict: pass with conditions.** The thin-wrapper framing is coherent; the risk is *where run
-  context is trusted and how that trust is enforced*, not the wrapper idea.
-- **P1 — reconcile the docs:** run-context.md presented an open matrix while design.md asserted a
-  direction. (Resolved: the recommendation above is the direction; design.md matches.)
-- **P1 — server-bind protected fields:** if a platform endpoint schema exposes
-  variant/trace/revision/session and they are not forced server-side, the model can retarget
-  effects within the project. Project auth limits blast radius, not within-project movement.
-- **P2 — a static-return tool is not a canonical primitive** (data, not action). Resource / file /
-  payload is the right shape; static tool only as a compat shim.
-- **P2 — if MCP resource, define a fallback** for harnesses without resource support (Pi/Codex
-  vary), or portability regresses.
-- **P3 — decide refresh semantics** for mutable context (`latest_revision` after a commit):
-  snapshot-at-start vs per-turn, documented; or an expected-revision precondition on commit.
-- **Q4 — design mostly right:** the `call` descriptor + allowlisted method/path + `args_into` +
-  the `/tools/call` shrink is the right factoring for the local backend; keep context provisioning
-  OUTSIDE primitive dispatch (a service→runner metadata path), not an executable tool.
+_Provenance: the within-project lateral-movement rationale and the merge-hardening list came from
+the Codex (xhigh) reviews; the delivery decision (run/session + `bind`, nothing else) is
+Mahmoud's._

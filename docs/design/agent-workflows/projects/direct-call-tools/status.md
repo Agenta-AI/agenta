@@ -4,9 +4,8 @@ Last updated: 2026-06-27
 
 ## Where this is
 
-DESIGN deliverable on draft PR #4886 for Mahmoud's review. **Round-2 comments addressed (second
-version)** — the per-comment summary is in the PR comment. No code in this project; implementation
-is dispatched by the orchestrator once the design is approved.
+DESIGN deliverable on draft PR #4886. **Design is now complete — all decisions made, including
+run-context delivery.** No code in this project; implementation is dispatched by the orchestrator.
 
 `design.md` (the `call` descriptor, the per-tool-type table, the dispatch algorithm) and
 `plan.md` (the phases) are the spec the implementation subagent would follow. Phase 1's wire
@@ -27,6 +26,12 @@ rather than editing concurrently. Until then A does not touch models.py.
 
 ## Decided
 
+- **2026-06-27 (FINAL) — run-context delivery = run/session + tool `bind`.** The service sends a
+  `runContext` blob on `/run` (refreshed per turn); tool definitions declare a `bind` map and the
+  runner fills bound fields server-side at dispatch, hidden from the model. Self-targeting tools
+  bind their own variant/trace this way (settles server-bind vs "own is convention" → server-bind).
+  No MCP resource, no `get_context` tool, no context file, no prompt injection (all in "Considered
+  but not used" in `run-context.md`). **This closes the last open decision; the design is complete.**
 - **2026-06-27 — env resolution timing.** Always bake the resolved revision at resolve time,
   including `environment` references. The service is always in front of the sidecar and
   re-resolves on each invoke, so the baked revision stays current. No call-time env resolution.

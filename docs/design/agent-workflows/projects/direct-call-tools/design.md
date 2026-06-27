@@ -79,8 +79,8 @@ Resolved (Codex binding review):
   entries), and verify the stripped schema still satisfies the endpoint's real required contract
   (do not drop a field the endpoint needs that the model should still provide).
 - **`runContext` is its own field on the `/run` contract** (explicit run metadata, NOT inside
-  `TraceContext`), with the MCP-resource / context-file fallback for local backends that cannot
-  read it (see `run-context.md`).
+  `TraceContext`), refreshed per turn. It is consumed only by `bind`; the model does not read it
+  directly (see `run-context.md`).
 - **Merge hardening** as in the body-assembly rule above (path-conflict rejection, strict path
   parsing, prototype-pollution-safe deep-set, post-merge validation).
 
@@ -222,20 +222,19 @@ across all tool types, so the refactor can lift it uniformly later.
 ## Run context
 
 Some tools need the run's own context (the current trace, the running workflow/variant + draft
-state + latest revision, the session_id). The resolved direction (Codex rev-2):
+state + latest revision, the session_id). The decision:
 
-- Run context rides the **run contract** as a run-level `runContext` payload on `/run` — data, not
-  a callable tool, and not modeled as a `get_context` primitive.
-- **Protected self-identity** (the agent's own variant / trace) is **bound server-side** into the
-  `call.body` of self-targeting tools and hidden from the model, so the model cannot retarget
-  within the project. Endpoints also harden (revision-precondition on commit).
-- **Non-authority context the model needs to read** is delivered as an **MCP resource** (primary)
-  with a **context-file fallback** for harnesses without resource support.
-- **Refresh per turn** — `latest_revision` changes after a commit, so a once-at-start snapshot
-  goes stale.
+- Run context rides the **run/session** as a `runContext` payload on `/run`, **refreshed per
+  turn** — data, not a callable tool.
+- It is consumed **only by `bind`**: a tool definition binds a run-context value into a request
+  field, and the runner fills it server-side at dispatch, hidden from the model (see "Context
+  binding"). Self-targeting tools (own variant / own trace) bind their identity this way, so the
+  model supplies only the payload and cannot retarget within the project. Endpoints also harden
+  (revision-precondition on commit).
+- The model does **not** read run context directly — no MCP resource, no `get_context` tool, no
+  context file, no prompt injection. Those were considered and dropped.
 
-Full options, tradeoffs, and the one open decision (server-bind self-identity vs "own is
-convention"): `run-context.md`.
+The decision and the dropped options: `run-context.md`.
 
 ## The platform-op catalog
 
