@@ -79,7 +79,7 @@ const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) =>
                     setExpanded((e) => !e)
                 }}
                 aria-expanded={expanded}
-                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextTertiary transition-colors hover:bg-[var(--ag-rgba-051729-04)] hover:text-colorTextSecondary"
+                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextTertiary transition-colors hover:bg-colorFillQuaternary hover:text-colorTextSecondary"
             >
                 <CaretRight
                     size={11}
@@ -118,12 +118,12 @@ const RunErrorBody = ({text}: {text: string}) => {
     const isLong = text.length > 220 || text.includes("\n")
 
     return (
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-2 rounded-md bg-[var(--ant-color-error-bg)] px-3 py-2">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <Text className="!text-xs !font-medium !text-colorError">The agent run failed</Text>
                 {expanded ? (
-                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-colorErrorBorder bg-[var(--ant-color-error-bg)] p-2 font-mono text-[11px] !text-colorErrorText">
+                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-[11px] !text-colorErrorText">
                         {text}
                     </pre>
                 ) : (
@@ -402,13 +402,15 @@ const AgentMessage = ({
         >
             <Bubble<React.ReactNode>
                 placement={isUser ? "end" : "start"}
-                variant={isUser ? "filled" : "outlined"}
+                // Borderless assistant turns: content sits on the panel bg with just the avatar and
+                // spacing, so tool cards aren't wrapped in an extra outline. User stays filled.
+                variant={isUser ? "filled" : "borderless"}
                 avatar={avatarFor(isUser)}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
-                    content: `min-w-0 max-w-full overflow-hidden ${
-                        isError ? "!border-colorErrorBorder !bg-[var(--ant-color-error-bg)]" : ""
-                    }`,
+                    // Error styling is a self-contained callout in RunErrorBody now, not painted on
+                    // the (borderless) bubble content — otherwise it bleeds edge-to-edge with no pad.
+                    content: "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 content={body}

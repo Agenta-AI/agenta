@@ -318,7 +318,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     role="log"
                     aria-live="polite"
                     aria-label="Agent conversation"
-                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden rounded-md border border-solid border-colorBorderSecondary p-3"
+                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3"
                 >
                     {messages.length === 0 && (
                         <div className="m-auto text-center text-xs text-colorTextTertiary">
@@ -502,7 +502,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
             <Tabs
                 type="editable-card"
                 size="small"
-                className="flex min-h-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-tabpane]:h-full"
+                className="flex min-h-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-nav]:!-mx-3 [&_.ant-tabs-nav]:!px-3 [&_.ant-tabs-tabpane]:h-full"
                 activeKey={activeId}
                 onChange={setActiveSession}
                 onEdit={(targetKey, action) => {

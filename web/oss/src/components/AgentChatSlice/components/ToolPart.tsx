@@ -1,5 +1,6 @@
 import {memo, useEffect, useState} from "react"
 
+import {HeightCollapse} from "@agenta/ui"
 import {
     CaretDown,
     CaretRight,
@@ -54,6 +55,16 @@ const STATE_META: Record<string, {label: string; color: string}> = {
 const JsonBlock = ({value, typewriter = false}: {value: unknown; typewriter?: boolean}) => {
     const full = typeof value === "string" ? value : JSON.stringify(value, null, 2)
     const text = useTypewriter(full, typewriter)
+    // Empty payloads ({} / [] / "") render as muted inline text, not a near-empty filled block,
+    // so a tool with no input doesn't add a hollow box.
+    const trimmed = full.trim()
+    if (trimmed === "" || trimmed === "{}" || trimmed === "[]") {
+        return (
+            <span className="mt-1 block font-mono text-xs text-colorTextTertiary">
+                {trimmed || "—"}
+            </span>
+        )
+    }
     return (
         <pre className="m-0 mt-1 max-h-60 max-w-full min-w-0 overflow-auto rounded bg-colorFillTertiary p-2 text-xs leading-relaxed text-colorTextSecondary">
             {text}
@@ -112,11 +123,11 @@ const ToolPart = ({part, onApprovalResponse}: ToolPartProps) => {
                   : Wrench
 
     return (
-        <div className="w-full min-w-0 overflow-hidden rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer">
+        <div className="w-full min-w-0 overflow-hidden rounded-md bg-colorFillQuaternary">
             <button
                 type="button"
                 onClick={() => setOpen((o) => !o)}
-                className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-[var(--ag-rgba-051729-04)]"
+                className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-colorFillTertiary"
             >
                 {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 <StateIcon
@@ -129,7 +140,7 @@ const ToolPart = ({part, onApprovalResponse}: ToolPartProps) => {
                 </Tag>
             </button>
 
-            {expanded && (
+            <HeightCollapse open={expanded}>
                 <div className="flex min-w-0 flex-col gap-2 px-3 pb-3">
                     {part.input !== undefined && (
                         <div>
@@ -185,7 +196,7 @@ const ToolPart = ({part, onApprovalResponse}: ToolPartProps) => {
                         </div>
                     )}
                 </div>
-            )}
+            </HeightCollapse>
         </div>
     )
 }
