@@ -137,6 +137,13 @@ its seven points:
    `network: off` guarantee. See `research.md` section 5.
 2. **`read_only` enforcement strength.** Is `read_only` a hard runtime block on resolved tools,
    or only an advisory default for the permission? The honest first cut is advisory.
+   - ~~**Resolved-tool `permission:"allow"` parks on Claude (F-046).**~~ **Resolved by the F-046
+     fix.** A resolved executable tool's per-tool permission is now rendered as a
+     `mcp__agenta-tools__<name>` rule in `.claude/settings.json`, so an `allow` tool runs (no park)
+     while `ask`/unset keeps the HITL gate. The relay stays the choke point on `pi`. (See the S3b
+     "F-046 correction" note above and `proposal.md` §"Where Layer 3 is enforced".) Still open: the
+     batch `/invoke` sub-observation (HTTP 200 + empty content on a parked `ask` tool) — separate
+     from this permission fix.
 3. ~~**Pi's real control surface (Phase 0).**~~ **Resolved by S0b.** Backend-dependent: supported
    in-process (`pi.ts:311` passes `tools`), unsupported over sandbox-agent ACP (`pi-acp@0.0.29`
    forwards nothing). Design: honor `builtin_names` in-process, fail loud over sandbox-agent.
@@ -218,11 +225,21 @@ Smallest shippable, independently reviewable units. Each names its acceptance ch
 - **S3b — Layer 3 enforcement** (`done`, reviewed). Relay enforces resolved-tool permission
   (`resolvePermission`: deny→refusal string before any execution, allow→run, ask/unset→headless
   `permissionPolicy`); `permissionPolicy` threaded into `startToolRelay`, same resolver as the
-  Claude-builtin responder. `claude-settings.ts` renders per-MCP-server `mcp__<server>` rules
+  Claude-builtin responder. The claude adapter (now Python: `adapters/claude_settings.py`, formerly
+  `claude-settings.ts`) renders per-MCP-server `mcp__<server>` rules
   (name verified against `toAcpMcpServers`). Responder untouched (Claude builtins handled by S2
-  settings.json + existing `PolicyResponder`); no fragile per-resolved-tool mcp rules. HITL "ask"
+  settings.json + existing `PolicyResponder`). HITL "ask"
   surfacing deferred to S5 (`TODO(S5)`). 166 TS pass. Reviewer APPROVED (deny-before-execute +
   MCP-name both verified against downstream consumers).
+  - **F-046 correction (2026-06-27).** S3b originally chose "no per-resolved-tool mcp rules",
+    on the premise that the relay is the choke point for resolved tools on every harness. That
+    premise was FALSE for Claude: a resolved executable tool is delivered as a tool of the internal
+    `agenta-tools` MCP server, and Claude Code's own permission gate fires BEFORE the relay, so the
+    runner parks it and the relay's `allow` is never consulted — a `permission:"allow"` tool ALWAYS
+    parked on Claude. Now WIRED: `_rules_from_tool_specs` in `adapters/claude_settings.py` renders a
+    per-tool `mcp__agenta-tools__<name>` rule (allow→`permissions.allow`, ask/unset→no allow rule so
+    HITL park is preserved, deny→`permissions.deny`; `client` tools excluded). This does NOT make
+    `permission_policy:"auto"` a blanket bypass (that is a separate design question, out of scope).
 - **S4 — Playground form** (`done`, reviewed + fixed). New controls: `SandboxPermissionControl`
   (network mode/allowlist/filesystem/enforcement), `ClaudePermissionsControl` (mode +
   allow/deny/ask, gated to Claude harness, collapsible advanced), per-tool `ToolPermissionControl`
@@ -320,6 +337,17 @@ gh pr create --head feat/agent-capability-config --base main
   `engines/pi.ts` (rejects restrictive sandbox_permission + deny/ask permissions), 8 tests, live
   rejection confirmed. 185 TS green. Note: `engines/pi.ts` is in the shared-files set (carries the
   guard); test `pi-capability-guard.test.ts` is new.
+- 2026-06-27: Fixed F-046 (Claude resolved-tool permission). The Layer-1 claude-settings renderer
+  (`adapters/claude_settings.py`) now emits a per-resolved-tool `mcp__agenta-tools__<name>` rule for
+  each EXECUTABLE (callback/code) tool, mapping `effective_permission()` → allow/ask/deny — mirroring
+  the per-MCP-server helper but against the runner's fixed internal `agenta-tools` server name (new
+  `INTERNAL_TOOL_MCP_SERVER` constant, coupled to `services/agent/src/tools/mcp-bridge.ts`).
+  `ClaudeAgentConfig.wire_harness_files` now passes `tool_specs` in. A `permission:"allow"` tool
+  runs on Claude instead of parking; `ask`/unset preserves the HITL park; `deny` blocks; `client`
+  tools excluded. Corrected the false S3b premise + the proposal claim that resolved-tool permission
+  "works the same on pi and claude". SDK claude-settings unit tests + the Claude golden + both wire
+  contract tests (Python + TS) updated. `permission_policy:"auto"`-as-blanket-bypass intentionally
+  NOT done (separate design question).
 - 2026-06-24: Landed Layers 1 + 3 + the playground (code-complete, reviewed). S2 (Claude
   `.claude/settings.json`, reviewed), S3a (permission plumbing), S3b (relay + MCP-rule
   enforcement, reviewed), S4 (playground form, reviewed) + S4b (fixed the `agenta_metadata`-strip
