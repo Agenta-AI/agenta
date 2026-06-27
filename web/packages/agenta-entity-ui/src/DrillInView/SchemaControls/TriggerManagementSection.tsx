@@ -444,7 +444,11 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 icon: <PencilSimpleLine size={16} />,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
-                    if (record.id) openScheduleDrawer({scheduleId: record.id})
+                    if (record.id)
+                        openScheduleDrawer({
+                            scheduleId: record.id,
+                            playgroundEntityId: entityId ?? undefined,
+                        })
                 },
             },
             {type: "divider"},
@@ -465,7 +469,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 },
             },
         ],
-        [openDeliveries, openScheduleDrawer, removeSchedule, runInPlayground],
+        [openDeliveries, openScheduleDrawer, removeSchedule, runInPlayground, entityId],
     )
 
     return (
@@ -489,7 +493,11 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                                 toggleDisabled={disabled || !record.id}
                                 onToggle={handleScheduleToggle(record)}
                                 onOpen={() =>
-                                    record.id && openScheduleDrawer({scheduleId: record.id})
+                                    record.id &&
+                                    openScheduleDrawer({
+                                        scheduleId: record.id,
+                                        playgroundEntityId: entityId ?? undefined,
+                                    })
                                 }
                                 menuItems={scheduleMenu(record)}
                             />
@@ -574,10 +582,15 @@ export function AddTriggerDropdown({entityId}: {entityId: string | null}) {
                 key: "schedule",
                 label: "Scheduled trigger",
                 icon: <Clock size={16} />,
-                onClick: () => openScheduleDrawer({defaultReferences, defaultBoundLabel}),
+                onClick: () =>
+                    openScheduleDrawer({
+                        defaultReferences,
+                        defaultBoundLabel,
+                        playgroundEntityId: entityId ?? undefined,
+                    }),
             },
         ],
-        [openCatalog, openScheduleDrawer, defaultReferences, defaultBoundLabel],
+        [openCatalog, openScheduleDrawer, defaultReferences, defaultBoundLabel, entityId],
     )
 
     return (

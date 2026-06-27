@@ -66,6 +66,10 @@ export interface ScheduleDrawerState {
     // Human-readable label for `defaultReferences` (e.g. the agent's name), so
     // the bound-workflow field shows a name instead of a raw id. Ignored in edit mode.
     defaultBoundLabel?: string
+    // When opened from an agent playground: the agent's entityId. Enables the
+    // "Run in playground" action, which simulates a scheduled tick by channeling
+    // the static inputs into that agent's active chat session. Absent in settings.
+    playgroundEntityId?: string
 }
 export const triggerScheduleDrawerAtom = atom<ScheduleDrawerState | null>(null)
 
