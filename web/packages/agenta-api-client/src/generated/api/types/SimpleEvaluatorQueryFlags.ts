@@ -4,6 +4,8 @@ export interface SimpleEvaluatorQueryFlags {
     is_application?: (boolean | null) | undefined;
     is_evaluator?: (boolean | null) | undefined;
     is_snippet?: (boolean | null) | undefined;
+    is_skill?: (boolean | null) | undefined;
+    is_platform?: (boolean | null) | undefined;
     is_managed?: (boolean | null) | undefined;
     is_custom?: (boolean | null) | undefined;
     is_llm?: (boolean | null) | undefined;

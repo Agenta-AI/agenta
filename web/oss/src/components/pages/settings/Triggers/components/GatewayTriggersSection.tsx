@@ -11,8 +11,8 @@ import {
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {TriggerCatalogDrawer, TriggerEventsDrawer} from "@agenta/entity-ui/gatewayTrigger"
 import {MoreOutlined} from "@ant-design/icons"
-import {ArrowClockwise, Lightning, Plus, Trash, XCircle} from "@phosphor-icons/react"
-import {Button, Dropdown, Empty, Table, Tag, Tooltip, Typography, message} from "antd"
+import {ArrowClockwise, GearSix, Lightning, Plus, Trash, XCircle} from "@phosphor-icons/react"
+import {Button, Dropdown, Table, Tag, Tooltip, Typography, message} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
@@ -156,7 +156,7 @@ export default function GatewayTriggersSection() {
                     value ? formatDay({date: value, outputFormat: "YYYY-MM-DD HH:mm"}) : "-",
             },
             {
-                title: "",
+                title: <GearSix size={16} />,
                 key: "actions",
                 width: 48,
                 fixed: "right",
@@ -254,9 +254,6 @@ export default function GatewayTriggersSection() {
                     bordered
                     pagination={false}
                     loading={isLoading}
-                    locale={{
-                        emptyText: <Empty description="No connected integrations yet" />,
-                    }}
                     onRow={(record) => ({
                         onClick: () => openEvents(record),
                         className: "cursor-pointer",
