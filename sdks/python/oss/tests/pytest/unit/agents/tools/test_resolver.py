@@ -193,11 +193,11 @@ async def test_duplicate_model_visible_names_are_rejected(configs):
         await ToolResolver().resolve(configs)
 
 
-# --- @ag.reference workflow tool resolution ----------------------------------
+# --- type:"reference" workflow tool resolution -------------------------------
 
 
 async def test_reference_tool_resolves_to_callback_spec():
-    # A kept @ag.reference workflow tool becomes a callback spec (server-side execute), the same
+    # A type:"reference" workflow tool becomes a callback spec (server-side execute), the same
     # executor a gateway tool uses, plus the shared ToolCallback to the execute endpoint.
     resolved = await ToolResolver(workflow_resolver=FakeWorkflowResolver()).resolve(
         [
@@ -216,13 +216,13 @@ async def test_reference_tool_resolves_to_callback_spec():
     spec = resolved.tool_specs[0]
     assert isinstance(spec, CallbackToolSpec)
     assert spec.kind == "callback"
-    assert spec.call_ref == "workflow.summarize"
+    assert spec.call_ref == "workflow.variant.summarize"
     assert spec.name == "summarize"
     assert resolved.tool_callback.endpoint == "https://example/tools/call"
     # On the wire it is a `callback` spec carrying the workflow callRef — no new runner kind.
     wire = spec.to_wire()
     assert wire["kind"] == "callback"
-    assert wire["callRef"] == "workflow.summarize"
+    assert wire["callRef"] == "workflow.variant.summarize"
 
 
 async def test_reference_tool_requires_injected_resolver():
@@ -251,5 +251,5 @@ async def test_reference_and_gateway_share_one_callback():
         ]
     )
     call_refs = {spec.call_ref for spec in resolved.tool_specs}
-    assert "workflow.wf" in call_refs
+    assert "workflow.variant.wf" in call_refs
     assert resolved.tool_callback is not None

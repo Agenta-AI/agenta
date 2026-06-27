@@ -1,6 +1,6 @@
-"""Agenta adapter for kept ``@ag.reference`` workflow tools.
+"""Agenta adapter for ``type:"reference"`` workflow tools.
 
-Turns a kept ``@ag.reference`` workflow declaration into a runnable ``callback`` spec and points
+Turns a ``type:"reference"`` workflow declaration into a runnable ``callback`` spec and points
 its calls back at ``/tools/call``, exactly like the gateway adapter does for Composio actions.
 The difference from gateway is intrinsic, not transport: a workflow reference is already concrete
 in the config (the model-facing ``name`` / ``description`` / ``input_schema`` are authored), so
@@ -8,9 +8,9 @@ there is no enrichment round-trip — the adapter builds the spec directly and o
 backend base URL + per-request auth to assemble the shared ``ToolCallback``.
 
 When the model calls the tool the runner POSTs ``{data:{function:{name: call_ref, arguments}}}``
-to ``{api}/tools/call``; the server parses the ``workflow.{slug}[.{version}]`` ``call_ref``,
-invokes that workflow revision with the model's arguments, and returns the result. Any
-connections/secrets the workflow needs stay server-side — the gateway tool's safety shape.
+to ``{api}/tools/call``; the server parses the ``workflow.{axis}.*`` ``call_ref``, invokes that
+workflow revision with the model's arguments, and returns the result. Any connections/secrets the
+workflow needs stay server-side — the gateway tool's safety shape.
 
 Lives in the SDK so the service and a connected standalone SDK user resolve workflow tools the
 same way.
@@ -47,7 +47,7 @@ class AgentaWorkflowToolResolver:
         api_base = self._connection.base_url()
         if not api_base:
             error = GatewayToolResolutionError(
-                "Agent has workflow (@ag.reference) tools configured but the Agenta API "
+                "Agent has workflow (type:'reference') tools configured but the Agenta API "
                 "base URL is unknown. Set AGENTA_AGENT_TOOLS_API_URL or AGENTA_API_URL."
             )
             log.warning("agent: workflow tool resolution failed: %s", error)

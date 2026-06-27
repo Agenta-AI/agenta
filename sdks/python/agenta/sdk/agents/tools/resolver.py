@@ -169,10 +169,10 @@ class ToolResolver:
         )
 
         tool_callback: Optional[ToolCallback] = None
-        # A kept ``@ag.reference`` workflow tool resolves to the same ``callback`` executor as a
-        # gateway tool: a ``CallbackToolSpec`` (``call_ref = workflow.{slug}[.{version}]``) plus the
-        # single shared ``ToolCallback`` to the server-side execute endpoint. The runner needs no
-        # new ``kind``; the server-side ``/tools/call`` routes by the ``workflow.*`` prefix.
+        # A ``type:"reference"`` workflow tool resolves to the same ``callback`` executor as a
+        # gateway tool: a ``CallbackToolSpec`` (``call_ref = workflow.{axis}.*``) plus the single
+        # shared ``ToolCallback`` to the server-side execute endpoint. The runner needs no new
+        # ``kind``; the server-side ``/tools/call`` routes by the ``workflow.*`` prefix.
         if reference_configs:
             if self._workflow_resolver is None:
                 raise UnsupportedToolProviderError("workflow")

@@ -18,7 +18,6 @@ from .errors import (
 )
 from .interfaces import GatewayToolResolver, ToolSecretProvider, WorkflowToolResolver
 from .models import (
-    AG_REFERENCE_MARKER,
     BuiltinToolConfig,
     CallbackToolSpec,
     ClientToolConfig,
@@ -46,7 +45,6 @@ __all__ = [
     "CodeToolConfig",
     "ClientToolConfig",
     "ReferenceToolConfig",
-    "AG_REFERENCE_MARKER",
     "ToolSpec",
     "CallbackToolSpec",
     "CodeToolSpec",

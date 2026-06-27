@@ -140,17 +140,14 @@ def test_default_compat_mode_raises_with_index():
     assert caught.value.index == 1
 
 
-# --- @ag.reference workflow tool (the reference syntax) -----------------------
+# --- type:"reference" workflow tool ------------------------------------------
 
 
-def test_coerces_kept_ag_reference_marker_into_reference_tool():
-    # The kept @ag.reference shape an author commits: the marker names the workflow target, and
-    # the model-facing surface (name/description/input_schema) rides as sibling keys.
-    tool = coerce_tool_config(
+def test_typed_reference_config_round_trips():
+    tool = parse_tool_config(
         {
-            "@ag.reference": {
-                "@ag.references": {"workflow": {"slug": "summarize"}},
-            },
+            "type": "reference",
+            "slug": "summarize",
             "name": "summarize",
             "description": "Summarize text",
             "input_schema": {
@@ -160,31 +157,40 @@ def test_coerces_kept_ag_reference_marker_into_reference_tool():
         }
     )
     assert isinstance(tool, ReferenceToolConfig)
+    assert tool.ref_by == "variant"
     assert tool.slug == "summarize"
     assert tool.version is None
-    assert tool.call_ref == "workflow.summarize"
+    assert tool.call_ref == "workflow.variant.summarize"
     assert tool.tool_name == "summarize"
     assert tool.input_schema["properties"]["text"]["type"] == "string"
 
 
-def test_ag_reference_version_builds_versioned_call_ref():
-    tool = coerce_tool_config(
-        {
-            "@ag.reference": {
-                "@ag.references": {"workflow": {"slug": "wf", "version": "3"}}
-            }
-        }
-    )
+def test_typed_reference_version_builds_versioned_call_ref():
+    tool = coerce_tool_config({"type": "reference", "slug": "wf", "version": "3"})
     assert isinstance(tool, ReferenceToolConfig)
-    assert tool.call_ref == "workflow.wf.3"
+    assert tool.call_ref == "workflow.variant.wf.3"
     # No authored name -> the model-visible name defaults to the workflow slug.
     assert tool.tool_name == "wf"
 
 
-def test_ag_reference_carries_tool_axes():
+def test_typed_reference_environment_axis():
     tool = coerce_tool_config(
         {
-            "@ag.reference": {"@ag.references": {"workflow": {"slug": "wf"}}},
+            "type": "reference",
+            "ref_by": "environment",
+            "environment": "production",
+            "slug": "wf",
+        }
+    )
+    assert isinstance(tool, ReferenceToolConfig)
+    assert tool.call_ref == "workflow.environment.production.wf"
+
+
+def test_typed_reference_carries_tool_axes():
+    tool = coerce_tool_config(
+        {
+            "type": "reference",
+            "slug": "wf",
             "needs_approval": True,
             "render": {"kind": "component", "component": "Card"},
             "permission": "ask",
@@ -196,14 +202,6 @@ def test_ag_reference_carries_tool_axes():
     assert tool.permission == "ask"
 
 
-def test_ag_reference_without_workflow_slug_raises():
+def test_typed_reference_without_slug_raises():
     with pytest.raises(ToolConfigurationError):
-        coerce_tool_config({"@ag.reference": {"@ag.references": {}}})
-    with pytest.raises(ToolConfigurationError):
-        coerce_tool_config({"@ag.reference": {}})
-
-
-def test_typed_reference_config_round_trips():
-    tool = parse_tool_config({"type": "reference", "slug": "wf", "name": "do_wf"})
-    assert isinstance(tool, ReferenceToolConfig)
-    assert tool.call_ref == "workflow.wf"
+        coerce_tool_config({"type": "reference"})

@@ -1,11 +1,11 @@
-"""The ``/tools/call`` server-side execute branch for referenced-workflow (@ag.reference) tools.
+"""The ``/tools/call`` server-side execute branch for workflow-reference (type:"reference") tools.
 
-A kept @ag.reference agent tool resolves (SDK-side) to a ``callback`` spec whose call_ref is
-``workflow.{slug}[.{version}]``. When the model calls it the runner POSTs the OpenAI tool-call
-envelope back to ``/tools/call``; the router routes the ``workflow.*`` prefix to
-``_call_workflow_tool``, which invokes the workflow revision with the model's arguments and
-returns its outputs as the tool result. These tests exercise that handler directly with a fake
-WorkflowsService (no DB, no live workflow service).
+A type:"reference" agent tool resolves (SDK-side) to a ``callback`` spec whose call_ref is
+``workflow.variant.{slug}[.{version}]`` or ``workflow.environment.{environment}.{slug}``. When the
+model calls it the runner POSTs the OpenAI tool-call envelope back to ``/tools/call``; the router
+routes the ``workflow.*`` prefix to ``_call_workflow_tool``, which invokes the selected workflow
+revision with the model's arguments and returns its outputs as the tool result. These tests
+exercise that handler directly with a fake WorkflowsService (no DB, no live workflow service).
 """
 
 from __future__ import annotations
@@ -70,14 +70,14 @@ def _call(name: str, arguments) -> ToolCall:
     )
 
 
-async def test_invokes_workflow_by_slug_and_returns_outputs():
+async def test_invokes_workflow_by_variant_slug_and_returns_outputs():
     workflows = FakeWorkflowsService(outputs={"summary": "ok"})
     router = _router(workflows)
     request = _request()
 
     response = await router._call_workflow_tool(
         request=request,
-        body=_call("workflow.summarize", {"text": "hello"}),
+        body=_call("workflow.variant.summarize", {"text": "hello"}),
     )
 
     # One invoke, scoped to the caller's project + user.
@@ -85,10 +85,11 @@ async def test_invokes_workflow_by_slug_and_returns_outputs():
     call = workflows.calls[0]
     assert str(call["project_id"]) == request.state.project_id
     assert str(call["user_id"]) == request.state.user_id
-    # The reference targets the workflow artifact by slug; arguments ride as inputs.
+    # The variant axis targets the workflow by slug; arguments ride as inputs.
     refs = call["request"].references
     assert refs["workflow"].slug == "summarize"
     assert refs["workflow"].version is None
+    assert "environment" not in refs
     assert call["request"].data.inputs == {"text": "hello"}
     # The outputs come back as the tool result content (a JSON string).
     result = response.call
@@ -97,15 +98,28 @@ async def test_invokes_workflow_by_slug_and_returns_outputs():
     assert result.data.tool_call_id == "call_1"
 
 
-async def test_versioned_call_ref_pins_revision():
+async def test_versioned_variant_call_ref_pins_revision():
     workflows = FakeWorkflowsService(outputs=1)
     await _router(workflows)._call_workflow_tool(
         request=_request(),
-        body=_call("workflow.summarize.3", {}),
+        body=_call("workflow.variant.summarize.3", {}),
     )
     refs = workflows.calls[0]["request"].references
     assert refs["workflow"].slug == "summarize"
     assert refs["workflow"].version == "3"
+
+
+async def test_environment_axis_targets_environment_and_workflow():
+    workflows = FakeWorkflowsService(outputs={"ok": True})
+    await _router(workflows)._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.environment.production.summarize", {}),
+    )
+    refs = workflows.calls[0]["request"].references
+    # The environment selects the revision; the workflow ref supplies the selector key slug.
+    assert refs["environment"].slug == "production"
+    assert refs["workflow"].slug == "summarize"
+    assert refs["workflow"].version is None
 
 
 async def test_double_underscore_call_ref_is_normalized():
@@ -113,7 +127,7 @@ async def test_double_underscore_call_ref_is_normalized():
     workflows = FakeWorkflowsService(outputs={})
     await _router(workflows)._call_workflow_tool(
         request=_request(),
-        body=_call("workflow__summarize", {}),
+        body=_call("workflow__variant__summarize", {}),
     )
     assert workflows.calls[0]["request"].references["workflow"].slug == "summarize"
 
@@ -122,7 +136,7 @@ async def test_json_string_arguments_are_parsed():
     workflows = FakeWorkflowsService(outputs={})
     await _router(workflows)._call_workflow_tool(
         request=_request(),
-        body=_call("workflow.wf", '{"a": 1}'),
+        body=_call("workflow.variant.wf", '{"a": 1}'),
     )
     assert workflows.calls[0]["request"].data.inputs == {"a": 1}
 
@@ -133,7 +147,7 @@ async def test_workflow_error_status_maps_to_error_result():
     )
     response = await _router(workflows)._call_workflow_tool(
         request=_request(),
-        body=_call("workflow.missing", {}),
+        body=_call("workflow.variant.missing", {}),
     )
     assert response.call.status.code == "STATUS_CODE_ERROR"
     assert response.call.status.message == "no runnable service URL"
@@ -144,7 +158,7 @@ async def test_invoke_exception_surfaces_as_502():
     with pytest.raises(HTTPException) as caught:
         await _router(workflows)._call_workflow_tool(
             request=_request(),
-            body=_call("workflow.wf", {}),
+            body=_call("workflow.variant.wf", {}),
         )
     assert caught.value.status_code == 502
 
@@ -153,7 +167,7 @@ async def test_missing_workflows_service_returns_501():
     with pytest.raises(HTTPException) as caught:
         await _router(None)._call_workflow_tool(
             request=_request(),
-            body=_call("workflow.wf", {}),
+            body=_call("workflow.variant.wf", {}),
         )
     assert caught.value.status_code == 501
 
@@ -161,9 +175,13 @@ async def test_missing_workflows_service_returns_501():
 @pytest.mark.parametrize(
     "name",
     [
-        "workflow.",  # empty slug
-        "workflow.a.b.c",  # too many segments
-        "workflow.bad slug",  # invalid characters
+        "workflow.",  # empty axis
+        "workflow.variant",  # variant axis, no slug
+        "workflow.variant.wf.1.2",  # variant axis, too many segments
+        "workflow.variant.bad slug",  # invalid characters
+        "workflow.environment.production",  # environment axis missing workflow slug
+        "workflow.environment.prod.wf.extra",  # environment axis, too many segments
+        "workflow.unknown.wf",  # unknown axis
     ],
 )
 async def test_malformed_call_ref_rejected(name):

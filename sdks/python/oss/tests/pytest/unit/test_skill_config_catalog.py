@@ -104,21 +104,43 @@ def test_inline_skill_entry_validates():
     jsonschema.validate(config, agent_config)
 
 
-# --- tools: @ag.embed (inline) + @ag.reference (kept) arms -------------------
+# --- tools: @ag.embed (inline) + type:"reference" arms -----------------------
+
+
+def _flatten_union(variants):
+    """Flatten nested anyOf/oneOf members (the concrete tool variants live in a discriminated
+    oneOf nested inside the tools anyOf)."""
+    for variant in variants:
+        nested = variant.get("anyOf") or variant.get("oneOf")
+        if nested:
+            yield from _flatten_union(nested)
+        else:
+            yield variant
+
+
+def _type_const(variant):
+    """The discriminator const/enum of a tool union variant, if any."""
+    type_schema = variant.get("properties", {}).get("type", {})
+    if "const" in type_schema:
+        return type_schema["const"]
+    enum = type_schema.get("enum")
+    if isinstance(enum, list) and len(enum) == 1:
+        return enum[0]
+    return None
 
 
 def test_agent_config_tools_accepts_embed_and_reference_arms():
-    """The tools field is a union: a concrete tool variant, an @ag.embed (inline a client tool),
-    or an @ag.reference (keep the reference; run the workflow server-side)."""
+    """The tools field is a union: a concrete tool variant (incl. type:"reference", a workflow
+    run server-side), or an @ag.embed (inline a client tool value)."""
     agent_config = CATALOG_TYPES["agent_config"]
     tools_item = agent_config["properties"]["tools"]["items"]
-    variants = tools_item["anyOf"]
+    variants = list(_flatten_union(tools_item["anyOf"]))
 
-    # The embed and reference arms are present alongside the concrete tool variants.
+    # The embed arm and the type:"reference" arm are present alongside the concrete tool variants.
     has_embed = any("@ag.embed" in v.get("properties", {}) for v in variants)
-    has_reference = any("@ag.reference" in v.get("properties", {}) for v in variants)
+    has_reference = any(_type_const(v) == "reference" for v in variants)
     assert has_embed, "tools union must include an @ag.embed arm"
-    assert has_reference, "tools union must include an @ag.reference arm"
+    assert has_reference, 'tools union must include a type:"reference" arm'
 
 
 def test_agent_config_with_reference_tool_validates():
@@ -127,9 +149,9 @@ def test_agent_config_with_reference_tool_validates():
     config = _base_agent_config()
     config["tools"] = [
         {
-            "@ag.reference": {
-                "@ag.references": {"workflow": {"slug": "summarize"}},
-            },
+            "type": "reference",
+            "ref_by": "variant",
+            "slug": "summarize",
             "name": "summarize",
             "description": "Summarize text",
             "input_schema": {"type": "object", "properties": {}},

@@ -1124,17 +1124,15 @@ class AgentConfigSchema(AgSchemaMixin):
         description="Model the agent runs on.",
         json_schema_extra={"x-parameter": "grouped_choice"},
     )
-    tools: List[Union[ToolConfig, "_ToolEmbedRefSchema", "_ToolReferenceSchema"]] = (
-        Field(
-            default_factory=list,
-            title="Tools",
-            description=(
-                "Runnable tools the agent can call: harness built-ins, server-side gateway "
-                "actions (e.g. Composio), sandboxed code, or client-fulfilled tools — or a "
-                "workflow pointed at via @ag.embed (inline a client tool value) or @ag.reference "
-                "(keep the reference; run the workflow server-side as a callback tool)."
-            ),
-        )
+    tools: List[Union[ToolConfig, "_ToolEmbedRefSchema"]] = Field(
+        default_factory=list,
+        title="Tools",
+        description=(
+            "Runnable tools the agent can call: harness built-ins, server-side gateway "
+            "actions (e.g. Composio), sandboxed code, client-fulfilled tools, or a workflow "
+            "referenced as a tool (a type:'reference' entry the Agenta service runs server-side "
+            "as a callback tool). A workflow value can also be inlined via @ag.embed."
+        ),
     )
     mcp_servers: List[MCPServerConfig] = Field(
         default_factory=list,
@@ -1362,30 +1360,8 @@ class _ToolEmbedRefSchema(BaseModel):
     )
 
 
-class _ToolReferenceSchema(BaseModel):
-    """An ``@ag.reference`` marker standing in for one ``tools`` entry (the reference syntax).
-
-    The new top-level marker (sibling of ``@ag.embed``): unlike embed, the generic resolver
-    LEAVES this reference in the config, and ``resolve_tools`` turns the kept reference into a
-    server-side ``callback`` tool that runs the referenced workflow revision. The marker body
-    stays permissive (``Dict[str, Any]``) — its inner ``@ag.references`` / ``@ag.selector`` keys
-    name the workflow target, the same way ``@ag.embed`` does. ``extra="allow"`` so the
-    model-facing surface (``name`` / ``description`` / ``input_schema``) and the tool axes
-    (``needs_approval`` / ``render`` / ``permission``) ride as sibling keys of the marker."""
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    reference: Dict[str, Any] = Field(
-        alias="@ag.reference",
-        title="Workflow reference",
-        description=(
-            "An @ag.reference marker kept in the config; resolve_tools runs the referenced "
-            "workflow revision server-side as a callback tool."
-        ),
-    )
-
-
-# Resolve the forward references on AgentConfigSchema.skills + tools (inline / embed / reference).
+# Resolve the forward references on AgentConfigSchema.skills + tools (inline / embed).
+# A workflow referenced as a tool is the ``type:"reference"`` arm of ``ToolConfig`` itself.
 AgentConfigSchema.model_rebuild()
 
 

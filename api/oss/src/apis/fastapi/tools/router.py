@@ -68,9 +68,10 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
-# A referenced-workflow (@ag.reference) agent tool's call_ref. Distinct from the Composio
-# 5-segment grammar (``tools.{provider}.{integration}.{action}.{connection}``): the call back
-# carries only the workflow identity, ``workflow.{slug}`` or ``workflow.{slug}.{version}``.
+# A workflow referenced as an agent tool (a ``type:"reference"`` tool) carries this call_ref
+# prefix. Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
+# {action}.{connection}``): the callback encodes the targeting axis + identity —
+# ``workflow.variant.{slug}[.{version}]`` or ``workflow.environment.{environment}.{slug}``.
 _WORKFLOW_CALL_REF_PREFIX = "workflow."
 
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
@@ -1083,53 +1084,81 @@ class ToolsRouter:
 
         return ToolCallResponse(call=result)
 
+    @staticmethod
+    def _validate_slug_segments(*, segments: List[str]) -> None:
+        """Reject any call_ref segment with characters outside the safe slug allowlist."""
+        for segment in segments:
+            if not _SLUG_SEGMENT_RE.fullmatch(segment):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid characters in workflow tool segment: {segment!r}",
+                )
+
     async def _call_workflow_tool(
         self,
         *,
         request: Request,
         body: ToolCall,
     ) -> ToolCallResponse:
-        """Execute a referenced-workflow (@ag.reference) agent tool server-side.
+        """Execute a workflow referenced as an agent tool (``type:"reference"``) server-side.
 
-        The model's call routes here via a ``workflow.{slug}[.{version}]`` call_ref. We invoke
-        that workflow revision with the model's arguments as ``inputs`` and return its outputs as
-        the tool result. Connections/secrets the workflow needs stay server-side (auth is minted
-        from the caller's project + user), the same safety shape a gateway tool has."""
+        The model's call routes here via a ``workflow.{axis}.*`` call_ref. We parse the targeting
+        axis, invoke the selected workflow revision with the model's arguments as ``inputs``, and
+        return its outputs as the tool result. Connections/secrets the workflow needs stay
+        server-side (auth is minted from the caller's project + user), the same safety shape a
+        gateway tool has.
+
+        Grammar (after the ``workflow.`` prefix):
+
+        - ``variant.{slug}`` / ``variant.{slug}.{version}`` — the workflow's latest revision by
+          slug, or a pinned revision. Mapped to the ``workflow`` reference family.
+        - ``environment.{environment}.{slug}`` — whatever revision is deployed in ``environment``
+          for the workflow ``slug``. Mapped to the ``environment`` + ``workflow`` families (the
+          environment selects the revision via the derived ``{slug}.revision`` key)."""
         if self.workflows_service is None:
             raise HTTPException(
                 status_code=501,
                 detail="Workflow tools are not enabled on this deployment.",
             )
 
-        # Parse ``workflow.{slug}`` or ``workflow.{slug}.{version}`` (slug is opaque; version, if
-        # present, is the trailing segment). Reject anything past the version.
+        invalid_call_ref = HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid workflow tool call_ref: {body.data.function.name}. "
+                "Expected: workflow.variant.{slug}[.{version}] or "
+                "workflow.environment.{environment}.{slug}"
+            ),
+        )
+
         remainder = body.data.function.name.replace("__", ".")[
             len(_WORKFLOW_CALL_REF_PREFIX) :
         ]
-        slug_parts = remainder.split(".")
-        if not slug_parts or not slug_parts[0]:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Invalid workflow tool call_ref: {body.data.function.name}. "
-                    "Expected: workflow.{slug} or workflow.{slug}.{version}"
-                ),
-            )
-        if len(slug_parts) > 2:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Invalid workflow tool call_ref: {body.data.function.name}. "
-                    "Expected: workflow.{slug} or workflow.{slug}.{version}"
-                ),
-            )
-        slug = slug_parts[0]
-        version = slug_parts[1] if len(slug_parts) == 2 else None
-        if not _SLUG_SEGMENT_RE.fullmatch(slug):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid characters in workflow slug: {slug!r}",
-            )
+        parts = remainder.split(".")
+        axis = parts[0] if parts else ""
+        operands = parts[1:]
+
+        if axis == "variant":
+            # ``variant.{slug}`` (latest) or ``variant.{slug}.{version}`` (pinned).
+            if len(operands) not in (1, 2):
+                raise invalid_call_ref
+            slug = operands[0]
+            version = operands[1] if len(operands) == 2 else None
+            segments = [slug] + ([version] if version else [])
+            self._validate_slug_segments(segments=segments)
+            references = {"workflow": Reference(slug=slug, version=version)}
+        elif axis == "environment":
+            # ``environment.{environment}.{slug}`` — the environment pins the revision; the
+            # workflow ref supplies the ``{slug}.revision`` selector key the env lookup needs.
+            if len(operands) != 2:
+                raise invalid_call_ref
+            environment, slug = operands
+            self._validate_slug_segments(segments=[environment, slug])
+            references = {
+                "environment": Reference(slug=environment),
+                "workflow": Reference(slug=slug),
+            }
+        else:
+            raise invalid_call_ref
 
         # Normalise arguments — the LLM may send them as a JSON string.
         arguments = body.data.function.arguments
@@ -1142,11 +1171,8 @@ class ToolsRouter:
         elif not isinstance(arguments, dict):
             arguments = {}
 
-        # Reference the artifact (latest revision) when no version is given; a versioned
-        # reference pins a specific revision. Same target-naming as the @ag.embed skills path.
-        workflow_ref = Reference(slug=slug, version=version)
         invoke_request = WorkflowServiceRequest(
-            references={"workflow": workflow_ref},
+            references=references,
             data=WorkflowServiceRequestData(inputs=arguments),
         )
 

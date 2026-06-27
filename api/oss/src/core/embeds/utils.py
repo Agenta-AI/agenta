@@ -39,12 +39,6 @@ MAX_EMBEDS = 100
 AG_EMBED_KEY = "@ag.embed"
 AG_REFERENCES_KEY = "@ag.references"
 AG_SELECTOR_KEY = "@ag.selector"
-# The reference-syntax marker (sibling of @ag.embed). The generic resolver is tool-agnostic and
-# only ever INLINES @ag.embed; it must LEAVE an @ag.reference in place so resolve_tools can build
-# the callback spec from the kept reference. A node carrying @ag.reference is opaque to the
-# resolver: it is not an embed, and the walker does not descend into it (so a nested @ag.embed
-# inside a kept reference is not accidentally inlined). See the embedref-tools design.
-AG_REFERENCE_KEY = "@ag.reference"
 SNIPPET_DEFAULT_PATH = "prompt.messages.0.content"
 
 # Entity hierarchy: category → ordered levels (shallow to deep)
@@ -1067,10 +1061,6 @@ def find_object_embeds(
         visited.add(config_id)
 
     if isinstance(config, dict):
-        if AG_REFERENCE_KEY in config and AG_EMBED_KEY not in config:
-            # A kept @ag.reference node is opaque to the generic resolver: leave it in place and
-            # do not descend (the reference-syntax "leave it" branch). resolve_tools handles it.
-            return embeds
         if AG_EMBED_KEY in config:
             # Found an object embed
             embed_data = config[AG_EMBED_KEY]
@@ -1167,9 +1157,6 @@ def find_string_embeds(
         visited.add(config_id)
 
     if isinstance(config, dict):
-        if AG_REFERENCE_KEY in config and AG_EMBED_KEY not in config:
-            # Leave a kept @ag.reference node opaque (do not scan it for string embeds either).
-            return embeds
         # Recurse into children
         for key, value in config.items():
             child_path = f"{parent_path}.{key}" if parent_path else key
@@ -1635,9 +1622,6 @@ def find_snippet_embeds(
         visited.add(config_id)
 
     if isinstance(config, dict):
-        if AG_REFERENCE_KEY in config and AG_EMBED_KEY not in config:
-            # Leave a kept @ag.reference node opaque (do not scan it for snippet embeds either).
-            return embeds
         for key, value in config.items():
             child_path = f"{parent_path}.{key}" if parent_path else key
 

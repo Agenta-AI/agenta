@@ -63,7 +63,7 @@ async def resolve_tools(
 ) -> ResolvedToolSet:
     """Resolve tool declarations into runnable specs. Defaults to the Agenta platform adapters.
 
-    A kept ``@ag.reference`` workflow tool resolves through the ``workflow_resolver`` into a
+    A ``type:"reference"`` workflow tool resolves through the ``workflow_resolver`` into a
     ``callback`` spec (server-side workflow execute), the same executor a gateway tool uses."""
     return await ToolResolver(
         secret_provider=secret_provider or AgentaNamedSecretProvider(),

@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import ToolConfigurationError
 from .models import (
-    AG_REFERENCE_MARKER,
     BuiltinToolConfig,
     ClientToolConfig,
     CodeToolConfig,
@@ -17,8 +16,6 @@ from .models import (
     ToolConfig,
 )
 from .parsing import parse_tool_config
-
-_AG_REFERENCES_KEY = "@ag.references"
 
 
 class ToolConfigDiagnostic(BaseModel):
@@ -69,52 +66,6 @@ def _copy_tool_metadata(
     return result
 
 
-def _parse_workflow_reference(refs: Any) -> Optional[dict[str, Any]]:
-    """Pull a ``{slug, version}`` from an ``@ag.references`` block keyed by ``workflow``.
-
-    Mirrors the ``@ag.embed`` target-naming: an artifact-level ``workflow`` reference resolves to
-    the latest revision. A ``workflow_revision`` slug matches the revision's hash slug, not the
-    author-facing artifact slug, so the artifact ``workflow`` key is the supported shape (same
-    gotcha skills have). Returns ``None`` when no workflow reference is present."""
-    if not isinstance(refs, dict):
-        return None
-    workflow = refs.get("workflow")
-    if not isinstance(workflow, dict):
-        return None
-    slug = workflow.get("slug")
-    if not isinstance(slug, str) or not slug:
-        return None
-    parsed: dict[str, Any] = {"slug": slug}
-    version = workflow.get("version")
-    if version is not None:
-        parsed["version"] = str(version)
-    return parsed
-
-
-def _coerce_reference_tool(data: dict[str, Any]) -> Optional[ToolConfig]:
-    """Build a :class:`ReferenceToolConfig` from a kept ``@ag.reference`` marker dict.
-
-    The author commits ``{"@ag.reference": {"@ag.references": {"workflow": {"slug": ...}}}, ...}``
-    (the same inner target-naming as ``@ag.embed``, differing only in leave-vs-inline). The
-    model-facing surface (``name`` / ``description`` / ``input_schema``) rides as sibling keys of
-    the marker. Returns ``None`` when the marker is absent so other shapes fall through."""
-    marker = data.get(AG_REFERENCE_MARKER)
-    if not isinstance(marker, dict):
-        return None
-    workflow_ref = _parse_workflow_reference(marker.get(_AG_REFERENCES_KEY))
-    if workflow_ref is None:
-        raise ToolConfigurationError(
-            f"{AG_REFERENCE_MARKER} tool requires a workflow reference "
-            f"({_AG_REFERENCES_KEY}.workflow.slug)",
-            value=data,
-        )
-    config: dict[str, Any] = {"type": "reference", **workflow_ref}
-    for key in ("name", "description", "input_schema"):
-        if data.get(key) is not None:
-            config[key] = data[key]
-    return parse_tool_config(_copy_tool_metadata(data, config))
-
-
 def coerce_tool_config(value: Any) -> ToolConfig:
     """Convert one supported legacy shape into canonical tool configuration."""
     if isinstance(
@@ -140,10 +91,6 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     if data.get("type") == "composio":
         data["type"] = "gateway"
         data.setdefault("provider", "composio")
-
-    reference_config = _coerce_reference_tool(data)
-    if reference_config is not None:
-        return reference_config
 
     if data.get("type") in {"builtin", "gateway", "code", "client", "reference"}:
         return parse_tool_config(data)

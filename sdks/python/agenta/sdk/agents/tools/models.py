@@ -12,6 +12,7 @@ from pydantic import (
     Field,
     TypeAdapter,
     field_validator,
+    model_validator,
 )
 
 
@@ -82,30 +83,74 @@ class ClientToolConfig(ToolConfigBase):
     input_schema: Dict[str, Any] = Field(default_factory=_empty_object_schema)
 
 
-# The top-level marker an author writes to KEEP (not inline) a workflow reference as a tool.
-# Sibling of ``@ag.embed`` (which inlines the referenced value). The generic resolver leaves an
-# ``@ag.reference`` node untouched; ``resolve_tools`` then maps it to a ``CallbackToolSpec`` so
-# the model's call runs the referenced workflow revision server-side, like a gateway tool.
-AG_REFERENCE_MARKER = "@ag.reference"
+# Which axis selects the referenced workflow revision. ``variant`` resolves the workflow by slug
+# (latest revision, or a pinned ``version``); ``environment`` resolves whatever revision is
+# deployed in a named environment.
+ReferenceAxis = Literal["variant", "environment"]
 
 
 class ReferenceToolConfig(ToolConfigBase):
-    """A kept ``@ag.reference`` workflow tool (the reference syntax).
+    """A workflow referenced as a tool (the ``type:"reference"`` config).
 
     ``type`` is the synthetic discriminator ``"reference"`` so this arm lives in the canonical
     ``ToolConfig`` union; it is NOT a Composio-style declared variant (no provider/integration/
-    action). It carries the workflow identity (``slug`` + optional ``version``) plus the
-    model-facing surface (``name`` / ``description`` / ``input_schema``). ``resolve_tools`` turns
-    it into a ``CallbackToolSpec`` whose ``call_ref`` encodes the workflow identity; the runner
-    dispatches the call back through the existing ``callback`` executor and the Agenta service runs
-    the workflow revision. Connections/secrets the workflow needs stay server-side."""
+    action). The author points at a workflow on one of two axes:
+
+    - ``ref_by="variant"`` — by workflow ``slug``; takes the latest revision, or pins one via
+      ``version``.
+    - ``ref_by="environment"`` — by ``environment`` slug; takes whatever revision is deployed in
+      that environment for the workflow ``slug`` (``version`` is not allowed, the environment is
+      the pin).
+
+    The model-facing surface (``name`` / ``description`` / ``input_schema``) is authored.
+    ``resolve_tools`` turns it into a ``CallbackToolSpec`` whose ``call_ref`` encodes the axis +
+    identity; the runner dispatches the call through the existing ``callback`` executor and the
+    Agenta service runs the workflow revision server-side. Connections/secrets the workflow needs
+    stay server-side."""
 
     type: Literal["reference"] = "reference"
-    slug: str = Field(min_length=1)
-    version: Optional[str] = None
+    ref_by: ReferenceAxis = Field(
+        default="variant",
+        description=(
+            "Which axis selects the workflow revision: 'variant' (by workflow slug; latest or a "
+            "pinned version) or 'environment' (whatever is deployed in `environment`)."
+        ),
+    )
+    slug: str = Field(
+        min_length=1,
+        description="The workflow slug to reference.",
+    )
+    environment: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Environment slug; required when ref_by == 'environment'.",
+    )
+    version: Optional[str] = Field(
+        default=None,
+        description="Pin a workflow revision (ref_by='variant' only); absent = latest.",
+    )
     name: Optional[str] = Field(default=None, min_length=1)
     description: Optional[str] = None
     input_schema: Dict[str, Any] = Field(default_factory=_empty_object_schema)
+
+    @model_validator(mode="after")
+    def _check_axis(self) -> "ReferenceToolConfig":
+        if self.ref_by == "environment":
+            if not self.environment:
+                raise ValueError(
+                    "reference tool with ref_by='environment' requires `environment` "
+                    "(the environment slug)"
+                )
+            if self.version is not None:
+                raise ValueError(
+                    "reference tool with ref_by='environment' must not set `version`; the "
+                    "environment selects the deployed revision"
+                )
+        elif self.environment is not None:
+            raise ValueError(
+                "reference tool with ref_by='variant' must not set `environment`"
+            )
+        return self
 
     @property
     def tool_name(self) -> str:
@@ -114,14 +159,19 @@ class ReferenceToolConfig(ToolConfigBase):
 
     @property
     def call_ref(self) -> str:
-        """The opaque ``workflow.{slug}`` / ``workflow.{slug}.{version}`` callback identity.
+        """The opaque ``workflow.{axis}.*`` callback identity the server-side ``/tools/call``
+        parser routes by the ``workflow.`` prefix:
+
+        - variant:     ``workflow.variant.{slug}`` or ``workflow.variant.{slug}.{version}``
+        - environment: ``workflow.environment.{environment}.{slug}``
 
         Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
-        {action}.{connection}``). The runner treats this as opaque; only the server-side
-        ``/tools/call`` parser must agree on the ``workflow.*`` prefix."""
+        {action}.{connection}``). The runner treats this as opaque."""
+        if self.ref_by == "environment":
+            return f"workflow.environment.{self.environment}.{self.slug}"
         if self.version:
-            return f"workflow.{self.slug}.{self.version}"
-        return f"workflow.{self.slug}"
+            return f"workflow.variant.{self.slug}.{self.version}"
+        return f"workflow.variant.{self.slug}"
 
 
 ToolConfig = Annotated[

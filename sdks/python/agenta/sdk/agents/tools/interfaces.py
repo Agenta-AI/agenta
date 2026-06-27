@@ -25,7 +25,7 @@ class WorkflowToolResolver(Protocol):
         self,
         tools: Sequence[ReferenceToolConfig],
     ) -> GatewayToolResolution:
-        """Resolve kept ``@ag.reference`` workflow declarations into callback specifications.
+        """Resolve ``type:"reference"`` workflow declarations into callback specifications.
 
         Returns the same shape as the gateway resolver (callback specs + the single shared
         :class:`ToolCallback` to the server-side execute endpoint) so a referenced workflow tool

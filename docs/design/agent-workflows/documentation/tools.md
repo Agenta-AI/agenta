@@ -34,24 +34,25 @@ shares two fields through `ToolConfigBase`, and then a `type` discriminator pick
 | `gateway` | `provider`, `integration`, `action`, `connection`, optional `name` | A Composio action, like `github__create_issue` on a connected account. |
 | `code` | `name`, `runtime` (`python`/`node`), `script`, `input_schema`, `secrets` | An inline snippet the author writes, with named vault secrets injected. |
 | `client` | `name`, `input_schema` | A tool the browser fulfils, like "ask the user to pick a date." |
-| `reference` | `slug`, optional `version`, optional `name`/`description`/`input_schema` | A workflow pointed at via the `@ag.reference` syntax (see below); the service runs the referenced workflow revision when the model calls it. |
+| `reference` | `ref_by` (`variant`/`environment`), `slug`, optional `environment`/`version`, optional `name`/`description`/`input_schema` | A workflow referenced as a tool (see below); the service runs the referenced workflow revision when the model calls it. |
 
-A tool can also be a **workflow** pointed at via one of two syntaxes (the embedref-tools model):
+A tool can also be a **workflow** referenced as a tool:
 
-- **`@ag.reference`** (new) — keep the reference. `coerce_tool_config` parses the kept marker
-  into a `ReferenceToolConfig` (`type: "reference"`, carrying the workflow `slug`/`version` plus
-  the model-facing surface), and `resolve_tools` turns it into a `CallbackToolSpec` whose
-  `call_ref` is `workflow.{slug}[.{version}]`. The model's call routes back to `POST /tools/call`,
-  which runs the workflow revision server-side. Connections/secrets the workflow needs stay
-  server-side, the same safety shape a gateway tool has. **No new runner `kind`.**
-- **`@ag.embed`** (existing) — inline the value. The generic resolver resolves the reference into
-  a concrete `client` tool config *before* `resolve_tools` runs, so it rides the existing `client`
-  path (fulfilled in the browser).
+- **`type: "reference"`** — a `ReferenceToolConfig` (the author writes it as a plain `tools` entry,
+  no marker). It carries the workflow identity on one of two axes — `ref_by: "variant"` (the
+  workflow `slug`, latest revision or a pinned `version`) or `ref_by: "environment"` (whatever is
+  deployed in `environment` for `slug`) — plus the model-facing surface. `resolve_tools` turns it
+  into a `CallbackToolSpec` whose `call_ref` is `workflow.variant.{slug}[.{version}]` or
+  `workflow.environment.{environment}.{slug}`. The model's call routes back to `POST /tools/call`,
+  which runs the selected workflow revision server-side. Connections/secrets the workflow needs
+  stay server-side, the same safety shape a gateway tool has. **No new runner `kind`.**
+- **`@ag.embed`** (a different feature) — inline a value. The generic resolver resolves the
+  reference into a concrete `client` tool config *before* `resolve_tools` runs, so it rides the
+  existing `client` path (fulfilled in the browser). Not surfaced in the tool-authoring UI.
 
-The author's syntax decides the behavior. The generic resolver (`ResolverMiddleware` + the API
-embed resolver in `api/oss/src/core/embeds/utils.py`) stays tool-agnostic: it only INLINES an
-`@ag.embed` and LEAVES an `@ag.reference` in place (`AG_REFERENCE_KEY`); all tool-specific mapping
-lives in `resolve_tools`.
+A `type: "reference"` tool is plain config, not a marker: the generic resolver (`ResolverMiddleware`
++ the API embed resolver in `api/oss/src/core/embeds/utils.py`) only ever INLINES `@ag.embed` and
+has no special case for reference tools; all tool-specific mapping lives in `resolve_tools`.
 
 MCP servers are a sibling field, `AgentConfig.mcp_servers`, not a tool type. They are declared
 in `sdks/python/agenta/sdk/agents/mcp/models.py` and resolved alongside tools. They are
@@ -82,7 +83,7 @@ because it is the seam between the two lives of a tool:
 | `gateway` | `CallbackToolSpec` with a `call_ref` slug | `callback` |
 | `code` | `CodeToolSpec` with secrets in `env` | `code` |
 | `client` | `ClientToolSpec` | `client` |
-| `reference` | `CallbackToolSpec` with a `workflow.{slug}` `call_ref` | `callback` |
+| `reference` | `CallbackToolSpec` with a `workflow.{axis}.*` `call_ref` | `callback` |
 
 The resolved specs are also defined in `tools/models.py` (`CallbackToolSpec`, `CodeToolSpec`,
 `ClientToolSpec`), and the matching TypeScript shape is `ResolvedToolSpec` in
@@ -113,10 +114,10 @@ Resolution runs per type:
   `services/oss/src/agent/tools/secrets.py`) and injects the values into the spec's `env`. The
   script itself is not run here.
 - **Client** passes through to a `ClientToolSpec`. There is nothing to resolve server-side.
-- **Reference** (a kept `@ag.reference` workflow) resolves through `AgentaWorkflowToolResolver`
+- **Reference** (a `type: "reference"` workflow) resolves through `AgentaWorkflowToolResolver`
   (`sdks/python/agenta/sdk/agents/platform/workflow.py`). Unlike gateway it makes no HTTP
   round-trip — the reference is already concrete in the config — so it builds the
-  `CallbackToolSpec` (`call_ref = workflow.{slug}[.{version}]`) directly and assembles the shared
+  `CallbackToolSpec` (`call_ref = workflow.{axis}.*`) directly and assembles the shared
   `ToolCallback` to `{api}/tools/call`. Gateway and reference share the one `ToolCallback`
   (same endpoint, same per-request auth); the server-side `/tools/call` routes by the `call_ref`
   prefix (`tools.*` vs `workflow.*`).
@@ -199,12 +200,16 @@ a credential. They only ever ask Agenta to run a named, pre-validated action.
 
 ### Reference (workflow) tools: the service runs the workflow
 
-A `@ag.reference` workflow tool is the same callback shape with a different execute target. The
-call_ref is `workflow.{slug}[.{version}]` instead of the Composio 5-segment slug. `POST /tools/call`
+A `type: "reference"` workflow tool is the same callback shape with a different execute target. The
+call_ref is `workflow.variant.{slug}[.{version}]` or `workflow.environment.{environment}.{slug}`
+instead of the Composio 5-segment slug. `POST /tools/call`
 (`ToolsRouter.call_tool` in `api/oss/src/apis/fastapi/tools/router.py`) routes by the prefix:
-`workflow.*` goes to `_call_workflow_tool`, which builds a `WorkflowServiceRequest`
-(`references={"workflow": Reference(slug, version)}`, `data.inputs = <the model's arguments>`) and
-calls `WorkflowsService.invoke_workflow(project_id, user_id, request)`. The auth is minted
+`workflow.*` goes to `_call_workflow_tool`, which parses the targeting axis and builds a
+`WorkflowServiceRequest` — the variant axis sets `references={"workflow": Reference(slug, version)}`;
+the environment axis sets `references={"environment": Reference(slug=environment),
+"workflow": Reference(slug)}` (the environment selects the deployed revision via the derived
+`{slug}.revision` key) — with `data.inputs = <the model's arguments>`, and calls
+`WorkflowsService.invoke_workflow(project_id, user_id, request)`. The auth is minted
 server-side from the caller's project + user, so any connections/secrets the workflow itself uses
 never leave the service — the same safety property gateway tools have. The workflow's
 `response.data.outputs` becomes the tool result content. The runner needs no new `kind`; it
