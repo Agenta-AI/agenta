@@ -382,176 +382,184 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     }
 
     return (
-        <div className="flex h-full min-h-0 w-full overflow-hidden">
-            <div className="flex min-w-0 flex-[1.4] flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
-                <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                    <Form layout="vertical">
-                        <Form.Item label="Name">
-                            <Input
-                                placeholder="Subscription name"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                            />
-                        </Form.Item>
-
-                        <Form.Item label="Connection" required>
-                            <Select
-                                placeholder="Select a connected integration"
-                                value={connectionId}
-                                onChange={(v) => {
-                                    setConnectionId(v)
-                                    setEventKey("")
-                                }}
-                                loading={connectionsLoading}
-                                disabled={isEdit}
-                                options={connections.map((c) => ({
-                                    value: c.id ?? "",
-                                    label: `${c.name || c.slug || c.integration_key} (${c.integration_key})`,
-                                }))}
-                            />
-                        </Form.Item>
-
-                        <Form.Item label="Event" required>
-                            <EventSelect
-                                integrationKey={integrationKey}
-                                value={eventKey}
-                                onChange={setEventKey}
-                                disabled={!connectionId}
-                            />
-                            <Typography.Text type="secondary" className="text-xs">
-                                Provider: {DEFAULT_PROVIDER}
-                                {integrationKey ? ` · ${integrationKey}` : ""}
-                            </Typography.Text>
-                        </Form.Item>
-
-                        <Form.Item label="Run agent version" required>
-                            <div className="flex flex-col gap-2">
-                                <Segmented
-                                    value={bindMode}
-                                    onChange={(v) => setBindMode(v as "revision" | "environment")}
-                                    options={[
-                                        {label: "By revision", value: "revision"},
-                                        {label: "By environment", value: "environment"},
-                                    ]}
+        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+                <div className="flex min-w-0 flex-[1.4] flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
+                    <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+                        <Form layout="vertical">
+                            <Form.Item label="Name">
+                                <Input
+                                    placeholder="Subscription name"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
                                 />
-                                {bindMode === "revision" ? (
-                                    <EntityPicker<WorkflowRevisionSelectionResult>
-                                        variant="popover-cascader"
-                                        adapter={applicationRevisionAdapter}
-                                        onSelect={(selection) => {
-                                            setWorkflowRevId(selection.id)
-                                            setWorkflowSelection(selection)
-                                            setWorkflowLabel(selection.label)
-                                        }}
-                                        size="small"
-                                        placeholder={workflowLabel ?? "Select workflow revision"}
+                            </Form.Item>
+
+                            <Form.Item label="Connection" required>
+                                <Select
+                                    placeholder="Select a connected integration"
+                                    value={connectionId}
+                                    onChange={(v) => {
+                                        setConnectionId(v)
+                                        setEventKey("")
+                                    }}
+                                    loading={connectionsLoading}
+                                    disabled={isEdit}
+                                    options={connections.map((c) => ({
+                                        value: c.id ?? "",
+                                        label: `${c.name || c.slug || c.integration_key} (${c.integration_key})`,
+                                    }))}
+                                />
+                            </Form.Item>
+
+                            <Form.Item label="Event" required>
+                                <EventSelect
+                                    integrationKey={integrationKey}
+                                    value={eventKey}
+                                    onChange={setEventKey}
+                                    disabled={!connectionId}
+                                />
+                                <Typography.Text type="secondary" className="text-xs">
+                                    Provider: {DEFAULT_PROVIDER}
+                                    {integrationKey ? ` · ${integrationKey}` : ""}
+                                </Typography.Text>
+                            </Form.Item>
+
+                            <Form.Item label="Run agent version" required>
+                                <div className="flex flex-col gap-2">
+                                    <Segmented
+                                        value={bindMode}
+                                        onChange={(v) =>
+                                            setBindMode(v as "revision" | "environment")
+                                        }
+                                        options={[
+                                            {label: "By revision", value: "revision"},
+                                            {label: "By environment", value: "environment"},
+                                        ]}
                                     />
-                                ) : (
-                                    <>
-                                        <Select
-                                            placeholder="Select an environment"
-                                            value={environmentSlug ?? undefined}
-                                            onChange={(v) => setEnvironmentSlug(v)}
-                                            loading={envQuery.isLoading}
-                                            options={environments.map((e) => ({
-                                                value: e.slug,
-                                                label: e.name || e.slug,
-                                            }))}
+                                    {bindMode === "revision" ? (
+                                        <EntityPicker<WorkflowRevisionSelectionResult>
+                                            variant="popover-cascader"
+                                            adapter={applicationRevisionAdapter}
+                                            onSelect={(selection) => {
+                                                setWorkflowRevId(selection.id)
+                                                setWorkflowSelection(selection)
+                                                setWorkflowLabel(selection.label)
+                                            }}
+                                            size="small"
+                                            placeholder={
+                                                workflowLabel ?? "Select workflow revision"
+                                            }
                                         />
-                                        <Typography.Text
-                                            type="secondary"
-                                            className="!text-[11px] leading-snug"
-                                        >
-                                            Runs whatever revision is deployed to this environment.
-                                        </Typography.Text>
-                                    </>
+                                    ) : (
+                                        <>
+                                            <Select
+                                                placeholder="Select an environment"
+                                                value={environmentSlug ?? undefined}
+                                                onChange={(v) => setEnvironmentSlug(v)}
+                                                loading={envQuery.isLoading}
+                                                options={environments.map((e) => ({
+                                                    value: e.slug,
+                                                    label: e.name || e.slug,
+                                                }))}
+                                            />
+                                            <Typography.Text
+                                                type="secondary"
+                                                className="!text-[11px] leading-snug"
+                                            >
+                                                Runs whatever revision is deployed to this
+                                                environment.
+                                            </Typography.Text>
+                                        </>
+                                    )}
+                                </div>
+                            </Form.Item>
+
+                            <Divider className="!my-2" />
+
+                            <Typography.Text strong className="text-sm">
+                                Trigger configuration
+                            </Typography.Text>
+                            <div className="mt-2 mb-4">
+                                {!eventKey ? (
+                                    <Typography.Text type="secondary" className="text-xs">
+                                        Select an event to configure its trigger.
+                                    </Typography.Text>
+                                ) : eventLoading ? (
+                                    <div className="flex items-center justify-center py-6">
+                                        <Spin />
+                                    </div>
+                                ) : (
+                                    <SchemaForm
+                                        ref={configFormRef}
+                                        schema={triggerConfigSchema}
+                                        form={configForm}
+                                        disabled={isMutating}
+                                    />
                                 )}
                             </div>
-                        </Form.Item>
 
-                        <Divider className="!my-2" />
+                            <InputsMappingField
+                                value={inputsText}
+                                onChange={setInputsText}
+                                error={inputsError}
+                                onErrorChange={setInputsError}
+                                eventPayload={
+                                    (eventDetail?.payload ?? null) as Record<string, unknown> | null
+                                }
+                                disabled={isMutating}
+                            />
 
-                        <Typography.Text strong className="text-sm">
-                            Trigger configuration
-                        </Typography.Text>
-                        <div className="mt-2 mb-4">
-                            {!eventKey ? (
-                                <Typography.Text type="secondary" className="text-xs">
-                                    Select an event to configure its trigger.
-                                </Typography.Text>
-                            ) : eventLoading ? (
-                                <div className="flex items-center justify-center py-6">
-                                    <Spin />
-                                </div>
-                            ) : (
-                                <SchemaForm
-                                    ref={configFormRef}
-                                    schema={triggerConfigSchema}
-                                    form={configForm}
-                                    disabled={isMutating}
-                                />
-                            )}
-                        </div>
-
-                        <InputsMappingField
-                            value={inputsText}
-                            onChange={setInputsText}
-                            error={inputsError}
-                            onErrorChange={setInputsError}
-                            eventPayload={
-                                (eventDetail?.payload ?? null) as Record<string, unknown> | null
-                            }
-                            disabled={isMutating}
-                        />
-
-                        <Form.Item label="Active">
-                            <Switch checked={enabled} onChange={setEnabled} />
-                        </Form.Item>
-                    </Form>
+                            <Form.Item label="Active">
+                                <Switch checked={enabled} onChange={setEnabled} />
+                            </Form.Item>
+                        </Form>
+                    </div>
                 </div>
 
-                <Divider className="!m-0" />
-
-                {/* Config footer persists only. Testing/running lives in the right panel. */}
-                <div className="flex items-center justify-end gap-2 px-6 py-3 shrink-0">
-                    <Tooltip
-                        title={
-                            alreadySubscribed
-                                ? "This event already has a subscription — remove it from the Triggers list to replace"
-                                : ""
-                        }
-                    >
-                        {/* span wrapper so the tooltip still shows over a disabled button */}
-                        <span>
-                            <Button
-                                type="primary"
-                                loading={isMutating}
-                                disabled={alreadySubscribed}
-                                onClick={handleSubmit}
-                            >
-                                {isEdit ? "Save" : "Create"}
-                            </Button>
-                        </span>
-                    </Tooltip>
-                </div>
+                <TestPlaygroundPanel
+                    onClose={onClose}
+                    isEdit={isEdit}
+                    subscriptionId={subscriptionId}
+                    playgroundEntityId={playgroundEntityId}
+                    connectionId={connectionId}
+                    name={name}
+                    eventKey={eventKey}
+                    existingName={subscription?.name ?? null}
+                    buildData={buildData}
+                    disabledReason={
+                        alreadySubscribed
+                            ? "This event already has a subscription — remove it from the Triggers list to test"
+                            : null
+                    }
+                />
             </div>
 
-            <TestPlaygroundPanel
-                onClose={onClose}
-                isEdit={isEdit}
-                subscriptionId={subscriptionId}
-                playgroundEntityId={playgroundEntityId}
-                connectionId={connectionId}
-                name={name}
-                eventKey={eventKey}
-                existingName={subscription?.name ?? null}
-                buildData={buildData}
-                disabledReason={
-                    alreadySubscribed
-                        ? "This event already has a subscription — remove it from the Triggers list to test"
-                        : null
-                }
-            />
+            <Divider className="!m-0" />
+
+            {/* Footer spans the whole drawer; it persists only — testing/running
+                lives in the right panel. */}
+            <div className="flex items-center justify-end gap-2 px-6 py-3 shrink-0">
+                <Tooltip
+                    title={
+                        alreadySubscribed
+                            ? "This event already has a subscription — remove it from the Triggers list to replace"
+                            : ""
+                    }
+                >
+                    {/* span wrapper so the tooltip still shows over a disabled button */}
+                    <span>
+                        <Button
+                            type="primary"
+                            loading={isMutating}
+                            disabled={alreadySubscribed}
+                            onClick={handleSubmit}
+                        >
+                            {isEdit ? "Save" : "Create"}
+                        </Button>
+                    </span>
+                </Tooltip>
+            </div>
         </div>
     )
 }
