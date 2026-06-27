@@ -125,7 +125,8 @@ relay would have honored is never consulted — an `allow` tool always parked. T
 per-resolved-tool permission as a Layer-1 `.claude/settings.json` rule too
 (`adapters/claude_settings.py` `_rules_from_tool_specs`): `allow` -> a `permissions.allow` rule
 (Claude runs it, no park), `ask`/unset -> no allow rule (the gate stays raised, HITL park
-preserved), `deny` -> a deny rule. So on Claude the permission is enforced at the settings layer
+preserved; `client` tools excluded because they are not delivered over the internal MCP server),
+`deny` -> a deny rule. So on Claude the permission is enforced at the settings layer
 (before the gate) AND at the relay; on `pi` the relay is the sole choke point.
 
 Harness builtins (Claude `Bash`/`Edit`/`Read`, Pi `bash`/`read`) run inside the harness, where

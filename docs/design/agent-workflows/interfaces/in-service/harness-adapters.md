@@ -60,5 +60,6 @@ The wire shapes, side by side:
   the fixed name `mcp__agenta-tools__<tool>` (`INTERNAL_TOOL_MCP_SERVER` in
   `adapters/claude_settings.py`). It MUST match the runner's internal tool-MCP server name
   (`services/agent/src/tools/mcp-bridge.ts`, `relay-mcp-stdio.ts`, `tool-mcp-http.ts`,
-  `engines/sandbox_agent/mcp.ts`). Renaming the server on one side without the other silently
+  `engines/sandbox_agent/mcp.ts`, `sdks/python/agenta/sdk/agents/adapters/claude_settings.py`).
+  Renaming the server on one side without the other silently
   re-parks `allow` tools on Claude (the bug F-046 fixed).
