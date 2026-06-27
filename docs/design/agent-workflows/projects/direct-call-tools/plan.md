@@ -115,11 +115,14 @@ Scope the plan will cover:
    Remove the `/tools/call` `workflow.*` routing. Move the recursion/budget guard to the
    invoke endpoint.
 4. **Platform tools.** New `type:"platform"` config (`op` + permission/approval overrides). A
-   platform-op catalog where **descriptions live in the SDK** and **input schemas are fetched
-   at resolve time from `openapi.json`** for each op's endpoint. The SDK owns the
-   `op → {method, relative path}` table and emits the `call`. Add a `create_workflow`
-   convenience endpoint so it is one call, not three. Each op is gated by its endpoint's own
-   permission plus spec-level `needs_approval`.
+   platform-op catalog where **descriptions live in the SDK** and **input schemas reuse the
+   in-process schema catalog** (the `CATALOG_TYPES` mechanism, built from `model_json_schema()`,
+   referenced via `x-ag-type-ref`). The SDK owns the `op → {method, relative path}` table and
+   emits the `call`. Mirror the reserved-tool pattern from PR #4884
+   (`tools.agenta.find_capabilities`); `find_capabilities` is the first platform tool (its SDK
+   emission is the deferred item below). Add a `create_workflow` convenience endpoint so it is one
+   call, not three. Each op is gated by its endpoint's own permission plus spec-level
+   `needs_approval`.
 5. **Gateway unchanged**, and `/tools/call` shrinks to the gateway-only executor.
 6. **Stretch (flag out-of-scope unless cheap):** forward the trace context to the sub-workflow
    on a reference invoke, so the child run links under the parent.
@@ -138,13 +141,18 @@ Scope the plan will cover:
   coordinate is `sdks/python/agenta/sdk/agents/tools/models.py` (B edits `ReferenceToolConfig`,
   A adds `call` to `CallbackToolSpec`) — different classes, but same file, so serialize commits.
 
-## Open decisions for Mahmoud
+## Sequencing notes (orchestrator's call)
+
+Mahmoud reviewed the design and is aligned with all the decisions. Per his note, merge order and
+commit organization are the orchestrator's to decide; the only standing requirement is the
+ability to review before merge. So the items below are sequencing notes, not decisions Mahmoud
+owes.
 
 1. **When to remove the `/tools/call` workflow routing.** It belongs to A (reference stops
-   executing the moment it is gone unless the direct path exists). Recommendation: keep it in
-   A. If removed in B instead, reference tools go dark until A lands.
-2. **Trace-context forwarding to the sub-workflow** (item A-6): nice to have, possibly out of
-   scope for the first cut. Mahmoud leaned "agree with invoke," unsure on this one.
+   executing the moment it is gone unless the direct path exists). Recommendation: keep it in A,
+   after B lands. If removed in B instead, reference tools go dark until A lands.
+2. **Trace-context forwarding to the sub-workflow** (item A-6): a Phase 6 stretch, likely
+   deferred past the first cut.
 
 ---
 
@@ -163,19 +171,51 @@ gateway path never breaks and the live stack stays green between milestones.
   handler (`relay.ts executeRelayedTool`), with `assembleBody` (the `args_into` deep-set vs the
   fixed-wins merge). Unit-test with fake `call` specs. Live behavior still unchanged (nothing
   emits `call`). Runner vitest green.
-- **Phase 3 — platform tools.** New `type:"platform"` config; the `_PLATFORM_TOOLS` catalog
-  (descriptions in the SDK, input schema via the in-process schema catalog); resolver emits
-  `call` for platform ops; `create_workflow` convenience endpoint. Start with a small set
-  (`search_tools`, `add_trace_annotation`, `create_workflow`, `update_own_workflow`,
-  `inspect_harnesses`). Largely independent of B. SDK + service tests + a live E2E.
+- **Phase 3 — platform tools.** New `type:"platform"` config; the platform-op catalog
+  (descriptions in the SDK, input schema via the in-process `CATALOG_TYPES` catalog; mirrors the
+  reserved `tools.agenta.*` pattern from PR #4884); resolver emits `call` for platform ops;
+  `create_workflow` convenience endpoint. First op = `find_capabilities` (its SDK emission is the
+  Deferred item below, from PR #4884), then a small set (`add_trace_annotation`,
+  `create_workflow`, `update_own_workflow`, `inspect_harnesses`). Largely independent of B. SDK +
+  service tests + a live E2E.
 - **Phase 4 — reference goes direct (gated on B).** Resolver emits `call` for reference using
   B's env/variant schema; confirm/clean the `/api/workflows/invoke`-style endpoint and move the
   recursion/budget guard there; remove the `/tools/call` `workflow.*` routing. Tests + live E2E.
-  Depends on B landed and on decision 1 above.
+  Depends on B landed and on the sequencing note above.
 - **Phase 5 — gateway cleanup + docs.** `/tools/call` shrinks to gateway-only. `keep-docs-in-sync`:
   the interface inventory, `tools.md`, `agent-config-schema.md`, and a reply on #4863 reconciling
   `custom-tools-design.md`.
 - **Phase 6 — stretch.** Trace-context forwarding to the sub-workflow on a reference invoke.
+
+---
+
+## Deferred items
+
+**Date recorded:** 2026-06-27
+**Provenance:** tool-discovery Phase 2, PR #4884
+
+**SDK-side reserved-tool emission for `find_capabilities` is not built.**
+
+The server accepts `tools.agenta.find_capabilities` (router `_call_agenta_tool` →
+`ToolsService.discover_capabilities`; the fixed spec lives in
+`api/oss/src/core/tools/discovery.py`: `FIND_CAPABILITIES_CALL_REF / _OP / _DESCRIPTION /
+_INPUT_SCHEMA`).
+
+What is missing: making `platform.resolve_tools` (SDK `agenta.sdk.agents` tools resolver) emit
+a `CallbackToolSpec` with `call_ref=tools.agenta.find_capabilities` plus the shared
+`ToolCallback`, so an agent config can carry the tool and the model can actually call it
+end-to-end. The runner needs no change — it forwards the call_ref opaquely (confirmed).
+
+This was deferred because it overlaps Workstream A's platform-op catalog mechanism (Phase 3
+above), which adds `CallbackToolSpec.call` and platform-op resolution to the same SDK
+`tools/models.py` / `resolver.py`. Building a parallel mechanism now would conflict.
+
+**Action:** implement this on the direct-call-tools / Workstream A seam (the `type:"platform"`
+catalog), treating find_capabilities as the first platform op. Until then, find_capabilities is
+API-callable but NOT agent-usable end-to-end, which blocks the end-to-end skills QA of the
+discover-and-wire-tools skill.
+
+---
 
 ### Coordination and PRs
 

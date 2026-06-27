@@ -50,3 +50,11 @@ vault.
 The reference tool is already in review (PR #4860) with a frontend stacked on it (#4877). The
 custom-tools design note (#4863) is waiting on the execution model. Settling the routing now
 lets both land on the right shape instead of on `/tools/call` string-routing.
+
+## Merge, review, and ownership
+
+Mahmoud reviewed this design and is aligned with all the decisions. His one standing requirement
+is the ability to review before anything merges. Merge order, commit organization, and how the
+work is split across PRs are the orchestrator's call, not design decisions captured here. So the
+"sequencing notes" in `plan.md` and `status.md` are guidance for the orchestrator, not approvals
+Mahmoud owes.

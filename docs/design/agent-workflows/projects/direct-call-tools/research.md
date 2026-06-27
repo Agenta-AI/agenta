@@ -85,10 +85,53 @@ needs an `args_into` path (see `design.md`).
   `Model.model_json_schema()` (dereferenced), and served by `GET /workflows/catalog/types/{type}`
   (`api/oss/src/apis/fastapi/workflows/router.py ~429`, impl `resources/workflows/catalog.py ~222`).
 - Recommendation: expose each platform op's input schema through this in-process catalog
-  mechanism (a small `/tools/catalog/...` or reuse the types catalog), NOT by parsing
+  mechanism (reuse the `CATALOG_TYPES` types catalog via `x-ag-type-ref`), NOT by parsing
   `/openapi.json` over HTTP. In-process pydantic `model_json_schema()` is the repo's existing
   pattern and avoids coupling to route structure. This is the "probably other places" Mahmoud
   expected. Descriptions still live in the SDK catalog; only the input schema is fetched.
+
+## Workflow input/messages contract + output schemas (round 2)
+
+For the reference tool's `input_schema` (Mahmoud's comment on design.md:60):
+
+- A workflow's input contract is `WorkflowRequestData.inputs` (a dict). For a CHAT workflow the
+  messages ride at `inputs.messages` — `services/oss/src/agent/app.py` reads
+  `to_messages(messages or (inputs or {}).get("messages") or [])`. So `args_into: "data.inputs"`
+  is correct: the model's `{messages, ...vars}` becomes `data.inputs`.
+- `Message` (ag_type `message`) and `Messages` (ag_type `messages`) live in `CATALOG_TYPES`
+  (`sdks/python/agenta/sdk/utils/types.py`), served at `/workflows/catalog/types`. Workflows
+  reference them via `x-ag-type-ref: "messages"` — e.g. `services/oss/src/agent/schemas.py`
+  `AGENT_INPUTS_SCHEMA` does exactly this for the agent's own inputs.
+- A referenced workflow publishes its schemas: `/inspect` → `WorkflowInspectResponse.revision`
+  → `WorkflowRevisionData.schemas` = `JsonSchemas {parameters, inputs, outputs}`
+  (`sdks/python/agenta/sdk/models/workflows.py`). So the SDK reads `revision.schemas.inputs` at
+  resolve time to build the reference tool's `input_schema`, with no hand-authoring.
+- Output schemas: `JsonSchemas` also carries `outputs`, so a referenced workflow DOES have an
+  output contract. But tool definitions are input-schema-only across the harnesses (`ToolSpecBase`
+  has no `output_schema`; OpenAI/Anthropic function calling = input only). The only `outputSchema`
+  in the repo is AI-services `ToolDefinition` (`api/oss/src/core/ai_services/dtos.py`) and MCP's
+  optional field. Decision: no tool `output_schema` on the wire now; keep `schemas.outputs`
+  available for a later structured-output pass.
+
+## Catalog patterns to mirror (round 2)
+
+For the platform-op catalog (Mahmoud's comment on design.md:123, "look at the catalogs we have"):
+
+- **`CATALOG_TYPES`** (`utils/types.py` → `/workflows/catalog/types`): the schema-serving pattern;
+  reuse it for input schemas via `x-ag-type-ref`.
+- **Evaluators catalog** (`api/oss/src/resources/evaluators/evaluators.py`): a module-level list of
+  `{key, name, description, settings_template, ...}` — the closest "code-defined named ops with
+  metadata + schema" shape. Mirror this shape for the op table.
+- **`tools.agenta.find_capabilities`** (PR #4884, `api/oss/src/core/tools/discovery.py`):
+  `FIND_CAPABILITIES_CALL_REF / _DESCRIPTION / _INPUT_SCHEMA` + `POST /tools/discover`. The most
+  direct precedent — a reserved Agenta tool with description + input schema + endpoint. The
+  platform-op catalog generalizes it; `find_capabilities` is the first entry (its SDK emission is
+  the Deferred item in `plan.md`).
+- **`platform_catalog.py`** (`PlatformWorkflowCatalog`): CONFIRMED current and active (merged
+  `91db4611c4`), NOT being removed — but it is for platform *workflows/skills* (reserved `_agenta.*`
+  slugs, versioned, deterministic UUIDs, a virtual revision provider), heavier than platform ops
+  need. Mirror its spirit (code-defined, reserved-namespace, validated-at-import), not its
+  versioned-revision machinery.
 
 ## Auth (already established earlier this session)
 
