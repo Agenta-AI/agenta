@@ -135,7 +135,14 @@ describe("wire contract: requests (vs Python golden)", () => {
       permissions: Record<string, unknown>;
     };
     assert.equal(settings.permissions.defaultMode, "acceptEdits");
-    assert.deepEqual(settings.permissions.allow, ["Read", "Bash(npm run:*)"]);
+    // The allow list also carries the per-resolved-tool rule for the internal `agenta-tools` MCP
+    // server (F-046): the golden's `get_user` is a read-only callback tool -> effective `allow` ->
+    // `mcp__agenta-tools__get_user`, so Claude runs it instead of parking on its own permission gate.
+    assert.deepEqual(settings.permissions.allow, [
+      "Read",
+      "Bash(npm run:*)",
+      "mcp__agenta-tools__get_user",
+    ]);
     assert.deepEqual(settings.permissions.deny, ["WebFetch"]);
     // Claude carries resolved inline skills on the same `skills` seam Pi uses; the runner
     // installs them into Claude's project-local `.claude/skills/<name>` tree. This regressed

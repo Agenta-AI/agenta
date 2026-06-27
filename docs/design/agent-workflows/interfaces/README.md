@@ -55,7 +55,7 @@ page. `Status` is read from each page's prose: **stable** (wired and unlikely to
 | [Neutral runtime DTOs](in-service/neutral-runtime-dtos.md) | in-service | `agents/dtos.py` | stable | `unit/agents/test_dtos_*.py`, `test_harness_identity.py` |
 | [Runtime ports](in-service/runtime-ports.md) | in-service | `agents/interfaces.py` | evolving (`LocalBackend` stub) | `unit/agents/test_environment_lifecycle.py`, `test_harness_adapters.py` |
 | [Backend adapter](in-service/backend-adapter.md) | in-service | `agents/adapters/sandbox_agent.py` | stable | `unit/agents/test_runner_adapter_config.py`, `test_environment_lifecycle.py` |
-| [Harness adapters](in-service/harness-adapters.md) | in-service | `agents/adapters/harnesses.py`, `agents/dtos.py` | stable | `unit/agents/test_harness_adapters.py`, `test_dtos_harness_configs.py` |
+| [Harness adapters](in-service/harness-adapters.md) | in-service | `agents/adapters/harnesses.py`, `agents/adapters/claude_settings.py`, `agents/dtos.py` | stable | `unit/agents/test_harness_adapters.py`, `test_dtos_harness_configs.py`, `unit/agents/adapters/test_claude_settings.py` |
 | [Browser protocol adapter](in-service/browser-protocol-adapter.md) | in-service | `agents/adapters/vercel/{routing,messages,stream,sse}.py` | stable | `unit/agents/test_ui_messages.py`, `utils/test_messages_endpoint.py` |
 | [Tool models and resolution](in-service/tool-models-and-resolution.md) | in-service | `agents/tools/models.py`, `platform/gateway.py`, `agent/tools/resolver.py` | stable | `unit/agents/tools/` |
 | [MCP models and resolution](in-service/mcp-models-and-resolution.md) | in-service | `agents/mcp/{models,resolver,wire}.py` | evolving (stdio wired; remote deferred; resolution feature-gated) | `unit/agents/mcp/` |
