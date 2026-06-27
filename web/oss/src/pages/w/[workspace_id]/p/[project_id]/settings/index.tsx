@@ -20,6 +20,9 @@ import {settingsTabAtom} from "@/oss/state/settings"
 const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
     ssr: false,
 })
+const Vault = dynamic(() => import("@/oss/components/pages/settings/Vault/Vault"), {
+    ssr: false,
+})
 const WorkspaceManage = dynamic(
     () => import("@/oss/components/pages/settings/WorkspaceManage/WorkspaceManage"),
     {ssr: false},
@@ -123,8 +126,10 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                             return "Members"
                         case "projects":
                             return "Projects"
+                        case "llms":
+                            return "LLMs"
                         case "secrets":
-                            return "Models"
+                            return "Secrets"
                         case "tools":
                             return "Tools"
                         case "triggers":
@@ -178,8 +183,10 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                         </div>
                     ),
                 }
+            case "llms":
+                return {content: <Secrets />, title: "LLMs"}
             case "secrets":
-                return {content: <Secrets />, title: "Models"}
+                return {content: <Vault />, title: "Secrets"}
             case "tools":
                 return {content: <Tools />, title: "Tools"}
             case "triggers":

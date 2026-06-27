@@ -855,7 +855,7 @@ class OrganizationProvidersService:
     async def _get_provider_settings(
         self, organization_id: str, secret_id: str
     ) -> dict:
-        secret = await self._vault_service().get_secret(
+        secret = await self._vault_service().get_secret_by_id(
             secret_id=UUID(secret_id),
             organization_id=UUID(organization_id),
         )

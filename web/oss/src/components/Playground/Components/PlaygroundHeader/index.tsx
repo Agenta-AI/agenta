@@ -14,7 +14,7 @@ import type {EvaluatorCatalogTemplate, Workflow, WorkflowTypeColor} from "@agent
 import {EntityPicker} from "@agenta/entity-ui"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
-import {playgroundController} from "@agenta/playground"
+import {playgroundController, isAgentModeAtomFamily} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {bgColors, textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
@@ -180,6 +180,17 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     )
 
     const hasRootNode = useMemo(() => nodes.some((n) => n.depth === 0), [nodes])
+
+    // Agent workflows hide the evaluation-flow actions (Compare / Test set /
+    // Evaluator / New Evaluation) — those flows aren't wired for agents yet.
+    const rootEntityId = useMemo(() => nodes.find((n) => n.depth === 0)?.entityId ?? null, [nodes])
+    const isAgentWorkflow = useAtomValue(
+        useMemo(
+            () => (rootEntityId ? isAgentModeAtomFamily(rootEntityId) : atom(false)),
+            [rootEntityId],
+        ),
+    )
+    const showEvalActions = !isAgentWorkflow
 
     // Find all connected evaluator nodes
     const connectedEvaluatorNodes = useMemo(
@@ -502,84 +513,94 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     )}
                     {/* Phase 6.1.2: hide "New Evaluation" for evaluator
                      * workflows — running an evaluation FROM an evaluator's
-                     * playground doesn't make sense (would evaluate itself). */}
-                    {currentWorkflowCtx.workflowKind !== "evaluator" && <RunEvaluationButton />}
-                    <Divider orientation="vertical" className="!mx-0 h-5" />
-                    <span className="relative inline-flex">
-                        <Tooltip title="Add evaluators to automatically score outputs in the playground.">
-                            <span>
-                                <EntityPicker<WorkflowRevisionSelectionResult>
-                                    variant="popover-cascader"
-                                    adapter={evaluatorWorkflowAdapter}
-                                    onSelect={handleEvaluatorToggle}
-                                    size="small"
-                                    placeholder="Evaluator"
-                                    icon={<Gavel size={14} />}
-                                    disabled={!hasRootNode}
-                                    multiSelect
-                                    selectedChildIds={connectedRevisionIds}
-                                    selectionSummary
-                                    childItemLabelMode="simple"
-                                    panelWidth={320}
-                                    childPanelWidth={180}
-                                    openChildOnHover
-                                    showParentCheckboxes
-                                    selectedChildrenByParent={selectedChildrenByParent}
-                                    totalChildrenByParent={totalChildrenByParent}
-                                    onDeselectChild={handleDeselectChild}
-                                    showParentDescription
-                                    showGroupHeaders
-                                    showChildSelectAll
-                                    onClearAll={handleDisconnectAll}
-                                    onCreateNew={handleOpenTemplateDropdown}
-                                    createNewLabel="Create new"
-                                    popupFooter={
-                                        connectedEvaluatorNodes.length > 0 ? (
-                                            <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
-                                                <Button
-                                                    size="small"
-                                                    danger
-                                                    className="w-full"
-                                                    onClick={handleDisconnectAll}
-                                                >
-                                                    Disconnect all
-                                                </Button>
-                                            </div>
-                                        ) : undefined
-                                    }
+                     * playground doesn't make sense (would evaluate itself).
+                     * Agent workflows hide it too (eval flow not wired yet). */}
+                    {showEvalActions && currentWorkflowCtx.workflowKind !== "evaluator" && (
+                        <RunEvaluationButton />
+                    )}
+                    {showEvalActions && (
+                        <>
+                            <Divider orientation="vertical" className="!mx-0 h-5" />
+                            <span className="relative inline-flex">
+                                <Tooltip title="Add evaluators to automatically score outputs in the playground.">
+                                    <span>
+                                        <EntityPicker<WorkflowRevisionSelectionResult>
+                                            variant="popover-cascader"
+                                            adapter={evaluatorWorkflowAdapter}
+                                            onSelect={handleEvaluatorToggle}
+                                            size="small"
+                                            placeholder="Evaluator"
+                                            icon={<Gavel size={14} />}
+                                            disabled={!hasRootNode}
+                                            multiSelect
+                                            selectedChildIds={connectedRevisionIds}
+                                            selectionSummary
+                                            childItemLabelMode="simple"
+                                            panelWidth={320}
+                                            childPanelWidth={180}
+                                            openChildOnHover
+                                            showParentCheckboxes
+                                            selectedChildrenByParent={selectedChildrenByParent}
+                                            totalChildrenByParent={totalChildrenByParent}
+                                            onDeselectChild={handleDeselectChild}
+                                            showParentDescription
+                                            showGroupHeaders
+                                            showChildSelectAll
+                                            onClearAll={handleDisconnectAll}
+                                            onCreateNew={handleOpenTemplateDropdown}
+                                            createNewLabel="Create new"
+                                            popupFooter={
+                                                connectedEvaluatorNodes.length > 0 ? (
+                                                    <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
+                                                        <Button
+                                                            size="small"
+                                                            danger
+                                                            className="w-full"
+                                                            onClick={handleDisconnectAll}
+                                                        >
+                                                            Disconnect all
+                                                        </Button>
+                                                    </div>
+                                                ) : undefined
+                                            }
+                                        />
+                                    </span>
+                                </Tooltip>
+                                <EvaluatorTemplateDropdown
+                                    onSelect={handleTemplateSelect}
+                                    open={templateDropdownOpen}
+                                    onOpenChange={setTemplateDropdownOpen}
+                                    placement="bottomLeft"
+                                    className="pointer-events-none absolute inset-0"
+                                    trigger={<span className="block size-full" />}
                                 />
                             </span>
-                        </Tooltip>
-                        <EvaluatorTemplateDropdown
-                            onSelect={handleTemplateSelect}
-                            open={templateDropdownOpen}
-                            onOpenChange={setTemplateDropdownOpen}
-                            placement="bottomLeft"
-                            className="pointer-events-none absolute inset-0"
-                            trigger={<span className="block size-full" />}
-                        />
-                    </span>
-                    <TestsetDropdown />
-                    {isProjectLevelPlayground ? (
-                        <Tooltip title="Compare mode is unavailable in project-level playground">
-                            <Space.Compact size="small">
-                                <Button
-                                    className="flex items-center gap-1"
-                                    icon={<Plus size={14} />}
-                                    disabled
-                                >
-                                    Compare
-                                </Button>
-                                <Button icon={<DownOutlined style={{fontSize: 10}} />} disabled />
-                            </Space.Compact>
-                        </Tooltip>
-                    ) : (
-                        <SelectVariant
-                            showAsCompare
-                            multiple
-                            onChange={(value) => onAddVariant(value)}
-                            value={displayedEntities}
-                        />
+                            <TestsetDropdown />
+                            {isProjectLevelPlayground ? (
+                                <Tooltip title="Compare mode is unavailable in project-level playground">
+                                    <Space.Compact size="small">
+                                        <Button
+                                            className="flex items-center gap-1"
+                                            icon={<Plus size={14} />}
+                                            disabled
+                                        >
+                                            Compare
+                                        </Button>
+                                        <Button
+                                            icon={<DownOutlined style={{fontSize: 10}} />}
+                                            disabled
+                                        />
+                                    </Space.Compact>
+                                </Tooltip>
+                            ) : (
+                                <SelectVariant
+                                    showAsCompare
+                                    multiple
+                                    onChange={(value) => onAddVariant(value)}
+                                    value={displayedEntities}
+                                />
+                            )}
+                        </>
                     )}
                 </div>
             </div>

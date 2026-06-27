@@ -11,6 +11,7 @@ import {
     Sparkle,
     User,
     UsersThree,
+    Vault,
     Wrench,
 } from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
@@ -99,7 +100,12 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 : []),
             {
                 key: "secrets",
-                title: "Models",
+                title: "Secrets",
+                icon: <Vault size={16} className="mt-0.5" />,
+            },
+            {
+                key: "llms",
+                title: "LLMs",
                 icon: <Sparkle size={16} className="mt-0.5" />,
             },
             ...(canShowTools
