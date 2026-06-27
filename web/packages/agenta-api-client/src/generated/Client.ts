@@ -42,7 +42,6 @@ export class AgentaApiClient {
     protected _billing: BillingClient | undefined;
     protected _events: EventsClient | undefined;
     protected _organizations: OrganizationsClient | undefined;
-    protected _workspaces: WorkspacesClient | undefined;
     protected _secrets: SecretsClient | undefined;
     protected _webhooks: WebhooksClient | undefined;
     protected _legacy: LegacyClient | undefined;
@@ -64,6 +63,7 @@ export class AgentaApiClient {
     protected _projects: ProjectsClient | undefined;
     protected _users: UsersClient | undefined;
     protected _keys: KeysClient | undefined;
+    protected _workspaces: WorkspacesClient | undefined;
 
     constructor(options: AgentaApiClient.Options) {
         this._options = normalizeClientOptionsWithAuth(options);
@@ -83,10 +83,6 @@ export class AgentaApiClient {
 
     public get organizations(): OrganizationsClient {
         return (this._organizations ??= new OrganizationsClient(this._options));
-    }
-
-    public get workspaces(): WorkspacesClient {
-        return (this._workspaces ??= new WorkspacesClient(this._options));
     }
 
     public get secrets(): SecretsClient {
@@ -171,6 +167,10 @@ export class AgentaApiClient {
 
     public get keys(): KeysClient {
         return (this._keys ??= new KeysClient(this._options));
+    }
+
+    public get workspaces(): WorkspacesClient {
+        return (this._workspaces ??= new WorkspacesClient(this._options));
     }
 
     /**

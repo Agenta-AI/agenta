@@ -3,10 +3,10 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SecretResponseDto {
-    id?: (string | null) | undefined;
-    slug?: (string | null) | undefined;
     kind: AgentaApi.SecretKind;
     data: SecretResponseDto.Data;
+    slug?: (string | null) | undefined;
+    id?: (string | null) | undefined;
     header: AgentaApi.Header;
     lifecycle?: (AgentaApi.LegacyLifecycleDto | null) | undefined;
 }

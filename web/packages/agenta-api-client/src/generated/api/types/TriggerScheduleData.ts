@@ -7,7 +7,11 @@ export interface TriggerScheduleData {
     schedule: string;
     start_time?: (string | null) | undefined;
     end_time?: (string | null) | undefined;
-    inputs_fields?: (Record<string, unknown> | null) | undefined;
+    inputs_fields?: (TriggerScheduleData.InputsFields | null) | undefined;
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     selector?: (AgentaApi.Selector | null) | undefined;
+}
+
+export namespace TriggerScheduleData {
+    export type InputsFields = Record<string, unknown> | string;
 }
