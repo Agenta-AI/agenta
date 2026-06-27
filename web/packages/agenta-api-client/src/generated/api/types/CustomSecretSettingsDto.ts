@@ -4,5 +4,9 @@ import type * as AgentaApi from "../index.js";
 
 export interface CustomSecretSettingsDto {
     format: AgentaApi.CustomSecretFormat;
-    content: string | Record<string, string | number | boolean | null>;
+    content: CustomSecretSettingsDto.Content;
+}
+
+export namespace CustomSecretSettingsDto {
+    export type Content = string | Record<string, (string | number | number | boolean) | null>;
 }

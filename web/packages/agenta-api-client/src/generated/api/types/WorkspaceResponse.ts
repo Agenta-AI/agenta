@@ -6,7 +6,7 @@ export interface WorkspaceResponse {
     created_at?: string | undefined;
     updated_at?: string | undefined;
     id: string;
-    name?: (string | null) | undefined;
+    name: string;
     description?: (string | null) | undefined;
     type: string | null;
     organization: string;
