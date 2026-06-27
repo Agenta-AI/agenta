@@ -232,3 +232,72 @@ discover-and-wire-tools skill.
 - Test matrix per `implement-feature`: wire contract both sides, SDK unit, service unit, runner
   vitest, then the live daytona / local-pi / claude x SDK / UI cells. `debug-local-deployment`
   between milestones.
+
+---
+
+## Endpoints to expose as platform tools (the wrapper set)
+
+The candidate set, drawn from the older #4863 note, reframed as EXISTING endpoints exposed as-is
+(no new endpoints; the "how" lives in skills, not in tool logic). Each is a catalog entry (§4 of
+`interfaces.md`). Some have BOTH a plain form (the model supplies the target) and a self-targeting
+`bind` form (the runner binds the agent's own identity); **both are in scope**.
+
+**Discovery**
+- `find_capabilities` — the reserved `tools.agenta.find_capabilities` (PR #4884); its SDK emission
+  is the Deferred item above. The first platform tool.
+- search integrations / actions — `GET /api/tools/catalog/.../integrations?search=` +
+  `.../actions?search=`.
+
+**Workflows (the agent building / improving agents)**
+- create artifact — `POST /api/workflows/`
+- create variant — `POST /api/workflows/variants/`
+- commit revision — `POST /api/workflows/revisions/commit`
+  - **plain:** the model supplies `workflow_variant_id`.
+  - **self (bind):** "update myself" — `bind workflow_variant_id ← $ctx.workflow.variant_id`, plus a
+    revision precondition.
+- query workflows — `POST /api/workflows/query`; get workflow — `GET /api/workflows/{id}`
+- retrieve revision — `POST /api/workflows/revisions/retrieve`; revision log —
+  `POST /api/workflows/revisions/log`
+- fork variant — `POST /api/workflows/variants/fork`
+
+**Run / inspect**
+- invoke a workflow (sub-agent) — this is the **reference-tool** path, not a separate platform op
+  (Codex: do not duplicate `workflow.*` resolution); listed only for completeness.
+- inspect harnesses — `POST /services/agent/v0/inspect` (the agent **service** inspect endpoint,
+  returns `meta.harness_capabilities`; not an `/api/...` route).
+
+**Connections / secrets**
+- create / check a Composio connection — `POST /api/tools/connections/` (returns the OAuth
+  redirect; the tool cannot complete OAuth — a human approves).
+- create a vault secret — `POST /api/vault/v1/secrets/`.
+
+**Annotations (the "redundant pair" Mahmoud flagged)**
+- create an annotation — ONE mechanism: create a trace carrying the annotation that LINKS to a
+  target trace.
+  - **plain:** the model supplies the target `trace_id`.
+  - **self (bind):** "annotate my trace" — `bind <link.trace_id> ← $ctx.trace.trace_id`.
+
+Notes:
+- The plain vs self/bind variants are two catalog entries over the SAME endpoint; both ship.
+- Per-op default permission / `needs_approval` is set in the catalog (e.g. `set_secret`,
+  create-workflow, update-self default to approval; reads ungated). Confirm at implementation.
+- Which ops ship first vs later is the orchestrator's sequencing; the catalog makes adding one a
+  data change.
+
+### Catalog implementation (Codex catalog review, folded)
+
+- The catalog is a **typed model** in a new `sdks/python/agenta/sdk/agents/platform/op_catalog.py`,
+  bridged in `platform/resolve.py`, wired through `tools/{models,resolver}.py`. Descriptions live in
+  the SDK. Reuse `PlatformConnection` for the HTTP seam — do not invent new plumbing.
+- **Execution: direct (the decision), not `/tools/call`.** Codex leaned toward keeping platform ops
+  on the existing `/tools/call` `tools.agenta.*` dispatch (consistency with today's
+  `find_capabilities`). We go direct via the `call` descriptor per the decision (no valueless hop);
+  the SSRF guardrails (method allowlist, `/api/` prefix, origin binding) cover Codex's earlier
+  surface concern. `find_capabilities` migrates from the `/tools/call` route to a direct `call` to
+  `POST /api/tools/discover` as part of its SDK emission; the `tools.agenta.*` dispatch in
+  `/tools/call` is then removed alongside the `workflow.*` removal, leaving `/tools/call`
+  gateway-only.
+- **Traps (Codex):** keep the `tools.agenta.<slug>` namespace stable; set a per-op permission
+  default in the catalog (mutating ops default to approval); if any op stays server-mediated during
+  migration, extend `_call_agenta_tool` AND the discovery response path together to avoid
+  resolve/discovery drift.
