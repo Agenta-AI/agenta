@@ -18,7 +18,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -93,16 +93,13 @@ function toolName(tool: unknown): string | undefined {
     return typeof name === "string" ? name : undefined
 }
 
-/** The workflow slug a reference tool (`type:"reference"`) targets, else the function name (the
- * gateway slug). Used to dedupe the workflows offered in the reference drawer. */
+/** Slug a `type:"reference"` tool targets (undefined for any other tool). Dedupes referenced
+ * workflows; ignores gateway function names so a same-named gateway tool can't shadow a workflow. */
 function toolReferenceSlug(tool: unknown): string | undefined {
     if (!tool || typeof tool !== "object") return undefined
     const t = tool as Record<string, unknown>
-    if (t.type === "reference") {
-        return typeof t.slug === "string" ? (t.slug as string) : undefined
-    }
-    const fn = asObj(t.function)
-    return fn && typeof fn.name === "string" ? (fn.name as string) : undefined
+    if (t.type !== "reference") return undefined
+    return typeof t.slug === "string" ? (t.slug as string) : undefined
 }
 
 function isBuiltinPayloadMatch(tool: unknown, payload: ToolObj): boolean {
@@ -453,6 +450,12 @@ export function AgentConfigControl({
     const {gatewayTools, workflowReference} = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
 
+    // Latest config, so an async write (e.g. after a schema lookup) doesn't clobber concurrent edits.
+    const configRef = useRef(config)
+    useEffect(() => {
+        configRef.current = config
+    }, [config])
+
     // The item-config drawer (tools / MCP servers). Edits happen on a local `draft`; they only
     // apply to the config on Save. So creating an item never pollutes the config until confirmed,
     // and editing an existing item can be cancelled cleanly (Cancel/X discards the draft).
@@ -709,8 +712,6 @@ export function AgentConfigControl({
     // (variant/environment), pinned version, and environment come from the drawer's payload.
     const handleAddWorkflowReference = useCallback(
         async (payload: WorkflowReferencePayload) => {
-            // Don't reference the same workflow twice.
-            if (tools.some((t) => toolReferenceSlug(t) === payload.slug)) return
             const wf = workflowReference?.workflows.find((w) => w.slug === payload.slug)
             let inputSchema: Record<string, unknown> | null = null
             try {
@@ -720,7 +721,11 @@ export function AgentConfigControl({
             } catch {
                 inputSchema = null
             }
-            handleAddTool({
+            // Read the freshest tools after the async lookup so a concurrent add/remove isn't clobbered.
+            const latest = configRef.current
+            const latestTools = Array.isArray(latest.tools) ? (latest.tools as unknown[]) : []
+            if (latestTools.some((t) => toolReferenceSlug(t) === payload.slug)) return
+            const referenceTool: Record<string, unknown> = {
                 type: "reference",
                 ref_by: payload.refBy,
                 slug: payload.slug,
@@ -730,12 +735,13 @@ export function AgentConfigControl({
                 ...(payload.refBy === "environment" && payload.environment
                     ? {environment: payload.environment}
                     : {}),
-                name: payload.slug,
+                name: wf?.name || payload.slug,
                 description: wf?.description ?? wf?.name ?? "",
                 input_schema: inputSchema ?? {type: "object", properties: {}},
-            } as ToolObj)
+            }
+            onChange({...latest, tools: [...latestTools, referenceTool]})
         },
-        [tools, workflowReference, handleAddTool],
+        [workflowReference, onChange],
     )
 
     const handleToolDelete = useCallback(

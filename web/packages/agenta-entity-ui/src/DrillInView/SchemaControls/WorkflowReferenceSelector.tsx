@@ -52,10 +52,15 @@ export function WorkflowReferenceSelector({
         if (!open) return
         setSearch("")
         setSelected(null)
+    }, [open])
+
+    // Reset the axis selection when the chosen workflow changes (or is cleared), so a previous
+    // workflow's version/environment pick doesn't bleed into the new reference.
+    useEffect(() => {
         setRefBy("variant")
         setVersion(undefined)
         setEnvironment(undefined)
-    }, [open])
+    }, [selected?.id])
 
     const {revisions, isLoading: revisionsLoading} = bridge.useWorkflowRevisions(selected)
     const {environments, isLoading: environmentsLoading} = bridge.useWorkflowEnvironments(selected)
@@ -110,7 +115,11 @@ export function WorkflowReferenceSelector({
                         The agent calls the chosen workflow as a tool; it runs server-side and
                         returns its output.
                     </p>
-                    {filtered.length === 0 ? (
+                    {bridge.workflowsLoading ? (
+                        <div className="flex justify-center py-6">
+                            <Spin size="small" />
+                        </div>
+                    ) : filtered.length === 0 ? (
                         <Empty
                             image={Empty.PRESENTED_IMAGE_SIMPLE}
                             description={
@@ -191,7 +200,9 @@ export function WorkflowReferenceSelector({
                                 options={[
                                     {label: "Latest", value: LATEST_VALUE},
                                     ...revisions.map((r) => ({
-                                        label: r.label ? `v${r.version} — ${r.label}` : `v${r.version}`,
+                                        label: r.label
+                                            ? `v${r.version} — ${r.label}`
+                                            : `v${r.version}`,
                                         value: r.version,
                                     })),
                                 ]}

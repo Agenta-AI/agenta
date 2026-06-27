@@ -37,6 +37,7 @@ import {
     queryWorkflowRevisionsByWorkflow,
     resolveInputSchema as resolveWorkflowInputSchema,
     retrieveWorkflowRevision,
+    workflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
 import {
     DrillInUIProvider,
@@ -139,6 +140,7 @@ function useWorkflowEnvironments(workflow: WorkflowReferenceUI | null): {
 function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
     const projectId = useAtomValue(projectIdAtom)
     const workflows = useAtomValue(nonArchivedWorkflowsAtom)
+    const workflowsLoading = useAtomValue(workflowsListQueryStateAtom).isPending
 
     return useMemo<WorkflowReferenceBridge>(
         () => ({
@@ -151,7 +153,7 @@ function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
                     name: w.name ?? undefined,
                     description: w.description ?? undefined,
                 })),
-            workflowsLoading: false,
+            workflowsLoading,
             resolveInputSchema: async (workflow) => {
                 if (!projectId || !workflow.slug) return null
                 const revision = await retrieveWorkflowRevision({
@@ -166,7 +168,7 @@ function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
             useWorkflowRevisions,
             useWorkflowEnvironments,
         }),
-        [workflows, projectId],
+        [workflows, workflowsLoading, projectId],
     )
 }
 
