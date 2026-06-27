@@ -30,13 +30,19 @@ from agenta.sdk.utils.types import CATALOG_TYPES
 # in for the catalog type ``<key>``.
 _TYPE_REF_KEY = "x-ag-type-ref"
 
-# JSON Schema keywords that describe the *shape* of a value. When a node is expanded these come
-# from the catalog entry — supplying the concrete structure the author elided behind the pointer
-# is the whole point of the expansion. Every other key on the author's node (``description``,
-# ``title``, ``examples``, ``default``, ...) is an annotation the author chose, so it is preserved
-# and wins over the catalog's.
+# JSON Schema keywords the catalog owns for a referenced type. They split in two:
+#
+#   - shape keywords describe the *structure* of a value (``type``, ``items``, ``properties``, ...);
+#   - validation keywords *constrain* that value (``minItems``, ``pattern``, ``minimum``, ...).
+#
+# Both are canonical to the catalog type. When a node is expanded these come from the catalog
+# entry, so an author annotation cannot loosen or tighten the catalog's shape — that would let the
+# emitted schema drift from the type's required form. Every other key on the author's node
+# (``description``, ``title``, ``examples``, ``default``, ...) is an annotation the author chose,
+# so it is preserved and wins over the catalog's.
 _STRUCTURAL_KEYS = frozenset(
     {
+        # shape
         "type",
         "items",
         "prefixItems",
@@ -55,6 +61,20 @@ _STRUCTURAL_KEYS = frozenset(
         "definitions",
         "discriminator",
         "format",
+        # validation constraints
+        "minItems",
+        "maxItems",
+        "uniqueItems",
+        "minLength",
+        "maxLength",
+        "pattern",
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minProperties",
+        "maxProperties",
     }
 )
 
@@ -69,10 +89,11 @@ def expand_type_refs(
     ``<key>`` is a key in ``catalog``, the node is replaced by a merge of the catalog entry and
     the author's node:
 
-    - the catalog entry supplies the concrete structure (``type``, ``items``, ``properties``, ...);
+    - the catalog entry supplies the concrete structure (``type``, ``items``, ``properties``, ...)
+      and its validation constraints (``minItems``, ``pattern``, ``minimum``, ...);
     - the author's annotations (``description``, ``title``, ...) are preserved and override the
-      catalog's, EXCEPT structural keywords the catalog already defines, which always come from the
-      catalog;
+      catalog's, EXCEPT the catalog-owned shape and constraint keywords the catalog already
+      defines, which always come from the catalog;
     - the ``x-ag-type-ref`` marker itself is dropped (it has been resolved).
 
     An unknown ``<key>`` (not in ``catalog``) is left exactly as it is — the marker stays and

@@ -121,6 +121,31 @@ def test_custom_catalog_merge_policy():
     )
 
 
+def test_author_constraints_do_not_override_catalog():
+    """Catalog-authoritative: an author-supplied validation constraint on a ref node cannot loosen
+    or tighten the catalog's canonical constraint; only true annotations survive."""
+    result = expand_type_refs(
+        {
+            "x-ag-type-ref": "foo",
+            "minItems": 1,  # author tries to loosen the catalog's minItems
+            "pattern": "author",  # author tries to override the catalog's pattern
+            "description": "kept",  # a true annotation
+        },
+        catalog={
+            "foo": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 5,
+                "pattern": "catalog",
+            }
+        },
+    )
+
+    assert result["minItems"] == 5  # catalog constraint wins, not the author's 1
+    assert result["pattern"] == "catalog"  # catalog constraint wins, not the author's
+    assert result["description"] == "kept"  # author annotation preserved
+
+
 def test_input_is_not_mutated():
     schema = {"type": "array", "x-ag-type-ref": "messages", "description": "hist"}
     before = copy.deepcopy(schema)
