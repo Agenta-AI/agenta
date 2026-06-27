@@ -9,6 +9,7 @@ import {
     triggerSubscriptionDrawerAtom,
     useTriggerCatalogEvents,
     useTriggerCatalogIntegrations,
+    useTriggerConnectionsQuery,
     useTriggerIntegrationConnections,
     type TriggerCatalogEvent,
     type TriggerCatalogIntegration,
@@ -141,6 +142,17 @@ export default function TriggerCatalogDrawer({
         ],
     )
 
+    // Reuse an EXISTING connection: jump straight to that app's events (skipping
+    // the integration browse). Picking an event there opens the subscription drawer
+    // with the connection resolved — the same proven path as the browse flow.
+    const handlePickConnection = useCallback((connection: TriggerConnection) => {
+        if (!connection.integration_key) return
+        setSelectedIntegration({
+            key: connection.integration_key,
+            name: connection.name || connection.integration_key,
+        } as TriggerCatalogIntegration)
+    }, [])
+
     return (
         <>
             <Drawer
@@ -166,7 +178,10 @@ export default function TriggerCatalogDrawer({
                         onCreateFromEvent={handleCreateFromEvent}
                     />
                 ) : (
-                    <IntegrationsView onSelect={setSelectedIntegration} />
+                    <IntegrationsView
+                        onSelect={setSelectedIntegration}
+                        onPickConnection={handlePickConnection}
+                    />
                 )}
             </Drawer>
 
@@ -192,12 +207,15 @@ export default function TriggerCatalogDrawer({
 
 function IntegrationsView({
     onSelect,
+    onPickConnection,
 }: {
     onSelect: (integration: TriggerCatalogIntegration) => void
+    onPickConnection: (connection: TriggerConnection) => void
 }) {
     const setAtom = useSetAtom(triggerIntegrationsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
+    const {connections} = useTriggerConnectionsQuery()
 
     const {
         integrations,
@@ -225,6 +243,43 @@ function IntegrationsView({
     return (
         <div className="flex flex-col h-full overflow-hidden">
             <div className="flex flex-col gap-3 px-6 pt-4 pb-3 shrink-0">
+                {connections.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                        <Typography.Text type="secondary" className="text-xs">
+                            Your connections
+                        </Typography.Text>
+                        {connections.map((conn) => (
+                            <Card
+                                key={conn.id ?? conn.slug ?? conn.integration_key}
+                                hoverable
+                                size="small"
+                                className="cursor-pointer"
+                                onClick={() => onPickConnection(conn)}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <div className="flex min-w-0 flex-1 flex-col">
+                                        <Typography.Text strong className="truncate">
+                                            {conn.name || conn.slug || conn.integration_key}
+                                        </Typography.Text>
+                                        <Typography.Text
+                                            type="secondary"
+                                            className="truncate text-xs"
+                                        >
+                                            {conn.integration_key}
+                                        </Typography.Text>
+                                    </div>
+                                    {isConnectionActive(conn) && (
+                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                                    )}
+                                </div>
+                            </Card>
+                        ))}
+                        <Divider className="!my-1" />
+                        <Typography.Text type="secondary" className="text-xs">
+                            Or connect a new app
+                        </Typography.Text>
+                    </div>
+                )}
                 <Input
                     placeholder="Search integrations…"
                     prefix={<MagnifyingGlass size={16} />}

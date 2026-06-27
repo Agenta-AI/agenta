@@ -169,13 +169,17 @@ export const queryTriggerConnections = async (params?: {
     provider_key?: string
     integration_key?: string
 }): Promise<TriggerConnectionsResponse> => {
+    // The backend reads provider_key/integration_key as QUERY params (not the body),
+    // so they must go through projectScopedParams — otherwise the filter is dropped
+    // and ALL connections come back (e.g. a Gmail event prefilled with a Slack
+    // connection).
     const {data} = await axios.post(
         `${triggersBaseUrl()}/connections/query`,
-        {
-            provider_key: params?.provider_key,
-            integration_key: params?.integration_key,
-        },
-        projectScopedParams(),
+        {},
+        projectScopedParams({
+            ...(params?.provider_key ? {provider_key: params.provider_key} : {}),
+            ...(params?.integration_key ? {integration_key: params.integration_key} : {}),
+        }),
     )
     const validated = safeParseWithLogging(
         triggerConnectionsResponseSchema,
