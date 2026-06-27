@@ -224,10 +224,29 @@ describe("directCallUrl", () => {
     );
   });
 
-  it("rejects a path outside /api/", () => {
+  it("accepts a path on a non-/api mount (OSS self-host at the origin root)", () => {
+    // The callback carries no /api prefix, so the mount is empty and the host-lock is the only
+    // boundary — the API lives at the origin root on this deployment.
+    const url = directCallUrl("http://host:8000/tools/call", {
+      method: "POST",
+      path: "/workflows/invoke",
+    });
+    assert.equal(url, "http://host:8000/workflows/invoke");
+  });
+
+  it("rejects a same-origin path outside the callback's mount", () => {
     assert.throws(
       () => directCallUrl(ENDPOINT, { method: "POST", path: "/secrets" }),
-      /must be a relative path under \/api\//,
+      /is outside the Agenta API mount '\/api'/,
+    );
+  });
+
+  it("rejects a percent-encoded traversal that normalizes out of the mount", () => {
+    // `/api/%2e%2e/admin` URL-normalizes to `/admin`: the literal `..` check misses it, but the
+    // mount confinement (after resolution) rejects it.
+    assert.throws(
+      () => directCallUrl(ENDPOINT, { method: "POST", path: "/api/%2e%2e/admin" }),
+      /is outside the Agenta API mount '\/api'/,
     );
   });
 
@@ -238,18 +257,18 @@ describe("directCallUrl", () => {
           method: "POST",
           path: "https://evil.example/api/x",
         }),
-      /must be a relative path under \/api\//,
+      /must be an absolute path starting with a single '\/'/,
     );
   });
 
   it("rejects a protocol-relative path", () => {
     assert.throws(
       () => directCallUrl(ENDPOINT, { method: "POST", path: "//evil.example/api/x" }),
-      /must be a relative path under \/api\//,
+      /must be an absolute path starting with a single '\/'/,
     );
   });
 
-  it("rejects a traversal path", () => {
+  it("rejects a literal traversal path", () => {
     assert.throws(
       () => directCallUrl(ENDPOINT, { method: "POST", path: "/api/../admin" }),
       /is not a safe relative path/,
@@ -328,6 +347,8 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
     assert.equal(res.text, "relayed-direct-result");
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, "https://agenta.example/api/workflows/invoke");
+    // Redirects are not auto-followed: a 3xx to another host would defeat the origin lock.
+    assert.equal((calls[0].init as { redirect?: string }).redirect, "manual");
     assert.deepEqual(JSON.parse(calls[0].init.body as string), {
       data: { inputs: { city: "Berlin" } },
       references: { workflow_revision: { id: "rev_abc123" } },
@@ -347,6 +368,21 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
       {},
     );
     assert.equal(res.ok, false);
-    assert.match(res.error ?? "", /must be a relative path under \/api\//);
+    assert.match(res.error ?? "", /is outside the Agenta API mount/);
+  });
+
+  it("returns a generic error on a non-2xx (no internal URL or upstream body leaks)", async () => {
+    // The upstream responds 500 with a detailed body; the model must see only the status code,
+    // never the resolved internal URL or the response body (those stay in the server log).
+    stubFetch("INTERNAL stack trace + secret detail", false, 500);
+    const res = await relayOnce(
+      refSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { city: "Berlin" },
+    );
+    assert.equal(res.ok, false);
+    assert.equal(res.error, "direct tool call failed: HTTP 500");
+    assert.doesNotMatch(res.error ?? "", /agenta\.example/);
+    assert.doesNotMatch(res.error ?? "", /stack trace|secret detail/);
   });
 });

@@ -15,8 +15,10 @@
  *    own Agenta, so the descriptor (untrusted input) can never reach a non-Agenta host.
  *  - `callDirect`    — the actual HTTP round-trip, reusing the run's caller credential.
  *
- * It is called from `tools/dispatch.ts` (the host-direct path) and `tools/relay.ts`
- * `executeRelayedTool` (the Daytona host relay path); the in-sandbox child never makes the call.
+ * In this phase it is called only from `tools/relay.ts` `executeRelayedTool` — the live host path
+ * for both local and Daytona, because both call sites relay every tool call to the host. The
+ * symmetric `tools/dispatch.ts` `runResolvedTool` host-direct branch is deferred until the
+ * gateway-refactor lane lands (see the PR notes); the in-sandbox child never makes the call.
  */
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { TOOL_CALL_TIMEOUT_MS } from "./callback.ts";
@@ -124,13 +126,22 @@ export function assembleBody(
 }
 
 /**
- * Validate the descriptor and build the absolute URL to call. The `call` is untrusted input, so:
+ * Validate the descriptor and build the absolute URL to call. The `call` is untrusted input, so
+ * this is the SSRF guard, and it makes NO assumption about where the Agenta API is mounted:
  *  - `method` must be on the allowlist (GET/POST);
- *  - `path` must be a server-relative path under `/api/` — no scheme, no protocol-relative
- *    `//host`, no `..` traversal, no backslashes — so it can only reach Agenta's API surface;
- *  - the ORIGIN is derived from the run's own `callbackEndpoint` (the `/tools/call` URL the
- *    gateway already uses). The descriptor never carries a host, so a tool can never reach a
- *    non-Agenta host.
+ *  - `path` must be a single absolute-path reference — a string starting with exactly one `/`
+ *    (no scheme, no protocol-relative `//host`, no backslashes, no whitespace/CRLF, no literal
+ *    `..` traversal);
+ *  - the path is RESOLVED against the origin of the run's own `callbackEndpoint` (the `/tools/call`
+ *    URL the gateway already uses), and the resolved origin must equal that origin — a true
+ *    host-lock, so a tool can never reach a non-Agenta host even via a percent-encoded escape
+ *    (`/api/%2e%2e/...`) that URL-normalizes to another path;
+ *  - the resolved path must stay under the callback's MOUNT — the callback path minus its trailing
+ *    `/tools/call` (e.g. `/api` for `https://host/api/tools/call`, or `` for an OSS self-host at
+ *    `http://host:8000/tools/call`). A non-empty mount must contain the path, so a normalized
+ *    escape out of the API surface is rejected; an empty mount (API at the origin root) relies on
+ *    the host-lock alone. Deriving the mount instead of hard-coding `/api` is what lets this work
+ *    on a self-host where the API is not under `/api`.
  */
 export function directCallUrl(callbackEndpoint: string, call: DirectCall): string {
   if (!DIRECT_CALL_METHODS.has(call.method)) {
@@ -139,28 +150,61 @@ export function directCallUrl(callbackEndpoint: string, call: DirectCall): strin
     );
   }
   const path = call.path;
-  if (typeof path !== "string" || !path.startsWith("/api/")) {
+  // A single absolute-path reference: a string starting with exactly one `/`. Rejects non-strings,
+  // scheme-qualified URLs (`https://…` does not start with `/`) and protocol-relative `//host`.
+  if (typeof path !== "string" || path[0] !== "/" || path[1] === "/") {
     throw new Error(
-      `direct-call path '${path}' must be a relative path under /api/`,
+      `direct-call path '${path}' must be an absolute path starting with a single '/'`,
     );
   }
+  // Reject the obvious traversal/encoding tricks up front (defense in depth; the host-lock and
+  // mount check below also catch a normalized escape).
   if (path.includes("..") || path.includes("\\") || /\s/.test(path)) {
     throw new Error(`direct-call path '${path}' is not a safe relative path`);
   }
-  let origin: string;
+  let base: URL;
   try {
-    origin = new URL(callbackEndpoint).origin;
+    base = new URL(callbackEndpoint);
   } catch {
     throw new Error(
       `cannot derive Agenta origin from callback endpoint '${callbackEndpoint}'`,
     );
   }
-  if (!origin || origin === "null") {
+  if (base.origin === "null") {
     throw new Error(
       `callback endpoint '${callbackEndpoint}' has no usable origin`,
     );
   }
-  return origin + path;
+  // Resolve against the callback origin and host-lock: the resolved origin must equal it. This
+  // binds every direct call to the run's own Agenta, whatever the path normalizes to.
+  let resolved: URL;
+  try {
+    resolved = new URL(path, base.origin);
+  } catch {
+    throw new Error(`direct-call path '${path}' is not a valid path`);
+  }
+  if (resolved.origin !== base.origin) {
+    throw new Error(
+      `direct-call path '${path}' resolves outside the run's Agenta origin`,
+    );
+  }
+  // Confine to the callback's mount (the callback path minus a trailing `/tools/call`). An empty
+  // mount (API at the root) imposes no prefix; a non-empty mount must contain the resolved path,
+  // so a normalized escape like `/api/%2e%2e/admin` -> `/admin` is rejected.
+  const CALLBACK_PATH_SUFFIX = "/tools/call";
+  const mount = base.pathname.endsWith(CALLBACK_PATH_SUFFIX)
+    ? base.pathname.slice(0, -CALLBACK_PATH_SUFFIX.length)
+    : "";
+  if (
+    mount &&
+    resolved.pathname !== mount &&
+    !resolved.pathname.startsWith(`${mount}/`)
+  ) {
+    throw new Error(
+      `direct-call path '${path}' is outside the Agenta API mount '${mount}'`,
+    );
+  }
+  return resolved.toString();
 }
 
 /**
@@ -200,18 +244,29 @@ export async function callDirect(
       // GET carries no body (fetch forbids it); POST sends the assembled JSON body.
       body: method === "POST" ? JSON.stringify(body) : undefined,
       signal: combined,
+      // Do not auto-follow redirects: a 3xx to another host would defeat the origin lock in
+      // directCallUrl (SSRF-via-redirect). A 3xx surfaces here as a non-ok response and fails
+      // closed below — we never chase it.
+      redirect: "manual",
     });
   } catch (err) {
-    throw new Error(
-      `direct tool call ${method} ${url} failed: ${err instanceof Error ? err.message : String(err)}`,
+    // Log the detail server-side; the model gets a generic message so the resolved internal URL
+    // and the transport error never leak into the tool result.
+    console.error(
+      `direct tool call ${method} ${url} transport error:`,
+      err instanceof Error ? err.message : String(err),
     );
+    throw new Error("direct tool call failed");
   }
 
   const bodyText = await response.text();
   if (!response.ok) {
-    throw new Error(
+    // Keep the internal URL and the upstream response body server-side; the model gets only the
+    // status code. (`redirect: "manual"` makes a 3xx a non-ok response, so it lands here too.)
+    console.error(
       `direct tool call ${method} ${url} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,
     );
+    throw new Error(`direct tool call failed: HTTP ${response.status}`);
   }
   return bodyText;
 }
