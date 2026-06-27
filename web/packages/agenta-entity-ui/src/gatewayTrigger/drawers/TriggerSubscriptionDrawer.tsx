@@ -402,12 +402,14 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
             setIsTesting(true)
             setTestResult(null)
             try {
-                // Baseline against the newest existing delivery so we only surface
-                // an event captured after this test started.
+                // Remember every delivery that already exists, so we only surface
+                // one that arrives AFTER this test starts. (Excluding just the
+                // single newest one is wrong: the history has many, and find()
+                // would immediately match the next-oldest delivery.)
                 const {deliveries: baseline} = await queryTriggerDeliveries({
                     subscription_id: subscriptionId,
                 })
-                const baselineId = baseline[0]?.id ?? null
+                const seenIds = new Set(baseline.map((d) => d.id))
                 const deadline = Date.now() + 300_000
                 while (Date.now() < deadline) {
                     if (controller.signal.aborted) return
@@ -416,7 +418,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                     })
                     const fresh = deliveries.find(
                         (d) =>
-                            d.id !== baselineId &&
+                            !seenIds.has(d.id) &&
                             d.data?.inputs &&
                             Object.keys(d.data.inputs).length > 0,
                     )
