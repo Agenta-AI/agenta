@@ -45,6 +45,7 @@ const KNOWN_REQUEST_KEYS = [
   "messages",
   "secrets",
   "trace",
+  "runContext",
   "tools",
   "customTools",
   "mcpServers",
@@ -108,6 +109,14 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.deepEqual(direct.call!.body, {
       references: { workflow_revision: { id: "rev_abc123" } },
     });
+    // The run's own context (direct-call tools, Phase 3a) reaches the runner as `runContext`, with
+    // snake_case inner keys (the `$ctx.<key>` binding namespace). The runner fills a tool's
+    // `call.context` from this blob at dispatch (see tools/direct.ts `assembleBody`); the model
+    // never reads it.
+    assert.equal(req.runContext!.workflow!.variant_id, "var_abc");
+    assert.equal(req.runContext!.workflow!.revision_id, "rev_abc123");
+    assert.equal(req.runContext!.trace!.trace_id, "0af7651916cd43dd8448eb211c80319c");
+    assert.equal(req.runContext!.session_id, "sess-1");
     // Pi exposes the prompt overrides.
     assert.equal(req.systemPrompt, "You are Pi.");
     assert.equal(req.appendSystemPrompt, "Be terse.");
@@ -137,6 +146,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.permissionPolicy, "deny"); // Claude gates tool use
     assert.equal(req.systemPrompt, undefined); // Claude exposes no prompt overrides
     assert.equal(req.appendSystemPrompt, undefined);
+    assert.equal(req.runContext, undefined); // no run context threaded on this config
     assert.equal(req.sandboxPermission, undefined); // no boundary declared on this config
     // The Claude harness's permission knobs are translated to a rendered file in Python: the
     // wire carries a generic `harnessFiles` entry the runner writes blind into the cwd.

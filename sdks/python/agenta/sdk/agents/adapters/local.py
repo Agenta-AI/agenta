@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Mapping, Optional
 
-from ..dtos import HarnessAgentConfig, HarnessType, TraceContext
+from ..dtos import HarnessAgentConfig, HarnessType, RunContext, TraceContext
 from ..interfaces import Backend, Sandbox, Session
 
 
@@ -45,6 +45,7 @@ class LocalBackend(Backend):
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
+        run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
     ) -> Session:
         raise NotImplementedError(

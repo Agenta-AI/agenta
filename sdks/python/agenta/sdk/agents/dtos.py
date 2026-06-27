@@ -376,6 +376,75 @@ class TraceContext(BaseModel):
         }
 
 
+class RunContextWorkflow(BaseModel):
+    """The running workflow/variant's own identity (direct-call tools, Phase 3a).
+
+    Part of the per-turn :class:`RunContext` blob. A self-targeting platform tool binds one of
+    these into its request body server-side (e.g. ``$ctx.workflow.variant_id`` for "update
+    myself"), so the model supplies only the payload and cannot retarget a different variant. All
+    fields optional and best-effort: the service fills what it holds and omits the rest."""
+
+    artifact_id: Optional[str] = None
+    variant_id: Optional[str] = None
+    variant_name: Optional[str] = None
+    revision_id: Optional[str] = None
+    version: Optional[str] = None
+    is_draft: Optional[bool] = None
+    latest_revision_id: Optional[str] = None
+
+
+class RunContextTrace(BaseModel):
+    """The current run's own trace identity (direct-call tools, Phase 3a).
+
+    A tool that acts on the run's own trace (e.g. "annotate my trace") binds
+    ``$ctx.trace.trace_id`` into its request body server-side."""
+
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
+
+
+class RunContext(BaseModel):
+    """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
+    Phase 3a; see ``projects/direct-call-tools/run-context.md``).
+
+    The service computes this from the invocation's own trace + variant identity and sends it on
+    the ``/run`` request. It is consumed ONLY by a tool's ``call.context`` binding: the runner
+    fills bound request fields from this blob at dispatch, server-side and hidden from the model.
+    The model never reads run context directly.
+
+    The inner keys are deliberately snake_case (``workflow.variant_id``, ``trace.trace_id``,
+    ``session_id``): they are the binding NAMESPACE that a catalog entry's ``$ctx.<dotted.path>``
+    token addresses, so they match those tokens exactly rather than the wire's camelCase
+    convention. ``to_wire`` emits only the sub-objects/fields that are set, so a run with no
+    identity yields an empty blob (and the serializer omits the key entirely)."""
+
+    workflow: Optional[RunContextWorkflow] = None
+    trace: Optional[RunContextTrace] = None
+    session_id: Optional[str] = None
+
+    def to_wire(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        if self.workflow is not None:
+            workflow = {
+                key: value
+                for key, value in self.workflow.model_dump().items()
+                if value is not None
+            }
+            if workflow:
+                out["workflow"] = workflow
+        if self.trace is not None:
+            trace = {
+                key: value
+                for key, value in self.trace.model_dump().items()
+                if value is not None
+            }
+            if trace:
+                out["trace"] = trace
+        if self.session_id is not None:
+            out["session_id"] = self.session_id
+        return out
+
+
 # ---------------------------------------------------------------------------
 # Run result
 # ---------------------------------------------------------------------------
@@ -801,6 +870,10 @@ class SessionConfig(BaseModel):
     resolved_connection: Optional[ResolvedConnection] = None
     permission_policy: PermissionPolicy = "auto"
     trace: Optional[TraceContext] = None
+    # The run's own context (trace + variant identity), refreshed per turn and consumed only by a
+    # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted from the
+    # wire when unset, so a run that needs no binding is byte-identical to before.
+    run_context: Optional[RunContext] = None
     session_id: Optional[str] = None
     builtin_names: List[str] = Field(
         default_factory=list,

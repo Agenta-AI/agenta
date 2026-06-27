@@ -109,6 +109,35 @@ export interface ToolCallbackContext {
 }
 
 /**
+ * The run's own context, delivered on `/run` and refreshed per turn (direct-call tools, Phase 3a;
+ * see `projects/direct-call-tools/run-context.md`). The service computes it from the invocation's
+ * own trace + variant identity. It is consumed ONLY by a tool's `call.context` binding: the runner
+ * fills bound request fields from this blob at dispatch, server-side and hidden from the model. The
+ * model never reads run context directly.
+ *
+ * The keys are deliberately snake_case (`workflow.variant_id`, `trace.trace_id`, `session_id`):
+ * they are the binding NAMESPACE a `call.context` value (`"$ctx.<dotted.path>"`) addresses, so they
+ * match those tokens exactly rather than the rest of the wire's camelCase. Every field is optional
+ * and best-effort — the service fills what it holds and omits the rest.
+ */
+export interface RunContext {
+  workflow?: {
+    artifact_id?: string;
+    variant_id?: string;
+    variant_name?: string;
+    revision_id?: string;
+    version?: string;
+    is_draft?: boolean;
+    latest_revision_id?: string;
+  };
+  trace?: {
+    trace_id?: string;
+    span_id?: string;
+  };
+  session_id?: string;
+}
+
+/**
  * One bundled file laid beside SKILL.md by relative `path`. `content` is inline UTF-8 text;
  * `executable` requests a `chmod +x` that the runner honors only when the skill's
  * `allowExecutableFiles` is set AND the sandbox/harness policy allows execution (default deny).
@@ -378,6 +407,13 @@ export interface AgentRunRequest {
   harnessFiles?: Array<{ path: string; content: string }>;
   /** Tracing: thread the Agenta trace context across the boundary. */
   trace?: TraceContext;
+  /**
+   * The run's own context (trace + variant identity), refreshed per turn (direct-call tools,
+   * Phase 3a). Consumed only by a tool's `call.context` binding at dispatch — the runner fills the
+   * bound request fields from this blob server-side, hidden from the model (see `RunContext` and
+   * `tools/direct.ts` `assembleBody`). Omitted when the run has no own identity to bind.
+   */
+  runContext?: RunContext;
 }
 
 export interface AgentRunResult {

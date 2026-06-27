@@ -23,6 +23,7 @@ from ..dtos import (
     HarnessAgentConfig,
     HarnessType,
     Message,
+    RunContext,
     TraceContext,
 )
 from ..interfaces import Backend, Sandbox, Session
@@ -65,6 +66,7 @@ class SandboxAgentSession(Session):
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]],
         trace: Optional[TraceContext],
+        run_context: Optional[RunContext],
         session_id: Optional[str],
     ) -> None:
         self._backend = backend
@@ -73,6 +75,7 @@ class SandboxAgentSession(Session):
         self._harness = harness
         self._secrets = dict(secrets or {})
         self._trace = trace
+        self._run_context = run_context
         self._session_id = session_id
 
     @property
@@ -88,6 +91,7 @@ class SandboxAgentSession(Session):
             messages=messages,
             secrets=self._secrets,
             trace=self._trace,
+            run_context=self._run_context,
             session_id=self._session_id,
         )
 
@@ -152,6 +156,7 @@ class SandboxAgentBackend(Backend):
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
+        run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
     ) -> SandboxAgentSession:
         if not isinstance(sandbox, SandboxAgentSandbox):
@@ -165,6 +170,7 @@ class SandboxAgentBackend(Backend):
             harness=harness,
             secrets=secrets,
             trace=trace,
+            run_context=run_context,
             session_id=session_id,
         )
 

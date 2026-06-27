@@ -122,6 +122,42 @@ class WireToolCallback(_WireModel):
     authorization: Optional[str] = None
 
 
+class WireRunContextWorkflow(_WireModel):
+    """The running workflow/variant identity inside ``runContext`` (mirrors
+    ``RunContextWorkflow``). The keys stay snake_case on purpose — see ``WireRunContext``."""
+
+    artifact_id: Optional[str] = None
+    variant_id: Optional[str] = None
+    variant_name: Optional[str] = None
+    revision_id: Optional[str] = None
+    version: Optional[str] = None
+    is_draft: Optional[bool] = None
+    latest_revision_id: Optional[str] = None
+
+
+class WireRunContextTrace(_WireModel):
+    """The run's own trace identity inside ``runContext`` (mirrors ``RunContextTrace``)."""
+
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
+
+
+class WireRunContext(_WireModel):
+    """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
+    Phase 3a; mirrors ``RunContext.to_wire``).
+
+    Consumed only by a tool's ``call.context`` binding at dispatch, server-side and hidden from
+    the model. Unlike the rest of the wire, the INNER keys are snake_case
+    (``workflow.variant_id`` / ``trace.trace_id`` / ``session_id``): they are the binding
+    NAMESPACE a catalog entry's ``$ctx.<dotted.path>`` token addresses, so they must match those
+    tokens exactly rather than follow the camelCase wire convention. The top-level field is still
+    the camelCase ``runContext`` on the request."""
+
+    workflow: Optional[WireRunContextWorkflow] = None
+    trace: Optional[WireRunContextTrace] = None
+    session_id: Optional[str] = None
+
+
 class WireRenderHint(_WireModel):
     """How a tool's result should be rendered by a client."""
 
@@ -312,6 +348,9 @@ class WireRunRequest(_WireModel):
     # Secrets injected as harness env (provider keys); never written to the agent filesystem.
     secrets: Optional[Dict[str, str]] = None
     trace: Optional[WireTraceContext] = None
+    # The run's own context (trace + variant identity), refreshed per turn; consumed only by a
+    # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted when unset.
+    run_context: Optional[WireRunContext] = Field(default=None, alias="runContext")
     # Tools + skills.
     tools: Optional[List[str]] = None
     custom_tools: Optional[List[WireResolvedToolSpec]] = Field(

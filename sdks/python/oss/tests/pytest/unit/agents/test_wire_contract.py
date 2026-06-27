@@ -27,6 +27,9 @@ from agenta.sdk.agents import (
     Message,
     PiAgentConfig,
     ResolvedConnection,
+    RunContext,
+    RunContextTrace,
+    RunContextWorkflow,
     SandboxPermission,
     SkillConfig,
     ToolCallback,
@@ -55,6 +58,7 @@ KNOWN_REQUEST_KEYS = {
     "messages",
     "secrets",
     "trace",
+    "runContext",
     "tools",
     "customTools",
     "mcpServers",
@@ -130,6 +134,22 @@ def _pi_payload():
             endpoint="https://otlp.example/v1/traces",
             authorization="Access tok-123",
             capture_content=True,
+        ),
+        # The run's own context (trace + variant identity), refreshed per turn and consumed only by
+        # a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). `to_wire` drops
+        # the unset workflow fields (artifact_id / is_draft / latest_revision_id).
+        run_context=RunContext(
+            workflow=RunContextWorkflow(
+                variant_id="var_abc",
+                variant_name="weather-agent",
+                revision_id="rev_abc123",
+                version="3",
+            ),
+            trace=RunContextTrace(
+                trace_id="0af7651916cd43dd8448eb211c80319c",
+                span_id="b7ad6b7169203331",
+            ),
+            session_id="sess-1",
         ),
         session_id="sess-1",
     )
@@ -232,6 +252,22 @@ def test_request_to_wire_pi_matches_golden(golden):
         "body": {"references": {"workflow_revision": {"id": "rev_abc123"}}},
         "args_into": "data.inputs",
     }
+    # The run's own context rides as `runContext` (direct-call tools, Phase 3a): the workflow +
+    # trace identity plus the session id, with snake_case inner keys (the `$ctx.<key>` binding
+    # namespace) and the unset workflow fields dropped by `to_wire`.
+    assert payload["runContext"] == {
+        "workflow": {
+            "variant_id": "var_abc",
+            "variant_name": "weather-agent",
+            "revision_id": "rev_abc123",
+            "version": "3",
+        },
+        "trace": {
+            "trace_id": "0af7651916cd43dd8448eb211c80319c",
+            "span_id": "b7ad6b7169203331",
+        },
+        "session_id": "sess-1",
+    }
     # The declared sandbox boundary rides the wire as nested camelCase `sandboxPermission`;
     # the unset `filesystem` is dropped (declared, not enforced) so it never appears.
     assert payload["sandboxPermission"] == {
@@ -242,9 +278,36 @@ def test_request_to_wire_pi_matches_golden(golden):
     assert "harnessFiles" not in payload
 
 
+def test_request_to_wire_omits_run_context_when_none():
+    # No run context passed -> no `runContext` key (a run that needs no `call.context` binding stays
+    # byte-identical to before, the same discipline skills/mcpServers/sandboxPermission use).
+    payload = request_to_wire(
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentConfig(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "runContext" not in payload
+
+
+def test_request_to_wire_omits_run_context_when_empty():
+    # An entirely-empty run context (no identity to bind) serializes to {} and is dropped, so it
+    # never rides the wire as a noise `"runContext": {}` key.
+    payload = request_to_wire(
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentConfig(),
+        messages=[Message(role="user", content="hi")],
+        run_context=RunContext(),
+    )
+    assert "runContext" not in payload
+
+
 def test_request_to_wire_claude_matches_golden(golden):
     payload = _claude_payload()
     assert payload == golden("run_request.claude.json")
+    # The claude payload threads no run context, so `runContext` is absent (the golden has none).
+    assert "runContext" not in payload
     # No explicit author permission + read_only=True -> derived `allow` rides the wire.
     assert payload["customTools"][0]["permission"] == "allow"
     # Claude-specific invariants the golden encodes, asserted explicitly so a failure reads clearly.

@@ -29,6 +29,7 @@ from ..dtos import (
     HarnessCapabilities,
     HarnessType,
     Message,
+    RunContext,
     TraceContext,
 )
 
@@ -73,6 +74,7 @@ def request_to_wire(
     messages: Sequence[Message],
     secrets: Optional[Dict[str, str]] = None,
     trace: Optional[TraceContext] = None,
+    run_context: Optional[RunContext] = None,
     session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Serialize one turn into the ``/run`` request JSON.
@@ -101,8 +103,13 @@ def request_to_wire(
     unless the config produced any files. This is where the per-harness translation happens in
     Python (e.g. the claude config renders ``.claude/settings.json``); the runner is a dumb writer
     that drops each entry into the cwd with no harness knowledge.
+
+    ``run_context`` is the run's own context (trace + variant identity), refreshed per turn. When
+    set it rides as ``runContext`` and is consumed only by a tool's ``call.context`` binding at
+    dispatch (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
+    so a run that needs no binding stays byte-identical to before.
     """
-    return {
+    payload: Dict[str, Any] = {
         "harness": harness.value,
         "sandbox": sandbox,
         "sessionId": session_id,
@@ -120,6 +127,11 @@ def request_to_wire(
         **config.wire_resolved_connection(),
         **config.wire_harness_files(),
     }
+    if run_context is not None:
+        run_context_wire = run_context.to_wire()
+        if run_context_wire:
+            payload["runContext"] = run_context_wire
+    return payload
 
 
 def result_from_wire(data: Dict[str, Any]) -> AgentResult:

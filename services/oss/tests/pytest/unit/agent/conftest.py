@@ -101,7 +101,15 @@ class FakeBackend(Backend):
         return _FakeSandbox()
 
     async def create_session(
-        self, sandbox, config, *, harness, secrets=None, trace=None, session_id=None
+        self,
+        sandbox,
+        config,
+        *,
+        harness,
+        secrets=None,
+        trace=None,
+        run_context=None,
+        session_id=None,
     ) -> _FakeSession:
         self.created_configs.append(config)
         self.created_session_ids.append(session_id)

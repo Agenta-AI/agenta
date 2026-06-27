@@ -9,8 +9,8 @@
  *
  * This module owns the three pieces of a direct call so both dispatch paths share one
  * implementation:
- *  - `assembleBody`  — merge the model's args with the server-fixed `body` (and, in Phase 3, the
- *    run-context `context` binding) per the body-assembly rules in the design.
+ *  - `assembleBody`  — merge the model's args with the server-fixed `body` and the run-context
+ *    `context` binding (Phase 3a) per the body-assembly rules in the design.
  *  - `directCallUrl` — the SSRF guard: validate the method + path and bind the origin to the run's
  *    own Agenta, so the descriptor (untrusted input) can never reach a non-Agenta host.
  *  - `callDirect`    — the actual HTTP round-trip, reusing the run's caller credential.
@@ -20,11 +20,14 @@
  * symmetric `tools/dispatch.ts` `runResolvedTool` host-direct branch is deferred until the
  * gateway-refactor lane lands (see the PR notes); the in-sandbox child never makes the call.
  */
-import type { ResolvedToolSpec } from "../protocol.ts";
+import type { ResolvedToolSpec, RunContext } from "../protocol.ts";
 import { TOOL_CALL_TIMEOUT_MS } from "./callback.ts";
 
 /** The resolved `call` descriptor (see `ResolvedToolSpec.call`). */
 export type DirectCall = NonNullable<ResolvedToolSpec["call"]>;
+
+/** The prefix every `call.context` value carries: `"$ctx.<dotted.path>"` (see `RunContext`). */
+const CTX_TOKEN_PREFIX = "$ctx.";
 
 /** Methods a direct call may use. The descriptor is untrusted, so this is an allowlist. */
 const DIRECT_CALL_METHODS = new Set(["GET", "POST"]);
@@ -90,6 +93,32 @@ export function deepMerge(
 }
 
 /**
+ * Resolve a `call.context` token (`"$ctx.<dotted.path>"`) against the run's `runContext` blob.
+ *
+ * The descriptor is untrusted, so a malformed token (one that does not start with `$ctx.`) is
+ * skipped rather than trusted: it returns `undefined`. A path that does not resolve in the blob
+ * (no `runContext`, a missing sub-object, or a missing key) also returns `undefined`. Only a
+ * non-`undefined` resolved value is bound — `null` is a real value and binds, `undefined` does not.
+ */
+export function resolveCtxToken(
+  runContext: RunContext | undefined,
+  token: string,
+): unknown {
+  if (typeof token !== "string" || !token.startsWith(CTX_TOKEN_PREFIX)) {
+    return undefined;
+  }
+  if (!runContext) return undefined;
+  const path = token.slice(CTX_TOKEN_PREFIX.length);
+  if (!path) return undefined;
+  let cursor: unknown = runContext;
+  for (const part of path.split(".")) {
+    if (!part || !isPlainObject(cursor)) return undefined;
+    cursor = cursor[part];
+  }
+  return cursor;
+}
+
+/**
  * Build the request body for a direct call from the model's `params` and the descriptor.
  *
  * Merge order (later wins):
@@ -99,13 +128,16 @@ export function deepMerge(
  *  2. `call.body` — static server-fixed fields baked at resolve time (e.g. a reference's
  *     `references.workflow_revision.id`). These OVERLAY the model's args, so the model can never
  *     retarget or override a fixed field.
- *  3. `call.context` — the run-context binding ($ctx.<key> from the run's `runContext`), filled
- *     LAST so a bound field always wins. THIS IS A PHASE 3 SEAM: `runContext` is not wired yet,
- *     so Phase 2 does not apply it (and nothing emits `context` yet). See the TODO below.
+ *  3. `call.context` — the run-context binding (`{ bodyPath: "$ctx.<key>" }`), filled LAST so a
+ *     bound field always wins over both the model's args and the static `body`. Each token resolves
+ *     against the run's `runContext` (delivered on `/run`); a token that does not resolve is left
+ *     unset (the field is simply absent), and the model never sees or sets a bound field. This is
+ *     how a self-targeting tool gets its own trace/variant server-side.
  */
 export function assembleBody(
   call: DirectCall,
   params: unknown,
+  runContext?: RunContext,
 ): Record<string, unknown> {
   // 1. Model args, at args_into (deep-set) or the root.
   let body: Record<string, unknown> = {};
@@ -117,11 +149,16 @@ export function assembleBody(
   }
   // 2. Server-fixed fields win over the model's args.
   if (call.body) body = deepMerge(body, call.body);
-  // 3. Run-context binding (`call.context`) is Phase 3. It depends on the `runContext` payload on
-  //    `/run`, which is not wired yet, so it is intentionally NOT applied here and no resolver
-  //    emits it. Filling it last (context wins) is the documented merge rule.
-  //    TODO(Phase 3): for each [bodyPath, "$ctx.<key>"] in call.context, resolve <key> against
-  //    the run's runContext blob and deepSet(body, bodyPath, value) — context overrides all.
+  // 3. Run-context binding wins over everything (filled LAST). For each [bodyPath, token] in
+  //    call.context, resolve the token against runContext and deep-set it; a token that does not
+  //    resolve is skipped so a missing run-context value never clobbers the body with `undefined`.
+  //    deepSet is prototype-pollution-safe and rejects unsafe path segments.
+  if (call.context) {
+    for (const [bodyPath, token] of Object.entries(call.context)) {
+      const value = resolveCtxToken(runContext, token);
+      if (value !== undefined) deepSet(body, bodyPath, value);
+    }
+  }
   return body;
 }
 

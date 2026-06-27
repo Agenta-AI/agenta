@@ -26,6 +26,7 @@ import {
   deepMerge,
   deepSet,
   directCallUrl,
+  resolveCtxToken,
   type DirectCall,
 } from "../../src/tools/direct.ts";
 import {
@@ -33,7 +34,15 @@ import {
   startToolRelay,
   type RelayResponse,
 } from "../../src/tools/relay.ts";
-import type { ResolvedToolSpec } from "../../src/protocol.ts";
+import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
+
+// A fake run context (direct-call tools, Phase 3a). The keys are the snake_case binding namespace
+// a `call.context` value (`"$ctx.<dotted.path>"`) addresses.
+const RUN_CONTEXT: RunContext = {
+  workflow: { variant_id: "own-variant", revision_id: "rev_self" },
+  trace: { trace_id: "trace-self", span_id: "span-self" },
+  session_id: "sess-1",
+};
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
 
@@ -127,17 +136,6 @@ describe("assembleBody", () => {
     assert.deepEqual(assembleBody(call, undefined), {});
   });
 
-  it("does NOT apply context (Phase 3 seam): a $ctx binding is ignored for now", () => {
-    const call: DirectCall = {
-      method: "POST",
-      path: "/api/x",
-      context: { "trace.trace_id": "$ctx.trace.trace_id" },
-    };
-    const body = assembleBody(call, { a: 1 });
-    // The bound field is NOT set: context binding depends on runContext (Phase 3).
-    assert.deepEqual(body, { a: 1 });
-  });
-
   it("is prototype-pollution-safe via args_into", () => {
     const call: DirectCall = {
       method: "POST",
@@ -158,6 +156,111 @@ describe("assembleBody", () => {
     const body = assembleBody(call, { a: 1 });
     assert.equal((body as any).polluted, undefined);
     assert.equal(({} as any).polluted, undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assembleBody — run-context binding (call.context, direct-call tools Phase 3a)
+// ---------------------------------------------------------------------------
+
+describe("assembleBody context binding", () => {
+  it("binds a $ctx value from the run context, deep-set at the mapped path", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/annotations/",
+      context: { "references.trace.id": "$ctx.trace.trace_id" },
+    };
+    const body = assembleBody(call, { note: "hi" }, RUN_CONTEXT);
+    assert.deepEqual(body, {
+      note: "hi",
+      references: { trace: { id: "trace-self" } },
+    });
+  });
+
+  it("handles a missing run-context key safely (the field stays unset)", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/x",
+      context: { latest: "$ctx.workflow.latest_revision_id" }, // not in RUN_CONTEXT
+    };
+    const body = assembleBody(call, { a: 1 }, RUN_CONTEXT);
+    assert.deepEqual(body, { a: 1 });
+    assert.ok(!("latest" in body));
+  });
+
+  it("handles an absent run context safely (no binding applied)", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/x",
+      context: { "trace.trace_id": "$ctx.trace.trace_id" },
+    };
+    // No runContext argument at all (the Phase-2 call shape): the binding is simply skipped.
+    assert.deepEqual(assembleBody(call, { a: 1 }), { a: 1 });
+  });
+
+  it("lets a bound field win over a colliding model arg (the model cannot override it)", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/workflows/revisions/commit",
+      context: { workflow_variant_id: "$ctx.workflow.variant_id" },
+    };
+    const body = assembleBody(
+      call,
+      { workflow_variant_id: "someone-elses", parameters: { temperature: 0.2 } },
+      RUN_CONTEXT,
+    );
+    // Bound to the run's OWN variant, not the model's attempt.
+    assert.equal(body.workflow_variant_id, "own-variant");
+    assert.deepEqual(body.parameters, { temperature: 0.2 });
+  });
+
+  it("lets a bound field win over a static body field (context is filled last)", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/x",
+      body: { trace_id: "from-body" },
+      context: { trace_id: "$ctx.trace.trace_id" },
+    };
+    const body = assembleBody(call, {}, RUN_CONTEXT);
+    assert.equal(body.trace_id, "trace-self");
+  });
+
+  it("skips a malformed context token (one without the $ctx. prefix)", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/x",
+      context: { trace_id: "trace.trace_id" }, // missing the $ctx. prefix -> untrusted, skipped
+    };
+    const body = assembleBody(call, { a: 1 }, RUN_CONTEXT);
+    assert.deepEqual(body, { a: 1 });
+  });
+
+  it("is prototype-pollution-safe on the bound body path", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/x",
+      context: { "__proto__.polluted": "$ctx.trace.trace_id" },
+    };
+    assert.throws(
+      () => assembleBody(call, { a: 1 }, RUN_CONTEXT),
+      /unsafe path segment '__proto__'/,
+    );
+    assert.equal(({} as any).polluted, undefined);
+  });
+});
+
+describe("resolveCtxToken", () => {
+  it("navigates a dotted path against the run context", () => {
+    assert.equal(
+      resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.variant_id"),
+      "own-variant",
+    );
+  });
+
+  it("returns undefined for a missing key, a malformed token, or no run context", () => {
+    assert.equal(resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.missing"), undefined);
+    assert.equal(resolveCtxToken(RUN_CONTEXT, "workflow.variant_id"), undefined);
+    assert.equal(resolveCtxToken(undefined, "$ctx.trace.trace_id"), undefined);
   });
 });
 
@@ -312,6 +415,7 @@ async function relayOnce(
   spec: ResolvedToolSpec,
   callback: { endpoint: string; authorization?: string },
   args: unknown,
+  runContext?: RunContext,
 ): Promise<RelayResponse> {
   const dir = mkdtempSync(join(tmpdir(), "agenta-direct-relay-"));
   try {
@@ -320,7 +424,14 @@ async function relayOnce(
       join(dir, `${id}.req.json`),
       JSON.stringify({ toolName: spec.name, toolCallId: id, args }),
     );
-    const relay = startToolRelay(localRelayHost(), dir, [spec], callback, "auto");
+    const relay = startToolRelay(
+      localRelayHost(),
+      dir,
+      [spec],
+      callback,
+      "auto",
+      runContext,
+    );
     const resPath = join(dir, `${id}.res.json`);
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline && !existsSync(resPath)) {
@@ -352,6 +463,35 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
     assert.deepEqual(JSON.parse(calls[0].init.body as string), {
       data: { inputs: { city: "Berlin" } },
       references: { workflow_revision: { id: "rev_abc123" } },
+    });
+  });
+
+  it("binds run context into the relayed direct call, server-side (model never sets it)", async () => {
+    const calls = stubFetch("ok");
+    // A self-targeting platform tool: the model supplies only the payload; the runner binds the
+    // run's own variant from runContext, and the model's attempt to retarget is overridden.
+    const selfSpec: ResolvedToolSpec = {
+      name: "update_self",
+      kind: "callback",
+      call: {
+        method: "POST",
+        path: "/api/workflows/revisions/commit",
+        context: { workflow_variant_id: "$ctx.workflow.variant_id" },
+      },
+    };
+    const res = await relayOnce(
+      selfSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { workflow_variant_id: "someone-elses", parameters: { temperature: 0.2 } },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://agenta.example/api/workflows/revisions/commit");
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {
+      workflow_variant_id: "own-variant", // bound to the run's own variant, not the model's
+      parameters: { temperature: 0.2 },
     });
   });
 

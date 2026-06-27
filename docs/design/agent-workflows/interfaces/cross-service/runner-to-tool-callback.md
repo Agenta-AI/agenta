@@ -67,7 +67,7 @@ The same `POST /tools/call` serves three kinds of callback tool, routed by the `
 The runner is unchanged for all three: it relays a `callback` spec with whatever `call_ref` the
 resolver put on it. Only the router's prefix dispatch is aware of the grammars.
 
-## Direct-call descriptor (`call`, declared not wired)
+## Direct-call descriptor (`call`) and run-context binding (`runContext`)
 
 A resolved callback spec can carry an optional `call` descriptor instead of a `call_ref`
 (`ResolvedToolSpec.call` in `protocol.ts`; `CallbackToolSpec.call` in the SDK `tools/models.py`;
@@ -77,11 +77,20 @@ with `path` an absolute path from the Agenta origin (derived from `toolCallback.
 than posting back through `/tools/call`. Shape: `{ method: "GET"|"POST", path, body?, context?,
 args_into? }`. A spec carries `call` XOR `call_ref`.
 
-**Status (direct-call tools, Phase 1):** plumbing only. The field rides the wire and round-trips
-on both sides, but no resolver emits it and no runner dispatch reads it yet, so live behavior is
-unchanged (gateway and reference tools still route through `/tools/call`). The body-merge rules
-and SSRF guardrails land with the dispatch branch in a later phase. Full spec:
-`docs/design/agent-workflows/projects/direct-call-tools/interfaces.md`.
+The runner assembles the request body (`tools/direct.ts` `assembleBody`) in three layers, later
+wins: the model's args (at `args_into`, else the root) → the static `body` → the `context`
+binding. `context` maps a body path to a `"$ctx.<dotted.path>"` token, which the runner resolves
+against the per-turn `runContext` blob on the `/run` request (`service-to-agent-runner.md`) and
+deep-sets LAST — so a self-targeting tool's own trace/variant is filled server-side and the model
+can never set or override a bound field. A token that does not resolve is skipped (the field stays
+unset); deep-set is prototype-pollution-safe.
+
+**Status (direct-call tools):** Phase 1 added the `call` field (plumbing), Phase 2 added the
+runner dispatch branch (host-direct via the relay path, with the SSRF guardrails), and Phase 3a
+added the `runContext` wire field + the `call.context` binding in `assembleBody`. Live behavior is
+still unchanged because **no resolver emits `call` or `call.context` yet** — gateway and reference
+tools still route through `/tools/call`. The platform-op catalog that emits them is Phase 3b. Full
+spec: `docs/design/agent-workflows/projects/direct-call-tools/`.
 
 ## Owned by
 
@@ -98,10 +107,14 @@ and SSRF guardrails land with the dispatch branch in a later phase. Full spec:
   the `__`/`.` normalization are a paired contract across runner and router. The router
   dispatches by prefix: `workflow.` → `_call_workflow_tool`, `tools.agenta.` → `_call_agenta_tool`,
   else the 5-segment Composio parse. Keep the SDK resolvers and the router parser in agreement.
-- **The `call` descriptor (direct path).** A callback spec carries `call` XOR `call_ref`; the
-  descriptor (`method`/`path`/`body`/`context`/`args_into`) must stay mirrored across
-  `protocol.ts`, the SDK `CallbackToolSpec`, `wire_models.py`, and the golden fixtures. Phase 1 is
-  plumbing only — nothing emits or dispatches it yet.
+- **The `call` descriptor (direct path) and `runContext` binding.** A callback spec carries
+  `call` XOR `call_ref`; the descriptor (`method`/`path`/`body`/`context`/`args_into`) must stay
+  mirrored across `protocol.ts`, the SDK `CallbackToolSpec`, `wire_models.py`, and the golden
+  fixtures. The `call.context` binding reads the per-turn `runContext` blob (also mirrored across
+  `protocol.ts` / `wire_models.py` / `wire.py` / the goldens); its inner keys are the snake_case
+  `$ctx.<key>` namespace, not camelCase. The runner now dispatches `call` and fills `call.context`
+  (`tools/direct.ts` `assembleBody`), but no resolver EMITS `call`/`context` yet (the platform-op
+  catalog is Phase 3b), so live behavior is unchanged.
 - **Tool result content.** `call.data.content` is a JSON string already; do not double-encode
   it on the way out.
 - **Argument normalization.** Keep accepting both string and object arguments.

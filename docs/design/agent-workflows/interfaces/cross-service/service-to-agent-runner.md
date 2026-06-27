@@ -64,9 +64,24 @@ group by job:
   "harnessFiles":      [ { "path": ".claude/settings.json", "content": "..." } ],
 
   // tracing (see service-and-runner-trace-export.md)
-  "trace": { "traceparent": "...", "endpoint": "...", "authorization": "...", "captureContent": true }
+  "trace": { "traceparent": "...", "endpoint": "...", "authorization": "...", "captureContent": true },
+
+  // run context — the run's own identity, refreshed per turn (direct-call tools, Phase 3a)
+  "runContext": {                          // omitted when the run has no own identity to bind
+    "workflow": { "variant_id": "...", "variant_name": "...", "revision_id": "...", "version": "..." },
+    "trace":    { "trace_id": "...", "span_id": "..." },
+    "session_id": "..."
+  }
 }
 ```
+
+`runContext` is the run's own context (its trace + variant identity), filled by the service in
+`app.py` from `run_context()` (`tracing.py`) and refreshed each turn. It is consumed ONLY by a
+tool's `call.context` binding at dispatch: the runner fills the bound request fields from this blob
+server-side, hidden from the model (see `runner-to-tool-callback.md`). The inner keys are
+deliberately snake_case — they are the binding namespace a `call.context` value (`"$ctx.<key>"`)
+addresses, not the wire's usual camelCase. Omitted when there is no identity to bind, so a run that
+needs no binding stays byte-identical.
 
 Two splits matter for back-compat. `provider` and `connection` appear only when the model
 arrives as a structured `model_ref`; a plain string like `"gpt-5.5"` leaves them off so the
