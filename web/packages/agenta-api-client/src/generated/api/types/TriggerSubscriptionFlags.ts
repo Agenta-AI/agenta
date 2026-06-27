@@ -3,4 +3,5 @@
 export interface TriggerSubscriptionFlags {
     is_active?: boolean | undefined;
     is_valid?: boolean | undefined;
+    is_test?: boolean | undefined;
 }

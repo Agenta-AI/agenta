@@ -12,3 +12,4 @@ export type { RefreshToolConnectionRequest } from "./RefreshToolConnectionReques
 export type { RevokeToolConnectionRequest } from "./RevokeToolConnectionRequest.js";
 export type { ToolCall } from "./ToolCall.js";
 export type { ToolConnectionCreateRequest } from "./ToolConnectionCreateRequest.js";
+export type { ToolResolveRequest } from "./ToolResolveRequest.js";
