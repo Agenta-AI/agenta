@@ -878,7 +878,7 @@ function TestPlaygroundPanel({
         <div className="flex w-[340px] shrink-0 flex-col overflow-hidden bg-[var(--ag-colorFillQuaternary)]">
             <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-4 text-sm font-medium">
                 <Play size={15} />
-                Test in playground
+                Test Subscription Event
             </div>
             <div className="shrink-0 px-4 pb-2">
                 {isTesting ? (

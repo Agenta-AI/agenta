@@ -546,7 +546,7 @@ function SchedulePlaygroundPanel({
         <div className="flex w-[340px] shrink-0 flex-col overflow-hidden bg-[var(--ag-colorFillQuaternary)]">
             <div className="flex shrink-0 items-center gap-2 px-4 pb-1 pt-4 text-sm font-medium">
                 <Play size={15} />
-                Test in playground
+                Test Scheduled Event
             </div>
             <div className="shrink-0 px-4 pb-3 text-[11.5px] leading-snug text-[var(--ag-colorTextTertiary)]">
                 A cron fires with the static inputs on the left — there&apos;s no event to wait for.
