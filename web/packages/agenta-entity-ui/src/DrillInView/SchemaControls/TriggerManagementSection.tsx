@@ -271,7 +271,11 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 icon: <PencilSimpleLine size={16} />,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
-                    if (record.id) openSubscriptionDrawer({subscriptionId: record.id})
+                    if (record.id)
+                        openSubscriptionDrawer({
+                            subscriptionId: record.id,
+                            playgroundEntityId: entityId ?? undefined,
+                        })
                 },
             },
             {
@@ -323,6 +327,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
             },
         ],
         [
+            entityId,
             openDeliveries,
             openSubscriptionDrawer,
             refreshSubscription,
@@ -427,7 +432,11 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                                 toggleDisabled={disabled || !record.id || !isEntityValid(record)}
                                 onToggle={handleSubscriptionToggle(record)}
                                 onOpen={() =>
-                                    record.id && openSubscriptionDrawer({subscriptionId: record.id})
+                                    record.id &&
+                                    openSubscriptionDrawer({
+                                        subscriptionId: record.id,
+                                        playgroundEntityId: entityId ?? undefined,
+                                    })
                                 }
                                 menuItems={subscriptionMenu(record)}
                             />
@@ -443,6 +452,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
             <TriggerCatalogDrawer
                 defaultReferences={defaultReferences}
                 defaultBoundLabel={defaultBoundLabel}
+                playgroundEntityId={entityId ?? undefined}
             />
             <TriggerSubscriptionDrawer />
             <TriggerScheduleDrawer />

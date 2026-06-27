@@ -73,12 +73,15 @@ interface Props {
     defaultReferences?: Record<string, {id?: string; slug?: string}>
     /** Human-readable label for `defaultReferences` (e.g. the agent's name). */
     defaultBoundLabel?: string
+    /** Agent entityId for the subscription drawer's "Run in playground" action. */
+    playgroundEntityId?: string
 }
 
 export default function TriggerCatalogDrawer({
     onConnectionCreated,
     defaultReferences,
     defaultBoundLabel,
+    playgroundEntityId,
 }: Props) {
     const [open, setOpen] = useAtom(triggerCatalogDrawerOpenAtom)
     const [selectedIntegration, setSelectedIntegration] =
@@ -126,9 +129,17 @@ export default function TriggerCatalogDrawer({
                 eventKey,
                 defaultReferences,
                 defaultBoundLabel,
+                playgroundEntityId,
             })
         },
-        [selectedIntegration, handleClose, openSubscription, defaultReferences, defaultBoundLabel],
+        [
+            selectedIntegration,
+            handleClose,
+            openSubscription,
+            defaultReferences,
+            defaultBoundLabel,
+            playgroundEntityId,
+        ],
     )
 
     return (

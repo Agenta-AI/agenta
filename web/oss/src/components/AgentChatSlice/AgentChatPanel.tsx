@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
+import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
@@ -162,6 +163,28 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // ── "Run in playground" seam (producer: a trigger drawer's Run-in-playground) ──
+    // A trigger fires server-side and never reaches the playground; this lets a user
+    // channel a trigger's resolved inputs into the active session. Only the ACTIVE
+    // session's conversation consumes the pending run (antd Tabs can keep inactive
+    // panes mounted), sends it as a user turn, and clears it. A monotonic nonce lets
+    // the same inputs run again; a ref guards double-firing. Waits while busy.
+    const scopeKey = useChatScopeKey()
+    const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
+    const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
+    const consumedRunNonceRef = useRef<number | null>(null)
+
+    useEffect(() => {
+        if (!pendingRun || activeSessionId !== sessionId || busy) return
+        if (consumedRunNonceRef.current === pendingRun.nonce) return
+        consumedRunNonceRef.current = pendingRun.nonce
+        stickRef.current = true
+        setShowJump(false)
+        sendMessage({text: pendingRun.text}).catch(ignoreStreamRejection)
+        setPendingRun(null)
+    }, [pendingRun, activeSessionId, sessionId, busy, sendMessage, setPendingRun])
 
     // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
     // it renders as a red error bubble with the real reason (and persists with the session via the

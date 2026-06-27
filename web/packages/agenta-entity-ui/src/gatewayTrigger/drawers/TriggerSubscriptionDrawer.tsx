@@ -23,8 +23,9 @@ import {
     type TriggerSubscriptionEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Editor} from "@agenta/ui/editor"
-import {CaretDown, CaretRight, Lightning, Trash} from "@phosphor-icons/react"
+import {CaretDown, CaretRight, Lightning, Play, Trash} from "@phosphor-icons/react"
 import {
     Button,
     Divider,
@@ -41,7 +42,7 @@ import {
     Typography,
     message,
 } from "antd"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import SchemaForm, {type SchemaFormHandle} from "../../gatewayTool/components/SchemaForm"
 import {
@@ -306,6 +307,12 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
             ),
         [subscriptions, connectionId, eventKey, subscriptionId],
     )
+
+    // "Run in playground": channel a captured test event into the agent's active
+    // chat session (keyed by the playground entityId) so the draft agent runs and
+    // streams there. Only available when the drawer was opened from a playground.
+    const playgroundEntityId = state?.playgroundEntityId
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
 
     // Test = fire-and-inspect: create a transient is_test subscription, wait for
     // the first captured event, show it. Independent of Save (separate row, torn
@@ -579,6 +586,19 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         testAbortRef.current?.abort()
     }, [])
 
+    const handleRunInPlayground = useCallback(() => {
+        if (!playgroundEntityId || !testResult) return
+        const inputs = testResult.data?.inputs ?? testResult.data ?? {}
+        const label = name || subscription?.name || eventKey || "trigger"
+        const text = `[Triggered by ${label}${eventKey ? ` · ${eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
+            inputs,
+            null,
+            2,
+        )}\n\`\`\``
+        setPendingRun({text, nonce: Date.now()})
+        onClose()
+    }, [playgroundEntityId, testResult, name, subscription, eventKey, setPendingRun, onClose])
+
     if (isEdit && subLoading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -713,7 +733,11 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                         <Switch checked={enabled} onChange={setEnabled} />
                     </Form.Item>
 
-                    <CapturedEventField result={testResult} isTesting={isTesting} />
+                    <CapturedEventField
+                        result={testResult}
+                        isTesting={isTesting}
+                        onRunInPlayground={playgroundEntityId ? handleRunInPlayground : undefined}
+                    />
                 </Form>
             </div>
 
@@ -767,9 +791,12 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
 function CapturedEventField({
     result,
     isTesting,
+    onRunInPlayground,
 }: {
     result: TriggerDelivery | null
     isTesting: boolean
+    /** When set, show a "Run in playground" action that channels this event into the chat. */
+    onRunInPlayground?: () => void
 }) {
     if (!isTesting && !result) return null
 
@@ -783,10 +810,26 @@ function CapturedEventField({
                     </Typography.Text>
                 </div>
             ) : (
-                <div className="rounded-lg border border-solid border-[var(--ag-colorBorder)] overflow-auto max-h-[240px] p-2">
-                    <pre className="text-[11px] leading-snug whitespace-pre-wrap break-words m-0">
-                        {JSON.stringify(result?.data?.inputs ?? result?.data ?? {}, null, 2)}
-                    </pre>
+                <div className="flex flex-col gap-2">
+                    <div className="rounded-lg border border-solid border-[var(--ag-colorBorder)] overflow-auto max-h-[240px] p-2">
+                        <pre className="text-[11px] leading-snug whitespace-pre-wrap break-words m-0">
+                            {JSON.stringify(result?.data?.inputs ?? result?.data ?? {}, null, 2)}
+                        </pre>
+                    </div>
+                    {onRunInPlayground && (
+                        <div>
+                            <Button
+                                type="primary"
+                                icon={<Play size={14} />}
+                                onClick={onRunInPlayground}
+                            >
+                                Run in playground
+                            </Button>
+                            <Typography.Text type="secondary" className="ml-2 !text-[11px]">
+                                Runs the current agent with this event in the active session.
+                            </Typography.Text>
+                        </div>
+                    )}
                 </div>
             )}
         </Form.Item>

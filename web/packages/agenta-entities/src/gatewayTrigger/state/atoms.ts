@@ -44,6 +44,10 @@ export interface SubscriptionDrawerState {
     // Human-readable label for `defaultReferences` (e.g. the agent's name), so
     // the bound-workflow field shows a name instead of a raw id. Ignored in edit mode.
     defaultBoundLabel?: string
+    // When opened from an agent playground: the agent's entityId. Enables the
+    // "Run in playground" action on a captured test event (channels the resolved
+    // inputs into that agent's active chat session). Absent in workspace settings.
+    playgroundEntityId?: string
 }
 export const triggerSubscriptionDrawerAtom = atom<SubscriptionDrawerState | null>(null)
 
