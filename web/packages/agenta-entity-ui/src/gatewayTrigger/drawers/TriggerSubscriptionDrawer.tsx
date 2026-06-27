@@ -24,13 +24,14 @@ import {
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Editor} from "@agenta/ui/editor"
-import {Lightning, Play} from "@phosphor-icons/react"
+import {Code, Lightning, Play} from "@phosphor-icons/react"
 import {
     Button,
     Divider,
     Drawer,
     Form,
     Input,
+    Modal,
     Segmented,
     Select,
     Spin,
@@ -590,14 +591,31 @@ function hasInputs(delivery: TriggerDelivery): boolean {
     return Object.keys(deliveryInputs(delivery)).length > 0
 }
 
+function deliveryTime(delivery: TriggerDelivery): number {
+    const iso = (delivery as {created_at?: string}).created_at
+    const t = iso ? new Date(iso).getTime() : NaN
+    return Number.isNaN(t) ? 0 : t
+}
+
+// The deliveries endpoint isn't guaranteed newest-first, so sort by time before
+// slicing — otherwise a freshly captured event can land in the middle.
+function recentWithInputs(deliveries: TriggerDelivery[]): TriggerDelivery[] {
+    return [...deliveries]
+        .filter(hasInputs)
+        .sort((a, b) => deliveryTime(b) - deliveryTime(a))
+        .slice(0, 3)
+}
+
 function DeliveryCard({
     delivery,
     highlight,
     onRun,
+    onView,
 }: {
     delivery: TriggerDelivery
     highlight?: boolean
     onRun?: (delivery: TriggerDelivery) => void
+    onView?: (delivery: TriggerDelivery) => void
 }) {
     const snippet = useMemo(() => {
         const inputs = deliveryInputs(delivery)
@@ -632,14 +650,23 @@ function DeliveryCard({
             <Typography.Text type="secondary" className="!text-[12px] break-words line-clamp-2">
                 {snippet}
             </Typography.Text>
-            {onRun && (
-                <Button
-                    className="self-start"
-                    icon={<Play size={13} />}
-                    onClick={() => onRun(delivery)}
-                >
-                    Run in playground
-                </Button>
+            {(onRun || onView) && (
+                <div className="flex items-center gap-1">
+                    {onRun && (
+                        <Button icon={<Play size={13} />} onClick={() => onRun(delivery)}>
+                            Run in playground
+                        </Button>
+                    )}
+                    {onView && (
+                        <Button
+                            type="text"
+                            icon={<Code size={13} />}
+                            onClick={() => onView(delivery)}
+                        >
+                            View payload
+                        </Button>
+                    )}
+                </div>
             )}
         </div>
     )
@@ -673,13 +700,14 @@ function TestPlaygroundPanel({
     const [recent, setRecent] = useState<TriggerDelivery[]>([])
     const [captured, setCaptured] = useState<TriggerDelivery | null>(null)
     const [justCapturedId, setJustCapturedId] = useState<string | null>(null)
+    const [viewing, setViewing] = useState<TriggerDelivery | null>(null)
     const testAbortRef = useRef<AbortController | null>(null)
 
     const loadRecent = useCallback(async () => {
         if (!isEdit || !subscriptionId) return
         try {
             const {deliveries} = await queryTriggerDeliveries({subscription_id: subscriptionId})
-            setRecent(deliveries.filter(hasInputs).slice(0, 3))
+            setRecent(recentWithInputs(deliveries))
         } catch {
             // Non-fatal — the panel just shows no history.
         }
@@ -714,7 +742,7 @@ function TestPlaygroundPanel({
                     const fresh = deliveries.filter(hasInputs).find((d) => !seenIds.has(d.id))
                     if (fresh) {
                         setJustCapturedId(fresh.id ?? null)
-                        setRecent(deliveries.filter(hasInputs).slice(0, 3))
+                        setRecent(recentWithInputs(deliveries))
                         message.success("Captured an event")
                         return
                     }
@@ -830,10 +858,23 @@ function TestPlaygroundPanel({
                             delivery={d}
                             highlight={d.id === justCapturedId}
                             onRun={playgroundEntityId ? runInPlayground : undefined}
+                            onView={setViewing}
                         />
                     ))
                 )}
             </div>
+
+            <Modal
+                open={!!viewing}
+                onCancel={() => setViewing(null)}
+                footer={null}
+                title="Event payload"
+                width={640}
+            >
+                <pre className="m-0 max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded bg-[var(--ag-colorFillQuaternary)] p-3 text-[12px] leading-snug">
+                    {viewing ? JSON.stringify(viewing.data ?? viewing, null, 2) : ""}
+                </pre>
+            </Modal>
         </div>
     )
 }
