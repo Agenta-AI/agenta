@@ -7,7 +7,7 @@ import click
 from sqlalchemy.future import select
 from sqlalchemy import Connection, update, func, or_
 
-from ee.src.models.extended.deprecated_transfer_models import (  # type: ignore
+from ee.databases.postgres.migrations.core.deprecated_transfer_models import (  # type: ignore
     ProjectDB,
     AppDB,
     AppVariantDB,

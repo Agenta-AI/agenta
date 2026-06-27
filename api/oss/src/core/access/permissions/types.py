@@ -59,18 +59,9 @@ class RequiredRole(str, Enum):
 
 
 class Permission(str, Enum):
-    # general
-    READ_SYSTEM = "read_system"
-
     # App and variants
     VIEW_APPLICATIONS = "view_applications"
     EDIT_APPLICATIONS = "edit_application"
-
-    CREATE_APP_VARIANT = "create_app_variant"
-    DELETE_APP_VARIANT = "delete_app_variant"
-
-    MODIFY_VARIANT_CONFIGURATIONS = "modify_variant_configurations"
-    EDIT_APPLICATIONS_VARIANT = "delete_application_variant"
 
     # Service
     RUN_SERVICE = "run_service"
@@ -94,27 +85,6 @@ class Permission(str, Enum):
     # API Keys
     VIEW_API_KEYS = "view_api_keys"
     EDIT_API_KEYS = "edit_api_keys"
-
-    # App environment deployment
-    VIEW_APP_ENVIRONMENT_DEPLOYMENT = "view_app_environment_deployment"
-    EDIT_APP_ENVIRONMENT_DEPLOYMENT = "edit_app_environment_deployment"
-    CREATE_APP_ENVIRONMENT_DEPLOYMENT = "create_app_environment_deployment"
-
-    # Testset
-    VIEW_TESTSET = "view_testset"
-    EDIT_TESTSET = "edit_testset"
-    CREATE_TESTSET = "create_testset"
-    DELETE_TESTSET = "delete_testset"
-
-    # Evaluation
-    VIEW_EVALUATION = "view_evaluation"
-    RUN_EVALUATIONS = "run_evaluations"
-    EDIT_EVALUATION = "edit_evaluation"
-    CREATE_EVALUATION = "create_evaluation"
-    DELETE_EVALUATION = "delete_evaluation"
-
-    # Deployment
-    DEPLOY_APPLICATION = "deploy_application"
 
     # Workspace
     VIEW_WORKSPACE = "view_workspace"
@@ -198,13 +168,9 @@ class Permission(str, Enum):
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
-            cls.READ_SYSTEM,
             cls.VIEW_APPLICATIONS,
             cls.VIEW_SECRET,
             cls.VIEW_WEBHOOKS,
-            cls.VIEW_APP_ENVIRONMENT_DEPLOYMENT,
-            cls.VIEW_TESTSET,
-            cls.VIEW_EVALUATION,
             cls.RUN_SERVICE,
             cls.VIEW_BILLING,
             cls.VIEW_WORKFLOWS,
@@ -225,9 +191,6 @@ class Permission(str, Enum):
             cls.VIEW_TRIGGERS,
         ]
         ANNOTATOR_PERMISSIONS = VIEWER_PERMISSIONS + [
-            cls.CREATE_EVALUATION,
-            cls.RUN_EVALUATIONS,
-            cls.EDIT_EVALUATION,
             cls.EDIT_ANNOTATIONS,
             cls.EDIT_EVALUATION_RUNS,
             cls.EDIT_EVALUATION_SCENARIOS,
@@ -240,17 +203,9 @@ class Permission(str, Enum):
         ]
         EDITOR_PERMISSIONS = ANNOTATOR_PERMISSIONS + [
             cls.EDIT_APPLICATIONS,
-            cls.CREATE_APP_VARIANT,
-            cls.DELETE_APP_VARIANT,
-            cls.MODIFY_VARIANT_CONFIGURATIONS,
-            cls.EDIT_APPLICATIONS_VARIANT,
             cls.EDIT_WEBHOOKS,
             cls.EDIT_SECRET,
             cls.EDIT_FOLDERS,
-            cls.EDIT_TESTSET,
-            cls.CREATE_TESTSET,
-            cls.DELETE_TESTSET,
-            cls.DELETE_EVALUATION,
             cls.EDIT_WORKFLOWS,
             cls.RUN_WORKFLOWS,
             cls.EDIT_EVALUATORS,
@@ -263,11 +218,8 @@ class Permission(str, Enum):
         DEVELOPER_PERMISSIONS = EDITOR_PERMISSIONS + [
             cls.VIEW_API_KEYS,
             cls.EDIT_API_KEYS,
-            cls.DEPLOY_APPLICATION,
             cls.DEPLOY_ENVIRONMENTS,
             cls.EDIT_ENVIRONMENTS,
-            cls.EDIT_APP_ENVIRONMENT_DEPLOYMENT,
-            cls.CREATE_APP_ENVIRONMENT_DEPLOYMENT,
             cls.VIEW_EVENTS,
         ]
         ADMIN_PERMISSIONS = DEVELOPER_PERMISSIONS + [
