@@ -80,16 +80,14 @@ export default function TriggerSubscriptionDrawer() {
             open={open}
             onClose={handleClose}
             title={isEdit ? "Edit subscription" : "New subscription"}
-            width={560}
+            width={920}
             destroyOnClose
             styles={{
                 body: {padding: 0, display: "flex", overflow: "hidden"},
             }}
         >
             {state && (
-                <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                    <SubscriptionForm key={state.subscriptionId ?? "new"} onClose={handleClose} />
-                </div>
+                <SubscriptionForm key={state.subscriptionId ?? "new"} onClose={handleClose} />
             )}
         </Drawer>
     )
@@ -151,18 +149,9 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         [subscriptions, connectionId, eventKey, subscriptionId],
     )
 
-    // "Run in playground": channel a captured test event into the agent's active
-    // chat session (keyed by the playground entityId) so the draft agent runs and
-    // streams there. Only available when the drawer was opened from a playground.
+    // Only the right-hand TestPlaygroundPanel runs/captures events; the form just
+    // hands it the playground entityId (present only when opened from a playground).
     const playgroundEntityId = state?.playgroundEntityId
-    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
-
-    // Test = fire-and-inspect: create a transient is_test subscription, wait for
-    // the first captured event, show it. Independent of Save (separate row, torn
-    // down server-side). The binding is NOT required to test.
-    const [isTesting, setIsTesting] = useState(false)
-    const [testResult, setTestResult] = useState<TriggerDelivery | null>(null)
-    const testAbortRef = useRef<AbortController | null>(null)
 
     const [configForm] = Form.useForm()
     const configFormRef = useRef<SchemaFormHandle>(null)
@@ -383,29 +372,335 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         }
     }, [buildData, connectionId, isEdit, subscription, name, enabled, edit, create, onClose])
 
-    // Fire-and-inspect. Two paths:
-    //
-    // - Edit mode: the subscription is already live and occupies this
-    //   (connection, event) on the provider, so spinning up a transient is_test
-    //   sub would collide (the provider keeps one trigger instance per pair).
-    //   Instead, poll the live subscription's own deliveries for a fresh one —
-    //   the user fires the real event and we capture it.
-    // - Create mode: the /test endpoint creates a throwaway is_test subscription,
-    //   long-polls for the first captured event, then tears it down server-side.
-    //
-    // Either way the drawer stays open; re-clicking runs another capture.
+    if (isEdit && subLoading) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <Spin />
+            </div>
+        )
+    }
+
+    return (
+        <div className="flex h-full min-h-0 w-full overflow-hidden">
+            <div className="flex min-w-0 flex-[1.4] flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
+                <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+                    <Form layout="vertical">
+                        <Form.Item label="Name">
+                            <Input
+                                placeholder="Subscription name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                            />
+                        </Form.Item>
+
+                        <Form.Item label="Connection" required>
+                            <Select
+                                placeholder="Select a connected integration"
+                                value={connectionId}
+                                onChange={(v) => {
+                                    setConnectionId(v)
+                                    setEventKey("")
+                                }}
+                                loading={connectionsLoading}
+                                disabled={isEdit}
+                                options={connections.map((c) => ({
+                                    value: c.id ?? "",
+                                    label: `${c.name || c.slug || c.integration_key} (${c.integration_key})`,
+                                }))}
+                            />
+                        </Form.Item>
+
+                        <Form.Item label="Event" required>
+                            <EventSelect
+                                integrationKey={integrationKey}
+                                value={eventKey}
+                                onChange={setEventKey}
+                                disabled={!connectionId}
+                            />
+                            <Typography.Text type="secondary" className="text-xs">
+                                Provider: {DEFAULT_PROVIDER}
+                                {integrationKey ? ` · ${integrationKey}` : ""}
+                            </Typography.Text>
+                        </Form.Item>
+
+                        <Form.Item label="Run agent version" required>
+                            <div className="flex flex-col gap-2">
+                                <Segmented
+                                    value={bindMode}
+                                    onChange={(v) => setBindMode(v as "revision" | "environment")}
+                                    options={[
+                                        {label: "By revision", value: "revision"},
+                                        {label: "By environment", value: "environment"},
+                                    ]}
+                                />
+                                {bindMode === "revision" ? (
+                                    <EntityPicker<WorkflowRevisionSelectionResult>
+                                        variant="popover-cascader"
+                                        adapter={applicationRevisionAdapter}
+                                        onSelect={(selection) => {
+                                            setWorkflowRevId(selection.id)
+                                            setWorkflowSelection(selection)
+                                            setWorkflowLabel(selection.label)
+                                        }}
+                                        size="small"
+                                        placeholder={workflowLabel ?? "Select workflow revision"}
+                                    />
+                                ) : (
+                                    <>
+                                        <Select
+                                            placeholder="Select an environment"
+                                            value={environmentSlug ?? undefined}
+                                            onChange={(v) => setEnvironmentSlug(v)}
+                                            loading={envQuery.isLoading}
+                                            options={environments.map((e) => ({
+                                                value: e.slug,
+                                                label: e.name || e.slug,
+                                            }))}
+                                        />
+                                        <Typography.Text
+                                            type="secondary"
+                                            className="!text-[11px] leading-snug"
+                                        >
+                                            Runs whatever revision is deployed to this environment.
+                                        </Typography.Text>
+                                    </>
+                                )}
+                            </div>
+                        </Form.Item>
+
+                        <Divider className="!my-2" />
+
+                        <Typography.Text strong className="text-sm">
+                            Trigger configuration
+                        </Typography.Text>
+                        <div className="mt-2 mb-4">
+                            {!eventKey ? (
+                                <Typography.Text type="secondary" className="text-xs">
+                                    Select an event to configure its trigger.
+                                </Typography.Text>
+                            ) : eventLoading ? (
+                                <div className="flex items-center justify-center py-6">
+                                    <Spin />
+                                </div>
+                            ) : (
+                                <SchemaForm
+                                    ref={configFormRef}
+                                    schema={triggerConfigSchema}
+                                    form={configForm}
+                                    disabled={isMutating}
+                                />
+                            )}
+                        </div>
+
+                        <InputsMappingField
+                            value={inputsText}
+                            onChange={setInputsText}
+                            error={inputsError}
+                            onErrorChange={setInputsError}
+                            eventPayload={
+                                (eventDetail?.payload ?? null) as Record<string, unknown> | null
+                            }
+                            disabled={isMutating}
+                        />
+
+                        <Form.Item label="Active">
+                            <Switch checked={enabled} onChange={setEnabled} />
+                        </Form.Item>
+                    </Form>
+                </div>
+
+                <Divider className="!m-0" />
+
+                {/* Config footer persists only. Testing/running lives in the right panel. */}
+                <div className="flex items-center justify-end gap-2 px-6 py-3 shrink-0">
+                    <Tooltip
+                        title={
+                            alreadySubscribed
+                                ? "This event already has a subscription — remove it from the Triggers list to replace"
+                                : ""
+                        }
+                    >
+                        {/* span wrapper so the tooltip still shows over a disabled button */}
+                        <span>
+                            <Button
+                                type="primary"
+                                loading={isMutating}
+                                disabled={alreadySubscribed}
+                                onClick={handleSubmit}
+                            >
+                                {isEdit ? "Save" : "Create"}
+                            </Button>
+                        </span>
+                    </Tooltip>
+                </div>
+            </div>
+
+            <TestPlaygroundPanel
+                onClose={onClose}
+                isEdit={isEdit}
+                subscriptionId={subscriptionId}
+                playgroundEntityId={playgroundEntityId}
+                connectionId={connectionId}
+                name={name}
+                eventKey={eventKey}
+                existingName={subscription?.name ?? null}
+                buildData={buildData}
+                disabledReason={
+                    alreadySubscribed
+                        ? "This event already has a subscription — remove it from the Triggers list to test"
+                        : null
+                }
+            />
+        </div>
+    )
+}
+
+// ---------------------------------------------------------------------------
+// TestPlaygroundPanel — the drawer's right panel: capture a live event and run
+// it in the playground.
+//
+// - Edit mode: lists the last few real deliveries (queryTriggerDeliveries) for
+//   one-click replay, and "Wait for a new event" polls the live subscription's
+//   own deliveries until a fresh one arrives (the sub already occupies the
+//   provider slot, so a transient test sub would collide).
+// - New mode: "Wait for an event" spins up a throwaway is_test subscription via
+//   the /test endpoint, captures the first event, then tears it down.
+//
+// "Run in playground" is hidden when there is no playground (workspace settings).
+// ---------------------------------------------------------------------------
+
+function formatRelativeTime(iso?: string | null): string {
+    if (!iso) return ""
+    const t = new Date(iso).getTime()
+    if (Number.isNaN(t)) return ""
+    const minutes = Math.round((Date.now() - t) / 60000)
+    if (minutes < 1) return "just now"
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.round(hours / 24)
+    return days === 1 ? "yesterday" : `${days}d ago`
+}
+
+function deliveryInputs(delivery: TriggerDelivery): Record<string, unknown> {
+    return (delivery.data?.inputs ?? delivery.data ?? {}) as Record<string, unknown>
+}
+
+function hasInputs(delivery: TriggerDelivery): boolean {
+    return Object.keys(deliveryInputs(delivery)).length > 0
+}
+
+function DeliveryCard({
+    delivery,
+    highlight,
+    onRun,
+}: {
+    delivery: TriggerDelivery
+    highlight?: boolean
+    onRun?: (delivery: TriggerDelivery) => void
+}) {
+    const snippet = useMemo(() => {
+        const inputs = deliveryInputs(delivery)
+        const msg = inputs.message
+        if (typeof msg === "string" && msg.trim()) return msg
+        const flat = JSON.stringify(inputs)
+        return flat.length > 90 ? `${flat.slice(0, 90)}…` : flat
+    }, [delivery])
+    const when = formatRelativeTime((delivery as {created_at?: string}).created_at)
+
+    return (
+        <div
+            className={`flex flex-col gap-2 rounded border border-solid p-2.5 ${
+                highlight
+                    ? "border-[var(--ag-colorInfoBorder)] bg-[var(--ag-colorInfoBg)]"
+                    : "border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)]"
+            }`}
+        >
+            <div className="flex items-center gap-1.5">
+                {highlight && (
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                )}
+                <Typography.Text className="!text-[12px] !font-medium">
+                    Captured event
+                </Typography.Text>
+                {when && (
+                    <Typography.Text type="secondary" className="!ml-auto !text-[11px]">
+                        {when}
+                    </Typography.Text>
+                )}
+            </div>
+            <Typography.Text type="secondary" className="!text-[12px] break-words line-clamp-2">
+                {snippet}
+            </Typography.Text>
+            {onRun && (
+                <Button
+                    className="self-start"
+                    icon={<Play size={13} />}
+                    onClick={() => onRun(delivery)}
+                >
+                    Run in playground
+                </Button>
+            )}
+        </div>
+    )
+}
+
+function TestPlaygroundPanel({
+    onClose,
+    isEdit,
+    subscriptionId,
+    playgroundEntityId,
+    connectionId,
+    name,
+    eventKey,
+    existingName,
+    buildData,
+    disabledReason,
+}: {
+    onClose: () => void
+    isEdit: boolean
+    subscriptionId?: string
+    playgroundEntityId?: string
+    connectionId?: string
+    name: string
+    eventKey: string
+    existingName: string | null
+    buildData: (requireBinding: boolean) => Promise<TriggerSubscriptionData | null>
+    disabledReason: string | null
+}) {
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
+    const [isTesting, setIsTesting] = useState(false)
+    const [recent, setRecent] = useState<TriggerDelivery[]>([])
+    const [captured, setCaptured] = useState<TriggerDelivery | null>(null)
+    const [justCapturedId, setJustCapturedId] = useState<string | null>(null)
+    const testAbortRef = useRef<AbortController | null>(null)
+
+    const loadRecent = useCallback(async () => {
+        if (!isEdit || !subscriptionId) return
+        try {
+            const {deliveries} = await queryTriggerDeliveries({subscription_id: subscriptionId})
+            setRecent(deliveries.filter(hasInputs).slice(0, 3))
+        } catch {
+            // Non-fatal — the panel just shows no history.
+        }
+    }, [isEdit, subscriptionId])
+
+    useEffect(() => {
+        loadRecent()
+    }, [loadRecent])
+
+    // Abort an in-flight wait if the drawer closes (destroyOnClose unmounts us).
+    useEffect(() => () => testAbortRef.current?.abort(), [])
+
     const handleTest = useCallback(async () => {
-        if (isEdit) {
-            if (!subscriptionId) return
-            const controller = new AbortController()
-            testAbortRef.current = controller
-            setIsTesting(true)
-            setTestResult(null)
-            try {
-                // Remember every delivery that already exists, so we only surface
-                // one that arrives AFTER this test starts. (Excluding just the
-                // single newest one is wrong: the history has many, and find()
-                // would immediately match the next-oldest delivery.)
+        const controller = new AbortController()
+        testAbortRef.current = controller
+        setIsTesting(true)
+        try {
+            if (isEdit) {
+                if (!subscriptionId) return
+                // Snapshot every existing delivery so we only surface one that
+                // arrives AFTER this wait starts (the history has many).
                 const {deliveries: baseline} = await queryTriggerDeliveries({
                     subscription_id: subscriptionId,
                 })
@@ -416,52 +711,34 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                     const {deliveries} = await queryTriggerDeliveries({
                         subscription_id: subscriptionId,
                     })
-                    const fresh = deliveries.find(
-                        (d) =>
-                            !seenIds.has(d.id) &&
-                            d.data?.inputs &&
-                            Object.keys(d.data.inputs).length > 0,
-                    )
+                    const fresh = deliveries.filter(hasInputs).find((d) => !seenIds.has(d.id))
                     if (fresh) {
-                        setTestResult(fresh)
+                        setJustCapturedId(fresh.id ?? null)
+                        setRecent(deliveries.filter(hasInputs).slice(0, 3))
                         message.success("Captured an event")
                         return
                     }
                     await new Promise((resolve) => setTimeout(resolve, 2000))
                 }
                 message.info("No event arrived before the test timed out")
-            } catch (error) {
-                if (!controller.signal.aborted) {
-                    message.error(triggerApiErrorMessage(error, "Test failed"))
-                }
-            } finally {
-                testAbortRef.current = null
-                setIsTesting(false)
+                return
             }
-            return
-        }
 
-        const data = await buildData(false)
-        if (!data || !connectionId) return
-
-        const controller = new AbortController()
-        testAbortRef.current = controller
-        setIsTesting(true)
-        setTestResult(null)
-        try {
+            // New mode: throwaway is_test subscription via the /test endpoint.
+            const data = await buildData(false)
+            if (!data || !connectionId) return
             const {delivery} = await testTriggerSubscription(
                 {name: name || null, connection_id: connectionId, data},
                 {signal: controller.signal},
             )
             if (delivery) {
-                setTestResult(delivery)
+                setCaptured(delivery)
+                setJustCapturedId(delivery.id ?? null)
                 message.success("Captured a test event")
             } else {
                 message.info("No event arrived before the test timed out")
             }
         } catch (error) {
-            // A user-initiated cancel isn't an error; the server tears the test
-            // subscription down regardless of the dropped request.
             if (!controller.signal.aborted) {
                 message.error(triggerApiErrorMessage(error, "Test failed"))
             }
@@ -471,282 +748,93 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         }
     }, [isEdit, subscriptionId, buildData, connectionId, name])
 
-    // Clear the wait if the drawer closes mid-test (the form unmounts via
-    // destroyOnClose) — abort the in-flight long-poll so it doesn't linger.
-    useEffect(() => {
-        return () => {
-            testAbortRef.current?.abort()
-        }
-    }, [])
+    const handleCancel = useCallback(() => testAbortRef.current?.abort(), [])
 
-    const handleCancelTest = useCallback(() => {
-        testAbortRef.current?.abort()
-    }, [])
+    const runInPlayground = useCallback(
+        (delivery: TriggerDelivery) => {
+            if (!playgroundEntityId) return
+            const label = name || existingName || eventKey || "trigger"
+            const text = `[Triggered by ${label}${eventKey ? ` · ${eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
+                deliveryInputs(delivery),
+                null,
+                2,
+            )}\n\`\`\``
+            setPendingRun({text, nonce: Date.now()})
+            onClose()
+        },
+        [playgroundEntityId, name, existingName, eventKey, setPendingRun, onClose],
+    )
 
-    const handleRunInPlayground = useCallback(() => {
-        if (!playgroundEntityId || !testResult) return
-        const inputs = testResult.data?.inputs ?? testResult.data ?? {}
-        const label = name || subscription?.name || eventKey || "trigger"
-        const text = `[Triggered by ${label}${eventKey ? ` · ${eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
-            inputs,
-            null,
-            2,
-        )}\n\`\`\``
-        setPendingRun({text, nonce: Date.now()})
-        onClose()
-    }, [playgroundEntityId, testResult, name, subscription, eventKey, setPendingRun, onClose])
-
-    if (isEdit && subLoading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Spin />
-            </div>
-        )
-    }
+    const cards = isEdit ? recent : captured ? [captured] : []
+    const waitDisabled = !isEdit && !!disabledReason
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                <Form layout="vertical">
-                    <Form.Item label="Name">
-                        <Input
-                            placeholder="Subscription name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                        />
-                    </Form.Item>
-
-                    <Form.Item label="Connection" required>
-                        <Select
-                            placeholder="Select a connected integration"
-                            value={connectionId}
-                            onChange={(v) => {
-                                setConnectionId(v)
-                                setEventKey("")
-                            }}
-                            loading={connectionsLoading}
-                            disabled={isEdit}
-                            options={connections.map((c) => ({
-                                value: c.id ?? "",
-                                label: `${c.name || c.slug || c.integration_key} (${c.integration_key})`,
-                            }))}
-                        />
-                    </Form.Item>
-
-                    <Form.Item label="Event" required>
-                        <EventSelect
-                            integrationKey={integrationKey}
-                            value={eventKey}
-                            onChange={setEventKey}
-                            disabled={!connectionId}
-                        />
-                        <Typography.Text type="secondary" className="text-xs">
-                            Provider: {DEFAULT_PROVIDER}
-                            {integrationKey ? ` · ${integrationKey}` : ""}
-                        </Typography.Text>
-                    </Form.Item>
-
-                    <Form.Item label="Run agent version" required>
-                        <div className="flex flex-col gap-2">
-                            <Segmented
-                                value={bindMode}
-                                onChange={(v) => setBindMode(v as "revision" | "environment")}
-                                options={[
-                                    {label: "By revision", value: "revision"},
-                                    {label: "By environment", value: "environment"},
-                                ]}
-                            />
-                            {bindMode === "revision" ? (
-                                <EntityPicker<WorkflowRevisionSelectionResult>
-                                    variant="popover-cascader"
-                                    adapter={applicationRevisionAdapter}
-                                    onSelect={(selection) => {
-                                        setWorkflowRevId(selection.id)
-                                        setWorkflowSelection(selection)
-                                        setWorkflowLabel(selection.label)
-                                    }}
-                                    size="small"
-                                    placeholder={workflowLabel ?? "Select workflow revision"}
-                                />
-                            ) : (
-                                <>
-                                    <Select
-                                        placeholder="Select an environment"
-                                        value={environmentSlug ?? undefined}
-                                        onChange={(v) => setEnvironmentSlug(v)}
-                                        loading={envQuery.isLoading}
-                                        options={environments.map((e) => ({
-                                            value: e.slug,
-                                            label: e.name || e.slug,
-                                        }))}
-                                    />
-                                    <Typography.Text
-                                        type="secondary"
-                                        className="!text-[11px] leading-snug"
-                                    >
-                                        Runs whatever revision is deployed to this environment.
-                                    </Typography.Text>
-                                </>
-                            )}
-                        </div>
-                    </Form.Item>
-
-                    <Divider className="!my-2" />
-
-                    <Typography.Text strong className="text-sm">
-                        Trigger configuration
-                    </Typography.Text>
-                    <div className="mt-2 mb-4">
-                        {!eventKey ? (
-                            <Typography.Text type="secondary" className="text-xs">
-                                Select an event to configure its trigger.
-                            </Typography.Text>
-                        ) : eventLoading ? (
-                            <div className="flex items-center justify-center py-6">
-                                <Spin />
-                            </div>
-                        ) : (
-                            <SchemaForm
-                                ref={configFormRef}
-                                schema={triggerConfigSchema}
-                                form={configForm}
-                                disabled={isMutating}
-                            />
-                        )}
-                    </div>
-
-                    <InputsMappingField
-                        value={inputsText}
-                        onChange={setInputsText}
-                        error={inputsError}
-                        onErrorChange={setInputsError}
-                        eventPayload={
-                            (eventDetail?.payload ?? null) as Record<string, unknown> | null
-                        }
-                        disabled={isMutating}
-                    />
-
-                    <Form.Item label="Active">
-                        <Switch checked={enabled} onChange={setEnabled} />
-                    </Form.Item>
-
-                    <CapturedEventField
-                        result={testResult}
-                        isTesting={isTesting}
-                        onRunInPlayground={playgroundEntityId ? handleRunInPlayground : undefined}
-                    />
-                </Form>
+        <div className="flex w-[340px] shrink-0 flex-col overflow-hidden bg-[var(--ag-colorFillQuaternary)]">
+            <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-4 text-sm font-medium">
+                <Play size={15} />
+                Test in playground
             </div>
-
-            <Divider className="!m-0" />
-
-            {/* In the playground, Test (capture a live event → Run in playground) is
-                the primary action — it's the only one whose effect is visible here, and
-                it persists nothing (the test subscription is always torn down server-side).
-                Saving persists a server-side trigger whose effect shows up in observability,
-                so it's secondary. In settings/edit, persisting is the primary action. */}
-            <div className="flex items-center justify-between gap-2 px-6 py-3 shrink-0">
+            <div className="shrink-0 px-4 pb-2">
                 {isTesting ? (
-                    <Button danger onClick={handleCancelTest}>
+                    <Button danger block onClick={handleCancel}>
                         Cancel
                     </Button>
                 ) : (
-                    <Tooltip
-                        title={
-                            alreadySubscribed
-                                ? "This event already has a subscription — remove it from the Triggers list to test"
-                                : ""
-                        }
-                    >
-                        {/* span wrapper so the tooltip still shows over a disabled button */}
-                        <span>
+                    <Tooltip title={waitDisabled ? disabledReason : ""}>
+                        <span className="block">
                             <Button
-                                type={playgroundEntityId ? "primary" : "default"}
-                                disabled={isMutating || alreadySubscribed}
+                                block
+                                type="primary"
+                                icon={<Lightning size={14} />}
+                                disabled={waitDisabled}
                                 onClick={handleTest}
                             >
-                                Test
+                                {isEdit ? "Wait for a new event" : "Wait for an event"}
                             </Button>
                         </span>
                     </Tooltip>
                 )}
-                <Tooltip
-                    title={
-                        alreadySubscribed
-                            ? "This event already has a subscription — remove it from the Triggers list to replace"
-                            : ""
-                    }
-                >
-                    {/* span wrapper so the tooltip still shows over a disabled button */}
-                    <span>
-                        <Button
-                            type={playgroundEntityId ? "default" : "primary"}
-                            loading={isMutating}
-                            disabled={isTesting || alreadySubscribed}
-                            onClick={handleSubmit}
-                        >
-                            {isEdit ? "Save" : playgroundEntityId ? "Save trigger" : "Create"}
-                        </Button>
-                    </span>
-                </Tooltip>
             </div>
-        </div>
-    )
-}
 
-// ---------------------------------------------------------------------------
-// CapturedEventField — shows the event the Test button captured.
-//
-// While a test is in flight it prompts the user to trigger the event from the
-// provider; once a delivery lands it pretty-prints the captured context
-// (delivery.data.inputs — the resolved `$` event by default).
-// ---------------------------------------------------------------------------
-
-function CapturedEventField({
-    result,
-    isTesting,
-    onRunInPlayground,
-}: {
-    result: TriggerDelivery | null
-    isTesting: boolean
-    /** When set, show a "Run in playground" action that channels this event into the chat. */
-    onRunInPlayground?: () => void
-}) {
-    if (!isTesting && !result) return null
-
-    return (
-        <Form.Item label={isTesting ? "Waiting for an event" : "Captured event"}>
-            {isTesting ? (
-                <div className="flex items-center gap-2">
+            {isTesting && (
+                <div className="flex shrink-0 items-center gap-2 px-4 pb-2">
                     <Spin size="small" />
-                    <Typography.Text type="secondary" className="text-xs">
+                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
                         Waiting for an event — trigger it from the provider now.
                     </Typography.Text>
                 </div>
-            ) : (
-                <div className="flex flex-col gap-2">
-                    <div className="rounded-lg border border-solid border-[var(--ag-colorBorder)] overflow-auto max-h-[240px] p-2">
-                        <pre className="text-[11px] leading-snug whitespace-pre-wrap break-words m-0">
-                            {JSON.stringify(result?.data?.inputs ?? result?.data ?? {}, null, 2)}
-                        </pre>
-                    </div>
-                    {onRunInPlayground && (
-                        <div>
-                            <Button
-                                type="primary"
-                                icon={<Play size={14} />}
-                                onClick={onRunInPlayground}
-                            >
-                                Run in playground
-                            </Button>
-                            <Typography.Text type="secondary" className="ml-2 !text-[11px]">
-                                Runs the current agent with this event in the active session.
-                            </Typography.Text>
-                        </div>
-                    )}
+            )}
+
+            {cards.length > 0 && (
+                <div className="shrink-0 px-4 pb-1 pt-1 text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                    Recent events
                 </div>
             )}
-        </Form.Item>
+
+            <div className="flex flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 pb-4">
+                {cards.length === 0 && !isTesting ? (
+                    <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
+                        <Lightning size={28} className="text-[var(--ag-colorTextTertiary)]" />
+                        <Typography.Text type="secondary" className="text-xs">
+                            No events captured yet
+                        </Typography.Text>
+                        <Typography.Text className="!text-[11px] leading-snug !text-[var(--ag-colorTextTertiary)]">
+                            Trigger this event from the provider and it&apos;ll appear here, ready
+                            to run in the playground.
+                        </Typography.Text>
+                    </div>
+                ) : (
+                    cards.map((d) => (
+                        <DeliveryCard
+                            key={d.id}
+                            delivery={d}
+                            highlight={d.id === justCapturedId}
+                            onRun={playgroundEntityId ? runInPlayground : undefined}
+                        />
+                    ))
+                )}
+            </div>
+        </div>
     )
 }
 
