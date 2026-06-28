@@ -95,8 +95,11 @@ export function deepDelete(target: Record<string, unknown>, path: string): void 
 /**
  * Recursively merge `overlay` onto `base`. `overlay` WINS on every conflict (so server-fixed
  * fields override the model's args); two plain objects at the same key merge, anything else
- * replaces. Prototype-polluting keys in `overlay` are skipped. Returns a new object; inputs are
- * not mutated.
+ * replaces. Prototype-polluting keys are skipped at EVERY level: a plain-object value is always
+ * merged through this function (onto the existing subtree, or onto a fresh one when the base side
+ * is not an object), so a nested `__proto__`/`constructor`/`prototype` carried inside an untrusted
+ * subtree can never be assigned wholesale. Returns a new object; inputs are not mutated. Passing an
+ * empty `base` (`deepMerge({}, value)`) is the way to deep-sanitize an untrusted object.
  */
 export function deepMerge(
   base: Record<string, unknown>,
@@ -105,8 +108,11 @@ export function deepMerge(
   const out: Record<string, unknown> = isPlainObject(base) ? { ...base } : {};
   for (const [key, value] of Object.entries(overlay)) {
     if (UNSAFE_KEYS.has(key)) continue;
-    if (isPlainObject(value) && isPlainObject(out[key])) {
-      out[key] = deepMerge(out[key] as Record<string, unknown>, value);
+    if (isPlainObject(value)) {
+      const existing = isPlainObject(out[key])
+        ? (out[key] as Record<string, unknown>)
+        : {};
+      out[key] = deepMerge(existing, value);
     } else {
       out[key] = value;
     }
@@ -167,13 +173,17 @@ export function assembleBody(
   params: unknown,
   runContext?: RunContext,
 ): Record<string, unknown> {
-  // 1. Model args, at args_into (deep-set) or the root.
+  // 1. Model args, at args_into (deep-set) or the root. The args are model-generated (untrusted),
+  //    so an object is deep-sanitized first (`deepMerge({}, ...)` strips `__proto__`/`constructor`/
+  //    `prototype` at every level) before it lands at args_into or the root — a bare spread or a
+  //    raw deep-set would carry a nested prototype-polluting key through unchecked.
   let body: Record<string, unknown> = {};
-  const args = params ?? {};
+  const raw = params ?? {};
+  const args = isPlainObject(raw) ? deepMerge({}, raw) : raw;
   if (call.args_into) {
     deepSet(body, call.args_into, args);
   } else if (isPlainObject(args)) {
-    body = { ...args };
+    body = args;
   }
   // 2. Server-fixed fields win over the model's args.
   if (call.body) body = deepMerge(body, call.body);
@@ -209,7 +219,9 @@ export function assembleBody(
  *    `http://host:8000/tools/call`). A non-empty mount must contain the path, so a normalized
  *    escape out of the API surface is rejected; an empty mount (API at the origin root) relies on
  *    the host-lock alone. Deriving the mount instead of hard-coding `/api` is what lets this work
- *    on a self-host where the API is not under `/api`.
+ *    on a self-host where the API is not under `/api`. A callback path that does not end with
+ *    `/tools/call` (after a trailing slash is normalized) is rejected outright — it would otherwise
+ *    derive an empty mount and silently widen the guard, so it FAILS CLOSED instead.
  */
 export function directCallUrl(callbackEndpoint: string, call: DirectCall): string {
   if (!DIRECT_CALL_METHODS.has(call.method)) {
@@ -256,13 +268,20 @@ export function directCallUrl(callbackEndpoint: string, call: DirectCall): strin
       `direct-call path '${path}' resolves outside the run's Agenta origin`,
     );
   }
-  // Confine to the callback's mount (the callback path minus a trailing `/tools/call`). An empty
-  // mount (API at the root) imposes no prefix; a non-empty mount must contain the resolved path,
-  // so a normalized escape like `/api/%2e%2e/admin` -> `/admin` is rejected.
+  // Confine to the callback's mount (the callback path minus a trailing `/tools/call`). The mount
+  // for `http://host:8000/tools/call` is the empty string — the API at the origin root, confined
+  // by the host-lock alone — so an empty mount is legitimate. But a callback path that does NOT end
+  // with `/tools/call` is unexpected (the gateway always posts there), and treating it as an empty
+  // mount would silently widen the guard to any same-origin path. Normalize a trailing slash, then
+  // FAIL CLOSED on any other shape rather than degrade the guard.
   const CALLBACK_PATH_SUFFIX = "/tools/call";
-  const mount = base.pathname.endsWith(CALLBACK_PATH_SUFFIX)
-    ? base.pathname.slice(0, -CALLBACK_PATH_SUFFIX.length)
-    : "";
+  const callbackPath = base.pathname.replace(/\/+$/, "");
+  if (!callbackPath.endsWith(CALLBACK_PATH_SUFFIX)) {
+    throw new Error(
+      `cannot derive Agenta API mount from callback endpoint '${callbackEndpoint}'`,
+    );
+  }
+  const mount = callbackPath.slice(0, -CALLBACK_PATH_SUFFIX.length);
   if (
     mount &&
     resolved.pathname !== mount &&
@@ -292,6 +311,17 @@ export async function callDirect(
   body: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<string> {
+  // A GET sends no request body (fetch forbids it), so a non-empty assembled body would be silently
+  // dropped — any model args or `args_into`/`body`/`context` field on a GET descriptor would never
+  // reach the endpoint. Fail fast rather than execute a call that quietly loses its inputs. No
+  // resolver emits a GET `call` with a body today; this guards a future one until a GET descriptor
+  // defines a query-parameter mapping.
+  if (method === "GET" && Object.keys(body).length > 0) {
+    throw new Error(
+      "direct-call GET cannot carry a request body; a GET descriptor must map inputs to query parameters",
+    );
+  }
+
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
@@ -327,14 +357,16 @@ export async function callDirect(
     throw new Error("direct tool call failed");
   }
 
-  const bodyText = await response.text();
   if (!response.ok) {
-    // Keep the internal URL and the upstream response body server-side; the model gets only the
-    // status code. (`redirect: "manual"` makes a 3xx a non-ok response, so it lands here too.)
+    // The model gets only the status code. The upstream response body can carry user data or tool
+    // outputs, so it is never read or logged on this error path; the URL (the run's own Agenta
+    // endpoint — no credentials, the authorization header is never logged) stays, since it is the
+    // load-bearing detail for diagnosing the SSRF-guarded direct path. (`redirect: "manual"` makes
+    // a 3xx a non-ok response, so it lands here too.)
     console.error(
-      `direct tool call ${method} ${url} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,
+      `direct tool call ${method} ${url} returned HTTP ${response.status}`,
     );
     throw new Error(`direct tool call failed: HTTP ${response.status}`);
   }
-  return bodyText;
+  return response.text();
 }
