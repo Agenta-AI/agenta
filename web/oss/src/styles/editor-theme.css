@@ -833,6 +833,49 @@ pre::-webkit-scrollbar-thumb {
     margin: 0;
     list-style-type: none;
 }
+/* Per-depth markers for nested lists, matching the Lexical playground: ordered cycles
+   1 → A → a → I → i, unordered • → ◦ → ▪. Lexical DOM-nests indented items (the wrapper li
+   carries `editor-nested-list-item`, which is marker-less above), so descendant `ol ol` /
+   `ul ul` selectors pick the right style per level. Scoped to the rendered document view. */
+.md-prose .editor-input:not(.markdown-view) ol.editor-list-ol {
+    list-style-type: decimal;
+}
+.md-prose .editor-input:not(.markdown-view) ol.editor-list-ol ol.editor-list-ol {
+    list-style-type: upper-alpha;
+}
+.md-prose .editor-input:not(.markdown-view) ol.editor-list-ol ol.editor-list-ol ol.editor-list-ol {
+    list-style-type: lower-alpha;
+}
+.md-prose
+    .editor-input:not(.markdown-view)
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol {
+    list-style-type: upper-roman;
+}
+.md-prose
+    .editor-input:not(.markdown-view)
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol {
+    list-style-type: lower-roman;
+}
+.md-prose .editor-input:not(.markdown-view) ul.editor-list-ul {
+    list-style-type: disc;
+}
+.md-prose .editor-input:not(.markdown-view) ul.editor-list-ul ul.editor-list-ul {
+    list-style-type: circle;
+}
+.md-prose
+    .editor-input:not(.markdown-view)
+    ul.editor-list-ul
+    ul.editor-list-ul
+    ul.editor-list-ul {
+    list-style-type: square;
+}
 .md-prose .editor-quote {
     font-size: 13px;
     font-style: italic;
