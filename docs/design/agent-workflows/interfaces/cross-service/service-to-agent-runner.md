@@ -63,8 +63,12 @@ group by job:
   "sandboxPermission": { /* Layer 2 boundary; network enforced on Daytona, see sandbox-permission.md */ },
   "harnessFiles":      [ { "path": ".claude/settings.json", "content": "..." } ],
 
-  // tracing (see service-and-runner-trace-export.md)
-  "trace": { "traceparent": "...", "endpoint": "...", "authorization": "...", "captureContent": true },
+  // tracing, grouped by role (see service-and-runner-trace-export.md)
+  "context":   { "propagation": { "traceparent": "...", "baggage": null } },  // per-call W3C trace-context propagation
+  "telemetry": {                                                               // operator-owned exporter config + capture policy
+    "capture":   { "content": { "enabled": true } },                          // capture policy (default on)
+    "exporters": { "otlp": { "endpoint": "...", "headers": { "authorization": "..." } } }  // destination + credential
+  },
 
   // run context — the run's own identity, refreshed per turn (direct-call tools, Phase 3a)
   "runContext": {                          // omitted when the run has no own identity to bind
@@ -90,6 +94,17 @@ inner keys are deliberately snake_case — they are the binding namespace a `cal
 (`"$ctx.<dotted.path>"`, e.g. `"$ctx.workflow.variant.id"`) addresses, not the wire's usual
 camelCase. Omitted when there is no identity to bind, so a run that needs no binding stays
 byte-identical.
+
+The run's tracing inputs ride the wire grouped by role rather than in one `trace` bucket (they
+mixed four roles: per-call propagation, exporter config, exporter credential, and capture policy).
+`context.propagation` carries the per-call W3C trace-context headers (`traceparent` / `baggage`, kept
+verbatim) that nest the run under the caller's `/invoke` span. `telemetry` carries the
+operator-owned config: `capture.content.enabled` is the capture policy, and `exporters.otlp` is the
+OTLP destination with the credential nested under the standard `authorization` header. Both come
+from one service-side capture (`trace_context()` in `tracing.py`) and are both `null` when the run
+has no trace context. Note `context` (telemetry propagation, consumed by the runner's OTLP exporter)
+is distinct from `runContext` (the run's own resource identity, consumed by tool `call.context`
+binding); they are different roles with different consumers and are kept separate.
 
 Two splits matter for back-compat. `provider` and `connection` appear only when the model
 arrives as a structured `model_ref`; a plain string like `"gpt-5.5"` leaves them off so the

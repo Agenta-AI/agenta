@@ -376,11 +376,11 @@ export async function runSandboxAgent(
       // The names of every skill that materialized for this run (author + forced `_agenta.*`),
       // stamped on the agent span so the trace shows which skills loaded (F-029).
       skills: plan.skillDirs.map((s) => s.name),
-      traceparent: request.trace?.traceparent,
-      baggage: request.trace?.baggage,
-      endpoint: request.trace?.endpoint,
-      authorization: request.trace?.authorization,
-      captureContent: request.trace?.captureContent,
+      traceparent: request.context?.propagation?.traceparent,
+      baggage: request.context?.propagation?.baggage,
+      endpoint: request.telemetry?.exporters?.otlp?.endpoint,
+      authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
+      captureContent: request.telemetry?.capture?.content?.enabled,
       emitSpans: !plan.isPi || plan.isDaytona,
       emit,
     });

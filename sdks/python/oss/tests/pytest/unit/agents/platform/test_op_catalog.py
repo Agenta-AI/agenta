@@ -1,12 +1,12 @@
 """The platform-op catalog and its resolver (direct-call tools, Phase 3b).
 
 A ``type:"platform"`` tool exposes an EXISTING Agenta endpoint to the agent. The catalog
-(``op_catalog.py``) owns the description, the endpoint, the input schema, the run-context bind, and
-the per-op default permission/approval; the resolver (``AgentaPlatformToolResolver``) turns each
+(``op_catalog.py``) owns the description, the endpoint, the input schema, the run-context bindings,
+and the per-op default permission/approval; the resolver (``AgentaPlatformToolResolver``) turns each
 config into a ``CallbackToolSpec`` carrying a direct ``call`` descriptor (no ``/tools/call`` hop).
 
 These tests cover: the catalog model's import-time validation, the resolver emitting a direct
-``call`` (find_capabilities), the self-update ``bind`` stripping its bound field from the
+``call`` (find_capabilities), the self-update ``context_bindings`` stripping its bound field from the
 model-visible schema, the catalog's permission/approval defaults and the config override, and the
 error paths (unknown op, missing API base).
 """
@@ -108,7 +108,7 @@ def test_op_path_must_be_a_single_absolute_path():
         )
 
 
-def test_op_bind_token_must_be_a_ctx_reference():
+def test_op_context_binding_token_must_be_a_ctx_reference():
     with pytest.raises(ValidationError, match=r"\$ctx"):
         PlatformOp(
             op="x",
@@ -116,7 +116,7 @@ def test_op_bind_token_must_be_a_ctx_reference():
             method="POST",
             path="/api/x",
             input_schema={"type": "object"},
-            bind={"field": "workflow.variant.id"},  # missing $ctx. prefix
+            context_bindings={"field": "workflow.variant.id"},  # missing $ctx. prefix
         )
 
 
@@ -183,7 +183,7 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     )
     spec = resolution.tool_specs[0]
     assert spec.call.path == "/api/workflows/revisions/commit"
-    # The bind rides as call.context — the runner fills it from runContext at dispatch.
+    # The context binding rides as call.context — the runner fills it from runContext at dispatch.
     assert spec.call.context == {
         "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
     }

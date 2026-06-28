@@ -105,14 +105,60 @@ class WireChatMessage(_WireModel):
     content: Union[str, List[WireContentBlock]] = ""
 
 
-class WireTraceContext(_WireModel):
-    """Agenta trace context threaded into a run (mirrors ``TraceContext.to_wire``)."""
+class WirePropagation(_WireModel):
+    """The W3C trace-context propagation headers inside ``context`` (mirrors
+    ``TraceContext.context_to_wire``). Kept verbatim as the standard ``traceparent`` / ``baggage``
+    names."""
 
     traceparent: Optional[str] = None
     baggage: Optional[str] = None
+
+
+class WireRequestContext(_WireModel):
+    """The run's per-call protocol context (``context`` on the request). Carries the W3C trace
+    propagation today; a role bucket distinct from the operator-owned ``telemetry`` config and from
+    ``runContext`` (the run's own resource identity)."""
+
+    propagation: Optional[WirePropagation] = None
+
+
+class WireCaptureContent(_WireModel):
+    """The content-capture policy inside ``telemetry.capture`` — whether message and tool content is
+    captured on the exported spans (default on)."""
+
+    enabled: bool = True
+
+
+class WireCapture(_WireModel):
+    """The telemetry capture policy (``telemetry.capture``)."""
+
+    content: Optional[WireCaptureContent] = None
+
+
+class WireOtlpExporter(_WireModel):
+    """The OTLP exporter destination inside ``telemetry.exporters`` — the traces ``endpoint`` plus
+    the credential nested under the standard ``authorization`` header, so the secret lives under the
+    thing it authenticates."""
+
     endpoint: Optional[str] = None
-    authorization: Optional[str] = None
-    capture_content: bool = Field(default=True, alias="captureContent")
+    headers: Optional[Dict[str, str]] = None
+
+
+class WireExporters(_WireModel):
+    """The telemetry exporters (``telemetry.exporters``). Only OTLP today; a plural map so a second
+    exporter can be added without reshaping the contract."""
+
+    otlp: Optional[WireOtlpExporter] = None
+
+
+class WireTelemetry(_WireModel):
+    """The run's telemetry config (``telemetry`` on the request; mirrors
+    ``TraceContext.telemetry_to_wire``). Operator/policy-owned: where this run's spans export
+    (``exporters.otlp``) and the content-capture policy (``capture.content.enabled``). Distinct from
+    the per-call propagation ``context``."""
+
+    capture: Optional[WireCapture] = None
+    exporters: Optional[WireExporters] = None
 
 
 class WireToolCallback(_WireModel):
@@ -355,7 +401,11 @@ class WireRunRequest(_WireModel):
     messages: Optional[List[WireChatMessage]] = None
     # Secrets injected as harness env (provider keys); never written to the agent filesystem.
     secrets: Optional[Dict[str, str]] = None
-    trace: Optional[WireTraceContext] = None
+    # Tracing inputs, grouped by role (see the trace/telemetry interface restructure): ``context``
+    # carries the per-call W3C trace-context propagation, ``telemetry`` the operator-owned exporter
+    # config + capture policy. Both come from the single service-side trace capture.
+    context: Optional[WireRequestContext] = None
+    telemetry: Optional[WireTelemetry] = None
     # The run's own context (trace + variant identity), refreshed per turn; consumed only by a
     # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted when unset.
     run_context: Optional[WireRunContext] = Field(default=None, alias="runContext")
