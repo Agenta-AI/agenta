@@ -8,7 +8,7 @@ import {
     useEnrichedEvaluatorOnlyAdapter,
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
-import {playgroundController} from "@agenta/playground"
+import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Trash} from "@phosphor-icons/react"
@@ -89,6 +89,10 @@ const PlaygroundVariantConfigHeader = ({
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
 
+    // Agent workflows dropped the top-level "Agent" section header, so the config bar carries the
+    // only "this is an agent" signal — a small badge next to the variant details.
+    const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
+
     // Deployment info: look up which environments this revision is deployed to
     // Local drafts have no deployments
     const deploymentEntityId = (runnableData?.id as string) || ""
@@ -160,7 +164,13 @@ const PlaygroundVariantConfigHeader = ({
 
     return (
         <section
-            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] ${className ?? ""}`}
+            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 ${
+                // Agent config below is a borderless summary, so the bar needs to read as a header.
+                // Give it a subtly tinted surface (vs the plain content) instead of the same FFFFFF.
+                isAgent && !embedded
+                    ? "bg-[var(--ant-color-fill-tertiary)]"
+                    : "bg-[var(--ag-c-FFFFFF)]"
+            } ${className ?? ""}`}
             {...divProps}
         >
             <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
@@ -171,6 +181,7 @@ const PlaygroundVariantConfigHeader = ({
                         showCreateNew={!isEvaluatorEntity}
                         onChange={(value) => handleSwitchVariant?.(value)}
                         value={_variantId ?? undefined}
+                        borderlessTrigger={isAgent}
                     />
                 )}
                 {/* Local draft: show Draft tag then source revision info */}
@@ -197,6 +208,29 @@ const PlaygroundVariantConfigHeader = ({
                                         rev {String(variantRevision)}
                                     </span>
                                 )}
+                            </div>
+                        ) : isAgent && !embedded ? (
+                            // Compact agent status: a version chip + a state dot, instead of the
+                            // verbose "Last modified" row. Discard stays available in the kebab.
+                            <div className="mr-4 flex items-center gap-2">
+                                {variantRevision !== null && variantRevision !== undefined && (
+                                    <span className="rounded bg-[var(--ant-color-fill-secondary)] px-1.5 py-0.5 text-xs text-[var(--ant-color-text-secondary)]">
+                                        v{variantRevision}
+                                    </span>
+                                )}
+                                <Tooltip title={hasChanges ? "Draft — unsaved changes" : "Saved"}>
+                                    <span className="flex items-center gap-1.5 text-xs text-[var(--ant-color-text-tertiary)]">
+                                        <span
+                                            className="h-[7px] w-[7px] rounded-full"
+                                            style={{
+                                                backgroundColor: hasChanges
+                                                    ? "var(--ant-color-warning)"
+                                                    : "var(--ant-color-success)",
+                                            }}
+                                        />
+                                        {hasChanges ? "Draft" : "Saved"}
+                                    </span>
+                                </Tooltip>
                             </div>
                         ) : (
                             <VariantDetailsWithStatus
@@ -250,7 +284,15 @@ const PlaygroundVariantConfigHeader = ({
                 ) : (
                     <>
                         {!embedded && !isEvaluatorEntity && (
-                            <DeployVariantButton revisionId={variantId} />
+                            // Agents get a labeled secondary "Deploy" so the action row reads as a
+                            // hierarchy (primary Commit, secondary Deploy, ghost kebab); other
+                            // surfaces keep the icon-only deploy.
+                            <DeployVariantButton
+                                revisionId={variantId}
+                                {...(isAgent
+                                    ? ({label: "Deploy", type: "default", size: "small"} as const)
+                                    : {})}
+                            />
                         )}
 
                         <CommitVariantChangesButton

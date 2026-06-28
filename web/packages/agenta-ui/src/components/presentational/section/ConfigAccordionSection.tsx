@@ -55,6 +55,11 @@ export interface ConfigAccordionSectionProps {
     defaultOpen?: boolean
     /** Called when the user toggles the section. */
     onOpenChange?: (open: boolean) => void
+    /**
+     * When set, the header acts as a button that opens a drawer instead of expanding inline.
+     * The body (`children`) is not rendered; a right chevron signals "opens" rather than "expands".
+     */
+    onOpen?: () => void
     /** When true the section can't be expanded and shows a lock affordance. */
     locked?: boolean
     /** Explanation shown in a tooltip on the lock affordance. */
@@ -84,6 +89,7 @@ export function ConfigAccordionSection({
     defaultOpen = true,
     onOpenChange,
     collapsible = true,
+    onOpen,
     locked = false,
     lockedReason,
     noDivider = false,
@@ -92,16 +98,24 @@ export function ConfigAccordionSection({
 }: ConfigAccordionSectionProps) {
     const isControlled = open !== undefined
     const [internalOpen, setInternalOpen] = useState(defaultOpen)
+    // A section can either open a drawer (onOpen) or expand inline (the accordion default).
+    const opensDrawer = onOpen !== undefined && !locked
     // Non-collapsible sections (e.g. the "cards" layout) stay open; locked sections stay shut.
-    const isOpen = !locked && (collapsible ? (isControlled ? open : internalOpen) : true)
-    const canToggle = collapsible && !locked
+    const isOpen =
+        !opensDrawer && !locked && (collapsible ? (isControlled ? open : internalOpen) : true)
+    const canToggle = !opensDrawer && collapsible && !locked
+    const headerActs = canToggle || opensDrawer
 
-    const toggle = useCallback(() => {
+    const activate = useCallback(() => {
+        if (opensDrawer) {
+            onOpen?.()
+            return
+        }
         if (!canToggle) return
         const next = !isOpen
         if (!isControlled) setInternalOpen(next)
         onOpenChange?.(next)
-    }, [canToggle, isOpen, isControlled, onOpenChange])
+    }, [opensDrawer, onOpen, canToggle, isOpen, isControlled, onOpenChange])
 
     return (
         <div
@@ -112,22 +126,22 @@ export function ConfigAccordionSection({
             )}
         >
             <div
-                role={canToggle ? "button" : undefined}
-                aria-expanded={collapsible ? isOpen : undefined}
+                role={headerActs ? "button" : undefined}
+                aria-expanded={opensDrawer ? undefined : collapsible ? isOpen : undefined}
                 aria-disabled={locked || undefined}
-                tabIndex={canToggle ? 0 : undefined}
-                onClick={canToggle ? toggle : undefined}
+                tabIndex={headerActs ? 0 : undefined}
+                onClick={headerActs ? activate : undefined}
                 onKeyDown={(e) => {
-                    if (!canToggle) return
+                    if (!headerActs) return
                     if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
-                        toggle()
+                        activate()
                     }
                 }}
                 className={cn(
                     "flex items-center justify-between gap-2 py-3 select-none",
                     locked && "cursor-not-allowed opacity-60",
-                    canToggle && "cursor-pointer",
+                    headerActs && "cursor-pointer",
                 )}
             >
                 <div className="flex min-w-0 items-center gap-2">
@@ -161,6 +175,8 @@ export function ConfigAccordionSection({
                         <Tooltip title={lockedReason}>
                             <Lock size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
                         </Tooltip>
+                    ) : opensDrawer ? (
+                        <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
                     ) : collapsible ? (
                         isOpen ? (
                             <CaretDown size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
@@ -171,9 +187,11 @@ export function ConfigAccordionSection({
                 </div>
             </div>
 
-            <HeightCollapse open={isOpen}>
-                <div className="flex flex-col gap-3 pb-4">{children}</div>
-            </HeightCollapse>
+            {opensDrawer ? null : (
+                <HeightCollapse open={isOpen}>
+                    <div className="flex flex-col gap-3 pb-4">{children}</div>
+                </HeightCollapse>
+            )}
         </div>
     )
 }

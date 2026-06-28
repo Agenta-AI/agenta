@@ -266,7 +266,9 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                                 "# My skill\n\nStep-by-step instructions the agent follows…"
                             }
                             disabled={disabled}
-                            filename="SKILL.md"
+                            showToolbar
+                            defaultView="rendered"
+                            maxHeight={360}
                         />
                     </LabeledField>
                 ) : (
