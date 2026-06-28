@@ -66,8 +66,8 @@ Today's overlay:
       { "type": "platform", "op": "find_capabilities" },
       { "type": "platform", "op": "query_workflows" },
       { "type": "platform", "op": "commit_revision" },
-      // a client/embed tool: a non-runnable reference to a reserved-slug workflow the frontend handles (#4920)
-      { "type": "reference", "slug": "__ag__request_connection" }
+      // a client tool the embed resolver inlines: an @ag.embed of a reserved-slug workflow, the same shape as a skill embed (#4920)
+      { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__request_connection" } } } }
     ],
     "skills": [
       { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__getting_started_with_agenta" } } } }
@@ -85,11 +85,12 @@ already owns. It iterates `PLATFORM_OPS`
 platform ops, so a new op added by the builder-tools project joins the kit with no edit here. It
 also enumerates the reserved-slug platform workflows from the static workflow catalog
 (`StaticWorkflowCatalog` over `_STATIC_WORKFLOWS` at
-`/home/mahmoud/code/agenta/api/oss/src/core/workflows/static_catalog.py`) and adds each as a
-reference (workflow-as-tool) entry. These reserved workflows are the same `__ag__*` family as the
-platform skills, so a client tool like `__ag__request_connection` (the non-runnable connection
-tool the frontend handles, owned by `#4920`) rides the kit beside the platform ops with no bespoke
-path. The two iterations are symmetric: one walks the op catalog, the other walks the static
+`/home/mahmoud/code/agenta/api/oss/src/core/workflows/static_catalog.py`) and adds each as an
+`@ag.embed` reference, the same embed shape a skill uses, only the slug differs. These reserved
+workflows are the same `__ag__*` family as the platform skills, so a client tool like
+`__ag__request_connection` (a non-runnable tool the embed resolver inlines into a `client` tool the
+frontend handles, owned by `#4920`) rides the kit beside the platform ops with no bespoke path. The
+two iterations are symmetric: one walks the op catalog, the other walks the static
 workflow catalog. `skills` is the `@ag.embed` reference to the authoring skill's reserved slug;
 `sandbox` is the build-permission elevation. Each entry is an ordinary agent-template fragment, so
 the dumb service resolves it the way it resolves any tool, skill, or sandbox setting, and a kit-on
@@ -141,13 +142,15 @@ on.
 
 A kit-on run produces a derived run config by merging the overlay onto a copy of the current
 `parameters.agent`. The merge is an override overlay: the overlay adds entries the config lacks
-and overrides entries it already holds.
+and overrides entries it already holds. When the overlay overrides a user setting, the drawer
+flags it on that user's own control (see the override hint in the drawer UI), so the user can see
+what the kit changed and how to match the published agent.
 
 - **Object fields** (`sandbox`, `runner`, `harness`, `llm`, `instructions`) deep-merge, and the
   overlay wins on a conflict. So `sandbox.permissions.write_files: "allow"` elevates the run's
   sandbox without discarding the user's other sandbox settings.
 - **List fields** (`tools`, `skills`, `mcps`) merge by item identity. A tool's identity is its
-  `op` for a platform tool, the referenced workflow for a reference (non-runnable workflow) tool,
+  `op` for a platform tool, the referenced workflow slug for an `@ag.embed` tool,
   otherwise its `name`; a skill's identity is the slug its `@ag.embed` references; an MCP server's
   identity is its `name`. On an identity match the overlay entry
   overrides; otherwise it appends. So the kit's three platform ops and one authoring skill add to
@@ -226,8 +229,8 @@ panel already uses, so the groups stop rendering as one long scroll.
 - Summaries reuse state already present: Authentication shows `Agenta-managed`, Execution
   environment shows `Sandbox: Local`, Permissions shows `Auto`.
 
-This change carries no contract and no commit logic. It is drawer polish on the existing groups
-and can ship on its own (open question 4).
+This change carries no contract and no commit logic. It is drawer polish on the existing groups,
+so it ships as a separate, independent change, not part of the build-kit core.
 
 ### Change 2: add the "Playground build kit" section
 
@@ -254,10 +257,11 @@ illustrative.
 
 ### The toggle wiring
 
-The toggle does not set a run flag. It is `buildKitEnabled`, session state, default on. The
-frontend reads it when it builds the run request and applies the overlay when it is on (frontend
-behavior, step 2). The drawer writes nothing into the config and never echoes the overlay. The
-toggle is a playground preference, not a field on the revision.
+The toggle does not set a run flag. It is `buildKitEnabled`, ephemeral session state that resets
+to on each session, default on. The frontend reads it when it builds the run request and applies
+the overlay when it is on (frontend behavior, step 2). The drawer writes nothing into the config
+and never echoes the overlay. The toggle is a playground preference, not a field on the revision
+and not a stored preference in v1.
 
 ### Keep two permission ideas distinct
 
@@ -274,6 +278,16 @@ Permissions group stays an editable, committed control elsewhere. Review this wi
 because the two ideas sit close together and a user who conflates them could believe the agent
 ships with write-files and execute-code permission.
 
+### Show an override hint on an overridden user control
+
+When the kit is on and the overlay overrides one of the user's own settings, the drawer control
+for that user setting shows a hint or tooltip: the value is overridden in the playground by the
+build kit, and to make the playground match the published agent the user toggles the build kit off.
+The load-bearing case is a permission. If the user disables execute-code in their own config but
+the kit re-enables it for the playground run, the Permissions control tells the user why the
+playground behaves differently from the published agent and how to match it (toggle the kit off).
+The hint appears only on a control the overlay actually overrides, and only while the kit is on.
+
 ## Published default stays bare
 
 A new agent's stored config is bare: no platform tools, no authoring skill, no elevated sandbox.
@@ -284,15 +298,9 @@ boundary (`build_agent_v0_default(skill_slug=..., include_sandbox_permission=Tru
 `/home/mahmoud/code/agenta/services/oss/src/agent/schemas.py`). Revert that enrichment so the
 inspect schema default and the catalog template both carry the bare default, the same value the
 SDK builtin carries. The skill and the sandbox elevation reach a run only through the overlay, by
-the frontend's merge.
-
-The authoring skill also stops reaching runs through the harness force. Today the `pi_agenta`
-harness unions `AGENTA_FORCED_SKILLS` into every run, always on and not toggleable
-(`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py:104`,
-`harnesses.py:140`). A forced skill cannot be toggled, which contradicts the kit's toggle. So the
-authoring skill comes from the overlay, not the force. Set `AGENTA_FORCED_SKILLS = []`, keeping
-`force_skills` for a future genuinely-forced item. This touches the skills project's surface, so
-confirm it with them (open question 2).
+the frontend's merge. The overlay delivers the authoring skill on its own, through its own
+`@ag.embed` reference, so the published default carries no skill of its own. Reverting the
+`schemas.py` enrichment is the only backend change this needs.
 
 ## What the backend explicitly does NOT do
 
@@ -344,21 +352,18 @@ The model rests on role splits, not feature splits.
 3. **Published default goes bare (backend).** Revert the `schemas.py` enrichment so the schema
    default is bare. Move the authoring skill and the sandbox elevation into the overlay.
 
-4. **Stop force-injecting the skill (SDK).** Set `AGENTA_FORCED_SKILLS = []`
-   (`agenta_builtins.py:104`). Coordinate with the skills project.
-
-5. **Frontend read and render (web).** Read `additional_context.playground_build_kit.agent_template_overlay`
+4. **Frontend read and render (web).** Read `additional_context.playground_build_kit.agent_template_overlay`
    into session state. Render the "Playground build kit" section, reusing the existing config-item
-   controls, and make the advanced sections collapsible.
+   controls.
 
-6. **Frontend overlay applier (web).** Add an explicit applier (deep-merge objects, identity-merge
+5. **Frontend overlay applier (web).** Add an explicit applier (deep-merge objects, identity-merge
    lists) and call it in `buildAgentRequest` when the toggle is on, on the throwaway run copy
    only.
 
-7. **Frontend exclude on commit (web).** No change beyond confirming the overlay is never written
+6. **Frontend exclude on commit (web).** No change beyond confirming the overlay is never written
    into `entity.data.parameters`, so `prepareCommitParameters` excludes it for free.
 
-8. **Tests.** Backend: the builder lists the platform ops, the authoring skill, and the build
+7. **Tests.** Backend: the builder lists the platform ops, the authoring skill, and the build
    permissions as one overlay; the inspect response carries `additional_context.playground_build_kit`; the
    published default is bare across the builtin, the inspect schema, and the catalog (update
    `/home/mahmoud/code/agenta/services/oss/tests/pytest/unit/agent/test_default_agent_template.py`).
@@ -390,28 +395,31 @@ The model rests on role splits, not feature splits.
   references the skill by its reserved slug.
 - The builder-tools project (`#4919`) adds more platform ops. The builder reads `PLATFORM_OPS` at
   assembly time, so new ops join the overlay automatically.
-- A client tool such as `request_connection` is not a platform op. It is a non-runnable
-  workflow (reference) tool: the backend exposes it and the frontend handles the call, the same
-  reference-tool concept the platform already has. The kit carries it as a reference-tool entry,
-  embedded from its reserved `__ag__*` slug (identity by its referenced workflow), beside the
-  platform ops. Its primary definition is owned by `#4920`.
+- A client tool such as `request_connection` is not a platform op. The kit carries it as an
+  `@ag.embed` reference to its reserved `__ag__*` slug, the same embed shape a skill uses, only the
+  slug differs; the embed resolver inlines it into a `client` tool the frontend handles (identity
+  by its referenced workflow slug), beside the platform ops. Its primary definition is owned by
+  `#4920`.
 - Per-item edit or delete of kit items, and a picker to add platform tools to the published agent,
   are out of scope. The kit is whole-toggle and read-only in v1.
 - The overlay model carries through to `#4918`, `#4919`, and `#4920`. They are not edited here; the
   orchestrator propagates it after Mahmoud approves this design.
 
+## Decisions
+
+- **Toggle persistence.** Ephemeral per playground session, resetting to on. Not a stored
+  preference in v1.
+- **Merge precedence on a conflict.** The overlay wins on an identity match: it is an override
+  overlay. When it overrides a user setting, the drawer flags it on that user's own control with an
+  override hint (toggle the kit off to match the published agent).
+- **Change 1 (collapsible sections).** Ships as a separate, independent change, not part of the
+  build-kit core.
+
 ## Open questions for Mahmoud
 
-1. **Toggle persistence.** Ephemeral per playground session (resets to on), or a stored playground
-   preference per user and agent. I lean ephemeral for v1.
-2. **Confirm the published default goes fully bare**, dropping the authoring skill and the sandbox
-   boundary from the schema default into the overlay, and setting `AGENTA_FORCED_SKILLS = []`. This
-   touches the skills project's surface, so it needs their nod.
-3. **Merge precedence on a conflict.** The overlay overrides on an identity match (it is an
-   override overlay). Confirm the kit should win over a user entry of the same identity, rather
-   than yield to it.
-4. **Ship Change 1 (collapsible sections) with the kit, or separately?** It is independent UI
-   polish with no contract and no logic. I lean separate.
+1. **Confirm the published default goes bare**, dropping the authoring skill and the sandbox
+   boundary from the schema default into the overlay. This touches the skills project's surface, so
+   it needs their nod.
 
 ## Appendix: prior approaches
 
