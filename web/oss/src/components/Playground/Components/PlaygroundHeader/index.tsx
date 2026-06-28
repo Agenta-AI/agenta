@@ -12,15 +12,31 @@ import {
 } from "@agenta/entities/workflow"
 import type {EvaluatorCatalogTemplate, Workflow, WorkflowTypeColor} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
+import {agentTemplateLayoutAtom, AGENT_TEMPLATE_LAYOUTS} from "@agenta/entity-ui/drill-in"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
-import {playgroundController, isAgentModeAtomFamily} from "@agenta/playground"
+import {
+    playgroundController,
+    isAgentModeAtomFamily,
+    agentChannelModeAtom,
+    type AgentChannelMode,
+} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {bgColors, textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
-import {Gavel, PencilSimple, Plus} from "@phosphor-icons/react"
-import {Button, Divider, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
+import {Check, Gavel, GearSix, PencilSimple, Plus, Robot} from "@phosphor-icons/react"
+import {
+    Button,
+    Divider,
+    Dropdown,
+    Space,
+    Tag,
+    Tooltip,
+    Typography,
+    message,
+    type MenuProps,
+} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -55,6 +71,12 @@ type PlaygroundHeaderProps = BaseContainerProps
 
 /** Entity types that represent evaluator downstream nodes */
 const EVALUATOR_ENTITY_TYPES = ["workflow"]
+
+// Response channel the agent playground speaks to the backend (transport concern, not config).
+const CHANNEL_OPTIONS: {value: AgentChannelMode; label: string}[] = [
+    {value: "stream", label: "Stream"},
+    {value: "batch", label: "Batch"},
+]
 
 /** Resolves a user UUID to a display name via workspace members */
 const MemberAuthor: React.FC<{userId: string}> = ({userId}) => {
@@ -191,6 +213,52 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         ),
     )
     const showEvalActions = !isAgentWorkflow
+
+    // Agent playground settings (page-level): config-panel layout + stream/batch response channel.
+    // These were previously buried in a config item's kebab; they're global, so they live here.
+    const layout = useAtomValue(agentTemplateLayoutAtom)
+    const setLayout = useSetAtom(agentTemplateLayoutAtom)
+    const channelMode = useAtomValue(agentChannelModeAtom)
+    const setChannelMode = useSetAtom(agentChannelModeAtom)
+
+    const settingsMenuItems: MenuProps["items"] = useMemo(
+        () => [
+            {
+                key: "view",
+                type: "group" as const,
+                label: "View",
+                children: AGENT_TEMPLATE_LAYOUTS.map((option) => ({
+                    key: `view-${option.value}`,
+                    label: option.label,
+                    icon:
+                        layout === option.value ? (
+                            <Check size={14} />
+                        ) : (
+                            <span className="inline-block w-[14px]" />
+                        ),
+                    onClick: () => setLayout(option.value),
+                })),
+            },
+            {type: "divider" as const},
+            {
+                key: "channel",
+                type: "group" as const,
+                label: "Response",
+                children: CHANNEL_OPTIONS.map((option) => ({
+                    key: `channel-${option.value}`,
+                    label: option.label,
+                    icon:
+                        channelMode === option.value ? (
+                            <Check size={14} />
+                        ) : (
+                            <span className="inline-block w-[14px]" />
+                        ),
+                    onClick: () => setChannelMode(option.value),
+                })),
+            },
+        ],
+        [layout, setLayout, channelMode, setChannelMode],
+    )
 
     // Find all connected evaluator nodes
     const connectedEvaluatorNodes = useMemo(
@@ -492,9 +560,22 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             <Button type="text" icon={<MoreOutlined />} />
                         </Dropdown>
                     ) : null}
-                    <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
-                        Playground
-                    </Typography>
+                    {isAgentWorkflow ? (
+                        <div className="flex items-center gap-2">
+                            <Tooltip title="Agent">
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
+                                    <Robot size={15} weight="fill" />
+                                </span>
+                            </Tooltip>
+                            <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+                                {currentWorkflow?.name || "Agent"}
+                            </Typography>
+                        </div>
+                    ) : (
+                        <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+                            Playground
+                        </Typography>
+                    )}
                 </div>
 
                 <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
@@ -601,6 +682,20 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 />
                             )}
                         </>
+                    )}
+                    {isAgentWorkflow && (
+                        <Dropdown
+                            trigger={["click"]}
+                            placement="bottomRight"
+                            styles={{root: {width: 180}}}
+                            menu={{items: settingsMenuItems}}
+                        >
+                            <Button
+                                type="text"
+                                icon={<GearSix size={16} />}
+                                aria-label="Playground settings"
+                            />
+                        </Dropdown>
                     )}
                 </div>
             </div>

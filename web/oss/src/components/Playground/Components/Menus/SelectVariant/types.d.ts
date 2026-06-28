@@ -18,6 +18,12 @@ export interface SelectVariantProps extends TreeSelectProps {
     customBrowseAdapter?: import("@agenta/entity-ui/selection").EntitySelectionAdapter<
         import("@agenta/entity-ui/selection").WorkflowRevisionSelectionResult
     >
+    /**
+     * Render the scoped-mode trigger as a borderless, content-width control (a heading you can
+     * change) instead of the default bordered, fixed-width select box. Used by the agent config
+     * header so the revision picker reads as an identity, not a form switch.
+     */
+    borderlessTrigger?: boolean
 }
 
 export interface TreeSelectItemRendererProps {
