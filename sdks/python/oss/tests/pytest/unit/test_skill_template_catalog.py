@@ -36,11 +36,17 @@ def test_skill_template_schema_shape():
     assert set(file_item["properties"]) == {"path", "content", "executable"}
 
 
-def test_agent_template_catalog_exposes_skills_as_ref_or_embed_union():
-    agent_template = CATALOG_TYPES["agent-template"]
+def _agent_definition() -> dict:
+    """The agent-template catalog type. The portable definition (instructions/llm/tools/mcps/skills)
+    is flat on it; the execution parts (harness/runner/sandbox) are nested sub-objects."""
+    return CATALOG_TYPES["agent-template"]
 
-    assert "skills" in agent_template["properties"]
-    skills_item = agent_template["properties"]["skills"]["items"]
+
+def test_agent_template_catalog_exposes_skills_as_ref_or_embed_union():
+    agent = _agent_definition()
+
+    assert "skills" in agent["properties"]
+    skills_item = agent["properties"]["skills"]["items"]
 
     # Each entry is a union: a skill-template ref (resolved from /catalog/types/skill-template),
     # or an @ag.embed reference. The full inline shape lives in the skill-template catalog type,
@@ -56,18 +62,21 @@ def test_agent_template_catalog_exposes_skills_as_ref_or_embed_union():
 
 
 def _base_agent_template() -> dict:
-    """The shape ``services/oss/src/agent/schemas.py::_DEFAULT_AGENT_TEMPLATE`` seeds, minus skills."""
+    """The agent-template value ``services/oss/src/agent/schemas.py::_DEFAULT_AGENT_TEMPLATE`` seeds,
+    minus skills: the portable definition flat plus the nested execution sections."""
     return {
-        "agents_md": "hi",
-        "model": "gpt-4o",
+        "instructions": {"agents_md": "hi"},
+        "llm": {"model": "gpt-4o"},
         "tools": [],
-        "mcp_servers": [],
-        "harness": "pi_core",
-        "sandbox": "local",
-        "permission_policy": "auto",
-        "sandbox_permission": {
-            "network": {"mode": "on", "allowlist": []},
-            "enforcement": "strict",
+        "mcps": [],
+        "harness": {"kind": "pi_core"},
+        "runner": {"kind": "sidecar", "interactions": {"headless": "auto"}},
+        "sandbox": {
+            "kind": "local",
+            "permissions": {
+                "network": {"mode": "on", "allowlist": []},
+                "enforcement": "strict",
+            },
         },
     }
 
@@ -131,12 +140,15 @@ def _type_const(variant):
     return None
 
 
+def _tools_item():
+    """The `tools` items schema, flat on the agent-template catalog type."""
+    return _agent_definition()["properties"]["tools"]["items"]
+
+
 def test_agent_template_tools_accepts_embed_and_reference_arms():
     """The tools field is a union: a concrete tool variant (incl. type:"reference", a workflow
     run server-side), or an @ag.embed (inline a client tool value)."""
-    agent_template = CATALOG_TYPES["agent-template"]
-    tools_item = agent_template["properties"]["tools"]["items"]
-    variants = list(_flatten_union(tools_item["anyOf"]))
+    variants = list(_flatten_union(_tools_item()["anyOf"]))
 
     # The embed arm and the type:"reference" arm are present alongside the concrete tool variants.
     has_embed = any("@ag.embed" in v.get("properties", {}) for v in variants)
@@ -147,9 +159,7 @@ def test_agent_template_tools_accepts_embed_and_reference_arms():
 
 def test_agent_template_tools_accepts_platform_arm():
     """The tools union includes a type:"platform" arm (an existing Agenta endpoint exposed)."""
-    agent_template = CATALOG_TYPES["agent-template"]
-    tools_item = agent_template["properties"]["tools"]["items"]
-    variants = list(_flatten_union(tools_item["anyOf"]))
+    variants = list(_flatten_union(_tools_item()["anyOf"]))
     has_platform = any(_type_const(v) == "platform" for v in variants)
     assert has_platform, 'tools union must include a type:"platform" arm'
 

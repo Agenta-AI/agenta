@@ -67,14 +67,11 @@ def test_pi_keeps_builtins_and_native_tools(make_env):
     assert result.model == "m"
 
 
-def test_pi_reads_its_harness_kwargs_slice(make_env):
+def test_pi_reads_its_harness_extras_slice(make_env):
     harness = PiHarness(make_env(supported=[HarnessType.PI]))
     agent = AgentTemplate(
         instructions="hi",
-        harness_kwargs={
-            "pi_core": {"system": "You are Pi.", "append_system": "Be terse."},
-            "claude": {"system": "ignored for Pi"},
-        },
+        harness_extras={"system": "You are Pi.", "append_system": "Be terse."},
     )
     config = _session_config(agent=agent)
 
@@ -89,11 +86,11 @@ def test_pi_reads_its_harness_kwargs_slice(make_env):
     }
 
 
-def test_pi_drops_blank_harness_kwargs(make_env):
+def test_pi_drops_blank_harness_extras(make_env):
     harness = PiHarness(make_env(supported=[HarnessType.PI]))
     agent = AgentTemplate(
         instructions="hi",
-        harness_kwargs={"pi_core": {"system": "   ", "append_system": ""}},
+        harness_extras={"system": "   ", "append_system": ""},
     )
 
     result = harness._to_harness_config(_session_config(agent=agent))
@@ -203,9 +200,7 @@ def test_agenta_passes_through_user_pi_options(make_env):
     harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
     agent = AgentTemplate(
         instructions="hi",
-        harness_kwargs={
-            "pi_core": {"system": "You are Pi.", "append_system": "Be terse."}
-        },
+        harness_extras={"system": "You are Pi.", "append_system": "Be terse."},
     )
 
     result = harness._to_harness_config(_session_config(agent=agent))
@@ -284,27 +279,22 @@ def test_claude_no_warning_without_builtins(make_env, monkeypatch):
     assert recorded == []
 
 
-def test_claude_threads_options_and_renders_settings_file(make_env):
+def test_claude_threads_permissions_and_renders_settings_file(make_env):
     import json
 
     harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
-    options = {
-        "claude": {
-            "permissions": {
-                "default_mode": "acceptEdits",
-                "allow": ["Read"],
-                "deny": ["Write", "Edit"],
-            }
-        },
-        "pi_core": {"system": "ignored for Claude"},
+    permissions = {
+        "default_mode": "acceptEdits",
+        "allow": ["Read"],
+        "deny": ["Write", "Edit"],
     }
-    agent = AgentTemplate(instructions="hi", model="m", harness_kwargs=options)
+    agent = AgentTemplate(instructions="hi", model="m", harness_permissions=permissions)
 
     result = harness._to_harness_config(_session_config(agent=agent))
 
-    # The whole map is threaded onto the config; the claude config's `wire_harness_files` (the
-    # Python claude adapter) translates its own `claude.permissions` slice into a rendered file.
-    assert result.harness_kwargs == options
+    # The harness's first-class `permissions` slice is threaded onto the config; the claude
+    # config's `wire_harness_files` (the Python claude adapter) renders it into a settings file.
+    assert result.harness_permissions == permissions
     wire = result.wire_harness_files()
     assert wire["harnessFiles"][0]["path"] == ".claude/settings.json"
     assert json.loads(wire["harnessFiles"][0]["content"]) == {
@@ -316,12 +306,12 @@ def test_claude_threads_options_and_renders_settings_file(make_env):
     }
 
 
-def test_claude_without_harness_kwargs_renders_no_files(make_env):
+def test_claude_without_permissions_renders_no_files(make_env):
     harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
 
     result = harness._to_harness_config(_session_config())
 
-    assert result.harness_kwargs == {}
+    assert result.harness_permissions == {}
     assert result.wire_harness_files() == {}
 
 

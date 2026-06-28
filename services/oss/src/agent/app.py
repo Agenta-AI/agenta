@@ -227,10 +227,10 @@ async def _agent(
     resolved_tools = await resolve_tools(agent_template.tools)
     resolved_mcp = await resolve_mcp_servers(agent_template.mcp_servers)
 
-    # One least-privilege connection for the configured model. The connection rides the config
-    # (inside `parameters`/`agent.model`); there is no new request field and no project id from
-    # the body. project_id is filled server-side from the caller's auth on the resolve call, so
-    # the client-side context leaves it None.
+    # One least-privilege connection for the configured model. The connection rides the template
+    # (inside `parameters.agent` -> `agent.llm.connection`); there is no new request field and no
+    # project id from the body. project_id is filled server-side from the caller's auth on the
+    # resolve call, so the client-side context leaves it None.
     model_ref = _agent_model_ref(agent_template)
     resolved_connection: Optional[ResolvedConnection] = None
     secrets: Dict[str, str] = {}
