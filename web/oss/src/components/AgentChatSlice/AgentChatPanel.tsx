@@ -418,10 +418,19 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     }, [recordAnchor])
 
     const jumpToLatest = useCallback(() => {
-        stickRef.current = true
+        const el = scrollRef.current
+        if (!el) return
         setShowJump(false)
-        scrollToBottom()
-    }, [scrollToBottom])
+        // Glide to the bottom like the SC-1 pin. Resume follow (stickRef) only ON SETTLE — flipping
+        // it true now would let the per-token follow effect jam to the bottom mid-glide. The final
+        // scrollToBottom catches any content that streamed in during the animation.
+        programmaticScrollRef.current = true
+        animatePinTo(el, el.scrollHeight, () => {
+            el.scrollTop = el.scrollHeight
+            stickRef.current = true
+            programmaticScrollRef.current = false
+        })
+    }, [animatePinTo])
 
     // SC-3: when any message resizes (image load, markdown/code render, tool-card expand), hold the
     // reader's place. Following → keep pinned to the bottom; otherwise compensate scrollTop so the
