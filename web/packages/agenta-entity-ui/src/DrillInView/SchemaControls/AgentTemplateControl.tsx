@@ -21,15 +21,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {
-    type ButtonHTMLAttributes,
-    forwardRef,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -63,6 +55,7 @@ import {useAtomValue} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
+import {AddTextLink} from "./AddTextLink"
 import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ClaudePermissionsControl} from "./ClaudePermissionsControl"
 import {CodeEditor} from "./CodeEditor"
@@ -491,30 +484,6 @@ function ItemRow({
         </div>
     )
 }
-
-/**
- * A text-only "add" link for a section's empty state — no border/background/padding, just inline
- * link text inside a muted sentence (the section header keeps the compact `+` for quick-add).
- *
- * forwardRef + props spread so it can be a popover trigger (ToolSelectorPopover): the popover
- * clones the trigger to attach its positioning ref + onClick. Without the ref it can't anchor and
- * the popover renders at the top-left and immediately closes.
- */
-const AddTextLink = forwardRef<
-    HTMLButtonElement,
-    {label: string} & ButtonHTMLAttributes<HTMLButtonElement>
->(function AddTextLink({label, type = "button", ...rest}, ref) {
-    return (
-        <button
-            ref={ref}
-            type={type}
-            {...rest}
-            className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-c-1677FF,#1677ff)] hover:underline"
-        >
-            {label}
-        </button>
-    )
-})
 
 /**
  * An instructions markdown file row. Avatar + filename + a 2-line preview of the (markdown-stripped)
