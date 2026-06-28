@@ -1,7 +1,7 @@
 /**
  * HarnessSelectControl
  *
- * Harness picker for the agent config. The agent_config catalog schema ships `harness` as an
+ * Harness picker for the agent config. The agent_template catalog schema ships `harness` as an
  * enum (`pi_core` / `pi_agenta` / `claude`) PLUS a `oneOf` of `{const, title,
  * x-ag-harness-slug}` whose `title`s are the canonical display names (`Pi` / `Pi (Agenta)` /
  * `Claude Code`, from the backend's `HARNESS_IDENTITIES`). This control prefers that schema

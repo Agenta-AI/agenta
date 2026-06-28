@@ -57,7 +57,7 @@ from .sdk.utils.preinit import PreInitObject  # noqa: F401
 # `agenta.sdk.agents` when needed.
 from .sdk.agents import (  # noqa: F401
     AgentaHarness,
-    AgentConfig,
+    AgentTemplate,
     ClaudeHarness,
     Environment,
     LocalBackend,

@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from agenta.sdk.agents import (
-    AgentConfig,
+    AgentTemplate,
     AgentResult,
     HarnessType,
     Message,
@@ -20,7 +20,7 @@ from agenta.sdk.agents import (
 
 
 def _config(instructions="hi") -> SessionConfig:
-    return SessionConfig(agent=AgentConfig(instructions=instructions, model="m"))
+    return SessionConfig(agent=AgentTemplate(instructions=instructions, model="m"))
 
 
 # ------------------------------------------------------------- Environment policy

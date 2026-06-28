@@ -16,7 +16,7 @@ from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Sequence
 from agenta.sdk.agents.dtos import (
     AgentResult,
     EventSink,
-    HarnessAgentConfig,
+    HarnessAgentTemplate,
     HarnessType,
     Message,
     TraceContext,
@@ -50,7 +50,7 @@ class FakeRunnerSession(Session):
     def __init__(
         self,
         backend: "FakeRunnerBackend",
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]],
@@ -143,7 +143,7 @@ class FakeRunnerBackend(Backend):
     async def create_session(
         self,
         sandbox: Sandbox,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,

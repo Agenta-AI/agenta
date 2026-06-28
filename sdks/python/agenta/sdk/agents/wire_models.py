@@ -11,7 +11,7 @@ contract lives here.
 What these models are for in this phase (a pre-production POC):
 
 - They are the schema authority: ``run_contract_schemas()`` exports their JSON Schema, which
-  ships in the SDK through ``CATALOG_TYPES`` (the same mechanism ``AgentConfigSchema`` uses to
+  ships in the SDK through ``CATALOG_TYPES`` (the same mechanism ``AgentTemplateSchema`` uses to
   reach the SDK / clients / ``/inspect``). A test asserts the committed catalog entry matches a
   fresh export, so the schema cannot drift from these models.
 - They validate the golden fixtures and ``request_to_wire`` output in tests, proving the schema
@@ -417,7 +417,7 @@ class WireRunResult(_WireModel):
 # ---------------------------------------------------------------------------
 
 # The top-level wire models whose JSON Schema ships in the SDK. Each is keyed by its
-# ``x-ag-type`` so ``CATALOG_TYPES`` can carry it the same way it carries ``agent_config``.
+# ``x-ag-type`` so ``CATALOG_TYPES`` can carry it the same way it carries ``agent-template``.
 WIRE_CONTRACT_MODELS = (WireRunRequest, WireRunResult)
 
 

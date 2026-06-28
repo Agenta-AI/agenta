@@ -30,9 +30,9 @@ AGENT_INPUTS_SCHEMA = {
 
 # The agent config element: one composite control the playground renders for the whole
 # agent config, instead of reusing `prompt-template` plus loose params. The field shape is
-# the `agent_config` catalog type (AgentConfigSchema in agenta.sdk.utils.types), so this is a
-# thin `x-ag-type-ref` the playground resolves against `/workflows/catalog/types/agent_config`
-# and dispatches to the AgentConfigControl (web/packages/agenta-entity-ui/.../AgentConfigControl.tsx).
+# the `agent-template` catalog type (AgentTemplateSchema in agenta.sdk.utils.types), so this is a
+# thin `x-ag-type-ref` the playground resolves against `/workflows/catalog/types/agent_template`
+# and dispatches to the AgentTemplateControl (web/packages/agenta-entity-ui/.../AgentTemplateControl.tsx).
 # The catalog type keeps the typed tools/mcp_servers shape in one place; this schema only
 # carries the default that the playground pre-fills. The agent handler reads it from
 # `parameters.agent` in app.py.
@@ -48,24 +48,24 @@ _DEFAULT_SKILL_SLUG = GETTING_STARTED_WITH_AGENTA_SLUG
 # choices: the static default skill (inlined from the reserved slug) and the declared Layer-2
 # sandbox boundary the playground pre-fills. The SDK builtin interface uses the same builder
 # without these, so a new default field changes one place.
-_DEFAULT_AGENT_CONFIG = build_agent_v0_default(
+_DEFAULT_AGENT_TEMPLATE = build_agent_v0_default(
     skill_slug=_DEFAULT_SKILL_SLUG,
     include_sandbox_permission=True,
 )
 
-AGENT_CONFIG_SCHEMA = {
+AGENT_TEMPLATE_SCHEMA = {
     "type": "object",
-    "x-ag-type-ref": "agent_config",
+    "x-ag-type-ref": "agent-template",
     "title": "Agent",
     "description": "The agent's instructions, model, tools, MCP servers, and runtime.",
-    "default": _DEFAULT_AGENT_CONFIG,
+    "default": _DEFAULT_AGENT_TEMPLATE,
 }
 
 AGENT_PARAMETERS_SCHEMA = {
     "$schema": _SCHEMA,
     "type": "object",
     "additionalProperties": True,
-    "properties": {"agent": AGENT_CONFIG_SCHEMA},
+    "properties": {"agent": AGENT_TEMPLATE_SCHEMA},
 }
 
 # Outputs mirror inputs: an object with a `messages` field of type `messages` (NOT keyed by

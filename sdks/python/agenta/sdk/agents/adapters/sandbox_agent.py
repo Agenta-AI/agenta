@@ -20,7 +20,7 @@ from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Sequence
 from ..dtos import (
     AgentResult,
     EventSink,
-    HarnessAgentConfig,
+    HarnessAgentTemplate,
     HarnessType,
     Message,
     RunContext,
@@ -61,7 +61,7 @@ class SandboxAgentSession(Session):
         self,
         backend: "SandboxAgentBackend",
         sandbox: SandboxAgentSandbox,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]],
@@ -153,7 +153,7 @@ class SandboxAgentBackend(Backend):
     async def create_session(
         self,
         sandbox: Sandbox,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,

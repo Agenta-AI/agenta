@@ -24,7 +24,7 @@ from typing import ClassVar, FrozenSet, Mapping, Optional, Sequence
 from .dtos import (
     AgentResult,
     EventSink,
-    HarnessAgentConfig,
+    HarnessAgentTemplate,
     HarnessType,
     Message,
     RunContext,
@@ -122,7 +122,7 @@ class Backend(ABC):
     async def create_session(
         self,
         sandbox: Sandbox,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,
@@ -176,7 +176,7 @@ class Environment:
 
     async def create_session(
         self,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         session_config: SessionConfig,
@@ -229,7 +229,7 @@ class Harness(ABC):
         await self._env.shutdown()
 
     @abstractmethod
-    def _to_harness_config(self, config: SessionConfig) -> HarnessAgentConfig:
+    def _to_harness_config(self, config: SessionConfig) -> HarnessAgentTemplate:
         """Map the neutral config into this harness's own config (the mapping logic)."""
 
     def _provisioning(self, config: SessionConfig) -> Mapping[str, bytes]:

@@ -2,7 +2,7 @@
 
 Mirrors the chat/completion services: an Agenta app exposing ``/invoke`` and ``/inspect``
 through ``ag.create_app`` + ``ag.workflow`` + ``ag.route``. The handler parses the request
-into one neutral ``AgentConfig`` (``agenta.sdk.agents``), resolves tools (``tools``) and one
+into one neutral ``AgentTemplate`` (``agenta.sdk.agents``), resolves tools (``tools``) and one
 least-privilege model connection (``resolve_connection``) server-side, threads the trace
 context (``tracing``), then runs one turn through a :class:`Harness` over a backend it picks
 from the config's run-selection fields, and records the run's usage.
@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 import agenta as ag
 
 from agenta.sdk.agents import (
-    AgentConfig,
+    AgentTemplate,
     Backend,
     ConnectionResolutionError,
     Environment,
@@ -64,17 +64,17 @@ from oss.src.agent.tracing import record_usage, run_context, trace_context
 log = get_module_logger(__name__)
 
 
-def _default_agent_config() -> AgentConfig:
-    """The service's file defaults (AGENTS.md, model, tools) as a neutral AgentConfig."""
+def _default_agent_template() -> AgentTemplate:
+    """The service's file defaults (AGENTS.md, model, tools) as a neutral AgentTemplate."""
     file_cfg = load_config()
-    return AgentConfig(
+    return AgentTemplate(
         instructions=file_cfg.agents_md,
         model=file_cfg.model,
         tools=file_cfg.tools,
     )
 
 
-def _agent_model_ref(agent_config: AgentConfig) -> Optional[ModelRef]:
+def _agent_model_ref(agent_template: AgentTemplate) -> Optional[ModelRef]:
     """The structured model ref for the run, or ``None`` when no model is configured.
 
     Prefer the parsed ``model_ref`` (populated only when the config's ``model`` arrived as a
@@ -82,10 +82,10 @@ def _agent_model_ref(agent_config: AgentConfig) -> Optional[ModelRef]:
     ``None`` means no model at all, in which case the harness uses its own default/login and no
     connection is resolved.
     """
-    if agent_config.model_ref is not None:
-        return agent_config.model_ref
-    if isinstance(agent_config.model, str) and agent_config.model.strip():
-        return ModelRef.coerce(agent_config.model)
+    if agent_template.model_ref is not None:
+        return agent_template.model_ref
+    if isinstance(agent_template.model, str) and agent_template.model.strip():
+        return ModelRef.coerce(agent_template.model)
     return None
 
 
@@ -189,7 +189,7 @@ async def _resolve_session_connection(
     return resolved
 
 
-def select_backend(agent_config: AgentConfig) -> Backend:
+def select_backend(agent_template: AgentTemplate) -> Backend:
     """Pick the backend for a run from the agent config's run-selection fields.
 
     The service always uses the sandbox-agent-backed runner. `AGENTA_AGENT_RUNNER_URL`
@@ -198,7 +198,7 @@ def select_backend(agent_config: AgentConfig) -> Backend:
     it is a backend/environment concern that never enters ``SessionConfig``.
     """
     return SandboxAgentBackend(
-        sandbox=agent_config.sandbox,
+        sandbox=agent_template.sandbox,
         url=runner_url(),
         cwd=str(runner_dir()),
     )
@@ -217,33 +217,35 @@ async def _agent(
 
     params = parameters or {}
 
-    agent_config = AgentConfig.from_params(params, defaults=_default_agent_config())
+    agent_template = AgentTemplate.from_params(
+        params, defaults=_default_agent_template()
+    )
 
     msgs = to_messages(messages or (inputs or {}).get("messages") or [])
     # Three independent resolutions (tools, MCP, the model's one connection), not one aggregate:
     # the boundary resolves; the backend later decides how each tool executes.
-    resolved_tools = await resolve_tools(agent_config.tools)
-    resolved_mcp = await resolve_mcp_servers(agent_config.mcp_servers)
+    resolved_tools = await resolve_tools(agent_template.tools)
+    resolved_mcp = await resolve_mcp_servers(agent_template.mcp_servers)
 
     # One least-privilege connection for the configured model. The connection rides the config
     # (inside `parameters`/`agent.model`); there is no new request field and no project id from
     # the body. project_id is filled server-side from the caller's auth on the resolve call, so
     # the client-side context leaves it None.
-    model_ref = _agent_model_ref(agent_config)
+    model_ref = _agent_model_ref(agent_template)
     resolved_connection: Optional[ResolvedConnection] = None
     secrets: Dict[str, str] = {}
     if model_ref is not None:
         ctx = RuntimeAuthContext(
-            harness=agent_config.harness, backend=agent_config.sandbox
+            harness=agent_template.harness, backend=agent_template.sandbox
         )
         resolved_connection = await _resolve_session_connection(model_ref, ctx)
         secrets = resolved_connection.env
 
     session_config = SessionConfig(
-        agent=agent_config,
+        agent=agent_template,
         secrets=secrets,  # the env compat alias the wire still reads
         resolved_connection=resolved_connection,
-        permission_policy=agent_config.permission_policy,
+        permission_policy=agent_template.permission_policy,
         trace=trace_context(),
         # The run's own context (trace + workflow identity), refreshed each turn and consumed only
         # by a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). The
@@ -261,7 +263,7 @@ async def _agent(
     # three harnesses (pi_core, pi_agenta, claude). setup/cleanup own the backend lifecycle;
     # prompt/stream run one cold turn.
     harness = make_harness(
-        agent_config.harness, Environment(select_backend(agent_config))
+        agent_template.harness, Environment(select_backend(agent_template))
     )
 
     # ONE path: always stream. The agent only ever runs the streaming transport; the per-call

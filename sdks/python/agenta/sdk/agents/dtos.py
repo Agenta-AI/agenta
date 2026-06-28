@@ -2,7 +2,7 @@
 
 Everything the ports and adapters pass around: harness identity, capabilities, content
 blocks, messages, run events, the run result, trace/tool-callback plumbing, the neutral
-``AgentConfig``, the per-harness configs a backend plumbs, and the ``SessionConfig`` bundle.
+``AgentTemplate``, the per-harness configs a backend plumbs, and the ``SessionConfig`` bundle.
 
 These are Pydantic models (the SDK already depends on Pydantic), kept neutral: an adapter
 translates them to and from its engine's own shapes at its edge.
@@ -66,7 +66,7 @@ class HarnessType(str, Enum):
 # (``agenta:<namespace>:<name>:v<N>``, mirroring ``agenta:builtin:agent:v0`` in
 # ``engines/running/interfaces.py``). The namespace is ``harness`` and the trailing ``v0`` is
 # bumped only when the harness contract shape breaks. This is purely the INTERFACE identity the
-# agent_config schema advertises; the stored/wire harness VALUE stays the bare enum string
+# agent_template schema advertises; the stored/wire harness VALUE stays the bare enum string
 # (``pi_core`` / ``pi_agenta`` / ``claude``), which the runner reads as the runtime selector.
 
 
@@ -75,7 +75,7 @@ class HarnessIdentity(BaseModel):
 
     ``value`` is the wire/runtime selector (the ``HarnessType`` value); ``slug`` is the
     versioned contract identity in the repo's slug grammar; ``name`` is the human-facing label
-    the playground dropdown shows. This is the single source the agent_config schema builds the
+    the playground dropdown shows. This is the single source the agent_template schema builds the
     harness ``oneOf`` from, so the slug, name, and value never drift across the SDK, the service
     schema, and the frontend control."""
 
@@ -132,7 +132,7 @@ class SandboxPermission(BaseModel):
 
     ``network`` is the outbound-egress policy; ``filesystem`` is declared but not enforced
     today; ``enforcement`` picks ``strict`` (fail the run when the boundary cannot be applied)
-    or ``best_effort``. Optional on :class:`AgentConfig`: an unset value never reaches the wire,
+    or ``best_effort``. Optional on :class:`AgentTemplate`: an unset value never reaches the wire,
     so existing configs are unaffected."""
 
     network: NetworkEgress = Field(default_factory=NetworkEgress)
@@ -494,14 +494,14 @@ class AgentResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AgentConfig(BaseModel):
+class AgentTemplate(BaseModel):
     """What an agent is and how it runs — the single agent definition. ``instructions`` becomes
     ``AGENTS.md``. ``tools`` are provider-agnostic references; resolving them into runnable
     specs is the caller's job (the Agenta service does it server-side).
 
     ``harness`` / ``sandbox`` / ``permission_policy`` are the run-selection fields: which
     coding agent to drive, where it runs, and how a permission-gating harness answers tool-use
-    prompts in a headless run. They live on ``AgentConfig`` (under ``data.parameters.agent``)
+    prompts in a headless run. They live on ``AgentTemplate`` (under ``data.parameters.agent``)
     rather than a separate object — there is one agent definition, not an agent plus a sidecar
     selection. ``sandbox`` is a backend/environment concern the caller reads to pick a backend;
     it never enters ``SessionConfig`` or the neutral run.
@@ -562,9 +562,9 @@ class AgentConfig(BaseModel):
         cls,
         params: Dict[str, Any],
         *,
-        defaults: Optional["AgentConfig"] = None,
-    ) -> "AgentConfig":
-        """Build an :class:`AgentConfig` from a request/config dict.
+        defaults: Optional["AgentTemplate"] = None,
+    ) -> "AgentTemplate":
+        """Build an :class:`AgentTemplate` from a request/config dict.
 
         Accepts three shapes, in priority order: the dedicated ``agent`` element, the
         playground ``prompt`` prompt-template (system message -> instructions, ``llm_config``
@@ -595,7 +595,7 @@ class AgentConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class HarnessAgentConfig(BaseModel):
+class HarnessAgentTemplate(BaseModel):
     """Base for a harness-specific config. A Harness produces one of these from the neutral
     config; a backend plumbs it as-is, with no business logic about how the harness works.
 
@@ -628,7 +628,7 @@ class HarnessAgentConfig(BaseModel):
     skills: List[SkillTemplate] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
     # The neutral per-harness options bag (a map keyed by harness name), carried verbatim from
-    # ``AgentConfig.harness_kwargs`` by the harness adapter. The active harness's CONFIG translates
+    # ``AgentTemplate.harness_kwargs`` by the harness adapter. The active harness's CONFIG translates
     # its own slice into rendered files for the wire (see :meth:`wire_harness_files`); the raw bag
     # itself does not ride the wire anymore.
     harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
@@ -747,7 +747,7 @@ class HarnessAgentConfig(BaseModel):
         return self.resolved_connection.to_wire()
 
 
-class PiAgentConfig(HarnessAgentConfig):
+class PiAgentTemplate(HarnessAgentTemplate):
     """Pi's config. Built-in tools by name plus resolved specs delivered natively (Pi has no
     MCP; the runner registers them through the Pi extension). Pi does not gate tool use, so
     no permission policy applies.
@@ -805,7 +805,7 @@ class PiAgentConfig(HarnessAgentConfig):
         return out
 
 
-class ClaudeAgentConfig(HarnessAgentConfig):
+class ClaudeAgentTemplate(HarnessAgentTemplate):
     """Claude's config. No Pi built-ins; tools are delivered over MCP, and
     ``permission_policy`` answers Claude's tool-use prompts in a headless run."""
 
@@ -862,7 +862,7 @@ class ClaudeAgentConfig(HarnessAgentConfig):
         return {"harnessFiles": files}
 
 
-class AgentaAgentConfig(PiAgentConfig):
+class AgentaAgentTemplate(PiAgentTemplate):
     """The Agenta harness's config. It *is* a Pi config (same engine, same tool delivery and
     system-prompt layers). ``skills`` ride the inherited :meth:`wire_skills` seam as resolved
     inline packages, not through ``wire_tools`` (skills are not tools)."""
@@ -887,7 +887,7 @@ class SessionConfig(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    agent: AgentConfig
+    agent: AgentTemplate
     secrets: Dict[str, str] = Field(default_factory=dict)
     # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``.
     # ``secrets`` is the compatibility alias for ``resolved_connection.env`` during the
@@ -951,8 +951,8 @@ def _as_list(raw: Any) -> List[Any]:
 def _split_model_ref(data: Any) -> Any:
     """Populate ``model_ref`` from a structured ``model`` and keep ``model`` a plain string.
 
-    Shared ``mode="before"`` validator body for :class:`AgentConfig` and
-    :class:`HarnessAgentConfig`. The lowest-risk wiring (no behavior change in Slice 1):
+    Shared ``mode="before"`` validator body for :class:`AgentTemplate` and
+    :class:`HarnessAgentTemplate`. The lowest-risk wiring (no behavior change in Slice 1):
 
     - ``model`` is a dict or a :class:`ModelRef` -> set ``model_ref`` from it and project
       ``model`` to its plain ``provider/model`` string. A structured config gains a typed ref
@@ -978,12 +978,12 @@ def _split_model_ref(data: Any) -> Any:
 
 def _parse_mcp_servers_raw(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> List[Any]:
     """Pull the raw ``mcp_servers`` list from a request/config dict, falling back to defaults.
 
     Reads ``mcp_servers`` from the ``agent`` element when present, else the flat request.
-    Canonical validation happens on :class:`AgentConfig` construction."""
+    Canonical validation happens on :class:`AgentTemplate` construction."""
     agent = params.get("agent")
     source = agent if isinstance(agent, dict) else params
     raw = source.get("mcp_servers")
@@ -994,13 +994,13 @@ def _parse_mcp_servers_raw(
 
 def _parse_skills_raw(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> List[Any]:
     """Pull the raw ``skills`` list from a request/config dict, falling back to defaults.
 
     Reads ``skills`` from the ``agent`` element when present, else the flat request. Mirrors
     the MCP path so an unparsed ``skills`` is not silently dropped; canonical validation happens
-    on :class:`AgentConfig` construction. Each entry is a concrete inline ``SkillTemplate`` by the
+    on :class:`AgentTemplate` construction. Each entry is a concrete inline ``SkillTemplate`` by the
     time the request is built (any ``@ag.embed`` reference resolved server-side first)."""
     agent = params.get("agent")
     source = agent if isinstance(agent, dict) else params
@@ -1012,7 +1012,7 @@ def _parse_skills_raw(
 
 def _parse_harness_kwargs(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> Dict[str, Dict[str, Any]]:
     """Pull the per-harness options bag from a request/config dict, falling back to defaults.
 
@@ -1037,7 +1037,7 @@ def _parse_harness_kwargs(
 
 def _parse_run_selection(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> Tuple[str, str, "PermissionPolicy"]:
     """Pull the run-selection trio (harness / sandbox / permission_policy) from a request dict.
 
@@ -1056,7 +1056,7 @@ def _parse_run_selection(
 
 def _parse_sandbox_permission(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> Optional[SandboxPermission]:
     """Pull the sandbox permission object from a request/config dict, falling back to defaults.
 
@@ -1095,7 +1095,7 @@ def _system_text(messages: Optional[List[Any]]) -> str:
 
 def _parse_agent_fields(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> Tuple[Optional[str], Optional[str], Any]:
     """Pull (instructions, model, tools) from a request/config dict, with fallbacks."""
     agent = params.get("agent")

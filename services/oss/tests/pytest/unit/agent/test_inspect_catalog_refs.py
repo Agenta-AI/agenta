@@ -2,7 +2,7 @@
 
 The agent self-describes its interface in ``AGENT_SCHEMAS`` (``services/oss/src/agent/schemas.py``)
 instead of registering a static SDK interface. Its input/output/parameter schemas carry
-``x-ag-type-ref`` markers (``messages``, ``message``, ``agent_config``) that the playground
+``x-ag-type-ref`` markers (``messages``, ``message``, ``agent-template``) that the playground
 resolves against ``GET /workflows/catalog/types/{type}`` to pick a control. That endpoint
 resolves a marker via ``CATALOG_TYPES`` (``agenta.sdk.utils.types``): the router calls
 ``get_workflow_catalog_type(ag_type=...)``, which is ``CATALOG_TYPES.get(ag_type)`` and 404s
@@ -25,8 +25,8 @@ from oss.src.agent.schemas import AGENT_SCHEMAS
 # (not just renaming it to something unresolvable) is caught too. Update this set
 # deliberately when the agent interface changes.
 # `message` (singular) is gone with the keyed-outputs surface: the agent's one output schema
-# is the plural `messages` list. Inputs use `messages`, parameters use `agent_config`.
-EXPECTED_INSPECT_REFS = {"messages", "agent_config"}
+# is the plural `messages` list. Inputs use `messages`, parameters use `agent-template`.
+EXPECTED_INSPECT_REFS = {"messages", "agent-template"}
 
 
 def _collect_type_refs(node: Any, acc: Set[str]) -> Set[str]:

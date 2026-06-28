@@ -15,7 +15,7 @@ import sys
 import pytest
 
 from agenta.sdk.agents import (
-    AgentConfig,
+    AgentTemplate,
     Environment,
     Message,
     PiHarness,
@@ -107,7 +107,7 @@ def _backend(tmp_path, body: str) -> FakeRunnerBackend:
 
 async def test_prompt_round_trips_through_the_real_transport(tmp_path):
     harness = PiHarness(Environment(_backend(tmp_path, _ECHO_RUNNER)))
-    config = SessionConfig(agent=AgentConfig(instructions="hi", model="gpt-5.5"))
+    config = SessionConfig(agent=AgentTemplate(instructions="hi", model="gpt-5.5"))
 
     result = await harness.prompt(config, [Message(role="user", content="ping")])
 
@@ -123,7 +123,7 @@ async def test_prompt_round_trips_through_the_real_transport(tmp_path):
 
 async def test_runner_failure_surfaces_as_runtime_error(tmp_path):
     harness = PiHarness(Environment(_backend(tmp_path, _FAIL_RUNNER)))
-    config = SessionConfig(agent=AgentConfig(instructions="hi"))
+    config = SessionConfig(agent=AgentTemplate(instructions="hi"))
 
     with pytest.raises(RuntimeError, match="model exploded"):
         await harness.prompt(config, [Message(role="user", content="hi")])
@@ -131,14 +131,14 @@ async def test_runner_failure_surfaces_as_runtime_error(tmp_path):
 
 async def test_runner_empty_output_raises(tmp_path):
     harness = PiHarness(Environment(_backend(tmp_path, _SILENT_RUNNER)))
-    config = SessionConfig(agent=AgentConfig(instructions="hi"))
+    config = SessionConfig(agent=AgentTemplate(instructions="hi"))
 
     with pytest.raises(RuntimeError, match="no output"):
         await harness.prompt(config, [Message(role="user", content="hi")])
 
 
 async def test_resolved_skill_reaches_the_runner_over_the_wire(tmp_path):
-    # An AgentConfig carrying a resolved inline skill (the post-@ag.embed-resolution shape) must
+    # An AgentTemplate carrying a resolved inline skill (the post-@ag.embed-resolution shape) must
     # arrive at the runner as a concrete `skills` package over the real wire + transport, not as
     # an embed and not dropped. The skill-echo runner reports the `skills` it saw.
     harness = PiHarness(Environment(_backend(tmp_path, _SKILL_ECHO_RUNNER)))
@@ -151,7 +151,7 @@ async def test_resolved_skill_reaches_the_runner_over_the_wire(tmp_path):
         allow_executable_files=True,
     )
     config = SessionConfig(
-        agent=AgentConfig(instructions="hi", model="gpt-5.5", skills=[skill])
+        agent=AgentTemplate(instructions="hi", model="gpt-5.5", skills=[skill])
     )
 
     result = await harness.prompt(config, [Message(role="user", content="ping")])

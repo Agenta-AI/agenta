@@ -1,6 +1,6 @@
 """The harness interface identity: a versioned slug + display name per harness.
 
-The harness in the agent_config interface is structured as a slug (the repo's
+The harness in the agent_template interface is structured as a slug (the repo's
 ``agenta:...:v0`` grammar, mirroring ``agenta:builtin:agent:v0``) plus a display name, built
 from one SDK source (``HARNESS_IDENTITIES``). The stored/wire harness VALUE stays the bare enum
 string, so the runtime selector and the golden wire contract are unchanged; only the interface
@@ -34,11 +34,11 @@ def test_identity_value_is_the_bare_harness_string():
     assert values == {"pi_core", "pi_agenta", "claude"}
 
 
-def test_agent_config_harness_field_carries_enum_and_oneOf_from_the_registry():
-    # The agent_config catalog type's harness field carries BOTH a flat `enum` (back-compat for
+def test_agent_template_harness_field_carries_enum_and_oneOf_from_the_registry():
+    # The agent_template catalog type's harness field carries BOTH a flat `enum` (back-compat for
     # every `schema.enum` consumer) and a `oneOf` of `{const, title, x-ag-harness-slug}` built from
     # the same registry, so the playground shows the display name + slug while writing the bare value.
-    harness = CATALOG_TYPES["agent_config"]["properties"]["harness"]
+    harness = CATALOG_TYPES["agent-template"]["properties"]["harness"]
 
     assert harness["type"] == "string"
     assert harness["default"] == "pi_core"
@@ -55,5 +55,5 @@ def test_agent_config_harness_field_carries_enum_and_oneOf_from_the_registry():
 def test_harness_oneOf_const_values_match_the_enum():
     # The `oneOf` consts and the flat `enum` describe the same value set, so a control reading
     # either shape offers the same harnesses.
-    harness = CATALOG_TYPES["agent_config"]["properties"]["harness"]
+    harness = CATALOG_TYPES["agent-template"]["properties"]["harness"]
     assert [entry["const"] for entry in harness["oneOf"]] == harness["enum"]

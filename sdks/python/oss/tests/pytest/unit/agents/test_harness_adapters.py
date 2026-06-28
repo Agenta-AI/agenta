@@ -13,14 +13,14 @@ from __future__ import annotations
 import pytest
 
 from agenta.sdk.agents import (
-    AgentaAgentConfig,
+    AgentaAgentTemplate,
     AgentaHarness,
-    AgentConfig,
-    ClaudeAgentConfig,
+    AgentTemplate,
+    ClaudeAgentTemplate,
     ClaudeHarness,
     ClientToolSpec,
     HarnessType,
-    PiAgentConfig,
+    PiAgentTemplate,
     PiHarness,
     SessionConfig,
     ToolCallback,
@@ -42,7 +42,7 @@ _CALLBACK = ToolCallback(endpoint="https://api.example/tools/call", authorizatio
 
 
 def _session_config(**kwargs) -> SessionConfig:
-    agent = kwargs.pop("agent", AgentConfig(instructions="hi", model="m"))
+    agent = kwargs.pop("agent", AgentTemplate(instructions="hi", model="m"))
     return SessionConfig(agent=agent, **kwargs)
 
 
@@ -59,7 +59,7 @@ def test_pi_keeps_builtins_and_native_tools(make_env):
 
     result = harness._to_harness_config(config)
 
-    assert isinstance(result, PiAgentConfig)
+    assert isinstance(result, PiAgentTemplate)
     assert result.builtin_tools == ["read", "write"]
     assert result.custom_tools[0]["name"] == "t"
     assert result.tool_callback is _CALLBACK
@@ -69,7 +69,7 @@ def test_pi_keeps_builtins_and_native_tools(make_env):
 
 def test_pi_reads_its_harness_kwargs_slice(make_env):
     harness = PiHarness(make_env(supported=[HarnessType.PI]))
-    agent = AgentConfig(
+    agent = AgentTemplate(
         instructions="hi",
         harness_kwargs={
             "pi_core": {"system": "You are Pi.", "append_system": "Be terse."},
@@ -91,7 +91,7 @@ def test_pi_reads_its_harness_kwargs_slice(make_env):
 
 def test_pi_drops_blank_harness_kwargs(make_env):
     harness = PiHarness(make_env(supported=[HarnessType.PI]))
-    agent = AgentConfig(
+    agent = AgentTemplate(
         instructions="hi",
         harness_kwargs={"pi_core": {"system": "   ", "append_system": ""}},
     )
@@ -114,7 +114,9 @@ def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
         "body": "Read the changelog, then write notes.",
     }
     config = _session_config(
-        agent=AgentConfig(instructions="My project rules.", model="m", skills=[skill]),
+        agent=AgentTemplate(
+            instructions="My project rules.", model="m", skills=[skill]
+        ),
         builtin_tools=["web_search"],
         custom_tools=[{"name": "t", "callRef": "ref"}],
         tool_callback=_CALLBACK,
@@ -122,7 +124,7 @@ def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
 
     result = harness._to_harness_config(config)
 
-    assert isinstance(result, AgentaAgentConfig)
+    assert isinstance(result, AgentaAgentTemplate)
     # AGENTS.md is the base preamble with the author's instructions appended after it.
     assert result.agents_md.startswith(AGENTA_PREAMBLE)
     assert result.agents_md.endswith("My project rules.")
@@ -149,7 +151,7 @@ def test_agenta_forces_platform_skill_on_a_skill_less_config(make_env):
     # template's `_agenta` embed dropped) still carries the platform skill on every run.
     harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
     config = _session_config(
-        agent=AgentConfig(instructions="My project rules.", model="m", skills=[])
+        agent=AgentTemplate(instructions="My project rules.", model="m", skills=[])
     )
 
     result = harness._to_harness_config(config)
@@ -163,7 +165,7 @@ def test_agenta_does_not_duplicate_an_already_present_platform_skill(make_env):
     harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
     existing = GETTING_STARTED_WITH_AGENTA_SKILL.model_dump(mode="json")
     config = _session_config(
-        agent=AgentConfig(instructions="hi", model="m", skills=[existing])
+        agent=AgentTemplate(instructions="hi", model="m", skills=[existing])
     )
 
     result = harness._to_harness_config(config)
@@ -199,7 +201,7 @@ def test_agenta_forces_tools_without_duplicates(make_env):
 
 def test_agenta_passes_through_user_pi_options(make_env):
     harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
-    agent = AgentConfig(
+    agent = AgentTemplate(
         instructions="hi",
         harness_kwargs={
             "pi_core": {"system": "You are Pi.", "append_system": "Be terse."}
@@ -242,7 +244,7 @@ def test_claude_drops_builtins_and_warns(make_env, monkeypatch):
 
     result = harness._to_harness_config(config)
 
-    assert isinstance(result, ClaudeAgentConfig)
+    assert isinstance(result, ClaudeAgentTemplate)
     assert not hasattr(result, "builtin_tools")  # Claude has no built-in tools at all
     assert result.custom_tools[0]["name"] == "t"
     assert result.permission_policy == "deny"  # Claude carries the policy
@@ -257,7 +259,7 @@ def test_claude_carries_skills_for_project_local_materialization(make_env):
         "body": "Read the changelog, then write notes.",
     }
     config = _session_config(
-        agent=AgentConfig(instructions="hi", model="m", skills=[skill])
+        agent=AgentTemplate(instructions="hi", model="m", skills=[skill])
     )
 
     result = harness._to_harness_config(config)
@@ -296,7 +298,7 @@ def test_claude_threads_options_and_renders_settings_file(make_env):
         },
         "pi_core": {"system": "ignored for Claude"},
     }
-    agent = AgentConfig(instructions="hi", model="m", harness_kwargs=options)
+    agent = AgentTemplate(instructions="hi", model="m", harness_kwargs=options)
 
     result = harness._to_harness_config(_session_config(agent=agent))
 

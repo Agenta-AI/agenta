@@ -227,7 +227,7 @@ const hasAnswer = (message: unknown): boolean => {
 
 /**
  * Default the agent run-selection fields (`harness`/`sandbox`) onto the AGENT CONFIG
- * (`parameters.agent`), not as top-level params siblings. They are part of one `AgentConfig`
+ * (`parameters.agent`), not as top-level params siblings. They are part of one `AgentTemplate`
  * now, so they belong inside the `agent` block. A value the resolved config already carries
  * always wins; the schema nests the config under `agent`, but a flat config (no `agent` key)
  * is still defaulted at the top level so a non-schema config keeps working.
