@@ -1,225 +1,213 @@
-# Design: agent skills for the build-an-app use case
+# Design: the build skills
 
-Status: draft for Mahmoud's review. Grounded in code on `gitbutler/edit` over `big-agents`,
-2026-06-28. Paths are absolute. See the sibling projects for the parts this one depends on
-(`default-agent-config`, `agent-builder-capabilities`, `agent-fe-roundtrip`, `tool-discovery`).
+The skills a new Agenta agent carries so a user can chat with it and build their first app.
 
-## Problem and goal
+Status: rewrite for Mahmoud's review. Grounded in code on `gitbutler/edit` over `big-agents`,
+2026-06-28. Paths are absolute. This replaces the first draft, which mixed the product question
+(which skills do we need) with the implementation question (how a skill reaches the agent) and
+read as unreviewable. This version separates the two and leads with the answer.
 
-A new Agenta agent should arrive able to help. The user chats with it and builds their first
-app: the agent finds the tools the app needs, connects the integrations, sets a trigger or a
-cron job, edits its own instructions, and commits itself. Tools do the actions. Skills teach the
-agent which tools to use and in what order. This project owns the skills: which ones we need,
-what each teaches, and how they are named.
+## Summary
 
-We do not have the real skill content yet. We know what each skill should do. So this design
-sets the skill set, the naming, and the contracts, and writes placeholder bodies that capture
-the build flow. It does not over-build. The placeholders ship as the starting content; the real
-prose lands later.
+The build flow needs four skills. One teaches baseline behavior. One is the map of the whole
+build. Two are deep dives on the hardest sub-flows.
 
-## Scope and ownership
-
-This project owns the skill **content** and the skill **naming**. Three things it does not own,
-and only references:
-
-- Which skill is embedded by default, and the embed-by-default mechanism. Owned by
-  `default-agent-config`.
-- The build-flow tools the skills name (`find_capabilities`, `commit_revision`,
-  `create_schedule`, `create_subscription`, and the rest). Owned by
-  `agent-builder-capabilities`. Most do not exist yet.
-- The connection round-trip (the agent asks the frontend for a connection, the user finishes
-  OAuth, the run resumes). Owned by `agent-fe-roundtrip`.
-
-## 1. Audit: what exists today
-
-### `agenta-getting-started` (placeholder, shipped)
-
-This is the one platform skill that exists. It lives in two places, and they have drifted.
-
-- The canonical content is an SDK constant, `GETTING_STARTED_WITH_AGENTA_SKILL`, in
-  `/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py:93`.
-  Its body is `_GETTING_STARTED_BODY` in the same file. The static catalog imports this constant
-  and serves it under the reserved slug `__ag__getting_started_with_agenta`
-  (`/home/mahmoud/code/agenta/api/oss/src/core/workflows/static_catalog.py:82`). The
-  `pi_agenta` harness force-injects the same constant. So the SDK constant is the single source
-  the running agent actually sees.
-- A second copy is a file at
-  `/home/mahmoud/code/agenta/services/agent/skills/agenta-getting-started/SKILL.md`. Its text is
-  different from the constant. It is not loaded at runtime: the runner composes each SKILL.md
-  from the wire skill (name, description, body) and writes it into the sandbox
-  (`/home/mahmoud/code/agenta/services/agent/src/engines/skills.ts:148`). It never reads this
-  directory from disk.
-
-So the file is an authoring artifact that drifts from the constant the agent reads. Finding:
-single-source the body. The `services/agent/skills/<name>/` layout is still the right home for a
-human-readable copy, but only if it is generated from, or asserted against, the SDK constant.
-Decision needed (open question 5).
-
-The current content of both copies is generic "be concise, prefer your tools, read SKILL.md
-before acting." That is fine as a placeholder. It is not the build-flow content.
-
-### `discover-and-wire-tools` (draft, not yet a platform skill)
-
-Lives at
-`/home/mahmoud/code/agenta/docs/design/agent-workflows/projects/tool-discovery/skills/discover-and-wire-tools/SKILL.md`.
-Written and verified on 2026-06-27. It teaches the discover, resolve-connections, create, test
-loop around `find_capabilities`. It is well written and mostly current. It speaks the in-agent
-voice (it names `find_capabilities` as a tool the agent calls). Its only naming debt is step 4,
-where it composes results into `agent_config.tools` and `agents_md`. Those keys changed (see
-section 2).
-
-### `create-agenta-agent` (draft, not yet a platform skill)
-
-Lives at
-`/home/mahmoud/code/agenta/docs/design/agent-workflows/projects/agent-creation-skills/skills/create-agenta-agent/SKILL.md`.
-It teaches an external caller to build an agent over the HTTP API with curl: create the
-workflow, create a variant, commit a revision, invoke. It is verified against a live stack. It
-carries heavy naming debt: it uses the old flat config shape throughout (`agents_md`, `model`,
-`harness: "pi_core"`, `sandbox: "local"`, `permission_policy`, `mcp_servers`, the type name
-`agent_config`). All of it predates JP's rename.
-
-This skill has a different audience from the build skills. See section 3.
-
-### `self-host-agenta` (draft, out of scope)
-
-Lives next to `create-agenta-agent`. It teaches a person to self-host Agenta with and without
-the Claude subscription sidecar. It is an external operator skill, not part of the build-an-app
-flow. Noted so the set is complete. This project does not touch it.
-
-## 2. The naming update (JP's rename)
-
-JP moved the agent config from a flat blob to a nested template. The catalog type-ref changed
-from `agent_config` to `agent-template`. The whole template still sits at `parameters.agent`.
-Verified in code: `/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/dtos.py:1015`
-(`_template`) and `/home/mahmoud/code/agenta/sdks/python/agenta/sdk/utils/types.py:1399`
-(`build_agent_v0_default`).
-
-The map, old key on the left, current key on the right:
-
-| Old (drafts use this) | Current | Source |
+| Skill | Role | Source |
 |---|---|---|
-| type-ref `agent_config` | type-ref `agent-template` | `dtos.py:1018` |
-| `agents_md` (flat) | `instructions.agents_md` | `dtos.py:1172`, `types.py:1417` |
-| `model` (flat) | `llm.model` (or the `llm` block) | `dtos.py:1184`, `types.py:1418` |
-| `model.params` (the ModelRef knobs bag) | `llm.extras` | `dtos.py:1147`, `connections/models.py:125` |
-| `harness` (flat string) | `harness.kind` | `dtos.py:1097` |
-| `sandbox` (flat string) | `sandbox.kind` | `dtos.py:1098` |
-| `permission_policy` (flat) | `runner.interactions.headless` | `dtos.py:1099`, `types.py:1442` |
-| `mcp_servers` | `mcps` | `dtos.py:1046` |
-| `tools` | `tools` (unchanged, flat on the template) | `dtos.py:1189` |
-| `skills` | `skills` (unchanged, flat on the template) | `dtos.py:1061` |
-| env `AGENTA_AGENT_CONFIG_DIR` | env `AGENTA_AGENT_TEMPLATE_DIR` | `services/oss/src/agent/config.py:54` |
+| `agenta-getting-started` | Baseline behavior. How an Agenta agent works. | Exists as a placeholder. Keep and single-source it. |
+| `build-your-first-app` | The orchestrator. Names the steps, the order, and the stop points. | New. |
+| `discover-and-wire-tools` | Find action tools and get their integrations connected. | A tested draft. Promote and adapt. |
+| `set-up-triggers` | Set up a cron job or an event trigger, and test it. | New. |
 
-The harness kind values are unchanged: `pi_core`, `pi_agenta`, `claude`
-(`dtos.py:49`). The runner block is new: `runner.kind = "sidecar"` and
-`runner.interactions.headless` is `"auto"` or `"deny"`.
+The skills reach the agent through the playground build kit, injected at run time and never
+committed. They are not an `@ag.embed` in the committed config. The `default-agent-config`
+project owns that mechanism; this project owns the skill content, the names, and the slugs.
 
-A correct commit body in the current shape:
+We do not have the final skill prose yet. We know what each skill must teach. So this design
+fixes the set, the naming, and the contracts, and ships placeholder bodies that capture the
+build flow. The real prose lands later.
 
-```jsonc
-{
-  "workflow_revision": {
-    "message": "initial agent config",
-    "slug": "rev-001",
-    "workflow_variant_id": "<variant_id>",
-    "data": {
-      "uri": "agenta:builtin:agent:v0",
-      "parameters": {
-        "agent": {
-          "instructions": { "agents_md": "You are a helpful research assistant." },
-          "llm": { "model": "openai/gpt-4o-mini" },
-          "tools": [],
-          "mcps": [],
-          "harness": { "kind": "pi_core" },
-          "runner": { "kind": "sidecar", "interactions": { "headless": "auto" } },
-          "sandbox": { "kind": "local" }
-        }
-      }
-    }
-  }
-}
-```
+## How to read this
 
-A model pinned to a named vault connection rides the `llm` block, not a flat `model` object:
+The doc answers two separate questions, in two separate parts, so each is reviewable on its own.
 
-```jsonc
-"llm": {
-  "model": "claude-opus-4-8",
-  "provider": "anthropic",
-  "connection": { "mode": "agenta", "slug": "anthropic-prod" }
-}
-```
+- Part A, the product question: which skills does the build flow need, and why. Read this to
+  judge the set. It depends on no implementation detail.
+- Part B, the implementation question: how a skill reaches the agent, how it is named, and what
+  contract it rides. Read this to judge the build.
 
-Which skills carry naming debt:
+Part A is sections 1 to 3. Part B is sections 4 to 6. Open questions are section 7.
 
-- `agenta-getting-started`: none. It has no config examples.
-- `discover-and-wire-tools`: light. Only the step-4 composition (`agent_config.tools` →
-  `tools` on the template; `agents_md` → `instructions.agents_md`).
-- `create-agenta-agent`: heavy. Every config example and the schema table. Full overhaul.
-- The two new skills (`build-your-first-app`, `set-up-triggers`): written fresh in the current
-  shape, so no debt.
+---
 
-## 3. Two audiences, one word "skill"
+# Part A. Which skills does the build flow need?
 
-The word "skill" hides a fork that decides which skills get embedded.
+## 1. The problem
 
-- **In-agent platform skills.** The running agent reads these mid-task. They name the agent's
-  **platform tools** (`find_capabilities`, `commit_revision`, `create_schedule`). They never
-  contain curl. They assume the tools are present, because the default config ships the tools and
-  the skills together.
-- **External developer skills.** A person, or a harness building agents from outside, reads
-  these. They use the HTTP API with curl. `create-agenta-agent` and `self-host-agenta` are this
-  kind.
+A new Agenta agent should start useful. The user creates one, then chats with it, and the agent
+turns itself into a real application. It finds the tools it needs, connects the integrations,
+edits its own instructions, sets a trigger or a cron job, and commits the result. The agent
+becomes the app. The user never writes config by hand. They have a conversation.
 
-The build-an-app use case is the first audience. The user chats with a running agent that builds
-its first app by calling its own tools. So the embedded set is the in-agent skills. This is now
-**decided (Reading A): the agent becomes the app.** The consequence for `create-agenta-agent`:
-it is an external developer skill, so it is not embedded. It still gets a naming fix so it stays
-accurate, and it stays where external skills live (the repo's `.agents/skills/`, per the
-agent-creation-skills README). The builder doc locks the same call (self-modification only). If
-we ever want the agent to build a **separate** app (Reading B in `agent-builder-capabilities`
-section 1), the right home is a section in `build-your-first-app` that drives the
-`create_workflow` / `create_variant` / `commit_workflow_revision` tools, not a curl skill. That
-is a later question, out of scope for this round.
+This is the initiative framed in
+[`../agent-builds-an-app/README.md`](../agent-builds-an-app/README.md). It splits into four
+projects. This one owns the skills.
 
-## 4. The skill set (placeholders)
+A tool does an action. A skill teaches the agent which tools to use, in what order, where to
+stop for the human, and which mistakes to avoid. The model can call a dozen tools, but on its
+own it guesses the sequence. The skills turn "build me an app" into a guided flow.
 
-The embedded build set is four in-agent platform skills. Each is a `SkillTemplate` constant
-served read-only under a reserved `__ag__*` slug. The placeholder bodies below are design
-artifacts: the outline of what each skill teaches and which tools it drives, in order. They are
-the starting content, not the final prose.
+So this project owns the skill content and the skill naming. It does not own three things it
+leans on, and only references them:
 
-A standing caveat for 4.1 and 4.2: the tools these skills name are MISSING until
-`agent-builder-capabilities` ships them. The skill content is ready; it goes live when the tools
-do.
+- Which skills reach a new agent, and the inject mechanism.
+  Owned by [`../default-agent-config/`](../default-agent-config/design.md).
+- The build-flow tools the skills name (`find_capabilities`, `commit_revision`,
+  `create_schedule`, `create_subscription`, and the rest). Most do not exist yet.
+  Owned by [`../agent-builder-capabilities/README.md`](../agent-builder-capabilities/README.md).
+- The connection round-trip. The agent asks the frontend for a connection, the user finishes the
+  sign-in, and the run resumes. Owned by
+  [`../agent-fe-roundtrip/`](../agent-fe-roundtrip/design.md).
 
-### 4.0 `agenta-getting-started` — the baseline (embedded default, exists)
+These decisions are settled across the four projects. This design assumes them, and does not
+reopen them:
 
-Slug `__ag__getting_started_with_agenta`. Already embedded by the default config and served by
-the static catalog. Keep it. It sets behavior, not the build flow: be concise, ask for missing
-inputs, prefer the provided tools and skills, read a matching skill fully before acting. The
-placeholder content it has today is acceptable. The only work here is single-sourcing the body
-(section 1) and confirming it stays the embedded default (it does; `default-agent-config` owns
-that).
+- The agent becomes the app. Self-modification only. The agent edits and commits itself. It does
+  not build other workflows in this round.
+- Defaults are injected, not committed. The platform tools and the build skills are a build aid
+  the playground injects for the run. The commit writes only the user's own config.
+- Skills arrive by inject, not by force. `AGENTA_FORCED_SKILLS` goes empty. The force mechanism
+  stays in the code for a future skill that carries real functionality.
 
-### 4.1 `build-your-first-app` — the orchestrator (new)
+## 2. From the build flow to the skill set
 
-Slug `__ag__build_your_first_app`. The top-level skill. It names the order of steps and the stop
-points, and it points at the focused skills rather than restating them.
+The skill set is not a restatement of the drafts that exist on disk. Those drafts were
+exploration, written in merged branches and not all carried into `big-agents`. We treat them as
+raw material, not as the spec. The set comes from the build flow's actual needs.
+
+### 2.1 What the agent must be able to do
+
+The end-to-end flow has these jobs. The tool layer is owned by `agent-builder-capabilities`;
+the table is here so the whole "what self-build needs" picture is reviewable in one place.
+
+| # | Build step | Serving tool | Tool state |
+|---|---|---|---|
+| 0 | Understand the goal, plan the build | (no tool; the orchestrator skill) | n/a |
+| 1 | Find the right action tools | `find_capabilities` | exists |
+| 2 | See what already exists in the project | `query_workflows` | exists |
+| 3 | Connect an integration the tools need | frontend round-trip (agent requests, cannot create) | frontend-owned |
+| 3b | Check whether a connection is ready | `list_connections` | missing |
+| 4 | Attach tools, edit own instructions, edit own skills | `commit_revision` (self-target) | exists |
+| 5 | Find the right event to trigger on | `find_triggers` (keyword) | missing (new backend) |
+| 6 | Set up a cron job on itself | `create_schedule` (self-target) | missing (backend exists) |
+| 7 | Set up an event trigger on itself | `create_subscription` (self-target) | missing (backend exists) |
+| 8 | Inspect its own triggers | `list_schedules` / `list_subscriptions` | missing (backend exists) |
+| 9 | Test the trigger | `test_subscription` + `list_deliveries` | missing (backend exists) |
+| 10 | Commit the finished agent | `commit_revision` (self-target) | exists |
+
+Through all of it the agent must behave well. Be concise. Ask for missing inputs. Prefer the
+tools and skills it was given over guessing. Read a matching skill fully before it acts. Stop for
+the human at every connection, every commit, every schedule, and every subscription.
+
+### 2.2 Which of those jobs need a skill
+
+A job needs a skill when the agent has to learn a sequence, a stop point, or a footgun that a
+single tool call cannot carry. Map the jobs to that test.
+
+- Behavior (concise, ask, prefer tools, read before acting). This is always-on guidance, not a
+  sequence. It needs a baseline skill: `agenta-getting-started`.
+- Step 0, the whole sequence and the stop points. The agent has to run a dozen calls in the
+  right order and pause at the right gates. This is the core teaching job. It needs the
+  orchestrator skill: `build-your-first-app`.
+- Steps 1 to 3b, find tools and get them connected. This is a loop with a hard footgun: the
+  agent must never create a connection itself; it requests one and waits. It needs a focused
+  skill: `discover-and-wire-tools`.
+- Steps 5 to 9, triggers and cron. This carries the worst footguns in the flow: cron is in UTC,
+  a subscription needs a connection first, the test order matters, and the input mapping is easy
+  to get wrong. It needs a focused skill: `set-up-triggers`.
+- Step 4 and step 10, self-modify and commit. These are a single tool, `commit_revision`. The
+  orchestrator names when to call it. No dedicated skill.
+
+So four skills fall out of the flow: one baseline, one orchestrator, two focused. This is the
+recommended set. Section 7 asks whether to fold the trigger skill into the orchestrator to start
+smaller; the default is to keep four, because the orchestrator stays a short map and each focused
+skill owns one hard sub-flow.
+
+### 2.3 What we reuse from the drafts
+
+Two drafts exist and were tested. We keep what they proved and drop the rest.
+
+- `discover-and-wire-tools` lives at
+  [`../tool-discovery/skills/discover-and-wire-tools/SKILL.md`](../tool-discovery/skills/discover-and-wire-tools/SKILL.md).
+  It was written and verified on 2026-06-27. Its discover, resolve-connections, create, test
+  loop is good and current. We promote it. Two edits in section 3.3.
+- `create-agenta-agent` lives under
+  [`../agent-creation-skills/`](../agent-creation-skills/). It teaches an outside developer to
+  build an agent over the HTTP API with curl. That is a different audience from a running agent
+  that builds itself. Under the self-modify decision, it is not in the build set. It stays an
+  external developer skill, gets a naming fix so it stays accurate, and is out of scope here
+  beyond this note.
+
+`agenta-getting-started` is the one skill that already ships. Section 3.1 covers its drift.
+
+## 3. The skills (placeholder bodies)
+
+Each skill below is a placeholder. The body is a design artifact: the outline of what the skill
+teaches and which tools it drives, in order. It is the starting content, not the final prose.
+
+A standing note for `build-your-first-app` and `set-up-triggers`: the tools they name are
+missing until `agent-builder-capabilities` ships them. The skill content is ready. It goes live
+when the tools do.
+
+### 3.1 `agenta-getting-started` — baseline behavior (exists, single-source it)
+
+This is the only platform skill that ships today. It sets behavior, not the build flow: be
+concise, ask for missing inputs, prefer the provided tools and skills, read a matching skill
+fully before acting. The placeholder content it carries now is acceptable. The work here is to
+fix a drift, not to rewrite it.
+
+The skill lives in two places, and they have diverged.
+
+- The canonical content is an SDK constant, `GETTING_STARTED_WITH_AGENTA_SKILL`, at
+  `/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py:93`. The
+  static catalog imports it and serves it under the reserved slug
+  `__ag__getting_started_with_agenta`
+  (`/home/mahmoud/code/agenta/api/oss/src/core/workflows/static_catalog.py:82`). This constant is
+  the only copy the running agent ever sees.
+- A second copy is a file at
+  `/home/mahmoud/code/agenta/services/agent/skills/agenta-getting-started/SKILL.md`. Its text
+  differs from the constant, and the runner never reads it. The runner composes each SKILL.md
+  from the wire skill it receives, keyed by name, and writes that into the sandbox
+  (`/home/mahmoud/code/agenta/services/agent/src/engines/skills.ts:148`). The on-disk directory
+  is an authoring artifact that has gone stale.
+
+So the file misleads any human who reads it, because it is not what the agent runs. Single-source
+the body. The constant stays canonical. Section 7 asks how: generate the file from the constant,
+assert the file against the constant in a test, or drop the file.
+
+One refinement worth Mahmoud's call (section 7): this skill's content overlaps the always-on
+AGENTS.md preamble (`AGENTA_PREAMBLE` in the same file), which already says "prefer the tools and
+skills provided" and "read a matching skill fully before acting." Baseline behavior may belong in
+the preamble, which applies to every run, rather than in a build-only skill.
+
+### 3.2 `build-your-first-app` — the orchestrator (new)
+
+The top-level skill. It names the order of steps and the stop points, and it points at the
+focused skills rather than restating them.
 
 ```markdown
 ---
 name: build-your-first-app
 description: Guide the user through building their first Agenta app end to end. Use at the
   start of a build conversation to plan the work, find and wire tools, set a trigger, and
-  commit. This skill is the map; read the focused skill for each step.
+  commit. This skill is the map. Read the focused skill for each step.
 ---
 
 # Build your first app
 
-You are helping the user turn a plain-language goal into a working app. This skill is the map.
-It names the order and the points where you stop for the user. Read the focused skill for a step
-before you act on it.
+You are helping the user turn a plain-language goal into a working app. You are building
+yourself: the app you configure is you. This skill is the map. It names the order and the
+points where you stop for the user. Read the focused skill for a step before you act on it.
 
 ## When to use
 
@@ -228,19 +216,19 @@ exist yet.
 
 ## The flow
 
-1. Clarify the goal. Ask what the app should do, what should start it (a message, a schedule, an
-   outside event), and what tools or data it needs. Do not guess.
-2. See what exists. Call `query_workflows` to check the project for an app you can reuse.
-3. Find the tools. Follow the `discover-and-wire-tools` skill. It calls `find_capabilities` and
-   reports which integrations need a connection.
+1. Clarify the goal. Ask what the app should do, what should start it (a message, a schedule,
+   an outside event), and what tools or data it needs. Do not guess.
+2. See what exists. Call `query_workflows` to check the project for work you can reuse.
+3. Find the tools. Follow the `discover-and-wire-tools` skill. It calls `find_capabilities`
+   and reports which integrations need a connection.
 4. Connect the integrations. Hand the user the connection link, wait for them to finish, then
    re-check. You never connect on their behalf.
-5. Configure the app. Edit your own instructions and attach the tools, then commit with
+5. Configure yourself. Edit your own instructions and attach the tools, then commit with
    `commit_revision`. This stops for the user's approval.
-6. Set the trigger. Follow the `set-up-triggers` skill for a cron job or an event trigger. Each
-   one stops for the user's approval.
-7. Test. Fire a test or run once, then confirm the result with the user.
-8. Report. Tell the user what you built, what is connected, and what is now scheduled.
+6. Set the trigger. Follow the `set-up-triggers` skill for a cron job or an event trigger.
+   Each one stops for the user's approval.
+7. Test. Run once against a sample, then confirm the result with the user.
+8. Report. Tell the user what you became, what is connected, and what is now scheduled.
 
 ## Stop points
 
@@ -248,23 +236,37 @@ You pause for the user at every connection, every commit, every schedule, and ev
 subscription. These are approval gates by design. Say what you are about to do, then wait.
 ```
 
-### 4.2 `set-up-triggers` — cron and event triggers (new)
+### 3.3 `discover-and-wire-tools` — promote and adapt (draft exists)
 
-Slug `__ag__set_up_triggers`. The focused skill for steps 6 to 7 above. It turns the trigger
-footguns (timezone, cron syntax, the connection prerequisite, the inputs mapping) into a
-checklist.
+Promote the tested draft to a platform skill. The body carries over. Two edits.
+
+- Step 4 composes the chosen tools into `agent_config.tools` and the guidance into `agents_md`.
+  Those keys are stale. Put each chosen tool into `tools` on the agent template, and compose the
+  guidance into `instructions.agents_md` (the rename, section 5).
+- The draft pairs step 4 with the `create-agenta-agent` curl skill to create a separate agent.
+  Under self-modify, the create step is `commit_revision` on this agent itself. Re-point that
+  line at the `build-your-first-app` configure step, so the skill stays in the in-agent voice.
+
+Everything else carries over: the discover loop, reading the response in Agenta terms, the
+resolve-connections branch (the agent never auto-connects), and the good-habits list. Its
+"triggers are out of scope" note now hands off to `set-up-triggers` instead of dead-ending.
+
+### 3.4 `set-up-triggers` — cron and event triggers (new)
+
+The focused skill for the trigger steps. It turns the trigger footguns into a checklist.
 
 ```markdown
 ---
 name: set-up-triggers
-description: Set up a cron job (a schedule) or an event trigger (a subscription) for an app.
+description: Set up a cron job (a schedule) or an event trigger (a subscription) for the app.
   Use when the user wants the app to run on a timer or react to an outside event.
 ---
 
 # Set up triggers
 
-A trigger makes an app run on its own. There are two kinds. A schedule runs on a clock. A
-subscription runs when an outside event arrives.
+A trigger makes the app run on its own. There are two kinds. A schedule runs on a clock. A
+subscription runs when an outside event arrives. Either way, the trigger targets you: it is
+set on this agent automatically, and you never name a destination.
 
 ## When to use
 
@@ -281,17 +283,17 @@ happens in a connected tool.
 
 ## Subscriptions (events)
 
-1. Find the event. Browse the trigger catalog by integration, then by event. There may be no
-   semantic event search yet, so browse by keyword.
+1. Find the event. Call `find_triggers` with a short keyword for the event you want.
 2. Make sure the connection exists. A subscription needs a connected integration. If it is
-   missing, run the connection flow first.
+   missing, run the connection round-trip first and wait.
 3. Map the event into the run inputs.
 4. Create it with `create_subscription`. This stops for the user's approval.
 
 ## Confirm it works
 
-Fire a test delivery with `test_subscription`, then read the delivery log. Tell the user whether
-it fired and what it produced.
+Test before you go live. If the catalog has a sample event, map the sample and run yourself
+on it, with no connection. To prove the live wiring, call `test_subscription`, then read the
+delivery with `list_deliveries`. Tell the user what fired and what it produced.
 
 ## Footguns
 
@@ -300,161 +302,168 @@ it fired and what it produced.
 - The inputs must match what the app expects, or the run starts empty.
 ```
 
-### 4.3 `discover-and-wire-tools` — promote and adapt (draft exists)
+---
 
-Slug `__ag__discover_and_wire_tools`. Promote the existing draft to a platform skill. The body
-is mostly current. Two edits:
+# Part B. How does a skill reach the agent?
 
-- Step 4 ("Create the agent") composes results into `agent_config.tools` and `agents_md`. Change
-  to the current template: put each chosen tool into `tools` on the agent template, and compose
-  the guidance into `instructions.agents_md`.
-- It pairs with `create-agenta-agent` for the create-and-run step. In the embedded set the create
-  step is `commit_revision` on the agent itself, not the curl skill. Re-point the "then create
-  and test" line at the `build-your-first-app` configure step (`commit_revision`), so the
-  embedded skill stays in the in-agent voice.
+## 4. The delivery model: inject, do not commit
 
-Everything else (the discover, read-the-response, resolve-connections loop, the triggers-are-out-
-of-scope note, the good-habits list) carries over unchanged.
+This is the part that changed most since the first draft, and the part to coordinate with
+`default-agent-config`. The first draft said the build skills reach the agent as an `@ag.embed`
+in the committed default config. That is no longer how it works.
 
-### 4.4 `create-agenta-agent` — external developer skill (draft exists; not embedded)
+The current model is inject, not commit. The platform tools and the build skills are a build aid,
+not part of the user's shipped agent. So the playground injects them for the run, and the commit
+writes only the user's own config.
 
-Not in the embedded set (section 3). Keep it as an external developer skill. Two pieces of work,
-both independent of embedding:
+- The build skills ride the playground build kit, alongside the platform tools and the build
+  permissions. The kit is a backend-defined set with one source of truth.
+  See [`../default-agent-config/design.md`](../default-agent-config/design.md).
+- At run time, when the build kit is on, the backend merges the kit's skills into the effective
+  config before skill resolution. The agent runs with the build skills present.
+- The commit writes only the user's config. The build skills are never in the stored revision,
+  so there is nothing to strip. They are absent by construction.
+- The playground shows the injected skills read-only in the Advanced drawer, marked removed on
+  commit. That drawer is owned by [`../advanced-build-kit/design.md`](../advanced-build-kit/design.md).
 
-- Naming overhaul. Rewrite every config example to the current template shape (section 2): the
-  `instructions` / `llm` / `tools` / `mcps` / `skills` template with nested `harness` / `runner`
-  / `sandbox`, the `agent-template` type name, and `runner.interactions.headless`. The
-  reference.md schema table needs the same pass.
-- Audience label. State at the top that it is for building an agent from outside over HTTP, and
-  that an agent building itself uses its platform tools (`commit_revision`, `find_capabilities`),
-  not these calls.
+The kit references each build skill by its stable slug. The kit's `skills` group carries one row
+per build skill: the slug, the display name, and the description. This project supplies those
+slugs, names, and descriptions; the kit reads them.
 
-Reading A is decided, so do not embed this curl skill. If we ever build the separate-app case
-(Reading B) later, add a "build a separate app" section to `build-your-first-app` that drives the
-`create_workflow` / `create_variant` / `commit_workflow_revision` tools.
+A user-added skill is different. A user can still add their own skill the normal way: an inline
+`SkillTemplate`, or an `@ag.embed` reference, in the committed `skills` list. Those are committed
+and shipped. The build skills are not. The two paths stay separate, and that separation is the
+whole point: Agenta's build aid never leaks into the user's published agent.
 
-## 5. The contracts (design-interfaces)
+One open coordination point (section 7): `default-agent-config` currently describes the kit as
+carrying a single "authoring skill," while this design needs the kit to carry the full build set,
+because the orchestrator references the focused skills and they must be co-present. The kit's
+`skills` group is an array, so it can carry all four. Confirm the kit injects the set.
 
-Three things here are contracts: the slug, the embed shape, and how a skill declares its tools.
-Run the role analysis on each.
+## 5. Naming
 
-### Slug versus name
+### 5.1 The slug, and why it matters
 
-- The **slug** is a routing key: a stable identifier into the static catalog, platform-owned and
-  immutable. Ids derive from it (`static_catalog.py:92`), so it must never change once shipped.
-- The **name** (the frontmatter `name`) is metadata: a human label the playground shows.
+A skill is addressed by a slug. Lead with why that matters, because the first draft dropped it
+with no context.
 
-They play different roles, so they are different fields. They do not have to match, and today
-they do not: name `agenta-getting-started`, slug `__ag__getting_started_with_agenta`. That is a
-pre-existing mismatch. Do not change the live slug to fix it; the ids derive from it.
+- The **slug** is the routing key. The static catalog derives every id for a skill from it: the
+  artifact id, the variant id, and the revision id all come from a UUIDv5 over the slug
+  (`/home/mahmoud/code/agenta/api/oss/src/core/workflows/static_catalog.py`). So the slug is
+  immutable once shipped. Change it and every reference to the skill breaks.
+- The **name** is the human label the playground shows, and the SKILL.md frontmatter field. It is
+  metadata, not a routing key.
 
-For the new slugs, adopt one predictable rule: `__ag__` plus the name with hyphens turned into
-underscores. So name `build-your-first-app` gives slug `__ag__build_your_first_app`, and
-`set-up-triggers` gives `__ag__set_up_triggers`. A reader who knows the name can predict the slug.
-The `__ag__` prefix is the reserved namespace a user cannot author or shadow
-(`api/oss/src/core/workflows/types.py:41`); it is what makes the skill trusted.
+They play different roles, so they are different fields, and they do not have to match. Today they
+do not: name `agenta-getting-started`, slug `__ag__getting_started_with_agenta`. That mismatch is
+pre-existing. Do not change the live slug to fix it. The ids derive from it.
 
-### The embed shape
+For the new skills, adopt one rule: `__ag__` plus the name with hyphens turned to underscores.
+So `build-your-first-app` gives `__ag__build_your_first_app`, and `set-up-triggers` gives
+`__ag__set_up_triggers`. A reader who knows the name can predict the slug. The `__ag__` prefix is
+the reserved namespace a user cannot author or shadow
+(`/home/mahmoud/code/agenta/api/oss/src/core/workflows/types.py:41`). That reservation is what
+makes a platform skill trusted.
 
-A default config carries a skill by reference, not by value. The reference is the existing
-`@ag.embed`, which the backend inlines before the runner sees it. The shape, from
-`build_agent_v0_default` (`types.py:1424`):
+### 5.2 The config rename (JP's rename)
 
-```jsonc
-{
-  "@ag.embed": {
-    "@ag.references": { "workflow": { "slug": "__ag__build_your_first_app" } },
-    "@ag.selector": { "path": "parameters.skill" }
-  }
-}
-```
+The drafts predate JP's config rename. The agent config moved from a flat blob to a nested
+template at `parameters.agent`, with the catalog type-ref `agent-template`. Verified in
+`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/dtos.py` and
+`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/utils/types.py` (`build_agent_v0_default`).
 
-Role analysis: `@ag.references.workflow.slug` is routing (which static workflow), `@ag.selector.path`
-is routing (where the value sits inside that workflow's parameters). No new field. Reuse this
-shape for every embedded skill. Reference the skill at the artifact level (the bare slug, latest
-version), not a revision slug; a revision slug is a hash and 500s (`types.py:1427`).
+The keys a skill example must use, old on the left, current on the right:
 
-### How a skill declares which tools it teaches
+| Old (drafts use this) | Current | Source |
+|---|---|---|
+| type-ref `agent_config` | type-ref `agent-template` | `dtos.py` |
+| `agents_md` (flat) | `instructions.agents_md` | `dtos.py`, `types.py` |
+| `model` (flat) | `llm.model` (or the `llm` block) | `dtos.py`, `types.py` |
+| `model.params` (the model knobs bag) | `llm.extras` | `dtos.py` |
+| `harness` (flat string) | `harness.kind` | `dtos.py` |
+| `sandbox` (flat string) | `sandbox.kind` | `dtos.py` |
+| `permission_policy` (flat) | `runner.interactions.headless` | `dtos.py`, `types.py` |
+| `mcp_servers` | `mcps` | `dtos.py` |
+| `tools` | `tools` (unchanged, flat on the template) | `dtos.py` |
+| `skills` | `skills` (unchanged, flat on the template) | `dtos.py` |
 
-Today a `SkillTemplate` is `name`, `description`, `body`, `files`
-(`sdks/python/agenta/sdk/agents/skills/models.py`). It does not declare the tools it teaches. The
-body names them in prose, and the default config ships the matching tools alongside.
+The harness kind values are unchanged: `pi_core`, `pi_agenta`, `claude`. The runner block is new:
+`runner.kind = "sidecar"` and `runner.interactions.headless` is `"auto"` or `"deny"`.
 
-Two options:
+Which skill carries naming debt:
 
-- **Prose only (recommended).** The skill body names its tools. No contract change. This works
-  because the default config guarantees the tools and the skills arrive together
-  (`default-agent-config`). The skill assumes co-presence.
-- **Structured declaration (deferred).** Add a field to `SkillTemplate`, say
-  `requires_tools: [platform-op names]`, so the system can verify or auto-include the tools a
-  skill needs. This is a new contract surface and a new coupling between the skill catalog and the
-  platform-op catalog.
+- `agenta-getting-started`: none. It has no config examples.
+- `discover-and-wire-tools`: light. Only the step-4 composition (section 3.3).
+- `build-your-first-app`, `set-up-triggers`: none. Written fresh in the current shape.
+- `create-agenta-agent` (external, not embedded): heavy. Every config example. Owned by the
+  external-skill cleanup, not by this round.
 
-Recommend prose only now. The structured field earns its place when a user can add or remove
-tools and skills independently and we need to enforce "this skill needs that tool." That second
-case does not exist yet. Adding the field before it does is the over-abstraction the
-design-interfaces rule warns against. Note it as a deferred option.
+## 6. The skill contract (design-interfaces)
 
-One more contract note: a skill is content and metadata addressed by a slug. It carries no
-executable behavior and grants no tools. That separation is deliberate. Tools are policy and
-capability; skills are guidance. Keep them apart.
+A contract change is the kind of decision the design-interfaces skill governs: classify each
+field by the role it plays, and resist adding a field before a real need exists. One question
+came up, and the answer is to change nothing.
 
-## 6. Embed and force decision (confirm)
+How does a skill declare which tools it teaches? It does not, and it should not.
 
-This restates the decision `default-agent-config` owns, because the skill content depends on it.
+- A `SkillTemplate` is `name`, `description`, `body`, `files`, and two harness flags
+  (`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/skills/models.py`). That shape is the
+  general harness skill standard. Pi, Claude, OpenCode, and Antigravity all read the same
+  frontmatter. A skill is content and metadata. It grants no tools and carries no behavior. We
+  keep it a general standard.
+- A skill names its tools in prose, in its body. The build kit injects the build skills and the
+  platform tools together, so they arrive co-present at run time. If a tool a skill names is
+  absent, the agent simply cannot call it. Nothing in the skill breaks. The harness exposes
+  whatever tools it has, and the skill is plain Markdown either way.
+- We do not add a `requires_tools` field to `SkillTemplate`. That would couple the skill catalog
+  to the platform-op catalog, and it would put platform-specific knowledge into a general
+  standard. By the design-interfaces rule, a field earns its place only when a real need exists.
+  Co-presence is guaranteed by the kit, so there is no need. We reject the field.
 
-- Skills reach the agent through `@ag.embed` in the default config. Present by default. Removable.
-- Stop force-injecting `agenta-getting-started` through the `pi_agenta` harness. Set
-  `AGENTA_FORCED_SKILLS = []` in
-  `/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py:104`.
-- Keep the machinery: `force_skills`, the slug constant `GETTING_STARTED_WITH_AGENTA_SLUG`, the
-  skill constant `GETTING_STARTED_WITH_AGENTA_SKILL`, and the static catalog. We will force a
-  skill again when one carries real functionality the author must not be able to drop. Forcing is
-  for capability, not for the getting-started placeholder.
-
-So the getting-started skill becomes a normal embedded default the user can remove, and forcing
-stays a tool we keep in reserve.
-
-## 7. The split: us versus Arda (frontend)
+## 7. The split: us versus the frontend
 
 **Us (backend, SDK, runner):**
 
 - Author the two new skills (`build-your-first-app`, `set-up-triggers`) as `SkillTemplate`
   constants near `agenta_builtins.py`, register them in the static catalog under their reserved
-  slugs, and lay a single-sourced SKILL.md copy under `services/agent/skills/<name>/`.
-- Promote `discover-and-wire-tools` to a platform skill with the section-4.3 edits.
-- Fix the naming on `create-agenta-agent` (external skill, not embedded).
-- Single-source the getting-started body (open question 5).
-- Set `AGENTA_FORCED_SKILLS = []` (section 6).
+  slugs, and lay a single-sourced SKILL.md copy under `services/agent/skills/<name>/` if we keep
+  the human-readable copies at all (section 8).
+- Promote `discover-and-wire-tools` to a platform skill with the section-3.3 edits.
+- Single-source the `agenta-getting-started` body (section 3.1).
+- Supply the kit's skill rows (slug, name, description) for the build set, for the inject path and
+  the drawer to read.
+- Set `AGENTA_FORCED_SKILLS = []`
+  (`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py:104`), and
+  keep the `force_skills` machinery for a future skill that carries real functionality.
 
-**Arda (frontend):**
+**Frontend (Arda):**
 
-- The skill control renders embedded skills: content read-only (it is Agenta's skill), the embed
-  removable. This is `default-agent-config`'s frontend item; the skills only depend on it.
-- The connection round-trip the build skills reference (surface the OAuth link, pause, resume) is
-  `agent-fe-roundtrip`. The skills consume it; they do not design it.
+- The Advanced drawer renders the injected build skills read-only, in the build-kit section,
+  marked removed on commit. Owned by [`../advanced-build-kit/design.md`](../advanced-build-kit/design.md).
+  The skills only depend on it.
+- The connection round-trip the build skills reference (surface the sign-in link, pause, resume).
+  Owned by [`../agent-fe-roundtrip/design.md`](../agent-fe-roundtrip/design.md). The skills
+  consume it; they do not design it.
 
-## 8. Open questions for Mahmoud
+## 8. Open questions
 
-1. **Self-modify or separate app? DECIDED (Reading A).** The agent becomes the app: it edits
-   itself. The embedded set is the four in-agent skills, and `create-agenta-agent` stays an
-   external developer skill that is not embedded. The builder doc locks the same call
-   (self-modification only). A future separate-app case (Reading B) would be a section in
-   `build-your-first-app` over the `create_workflow` tools, not the embedded curl skill; that is
-   out of scope for this round. (Mirrors `agent-builder-capabilities` decision 1.)
+1. **The skill set count.** The recommendation is four: `agenta-getting-started`,
+   `build-your-first-app`, `discover-and-wire-tools`, `set-up-triggers`. The alternative is to
+   fold `set-up-triggers` into `build-your-first-app` to ship a smaller surface first. Default:
+   keep four. The orchestrator stays a short map, and each focused skill owns one hard sub-flow.
 
-2. **The skill set.** I propose four embedded skills: `agenta-getting-started`,
-   `build-your-first-app`, `set-up-triggers`, `discover-and-wire-tools`. Is that the set, or do
-   you want `set-up-triggers` folded into `build-your-first-app` to keep the count down at the
-   start?
+2. **Baseline behavior: skill or preamble.** `agenta-getting-started` overlaps the always-on
+   AGENTS.md preamble (section 3.1). Keep it as a separate build skill, or fold its content into
+   the preamble so baseline behavior applies to every run, not only build-time runs? Lean: fold
+   into the preamble, and drop the separate behavior skill, once we confirm nothing else depends
+   on the slug.
 
-3. **Slug rule.** Adopt `__ag__` plus name-with-underscores for new slugs
-   (`__ag__build_your_first_app`), leaving the live getting-started slug as-is. Agreed?
+3. **Does the kit inject the full build set.** `default-agent-config` describes the kit as
+   carrying one authoring skill; this design needs all of the build skills present so the
+   orchestrator can reference the focused ones (section 4). Confirm the kit's `skills` group
+   carries the set.
 
-4. **Tool declaration.** Prose-only now (the skill body names its tools, the default config ships
-   them together), structured `requires_tools` deferred until tools and skills can be added
-   independently. Agreed?
-
-5. **Single-sourcing the body.** The getting-started body lives twice (SDK constant, served at
-   runtime; SKILL.md file, not loaded). Make the file generated from or asserted against the
-   constant, or drop the file. Which way?
+4. **Single-sourcing the getting-started body.** The body lives twice today: the SDK constant
+   (canonical, served at run time) and a SKILL.md file (stale, never loaded). Generate the file
+   from the constant, assert the file against the constant in a test, or drop the file. Lean: drop
+   the on-disk copies and keep the constant as the only source.
