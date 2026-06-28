@@ -19,11 +19,12 @@ is folded into this design. Four open questions remain for Mahmoud.
 ## The contract for the frontend
 
 - The overlay rides a new read-only container on the inspect response:
-  `inspect_context.build_kit.agent_template_overlay`, a sibling of `application` on
+  `additional_context.playground_build_kit.agent_template_overlay`, a sibling of `application` on
   `SimpleApplicationResponse`. It is not in `revision.data` (user config, `extra="forbid"`, flows
   into commit) and not in `application.meta` (user metadata, persisted). It is platform-owned,
-  read-only, derived per response. Future read-only hints add members beside `build_kit`.
-- The overlay is a partial `parameters.agent`. Today: the three platform ops in `tools`, the
+  read-only, derived per response. Future read-only hints add members beside `playground_build_kit`.
+- The overlay is a partial `parameters.agent`. Today: the three platform ops plus a reference
+  (workflow-as-tool) entry for the client tool `__ag__request_connection` in `tools`, the
   authoring skill as an `@ag.embed` reference in `skills`, and the build-permission elevation in
   `sandbox`. Skills are ordinary embed references with no parallel display fields; a permission's
   status is its value in the overlay.
@@ -32,7 +33,7 @@ is folded into this design. Four open questions remain for Mahmoud.
 - No run flag. The toggle is client session state, default on. A kit-on run is just a run whose
   `parameters.agent` already carries the merged items. The run wire is unchanged.
 
-(The naming and placement of `inspect_context` follow a Codex review of the whole inspect response
+(The naming and placement of `additional_context` follow a Codex review of the whole inspect response
 schema, chosen over `meta` to avoid the user-owned artifact `meta` and to keep the platform-derived
 container extensible.)
 
@@ -51,10 +52,12 @@ container extensible.)
 - The advanced-drawer UI is folded into this design, not a separate PR.
 - Authoring skill content and naming: skills project (`#4918`). We reference the reserved slug only.
 - Builder tools (`#4919`) add more platform ops; the builder reads `PLATFORM_OPS` at assembly time,
-  so new ops join automatically.
+  so new ops join automatically. The builder also enumerates the reserved-slug platform workflows
+  in the static workflow catalog and adds each as a reference-tool entry, parallel to iterating
+  `PLATFORM_OPS`.
 - A client tool such as `request_connection` is a non-runnable workflow (reference) tool, not a
-  platform op; its primary definition is owned by `#4920`. If the kit carries one, it joins the
-  overlay as a reference-tool entry.
+  platform op; its primary definition is owned by `#4920`. The kit carries it as a reference-tool
+  entry embedded from its reserved `__ag__*` slug.
 - The overlay model carries through to `#4918`, `#4919`, and `#4920`. Do not edit them here; the
   orchestrator propagates the design after Mahmoud approves it.
 

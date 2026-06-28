@@ -11,7 +11,7 @@ the user's own config.
 
 - `design.md`: the design. The overlay model (the frontend merges, the backend serves, the
   service runs as-is), the overlay shape (a partial `parameters.agent`, skills as `@ag.embed`),
-  where it lives on the inspect response (`inspect_context.build_kit.agent_template_overlay`), the
+  where it lives on the inspect response (`additional_context.playground_build_kit.agent_template_overlay`), the
   merge semantics, the frontend run-and-commit behavior, the advanced-drawer UI, what the backend
   does not do, the interface notes, and the change set.
 - `research.md`: the code trace behind the design. Where the default comes from, how platform

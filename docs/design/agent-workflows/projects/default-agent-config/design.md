@@ -65,7 +65,9 @@ Today's overlay:
     "tools": [
       { "type": "platform", "op": "find_capabilities" },
       { "type": "platform", "op": "query_workflows" },
-      { "type": "platform", "op": "commit_revision" }
+      { "type": "platform", "op": "commit_revision" },
+      // a client/embed tool: a non-runnable reference to a reserved-slug workflow the frontend handles (#4920)
+      { "type": "reference", "slug": "__ag__request_connection" }
     ],
     "skills": [
       { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__getting_started_with_agenta" } } } }
@@ -77,13 +79,21 @@ Today's overlay:
 }
 ```
 
-The backend assembles this from sources the SDK already owns: `tools` by iterating
-`PLATFORM_OPS` (`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/platform/op_catalog.py`),
-so a new op added by the builder-tools project joins the kit with no edit here; `skills` as the
-`@ag.embed` reference to the authoring skill's reserved slug; `sandbox` as the build-permission
-elevation. Each entry is an ordinary agent-template fragment, so the dumb service already knows
-how to run it and a kit-on run is indistinguishable on the wire from a config the user authored
-by hand with the same items.
+The backend assembles `tools` from two parallel iterations, both over sources the platform
+already owns. It iterates `PLATFORM_OPS`
+(`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/platform/op_catalog.py`) for the
+platform ops, so a new op added by the builder-tools project joins the kit with no edit here. It
+also enumerates the reserved-slug platform workflows from the static workflow catalog
+(`StaticWorkflowCatalog` over `_STATIC_WORKFLOWS` at
+`/home/mahmoud/code/agenta/api/oss/src/core/workflows/static_catalog.py`) and adds each as a
+reference (workflow-as-tool) entry. These reserved workflows are the same `__ag__*` family as the
+platform skills, so a client tool like `__ag__request_connection` (the non-runnable connection
+tool the frontend handles, owned by `#4920`) rides the kit beside the platform ops with no bespoke
+path. The two iterations are symmetric: one walks the op catalog, the other walks the static
+workflow catalog. `skills` is the `@ag.embed` reference to the authoring skill's reserved slug;
+`sandbox` is the build-permission elevation. Each entry is an ordinary agent-template fragment, so
+the dumb service resolves it the way it resolves any tool, skill, or sandbox setting, and a kit-on
+run is indistinguishable on the wire from a config the user authored by hand with the same items.
 
 ## Where the overlay lives in the inspect response
 
@@ -95,20 +105,20 @@ read-only container on the inspect response envelope.
 {
   "count": 1,
   "application": { /* ... the agent, including data.parameters (the user's config) ... */ },
-  "inspect_context": {
-    "build_kit": {
+  "additional_context": {
+    "playground_build_kit": {
       "agent_template_overlay": { /* the partial parameters.agent above */ }
     }
   }
 }
 ```
 
-- `inspect_context` is a new optional field on `SimpleApplicationResponse`
+- `additional_context` is a new optional field on `SimpleApplicationResponse`
   (`/home/mahmoud/code/agenta/api/oss/src/apis/fastapi/applications/models.py`), a sibling of
   `application`. It holds platform-supplied, read-only information derived for this response. The
   build kit is its first member; future read-only hints or pointers add new members beside
-  `build_kit` rather than overloading user-owned fields.
-- `build_kit` holds the kit's payload. Today that is one field, `agent_template_overlay`.
+  `playground_build_kit` rather than overloading user-owned fields.
+- `playground_build_kit` holds the kit's payload. Today that is one field, `agent_template_overlay`.
 - `agent_template_overlay` is the partial agent template the frontend merges. The name says
   exactly what it is and how it is used, and it cannot be mistaken for the saved template.
 
@@ -118,7 +128,7 @@ This placement is the load-bearing decision, and it follows ownership and lifecy
   `application.data.parameters`.
 - User metadata that round-trips through create, edit, and commit lives in `application.meta`.
 - Platform information that the backend derives read-only for one inspect response lives in
-  `inspect_context`.
+  `additional_context`.
 
 The overlay must not sit in `revision.data`. That object is the user's schema-constrained config,
 it is `extra="forbid"`
@@ -155,7 +165,7 @@ path.
 The frontend owns three behaviors. All read the same overlay; none change the run wire.
 
 1. **Read.** On loading the workflow, the frontend reads
-   `inspect_context.build_kit.agent_template_overlay` from the inspect response and keeps it in
+   `additional_context.playground_build_kit.agent_template_overlay` from the inspect response and keeps it in
    session-scoped state, keyed like the existing inspect cache (per service), separate from the
    persisted `data`. It renders the overlay in the drawer. It hardcodes no item list and no
    labels.
@@ -303,7 +313,7 @@ State the negatives so no implementer re-adds them.
 
 The model rests on role splits, not feature splits.
 
-- **Platform-derived information versus user-owned data.** `inspect_context` is platform-supplied,
+- **Platform-derived information versus user-owned data.** `additional_context` is platform-supplied,
   read-only, and derived per response. `application.data.parameters` is user config the revision
   persists; `application.meta` is user metadata that round-trips. Three owners, three lifecycles,
   three homes. This split is why the overlay needs no strip step and cannot leak into a commit.
@@ -320,14 +330,15 @@ The model rests on role splits, not feature splits.
 
 ## Change set, by layer
 
-1. **Inspect-context container (backend, new).** Add `inspect_context` to
-   `SimpleApplicationResponse` with a typed `build_kit.agent_template_overlay`
+1. **Additional-context container (backend, new).** Add `additional_context` to
+   `SimpleApplicationResponse` with a typed `playground_build_kit.agent_template_overlay`
    (`/home/mahmoud/code/agenta/api/oss/src/apis/fastapi/applications/models.py`). Populate it only
    in the read path (`fetch_simple_application`), never in create, edit, or commit.
 
-2. **Overlay builder (backend, new).** One builder assembles the overlay: `tools` from
-   `PLATFORM_OPS`, `skills` as the `@ag.embed` reference to the authoring slug, `sandbox` as the
-   build-permission elevation. It reads SDK-owned sources and is not referenced by the service run
+2. **Overlay builder (backend, new).** One builder assembles the overlay: `tools` from both
+   `PLATFORM_OPS` and the reserved-slug platform workflows in the static workflow catalog, `skills`
+   as the `@ag.embed` reference to the authoring slug, `sandbox` as the build-permission
+   elevation. It reads platform-owned sources and is not referenced by the service run
    path.
 
 3. **Published default goes bare (backend).** Revert the `schemas.py` enrichment so the schema
@@ -336,7 +347,7 @@ The model rests on role splits, not feature splits.
 4. **Stop force-injecting the skill (SDK).** Set `AGENTA_FORCED_SKILLS = []`
    (`agenta_builtins.py:104`). Coordinate with the skills project.
 
-5. **Frontend read and render (web).** Read `inspect_context.build_kit.agent_template_overlay`
+5. **Frontend read and render (web).** Read `additional_context.playground_build_kit.agent_template_overlay`
    into session state. Render the "Playground build kit" section, reusing the existing config-item
    controls, and make the advanced sections collapsible.
 
@@ -348,7 +359,7 @@ The model rests on role splits, not feature splits.
    into `entity.data.parameters`, so `prepareCommitParameters` excludes it for free.
 
 8. **Tests.** Backend: the builder lists the platform ops, the authoring skill, and the build
-   permissions as one overlay; the inspect response carries `inspect_context.build_kit`; the
+   permissions as one overlay; the inspect response carries `additional_context.playground_build_kit`; the
    published default is bare across the builtin, the inspect schema, and the catalog (update
    `/home/mahmoud/code/agenta/services/oss/tests/pytest/unit/agent/test_default_agent_template.py`).
    Frontend: a kit-on run merges the overlay into `parameters.agent` (deep-merge and identity-merge
@@ -381,9 +392,9 @@ The model rests on role splits, not feature splits.
   assembly time, so new ops join the overlay automatically.
 - A client tool such as `request_connection` is not a platform op. It is a non-runnable
   workflow (reference) tool: the backend exposes it and the frontend handles the call, the same
-  reference-tool concept the platform already has. If the kit later carries such a tool, it joins
-  the overlay as a reference-tool entry (identity by its referenced workflow), not a platform op.
-  Its primary definition is owned by `#4920`.
+  reference-tool concept the platform already has. The kit carries it as a reference-tool entry,
+  embedded from its reserved `__ag__*` slug (identity by its referenced workflow), beside the
+  platform ops. Its primary definition is owned by `#4920`.
 - Per-item edit or delete of kit items, and a picker to add platform tools to the published agent,
   are out of scope. The kit is whole-toggle and read-only in v1.
 - The overlay model carries through to `#4918`, `#4919`, and `#4920`. They are not edited here; the
