@@ -48,7 +48,7 @@ __all__ = [
 # The model-visible tool name is the bare ``op``; ``reserved_id`` is the stable namespaced id.
 PLATFORM_OP_NAMESPACE = "tools.agenta."
 
-# Every ``bind`` value addresses the run-context namespace through this token prefix
+# Every ``context_bindings`` value addresses the run-context namespace through this token prefix
 # (e.g. ``$ctx.workflow.variant.id``); the runner resolves it at dispatch (see ``RunContext``).
 _CTX_TOKEN_PREFIX = "$ctx."
 
@@ -57,7 +57,7 @@ class PlatformOp(BaseModel):
     """One catalog entry: an existing Agenta endpoint exposed to the agent as a tool.
 
     Typed (not a loose dict) so each entry is validated at import: exactly one schema source, a
-    relative path, and well-formed ``$ctx`` bind tokens.
+    relative path, and well-formed ``$ctx`` context-binding tokens.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -80,7 +80,7 @@ class PlatformOp(BaseModel):
     # Self-targeting fields the runner fills server-side from run context: a dotted body path on the
     # endpoint's request -> a ``$ctx.<key>`` token. These are stripped from the model-visible schema
     # and emitted as ``call.context`` so the model supplies only the payload and can never retarget.
-    bind: Dict[str, str] = Field(default_factory=dict)
+    context_bindings: Dict[str, str] = Field(default_factory=dict)
     # Where the model's args land in the request body (a dotted deep-set path; absent = the root).
     args_into: Optional[str] = None
     # Per-op defaults; the config's ``needs_approval`` / ``permission`` override these when set.
@@ -108,12 +108,14 @@ class PlatformOp(BaseModel):
                 f"platform op '{self.op}' path '{self.path}' must be a relative path "
                 "starting with a single '/'"
             )
-        for field, token in self.bind.items():
+        for field, token in self.context_bindings.items():
             if not field:
-                raise ValueError(f"platform op '{self.op}' has an empty bind field")
+                raise ValueError(
+                    f"platform op '{self.op}' has an empty context-binding field"
+                )
             if not token.startswith(_CTX_TOKEN_PREFIX):
                 raise ValueError(
-                    f"platform op '{self.op}' bind '{field}' must map to a "
+                    f"platform op '{self.op}' context binding '{field}' must map to a "
                     f"'$ctx.<key>' token, got '{token}'"
                 )
         return self
@@ -127,8 +129,8 @@ class PlatformOp(BaseModel):
         """The concrete, model-visible input schema.
 
         Catalog schema with every ``x-ag-type-ref`` expanded to concrete JSON Schema, then with the
-        server-bound ``bind`` fields stripped (path-aware, including their ``required`` entries) so
-        the model never sees a field the runner fills from run context.
+        server-bound ``context_bindings`` fields stripped (path-aware, including their ``required``
+        entries) so the model never sees a field the runner fills from run context.
         """
         if self.input_schema_ref is not None:
             schema = expand_type_refs({"x-ag-type-ref": self.input_schema_ref})
@@ -138,17 +140,18 @@ class PlatformOp(BaseModel):
             schema, dict
         ):  # defensive; catalog schemas are always objects
             return schema
-        for field in self.bind:
+        for field in self.context_bindings:
             _strip_field(schema, field)
         return schema
 
     def to_call(self) -> ToolCall:
-        """The direct ``call`` descriptor: the endpoint to hit, where args land, and the bind map
-        (emitted as ``context`` so the runner fills bound fields from run context at dispatch)."""
+        """The direct ``call`` descriptor: the endpoint to hit, where args land, and the
+        context bindings (emitted as ``context`` so the runner fills bound fields from run
+        context at dispatch)."""
         return ToolCall(
             method=self.method,
             path=self.path,
-            context=dict(self.bind) or None,
+            context=dict(self.context_bindings) or None,
             args_into=self.args_into,
         )
 
@@ -308,7 +311,9 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/workflows/revisions/commit",
             input_schema=_COMMIT_REVISION_INPUT_SCHEMA,
-            bind={"workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"},
+            context_bindings={
+                "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
+            },
             default_permission="ask",
             default_needs_approval=True,
         ),

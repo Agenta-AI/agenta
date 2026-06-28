@@ -30,7 +30,7 @@ optional), and `render` (optional), discriminated by `type`:
   "environment": null, "name": "summarize", "description": "...", "input_schema": {} }
 
 // platform: an existing Agenta endpoint exposed to the agent. `op` names a platform-op catalog
-// entry; the catalog owns the description, endpoint, schema, bind, and per-op gate defaults.
+// entry; the catalog owns the description, endpoint, schema, context bindings, and per-op gate defaults.
 // `needs_approval` is optional here (null = use the catalog default).
 { "type": "platform", "op": "find_capabilities", "needs_approval": null, "permission": null }
 ```
@@ -52,7 +52,7 @@ config (not markers); `resolve_tools` owns the tool-specific mapping.
 // (or "workflow.variant.summarize.3", or "workflow.environment.production.summarize")
 
 // callback (direct): a type:"platform" tool. Instead of call_ref it carries a `call` descriptor —
-// the runner calls the endpoint directly (no /tools/call hop). `context` is the run-context bind.
+// the runner calls the endpoint directly (no /tools/call hop). `context` carries the run-context bindings.
 // A callback spec carries exactly one of `call_ref` (gateway) or `call` (direct).
 { "kind": "callback", "name": "find_capabilities", "description": "...", "input_schema": {},
   "call": { "method": "POST", "path": "/api/tools/discover" } }
@@ -95,8 +95,8 @@ secret; their provider key stays server-side and the call routes back through `/
 - `sdks/python/agenta/sdk/agents/platform/workflow.py`: `type: "reference"` workflow resolution to
   a `workflow.{axis}.*` callback spec.
 - `sdks/python/agenta/sdk/agents/platform/op_catalog.py`: the platform-op catalog (the typed `op`
-  table; description, endpoint, input schema, `bind`, per-op gate defaults) + the schema/bind
-  resolution.
+  table; description, endpoint, input schema, `context_bindings`, per-op gate defaults) + the
+  schema/context-binding resolution.
 - `sdks/python/agenta/sdk/agents/platform/platform_tools.py`: `type: "platform"` resolution to a
   callback spec carrying a direct `call`.
 - `sdks/python/agenta/sdk/agents/platform/_schema.py`: `expand_type_refs` (resolve `x-ag-type-ref`
@@ -132,10 +132,11 @@ in `op_catalog.py` (the SDK must not import the API).
 - **The `call` XOR `call_ref` rule.** A callback spec carries exactly one of `call_ref` (gateway)
   or `call` (direct). Platform tools emit `call`; gateway/reference still emit `call_ref`. The body
   assembly + SSRF guard for a direct `call` live in `services/agent/src/tools/direct.ts`.
-- **Platform-op catalog and the `bind` map.** `op_catalog.py` owns the `op → {description, method,
-  path, input_schema, bind, defaults}` table. A `bind` entry strips a field from the model-visible
-  schema and emits it as `call.context` (a `$ctx.<key>` run-context token). Keep the catalog `path`
-  pointing at an existing endpoint and the `bind` token names in step with the `runContext` shape.
+- **Platform-op catalog and the `context_bindings` map.** `op_catalog.py` owns the `op →
+  {description, method, path, input_schema, context_bindings, defaults}` table. A `context_bindings`
+  entry strips a field from the model-visible schema and emits it as `call.context` (a `$ctx.<key>`
+  run-context token). Keep the catalog `path` pointing at an existing endpoint and the
+  `context_bindings` token names in step with the `runContext` shape.
 - **Reserved platform call references.** `tools.agenta.{op}` is reserved for Agenta platform
   tools (v1: `find_capabilities`, `query_workflows`, `commit_revision`). The model-visible tool
   name is the bare `op`; the namespaced id is `PlatformOp.reserved_id`. Keep the reserved prefix
