@@ -845,6 +845,30 @@ class LoopsConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# mounts
+# ---------------------------------------------------------------------------
+
+
+class MountsConfig(BaseModel):
+    """Durable object-store (S3/SeaweedFS) backing for mounts.
+
+    Dev points at SeaweedFS; platform/prod points at real S3 — same code path.
+    """
+
+    s3_endpoint_url: str | None = os.getenv("AGENTA_MOUNTS_S3_ENDPOINT_URL")
+    s3_access_key: str | None = os.getenv("AGENTA_MOUNTS_S3_ACCESS_KEY")
+    s3_secret_key: str | None = os.getenv("AGENTA_MOUNTS_S3_SECRET_KEY")
+    s3_region: str = os.getenv("AGENTA_MOUNTS_S3_REGION", "us-east-1")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        """Mounts file ops enabled if an endpoint and credentials are present."""
+        return bool(self.s3_access_key and self.s3_secret_key)
+
+
+# ---------------------------------------------------------------------------
 # newrelic
 # ---------------------------------------------------------------------------
 
@@ -1185,6 +1209,7 @@ class EnvironSettings(BaseModel):
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
+    mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()

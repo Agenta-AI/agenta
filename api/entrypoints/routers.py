@@ -157,6 +157,10 @@ from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from taskiq_redis import RedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
+from oss.src.dbs.postgres.mounts.dao import MountsDAO
+from oss.src.core.mounts.service import MountsService
+from oss.src.core.mounts.storage import MountStorage
+from oss.src.apis.fastapi.mounts.router import MountsRouter
 
 
 from oss.src.routers import (
@@ -348,6 +352,11 @@ _OPENAPI_TAGS = [
         "description": "Organize applications and other resources into folder hierarchies.",
     },
     # --
+    {
+        "name": "Mounts",
+        "description": "Durable object-store mounts for agent working directories.",
+    },
+    # --
     # {
     #     "name": "Events",
     #     "description": "Structured event ingestion for analytics and audit purposes.",
@@ -481,6 +490,7 @@ evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
 folders_dao = FoldersDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
+mounts_dao = MountsDAO(engine=_transactions_engine)
 
 # SERVICES ---------------------------------------------------------------------
 
@@ -714,6 +724,18 @@ _triggers_worker = TriggersWorker(
 
 triggers_service.schedule_dispatch_task = _triggers_worker.dispatch_schedule
 
+mounts_storage = MountStorage(
+    endpoint_url=env.mounts.s3_endpoint_url,
+    access_key=env.mounts.s3_access_key,
+    secret_key=env.mounts.s3_secret_key,
+    region=env.mounts.s3_region,
+)
+
+mounts_service = MountsService(
+    mounts_dao=mounts_dao,
+    mount_storage=mounts_storage,
+)
+
 _t_services_done = time.perf_counter() - _t_services
 print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
 _t_routers = time.perf_counter()
@@ -854,6 +876,10 @@ invocations_service = InvocationsService(
 )
 invocations = InvocationsRouter(
     invocations_service=invocations_service,
+)
+
+mounts = MountsRouter(
+    mounts_service=mounts_service,
 )
 
 # AI SERVICES ------------------------------------------------------------------
@@ -1265,6 +1291,18 @@ app.include_router(
     prefix="/preview/simple/queues",
     tags=["Evaluations"],
     include_in_schema=False,
+)
+
+app.include_router(
+    router=mounts.router,
+    prefix="/mounts",
+    tags=["Mounts"],
+)
+
+app.include_router(
+    router=mounts.sessions_router,
+    prefix="/sessions",
+    tags=["Mounts"],
 )
 
 app.include_router(
