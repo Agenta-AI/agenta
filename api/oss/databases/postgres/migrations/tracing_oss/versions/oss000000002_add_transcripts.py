@@ -1,7 +1,7 @@
 """add_transcripts
 
-Revision ID: e2f3a4b5c6d7
-Revises: d1e2f3a4b5c6
+Revision ID: oss000000002
+Revises: oss000000001
 Create Date: 2026-06-28 12:00:00.000000
 
 """
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "e2f3a4b5c6d7"
-down_revision: Union[str, None] = "d1e2f3a4b5c6"
+revision: str = "oss000000002"
+down_revision: Union[str, None] = "oss000000001"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
