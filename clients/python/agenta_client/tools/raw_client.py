@@ -23,6 +23,8 @@ from ..types.tool_catalog_providers_response import ToolCatalogProvidersResponse
 from ..types.tool_connection_create import ToolConnectionCreate
 from ..types.tool_connection_response import ToolConnectionResponse
 from ..types.tool_connections_response import ToolConnectionsResponse
+from ..types.tool_resolve_response import ToolResolveResponse
+from .types.tool_resolve_request_tools_item import ToolResolveRequestToolsItem
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -610,6 +612,59 @@ class RawToolsClient:
                     ToolConnectionResponse,
                     parse_obj_as(
                         type_ =ToolConnectionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def resolve_tools(self, *, tools: typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolResolveResponse]:
+        """
+        Resolve an agent's tool references into model-ready specs.
+        
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        
+        Parameters
+        ----------
+        tools : typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[ToolResolveResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "tools/resolve",method="POST",
+            json={
+                "tools": convert_and_respect_annotation_metadata(object_=tools, annotation=typing.Sequence[ToolResolveRequestToolsItem], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ToolResolveResponse,
+                    parse_obj_as(
+                        type_ =ToolResolveResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1259,6 +1314,59 @@ class AsyncRawToolsClient:
                     ToolConnectionResponse,
                     parse_obj_as(
                         type_ =ToolConnectionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def resolve_tools(self, *, tools: typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolResolveResponse]:
+        """
+        Resolve an agent's tool references into model-ready specs.
+        
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        
+        Parameters
+        ----------
+        tools : typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[ToolResolveResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "tools/resolve",method="POST",
+            json={
+                "tools": convert_and_respect_annotation_metadata(object_=tools, annotation=typing.Sequence[ToolResolveRequestToolsItem], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ToolResolveResponse,
+                    parse_obj_as(
+                        type_ =ToolResolveResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )

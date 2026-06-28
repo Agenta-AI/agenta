@@ -15,7 +15,9 @@ from ..types.tool_catalog_providers_response import ToolCatalogProvidersResponse
 from ..types.tool_connection_create import ToolConnectionCreate
 from ..types.tool_connection_response import ToolConnectionResponse
 from ..types.tool_connections_response import ToolConnectionsResponse
+from ..types.tool_resolve_response import ToolResolveResponse
 from .raw_client import AsyncRawToolsClient, RawToolsClient
+from .types.tool_resolve_request_tools_item import ToolResolveRequestToolsItem
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -454,6 +456,38 @@ class ToolsClient:
         )
         """
         _response = self._raw_client.revoke_tool_connection(connection_id, request_options=request_options)
+        return _response.data
+    
+    def resolve_tools(self, *, tools: typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ToolResolveResponse:
+        """
+        Resolve an agent's tool references into model-ready specs.
+        
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        
+        Parameters
+        ----------
+        tools : typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        ToolResolveResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.tools.resolve_tools()
+        """
+        _response = self._raw_client.resolve_tools(tools=tools, request_options=request_options)
         return _response.data
     
     def call_tool(self, *, data: ToolCallData, request_options: typing.Optional[RequestOptions] = None) -> ToolCallResponse:
@@ -1030,6 +1064,46 @@ class AsyncToolsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.revoke_tool_connection(connection_id, request_options=request_options)
+        return _response.data
+    
+    async def resolve_tools(self, *, tools: typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ToolResolveResponse:
+        """
+        Resolve an agent's tool references into model-ready specs.
+        
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        
+        Parameters
+        ----------
+        tools : typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        ToolResolveResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.tools.resolve_tools()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.resolve_tools(tools=tools, request_options=request_options)
         return _response.data
     
     async def call_tool(self, *, data: ToolCallData, request_options: typing.Optional[RequestOptions] = None) -> ToolCallResponse:

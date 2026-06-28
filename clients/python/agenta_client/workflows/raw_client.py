@@ -22,6 +22,8 @@ from ..types.simple_workflow_query import SimpleWorkflowQuery
 from ..types.simple_workflow_response import SimpleWorkflowResponse
 from ..types.simple_workflows_response import SimpleWorkflowsResponse
 from ..types.windowing import Windowing
+from ..types.workflow_catalog_harness_response import WorkflowCatalogHarnessResponse
+from ..types.workflow_catalog_harnesses_response import WorkflowCatalogHarnessesResponse
 from ..types.workflow_catalog_preset_response import WorkflowCatalogPresetResponse
 from ..types.workflow_catalog_presets_response import WorkflowCatalogPresetsResponse
 from ..types.workflow_catalog_template_response import WorkflowCatalogTemplateResponse
@@ -122,6 +124,90 @@ class RawWorkflowsClient:
                     WorkflowCatalogTypeResponse,
                     parse_obj_as(
                         type_ =WorkflowCatalogTypeResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def list_workflow_catalog_harnesses(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkflowCatalogHarnessesResponse]:
+        """
+        List the agent harness records shipped with the product.
+        
+        Each record carries the harness `capabilities` (providers, deployments, connection
+        modes, model selection, models). A workflow's harness field references one via
+        `x-ag-harness-ref`, resolved against `/catalog/harnesses/{ag_harness}`.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[WorkflowCatalogHarnessesResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "workflows/catalog/harnesses/",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WorkflowCatalogHarnessesResponse,
+                    parse_obj_as(
+                        type_ =WorkflowCatalogHarnessesResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def fetch_workflow_catalog_harness(self, ag_harness: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkflowCatalogHarnessResponse]:
+        """
+        Return a single harness record (with its `capabilities`).
+        
+        Returns 404 when the `ag_harness` is not part of the shipped catalog.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
+        Parameters
+        ----------
+        ag_harness : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[WorkflowCatalogHarnessResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"workflows/catalog/harnesses/{jsonable_encoder(ag_harness)}",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WorkflowCatalogHarnessResponse,
+                    parse_obj_as(
+                        type_ =WorkflowCatalogHarnessResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -2065,6 +2151,90 @@ class AsyncRawWorkflowsClient:
                     WorkflowCatalogTypeResponse,
                     parse_obj_as(
                         type_ =WorkflowCatalogTypeResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def list_workflow_catalog_harnesses(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkflowCatalogHarnessesResponse]:
+        """
+        List the agent harness records shipped with the product.
+        
+        Each record carries the harness `capabilities` (providers, deployments, connection
+        modes, model selection, models). A workflow's harness field references one via
+        `x-ag-harness-ref`, resolved against `/catalog/harnesses/{ag_harness}`.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[WorkflowCatalogHarnessesResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "workflows/catalog/harnesses/",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WorkflowCatalogHarnessesResponse,
+                    parse_obj_as(
+                        type_ =WorkflowCatalogHarnessesResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def fetch_workflow_catalog_harness(self, ag_harness: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkflowCatalogHarnessResponse]:
+        """
+        Return a single harness record (with its `capabilities`).
+        
+        Returns 404 when the `ag_harness` is not part of the shipped catalog.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
+        Parameters
+        ----------
+        ag_harness : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[WorkflowCatalogHarnessResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"workflows/catalog/harnesses/{jsonable_encoder(ag_harness)}",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WorkflowCatalogHarnessResponse,
+                    parse_obj_as(
+                        type_ =WorkflowCatalogHarnessResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )

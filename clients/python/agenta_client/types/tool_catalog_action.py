@@ -12,6 +12,7 @@ class ToolCatalogAction(UniversalBaseModel):
     description: typing.Optional[str] = None
     categories: typing.Optional[typing.List[str]] = None
     logo: typing.Optional[str] = None
+    read_only: typing.Optional[bool] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
