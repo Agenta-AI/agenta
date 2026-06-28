@@ -42,23 +42,89 @@ signatures — new-turn positioning, place preservation, reopen point, long-thre
 
 ## Work packages
 
-| WP | Principle | Change | Effort |
+| WP | Principle | Change | Status |
 | --- | --- | --- | --- |
-| SC-1 | 4,5,6 | On submit, scroll the new user message to the top (bottom spacer gives it room) and stream the answer into the space below, instead of jamming to the bottom. | Med |
-| SC-2 | 11 | On session mount, scroll to the last user message, not `scrollHeight`. | Low |
-| SC-3 | 12 | `overflow-anchor`, reserve media height, stop re-scrolling on every growth frame when not at the edge. | Med |
-| SC-4 | 3 | Treat selection / keydown / wheel-up / focus as "stop following", not just `scroll`. | Low |
-| SC-5 | 14 | Virtualize the list; throttle the typewriter; memoize tool parts. | High |
-| SC-6 | 15 | Move the live region to a small status node, throttle announcements, add `aria-busy`. | Med |
-| SC-7 | 8 | State-aware jump pill: "responding ↓" while streaming, "N new" when messages arrive offscreen. | Low |
-| SC-8 | 10 | In-thread search / message anchors / unread marker. Lowest priority for a playground. | High |
+| SC-1 | 4,5,6 | Pin the new user turn to the top; the answer streams into the fill below. | **Done** |
+| SC-2 | 11 | Reopen a saved thread at the last user message, parked (not following). | **Done** |
+| SC-3 | 12 | Preserve the reader's place when content above changes height. | **Done** |
+| SC-4 | 3 | Selection / link-click also release follow (not just scroll). | **Done** |
+| SC-5 | 14 | Virtualize the list; throttle the typewriter; memoize tool parts. | Open (High) |
+| SC-6 | 15 | Move the live region to a small status node, throttle, add `aria-busy`. | Open (Med) |
+| SC-7 | 8 | State-aware jump pill: "responding ↓" / "N new" when offscreen. | Open (Low) |
+| SC-8 | 10 | In-thread search / message anchors / unread marker. | Open (High) |
 
-Sequence: SC-1 first (most visible), verify, then SC-2 / SC-3 / SC-4, then the rest.
+Branch: `fe-feat/agent-chat-scroll-engineering` (off `fe-feat/agent-config-section-drawers`). All four
+done WPs live in `AgentChatPanel.tsx` (the inner `AgentConversation` component). `tsc` + `eslint` clean;
+not yet QA-signed-off by the user beyond the storyboard flows.
 
-## SC-1 design (implemented first)
+## Implemented foundation (SC-1–SC-4) — read before extending
 
-On submit: set a one-shot "pin" flag and release stick-to-bottom; render a bottom spacer sized to the
-container's viewport so the new user turn *can* reach the top; after the optimistic user message
-mounts, scroll it to the top of the container. The answer then streams into the space below while the
-question stays anchored at the top. The jump pill remains available to follow the answer; the spacer is
-removed when the turn goes idle (it sits below the fold, so removing it doesn't move the reader).
+Everything rests on one invariant: **the view only moves when the user is at the live edge (following);
+new content arriving, growing, or settling must never move it.** The pieces, all in `AgentConversation`:
+
+- **`stickRef` (follow)** — true only when the user is at the very bottom of the *scrollable* area
+  (`scrollHeight - scrollTop - clientHeight < 24`), set in `onScroll`. NOT visibility-based (that was the
+  yank bug — it's true right after a pin). Default value is SC-2: `initialMessages.length === 0` (a new
+  empty session follows; a restored thread opens parked).
+- **The fill** — `min-h-full` on the **active-turn wrapper** (the last user message + its response,
+  grouped via `activeStart = lastUserIndex`). Present whenever `activeStart > 0` (there is prior
+  conversation), derived from **layout, not `busy`** — so it persists when the turn settles. This is the
+  CSS form of `fill = max(0, viewport − content-below-question)`: it lets the question sit at the top and
+  is the empty space below a short answer. Removing it on settle was the "jump on completion" bug; do NOT
+  re-gate it on streaming state. Grouping the whole turn keeps the fill on one stable element (it doesn't
+  hop user→assistant mid-stream).
+- **The pin** (`armPinRef` + a `useLayoutEffect`) — one-shot scroll of the **last user message** to the
+  top. Armed on submit (SC-1) and on mount when a restored thread has a user message (SC-2). Sets
+  `programmaticScrollRef` around its `scrollTop` write.
+- **`programmaticScrollRef`** — set while WE move the scroll (pin, follow, SC-3 compensation); `onScroll`
+  early-returns on it so our own scrolls aren't mistaken for the user reaching the edge. Cleared on the
+  next frame. Any new programmatic scroll MUST set this.
+- **Jump pill (`showJump`)** — tracks the **real latest message** via `atLiveEdge` (last `[data-mid]`
+  child's bottom vs the container bottom — ignores the fill). Shown only when that message is below the
+  fold AND not following; only *raised* by a real scroll/recompute, never by the fill.
+- **SC-3 anchoring** — `[overflow-anchor:none]` (we own it; Safari has none) + `recordAnchor` (topmost
+  visible `[data-mid]`, recorded on scroll and after each pin) + a `ResizeObserver` on the message
+  wrappers that compensates `scrollTop` by the anchor's drift when content above changes height. Growth
+  below the anchor (the streaming answer) yields `delta ≈ 0`, so it's untouched.
+- **SC-4 release** — a `selectionchange` listener (non-empty selection whose `anchorNode` is inside the
+  log) and an `<a>`-click listener release follow. Composer is exempt (its nodes aren't in the log).
+- **Stopped/Resend** — gated on **position**, not id: `stopped && isLast && role === "assistant"`. A
+  boolean (`stopped`), set on stop, cleared on send/resend. Do NOT key this on `message.id` — restore /
+  error-carrier paths can produce missing/duplicate ids that smear the tag onto every turn.
+
+Gotchas for any extension: never write `scrollTop` without setting `programmaticScrollRef`; the
+`[data-mid]` attribute on each message wrapper is load-bearing (pin, anchor, atLiveEdge, ResizeObserver
+all query it); the `messages.length` dep on the ResizeObserver re-subscribes when turns are added (parts
+growing fire on the already-observed wrapper).
+
+## Next steps (SC-5–SC-8) — ready to pick up
+
+- **SC-5 — responsiveness in long threads (High).** Not virtualized: `messages.map` renders every turn,
+  each `AgentMessage` renders every part, and `useTypewriter` (`ToolPart.tsx`) re-renders on every rAF.
+  Plan: (a) `React.memo` `AgentMessage`/`ToolPart` keyed on message identity so settled turns don't
+  re-render while the last one streams; (b) throttle/curb the typewriter (cap rAF rate or disable for
+  long output); (c) only then consider windowing. Windowing is hard here because the SC-1 fill needs
+  `min-h-full` against the scroll container and SC-3 measures real wrapper geometry — a windowing lib that
+  unmounts off-screen turns breaks `recordAnchor`/`atLiveEdge`/the pin's `querySelector`. If virtualizing,
+  keep stable `data-mid` sentinels and feed the lib our follow/anchor model rather than its own.
+- **SC-6 — accessible without the noise (Med).** Today `role="log" aria-live="polite"` is on the whole
+  transcript, so every streamed token is announced. Plan: drop `aria-live` from the transcript; add a
+  small visually-hidden status node that announces coarse events only ("Agent is responding…",
+  "Response ready", "Run failed") on a throttle; add `aria-busy={busy}` to the log; ensure the jump pill
+  and composer keep keyboard focus order. Verify with VoiceOver/NVDA.
+- **SC-7 — state-aware jump pill (Low).** The pill is a static "Jump to latest". Make it reflect state:
+  "Agent is responding ↓" while `busy` and below the fold; "N new messages" when assistant turns arrived
+  while parked. Pure presentation on top of the existing `showJump`/`busy`; no scroll-model change.
+- **SC-8 — jump anywhere in a thread (High).** No in-thread search, message anchors, or unread markers.
+  Larger feature; lowest priority for a playground. Would build on `data-mid` for deep-linking.
+
+## QA checklist (for SC-1–SC-4 before merge)
+
+- New turn in an overflowing thread → question pins to top, answer streams below; short/long/huge all
+  hold (no jump on arrival or on settle); error/fast reply doesn't jump on settle.
+- Scroll partially mid-stream → place held; reach the very bottom → follows; jump pill returns to the
+  latest message (never whitespace) and is legible over text.
+- Reopen a saved thread / switch tabs / open from history → lands at the last user message, parked.
+- Select text or click a link mid-stream while following → follow releases, selection preserved.
+- Image/markdown/tool-card height change above the reader → reading line holds.
+- Stop a turn then ask again → Stopped/Resend on only that one turn, gone after the next send.
