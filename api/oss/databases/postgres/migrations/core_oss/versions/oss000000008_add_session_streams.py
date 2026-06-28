@@ -1,7 +1,7 @@
 """add session_streams table
 
-Revision ID: a1b2c3d4e5f6
-Revises: fd77265d65dc
+Revision ID: oss000000008
+Revises: oss000000007
 Create Date: 2026-06-28 00:00:00.000000
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision: str = "a1b2c3d4e5f6"
-down_revision: Union[str, None] = "fd77265d65dc"
+revision: str = "oss000000008"
+down_revision: Union[str, None] = "oss000000007"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

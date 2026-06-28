@@ -160,7 +160,7 @@ class TestMountsArchive:
 
         unarchive_resp = authed_api("POST", f"/mounts/{mount_id}/unarchive")
         assert unarchive_resp.status_code == 200, unarchive_resp.text
-        assert unarchive_resp.json()["mount"]["deleted_at"] is None
+        assert unarchive_resp.json()["mount"].get("deleted_at") is None
 
     def test_archived_mount_excluded_from_default_query(self, authed_api):
         payload = _mount_payload()

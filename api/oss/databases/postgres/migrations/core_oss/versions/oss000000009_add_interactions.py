@@ -1,20 +1,20 @@
 """add interactions table
 
-Revision ID: aa01bb02cc03
-Revises: fd77265d65dc
+Revision ID: oss000000009
+Revises: oss000000008
 Create Date: 2026-06-28 00:00:00.000000
 """
 
-from typing import Union
+from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "aa01bb02cc03"
-down_revision: Union[str, None] = "fd77265d65dc"
-branch_labels = None
-depends_on = None
+revision: str = "oss000000009"
+down_revision: Union[str, None] = "oss000000008"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
