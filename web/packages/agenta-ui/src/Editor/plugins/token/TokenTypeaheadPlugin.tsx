@@ -343,13 +343,42 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
         [anchor, editor],
     )
 
-    // Track token node changes — unchanged from legacy behavior.
+    // Track token node changes to drive the typeahead anchor. The update
+    // listener fires on every commit; computing the desired anchor is done
+    // synchronously (it must read the editor state), but the React state is
+    // updated in a coalesced microtask — never synchronously inside the
+    // commit. A synchronous setState here lets a burst of commits (e.g. token
+    // transforms firing across a code block with mixed `{`/`{{` braces) drive
+    // setState → re-render → commit past React's update-depth limit and crash
+    // the editor. Deferring + identity-stable updates make that impossible.
     useEffect(() => {
-        return editor.registerUpdateListener(() => {
+        let scheduled = false
+        let cancelled = false
+        let nextAnchor: {element: HTMLElement; key: string} | null = null
+        let nextQuery = ""
+
+        const flush = () => {
+            scheduled = false
+            if (cancelled) return
+            const a = nextAnchor
+            const q = nextQuery
+            setInputQuery((prev) => (prev === q ? prev : q))
+            setAnchor((prev) =>
+                prev && a && prev.key === a.key && prev.element === a.element ? prev : a,
+            )
+        }
+        const schedule = () => {
+            if (scheduled) return
+            scheduled = true
+            queueMicrotask(flush)
+        }
+
+        const unregister = editor.registerUpdateListener(() => {
             editor.getEditorState().read(() => {
                 const selection = $getSelection()
                 if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
-                    setAnchor(null)
+                    nextAnchor = null
+                    schedule()
                     return
                 }
 
@@ -367,18 +396,25 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
                     // after the caret. Restrict to end-of-token until the
                     // replacement logic becomes caret-aware.
                     if (match && offsetPos === text.length - 2) {
-                        setInputQuery(match[1])
                         const dom = editor.getElementByKey(node.getKey())
                         if (dom) {
-                            setAnchor({element: dom, key: node.getKey()})
+                            nextAnchor = {element: dom, key: node.getKey()}
+                            nextQuery = match[1]
+                            schedule()
                             return
                         }
                     }
                 }
-                setAnchor(null)
-                setInputQuery("")
+                nextAnchor = null
+                nextQuery = ""
+                schedule()
             })
         })
+
+        return () => {
+            cancelled = true
+            unregister()
+        }
     }, [editor])
 
     // Reset highlight when suggestion list changes (e.g. user typed another char).
