@@ -2,6 +2,7 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from
 
 import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
 import {generateId} from "@agenta/shared/utils"
+import {HeightCollapse} from "@agenta/ui"
 import {useChat} from "@ai-sdk/react"
 import {Bubble, Sender} from "@ant-design/x"
 import {ArrowDown, Paperclip, UploadSimple} from "@phosphor-icons/react"
@@ -803,24 +804,19 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         </Tooltip>
                     }
                     header={
-                        <div
-                            className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
-                                attachmentsOpen || files.length > 0
-                                    ? "grid-rows-[1fr] opacity-100"
-                                    : "grid-rows-[0fr] opacity-0"
-                            }`}
-                        >
-                            <div className="min-h-0 overflow-hidden">
-                                <ComposerAttachments
-                                    files={files}
-                                    rejections={rejections}
-                                    limits={limits}
-                                    onAdd={addFiles}
-                                    onRemove={removeFile}
-                                    onDismissRejections={() => setRejections([])}
-                                />
-                            </div>
-                        </div>
+                        // HeightCollapse animates real height (0 ↔ auto via interpolate-size), not
+                        // grid-template-rows fr units — no per-frame grid relayout and no cold
+                        // intrinsic-size cost on the first open. Content stays mounted (warm).
+                        <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                            <ComposerAttachments
+                                files={files}
+                                rejections={rejections}
+                                limits={limits}
+                                onAdd={addFiles}
+                                onRemove={removeFile}
+                                onDismissRejections={() => setRejections([])}
+                            />
+                        </HeightCollapse>
                     }
                     placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
                 />
