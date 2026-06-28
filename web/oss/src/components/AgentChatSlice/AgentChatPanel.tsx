@@ -202,10 +202,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // event so a programmatic pin isn't mistaken for the user reaching the live edge (which would flip
     // stick-to-bottom on and jam the view back down, undoing the pin).
     const programmaticScrollRef = useRef(false)
-    // rAF handle for the smooth pin animation, and whether the NEXT pin should animate. A fresh
-    // submit (SC-1) animates so the question glides to the top; a thread restore / tab switch
-    // (SC-2) jumps — you want to open already-positioned, not watch it scroll.
-    const pinAnimRef = useRef<number | null>(null)
+    // Teardown for the in-flight smooth pin (removes its listeners + fallback timer), and whether the
+    // NEXT pin should animate. A fresh submit (SC-1) glides the question to the top; a thread restore /
+    // tab switch (SC-2) jumps — you want to open already-positioned, not watch it scroll.
+    const pinCleanupRef = useRef<(() => void) | null>(null)
     const animatePinRef = useRef(false)
 
     // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
@@ -343,55 +343,56 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         if (el) el.scrollTop = el.scrollHeight
     }, [])
 
-    // Smoothly scroll the log to `target` (the SC-1 pin). programmaticScrollRef stays set for the
-    // whole animation so onScroll / the ResizeObserver ignore the intermediate frames; a real user
-    // wheel/touch cancels it and hands control back. Honors prefers-reduced-motion (instant).
+    // Smoothly scroll the log to `target` (the SC-1 pin / jump-to-latest). Uses the browser's NATIVE
+    // smooth scroll so it runs on the compositor — smooth even while React re-renders streamed tokens,
+    // and natively interruptible. The caller holds programmaticScrollRef across it so onScroll / the
+    // ResizeObserver ignore the in-between frames; `scrollend` (or a fallback timeout) settles it. A
+    // real user wheel/touch hands control straight back. Honors prefers-reduced-motion (instant).
     const animatePinTo = useCallback((el: HTMLDivElement, target: number, onSettle: () => void) => {
-        if (pinAnimRef.current != null) cancelAnimationFrame(pinAnimRef.current)
-        const start = el.scrollTop
-        const dist = target - start
+        pinCleanupRef.current?.()
         const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-        if (reduce || Math.abs(dist) < 2) {
+        if (reduce || Math.abs(target - el.scrollTop) < 2) {
             el.scrollTop = target
             onSettle()
             return
         }
-        const cancel = () => {
-            if (pinAnimRef.current != null) cancelAnimationFrame(pinAnimRef.current)
-            pinAnimRef.current = null
-            el.removeEventListener("wheel", cancel)
-            el.removeEventListener("touchstart", cancel)
-            // Hand control back: clear the guard so the user's scroll is honored by onScroll.
-            programmaticScrollRef.current = false
+        let done = false
+        let timer = 0
+        const cleanup = () => {
+            el.removeEventListener("scrollend", onEnd)
+            el.removeEventListener("wheel", onUser)
+            el.removeEventListener("touchstart", onUser)
+            if (timer) clearTimeout(timer)
+            pinCleanupRef.current = null
         }
-        const finish = () => {
-            pinAnimRef.current = null
-            el.removeEventListener("wheel", cancel)
-            el.removeEventListener("touchstart", cancel)
+        // Reached the target (scrollend, or the fallback timer) → settle: recordAnchor + release guard.
+        const onEnd = () => {
+            if (done) return
+            done = true
+            cleanup()
             onSettle()
         }
-        el.addEventListener("wheel", cancel, {passive: true})
-        el.addEventListener("touchstart", cancel, {passive: true})
-        const ease = (t: number) => 1 - Math.pow(1 - t, 3) // easeOutCubic — quick out, soft land
-        const dur = 280
-        let startTs: number | null = null
-        const step = (ts: number) => {
-            if (startTs == null) startTs = ts
-            const t = Math.min(1, (ts - startTs) / dur)
-            el.scrollTop = start + dist * ease(t)
-            if (t < 1) pinAnimRef.current = requestAnimationFrame(step)
-            else finish()
+        // User grabbed the scroll mid-glide → stop guarding so their scroll is honored; don't settle.
+        const onUser = () => {
+            if (done) return
+            done = true
+            cleanup()
+            programmaticScrollRef.current = false
         }
-        pinAnimRef.current = requestAnimationFrame(step)
+        el.addEventListener("scrollend", onEnd)
+        el.addEventListener("wheel", onUser, {passive: true})
+        el.addEventListener("touchstart", onUser, {passive: true})
+        timer = window.setTimeout(onEnd, 700) // fallback where scrollend is unsupported (older Safari)
+        // Cancel without settling (a newer pin supersedes this one, or we unmount).
+        pinCleanupRef.current = () => {
+            done = true
+            cleanup()
+        }
+        el.scrollTo({top: target, behavior: "smooth"})
     }, [])
 
     // Stop any in-flight pin animation on unmount (tab close / revision swap).
-    useEffect(
-        () => () => {
-            if (pinAnimRef.current != null) cancelAnimationFrame(pinAnimRef.current)
-        },
-        [],
-    )
+    useEffect(() => () => pinCleanupRef.current?.(), [])
 
     // After each commit, mark on-screen messages as seen so they don't re-animate on later renders
     // (e.g. streaming tokens). Done in an effect, not during render, so StrictMode's double invoke
