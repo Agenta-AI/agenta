@@ -114,12 +114,16 @@ export {
     triggerScheduleDrawerAtom,
     triggerSelectedCatalogEventAtom,
     triggerSubscriptionDrawerAtom,
+    triggerDeliveriesPaginatedStore,
+    triggerDeliveriesOwnerAtom,
 } from "./state"
 export type {
     DeliveriesDrawerState,
+    DeliveriesOwner,
     EventsDrawerState,
     ScheduleDrawerState,
     SubscriptionDrawerState,
+    TriggerDeliveryRow,
 } from "./state"
 
 // ---------------------------------------------------------------------------

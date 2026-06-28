@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
+import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {useChat} from "@ai-sdk/react"
@@ -260,6 +261,21 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     const busy = status === "submitted" || status === "streaming"
 
+    // ── "Run in playground" seam (producer: a trigger drawer's Run-in-playground) ──
+    // A trigger fires server-side and never reaches the playground; this lets a user
+    // channel a trigger's resolved inputs into the active session. Only the ACTIVE
+    // session's conversation consumes the pending run (antd Tabs can keep inactive
+    // panes mounted), sends it as a user turn, and clears it. A monotonic nonce lets
+    // the same inputs run again; a ref guards double-firing. The consuming effect lives
+    // below `useAgentChatQueue` so the run goes through the same `submit` path as a manual
+    // send — respecting a pending HITL approval and any queued messages instead of jumping
+    // ahead with a raw `sendMessage`.
+    const scopeKey = useChatScopeKey()
+    const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
+    const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
+    const consumedRunNonceRef = useRef<number | null>(null)
+
     // `handleRewind` is passed to every memo'd `AgentMessage`, so it must stay referentially
     // stable — a streamed token must not recreate it and re-render the whole list. `messages`/
     // `busy` change every token, so read them through refs instead of capturing them.
@@ -292,6 +308,18 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         messages,
         sendQueued,
     })
+
+    // Consume a pending "Run in playground" request (declared above) via the queue's `submit`,
+    // so it interleaves with HITL approval / queued messages exactly like a manual send.
+    useEffect(() => {
+        if (!pendingRun || activeSessionId !== sessionId) return
+        if (consumedRunNonceRef.current === pendingRun.nonce) return
+        consumedRunNonceRef.current = pendingRun.nonce
+        stickRef.current = true
+        setShowJump(false)
+        submit({text: pendingRun.text})
+        setPendingRun(null)
+    }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
 
     // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
     // it renders as a red error bubble with the real reason (and persists with the session via the
