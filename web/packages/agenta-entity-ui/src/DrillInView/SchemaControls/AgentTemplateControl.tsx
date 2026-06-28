@@ -18,7 +18,15 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {
+    type ButtonHTMLAttributes,
+    forwardRef,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -372,11 +380,13 @@ function describeSkill(skill: unknown): ItemDescriptor {
 /** Strip Markdown syntax to a short single-line preview for an instructions file row. */
 function mdPreview(md: string): string {
     return (md ?? "")
-        .replace(/```[\s\S]*?```/g, " ")
-        .replace(/^#{1,6}\s+/gm, "")
-        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-        .replace(/[*_`>#]/g, "")
-        .replace(/\s+/g, " ")
+        .replace(/```[\s\S]*?```/g, " ") // fenced code blocks
+        .replace(/^#{1,6}\s+/gm, "") // heading markers
+        .replace(/^\s*[-*+]\s+/gm, "") // bullet list markers (so "- Greet…" reads as prose)
+        .replace(/^\s*\d+\.\s+/gm, "") // numbered list markers
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // links/images → their text
+        .replace(/[*_`>#]/g, "") // inline emphasis / quote chars
+        .replace(/\s+/g, " ") // collapse newlines + runs of whitespace
         .trim()
         .slice(0, 140)
 }
@@ -475,18 +485,26 @@ function ItemRow({
 /**
  * A text-only "add" link for a section's empty state — no border/background/padding, just inline
  * link text inside a muted sentence (the section header keeps the compact `+` for quick-add).
+ *
+ * forwardRef + props spread so it can be a popover trigger (ToolSelectorPopover): the popover
+ * clones the trigger to attach its positioning ref + onClick. Without the ref it can't anchor and
+ * the popover renders at the top-left and immediately closes.
  */
-function AddTextLink({label, onClick}: {label: string; onClick?: () => void}) {
+const AddTextLink = forwardRef<
+    HTMLButtonElement,
+    {label: string} & ButtonHTMLAttributes<HTMLButtonElement>
+>(function AddTextLink({label, type = "button", ...rest}, ref) {
     return (
         <button
-            type="button"
-            onClick={onClick}
+            ref={ref}
+            type={type}
+            {...rest}
             className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-c-1677FF,#1677ff)] hover:underline"
         >
             {label}
         </button>
     )
-}
+})
 
 /**
  * An instructions markdown file row. Avatar + filename + a 2-line preview of the (markdown-stripped)
