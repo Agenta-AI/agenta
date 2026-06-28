@@ -376,26 +376,37 @@ def _interaction_parts(
     if kind == "permission":
         tool_call_id = _approval_tool_call_id(payload)
         tool_call = payload.get("toolCall")
-        if (
-            tool_call_id is not None
-            and tool_call_id not in seen_tool_calls
-            and isinstance(tool_call, dict)
-        ):
-            seen_tool_calls.add(tool_call_id)
+        if tool_call_id is not None and isinstance(tool_call, dict):
             tool_name = (
                 tool_call.get("name") or tool_call.get("title") or tool_call.get("kind")
             )
-            yield {
-                "type": "tool-input-start",
-                "toolCallId": tool_call_id,
-                "toolName": tool_name,
-            }
-            yield {
-                "type": "tool-input-available",
-                "toolCallId": tool_call_id,
-                "toolName": tool_name,
-                "input": tool_call.get("rawInput") or tool_call.get("input"),
-            }
+            real_input = tool_call.get("rawInput") or tool_call.get("input")
+            if tool_call_id not in seen_tool_calls:
+                # The runner parked without first surfacing the tool call, so
+                # synthesize a tool part for the approval to render against.
+                seen_tool_calls.add(tool_call_id)
+                yield {
+                    "type": "tool-input-start",
+                    "toolCallId": tool_call_id,
+                    "toolName": tool_name,
+                }
+                yield {
+                    "type": "tool-input-available",
+                    "toolCallId": tool_call_id,
+                    "toolName": tool_name,
+                    "input": real_input,
+                }
+            elif real_input:
+                # The tool call was already surfaced, often with empty input on a
+                # cold-replay resume. The approval request carries the real args, so
+                # re-emit `tool-input-available` to refresh the parked call's input
+                # instead of persisting `{}` (HITL approve-empty-input bug).
+                yield {
+                    "type": "tool-input-available",
+                    "toolCallId": tool_call_id,
+                    "toolName": tool_name,
+                    "input": real_input,
+                }
         yield {
             "type": TOOL_APPROVAL_REQUEST,
             "approvalId": data.get("id"),
