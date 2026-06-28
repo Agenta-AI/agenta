@@ -851,6 +851,15 @@ pre::-webkit-scrollbar-thumb {
 /* The shared `.editor-inner:not(.code-editor) .editor-code` rule (specificity 0-3-0) sets an 8px
    padding + light fill and would beat a plain `.md-prose .editor-code` (0-2-0). Scope this to the
    rendered input (`:not(.markdown-view)`, so source view is untouched) to reach 0-4-0 and win. */
+/* Hide the editor's built-in uppercase language label (globals.css renders it via
+   `::after content: attr(data-highlight-language)`, specificity 0-5-1) on document code blocks —
+   the CodeBlockLanguageMenu supplies an interactive picker in its place. Needs 0-6-1 to win. */
+.md-prose
+    .editor-inner:not(.code-editor)
+    .editor-input:not(.markdown-view)
+    .editor-code::after {
+    content: none;
+}
 .md-prose .editor-input:not(.markdown-view) .editor-code {
     display: block;
     position: relative;

@@ -13,7 +13,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {useLexicalComposerContext} from "@agenta/ui"
-import {$isCodeNode, getCodeLanguageOptions} from "@lexical/code"
+import {$isCodeNode, getCodeLanguageOptions, getLanguageFriendlyName} from "@lexical/code"
 import {Select} from "antd"
 import {$getNodeByKey, $getSelection, $isRangeSelection} from "lexical"
 import {createPortal} from "react-dom"
@@ -87,8 +87,14 @@ export function CodeBlockLanguageMenu() {
 
     return createPortal(
         <div
-            className="fixed z-[1100]"
-            style={{top: pos.top + 6, right: pos.right + 8}}
+            className={[
+                "fixed z-[1100] rounded-md bg-[var(--ant-color-bg-elevated)]",
+                "[&_.ant-select-selector]:!h-6 [&_.ant-select-selector]:!px-2",
+                "[&_.ant-select-selection-item]:!text-[11px] [&_.ant-select-selection-item]:!leading-6",
+                "[&_.ant-select-selection-placeholder]:!text-[11px] [&_.ant-select-selection-placeholder]:!leading-6",
+                "[&_.ant-select-selection-search-input]:!h-6",
+            ].join(" ")}
+            style={{top: pos.top + 7, right: pos.right + 8}}
             // Don't let interactions here reach the editor.
             onMouseDown={(e) => e.stopPropagation()}
         >
@@ -100,8 +106,12 @@ export function CodeBlockLanguageMenu() {
                 onChange={setLanguage}
                 optionFilterProp="label"
                 popupMatchSelectWidth={false}
-                variant="filled"
-                className="min-w-[112px]"
+                variant="borderless"
+                className="min-w-[96px] font-sans"
+                // Show the friendly name ("JavaScript") for the selected value, not the raw id.
+                labelRender={({value}) =>
+                    value ? getLanguageFriendlyName(String(value)) : "Plain text"
+                }
             />
         </div>,
         document.body,
