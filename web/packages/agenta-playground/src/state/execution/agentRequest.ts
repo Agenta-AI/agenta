@@ -302,7 +302,25 @@ export async function buildAgentRequest(
         | RevisionLike
         | null
         | undefined
-    const references = buildAgentReferences(entity)
+
+    // Whether the run may CLAIM its committed identity. The service derives draft-ness purely
+    // from a resolved committed-revision reference — `services/oss/src/agent/tracing.py`
+    // `_run_context_workflow`: `is_draft = revision is None` — and a self-targeting "update myself"
+    // tool binds the revision/variant that reference resolves to. So the run may forward the
+    // reference family ONLY when it is actually running that committed revision unchanged:
+    //  - dirty (unsaved left-panel edits): the run is an inline-config draft; forwarding the
+    //    revision would wrongly mark it non-draft and bind a tool to a revision whose config
+    //    differs from what's running. The resolver also re-resolves a bare variant ref to its
+    //    latest revision, so the variant must be dropped too — send no references at all.
+    //  - uncommitted local draft (no real revision UUID): same inline-config-draft case.
+    // This matches the service's documented contract: "a playground run of an unsaved inline
+    // config carries no revision reference, so is_draft is True". App scoping rides the
+    // `application_id` URL query (derived below), so a draft run stays associated with its app.
+    const fullReferences = buildAgentReferences(entity)
+    const isDirty = store.get(workflowMolecule.selectors.isDirty(entityId)) as boolean
+    const isCommittedRevisionRun =
+        !isDirty && typeof fullReferences?.application_revision?.id === "string"
+    const references = isCommittedRevisionRun ? fullReferences : null
 
     const headersFactory = store.get(executionHeadersAtom)
     // Negotiation 1 (transport): the Accept header picks the response channel `/invoke`
@@ -322,7 +340,9 @@ export async function buildAgentRequest(
     }
 
     const projectId = store.get(projectIdAtom) || undefined
-    const appId = references?.application?.id
+    // App scoping rides the URL even for a draft run (where `references` is null), so the run
+    // stays associated with its app — read it from the full identity, not the gated `references`.
+    const appId = fullReferences?.application?.id
     const url = withQuery(invocationUrl, {
         application_id: appId,
         // Mirror executionItems.ts: project_id only travels alongside auth.
