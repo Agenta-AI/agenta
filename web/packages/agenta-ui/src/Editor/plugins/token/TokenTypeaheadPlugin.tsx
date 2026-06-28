@@ -147,9 +147,9 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
     const pendingQueryRef = useRef("")
     const flushScheduledRef = useRef(false)
 
-    // No mounted-guard needed: on React 19 a useState setter after unmount is a
-    // harmless no-op, and the microtask is one-shot. A mounted ref here would
-    // also have to be reset in effect setup to survive StrictMode's remount.
+    // No mounted-guard needed: a useState setter after unmount is a no-op and
+    // the microtask is one-shot. A mounted ref here would also have to be reset
+    // in effect setup to survive StrictMode's remount.
     const flushTypeahead = useCallback(() => {
         flushScheduledRef.current = false
         const a = pendingAnchorRef.current
