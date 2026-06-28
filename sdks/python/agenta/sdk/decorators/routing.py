@@ -26,6 +26,10 @@ from agenta.sdk.agents.adapters.vercel.routing import (
 )
 from agenta.sdk.agents.adapters.vercel.messages import (
     vercel_messages_to_agenta_messages,
+    agenta_messages_to_vercel_messages,
+)
+from agenta.sdk.agents.adapters.vercel.stream import (
+    agent_stream_to_vercel_stream,
 )
 from agenta.sdk.middlewares.routing.otel import baggage_value
 from agenta.sdk.agents.adapters.vercel.sse import (
@@ -138,6 +142,20 @@ def _wants_vercel_format(request: Request) -> bool:
     return request.headers.get("x-ag-messages-format", "").lower() == "vercel"
 
 
+def _parse_history_header(request: Request) -> Optional[bool]:
+    """Negotiation 3: the `x-ag-messages-history` header is HTTP sugar over the
+    canonical `flags.history` command. ``full`` -> True (whole message list),
+    ``last`` -> False (last message only). Absent/unrecognized -> None (unset, so
+    the body flag or the running-layer default decides). Mirrors `Accept`->`stream`.
+    """
+    value = request.headers.get("x-ag-messages-history", "").strip().lower()
+    if value == "full":
+        return True
+    if value == "last":
+        return False
+    return None
+
+
 def _stream_wire_format(media_type: str) -> str:
     """Map a streaming Accept media type to its wire format name."""
     if media_type == "text/event-stream":
@@ -219,6 +237,34 @@ def _make_json_response(
     return _set_common_headers(res, response)  # type: ignore
 
 
+def _make_vercel_json_response(
+    response: WorkflowBatchResponse,
+) -> JSONResponse:
+    """Batch counterpart of the stream vercel projection (negotiation 2, batch direction).
+
+    The handler's agenta batch output is the ``{"messages": [...]}`` envelope. When the caller
+    asked for vercel (``x-ag-messages-format: vercel``), project that message list into Vercel
+    ``UIMessage`` objects here in routing — the handler never emits vercel. A non-envelope batch
+    output (chat/completion/evaluators) is passed through unprojected.
+    """
+    from agenta.sdk.agents.dtos import Message
+
+    outputs = response.data.outputs if response.data else None
+    if isinstance(outputs, dict) and isinstance(outputs.get("messages"), list):
+        coerced = [Message.from_raw(m) for m in outputs["messages"]]
+        ui_messages = agenta_messages_to_vercel_messages(
+            [m for m in coerced if m is not None]
+        )
+        projected = response.model_copy(deep=True)
+        projected.data = WorkflowServiceResponseData(
+            outputs={**outputs, "messages": ui_messages}
+        )
+        res = _make_json_response(projected)
+    else:
+        res = _make_json_response(response)
+    return set_vercel_message_protocol_headers(res)  # type: ignore
+
+
 def _make_stream_response(
     response: WorkflowStreamingResponse,
     wire_format: str,
@@ -231,8 +277,17 @@ def _make_stream_response(
         # `x-ag-messages-format: vercel` header, not derived from Accept — a Vercel UI message
         # stream and a plain SSE stream share the `text/event-stream` media type, so the
         # choice cannot come from the Accept header alone.
+        #
+        # The handler yields AGENTA events; the agenta->vercel projection happens HERE, in the
+        # routing layer (never in the handler). `trace_id` is sourced from the response (there is
+        # no run to read it off), so the vercel `finish` frame still carries it.
+        parts = agent_stream_to_vercel_stream(
+            aiter,
+            session_id=response.session_id,
+            trace_id=response.trace_id,
+        )
         res = StreamingResponse(
-            _vercel_sse_stream(aiter), media_type="text/event-stream"
+            _vercel_sse_stream(parts), media_type="text/event-stream"
         )
         for key, value in _VERCEL_UI_MESSAGE_STREAM_HEADERS.items():
             res.headers.setdefault(key, value)
@@ -307,12 +362,16 @@ async def handle_invoke_success(
     # No preference — server picks the natural format for what the handler returned
     if requested is None:
         if is_batch:
+            if _wants_vercel_format(req):
+                return _make_vercel_json_response(response)
             return _make_json_response(response)
         return _make_stream_response(response, "ndjson")
 
     # Caller wants JSON — only satisfiable by a batch response
     if requested in BATCH_MEDIA_TYPES:
         if is_batch:
+            if _wants_vercel_format(req):
+                return _make_vercel_json_response(response)
             return _make_json_response(response)
         return _make_not_acceptable_response(requested, response)
 
@@ -397,26 +456,19 @@ async def handle_invoke_failure(exception: Exception) -> Response:
 def _to_inspect_response(
     request: WorkflowInvokeRequest,
 ) -> WorkflowInspectResponse:
-    """Normalize the internally-built ``WorkflowInvokeRequest`` into the canonical response.
+    """Wrap the internally-built ``WorkflowInvokeRequest`` as the ``/inspect`` response.
 
-    ``workflow.inspect()`` builds its result as a ``WorkflowInvokeRequest`` (a REQUEST model), so
-    the resolved interface lands nested at ``data.revision.data``. The public ``/inspect``
-    contract is :class:`WorkflowInspectResponse` instead, which lifts that
-    :class:`WorkflowRevisionData` up to a flat top-level ``revision`` — so a client reads schemas
-    at ``response.revision.schemas`` rather than guessing the request envelope.
+    ``workflow.inspect()`` builds its result as a ``WorkflowInvokeRequest`` (the REQUEST model),
+    which carries a ``WorkflowRevision`` shape at ``data.revision`` (so schemas live at
+    ``data.revision.data.schemas``). The response keeps that revision UNMODIFIED at
+    ``response.revision`` (schemas stay at ``revision.data.schemas``) and also exposes the whole
+    ready-made request at ``response.request`` — neither is reshaped or derived from the other.
     """
-    nested = (request.data.revision or {}) if request.data else {}
-    revision_data = nested.get("data") if isinstance(nested, dict) else None
-    # Carry the resolved config so the public boundary doesn't drop it: the FE reads
-    # ``configuration.parameters`` as a fallback when ``revision.parameters`` is absent.
-    parameters = (
-        revision_data.get("parameters") if isinstance(revision_data, dict) else None
-    )
-    configuration = {"parameters": parameters} if parameters is not None else None
+    revision = (request.data.revision or None) if request.data else None
     return WorkflowInspectResponse(
         version=request.version,
-        revision=revision_data,
-        configuration=configuration,
+        revision=revision,
+        request=request.model_dump(mode="json", exclude_none=True),
         meta=request.meta,
     )
 
@@ -490,15 +542,21 @@ class route:
         async def invoke_endpoint(req: Request, request: WorkflowInvokeRequest):
             credentials = req.state.auth.get("credentials")
 
-            # `Accept` is HTTP sugar over the canonical `flags.stream` command: a
-            # batch (json / no stream type) Accept means stream=False, so the
-            # normalizer aggregates a streaming handler into a batch instead of the
-            # route 406ing it. An explicit `flags.stream` in the body wins.
+            # HTTP headers are sugar over the canonical per-call `flags`. An explicit
+            # body flag always wins; the header only fills an unset flag.
+            #   - `Accept` -> `flags.stream` (negotiation 1): a batch (json / no stream
+            #     type) Accept means stream=False, so the normalizer aggregates a
+            #     streaming handler into a batch instead of the route 406ing it.
+            #   - `x-ag-messages-history` -> `flags.history` (negotiation 3): full vs last.
             _accept = _parse_accept(req)
             _flags = dict(request.flags or {})
             if "stream" not in _flags:
                 _flags["stream"] = _accept in STREAM_MEDIA_TYPES
-                request.flags = _flags
+            if "history" not in _flags:
+                _history = _parse_history_header(req)
+                if _history is not None:
+                    _flags["history"] = _history
+            request.flags = _flags
 
             # session_id: accept the body field OR the `x-ag-session-id` header OR
             # baggage `ag.session.id` (there is no W3C standard like traceparent for

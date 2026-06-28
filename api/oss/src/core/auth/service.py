@@ -19,8 +19,7 @@ if is_ee():
         OrganizationDomainsDAO,
         OrganizationProvidersDAO,
     )
-    from ee.src.services import db_manager_ee
-    from ee.src.models.db_models import (
+    from oss.src.models.db_models import (
         OrganizationMemberDB,
         WorkspaceMemberDB,
         ProjectMemberDB,
@@ -473,7 +472,7 @@ class AuthService:
                 if not is_member:
                     organization = await db_manager.get_organization_by_id(str(org_id))
                     user = await db_manager.get_user_with_id(user_id=str(user_id))
-                    workspaces = await db_manager_ee.get_organization_workspaces(
+                    workspaces = await db_manager.get_organization_workspaces(
                         str(org_id)
                     )
 

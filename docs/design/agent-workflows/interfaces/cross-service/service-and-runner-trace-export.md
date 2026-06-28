@@ -7,17 +7,35 @@ turn attached to the rest of the request and what carries usage back for account
 
 ## The contract
 
-**Context in.** The `/run` request carries a `trace` block:
+**Context in.** The `/run` request carries the run's tracing inputs in two role-separated blocks —
+`context` (per-call propagation) and `telemetry` (operator-owned exporter config + capture policy):
 
 ```jsonc
 {
-  "traceparent":    "00-<traceId>-<spanId>-01",  // W3C; makes the run a child span
-  "baggage":        "...",                         // W3C baggage, carried for future use
-  "endpoint":       "https://.../api/otlp/v1/traces",  // OTLP target; falls back to env
-  "authorization":  "ApiKey ...",                  // export auth; falls back to env
-  "captureContent": true                           // false drops prompt/completion/tool I/O
+  "context": {
+    "propagation": {
+      "traceparent": "00-<traceId>-<spanId>-01",  // W3C; makes the run a child span
+      "baggage":     "..."                         // W3C baggage, carried for future use
+    }
+  },
+  "telemetry": {
+    "capture":   { "content": { "enabled": true } },  // false drops prompt/completion/tool I/O
+    "exporters": {
+      "otlp": {
+        "endpoint": "https://.../api/otlp/v1/traces",         // OTLP target; falls back to env
+        "headers":  { "authorization": "ApiKey ..." }         // export credential; falls back to env
+      }
+    }
+  }
 }
 ```
+
+Both blocks come from one service-side capture (`trace_context()`) and are both `null` when the run
+has no trace context (the standalone case). They split four roles that previously shared one `trace`
+bucket: per-call propagation context (`context.propagation`), exporter config
+(`telemetry.exporters.otlp.endpoint`), exporter credential
+(`telemetry.exporters.otlp.headers.authorization`), and capture policy
+(`telemetry.capture.content.enabled`).
 
 **Spans back out.** The runner builds a span tree per run and exports it parent-first to the
 target carried for that trace id, so Agenta can attach it under the caller's span:
@@ -46,12 +64,14 @@ way it has to be stamped before the span closes.
 
 ## Watch for when changing
 
-- **Context propagation.** `traceparent` is what makes the run a child. Drop it and the trace
-  detaches.
-- **OTLP endpoint and auth.** Per-trace target first, env fallback second. Both paths have to
-  keep working.
+- **Context propagation.** `context.propagation.traceparent` is what makes the run a child. Drop it
+  and the trace detaches.
+- **OTLP endpoint and auth.** `telemetry.exporters.otlp.endpoint` and its
+  `headers.authorization`: per-trace target first, env fallback second. Both paths have to keep
+  working.
 - **Span names and semantic attributes.** Agenta's trace UI reads these; renames ripple into
   it.
-- **`captureContent`.** When false, prompts, completions, and tool I/O must not be exported.
+- **`telemetry.capture.content.enabled`.** When false, prompts, completions, and tool I/O must not
+  be exported.
 - **Usage accounting.** Usage has to be stamped before flush, or exported traces carry zero
   totals.

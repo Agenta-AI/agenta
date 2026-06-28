@@ -44,7 +44,9 @@ const KNOWN_REQUEST_KEYS = [
   "credentialMode",
   "messages",
   "secrets",
-  "trace",
+  "context",
+  "telemetry",
+  "runContext",
   "tools",
   "customTools",
   "mcpServers",
@@ -96,6 +98,48 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(tool.readOnly, true);
     // The Layer-3 permission (derived `allow` from read-only) reaches the runner.
     assert.equal(tool.permission, "allow");
+    // The direct-call tool (direct-call tools, Phase 1) reaches the runner carrying its `call`
+    // descriptor and NO `callRef` (the `call` XOR `callRef` rule). Plumbing only here: the runner
+    // forwards it opaquely; no dispatch branch reads it yet.
+    const direct = req.customTools![1];
+    assert.equal(direct.kind, "callback");
+    assert.equal(direct.callRef, undefined);
+    assert.equal(direct.call!.method, "POST");
+    assert.equal(direct.call!.path, "/api/workflows/invoke");
+    assert.equal(direct.call!.args_into, "data.inputs");
+    assert.deepEqual(direct.call!.body, {
+      references: { workflow_revision: { id: "rev_abc123" } },
+    });
+    // The run's own context (direct-call tools, Phase 3a) reaches the runner as `runContext`, with
+    // snake_case inner keys (the `$ctx.<key>` binding namespace) and the workflow grouped into the
+    // platform's artifact / variant / revision entities. The runner fills a tool's `call.context`
+    // from this blob at dispatch (see tools/direct.ts `assembleBody`); the model never reads it.
+    assert.equal(req.runContext!.workflow!.variant!.id, "var_abc");
+    assert.equal(req.runContext!.workflow!.variant!.slug, "weather-agent");
+    assert.equal(req.runContext!.workflow!.revision!.id, "rev_abc123");
+    assert.equal(req.runContext!.workflow!.is_draft, false);
+    assert.equal(req.runContext!.trace!.trace_id, "0af7651916cd43dd8448eb211c80319c");
+    // The conversation id is NOT duplicated in run context; it rides the top-level `sessionId`.
+    assert.equal((req.runContext as Record<string, unknown>).session_id, undefined);
+    assert.equal(req.sessionId, "sess-1");
+    // The run's tracing inputs reach the runner grouped by role (trace/telemetry restructure): the
+    // per-call W3C propagation under `context.propagation`, and the operator-owned exporter config +
+    // capture policy under `telemetry` (the OTLP credential under the standard `authorization`
+    // header). No single `trace` bucket mixes the four roles anymore.
+    assert.equal(
+      req.context!.propagation!.traceparent,
+      "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+    );
+    assert.equal(req.telemetry!.capture!.content!.enabled, true);
+    assert.equal(
+      req.telemetry!.exporters!.otlp!.endpoint,
+      "https://otlp.example/v1/traces",
+    );
+    assert.equal(
+      req.telemetry!.exporters!.otlp!.headers!.authorization,
+      "Access tok-123",
+    );
+    assert.equal((req as Record<string, unknown>).trace, undefined);
     // Pi exposes the prompt overrides.
     assert.equal(req.systemPrompt, "You are Pi.");
     assert.equal(req.appendSystemPrompt, "Be terse.");
@@ -125,6 +169,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.permissionPolicy, "deny"); // Claude gates tool use
     assert.equal(req.systemPrompt, undefined); // Claude exposes no prompt overrides
     assert.equal(req.appendSystemPrompt, undefined);
+    assert.equal(req.runContext, undefined); // no run context threaded on this config
     assert.equal(req.sandboxPermission, undefined); // no boundary declared on this config
     // The Claude harness's permission knobs are translated to a rendered file in Python: the
     // wire carries a generic `harnessFiles` entry the runner writes blind into the cwd.
@@ -135,7 +180,14 @@ describe("wire contract: requests (vs Python golden)", () => {
       permissions: Record<string, unknown>;
     };
     assert.equal(settings.permissions.defaultMode, "acceptEdits");
-    assert.deepEqual(settings.permissions.allow, ["Read", "Bash(npm run:*)"]);
+    // The allow list also carries the per-resolved-tool rule for the internal `agenta-tools` MCP
+    // server (F-046): the golden's `get_user` is a read-only callback tool -> effective `allow` ->
+    // `mcp__agenta-tools__get_user`, so Claude runs it instead of parking on its own permission gate.
+    assert.deepEqual(settings.permissions.allow, [
+      "Read",
+      "Bash(npm run:*)",
+      "mcp__agenta-tools__get_user",
+    ]);
     assert.deepEqual(settings.permissions.deny, ["WebFetch"]);
     // Claude carries resolved inline skills on the same `skills` seam Pi uses; the runner
     // installs them into Claude's project-local `.claude/skills/<name>` tree. This regressed

@@ -6,12 +6,13 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .reference import Reference
 from .selector import Selector
+from .trigger_subscription_data_inputs_fields import TriggerSubscriptionDataInputsFields
 
 
 class TriggerSubscriptionData(UniversalBaseModel):
     event_key: str
     trigger_config: typing.Optional[typing.Dict[str, typing.Any]] = None
-    inputs_fields: typing.Optional[typing.Dict[str, typing.Any]] = None
+    inputs_fields: typing.Optional[TriggerSubscriptionDataInputsFields] = None
     references: typing.Optional[typing.Dict[str, typing.Optional[Reference]]] = None
     selector: typing.Optional[Selector] = None
     

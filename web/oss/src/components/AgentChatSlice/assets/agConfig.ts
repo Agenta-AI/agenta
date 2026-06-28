@@ -42,7 +42,7 @@ interface RevisionLike {
     data?: {parameters?: Record<string, unknown> | null} | null
 }
 
-export interface ResolvedAgentConfig {
+export interface ResolvedAgentTemplate {
     ag_config: Record<string, unknown>
     references: Record<string, unknown> | null
     version: number | null
@@ -80,7 +80,7 @@ function buildReferences(rev: RevisionLike): Record<string, unknown> | null {
     return Object.keys(refs).length > 0 ? refs : null
 }
 
-function fromRevision(rev: RevisionLike | null | undefined): ResolvedAgentConfig | null {
+function fromRevision(rev: RevisionLike | null | undefined): ResolvedAgentTemplate | null {
     const params = rev?.data?.parameters
     if (!rev || !params || Object.keys(params).length === 0) return null
     return {
@@ -90,7 +90,7 @@ function fromRevision(rev: RevisionLike | null | undefined): ResolvedAgentConfig
     }
 }
 
-export function resolveAppAgConfig(appId: string | null | undefined): ResolvedAgentConfig | null {
+export function resolveAppAgConfig(appId: string | null | undefined): ResolvedAgentTemplate | null {
     if (!appId) return null
     const query = getDefaultStore().get(workflowLatestRevisionQueryAtomFamily(appId))
     return fromRevision(query?.data as RevisionLike | null | undefined)

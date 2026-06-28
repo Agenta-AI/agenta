@@ -109,3 +109,5 @@ export type {
     TokenPathSuggestionsGetter,
     TokenPathSuggestionsProviderProps,
 } from "./plugins/token/TokenPathSuggestionsContext"
+
+export {MarkdownToolbar, type MarkdownToolbarProps} from "./MarkdownToolbar"

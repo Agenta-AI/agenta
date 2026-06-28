@@ -12,7 +12,7 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from oss.src.models.db_models import ProjectDB as ProjectDBE
-from oss.src.models.deprecated_models import (
+from oss.databases.postgres.migrations.core.deprecated_models import (
     AppDB,
     AppVariantDB,
     AppVariantRevisionsDB,
@@ -36,7 +36,7 @@ from oss.src.core.environments.dtos import (
     EnvironmentRevisionData,
 )
 from oss.src.core.shared.dtos import Reference
-from ee.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
+from oss.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
 
 
 # Define constants

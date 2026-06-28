@@ -24,6 +24,5 @@ export type { TriggerDeliveryQueryRequest } from "./TriggerDeliveryQueryRequest.
 export type { TriggerScheduleCreateRequest } from "./TriggerScheduleCreateRequest.js";
 export type { TriggerScheduleEditRequest } from "./TriggerScheduleEditRequest.js";
 export type { TriggerScheduleQueryRequest } from "./TriggerScheduleQueryRequest.js";
-export type { TriggerSubscriptionCreateRequest } from "./TriggerSubscriptionCreateRequest.js";
 export type { TriggerSubscriptionEditRequest } from "./TriggerSubscriptionEditRequest.js";
 export type { TriggerSubscriptionQueryRequest } from "./TriggerSubscriptionQueryRequest.js";

@@ -1,6 +1,6 @@
-"""Hardcoded MVP agent config, read from ``services/agent/config``.
+"""Static on-file agent template, read from ``services/agent/config``.
 
-The config (AGENTS.md text, model, tools) lives in editable files so changing the
+The template (AGENTS.md text, model, tools) lives in editable files so changing the
 agent does not need a code change. Paths can be overridden with env vars for Docker
 or alternate layouts.
 """
@@ -27,7 +27,7 @@ DEFAULT_AGENTS_MD = (
 
 
 @dataclass
-class AgentConfig:
+class AgentTemplate:
     agents_md: str
     model: Optional[str] = None
     # Provider-agnostic tool references (WP-7). Each entry is either a plain string
@@ -50,12 +50,12 @@ def runner_url() -> Optional[str]:
 
 
 def config_dir() -> Path:
-    """Directory holding AGENTS.md and agent.json."""
-    override = os.getenv("AGENTA_AGENT_CONFIG_DIR")
+    """Directory holding the static on-file agent template (AGENTS.md and agent.json)."""
+    override = os.getenv("AGENTA_AGENT_TEMPLATE_DIR")
     return Path(override) if override else (_DEFAULT_AGENT_DIR / "config")
 
 
-def load_config() -> AgentConfig:
+def load_config() -> AgentTemplate:
     base = config_dir()
 
     # Read the editable AGENTS.md when present; otherwise fall back to the default
@@ -75,4 +75,4 @@ def load_config() -> AgentConfig:
         model = meta.get("model") or DEFAULT_MODEL
         tools = meta.get("tools", []) or []
 
-    return AgentConfig(agents_md=agents_md, model=model, tools=tools)
+    return AgentTemplate(agents_md=agents_md, model=model, tools=tools)

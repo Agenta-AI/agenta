@@ -122,7 +122,7 @@ class ModelRef(BaseModel):
 
     provider: Optional[str] = None  # "openai" | "anthropic" | "google" | <custom-slug>
     model: str  # model id in the provider's namespace: "gpt-5.5", "claude-opus-4-8"
-    params: Dict[str, Any] = Field(
+    extras: Dict[str, Any] = Field(
         default_factory=dict
     )  # neutral knobs (reasoning_effort, ...)
     connection: Connection = Field(default_factory=Connection)

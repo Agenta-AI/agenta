@@ -104,10 +104,9 @@ body {
     transition: none;
 }
 
-/* It aligns the settings icon in the table column  */
+/* Center the gear/settings icon in the fixed-right action column header. */
 .ant-table-cell-fix-right-first svg {
-    display: flex;
-    justify-content: center;
+    display: block;
     margin: 0 auto;
 }
 

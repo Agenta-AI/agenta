@@ -8,7 +8,8 @@
     {"role": "user", "content": "hi"}
   ],
   "secrets": {"ANTHROPIC_API_KEY": "sk-ant"},
-  "trace": null,
+  "context": null,
+  "telemetry": null,
   "tools": [],
   "customTools": [
     {
@@ -29,7 +30,7 @@
   "harnessFiles": [
     {
       "path": ".claude/settings.json",
-      "content": "{\n  \"permissions\": {\n    \"defaultMode\": \"acceptEdits\",\n    \"allow\": [\n      \"Read\",\n      \"Bash(npm run:*)\"\n    ],\n    \"deny\": [\n      \"WebFetch\"\n    ]\n  }\n}"
+      "content": "{\n  \"permissions\": {\n    \"defaultMode\": \"acceptEdits\",\n    \"allow\": [\n      \"Read\",\n      \"Bash(npm run:*)\",\n      \"mcp__agenta-tools__get_user\"\n    ],\n    \"deny\": [\n      \"WebFetch\"\n    ]\n  }\n}"
     }
   ],
   "skills": [

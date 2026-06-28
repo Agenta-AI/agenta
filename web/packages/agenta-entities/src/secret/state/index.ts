@@ -8,6 +8,8 @@ export {
     deleteVaultSecretMutationAtom,
     createStandardSecretAtom,
     createCustomSecretAtom,
+    createCustomNamedSecretAtom,
+    customNamedSecretsAtom,
     deleteSecretAtom,
     migrateVaultKeysAtom,
 } from "./atoms"

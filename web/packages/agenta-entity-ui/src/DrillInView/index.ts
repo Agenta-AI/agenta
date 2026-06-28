@@ -109,6 +109,11 @@ export type {
     DrillInUIComponents,
     DrillInUIProviderProps,
     GatewayToolsBridge,
+    WorkflowReferenceBridge,
+    WorkflowReferenceUI,
+    WorkflowRevisionUI,
+    WorkflowEnvironmentUI,
+    WorkflowReferencePayload,
 } from "@agenta/ui/drill-in"
 
 // Core Types
@@ -280,5 +285,5 @@ export type {
 } from "./SchemaControls"
 
 // Agent config layout preference (read by the variant header menu's View selector).
-export {agentConfigLayoutAtom, AGENT_CONFIG_LAYOUTS} from "./SchemaControls"
-export type {AgentConfigLayout} from "./SchemaControls"
+export {agentTemplateLayoutAtom, AGENT_TEMPLATE_LAYOUTS} from "./SchemaControls"
+export type {AgentTemplateLayout} from "./SchemaControls"

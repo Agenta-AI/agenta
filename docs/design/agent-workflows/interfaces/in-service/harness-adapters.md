@@ -17,9 +17,11 @@ Each adapter implements `_to_harness_config(...)` and emits a different `/run` w
   overrides (`system`, `append_system`), and drops `permission_policy` because Pi never gates
   tool use.
 - **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins (it warns
-  if any are set). It carries `permission_policy` and renders `.claude/settings.json` from
-  `harness_kwargs` and the sandbox permission, shipped as `harnessFiles`. It carries inline
-  skill packages on the wire like the others; the runner materializes them under
+  if any are set). It carries `permission_policy` and renders `.claude/settings.json` from four
+  sources — the author's `harness_kwargs["claude"]["permissions"]` slice, the sandbox permission,
+  each user MCP server's permission (`mcp__<server>` rules), and each resolved EXECUTABLE tool's
+  permission (`mcp__agenta-tools__<name>` rules; F-046) — shipped as `harnessFiles`. It carries
+  inline skill packages on the wire like the others; the runner materializes them under
   `.claude/skills` in the session cwd, matching Claude's project-local skill layout.
 - **`AgentaHarness`** runs on the same Pi engine but forces Agenta's opinion: it composes the
   base instructions over the author's, forces the Agenta tool set, and layers the Agenta
@@ -54,3 +56,10 @@ The wire shapes, side by side:
   now pins the carry-on-wire behavior.)
 - **Harness options.** The `harness_kwargs` bag is keyed by harness; each adapter reads only
   its own slice.
+- **Claude `agenta-tools` server-name coupling.** The per-resolved-tool settings.json rules use
+  the fixed name `mcp__agenta-tools__<tool>` (`INTERNAL_TOOL_MCP_SERVER` in
+  `adapters/claude_settings.py`). It MUST match the runner's internal tool-MCP server name
+  (`services/agent/src/tools/mcp-bridge.ts`, `relay-mcp-stdio.ts`, `tool-mcp-http.ts`,
+  `engines/sandbox_agent/mcp.ts`, `sdks/python/agenta/sdk/agents/adapters/claude_settings.py`).
+  Renaming the server on one side without the other silently
+  re-parks `allow` tools on Claude (the bug F-046 fixed).

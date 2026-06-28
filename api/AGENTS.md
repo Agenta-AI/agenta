@@ -39,6 +39,20 @@ OSS and EE relationship:
   - `ee.extend_app_schema(app)` for OpenAPI/security metadata.
 - EE is additive over OSS, not a separate API architecture.
 
+RBAC / access enforcement:
+
+- RBAC enforcement is an OSS feature and is always-on in both editions. The
+  permission vocabulary, default role catalog, and enforcement service live in
+  `api/oss/src/core/access/`. Handlers call `check_action_access(...)`
+  unconditionally; there is no edition gate around the check itself.
+- The only edition difference is the EE plan gate: in EE, `check_entitlements(Flag.RBAC)`
+  can grant allow-all when a plan is not RBAC-entitled. This is layered into the OSS
+  enforcement service via a function-local `is_ee()`-guarded import — OSS never imports
+  `ee.*` at module top.
+- Custom roles are an EE feature: `AGENTA_ACCESS_ROLES` / `AGENTA_ACCESS_ROLES_OVERLAY`
+  are parsed/applied in `api/ee/src/core/access/permissions/role_overrides.py` and
+  ignored in OSS (which enforces the code-default catalog).
+
 Primary references:
 - `api/entrypoints/routers.py`
 - `api/ee/src/main.py`

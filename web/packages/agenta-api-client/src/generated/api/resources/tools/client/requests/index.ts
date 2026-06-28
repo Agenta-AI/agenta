@@ -1,4 +1,5 @@
 export type { CallbackToolConnectionRequest } from "./CallbackToolConnectionRequest.js";
+export type { CapabilitiesQuery } from "./CapabilitiesQuery.js";
 export type { DeleteToolConnectionRequest } from "./DeleteToolConnectionRequest.js";
 export type { FetchToolActionRequest } from "./FetchToolActionRequest.js";
 export type { FetchToolConnectionRequest } from "./FetchToolConnectionRequest.js";
@@ -12,3 +13,4 @@ export type { RefreshToolConnectionRequest } from "./RefreshToolConnectionReques
 export type { RevokeToolConnectionRequest } from "./RevokeToolConnectionRequest.js";
 export type { ToolCall } from "./ToolCall.js";
 export type { ToolConnectionCreateRequest } from "./ToolConnectionCreateRequest.js";
+export type { ToolResolveRequest } from "./ToolResolveRequest.js";

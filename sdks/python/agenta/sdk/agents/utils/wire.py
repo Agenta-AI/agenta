@@ -23,12 +23,13 @@ from typing import Any, Dict, List, Optional, Sequence
 from agenta.sdk.utils.logging import get_module_logger
 
 from ..dtos import (
-    AgentEvent,
+    Event,
     AgentResult,
-    HarnessAgentConfig,
+    HarnessAgentTemplate,
     HarnessCapabilities,
     HarnessType,
     Message,
+    RunContext,
     TraceContext,
 )
 
@@ -69,10 +70,11 @@ def request_to_wire(
     *,
     harness: HarnessType,
     sandbox: str,
-    config: HarnessAgentConfig,
+    config: HarnessAgentTemplate,
     messages: Sequence[Message],
     secrets: Optional[Dict[str, str]] = None,
     trace: Optional[TraceContext] = None,
+    run_context: Optional[RunContext] = None,
     session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Serialize one turn into the ``/run`` request JSON.
@@ -96,13 +98,18 @@ def request_to_wire(
     and ``wire_model_ref``'s ``provider`` (its ``env`` never reaches the wire; the secret rides
     ``secrets``).
     ``config.wire_harness_files()`` adds the generic ``harnessFiles`` array: files the active
-    harness's config rendered from its own ``harness_kwargs`` slice, to materialize in the session
+    harness's config rendered from its own ``permissions`` / ``extras`` slice, to materialize in the session
     cwd before the session starts (``path`` relative to cwd, ``content`` the file text). Omitted
     unless the config produced any files. This is where the per-harness translation happens in
     Python (e.g. the claude config renders ``.claude/settings.json``); the runner is a dumb writer
     that drops each entry into the cwd with no harness knowledge.
+
+    ``run_context`` is the run's own context (trace + variant identity), refreshed per turn. When
+    set it rides as ``runContext`` and is consumed only by a tool's ``call.context`` binding at
+    dispatch (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
+    so a run that needs no binding stays byte-identical to before.
     """
-    return {
+    payload: Dict[str, Any] = {
         "harness": harness.value,
         "sandbox": sandbox,
         "sessionId": session_id,
@@ -110,7 +117,13 @@ def request_to_wire(
         "model": config.model,
         "messages": [message.to_wire() for message in messages],
         "secrets": dict(secrets or {}),
-        "trace": trace.to_wire() if trace else None,
+        # The run's tracing inputs ride the wire grouped by role (see the trace/telemetry interface
+        # restructure): `context.propagation` carries the per-call W3C trace-context headers, and
+        # `telemetry` carries the operator-owned exporter config + capture policy. Both come from the
+        # single `trace` capture; both are null when the run has no trace context (the standalone
+        # case), matching the prior single-`trace`-null behavior.
+        "context": trace.context_to_wire() if trace else None,
+        "telemetry": trace.telemetry_to_wire() if trace else None,
         **config.wire_tools(),
         **config.wire_prompt(),
         **config.wire_mcp(),
@@ -120,6 +133,11 @@ def request_to_wire(
         **config.wire_resolved_connection(),
         **config.wire_harness_files(),
     }
+    if run_context is not None:
+        run_context_wire = run_context.to_wire()
+        if run_context_wire:
+            payload["runContext"] = run_context_wire
+    return payload
 
 
 def result_from_wire(data: Dict[str, Any]) -> AgentResult:
@@ -140,9 +158,9 @@ def result_from_wire(data: Dict[str, Any]) -> AgentResult:
         if message is not None:
             messages.append(message)
 
-    events: List[AgentEvent] = []
+    events: List[Event] = []
     for raw in data.get("events") or []:
-        event = AgentEvent.from_wire(raw)
+        event = Event.from_wire(raw)
         if event is not None:
             events.append(event)
 

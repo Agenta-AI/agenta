@@ -7,6 +7,7 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .reference import Reference
 from .selector import Selector
+from .trigger_schedule_data_inputs_fields import TriggerScheduleDataInputsFields
 
 
 class TriggerScheduleData(UniversalBaseModel):
@@ -14,7 +15,7 @@ class TriggerScheduleData(UniversalBaseModel):
     schedule: str
     start_time: typing.Optional[dt.datetime] = None
     end_time: typing.Optional[dt.datetime] = None
-    inputs_fields: typing.Optional[typing.Dict[str, typing.Any]] = None
+    inputs_fields: typing.Optional[TriggerScheduleDataInputsFields] = None
     references: typing.Optional[typing.Dict[str, typing.Optional[Reference]]] = None
     selector: typing.Optional[Selector] = None
     

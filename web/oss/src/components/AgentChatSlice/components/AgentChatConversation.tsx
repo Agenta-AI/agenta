@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval} from "@agenta/playground"
 import {useChat} from "@ai-sdk/react"
@@ -58,6 +58,9 @@ const AgentChatConversation = ({
 }) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
+    // Themed confirm dialogs: the hook form's contextHolder renders in-tree so it inherits the app
+    // theme (the static Modal.confirm renders detached and loses it — white box in dark mode).
+    const [modal, modalContextHolder] = Modal.useModal()
     const [input, setInput] = useState("")
     // Pending attachments for the next message. Kept client-side only: `beforeUpload`
     // returns false so antd never uploads; we read each `originFileObj` into a data: URL at
@@ -98,6 +101,18 @@ const AgentChatConversation = ({
 
     const busy = status === "submitted" || status === "streaming"
 
+    // `handleRewind` must stay referentially stable (it's passed to every memo'd `AgentMessage`)
+    // so a streamed token doesn't recreate it and re-render the whole list. `messages`/`busy`
+    // change every token, so read them through refs instead of capturing them in the closure.
+    // The refs are synced in an effect (not during render) — `handleRewind` only reads them from
+    // event handlers, which run post-commit, so the latest committed value is always current.
+    const messagesRef = useRef(messages)
+    const busyRef = useRef(busy)
+    useEffect(() => {
+        messagesRef.current = messages
+        busyRef.current = busy
+    }, [messages, busy])
+
     // Persist the conversation whenever its stream settles (skip mid-stream so we don't
     // write on every token). Covers send (status "submitted"), finish/error ("ready"/
     // "error"), and clear/rewind (setMessages → "ready").
@@ -135,42 +150,50 @@ const AgentChatConversation = ({
      * turn re-runs via `regenerate`. Confirms first if the dropped range contains a tool that
      * already ran with a side effect (a rewind can't undo it).
      */
-    const handleRewind = (message: UIMessage) => {
-        if (busy) return
-        const idx = messages.findIndex((m) => m.id === message.id)
-        if (idx < 0) return
-        const isUser = message.role === "user"
-        // Everything from here on is dropped/re-run; already-executed side effects in this
-        // tail (incl. the assistant turn's own tools, which regenerate re-fires) won't undo.
-        const sideEffects = sideEffectingToolsInRange(messages.slice(idx))
+    const handleRewind = useCallback(
+        (message: UIMessage) => {
+            const msgs = messagesRef.current
+            if (busyRef.current) return
+            const idx = msgs.findIndex((m) => m.id === message.id)
+            if (idx < 0) return
+            const isUser = message.role === "user"
+            // Everything from here on is dropped/re-run; already-executed side effects in this
+            // tail (incl. the assistant turn's own tools, which regenerate re-fires) won't undo.
+            const sideEffects = sideEffectingToolsInRange(msgs.slice(idx))
 
-        const run = () => {
-            if (isUser) {
-                setMessages(messages.slice(0, idx))
-                setInput(messageText(message))
-                // Focus the composer so the user can edit the restored text immediately.
-                requestAnimationFrame(() => senderRef.current?.focus())
-            } else {
-                regenerate({messageId: message.id}).catch(ignoreStreamRejection)
+            const run = () => {
+                if (isUser) {
+                    setMessages(msgs.slice(0, idx))
+                    setInput(messageText(message))
+                    // Focus the composer so the user can edit the restored text immediately.
+                    requestAnimationFrame(() => senderRef.current?.focus())
+                } else {
+                    regenerate({messageId: message.id}).catch(ignoreStreamRejection)
+                }
             }
-        }
 
-        if (sideEffects.length > 0) {
-            Modal.confirm({
-                title: "Rewind past a tool that already ran?",
-                content: `${sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
-                okText: "Rewind anyway",
-                okButtonProps: {danger: true},
-                cancelText: "Cancel",
-                onOk: run,
-            })
-        } else {
-            run()
-        }
-    }
+            if (sideEffects.length > 0) {
+                modal.confirm({
+                    title: "Rewind past a tool that already ran?",
+                    content: `${sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
+                    okText: "Rewind anyway",
+                    okButtonProps: {danger: true},
+                    cancelText: "Cancel",
+                    centered: true,
+                    style: {borderRadius: 16},
+                    onOk: run,
+                })
+            } else {
+                run()
+            }
+        },
+        [regenerate, setMessages, modal],
+    )
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
+            {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
+            {modalContextHolder}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-col">
                     <Text type="secondary" className="!text-xs">
@@ -216,12 +239,12 @@ const AgentChatConversation = ({
                         key={message.id}
                         message={message}
                         isStreaming={busy && index === messages.length - 1}
-                        onRewind={() => handleRewind(message)}
+                        onRewind={handleRewind}
                         onApprovalResponse={addToolApprovalResponse}
                     />
                 ))}
                 {status === "submitted" && messages[messages.length - 1]?.role !== "assistant" && (
-                    <Bubble placement="start" variant="outlined" loading content="" />
+                    <Bubble placement="start" variant="borderless" loading content="" />
                 )}
             </div>
 

@@ -23,6 +23,7 @@
 
 import {useMemo, type ReactNode} from "react"
 
+import {appEnvironmentsQueryAtomFamily} from "@agenta/entities/environment"
 import {
     buildToolSlug,
     fetchToolActionDetail,
@@ -31,10 +32,27 @@ import {
     useToolConnectionsQuery,
     useToolIntegrationDetail,
 } from "@agenta/entities/gatewayTool"
-import {DrillInUIProvider, type GatewayToolsBridge} from "@agenta/entity-ui/drill-in"
+import {
+    nonArchivedWorkflowsAtom,
+    queryWorkflowRevisionsByWorkflow,
+    resolveInputSchema as resolveWorkflowInputSchema,
+    retrieveWorkflowRevision,
+    workflowsListQueryStateAtom,
+} from "@agenta/entities/workflow"
+import {
+    DrillInUIProvider,
+    type GatewayToolsBridge,
+    type WorkflowReferenceBridge,
+    type WorkflowReferenceUI,
+    type WorkflowRevisionUI,
+    type WorkflowEnvironmentUI,
+} from "@agenta/entity-ui/drill-in"
+import {projectIdAtom} from "@agenta/shared/state"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
+import {atomFamily} from "jotai/utils"
+import {atomWithQuery} from "jotai-tanstack-query"
 
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
 import {isToolsEnabled} from "@/oss/lib/helpers/isEE"
@@ -66,6 +84,94 @@ function useGatewayToolsCatalogActions(integrationKey: string) {
     }
 }
 
+// A workflow's revisions, fetched on demand when one is selected in the reference drawer (the
+// variant-axis version picker). Keyed by workflow id; the project is singular in scope.
+const workflowRevisionsQueryAtomFamily = atomFamily((workflowId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["agentWorkflowRevisions", workflowId, projectId],
+            queryFn: () => queryWorkflowRevisionsByWorkflow(workflowId, projectId as string),
+            enabled: Boolean(workflowId) && Boolean(projectId),
+            staleTime: 60_000,
+        }
+    }),
+)
+
+function useWorkflowRevisions(workflow: WorkflowReferenceUI | null): {
+    revisions: WorkflowRevisionUI[]
+    isLoading: boolean
+} {
+    const res = useAtomValue(workflowRevisionsQueryAtomFamily(workflow?.id ?? ""))
+    const revisions = useMemo<WorkflowRevisionUI[]>(() => {
+        const list = (res.data?.workflow_revisions ?? []) as Record<string, unknown>[]
+        return list
+            .map((r) => ({
+                version: r.version != null ? String(r.version) : "",
+                label: typeof r.message === "string" ? (r.message as string) : undefined,
+            }))
+            .filter((r) => Boolean(r.version) && Number(r.version) > 0)
+            .sort((a, b) => Number(b.version) - Number(a.version))
+    }, [res.data])
+    return {revisions, isLoading: Boolean(res.isLoading)}
+}
+
+function useWorkflowEnvironments(workflow: WorkflowReferenceUI | null): {
+    environments: WorkflowEnvironmentUI[]
+    isLoading: boolean
+} {
+    const res = useAtomValue(appEnvironmentsQueryAtomFamily(workflow?.id ?? ""))
+    const environments = useMemo<WorkflowEnvironmentUI[]>(
+        () =>
+            (res.data ?? [])
+                .filter((env) => Boolean(env.slug))
+                .map((env) => ({slug: env.slug, name: env.name || env.slug})),
+        [res.data],
+    )
+    return {environments, isLoading: Boolean(res.isLoading)}
+}
+
+/**
+ * Build the "reference a workflow as a tool" bridge (#4860): the project's workflows for the
+ * picker plus resolvers that pull a chosen workflow's input schema (to pre-fill `input_schema`),
+ * its revisions (variant axis) and its environments (environment axis). Not EE-gated, so it ships
+ * in both the tools-enabled and tools-disabled trees.
+ */
+function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
+    const projectId = useAtomValue(projectIdAtom)
+    const workflows = useAtomValue(nonArchivedWorkflowsAtom)
+    const workflowsLoading = useAtomValue(workflowsListQueryStateAtom).isPending
+
+    return useMemo<WorkflowReferenceBridge>(
+        () => ({
+            enabled: true,
+            workflows: workflows
+                .filter((w) => typeof w.slug === "string" && !w.flags?.is_evaluator)
+                .map((w) => ({
+                    id: w.id,
+                    slug: w.slug as string,
+                    name: w.name ?? undefined,
+                    description: w.description ?? undefined,
+                })),
+            workflowsLoading,
+            resolveInputSchema: async (workflow) => {
+                if (!projectId || !workflow.slug) return null
+                const revision = await retrieveWorkflowRevision({
+                    projectId,
+                    workflowRef: {slug: workflow.slug},
+                })
+                if (!revision?.data) return null
+                return resolveWorkflowInputSchema(
+                    revision.data as Parameters<typeof resolveWorkflowInputSchema>[0],
+                )
+            },
+            useWorkflowRevisions,
+            useWorkflowEnvironments,
+        }),
+        [workflows, workflowsLoading, projectId],
+    )
+}
+
 /**
  * OSS-specific UI provider for DrillInView components.
  *
@@ -73,6 +179,7 @@ function useGatewayToolsCatalogActions(integrationKey: string) {
  * - llmProviderConfig: vault secrets as extra option groups + "Add provider" footer
  * - EditorProvider / SharedEditor: rich text editor components
  * - gatewayTools: gateway tools data + actions bridge for the tool selector
+ * - workflowReference: workflow-as-tool reference bridge for the tool selector
  *
  * All other UI components (ChatMessage, FieldHeader, etc.) are imported
  * directly from @agenta/ui in the entities package.
@@ -80,6 +187,7 @@ function useGatewayToolsCatalogActions(integrationKey: string) {
 export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
     const toolsEnabled = isToolsEnabled()
+    const workflowReference = useWorkflowReferenceBridge()
 
     if (!toolsEnabled) {
         return (
@@ -89,6 +197,7 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
                         llmProviderConfig,
                         EditorProvider,
                         SharedEditor,
+                        workflowReference,
                     }}
                 >
                     {children}
@@ -100,7 +209,10 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
 
     return (
         <>
-            <GatewayToolsEnabledProvider llmProviderConfig={llmProviderConfig}>
+            <GatewayToolsEnabledProvider
+                llmProviderConfig={llmProviderConfig}
+                workflowReference={workflowReference}
+            >
                 {children}
             </GatewayToolsEnabledProvider>
             {llmProviderOverlay}
@@ -111,9 +223,11 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
 function GatewayToolsEnabledProvider({
     children,
     llmProviderConfig,
+    workflowReference,
 }: {
     children: ReactNode
     llmProviderConfig: ReturnType<typeof useLLMProviderConfig>["llmProviderConfig"]
+    workflowReference: WorkflowReferenceBridge
 }) {
     const {connections, isLoading} = useToolConnectionsQuery()
     const setCatalogDrawerOpen = useSetAtom(toolCatalogDrawerOpenAtom)
@@ -167,6 +281,7 @@ function GatewayToolsEnabledProvider({
                 EditorProvider,
                 SharedEditor,
                 gatewayTools,
+                workflowReference,
             }}
         >
             {children}

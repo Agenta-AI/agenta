@@ -5,7 +5,11 @@ import type * as AgentaApi from "../index.js";
 export interface TriggerSubscriptionData {
     event_key: string;
     trigger_config?: (Record<string, unknown> | null) | undefined;
-    inputs_fields?: (Record<string, unknown> | null) | undefined;
+    inputs_fields?: (TriggerSubscriptionData.InputsFields | null) | undefined;
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     selector?: (AgentaApi.Selector | null) | undefined;
+}
+
+export namespace TriggerSubscriptionData {
+    export type InputsFields = Record<string, unknown> | string;
 }

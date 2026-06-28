@@ -182,11 +182,6 @@ mock_v0_interface = WorkflowRevisionData(
     schemas=None,
 )
 
-config_v0_interface = WorkflowRevisionData(
-    uri="agenta:custom:config:v0",
-    schemas=None,
-)
-
 match_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:match:v0",
     schemas=dict(  # type: ignore
@@ -531,10 +526,10 @@ agent_v0_interface = WorkflowRevisionData(
         parameters=obj(
             properties={
                 # One composite control for the whole agent config. The field shape lives in
-                # `AgentConfigSchema` (agenta.sdk.utils.types), registered as the `agent_config`
-                # catalog type; the playground resolves this ref and renders the AgentConfigControl.
+                # `AgentTemplateSchema` (agenta.sdk.utils.types), registered as the `agent-template`
+                # catalog type; the playground resolves this ref and renders the AgentTemplateControl.
                 "agent": semantic_field(
-                    x_ag_type_ref="agent_config",
+                    x_ag_type_ref="agent-template",
                     jtype="object",
                     description="The agent's instructions, model, tools, MCP servers, and runtime.",
                     # The minimal builtin default: no platform skill, no sandbox_permission. The

@@ -56,11 +56,6 @@ import {
 // HELPERS
 // ============================================================================
 
-// The builtin agent workflow URI. The agent publishes its per-harness capabilities only in
-// the `/inspect` response `meta`, so the inspect atom must fetch for this URI even when the
-// stored revision already carries its schemas inline.
-const AGENT_BUILTIN_URI = "agenta:builtin:agent:v0"
-
 function getStore(options?: StoreOptions) {
     return options?.store ?? getDefaultStore()
 }
@@ -1052,8 +1047,7 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         // model picker resolves from inspect pre-creation instead of showing an empty catalog.
         // Scoped to agents: a non-agent draft keeps its server-only behavior unchanged.
         const localEntity = serverData ? null : get(workflowBaseEntityAtomFamily(revisionId))
-        const localIsAgent =
-            localEntity?.data?.uri === AGENT_BUILTIN_URI || (localEntity?.flags?.is_agent ?? false)
+        const localIsAgent = localEntity?.flags?.is_agent ?? false
         const localData = localIsAgent ? localEntity : null
 
         // Use stored URI, or derive one from builtin service URL pattern
@@ -1077,11 +1071,9 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         // precedence, so fetching inspect would be redundant.
         // Exception: an agent publishes its per-harness capabilities ONLY in the inspect
         // response `meta` (harness_capabilities), never in the stored schemas — so the agent
-        // playground's model picker needs inspect even when the schemas are inline. The
-        // `is_agent` flag is not reliably stored on the revision, so detect the agent by its
-        // builtin URI too.
+        // playground's model picker needs inspect even when the schemas are inline.
         const serverSchemas = serverData?.data?.schemas
-        const isAgent = (serverData?.flags?.is_agent ?? false) || uri === AGENT_BUILTIN_URI
+        const isAgent = serverData?.flags?.is_agent ?? false
         const hasAllSchemas =
             !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
 
@@ -1568,24 +1560,22 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         let resolvedParams: Record<string, unknown> | null | undefined = null
 
         // (a) Inspect — primary source for any workflow with a URI.
-        // The canonical `WorkflowInspectResponse` puts the resolved interface at
-        // `revision.schemas.{inputs, parameters, outputs}` (revision IS the WorkflowRevisionData),
-        // so we read it directly. `outputs` may be typed per output surface ({invoke, messages}).
+        // The `WorkflowInspectResponse.revision` is a WorkflowRevision (unmodified), so the
+        // resolved interface lives at `revision.data.schemas.{inputs, parameters, outputs}` and
+        // the resolved parameters at `revision.data.parameters`. `outputs` is a plain schema
+        // (the agent's is an object with a `messages` field), never keyed by output surface.
         const inspectQuery = get(workflowInspectAtomFamily(workflowId))
         const inspectData = inspectQuery.data ?? null
         if (inspectData) {
-            const inspectSchemas = inspectData.revision?.schemas
+            const inspectRevisionData = inspectData.revision?.data
+            const inspectSchemas = inspectRevisionData?.schemas
             if (inspectSchemas) {
                 resolvedInputs = inspectSchemas.inputs
                 resolvedOutputs = inspectSchemas.outputs
                 resolvedParameters = inspectSchemas.parameters
             }
             resolvedParams =
-                (inspectData.revision?.parameters as Record<string, unknown> | undefined) ??
-                ((inspectData.configuration as Record<string, unknown> | undefined)?.parameters as
-                    | Record<string, unknown>
-                    | undefined) ??
-                null
+                (inspectRevisionData?.parameters as Record<string, unknown> | undefined) ?? null
         }
 
         // (b) OpenAPI fallback — only for legacy custom apps without URI.
@@ -2234,11 +2224,13 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
             is_code: false,
             is_match: false,
             is_feedback: false,
-            is_chat: isChat,
             is_agent: false,
+            is_skill: false,
+            is_chat: isChat,
             has_url: false,
             has_script: false,
             has_handler: false,
+            is_static: false,
             is_application: false,
             is_evaluator: isEvaluator,
             is_snippet: false,

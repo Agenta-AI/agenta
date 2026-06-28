@@ -45,6 +45,7 @@ const SelectVariant = ({
     mode = "scoped",
     customBrowseAdapter,
     style,
+    borderlessTrigger = false,
     ...props
 }: SelectVariantProps) => {
     const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
@@ -478,7 +479,7 @@ const SelectVariant = ({
     // Scoped mode (default): Popover + trigger so TreeSelectPopupContent only mounts
     // when the user clicks — prevents fetching all variants on mount.
     return (
-        <div style={style ?? {width: 120}}>
+        <div style={borderlessTrigger ? undefined : (style ?? {width: 120})}>
             <Popover
                 content={
                     <div>
@@ -505,13 +506,31 @@ const SelectVariant = ({
                 destroyOnHidden
                 overlayClassName="[&_.ant-popover-container]:!p-0"
             >
-                <Button
-                    size="small"
-                    className="w-full flex items-center justify-between text-left overflow-hidden"
-                >
-                    <span className="truncate text-xs">{triggerLabel}</span>
-                    <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
-                </Button>
+                {borderlessTrigger ? (
+                    // Identity-first trigger: borderless, content-width, hover-highlighted —
+                    // reads as the revision you're viewing, not a form switch.
+                    <button
+                        type="button"
+                        className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm font-medium leading-none text-[var(--ant-color-text)] hover:bg-[var(--ant-color-fill-tertiary)] border-0 bg-transparent cursor-pointer"
+                    >
+                        <span className="truncate">{triggerLabel}</span>
+                        <DownOutlined
+                            style={{
+                                fontSize: 10,
+                                flexShrink: 0,
+                                color: "var(--ant-color-text-tertiary)",
+                            }}
+                        />
+                    </button>
+                ) : (
+                    <Button
+                        size="small"
+                        className="w-full flex items-center justify-between text-left overflow-hidden"
+                    >
+                        <span className="truncate text-xs">{triggerLabel}</span>
+                        <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
+                    </Button>
+                )}
             </Popover>
         </div>
     )

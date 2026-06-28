@@ -41,11 +41,19 @@ afterEach(() => {
 describe("buildPiExtensionEnv", () => {
   it("exposes tracing, usage, and public tool metadata only", () => {
     const request = {
-      trace: {
-        traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-        endpoint: "https://otlp.example.test/v1/traces",
-        authorization: "Bearer trace-token",
-        captureContent: false,
+      context: {
+        propagation: {
+          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+        },
+      },
+      telemetry: {
+        capture: { content: { enabled: false } },
+        exporters: {
+          otlp: {
+            endpoint: "https://otlp.example.test/v1/traces",
+            headers: { authorization: "Bearer trace-token" },
+          },
+        },
       },
       customTools: [
         {
@@ -72,11 +80,14 @@ describe("buildPiExtensionEnv", () => {
       usageOutPath: "/tmp/usage.json",
     });
 
-    assert.equal(env.TRACEPARENT, request.trace?.traceparent);
-    assert.equal(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, request.trace?.endpoint);
+    assert.equal(env.TRACEPARENT, request.context?.propagation?.traceparent);
+    assert.equal(
+      env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+      request.telemetry?.exporters?.otlp?.endpoint,
+    );
     assert.equal(
       env.OTEL_EXPORTER_OTLP_HEADERS,
-      `Authorization=${request.trace?.authorization}`,
+      `Authorization=${request.telemetry?.exporters?.otlp?.headers?.authorization}`,
     );
     assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, "false");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
@@ -97,10 +108,13 @@ describe("buildPiExtensionEnv", () => {
   it("omits trace and tool env when tracing and relay are disabled", () => {
     const env = buildPiExtensionEnv(
       {
-        trace: {
-          traceparent:
-            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+        context: {
+          propagation: {
+            traceparent:
+              "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          },
         },
+        telemetry: { capture: { content: { enabled: true } } },
         customTools: [{ name: "safe_tool", kind: "callback" }],
       } as AgentRunRequest,
       false,
@@ -113,9 +127,12 @@ describe("buildPiExtensionEnv", () => {
 
   it("carries the loaded skill names under tracing (F-029)", () => {
     const request = {
-      trace: {
-        traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+      context: {
+        propagation: {
+          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+        },
       },
+      telemetry: { capture: { content: { enabled: true } } },
     } as AgentRunRequest;
 
     const env = buildPiExtensionEnv(request, true, {
@@ -130,9 +147,12 @@ describe("buildPiExtensionEnv", () => {
 
   it("omits the loaded skills env when there are none or tracing is off", () => {
     const request = {
-      trace: {
-        traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+      context: {
+        propagation: {
+          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+        },
       },
+      telemetry: { capture: { content: { enabled: true } } },
     } as AgentRunRequest;
 
     assert.equal(

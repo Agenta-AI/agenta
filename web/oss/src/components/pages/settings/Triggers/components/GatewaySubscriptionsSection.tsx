@@ -22,7 +22,7 @@ import {
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Empty, Table, Tag, Tooltip, Typography, message} from "antd"
+import {Button, Dropdown, Table, Tag, Tooltip, Typography, message} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
@@ -291,7 +291,6 @@ export default function GatewaySubscriptionsSection() {
                     bordered
                     pagination={false}
                     loading={isLoading || isMutating}
-                    locale={{emptyText: <Empty description="No subscriptions yet" />}}
                     onRow={(record) => ({
                         onClick: () => handleEdit(record),
                         className: "cursor-pointer",
