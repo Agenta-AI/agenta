@@ -1,13 +1,14 @@
 """JSON schemas the agent workflow advertises via ``/inspect``.
 
 The agent self-describes its interface here instead of registering a static SDK
-interface. The shape mirrors the chat workflow (messages in, a single assistant
-message out) so the playground renders a chat box and POSTs `data.inputs.messages`.
+interface. The shape mirrors the chat workflow (messages in, a message list out)
+so the playground renders a chat box and POSTs `data.inputs.messages`.
 
 Kept in its own module so it composes into the workflow registration with a one-line
 change and stays out of the handler logic.
 """
 
+from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
 from agenta.sdk.utils.types import build_agent_v0_default
 
 _SCHEMA = "https://json-schema.org/draft/2020-12/schema"
@@ -35,16 +36,16 @@ AGENT_INPUTS_SCHEMA = {
 # The catalog type keeps the typed tools/mcp_servers shape in one place; this schema only
 # carries the default that the playground pre-fills. The agent handler reads it from
 # `parameters.agent` in app.py.
-# Reserved slug of the platform default skill, served from code by the PlatformWorkflowCatalog
-# (api/oss/src/core/workflows/platform_catalog.py), never the database. The default config
+# Reserved slug of the static default skill, served from code by the StaticWorkflowCatalog
+# (api/oss/src/core/workflows/static_catalog.py), never the database. The default config
 # references it by stable slug through an @ag.embed; the embed resolver inlines the catalogue's
 # SkillConfig (at the canonical parameters.skill selector) before the runner sees it. The
-# `_agenta.` prefix is reserved: a user cannot author or shadow it. This replaces both
-# AGENTA_FORCED_SKILLS and the old per-project skill seeder.
-_DEFAULT_SKILL_SLUG = "_agenta.agenta-getting-started"
+# `__ag__` prefix is reserved: a user cannot author or shadow it. This replaces both
+# AGENTA_FORCED_SKILLS and the old per-project skill seeder. Single source: the SDK constant.
+_DEFAULT_SKILL_SLUG = GETTING_STARTED_WITH_AGENTA_SLUG
 
 # The service default = the shared builder (single source, in the SDK) plus the two service-only
-# choices: the platform default skill (inlined from the reserved slug) and the declared Layer-2
+# choices: the static default skill (inlined from the reserved slug) and the declared Layer-2
 # sandbox boundary the playground pre-fills. The SDK builtin interface uses the same builder
 # without these, so a new default field changes one place.
 _DEFAULT_AGENT_CONFIG = build_agent_v0_default(
@@ -67,26 +68,20 @@ AGENT_PARAMETERS_SCHEMA = {
     "properties": {"agent": AGENT_CONFIG_SCHEMA},
 }
 
-# Outputs, keyed per output surface (the agent has two): `invoke` returns the single final
-# assistant message (the batch `/invoke` shape, `x-ag-type-ref: message`); `messages` returns the
-# ordered conversation the `/messages` route streams (`x-ag-type-ref: messages`). Keying outputs by
-# surface lets the playground render the right output view per route. POC, so no flat back-compat
-# output field: a consumer reads the keyed shape directly. Both refs already appear elsewhere in
-# AGENT_SCHEMAS, so this adds no new catalog marker.
+# Outputs mirror inputs: an object with a `messages` field of type `messages` (NOT keyed by
+# output surface — the old invoke/messages keying is gone). `inputs.messages` carries the turn
+# in; `outputs.messages` carries the turn out. This is agent v0's departure from chat/completion,
+# whose `outputs` IS the single message with no field. `flags.history` trims the list (full vs
+# last) in the running layer.
 AGENT_OUTPUTS_SCHEMA = {
     "$schema": _SCHEMA,
     "type": "object",
-    "description": "Agent outputs, keyed per output surface (invoke / messages).",
+    "additionalProperties": True,
     "properties": {
-        "invoke": {
-            "x-ag-type-ref": "message",
-            "type": "object",
-            "description": "Final assistant message returned by a batch /invoke.",
-        },
         "messages": {
             "x-ag-type-ref": "messages",
             "type": "array",
-            "description": "The ordered conversation the /messages route returns.",
+            "description": "Ordered list of assistant (and tool) messages produced by the turn.",
         },
     },
 }

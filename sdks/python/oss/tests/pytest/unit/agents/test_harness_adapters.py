@@ -32,7 +32,7 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
     AGENTA_FORCED_APPEND_SYSTEM,
     AGENTA_FORCED_SKILLS,
     AGENTA_FORCED_TOOLS,
-    AGENTA_GETTING_STARTED_SKILL,
+    GETTING_STARTED_WITH_AGENTA_SKILL,
     AGENTA_PREAMBLE,
     force_skills,
 )
@@ -135,7 +135,7 @@ def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
     # harness always injects. The author's skill comes first; the platform skill is appended.
     skill_names = [s.name for s in result.skills]
     assert skill_names[0] == "release-notes"
-    assert AGENTA_GETTING_STARTED_SKILL.name in skill_names
+    assert GETTING_STARTED_WITH_AGENTA_SKILL.name in skill_names
     assert "skills" not in result.wire_tools()
     assert result.wire_skills()["skills"][0]["name"] == "release-notes"
     # The persona is forced onto append_system; custom tools and callback pass through.
@@ -154,14 +154,14 @@ def test_agenta_forces_platform_skill_on_a_skill_less_config(make_env):
 
     result = harness._to_harness_config(config)
 
-    assert [s.name for s in result.skills] == [AGENTA_GETTING_STARTED_SKILL.name]
+    assert [s.name for s in result.skills] == [GETTING_STARTED_WITH_AGENTA_SKILL.name]
 
 
 def test_agenta_does_not_duplicate_an_already_present_platform_skill(make_env):
     # A config that already carries the resolved platform skill (e.g. via the default template's
     # embed) is not doubled: the author's copy wins on the name clash.
     harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
-    existing = AGENTA_GETTING_STARTED_SKILL.model_dump(mode="json")
+    existing = GETTING_STARTED_WITH_AGENTA_SKILL.model_dump(mode="json")
     config = _session_config(
         agent=AgentConfig(instructions="hi", model="m", skills=[existing])
     )
@@ -169,7 +169,7 @@ def test_agenta_does_not_duplicate_an_already_present_platform_skill(make_env):
     result = harness._to_harness_config(config)
 
     names = [s.name for s in result.skills]
-    assert names.count(AGENTA_GETTING_STARTED_SKILL.name) == 1
+    assert names.count(GETTING_STARTED_WITH_AGENTA_SKILL.name) == 1
 
 
 def test_force_skills_unions_forced_after_author_skills():

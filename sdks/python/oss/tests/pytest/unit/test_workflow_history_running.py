@@ -94,3 +94,62 @@ async def test_history_unset_defaults_to_last():
 
     assert isinstance(response, WorkflowServiceBatchResponse)
     assert response.data.outputs == ["c:x"]
+
+
+# --------------------------------------------------------------------------- #
+# Non-generator handler returning the `{messages: [...]}` envelope (agent v0's
+# `outputs.messages`). `history` trims the inner `messages` list, leaving the
+# envelope intact — symmetric with the generator-drain path above.
+# --------------------------------------------------------------------------- #
+def _three_message_envelope_workflow():
+    @workflow()
+    async def wf(value: str):
+        return {
+            "messages": [
+                {"role": "assistant", "content": f"a:{value}"},
+                {"role": "assistant", "content": f"b:{value}"},
+                {"role": "assistant", "content": f"c:{value}"},
+            ]
+        }
+
+    return wf
+
+
+@pytest.mark.asyncio
+async def test_messages_envelope_history_true_keeps_full_list():
+    with _quiet_runtime():
+        wf = _three_message_envelope_workflow()
+        response = await wf.invoke(request=_request(stream=False, history=True))
+
+    assert isinstance(response, WorkflowServiceBatchResponse)
+    assert response.data.outputs == {
+        "messages": [
+            {"role": "assistant", "content": "a:x"},
+            {"role": "assistant", "content": "b:x"},
+            {"role": "assistant", "content": "c:x"},
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_messages_envelope_history_false_trims_to_last():
+    with _quiet_runtime():
+        wf = _three_message_envelope_workflow()
+        response = await wf.invoke(request=_request(stream=False, history=False))
+
+    assert isinstance(response, WorkflowServiceBatchResponse)
+    assert response.data.outputs == {
+        "messages": [{"role": "assistant", "content": "c:x"}]
+    }
+
+
+@pytest.mark.asyncio
+async def test_messages_envelope_history_unset_defaults_to_last():
+    with _quiet_runtime():
+        wf = _three_message_envelope_workflow()
+        response = await wf.invoke(request=_request(stream=False))
+
+    assert isinstance(response, WorkflowServiceBatchResponse)
+    assert response.data.outputs == {
+        "messages": [{"role": "assistant", "content": "c:x"}]
+    }

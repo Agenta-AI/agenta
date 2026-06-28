@@ -6,7 +6,7 @@ F-038: a run failure comes back from the runner as HTTP 500 with a *result* body
 streaming path surfaces. The batch path (``/invoke`` + the ``/messages`` JSON path) used to
 discard the body and raise a generic "Agent runner HTTP 500", losing the actionable text.
 
-These tests pin that ``deliver_http`` now returns a runner result body (success OR failure) so
+These tests pin that ``deliver_http_result`` now returns a runner result body (success OR failure) so
 ``result_from_wire`` raises with the concise message, while a genuine non-result error body
 (no ``ok`` key, e.g. a proxy error) still falls through to the generic transport error.
 """
@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 import pytest
 
-from agenta.sdk.agents.utils.ts_runner import deliver_http
+from agenta.sdk.agents.utils.ts_runner import deliver_http_result
 from agenta.sdk.agents.utils.wire import result_from_wire
 
 
@@ -66,7 +66,7 @@ async def test_failure_500_returns_result_body_with_concise_error(monkeypatch):
         _fake_client(response=_FakeResponse(500, {"ok": False, "error": CONCISE})),
     )
 
-    body = await deliver_http("http://runner:8765", {"harness": "pi_core"})
+    body = await deliver_http_result("http://runner:8765", {"harness": "pi_core"})
 
     # The body survives the >=400 status instead of being swallowed as a transport failure.
     assert body == {"ok": False, "error": CONCISE}
@@ -82,7 +82,7 @@ async def test_failure_500_surfaces_concise_error_through_result_from_wire(monke
         _fake_client(response=_FakeResponse(500, {"ok": False, "error": CONCISE})),
     )
 
-    body = await deliver_http("http://runner:8765", {"harness": "pi_core"})
+    body = await deliver_http_result("http://runner:8765", {"harness": "pi_core"})
     with pytest.raises(RuntimeError) as excinfo:
         result_from_wire(body)
 
@@ -100,7 +100,7 @@ async def test_success_2xx_still_returns_body(monkeypatch):
         _fake_client(response=_FakeResponse(200, {"ok": True, "output": "hi"})),
     )
 
-    body = await deliver_http("http://runner:8765", {"harness": "pi_core"})
+    body = await deliver_http_result("http://runner:8765", {"harness": "pi_core"})
 
     assert body == {"ok": True, "output": "hi"}
 
@@ -118,7 +118,7 @@ async def test_non_result_error_body_falls_through_to_transport_error(monkeypatc
     )
 
     with pytest.raises(RuntimeError) as excinfo:
-        await deliver_http("http://runner:8765", {"harness": "pi_core"})
+        await deliver_http_result("http://runner:8765", {"harness": "pi_core"})
 
     assert "Agent runner HTTP 502" in str(excinfo.value)
 
@@ -137,6 +137,6 @@ async def test_non_json_error_body_falls_through_to_transport_error(monkeypatch)
     )
 
     with pytest.raises(RuntimeError) as excinfo:
-        await deliver_http("http://runner:8765", {"harness": "pi_core"})
+        await deliver_http_result("http://runner:8765", {"harness": "pi_core"})
 
     assert "Agent runner HTTP 500" in str(excinfo.value)

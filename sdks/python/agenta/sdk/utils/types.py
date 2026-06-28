@@ -1082,7 +1082,13 @@ def _harness_field_schema_extra() -> Dict[str, Any]:
     Carries BOTH a flat ``enum`` of the bare values (so every existing consumer that reads
     ``schema.enum`` keeps working) and a ``oneOf`` of ``{const, title, x-ag-harness-slug}`` (so the
     playground shows the display name and the harness's versioned slug identity rides alongside its
-    bare value). The stored/wire harness value is still the bare ``const`` string."""
+    bare value). The stored/wire harness value is still the bare ``const`` string.
+
+    ``x-ag-harness-ref`` declares that this field's value selects a record in the ``harnesses``
+    catalog (``GET /catalog/harnesses/{value}``), where its capabilities live — the same
+    catalog/ref mechanism as ``x-ag-type-ref`` -> ``/catalog/types/``. The frontend resolves it
+    to drive the harness-filtered provider/model picker, instead of reading an inlined inspect
+    ``meta`` field."""
     return {
         "enum": [identity.value for identity in HARNESS_IDENTITIES],
         "oneOf": [
@@ -1093,6 +1099,7 @@ def _harness_field_schema_extra() -> Dict[str, Any]:
             }
             for identity in HARNESS_IDENTITIES
         ],
+        "x-ag-harness-ref": "harness",
     }
 
 

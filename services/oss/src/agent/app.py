@@ -30,13 +30,10 @@ from agenta.sdk.agents import (
     make_harness,
     to_messages,
 )
-from agenta.sdk.agents.adapters.vercel import agent_run_to_vercel_parts
-
 from agenta.sdk.agents.capabilities import (
     harness_allows_deployment,
     harness_allows_mode,
     harness_allows_provider,
-    harness_capabilities_document,
 )
 from agenta.sdk.agents.connections import (
     UnsupportedConnectionModeError,
@@ -50,10 +47,9 @@ from agenta.sdk.decorators.tracing import auto_instrument
 from agenta.sdk.engines.running.utils import (
     register_handler,
     register_interface,
-    register_meta,
 )
 from agenta.sdk.models.workflows import (
-    WorkflowRequestFlags,
+    WorkflowInvokeRequestFlags,
     WorkflowRevisionData,
     WorkflowServiceRequest,
 )
@@ -215,7 +211,7 @@ async def _agent(
     parameters: Optional[Dict] = None,
 ):
     # The stream decision is a flag, negotiated from Accept at the HTTP edge.
-    stream = WorkflowRequestFlags(**(request.flags or {})).stream
+    stream = WorkflowInvokeRequestFlags(**(request.flags or {})).stream
     # session_id is resolved (echoed/minted) by the normalizer onto the request.
     session_id = request.session_id
 
@@ -264,44 +260,59 @@ async def _agent(
         agent_config.harness, Environment(select_backend(agent_config))
     )
 
-    # Both paths hand off to a helper that owns the environment lifecycle (setup/cleanup).
-    # They differ only in shape: the stream path (flags.stream) returns the Vercel UI Message
-    # Stream as an async generator the normalizer turns into a streaming response; the batch
-    # path returns the assistant message as a single WorkflowBatchResponse.
+    # ONE path: always stream. The agent only ever runs the streaming transport; the per-call
+    # `stream` flag (negotiated from Accept) decides the SHAPE we hand the running layer:
+    #   - stream -> yield the live agenta event stream (the AgentStream's AgentEvents as
+    #     `{type, data}`). Routing projects these to vercel/sse per `x-ag-messages-format`.
+    #   - batch  -> drain the same stream and coalesce the `{messages: [...]}` envelope from the
+    #     terminal AgentResult. Agent v0 output is `outputs.messages`, mirroring `inputs.messages`.
+    # The one-shot `prompt()` transport is DEV-ONLY and never used here. Coalescing is agent-owned
+    # (it needs the AgentStream's terminal result), so the generic normalizer stays shape-agnostic.
     if stream:
-        return _agent_vercel_stream(harness, session_config, msgs)
+        return _agent_event_stream(harness, session_config, msgs)
     return await _agent_batch(harness, session_config, msgs)
 
 
-async def _agent_batch(harness, session_config, msgs):
-    """Run one batch turn and return the assistant message. Owns the environment lifecycle."""
-    await harness.setup()
-    try:
-        result = await harness.prompt(session_config, msgs)
-    finally:
-        await harness.cleanup()
-    record_usage(result.usage)
-    return {"role": "assistant", "content": result.output}
+async def _agent_event_stream(harness, session_config, msgs):
+    """Run one streaming turn and yield the live agenta event stream.
 
-
-async def _agent_vercel_stream(harness, session_config, msgs):
-    """Run one streaming turn and yield Vercel UI Message Stream parts.
-
-    Owns the environment lifecycle (``setup`` / ``cleanup``); the per-turn session is torn
-    down by the ``AgentRun``'s own cleanup hook when the stream drains. The ``session_id`` is
-    stamped onto the stream's ``start`` part by the endpoint, so it is not threaded here.
+    Yields each ``Event`` as a neutral ``{type, data}`` dict (the agenta wire). Routing
+    projects them to vercel/sse when the caller asks; the handler never emits vercel. Usage is
+    recorded in the ``finally`` once the stream fully drains (guarded: a failed/aborted stream
+    has no terminal result). Owns the environment lifecycle (``setup`` / ``cleanup``).
     """
     await harness.setup()
+    run = await harness.stream(session_config, msgs)
     try:
-        run = await harness.stream(session_config, msgs)
-        async for part in agent_run_to_vercel_parts(run):
-            yield part
+        async for event in run:
+            yield {"type": event.type, "data": event.data}
+    finally:
         try:
             record_usage(run.result().usage)
         except Exception:  # result unavailable on a failed/aborted stream
             pass
+        await harness.cleanup()
+
+
+async def _agent_batch(harness, session_config, msgs):
+    """Drain the streaming turn and return the ``{messages: [...]}`` output envelope.
+
+    Always uses the streaming transport (``stream()``), draining it to the terminal
+    ``AgentResult`` — the same coalesced result the dev-only one-shot path would return.
+    Agent v0's output is ``outputs.messages`` (an object with a ``messages`` field of type
+    ``messages``), unlike chat/completion whose ``outputs`` IS the single message. The
+    normalizer's full-vs-last (`flags.history`) trims the inner list. Owns the lifecycle.
+    """
+    await harness.setup()
+    try:
+        run = await harness.stream(session_config, msgs)
+        async for _ in run:  # drain to the terminal result
+            pass
+        result = run.result()
     finally:
         await harness.cleanup()
+    record_usage(result.usage)
+    return {"messages": [{"role": "assistant", "content": result.output}]}
 
 
 AGENT_URI = "agenta:builtin:agent:v0"
@@ -319,28 +330,22 @@ def create_agent_app():
     #    instrumented one keeps it (mirrors chat.py, whose registry handler is pre-instrumented).
     # 2. OVERRIDE the interface registry with the service interface (AGENT_SCHEMAS), so
     #    `retrieve_interface(AGENT_URI)` returns the SAME schemas `/inspect` advertises.
-    #    `register_interface` replaces (not setdefault), unlike the SDK's minimal seed. It carries
-    #    only `WorkflowRevisionData` (schemas), which has no `meta` field — so the inspect `meta`
-    #    goes through `register_meta` (step 3), not here.
-    # 3. Register the inspect `meta` for the URI. The request-driven `/inspect` path builds a fresh
-    #    workflow from the request (which has no `meta`), so the routed instance's `meta=` below
-    #    would not survive; the meta registry is what `workflow.inspect()` reads to emit it.
-    # 4. Build the workflow against the URI. `ag.workflow.__init__` resolves the (instrumented)
-    #    handler and merges the registered interface; the passed `schemas`/`meta` still win.
+    #    `register_interface` replaces (not setdefault), unlike the SDK's minimal seed.
+    # 3. Build the workflow against the URI. `ag.workflow.__init__` resolves the (instrumented)
+    #    handler and merges the registered interface; the passed `schemas` still win.
     #
-    # The per-harness connection capability rides the inspect response `meta`, NOT a fourth
-    # `AGENT_SCHEMAS` schema key (`JsonSchemas` allows only inputs/parameters/outputs). The frontend
-    # reads `meta.harness_capabilities` and intersects it with the existing `/secrets/` payload
-    # projected as connections; the agent service imports the SAME SDK table (above) for its
-    # server-side reject, never calling its own `/inspect`.
-    meta = {"harness_capabilities": harness_capabilities_document()}
+    # `/inspect` carries NO behavior-changing `meta`: it must not differ for agent vs non-agent.
+    # Harness connection capabilities live in the `harnesses` catalog
+    # (`GET /catalog/harnesses/{ag_harness}`, built from the SDK's `harness_catalog_document`) and
+    # are resolved by the frontend via `x-ag-harness-ref` on the agent-config harness field — the
+    # same catalog/ref mechanism as every other type. The agent service still imports the SDK
+    # capability table directly for its server-side reject; it never publishes it on inspect.
     register_handler(auto_instrument(_agent), uri=AGENT_URI)
     register_interface(
         WorkflowRevisionData(uri=AGENT_URI, schemas=AGENT_SCHEMAS),
         uri=AGENT_URI,
     )
-    register_meta(meta, uri=AGENT_URI)
-    routed = ag.workflow(uri=AGENT_URI, schemas=AGENT_SCHEMAS, meta=meta)(_agent)
+    routed = ag.workflow(uri=AGENT_URI, schemas=AGENT_SCHEMAS)(_agent)
     ag.route("/", app=app, flags={"is_chat": True})(routed)
     return app
 

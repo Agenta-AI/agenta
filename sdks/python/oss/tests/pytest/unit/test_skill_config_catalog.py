@@ -79,7 +79,7 @@ def test_platform_default_agent_config_with_embed_skill_validates():
         {
             "@ag.embed": {
                 "@ag.references": {
-                    "workflow": {"slug": "_agenta.agenta-getting-started"}
+                    "workflow": {"slug": "__ag__getting_started_with_agenta"}
                 },
                 "@ag.selector": {"path": "parameters.skill"},
             }

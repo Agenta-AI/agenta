@@ -329,7 +329,7 @@ def to_messages(raw: Optional[List[Any]]) -> List[Message]:
 # ---------------------------------------------------------------------------
 
 
-class AgentEvent(BaseModel):
+class Event(BaseModel):
     """One structured event from a run, mapped from an ACP ``session/update``.
 
     ``type`` is one of ``message``, ``thought``, ``tool_call``, ``tool_result``, ``usage``,
@@ -340,14 +340,14 @@ class AgentEvent(BaseModel):
     data: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_wire(cls, raw: Any) -> Optional["AgentEvent"]:
+    def from_wire(cls, raw: Any) -> Optional["Event"]:
         if not isinstance(raw, dict) or not raw.get("type"):
             return None
         return cls(type=str(raw["type"]), data=raw)
 
 
 # A live event sink. Synchronous: adapters invoke it as events arrive (or as a batch).
-EventSink = Callable[[AgentEvent], None]
+EventSink = Callable[[Event], None]
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +388,7 @@ class AgentResult(BaseModel):
 
     output: str = ""
     messages: List[Message] = Field(default_factory=list)
-    events: List[AgentEvent] = Field(default_factory=list)
+    events: List[Event] = Field(default_factory=list)
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
     capabilities: Optional[HarnessCapabilities] = None

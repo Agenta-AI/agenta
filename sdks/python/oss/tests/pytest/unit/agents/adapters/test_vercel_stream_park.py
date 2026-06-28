@@ -14,7 +14,7 @@ from typing import Any, AsyncIterator, Dict, List
 import pytest
 
 from agenta.sdk.agents.adapters.vercel.stream import agent_run_to_vercel_parts
-from agenta.sdk.agents.streaming import AgentRun
+from agenta.sdk.agents.streaming import AgentStream
 
 
 async def _records(items: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
@@ -22,10 +22,10 @@ async def _records(items: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]
         yield item
 
 
-def _parked_run() -> AgentRun:
+def _parked_run() -> AgentStream:
     """A runner record stream for a parked turn: the gated tool call, the approval request,
     a ``done`` event, then the terminal ``paused`` result (what the F-040 runner fix emits)."""
-    return AgentRun(
+    return AgentStream(
         _records(
             [
                 {

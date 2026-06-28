@@ -7,21 +7,14 @@ never raise ``HTTPException`` directly.
 
 from typing import Optional
 
-
-# Slugs in this namespace are platform-owned: served from code by the catalogue, never the
-# database. The detection is a pure function (no catalogue instance) so every write path can
-# reject a reserved slug and every read path can short-circuit it even when no catalogue is
-# injected. The current slug grammar already allows a leading `_`, `.`, and `-`.
-RESERVED_SLUG_PREFIX = "_agenta."
-
-
-def is_reserved_workflow_slug(slug: Optional[str]) -> bool:
-    """Whether ``slug`` is in the reserved platform namespace (``_agenta.*``).
-
-    Independent of any ``PlatformWorkflowProvider`` so the guard holds even when no catalogue is
-    wired into ``WorkflowsService`` (evaluators, migrations, the worker).
-    """
-    return bool(slug) and slug.startswith(RESERVED_SLUG_PREFIX)
+# Reserved-slug detection is canonical in the SDK (it also drives is_static inference there). The
+# API re-exports it so every write path can reject a reserved slug and every read path can
+# short-circuit it, all off one definition. Independent of any StaticWorkflowProvider so the
+# guard holds even when no catalogue is wired into WorkflowsService (evaluators, migrations, worker).
+from agenta.sdk.engines.running.utils import (  # noqa: F401
+    STATIC_SLUG_PREFIX,
+    is_static_workflow_slug,
+)
 
 
 class WorkflowError(Exception):
@@ -32,11 +25,11 @@ class WorkflowError(Exception):
         super().__init__(message)
 
 
-class ReservedWorkflowSlug(WorkflowError):
+class StaticWorkflowSlug(WorkflowError):
     """Raised when a user tries to create, edit, or commit a workflow whose slug is in the
-    reserved platform namespace (``_agenta.*``).
+    reserved static namespace (``__ag__*``).
 
-    Platform workflows are served from code by the ``PlatformWorkflowCatalog``; a user must not be
+    Static workflows are served from code by the ``StaticWorkflowCatalog``; a user must not be
     able to author or shadow one. Translated to HTTP 400 at the router.
     """
 
@@ -45,7 +38,7 @@ class ReservedWorkflowSlug(WorkflowError):
         super().__init__(
             message
             or (
-                f"The slug prefix '_agenta.' is reserved for platform workflows. "
+                f"The slug prefix '__ag__' is reserved for static workflows. "
                 f"Choose a different slug than '{slug}'."
             )
         )

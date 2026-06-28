@@ -9,12 +9,12 @@ every run carries a fixed set of Agenta-shipped extras the author cannot turn of
 - a set of **forced platform skills** (``AGENTA_FORCED_SKILLS``).
 
 The forced platform skills are the actually-forced part of "forced skills". The default agent
-config template embeds the platform default skill by reserved ``_agenta.*`` slug, but that embed
+config template embeds the platform default skill by reserved ``__ag__*`` slug, but that embed
 only rides the *default* template: a custom ``pi_agenta`` config that drops the embed would
 otherwise lose the platform skill entirely. To make "forced" mean forced, ``AgentaHarness``
 unions ``AGENTA_FORCED_SKILLS`` into every run's skills via :func:`force_skills`, regardless of
 what the author's config carries. The canonical skill content lives here (in the SDK, the lowest
-layer); the server-side ``PlatformWorkflowCatalog`` imports the same constant so the embed path
+layer); the server-side ``StaticWorkflowCatalog`` imports the same constant so the embed path
 and the forced path stay one source of truth.
 
 Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAgentConfig`):
@@ -62,12 +62,12 @@ fabricate results."""
 AGENTA_FORCED_TOOLS: List[str] = ["read", "bash"]
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
-# skill by this slug; the server-side PlatformWorkflowCatalog resolves the slug to the
+# skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
 # SkillConfig below. Kept here so the catalogue and the forced path share one slug constant.
-AGENTA_GETTING_STARTED_SLUG = "_agenta.agenta-getting-started"
+GETTING_STARTED_WITH_AGENTA_SLUG = "__ag__getting_started_with_agenta"
 
 # Canonical SKILL.md body for the platform "getting started" skill. Single source of the body
-# text: the server-side PlatformWorkflowCatalog imports this constant rather than redeclaring it.
+# text: the server-side StaticWorkflowCatalog imports this constant rather than redeclaring it.
 _GETTING_STARTED_BODY = (
     "# Getting started with Agenta agents\n"
     "\n"
@@ -90,7 +90,7 @@ _GETTING_STARTED_BODY = (
 
 # The platform default skill as a concrete inline package. This is the canonical content; the
 # server-side catalogue serves the same SkillConfig for the reserved slug above.
-AGENTA_GETTING_STARTED_SKILL = SkillConfig(
+GETTING_STARTED_WITH_AGENTA_SKILL = SkillConfig(
     name="agenta-getting-started",
     description=(
         "Getting started on the Agenta platform: how an Agenta agent should behave, ask for "
@@ -101,7 +101,7 @@ AGENTA_GETTING_STARTED_SKILL = SkillConfig(
 
 # Platform skills every pi_agenta run carries, regardless of the author's config. These are the
 # actually-forced skills (see module docstring); unioned in by `force_skills`.
-AGENTA_FORCED_SKILLS: List[SkillConfig] = [AGENTA_GETTING_STARTED_SKILL]
+AGENTA_FORCED_SKILLS: List[SkillConfig] = [GETTING_STARTED_WITH_AGENTA_SKILL]
 
 
 def _join(*parts: Optional[str]) -> Optional[str]:

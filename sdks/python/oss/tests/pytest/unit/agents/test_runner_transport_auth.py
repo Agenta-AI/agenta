@@ -3,7 +3,7 @@
 The runner's ``/run`` endpoint has an opt-in shared-token gate (``AGENTA_AGENT_RUNNER_TOKEN``,
 default OFF; see ``services/agent/src/server.ts``). When the operator turns it on, an un-tokened
 POST from the co-located Python service is rejected with 401. These tests pin the Python side of
-that contract: ``deliver_http`` / ``deliver_http_stream`` attach ``Authorization: Bearer
+that contract: ``deliver_http_result`` / ``deliver_http_stream`` attach ``Authorization: Bearer
 <token>`` when the same env var is set, and send no auth header when it is not (loopback default).
 """
 
@@ -16,7 +16,7 @@ import httpx
 
 from agenta.sdk.agents.utils.ts_runner import (
     _runner_auth_headers,
-    deliver_http,
+    deliver_http_result,
     deliver_http_stream,
 )
 
@@ -105,7 +105,7 @@ def test_auth_headers_read_per_call(monkeypatch):
     assert _runner_auth_headers() == {"Authorization": "Bearer later"}
 
 
-# --- deliver_http (one-shot) -----------------------------------------------
+# --- deliver_http_result (one-shot) -----------------------------------------------
 
 
 async def test_deliver_http_sends_bearer_when_token_set(monkeypatch):
@@ -115,7 +115,7 @@ async def test_deliver_http_sends_bearer_when_token_set(monkeypatch):
         httpx, "AsyncClient", _fake_post_client(capture, payload={"ok": True})
     )
 
-    result = await deliver_http("http://runner:8765", {"harness": "pi_core"})
+    result = await deliver_http_result("http://runner:8765", {"harness": "pi_core"})
 
     assert result == {"ok": True}
     assert capture["headers"].get("Authorization") == "Bearer tok-123"
@@ -129,7 +129,7 @@ async def test_deliver_http_no_auth_header_when_unset(monkeypatch):
         httpx, "AsyncClient", _fake_post_client(capture, payload={"ok": True})
     )
 
-    await deliver_http("http://runner:8765", {"harness": "pi_core"})
+    await deliver_http_result("http://runner:8765", {"harness": "pi_core"})
 
     assert "Authorization" not in capture["headers"]
 

@@ -44,13 +44,23 @@ def _transport_error(user_message: str, *, detail: str) -> RuntimeError:
     return RuntimeError(user_message)
 
 
-async def deliver_http(
+# ---------------------------------------------------------------------------
+# Result (one-shot) transports: a single POST /run -> one coalesced result body.
+#
+# DEVELOPMENT-ONLY. The agent runs exclusively over the *_stream transports below; the
+# normalizer drains the stream and coalesces the batch result from the terminal record.
+# These one-shot calls are kept for local debugging of the runner's JSON /run path and are
+# NOT on any live request path. Do not wire them back in.
+# ---------------------------------------------------------------------------
+
+
+async def deliver_http_result(
     base_url: str,
     payload: Dict[str, Any],
     *,
     timeout: float = _DEFAULT_TIMEOUT,
 ) -> Dict[str, Any]:
-    """POST ``/run`` to a running runner and return the parsed JSON body."""
+    """POST ``/run`` to a running runner and return the parsed JSON body. DEV-ONLY (unused)."""
     import httpx  # local import: only the HTTP transport needs it
 
     url = base_url.rstrip("/") + "/run"
@@ -94,7 +104,7 @@ def _runner_result_body(response: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
-async def deliver_subprocess(
+async def deliver_subprocess_result(
     command: Sequence[str],
     payload: Dict[str, Any],
     *,
@@ -102,7 +112,7 @@ async def deliver_subprocess(
     env: Optional[Dict[str, str]] = None,
     timeout: float = _DEFAULT_TIMEOUT,
 ) -> Dict[str, Any]:
-    """Spawn the runner CLI, feed the request on stdin, and parse the JSON on stdout."""
+    """Spawn the runner CLI, feed the request on stdin, parse JSON on stdout. DEV-ONLY (unused)."""
     proc = await asyncio.create_subprocess_exec(
         *command,
         cwd=cwd,
@@ -144,7 +154,7 @@ async def deliver_subprocess(
 #
 # Each yields the runner's ``StreamRecord`` lines as they arrive — ``{"kind":"event",...}``
 # for every event the moment it is built, then exactly one ``{"kind":"result",...}`` terminal
-# record. The caller (a ``Session.stream``) turns these into live ``AgentEvent``s and the
+# record. The caller (a ``Session.stream``) turns these into live ``Event``s and the
 # terminal ``AgentResult``. Cancellation closes the underlying connection / kills the child.
 # ---------------------------------------------------------------------------
 

@@ -24,7 +24,7 @@ from agenta.sdk.agents import (
     HarnessType,
 )
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
-from agenta.sdk.agents.streaming import AgentRun
+from agenta.sdk.agents.streaming import AgentStream
 
 
 class FakeSandbox(Sandbox):
@@ -70,9 +70,9 @@ class FakeSession(Session):
                 on_event(event)
         return self._result
 
-    def stream(self, messages) -> AgentRun:
+    def stream(self, messages) -> AgentStream:
         # Mirror the runner's NDJSON stream: an event record per event, then one terminal
-        # result record (the shape `result_from_wire`/`AgentRun` expect).
+        # result record (the shape `result_from_wire`/`AgentStream` expect).
         self.prompts.append(list(messages))
         result = self._result
         raising = self._raise
@@ -95,7 +95,7 @@ class FakeSession(Session):
                 },
             }
 
-        return AgentRun(_records())
+        return AgentStream(_records())
 
     async def destroy(self) -> None:
         self.destroyed = True

@@ -24,7 +24,9 @@ from oss.src.agent.schemas import AGENT_SCHEMAS
 # Markers the agent /inspect schema is expected to emit. Pinned so that *dropping* a marker
 # (not just renaming it to something unresolvable) is caught too. Update this set
 # deliberately when the agent interface changes.
-EXPECTED_INSPECT_REFS = {"messages", "message", "agent_config"}
+# `message` (singular) is gone with the keyed-outputs surface: the agent's one output schema
+# is the plural `messages` list. Inputs use `messages`, parameters use `agent_config`.
+EXPECTED_INSPECT_REFS = {"messages", "agent_config"}
 
 
 def _collect_type_refs(node: Any, acc: Set[str]) -> Set[str]:

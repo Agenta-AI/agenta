@@ -14,7 +14,6 @@ from agenta.sdk.engines.running.handlers import (
     hook_v0,
     code_v0,
     mock_v0,
-    config_v0,
     match_v0,
     llm_v0,
     # --- OLD URI
@@ -46,7 +45,6 @@ from agenta.sdk.engines.running.interfaces import (
     hook_v0_interface,
     code_v0_interface,
     mock_v0_interface,
-    config_v0_interface,
     match_v0_interface,
     llm_v0_interface,
     # --- OLD URI
@@ -81,7 +79,6 @@ INTERFACE_REGISTRY: dict = dict(
             hook=dict(v0=hook_v0_interface),
             code=dict(v0=code_v0_interface),
             mock=dict(v0=mock_v0_interface),
-            snippet=dict(v0=config_v0_interface),
         ),
         builtin=dict(
             # --- NEW URI
@@ -186,19 +183,6 @@ CATALOG_REGISTRY: dict = dict(
                     presets=[],
                 )
             ),
-            snippet=dict(
-                v0=dict(
-                    name="Custom Snippet",
-                    description="Information like instructions, guardrails, skills, rules, etc.",
-                    categories=[],
-                    flags=WorkflowFlags(
-                        is_application=False,
-                        is_evaluator=False,
-                        is_snippet=True,
-                    ),
-                    presets=[],
-                )
-            ),
         ),
         builtin=dict(
             match=dict(
@@ -285,7 +269,6 @@ CONFIGURATION_REGISTRY: dict = dict(
             feedback=dict(v0=WorkflowRevisionData()),
             hook=dict(v0=WorkflowRevisionData()),
             code=dict(v0=WorkflowRevisionData()),
-            snippet=dict(v0=WorkflowRevisionData()),
         ),
         builtin=dict(
             # --- NEW URI
@@ -363,7 +346,6 @@ HANDLER_REGISTRY: dict = dict(
             # --- NEW URI
             feedback=dict(v0=feedback_v0),
             hook=dict(v0=hook_v0),
-            snippet=dict(v0=config_v0),
             code=dict(v0=code_v0),
             mock=dict(v0=mock_v0),
         ),
@@ -602,7 +584,6 @@ def infer_url_from_uri(uri: Optional[str]) -> Optional[str]:
 # Unknown agenta keys raise ValueError at write time — add new keys explicitly.
 # Format: (kind, key) → (is_application, is_evaluator, is_snippet)
 _AGENTA_ROLE_TABLE: dict = {
-    ("custom", "snippet"): (False, False, True),
     # agenta:custom:* — user-deployed code running on agenta platform
     ("custom", "code"): (True, True, False),
     ("custom", "hook"): (True, True, False),
@@ -613,6 +594,8 @@ _AGENTA_ROLE_TABLE: dict = {
     ("builtin", "chat"): (True, False, False),
     ("builtin", "completion"): (True, False, False),
     ("builtin", "agent"): (True, False, False),
+    # agenta:builtin:skill — non-runnable snippet (declared building block, no execution surface)
+    ("builtin", "skill"): (False, False, True),
     # agenta:builtin:* — both evaluator and application
     ("builtin", "llm"): (True, True, False),
     # agenta:builtin:* — evaluator-only
@@ -640,6 +623,38 @@ _AGENTA_ROLE_TABLE: dict = {
 }
 
 
+# Slugs in this namespace are platform-owned: served from code by the catalogue, never the
+# database. A reserved slug is what makes a revision static; the detection is a pure function so
+# every layer (SDK flag inference, API write/read paths) shares one definition. The `__ag__`
+# prefix mirrors our `__id__` / `__dedup_id__` reserved-key convention (and avoids a dot in slugs).
+STATIC_SLUG_PREFIX = "__ag__"
+
+
+def is_static_workflow_slug(slug: Optional[str]) -> bool:
+    """Whether ``slug`` is in the reserved platform namespace (``__ag__*``)."""
+    return bool(slug) and slug.startswith(STATIC_SLUG_PREFIX)
+
+
+# The single builtin skill uri. is_skill derives from it (key == "skill").
+AGENTA_BUILTIN_SKILL_URI = "agenta:builtin:skill:v0"
+
+
+def normalize_snippet_data(
+    data: Optional[WorkflowRevisionData],
+) -> Optional[WorkflowRevisionData]:
+    """For a non-runnable snippet revision (a skill, for now), keep only ``uri`` + ``parameters``.
+
+    url / headers / runtime / script / schemas are all execution-surface concerns a snippet has
+    none of, so they are stripped. No-op for any runnable revision.
+    """
+    if not data or not data.uri:
+        return data
+    _, _, key, _ = parse_uri(data.uri)
+    if key != "skill":
+        return data
+    return WorkflowRevisionData(uri=data.uri, parameters=data.parameters)
+
+
 def _has_messages_input(inputs_schema: Optional[Dict[str, Any]]) -> bool:
     """Return True if any property in the inputs schema carries x-ag-type-ref messages/message."""
     if not isinstance(inputs_schema, dict):
@@ -656,6 +671,7 @@ def _has_messages_input(inputs_schema: Optional[Dict[str, Any]]) -> bool:
 
 def infer_flags_from_data(
     *,
+    slug: Optional[str] = None,
     flags: Optional[WorkflowFlags] = None,
     data: Optional[WorkflowRevisionData] = None,
     handler: Optional[Callable] = None,  # SDK only — from HANDLER_REGISTRY lookup
@@ -665,6 +681,8 @@ def infer_flags_from_data(
     Called at revision commit time in the core service layer.
 
     Args:
+        slug: The revision slug. is_static is inferred from it (a reserved `__ag__*` slug);
+              it is never caller-declarable and is scrubbed on the DB write path.
         flags: Caller-provided flags from the commit payload. is_evaluator, is_application,
                and is_snippet are taken directly from here when provided (flags is not None).
                All URI/interface flags are always re-inferred from data, ignoring any stored values.
@@ -688,6 +706,7 @@ def infer_flags_from_data(
     is_match = key == "match"
     is_feedback = key == "feedback"
     is_agent = key == "agent"
+    is_skill = key == "skill"
 
     # schema-derived flags
     inputs_schema = (
@@ -695,8 +714,13 @@ def infer_flags_from_data(
     )
     is_chat = key == "chat" or _has_messages_input(inputs_schema)
 
-    # For managed URIs, infer URL from URI components if not explicitly provided
-    if not url and is_managed and kind and key and version:
+    # A skill is non-runnable content: it has no execution surface, so url / script / handler are
+    # always None regardless of what was passed (and URL inference below is skipped for it).
+    if is_skill:
+        url = script = handler = None
+
+    # For managed URIs, infer URL from URI components if not explicitly provided.
+    if not url and is_managed and kind and key and version and not is_skill:
         url = infer_url_from_uri(uri)
 
     # interface
@@ -724,14 +748,13 @@ def infer_flags_from_data(
         is_application = flags.is_application
         is_evaluator = flags.is_evaluator
         is_snippet = flags.is_snippet
-        is_skill = flags.is_skill
-        is_platform = flags.is_platform
     else:
         is_application = default_application
         is_evaluator = default_evaluator
         is_snippet = default_snippet
-        is_skill = False
-        is_platform = False
+
+    # slug-inferred:
+    is_static = is_static_workflow_slug(slug)
 
     return WorkflowFlags(
         # uri-derived
@@ -743,18 +766,19 @@ def infer_flags_from_data(
         is_match=is_match,
         is_feedback=is_feedback,
         is_agent=is_agent,
+        is_skill=is_skill,
         # schema-derived
         is_chat=is_chat,
         # interface-derived
         has_url=has_url,
         has_handler=has_handler,
         has_script=has_script,
+        # slug-derived
+        is_static=is_static,
         # user-defined
         is_evaluator=is_evaluator,
         is_application=is_application,
         is_snippet=is_snippet,
-        is_skill=is_skill,
-        is_platform=is_platform,
     )
 
 

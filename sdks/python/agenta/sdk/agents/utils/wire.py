@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from agenta.sdk.utils.logging import get_module_logger
 
 from ..dtos import (
-    AgentEvent,
+    Event,
     AgentResult,
     HarnessAgentConfig,
     HarnessCapabilities,
@@ -140,9 +140,9 @@ def result_from_wire(data: Dict[str, Any]) -> AgentResult:
         if message is not None:
             messages.append(message)
 
-    events: List[AgentEvent] = []
+    events: List[Event] = []
     for raw in data.get("events") or []:
-        event = AgentEvent.from_wire(raw)
+        event = Event.from_wire(raw)
         if event is not None:
             events.append(event)
 
