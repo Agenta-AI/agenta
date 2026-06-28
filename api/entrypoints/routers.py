@@ -181,6 +181,7 @@ from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.dbs.postgres.sessions.interactions.dbes import InteractionDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.interactions.dao import InteractionsDAO
 from oss.src.core.sessions.interactions.service import InteractionsService
+from oss.src.tasks.asyncio.sessions.interactions_worker import InteractionsWorker
 
 # Transcripts DAO (analytics DB)
 from oss.src.dbs.postgres.sessions.transcripts.dao import TranscriptsDAO
@@ -757,6 +758,24 @@ triggers_service = TriggersService(
     workflows_service=workflows_service,
 )
 
+
+# Detached workflow start: hand the run to the runner and return on the started handshake
+# (no awaiting the run). Shared by both detached consumers (triggers + interactions respond).
+async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+    result = await workflows_service.invoke_workflow_detached(
+        project_id=project_id,
+        user_id=user_id,
+        request=request,
+    )
+    return result.run_id
+
+
+interactions_worker = InteractionsWorker(
+    workflows_service=workflows_service,
+    interactions_service=interactions_service,
+    dispatch_fn=_dispatch_detached_run,
+)
+
 # Producer side of the inbound dispatch pipeline: the ingress route enqueues
 # `triggers.dispatch` tasks here; entrypoints/worker_triggers.py consumes them.
 _triggers_broker = RedisStreamBroker(
@@ -770,6 +789,7 @@ _triggers_broker = RedisStreamBroker(
 _triggers_dispatcher = TriggersDispatcher(
     triggers_dao=triggers_dao,
     workflows_service=workflows_service,
+    dispatch_fn=_dispatch_detached_run,
 )
 
 _triggers_worker = TriggersWorker(
@@ -964,6 +984,7 @@ sessions = SessionsRouter(
     interactions_service=interactions_service,
     workflows_service=workflows_service,
     session_mounts_service=session_mounts_service,
+    interactions_worker=interactions_worker,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------

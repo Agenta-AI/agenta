@@ -474,3 +474,15 @@ class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
 
     flags: Optional[WorkflowCatalogFlags] = None
     data: Optional[WorkflowRevisionData] = None
+
+
+class WorkflowServiceDetachedResponse(BaseModel):
+    """Result of a detached (fire-and-forget) workflow invoke.
+
+    The run is owned by the runner once accepted; the caller never awaits completion.
+    """
+
+    run_id: str
+    accepted: bool = True
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None

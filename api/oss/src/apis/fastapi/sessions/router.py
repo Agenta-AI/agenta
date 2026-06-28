@@ -13,7 +13,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from oss.src.tasks.asyncio.sessions.interactions_worker import InteractionsWorker
 
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -545,9 +548,11 @@ class InteractionsRouter:
         *,
         interactions_service: InteractionsService,
         workflows_service: WorkflowsService,
+        interactions_worker: Optional["InteractionsWorker"] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
+        self.interactions_worker = interactions_worker
 
         self.router = APIRouter()
         self.admin_router = APIRouter()
@@ -705,6 +710,21 @@ class InteractionsRouter:
                 detail="Interaction is no longer pending",
             )
 
+        answer = body.answer or {}
+
+        # Respond fires through the interactions worker (detached, off the API request thread):
+        # the worker re-authorizes the stored refs at fire time and hands the run to the runner
+        # without awaiting completion. Fall back to the inline blocking invoke only when no worker
+        # is wired (keeps the route usable in minimal/test compositions).
+        if self.interactions_worker is not None:
+            await self.interactions_worker.respond(
+                project_id=project_id,
+                user_id=user_id,
+                interaction_id=interaction_id,
+                answer=answer,
+            )
+            return InteractionResponse(count=1, interaction=interaction)
+
         references = (
             {
                 k: v.model_dump(mode="json")
@@ -718,7 +738,6 @@ class InteractionsRouter:
             if interaction.data and interaction.data.selector
             else None
         )
-        answer = body.answer or {}
 
         invoke_request = WorkflowServiceRequest(
             references=references,
@@ -815,6 +834,7 @@ class SessionsRouter:
         interactions_service: InteractionsService,
         workflows_service: WorkflowsService,
         session_mounts_service: SessionMountsService,
+        interactions_worker: Optional["InteractionsWorker"] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(service=streams_service)
         self.states = SessionStatesRouter(session_states_service=states_service)
@@ -822,6 +842,7 @@ class SessionsRouter:
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,
             workflows_service=workflows_service,
+            interactions_worker=interactions_worker,
         )
         self.mounts = SessionMountsRouter(
             session_mounts_service=session_mounts_service,
