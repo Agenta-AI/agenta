@@ -99,6 +99,27 @@ detached path, return `run_id` + accepted the moment **`alive` is held and the r
 runner that owns + heartbeats it** — not when the first event arrives. A dedicated `run_started`
 event is explicitly rejected (weaker: ties "started" to holding the stream, races cold-start).
 
+### DECIDED — detached flows through the workflow-service hop (streaming), not a direct bypass
+
+The PoC's FastAPI talks **directly** to the sidecar's streaming `/run`. Our topology has an extra
+hop: API → deployed **workflow-service** `/invoke` → SDK streaming (`deliver_http_stream`, NDJSON)
+→ runner `/run`. Decision: **keep that one topology for all invokes** — do NOT add a direct
+API→runner bypass for sessions. Instead make the hop support an early-return detached mode:
+
+- **Deployed workflow-service `/invoke`** gains a detached mode: it starts the run on the runner
+  over the existing streaming path, and **returns a "started" marker once the run is accepted/owned
+  (alive held)** — NOT after the run completes. The run keeps executing + persisting on the runner.
+- **API `invoke_workflow`** gains the matching detached/streaming path: today it only does batch
+  (`_post_service_json` awaits the full result) even though `WorkflowServiceStreamResponse` is in
+  its return union but never produced. Wire the detached path so it returns `run_id`+started.
+- **`dispatch_fn`** (injected into both consumers) calls this detached `invoke_workflow`, gets the
+  `run_id`, returns. No `asyncio.create_task`-of-blocking-invoke; no phantom run_id.
+
+This spans the SDK workflow-service (`sdks/python/...`) + the API + the entrypoint. The runner-side
+pieces (alive watchdog, producer-driven persistence via the ingest endpoint, survive-disconnect)
+are already built and engage once the run is owned by the runner. **Live round-trip is validated on
+the stack post-merge** (test & fix at home).
+
 The flow:
 
 ```text

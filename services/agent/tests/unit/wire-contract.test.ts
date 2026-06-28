@@ -56,6 +56,8 @@ const KNOWN_REQUEST_KEYS = [
   "skills",
   "sandboxPermission",
   "harnessFiles",
+  "runId",
+  "projectId",
 ] as const;
 
 // COMPILE-TIME drift guard: every wire key must be a field of AgentRunRequest. Drop or rename

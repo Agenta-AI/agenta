@@ -39,6 +39,8 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.states.service import SessionStatesService
 from oss.src.core.sessions.states.dtos import SessionStateUpsert
 from oss.src.core.sessions.transcripts.service import TranscriptsService
+from oss.src.core.sessions.transcripts.dtos import TranscriptEvent
+from oss.src.core.sessions.transcripts.streaming import publish_transcript
 from oss.src.core.sessions.interactions.service import InteractionsService
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.mounts.service import SessionMountsService
@@ -69,6 +71,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionStateSandboxIdUpsertRequest,
     SessionStateUpsertRequest,
     # transcripts
+    TranscriptIngestRequest,
     TranscriptQueryRequest,
     TranscriptResponse,
     TranscriptsQueryResponse,
@@ -435,11 +438,12 @@ class SessionStatesRouter:
 
 
 class TranscriptsRouter:
-    """Transcripts sub-router — /sessions/transcripts/*"""
+    """Transcripts sub-router — /sessions/transcripts/* + /admin/sessions/transcripts/*"""
 
     def __init__(self, transcripts_service: TranscriptsService):
         self.transcripts_service = transcripts_service
         self.router = APIRouter()
+        self.admin_router = APIRouter()
 
         self.router.add_api_route(
             "/query",
@@ -458,6 +462,14 @@ class TranscriptsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TranscriptResponse,
             response_model_exclude_none=True,
+        )
+
+        self.admin_router.add_api_route(
+            "/ingest",
+            self.ingest_transcript_event,
+            methods=["POST"],
+            operation_id="admin_sessions_transcripts_ingest",
+            tags=["Sessions", "Admin"],
         )
 
     @intercept_exceptions()
@@ -501,6 +513,28 @@ class TranscriptsRouter:
             event_id=event_id,
         )
         return TranscriptResponse(transcript=transcript)
+
+    @intercept_exceptions()
+    async def ingest_transcript_event(
+        self,
+        request: Request,
+        body: TranscriptIngestRequest,
+    ) -> dict:
+        if not getattr(request.state, "admin", False):
+            raise FORBIDDEN_EXCEPTION
+
+        await publish_transcript(
+            project_id=body.project_id,
+            transcript_event=TranscriptEvent(
+                session_id=body.session_id,
+                project_id=body.project_id,
+                event_index=body.event_index,
+                sender=body.sender,
+                session_update=body.session_update,
+                payload=body.payload,
+            ),
+        )
+        return {"ok": True}
 
 
 class InteractionsRouter:
@@ -762,13 +796,14 @@ class SessionsRouter:
     """Composes all session sub-domain routers into one object.
 
     The entrypoint mounts:
-      sessions_router.streams.router          → no prefix (paths include /sessions/streams/…)
-      sessions_router.streams.admin_router    → prefix /admin/sessions/streams
-      sessions_router.states.router           → prefix /sessions
-      sessions_router.transcripts.router      → prefix /sessions/transcripts
-      sessions_router.interactions.router     → prefix /sessions/interactions
-      sessions_router.interactions.admin_router → prefix /admin/sessions/interactions
-      sessions_router.mounts.router           → prefix /sessions
+      sessions_router.streams.router               → no prefix (paths include /sessions/streams/…)
+      sessions_router.streams.admin_router         → prefix /admin/sessions/streams
+      sessions_router.states.router                → prefix /sessions
+      sessions_router.transcripts.router           → prefix /sessions/transcripts
+      sessions_router.transcripts.admin_router     → prefix /admin/sessions/transcripts
+      sessions_router.interactions.router          → prefix /sessions/interactions
+      sessions_router.interactions.admin_router    → prefix /admin/sessions/interactions
+      sessions_router.mounts.router                → prefix /sessions
     """
 
     def __init__(

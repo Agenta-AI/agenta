@@ -1413,6 +1413,12 @@ app.include_router(
 )
 
 app.include_router(
+    router=sessions.transcripts.admin_router,
+    prefix="/admin/sessions/transcripts",
+    tags=["Sessions", "Admin"],
+)
+
+app.include_router(
     router=platform_admin_accounts.router,
     prefix="/admin",
     tags=["Admin"],

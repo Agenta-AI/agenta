@@ -32,6 +32,8 @@ import {
 } from "./engines/sandbox_agent.ts";
 import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
+import { startAliveWatchdog } from "./sessions/alive.ts";
+import { buildPersistingEmitter } from "./sessions/persist.ts";
 
 const PORT = Number(process.env.AGENTA_AGENT_RUNNER_PORT ?? 8765);
 
@@ -91,6 +93,22 @@ export type RunAgent = (
   signal?: AbortSignal,
 ) => Promise<AgentRunResult>;
 
+/**
+ * Whether this request is session-owned (detached run that the runner coordinates).
+ * Both `sessionId` and `runId` must be present; an empty string counts as absent.
+ */
+function isSessionOwned(request: AgentRunRequest): boolean {
+  return !!(
+    request.sessionId?.trim() &&
+    request.runId?.trim()
+  );
+}
+
+/** Resolve the project_id for session coordination calls. Falls back to "" gracefully. */
+function resolveProjectId(request: AgentRunRequest): string {
+  return request.projectId?.trim() ?? "";
+}
+
 // One engine: `sandbox-agent` drives a harness (Pi or Claude) over ACP. The harness is
 // selected by `request.harness`, not by an engine selector.
 const runAgent: RunAgent = (request, emit, signal) =>
@@ -100,6 +118,11 @@ const runAgent: RunAgent = (request, emit, signal) =>
  * Stream a run as NDJSON: one `{kind:"event"}` line per event the moment it is built, then
  * exactly one terminal `{kind:"result"}` line (success or failure). Selected by the caller
  * with `Accept: application/x-ndjson`; the one-shot `/run` path is left untouched.
+ *
+ * For session-owned runs (sessionId + runId present):
+ *  - the run survives client disconnect (abort is NOT wired to the response close event);
+ *  - every event is persisted producer-side via the transcript ingest endpoint;
+ *  - an alive-lock watchdog heartbeats the coordination plane for the run's lifetime.
  */
 async function runAndStream(
   _req: IncomingMessage,
@@ -114,28 +137,60 @@ async function runAndStream(
     connection: "keep-alive",
   });
 
-  // A client disconnect aborts the in-flight run rather than letting it finish unobserved.
-  // Listen on the response, not the request: the request body is already fully read, so its
-  // `close` can fire early on a keep-alive connection. `res` `close` fires when the response
-  // connection ends — after a normal `res.end()` (harmless: the run is already done) or when
-  // the client drops mid-stream (the case we want to cancel).
+  const sessionOwned = isSessionOwned(request);
+  const sessionId = request.sessionId!;
+  const runId = request.runId!;
+  const projectId = resolveProjectId(request);
+
+  // Session-owned runs survive client disconnect — the runner owns the run. Non-session
+  // runs abort on disconnect (original behavior: caller drives, disconnect = cancel).
   const controller = new AbortController();
-  res.on("close", () => controller.abort());
+  if (!sessionOwned) {
+    // Listen on the response, not the request: the request body is already fully read, so
+    // its `close` can fire early on a keep-alive connection. `res` `close` fires when the
+    // response connection ends — after a normal `res.end()` (harmless: the run is already
+    // done) or when the client drops mid-stream (the case we want to cancel).
+    res.on("close", () => controller.abort());
+  }
 
   const writeRecord = (record: StreamRecord): void => {
     if (res.writableEnded) return;
     res.write(JSON.stringify(record) + "\n");
   };
-  const emit: EmitEvent = (event) => writeRecord({ kind: "event", event });
+  const liveEmit: EmitEvent = (event) => writeRecord({ kind: "event", event });
+
+  // For session-owned runs: wrap the live emitter so every event is also persisted
+  // producer-side, independent of whether the client is still connected.
+  let emitFn: EmitEvent = liveEmit;
+  let flushPersist: (() => Promise<void>) | undefined;
+  let aliveWatchdog: { release: () => Promise<void> } | undefined;
+
+  if (sessionOwned) {
+    const { emit: persistingEmit, flush } = buildPersistingEmitter(
+      sessionId,
+      projectId,
+      liveEmit,
+    );
+    emitFn = persistingEmit;
+    flushPersist = flush;
+    aliveWatchdog = startAliveWatchdog(sessionId, runId, projectId);
+  }
 
   let result: AgentRunResult;
   try {
-    result = await run(request, emit, controller.signal);
+    result = await run(request, emitFn, controller.signal);
+    // Drain all queued persists before the sandbox tears down.
+    if (flushPersist) await flushPersist();
   } catch (err) {
+    if (flushPersist) await flushPersist().catch(() => {});
     const message =
       err instanceof Error ? (err.stack ?? err.message) : String(err);
     result = { ok: false, error: message };
+  } finally {
+    // Release the alive lock and mark the stream row ended.
+    if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
   }
+
   // Streaming delivered the events live, so don't echo them in the terminal record.
   writeRecord({ kind: "result", result: { ...result, events: [] } });
   res.end();

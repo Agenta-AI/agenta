@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.interactions.dtos import InteractionData
@@ -15,16 +15,18 @@ log = get_module_logger(__name__)
 
 
 class InteractionsWorker:
-    """First impl: respond-via-invoke. Becomes detached-invoke consumer when runner-scalability lands."""
+    """Respond-via-invoke worker. When dispatch_fn is supplied, fires detached (no blocking await)."""
 
     def __init__(
         self,
         *,
         workflows_service: WorkflowsService,
         interactions_service: InteractionsService,
+        dispatch_fn: Optional[Callable] = None,
     ) -> None:
         self.workflows_service = workflows_service
         self.interactions_service = interactions_service
+        self._dispatch_fn = dispatch_fn
 
     async def respond(
         self,
@@ -56,6 +58,15 @@ class InteractionsWorker:
             selector=selector,
             data=WorkflowServiceRequestData(inputs=inputs),
         )
+
+        if self._dispatch_fn is not None:
+            # Detached path: hand off to the runner, return immediately.
+            await self._dispatch_fn(
+                project_id=project_id,
+                user_id=user_id,
+                request=invoke_request,
+            )
+            return
 
         await self.workflows_service.invoke_workflow(
             project_id=project_id,

@@ -76,6 +76,8 @@ def request_to_wire(
     trace: Optional[TraceContext] = None,
     run_context: Optional[RunContext] = None,
     session_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Serialize one turn into the ``/run`` request JSON.
 
@@ -131,6 +133,10 @@ def request_to_wire(
         run_context_wire = run_context.to_wire()
         if run_context_wire:
             payload["runContext"] = run_context_wire
+    if run_id is not None:
+        payload["runId"] = run_id
+    if project_id is not None:
+        payload["projectId"] = project_id
     return payload
 
 
