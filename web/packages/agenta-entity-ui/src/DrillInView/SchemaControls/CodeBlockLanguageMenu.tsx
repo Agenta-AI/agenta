@@ -62,13 +62,20 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
     useEffect(() => editor.registerUpdateListener(() => recompute()), [editor, recompute])
 
     useEffect(() => {
-        // Recompute after mount so existing blocks get pickers without an edit.
+        // Recompute after mount so existing blocks get pickers without an edit. On a cold open the
+        // drawer is still sliding in and the markdown is still hydrating, so the first rects are
+        // stale (the picker would otherwise only appear once some later event nudged a recompute —
+        // e.g. a hover). Re-run across the next frames + a few timeouts to settle on the real rects.
         recompute()
+        const raf = requestAnimationFrame(recompute)
+        const timers = [60, 180, 360].map((t) => window.setTimeout(recompute, t))
         const onMove = () => recompute()
         // capture: the editor scrolls in an inner container, not the window
         window.addEventListener("scroll", onMove, true)
         window.addEventListener("resize", onMove)
         return () => {
+            cancelAnimationFrame(raf)
+            timers.forEach(clearTimeout)
             window.removeEventListener("scroll", onMove, true)
             window.removeEventListener("resize", onMove)
         }
@@ -97,8 +104,17 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
                         "[&_.ant-select-selection-item]:!text-[11px] [&_.ant-select-selection-item]:!leading-6",
                         "[&_.ant-select-selection-placeholder]:!text-[11px] [&_.ant-select-selection-placeholder]:!leading-6",
                         "[&_.ant-select-selection-search-input]:!h-6",
+                        // Portaled to <body>, antd sets a serif fallback font on the inner item; make
+                        // it inherit the app font set on the wrapper below.
+                        "[&_.ant-select-selection-item]:!font-[inherit]",
+                        "[&_.ant-select-selection-placeholder]:!font-[inherit]",
+                        "[&_.ant-select-selection-search-input]:!font-[inherit]",
                     ].join(" ")}
-                    style={{top: m.top + 7, right: m.right + 8}}
+                    style={{
+                        top: m.top + 7,
+                        right: m.right + 8,
+                        fontFamily: "var(--ant-font-family)",
+                    }}
                     // Don't let interactions here reach the editor.
                     onMouseDown={(e) => e.stopPropagation()}
                 >
@@ -112,7 +128,7 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
                         optionFilterProp="label"
                         popupMatchSelectWidth={false}
                         variant="borderless"
-                        className="min-w-[96px] font-sans"
+                        className="min-w-[96px]"
                         // Show the friendly name ("JavaScript") for the selected value, not the raw id.
                         labelRender={({value}) =>
                             value ? getLanguageFriendlyName(String(value)) : "Plain text"
