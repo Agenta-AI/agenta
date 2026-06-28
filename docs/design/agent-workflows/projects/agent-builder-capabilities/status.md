@@ -6,9 +6,9 @@ first.
 
 ## What this project owns
 
-The agent-facing tools that let an Agenta agent set up triggers and cron jobs on itself, discover
-the events it can react to, and read its own trigger state. Eight platform tools, one of which
-(`find_triggers`) needs a small new backend endpoint.
+The agent-facing tools that let an Agenta agent set up triggers and cron jobs on itself, take them
+back down, discover the events it can react to, and read its own trigger state. A set of platform
+tools, one of which (`find_triggers`) needs a small new backend endpoint.
 
 ## What it does NOT own
 
@@ -17,7 +17,7 @@ the events it can react to, and read its own trigger state. Eight platform tools
 - The connection round-trip (pause, connect in the playground, resume). Owned by
   `agent-fe-roundtrip`. The connection branch of the build flow depends on it.
 - How defaults reach a new agent. Owned by `default-agent-config`. The builder tools join
-  `PLATFORM_OPS` and ride the injected build kit; they are never committed to config.
+  `PLATFORM_OPS` and ride the build-kit overlay; they are never committed to config.
 
 ## Headline finding
 
@@ -29,9 +29,11 @@ plus one new endpoint (`find_triggers`) for keyword event discovery.
 ## The tool set
 
 `find_triggers` (new backend), `create_schedule`, `create_subscription`, `test_subscription`,
-`list_schedules`, `list_subscriptions`, `list_deliveries`, `list_connections`. The three mutating
-tools default to approval. Self-targeting binds the destination from run context, the way
-`commit_revision` binds the variant id. See `README.md` section 4 for each contract.
+`remove_schedule`, `remove_subscription`, the pause and resume pair for each, the four `list_*`
+reads. The mutating tools default to approval. Self-targeting binds the destination from run
+context, the way `commit_revision` binds the variant id. See `README.md` section 4 for each
+contract. The remove, pause, and resume tools map onto the delete and start/stop endpoints that
+already ship, so the agent can undo a schedule or subscription it set up.
 
 ## The key UX finding
 
@@ -46,19 +48,24 @@ any authorization. See section 5.1.
 2. Triggers self-target via run-context binding.
 3. `find_triggers` is a small new keyword endpoint, `find_capabilities`-shaped.
 4. The agent cannot create connections or set secrets; it holds a reference and asks the frontend.
-5. Builder tools are injected through the build kit, never committed to config.
+5. Builder tools ride the build-kit overlay, never committed to config.
 6. Mutating tools default to approval.
+
+## Decided (see `README.md` section 8)
+
+Dry test is same-session for v1, `test_subscription` permission is `ask`, and the public invoke
+wrapper is deferred.
 
 ## Open questions (non-blocking)
 
-See `README.md` section 8: test order (sample-first), same-session vs new-session dry test,
-`test_subscription` permission (`ask`), and the test gap (defer the public invoke wrapper).
+See `README.md` section 9: test order in the skill (sample-first).
 
 ## State
 
 - [x] Research: triggers/cron engine, catalog, deliveries, connections, `commit_revision` binding.
-- [x] Tool set and per-tool contracts (design-interfaces role analysis).
+- [x] Tool set and per-tool contracts (design-interfaces role analysis), including the remove,
+  pause, and resume undo tools.
 - [x] The agent-driven build flow walked end to end, with the dry-vs-live test finding.
-- [x] Inject-not-commit alignment with `default-agent-config`.
+- [x] Build-kit overlay alignment with `default-agent-config`.
 - [ ] Orchestrator folds this into the consolidated review.
 - [ ] Convert the tool set into per-tool implementation slices.

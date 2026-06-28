@@ -78,10 +78,13 @@ These are settled across the initiative (`agent-builds-an-app`). The design assu
   variant id. The model never names a destination, so it can only schedule or subscribe itself.
 - **The agent cannot create connections or set secrets.** When a connection is missing, the agent
   requests one through the frontend round-trip and waits. It holds only a connection reference, never
-  the secret. The round-trip is owned by `agent-fe-roundtrip`; this design consumes it.
-- **Builder tools are injected, not committed.** They are platform operations, a build-time aid.
-  They reach a playground run through the injected build kit and never enter the user's stored
-  config (section 6). The default-config model is owned by `default-agent-config`.
+  the secret. The request itself rides `request_connection`, a non-runnable reference tool the
+  overlay embeds via `@ag.embed`, not one of the platform ops in this set. The round-trip is owned
+  by `agent-fe-roundtrip` (#4920); this design consumes it.
+- **Builder tools ride the build-kit overlay, not the committed config.** They are platform
+  operations, a build-time aid. They reach a playground run through the build-kit overlay the
+  frontend applies, and never enter the user's stored config (section 6). The overlay model is
+  owned by `default-agent-config`.
 - **Mutating tools default to approval.** `create_schedule`, `create_subscription`, and
   `test_subscription` each pause for the user before they act.
 
@@ -91,7 +94,7 @@ Every builder tool is a `PlatformOp`: one entry in
 `sdks/python/agenta/sdk/agents/platform/op_catalog.py`, one HTTP call to one endpoint that already
 ships. The catalog entry owns the model-facing description, the method and path, a curated input
 schema, the run-context bindings, and the default permission and approval. Adding a tool is a data
-change to that catalog. `find_triggers` (4.6) is the one exception that needs new backend.
+change to that catalog. `find_triggers` (4.5) is the one exception that needs new backend.
 
 Each tool's contract is laid out by the role each field plays: **input** (the data the model
 provides), **config** (how the trigger behaves), **routing** (where it points), **credentials**
@@ -105,6 +108,10 @@ trusted from the model. The connection is a credential reference, an id only, ne
 | `create_schedule` | `POST /api/triggers/schedules/` | mutate | ask, approval |
 | `create_subscription` | `POST /api/triggers/subscriptions/` | mutate | ask, approval |
 | `test_subscription` | `POST /api/triggers/subscriptions/test` | probe | ask, approval |
+| `remove_schedule` | `DELETE /api/triggers/schedules/{id}` | mutate | ask, approval |
+| `remove_subscription` | `DELETE /api/triggers/subscriptions/{id}` | mutate | ask, approval |
+| `pause_schedule` / `resume_schedule` | `POST /api/triggers/schedules/{id}/stop` / `/start` | mutate | ask, approval |
+| `pause_subscription` / `resume_subscription` | `POST /api/triggers/subscriptions/{id}/stop` / `/start` | mutate | ask, approval |
 | `list_schedules` | `GET /api/triggers/schedules/` | read | allow |
 | `list_subscriptions` | `GET /api/triggers/subscriptions/` | read | allow |
 | `list_deliveries` | `GET /api/triggers/deliveries` | read | allow |
@@ -166,7 +173,7 @@ no row behind. It requires a `connection_id`, so it cannot run before a connecti
 
 Default permission: **ask, approval required.** The tool opens a real provider watch and blocks, so
 it warrants a confirm even though it is non-destructive. Treating it as a mutating tool keeps the
-gate consistent with the two create tools. (Section 8 keeps `allow` as the alternative.)
+gate consistent with the two create tools. (Decided as `ask`; see section 8.)
 
 ### 4.5 `find_triggers`: keyword event discovery (new backend)
 
@@ -195,6 +202,26 @@ alternatives, and short guidance. The connection state is what lets the agent de
 route the user to the connection round-trip.
 
 Default permission: **allow.** It only reads.
+
+### 4.6 Undo: remove, pause, and resume
+
+The agent set the schedule or subscription up, so it can also take it back down. These tools target
+the same self-bound destination as the create tools and map one-to-one onto delete and lifecycle
+endpoints that already ship (section 2). Each is mutating and approval-gated.
+
+- `remove_schedule` and `remove_subscription` delete a trigger the agent created, by id, over
+  `DELETE /api/triggers/schedules/{id}` and `DELETE /api/triggers/subscriptions/{id}`.
+- `pause_schedule` / `resume_schedule` and `pause_subscription` / `resume_subscription` stop or
+  start a trigger without deleting it, over the existing `/{id}/stop` and `/{id}/start` endpoints.
+  Pause leaves the row in place so the agent can resume it later.
+
+| Field | Role | Owner | Notes |
+|---|---|---|---|
+| `id` | routing (target) | model, from `list_schedules` / `list_subscriptions` | The schedule or subscription to act on. The agent reads it from its own trigger list first. |
+
+Default permission: **ask, approval required.** Removing or pausing a live trigger changes what the
+agent does unattended, so it gates the same way the create tools do. The agent reads its current
+triggers with `list_schedules` / `list_subscriptions` before it removes or pauses one.
 
 ## 5. The build flow, end to end
 
@@ -263,32 +290,34 @@ Steps 5 and the cron case both want to "run the agent once to show the user." Th
 public endpoint for that today. Invocation goes through the agent sidecar or the internal workflows
 service, and a platform operation is confined to the `/api` mount. So a dry run in a fresh session
 has no thin-wrapper home. A same-session dry test dodges this, because the agent simply continues
-the chat with the synthesized message. The options, to settle in implementation: keep dry tests
-same-session only, expose a public `/api` invoke wrapper, or let the user run the final check in
-the playground. Section 8 carries the recommendation.
+the chat with the synthesized message. That is the decision for v1 (section 8): keep dry tests
+same-session only and defer the public `/api` invoke wrapper.
 
 ## 6. How these tools reach the agent
 
 The builder tools are platform operations, a build-time aid, not part of the user's shipped agent.
-So they follow the inject-not-commit model that `default-agent-config` owns. The agent uses them
-to build itself, but they never enter the stored config.
+So they ride the build-kit overlay that `default-agent-config` owns. The agent uses them to build
+itself, but they never enter the stored config.
 
-The mechanics are already in place. The build kit reads `PLATFORM_OPS` at call time and injects the
-platform tools into the playground run, before tool resolution. Adding the builder tools to
-`PLATFORM_OPS` is therefore the whole integration: the new tools join the kit with no extra wiring.
-The Advanced drawer shows them as a read-only group; the user toggles the whole kit on or off but
-does not edit a tool. A normal production run of the published agent never injects the kit, so it
-never carries these tools. When the agent commits, the commit writes only the user's config; the
-builder tools are absent by construction.
+The mechanics are already in place. The backend assembles the overlay by iterating `PLATFORM_OPS`,
+adding each op to the overlay's `tools` list as a `{ "type": "platform", "op": ... }` entry. Adding
+the builder tools to `PLATFORM_OPS` is therefore the whole integration: the new tools join the
+overlay with no extra wiring. The backend serves the overlay read-only on the inspect response at
+`additional_context.playground_build_kit.agent_template_overlay`; the frontend applies it on a
+kit-on playground run and excludes it on commit. There is no backend injection and no run flag. The
+Advanced drawer shows the tools as a read-only group; the user toggles the whole kit on or off but
+does not edit a tool. A production run of the published agent has no overlay, so it never carries
+these tools. When the agent commits, the commit writes only the user's config; the builder tools
+are absent by construction.
 
-One consequence is worth stating plainly. After this project lands, a new agent's build kit will
+One consequence is worth stating plainly. After this project lands, a new agent's overlay will
 carry around a dozen platform tools, several of them approval-gated. That is intended. The build
 flow has no picker, so the agent cannot add a platform tool to itself mid-run; the tools must be
 present from the start. `default-agent-config` confirms the same seam.
 
 The per-tool approval lives on the catalog entry, not in the drawer. `create_schedule`,
-`create_subscription`, and `test_subscription` each carry `default_needs_approval=True`, so they
-pause for the user wherever the kit is injected.
+`create_subscription`, `test_subscription`, the remove tools, and the pause and resume tools each
+carry `default_needs_approval=True`, so they pause for the user wherever the overlay applies.
 
 ## 7. Dependencies, ownership, and the work split
 
@@ -299,13 +328,14 @@ This project owns the tools. It depends on two sibling projects and shares one s
 - **The skills** (`agent-skills`) teach the order of these tool calls and the stop points. The
   `set-up-triggers` and `build-your-first-app` skills name the tools below and assume they are
   present. This project ships the tools; that project ships the prose.
-- **The build kit** (`default-agent-config`) is the seam in section 6. This project adds ops to
-  `PLATFORM_OPS`; that project injects them.
+- **The build-kit overlay** (`default-agent-config`) is the seam in section 6. This project adds ops
+  to `PLATFORM_OPS`; that project assembles them into the overlay the frontend applies.
 
 **What we build (backend, SDK):**
 
-- Add the eight builder tools to `PLATFORM_OPS`: `create_schedule`, `create_subscription` (both
-  self-targeted, approval-gated), `test_subscription`, the four reads, and `find_triggers`.
+- Add the builder tools to `PLATFORM_OPS`: `create_schedule`, `create_subscription` (both
+  self-targeted, approval-gated), `test_subscription`, `remove_schedule`, `remove_subscription`,
+  the pause and resume pair for each, the four reads, and `find_triggers`.
 - Build the `find_triggers` backend: the new `POST /api/triggers/discover` endpoint that joins a
   keyword catalog match with shared connection state.
 - Verify the self-target binding. Confirm the trigger resolver accepts a `references`/`selector`
@@ -317,20 +347,25 @@ This project owns the tools. It depends on two sibling projects and shares one s
 **What the frontend owns (Arda):**
 
 - The connection round-trip and connection entry (the secret never reaches the model).
-- The approval prompts for the three mutating tools.
+- The approval prompts for the mutating tools.
 - The playground surface that shows standing schedules and subscriptions with their delivery
   history.
 
-## 8. Open questions
+## 8. Decided
 
-The big decisions are settled (section 3). These are finer and non-blocking; each settles during
-implementation. Recommendations included.
+These settled during the review. They are recorded here so they are not reopened.
+
+- **Dry test is same-session for v1.** A same-session dry test continues the chat with the
+  synthesized message, so it needs no new invoke surface (5.3).
+- **`test_subscription` permission is `ask`.** It opens a real provider watch and blocks, so it
+  warrants a confirm even though it is non-destructive (4.4).
+- **Defer the public invoke wrapper.** The test gap (5.3) is real, but a same-session dry test
+  dodges it, so the public `/api` invoke wrapper waits.
+
+## 9. Open questions
+
+The big decisions are settled (section 3 and section 8). This one is finer and non-blocking; it
+settles during implementation. Recommendation included.
 
 1. **Test order in the skill.** Sample-first as the default, with a live test as the prove-it
    follow-up (5.1). A skill-authoring choice, low risk to change later. Recommend sample-first.
-2. **Same-session or new-session dry test.** Same-session for v1 avoids a new invoke surface
-   (5.3). Recommend same-session.
-3. **`test_subscription` permission.** `ask` (it opens a real provider watch and blocks) or `allow`
-   (it is non-destructive)? Recommend `ask`.
-4. **The test gap.** A public `/api` invoke wrapper now, or same-session dry testing plus the
-   playground for v1 (5.3)? Recommend deferring the wrapper.
