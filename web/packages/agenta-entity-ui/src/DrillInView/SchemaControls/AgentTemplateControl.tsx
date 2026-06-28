@@ -1,17 +1,17 @@
 /**
- * AgentConfigControl
+ * AgentTemplateControl
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
  * of collapsible accordion sections (Model & harness, Instructions, Tools, MCP servers,
  * Advanced), built on the reusable {@link ConfigAccordionSection} primitive so the same
  * pattern can roll out to other config surfaces.
  *
- * Dispatched from `x-ag-type: "agent_config"` / `x-ag-type-ref: "agent_config"` (see
+ * Dispatched from `x-ag-type: "agent-template"` / `x-ag-type-ref: "agent-template"` (see
  * SchemaPropertyRenderer). It reuses the existing schema controls rather than inventing
  * new ones: the model selector (GroupedChoiceControl), the tool picker (ToolSelectorPopover
  * + ToolItemControl), the MCP server editor (McpServerItemControl), enum selects (harness,
  * sandbox, permission policy), and a textarea (agents_md). The field shape is the
- * `agent_config` catalog type generated from the SDK model (AgentConfigSchema in
+ * `agent-template` catalog type generated from the SDK model (AgentTemplateSchema in
  * agenta.sdk.utils.types); the agent service ships a thin `x-ag-type-ref` the playground
  * resolves and reads back (services/oss/src/agent).
  *
@@ -44,7 +44,7 @@ import {useAtomValue} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
-import {agentConfigLayoutAtom} from "./agentConfigLayout"
+import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ClaudePermissionsControl} from "./ClaudePermissionsControl"
 import {CodeEditor} from "./CodeEditor"
 import {ConfigItemDrawer, type ConfigItemView} from "./ConfigItemDrawer"
@@ -73,7 +73,7 @@ import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover
 import {parseGatewayFunctionName, type ToolObj} from "./toolUtils"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
-export interface AgentConfigControlProps {
+export interface AgentTemplateControlProps {
     schema?: SchemaProperty | null
     label?: string
     value?: Record<string, unknown> | null
@@ -294,11 +294,11 @@ function asObj(value: unknown): Record<string, unknown> | undefined {
         : undefined
 }
 
-/** The reserved slug namespace for platform-owned skills (mirrors the backend `_agenta.*`). */
-const PLATFORM_SKILL_SLUG_PREFIX = "_agenta."
+/** The reserved slug namespace for static (Agenta-owned) skills (mirrors the backend `__ag__*`). */
+const STATIC_SKILL_SLUG_PREFIX = "__ag__"
 
 /** The slug an `@ag.embed` entry points at (a `workflow` or pinned `workflow_revision` reference). */
-function platformEmbedSlug(skill: Record<string, unknown>): string | undefined {
+function staticEmbedSlug(skill: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
     if (!refs) return undefined
     const slug = asObj(refs.workflow)?.slug ?? asObj(refs.workflow_revision)?.slug
@@ -313,29 +313,29 @@ function embedRevisionVersion(skill: Record<string, unknown>): string | undefine
 }
 
 /**
- * Whether a skill entry is platform-owned and so read-only for the author. The reliable client-side
- * signal is the reserved `_agenta.` slug prefix on the embed's referenced workflow (or pinned
- * revision); a resolved object carrying `flags.is_platform === true` counts too.
+ * Whether a skill entry is static (Agenta-owned) and so read-only for the author. The reliable client-side
+ * signal is the reserved `__ag__` slug prefix on the embed's referenced workflow (or pinned
+ * revision); a resolved object carrying `flags.is_static === true` counts too.
  */
-function isPlatformSkill(skill: unknown): boolean {
+function isStaticSkill(skill: unknown): boolean {
     const s = asObj(skill)
     if (!s) return false
-    const slug = platformEmbedSlug(s)
-    if (slug && slug.startsWith(PLATFORM_SKILL_SLUG_PREFIX)) return true
-    return asObj(s.flags)?.is_platform === true
+    const slug = staticEmbedSlug(s)
+    if (slug && slug.startsWith(STATIC_SKILL_SLUG_PREFIX)) return true
+    return asObj(s.flags)?.is_static === true
 }
 
 function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
-    if (isPlatformSkill(s)) {
-        const slug = platformEmbedSlug(s)
+    if (isStaticSkill(s)) {
+        const slug = staticEmbedSlug(s)
         const version = embedRevisionVersion(s)
         return {
-            name: slug ?? "Platform skill",
+            name: slug ?? "Static skill",
             mono: "sk",
             color: "#6b7280",
-            tags: version ? ["platform", `v${version}`] : ["platform"],
-            typeLabel: "platform skill",
+            tags: version ? ["static", `v${version}`] : ["static"],
+            typeLabel: "static skill",
             subtitle: "Provided by Agenta — read-only",
         }
     }
@@ -439,14 +439,14 @@ function ItemRow({
     )
 }
 
-export function AgentConfigControl({
+export function AgentTemplateControl({
     schema,
     value,
     onChange,
     withTooltip,
     disabled,
     className,
-}: AgentConfigControlProps) {
+}: AgentTemplateControlProps) {
     const {gatewayTools, workflowReference} = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
 
@@ -487,8 +487,8 @@ export function AgentConfigControl({
 
     // How the config sections are laid out: stacked accordion (default), tabs, or cards.
     // Layout is a global, persisted preference set from the variant header menu (see
-    // agentConfigLayout); the panel only reads it.
-    const layout = useAtomValue(agentConfigLayoutAtom)
+    // agentTemplateLayout); the panel only reads it.
+    const layout = useAtomValue(agentTemplateLayoutAtom)
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
 
     // Update a single field of the agent config, leaving the rest intact.
@@ -794,7 +794,7 @@ export function AgentConfigControl({
 
     // Skills are a sibling of tools/MCP: a flat array on the agent config. Each entry is an inline
     // SKILL.md package (name + description + body + files + flags) or an `@ag.embed` reference the
-    // backend inlines — the `skill_config` catalog type (SkillConfigSchema in the SDK).
+    // backend inlines — the `skill-template` catalog type (SkillTemplateSchema in the SDK).
     const skills = useMemo(
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
@@ -1235,9 +1235,9 @@ export function AgentConfigControl({
                                         handleSkillDelete(index)
                                         closeEditor()
                                     }}
-                                    // Platform skills (`_agenta.*`) are read-only: no remove, and
+                                    // Static skills (`__ag__*`) are read-only: no remove, and
                                     // the drawer opens disabled (see the skill drawer below).
-                                    disabled={disabled || isPlatformSkill(skill)}
+                                    disabled={disabled || isStaticSkill(skill)}
                                 />
                             ))}
                         </div>
@@ -1471,14 +1471,14 @@ export function AgentConfigControl({
                     onSave={commitDraft}
                     saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
                     jsonOnly={isEmbedRefSkill(draft)}
-                    // Platform skills (`_agenta.*`) are read-only — view their JSON but can't edit.
-                    disabled={disabled || isPlatformSkill(draft)}
+                    // Static skills (`__ag__*`) are read-only — view their JSON but can't edit.
+                    disabled={disabled || isStaticSkill(draft)}
                     form={
                         <SkillFormView
                             key={`skill-form-${editing.mode}-${editing.index}`}
                             value={draft}
                             onChange={(v) => setDraft(v)}
-                            disabled={disabled || isPlatformSkill(draft)}
+                            disabled={disabled || isStaticSkill(draft)}
                         />
                     }
                     json={
@@ -1487,7 +1487,7 @@ export function AgentConfigControl({
                             value={draft}
                             onChange={(v) => setDraft(v as Record<string, unknown>)}
                             onValidityChange={(valid) => setJsonInvalid(!valid)}
-                            disabled={disabled || isPlatformSkill(draft)}
+                            disabled={disabled || isStaticSkill(draft)}
                         />
                     }
                 />

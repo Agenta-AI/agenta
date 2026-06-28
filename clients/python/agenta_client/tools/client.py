@@ -4,6 +4,7 @@ import typing
 
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
+from ..types.capabilities_result import CapabilitiesResult
 from ..types.tool_call_data import ToolCallData
 from ..types.tool_call_response import ToolCallResponse
 from ..types.tool_catalog_action_response import ToolCatalogActionResponse
@@ -15,7 +16,9 @@ from ..types.tool_catalog_providers_response import ToolCatalogProvidersResponse
 from ..types.tool_connection_create import ToolConnectionCreate
 from ..types.tool_connection_response import ToolConnectionResponse
 from ..types.tool_connections_response import ToolConnectionsResponse
+from ..types.tool_resolve_response import ToolResolveResponse
 from .raw_client import AsyncRawToolsClient, RawToolsClient
+from .types.tool_resolve_request_tools_item import ToolResolveRequestToolsItem
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -454,6 +457,76 @@ class ToolsClient:
         )
         """
         _response = self._raw_client.revoke_tool_connection(connection_id, request_options=request_options)
+        return _response.data
+    
+    def resolve_tools(self, *, tools: typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ToolResolveResponse:
+        """
+        Resolve an agent's tool references into model-ready specs.
+        
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        
+        Parameters
+        ----------
+        tools : typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        ToolResolveResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.tools.resolve_tools()
+        """
+        _response = self._raw_client.resolve_tools(tools=tools, request_options=request_options)
+        return _response.data
+    
+    def discover_tool_capabilities(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> CapabilitiesResult:
+        """
+        Discover the tools that fit a set of use cases, translated to Agenta terms.
+        
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        CapabilitiesResult
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.tools.discover_tool_capabilities(
+            use_cases=["use_cases"],
+        )
+        """
+        _response = self._raw_client.discover_tool_capabilities(use_cases=use_cases, provider=provider, limit_alternatives=limit_alternatives, request_options=request_options)
         return _response.data
     
     def call_tool(self, *, data: ToolCallData, request_options: typing.Optional[RequestOptions] = None) -> ToolCallResponse:
@@ -1030,6 +1103,92 @@ class AsyncToolsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.revoke_tool_connection(connection_id, request_options=request_options)
+        return _response.data
+    
+    async def resolve_tools(self, *, tools: typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ToolResolveResponse:
+        """
+        Resolve an agent's tool references into model-ready specs.
+        
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        
+        Parameters
+        ----------
+        tools : typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        ToolResolveResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.tools.resolve_tools()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.resolve_tools(tools=tools, request_options=request_options)
+        return _response.data
+    
+    async def discover_tool_capabilities(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> CapabilitiesResult:
+        """
+        Discover the tools that fit a set of use cases, translated to Agenta terms.
+        
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        CapabilitiesResult
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.tools.discover_tool_capabilities(
+                use_cases=["use_cases"],
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.discover_tool_capabilities(use_cases=use_cases, provider=provider, limit_alternatives=limit_alternatives, request_options=request_options)
         return _response.data
     
     async def call_tool(self, *, data: ToolCallData, request_options: typing.Optional[RequestOptions] = None) -> ToolCallResponse:

@@ -942,7 +942,7 @@ export function createSandboxAgentOtel(
 
   function closeReasoning(): void {
     if (reasoningBlockId === undefined) return;
-    record({ type: "reasoning_end", id: reasoningBlockId });
+    record({ type: "thought_end", id: reasoningBlockId });
     reasoningBlockId = undefined;
   }
 
@@ -990,9 +990,9 @@ export function createSandboxAgentOtel(
     if (!delta) return;
     if (reasoningBlockId === undefined) {
       reasoningBlockId = nextId("reason");
-      record({ type: "reasoning_start", id: reasoningBlockId });
+      record({ type: "thought_start", id: reasoningBlockId });
     }
-    record({ type: "reasoning_delta", id: reasoningBlockId, delta });
+    record({ type: "thought_delta", id: reasoningBlockId, delta });
     reasoningEmitted = target.startsWith(reasoningEmitted)
       ? target
       : reasoningEmitted + delta;

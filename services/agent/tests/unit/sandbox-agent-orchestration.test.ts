@@ -566,6 +566,29 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(env.ANTHROPIC_API_KEY, "resolved");
     assert.equal(env.ANTHROPIC_BASE_URL, "https://claude-gw.example/v1");
     assert.equal(env.ANTHROPIC_MODEL, undefined);
+    // Tool-Search is disabled for every claude run so the agenta-tools MCP tools keep their
+    // inputSchema (deferral would strip it -> empty tool input). The SDK only treats the exact
+    // string "false"/"0"/"no"/"off" as off, so it must be the string "false".
+    assert.equal(env.ENABLE_TOOL_SEARCH, "false");
+  });
+
+  it("does not set ENABLE_TOOL_SEARCH for a non-claude (pi) run", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const env = calls.providerArgs[1] as Record<string, string>;
+    // The Tool-Search toggle is Claude-specific: a Pi run must not carry it.
+    assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
   });
 
   it("sets Claude Bedrock env and strict selected model pass-through", async () => {

@@ -1,8 +1,8 @@
-"""Tests for the live streaming boundary: ``AgentRun`` and the NDJSON subprocess transport.
+"""Tests for the live streaming boundary: ``AgentStream`` and the NDJSON subprocess transport.
 
 Two layers:
 
-- ``AgentRun`` over a fake record source — pure, fast: events are yielded live, the terminal
+- ``AgentStream`` over a fake record source — pure, fast: events are yielded live, the terminal
   result is captured, hooks/cleanup fire, and an ``ok:false`` terminal raises.
 - ``deliver_subprocess_stream`` against a fake NDJSON emitter — proves records arrive
   incrementally (not buffered then dumped) and that closing the stream kills the child.
@@ -22,7 +22,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from agenta.sdk.agents import AgentRun
+from agenta.sdk.agents import AgentStream
 from agenta.sdk.agents.utils import deliver_subprocess_stream
 
 
@@ -31,7 +31,7 @@ async def _from_list(records: List[Dict[str, Any]]):
         yield record
 
 
-# --- AgentRun ---------------------------------------------------------------
+# --- AgentStream ---------------------------------------------------------------
 
 
 async def test_agentrun_yields_events_then_captures_result() -> None:
@@ -58,7 +58,7 @@ async def test_agentrun_yields_events_then_captures_result() -> None:
             },
         },
     ]
-    run = AgentRun(_from_list(records))
+    run = AgentStream(_from_list(records))
     run.on_result(lambda r: seen_result.update({"id": r.session_id}))
     run.on_cleanup(_cleanup)
 
@@ -77,14 +77,14 @@ async def test_agentrun_raises_on_error_terminal() -> None:
         {"kind": "event", "event": {"type": "message_start", "id": "m0"}},
         {"kind": "result", "result": {"ok": False, "error": "boom"}},
     ]
-    run = AgentRun(_from_list(records))
+    run = AgentStream(_from_list(records))
     with pytest.raises(RuntimeError, match="boom"):
         async for _ in run:
             pass
 
 
 async def test_agentrun_result_unavailable_before_drain() -> None:
-    run = AgentRun(_from_list([{"kind": "event", "event": {"type": "done"}}]))
+    run = AgentStream(_from_list([{"kind": "event", "event": {"type": "done"}}]))
     with pytest.raises(RuntimeError, match="not available"):
         run.result()
 
@@ -160,8 +160,8 @@ async def test_cli_stream_terminal_only_on_empty_request() -> None:
     assert records[0]["kind"] == "result"
     assert records[0]["result"]["ok"] is False
 
-    # AgentRun surfaces that failure as a RuntimeError, just like the one-shot path.
-    run = AgentRun(deliver_subprocess_stream(cmd, {}, cwd=str(agent_dir)))
+    # AgentStream surfaces that failure as a RuntimeError, just like the one-shot path.
+    run = AgentStream(deliver_subprocess_stream(cmd, {}, cwd=str(agent_dir)))
     with pytest.raises(RuntimeError):
         async for _ in run:
             pass

@@ -1,22 +1,24 @@
 /**
- * Inspect-meta atoms
+ * Harness capability atoms
  *
- * Derived selectors over the workflow `/inspect` response `meta`. The agent service publishes
- * `meta.harness_capabilities` (per harness: `providers` / `deployments` / `connection_modes` /
- * `model_selection` / `models`) so the agent playground can render a harness-filtered provider +
- * model picker straight from inspect instead of a static FE copy. These atoms thread that map to
- * the config control keyed by the revision the playground has open.
+ * The per-harness connection capabilities (`providers` / `deployments` / `connection_modes` /
+ * `model_selection` / `models`) come from the `harnesses` catalog
+ * (`GET /workflows/catalog/harnesses/`), NOT from the workflow `/inspect` response. Inspect is
+ * uniform across workflows — it carries no behavior-changing `meta`. A workflow's harness field
+ * declares `x-ag-harness-ref`; the agent playground resolves the selected harness's capabilities
+ * from this catalog to render a harness-filtered provider + model picker.
  *
- * Source: `sdks/python/agenta/sdk/agents/capabilities.py` (the published shape) and
- * `services/oss/src/agent/app.py` (`/inspect` `meta.harness_capabilities`).
+ * Source: `sdks/python/agenta/sdk/agents/capabilities.py` (`harness_catalog_document`) served by
+ * `api/oss/src/apis/fastapi/workflows/router.py` (`/catalog/harnesses/`).
  */
 
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
+import {atomWithQuery} from "jotai-tanstack-query"
 
-import {workflowInspectAtomFamily} from "./store"
+import {fetchHarnessCapabilities} from "../api"
 
-/** One harness's connection-relevant capabilities, as published on `/inspect` `meta`. */
+/** One harness's connection-relevant capabilities, as served by the `harnesses` catalog. */
 export interface HarnessCapabilities {
     /** Provider families the harness can reach (a literal list; never `"*"`). */
     providers: string[]
@@ -33,21 +35,24 @@ export interface HarnessCapabilities {
 /** The full per-harness capability map (harness type -> capabilities). */
 export type HarnessCapabilitiesMap = Record<string, HarnessCapabilities>
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-}
+/**
+ * The harness catalog, fetched once and cached. Global and project-independent (the catalog is
+ * static), so it is not keyed by anything.
+ */
+export const harnessCatalogQueryAtom = atomWithQuery<HarnessCapabilitiesMap>(() => ({
+    queryKey: ["workflows", "catalog", "harnesses"],
+    queryFn: async () => (await fetchHarnessCapabilities()) as unknown as HarnessCapabilitiesMap,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+}))
 
 /**
- * The per-harness capability map carried on the inspect response `meta.harness_capabilities`,
- * keyed by the open revision. `null` when inspect has not resolved or the agent did not publish it
- * (older agents / a non-agent workflow) — callers fall back to permissive behavior.
+ * The per-harness capability map from the `harnesses` catalog. `null` until the catalog resolves.
+ * Keyed for signature compatibility with consumers; the data itself is not revision-scoped.
  */
-export const harnessCapabilitiesAtomFamily = atomFamily((revisionId: string) =>
+export const harnessCapabilitiesAtomFamily = atomFamily((_revisionId: string) =>
     atom<HarnessCapabilitiesMap | null>((get) => {
-        const inspect = get(workflowInspectAtomFamily(revisionId))
-        const meta = inspect.data?.meta
-        if (!isRecord(meta)) return null
-        const caps = meta.harness_capabilities
-        return isRecord(caps) ? (caps as HarnessCapabilitiesMap) : null
+        const query = get(harnessCatalogQueryAtom)
+        return query.data ?? null
     }),
 )

@@ -1,7 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {agentConfigLayoutAtom, AGENT_CONFIG_LAYOUTS} from "@agenta/entity-ui/drill-in"
+import {agentTemplateLayoutAtom, AGENT_TEMPLATE_LAYOUTS} from "@agenta/entity-ui/drill-in"
 import {
     playgroundController,
     isAgentModeAtomFamily,
@@ -32,11 +32,11 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
     // Agent config panels get a layout selector (accordion/tabs/cards) in this menu; the panel
-    // reads the same persisted atom. Detect agent mode by the agent_config schema marker (the same
-    // robust signal the left panel uses), not the backend is_agent flag. Non-agent variants hide it.
+    // reads the same persisted atom. Agent mode derives from the backend is_agent flag
+    // (via workflowType). Non-agent variants hide it.
     const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
-    const layout = useAtomValue(agentConfigLayoutAtom)
-    const setLayout = useSetAtom(agentConfigLayoutAtom)
+    const layout = useAtomValue(agentTemplateLayoutAtom)
+    const setLayout = useSetAtom(agentTemplateLayoutAtom)
     // Stream (token-by-token) vs batch (one-shot) response channel for the agent run lane.
     const channelMode = useAtomValue(agentChannelModeAtom)
     const setChannelMode = useSetAtom(agentChannelModeAtom)
@@ -69,7 +69,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                           key: "view",
                           type: "group" as const,
                           label: "View",
-                          children: AGENT_CONFIG_LAYOUTS.map((option) => ({
+                          children: AGENT_TEMPLATE_LAYOUTS.map((option) => ({
                               key: `view-${option.value}`,
                               label: option.label,
                               icon:

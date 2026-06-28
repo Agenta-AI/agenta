@@ -2,7 +2,7 @@
 
 Everything the ports and adapters pass around: harness identity, capabilities, content
 blocks, messages, run events, the run result, trace/tool-callback plumbing, the neutral
-``AgentConfig``, the per-harness configs a backend plumbs, and the ``SessionConfig`` bundle.
+``AgentTemplate``, the per-harness configs a backend plumbs, and the ``SessionConfig`` bundle.
 
 These are Pydantic models (the SDK already depends on Pydantic), kept neutral: an adapter
 translates them to and from its engine's own shapes at its edge.
@@ -29,7 +29,7 @@ from .mcp import (
     mcp_servers_to_wire,
     parse_mcp_server_configs,
 )
-from .skills import SkillConfig, parse_skill_configs, skills_to_wire
+from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
 from .tools.models import coerce_tool_spec
 
@@ -66,7 +66,7 @@ class HarnessType(str, Enum):
 # (``agenta:<namespace>:<name>:v<N>``, mirroring ``agenta:builtin:agent:v0`` in
 # ``engines/running/interfaces.py``). The namespace is ``harness`` and the trailing ``v0`` is
 # bumped only when the harness contract shape breaks. This is purely the INTERFACE identity the
-# agent_config schema advertises; the stored/wire harness VALUE stays the bare enum string
+# agent_template schema advertises; the stored/wire harness VALUE stays the bare enum string
 # (``pi_core`` / ``pi_agenta`` / ``claude``), which the runner reads as the runtime selector.
 
 
@@ -75,7 +75,7 @@ class HarnessIdentity(BaseModel):
 
     ``value`` is the wire/runtime selector (the ``HarnessType`` value); ``slug`` is the
     versioned contract identity in the repo's slug grammar; ``name`` is the human-facing label
-    the playground dropdown shows. This is the single source the agent_config schema builds the
+    the playground dropdown shows. This is the single source the agent_template schema builds the
     harness ``oneOf`` from, so the slug, name, and value never drift across the SDK, the service
     schema, and the frontend control."""
 
@@ -132,7 +132,7 @@ class SandboxPermission(BaseModel):
 
     ``network`` is the outbound-egress policy; ``filesystem`` is declared but not enforced
     today; ``enforcement`` picks ``strict`` (fail the run when the boundary cannot be applied)
-    or ``best_effort``. Optional on :class:`AgentConfig`: an unset value never reaches the wire,
+    or ``best_effort``. Optional on :class:`AgentTemplate`: an unset value never reaches the wire,
     so existing configs are unaffected."""
 
     network: NetworkEgress = Field(default_factory=NetworkEgress)
@@ -329,7 +329,7 @@ def to_messages(raw: Optional[List[Any]]) -> List[Message]:
 # ---------------------------------------------------------------------------
 
 
-class AgentEvent(BaseModel):
+class Event(BaseModel):
     """One structured event from a run, mapped from an ACP ``session/update``.
 
     ``type`` is one of ``message``, ``thought``, ``tool_call``, ``tool_result``, ``usage``,
@@ -340,14 +340,14 @@ class AgentEvent(BaseModel):
     data: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_wire(cls, raw: Any) -> Optional["AgentEvent"]:
+    def from_wire(cls, raw: Any) -> Optional["Event"]:
         if not isinstance(raw, dict) or not raw.get("type"):
             return None
         return cls(type=str(raw["type"]), data=raw)
 
 
 # A live event sink. Synchronous: adapters invoke it as events arrive (or as a batch).
-EventSink = Callable[[AgentEvent], None]
+EventSink = Callable[[Event], None]
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +376,98 @@ class TraceContext(BaseModel):
         }
 
 
+class RunContextReference(BaseModel):
+    """One workflow entity inside :class:`RunContextWorkflow` — the artifact, the variant, or
+    the revision (direct-call tools, Phase 3a).
+
+    Mirrors the platform's canonical workflow reference shape (``{id, slug, version}``, the API's
+    ``Reference``) so the run-context identity reads the same way the rest of the platform names a
+    workflow entity. ``version`` is meaningful only for a revision; it stays unset on the artifact
+    and the variant. All fields optional and best-effort."""
+
+    id: Optional[str] = None
+    slug: Optional[str] = None
+    version: Optional[str] = None
+
+
+class RunContextWorkflow(BaseModel):
+    """The running workflow's own identity (direct-call tools, Phase 3a).
+
+    Part of the per-turn :class:`RunContext` blob, grouped into the same three entities the
+    platform uses for a workflow — the ``artifact`` (the workflow), the ``variant``, and the
+    ``revision`` — each an ``{id, slug, version}`` :class:`RunContextReference`. A self-targeting
+    platform tool binds one of these into its request body server-side (e.g.
+    ``$ctx.workflow.variant.id`` for "update myself"), so the model supplies only the payload and
+    cannot retarget a different variant. ``is_draft`` says whether the run targets a committed
+    revision (``False``) or an uncommitted playground draft (``True``); it is inferred from whether
+    a stored revision was referenced. All fields optional and best-effort: the service fills what
+    it holds and omits the rest."""
+
+    artifact: Optional[RunContextReference] = None
+    variant: Optional[RunContextReference] = None
+    revision: Optional[RunContextReference] = None
+    is_draft: Optional[bool] = None
+
+
+class RunContextTrace(BaseModel):
+    """The current run's own trace identity (direct-call tools, Phase 3a).
+
+    A tool that acts on the run's own trace (e.g. "annotate my trace") binds
+    ``$ctx.trace.trace_id`` into its request body server-side."""
+
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
+
+
+class RunContext(BaseModel):
+    """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
+    Phase 3a; see ``projects/direct-call-tools/run-context.md``).
+
+    The service computes this from the invocation's own trace + workflow identity and sends it on
+    the ``/run`` request. It is consumed ONLY by a tool's ``call.context`` binding: the runner
+    fills bound request fields from this blob at dispatch, server-side and hidden from the model.
+    The model never reads run context directly.
+
+    The inner keys are deliberately snake_case (``workflow.variant.id``, ``trace.trace_id``): they
+    are the binding NAMESPACE that a catalog entry's ``$ctx.<dotted.path>`` token addresses, so
+    they match those tokens exactly rather than the wire's camelCase convention. The conversation
+    id is NOT carried here — it rides the top-level ``sessionId`` field, and the runner owns the
+    live id across turns; duplicating it in run context would only let it go stale. ``to_wire``
+    emits only the sub-objects/fields that are set, so a run with no identity yields an empty blob
+    (and the serializer omits the key entirely)."""
+
+    workflow: Optional[RunContextWorkflow] = None
+    trace: Optional[RunContextTrace] = None
+
+    def to_wire(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        if self.workflow is not None:
+            workflow: Dict[str, Any] = {}
+            for entity in ("artifact", "variant", "revision"):
+                reference = getattr(self.workflow, entity)
+                if reference is not None:
+                    fields = {
+                        key: value
+                        for key, value in reference.model_dump().items()
+                        if value is not None
+                    }
+                    if fields:
+                        workflow[entity] = fields
+            if self.workflow.is_draft is not None:
+                workflow["is_draft"] = self.workflow.is_draft
+            if workflow:
+                out["workflow"] = workflow
+        if self.trace is not None:
+            trace = {
+                key: value
+                for key, value in self.trace.model_dump().items()
+                if value is not None
+            }
+            if trace:
+                out["trace"] = trace
+        return out
+
+
 # ---------------------------------------------------------------------------
 # Run result
 # ---------------------------------------------------------------------------
@@ -388,7 +480,7 @@ class AgentResult(BaseModel):
 
     output: str = ""
     messages: List[Message] = Field(default_factory=list)
-    events: List[AgentEvent] = Field(default_factory=list)
+    events: List[Event] = Field(default_factory=list)
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
     capabilities: Optional[HarnessCapabilities] = None
@@ -402,14 +494,14 @@ class AgentResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AgentConfig(BaseModel):
+class AgentTemplate(BaseModel):
     """What an agent is and how it runs — the single agent definition. ``instructions`` becomes
     ``AGENTS.md``. ``tools`` are provider-agnostic references; resolving them into runnable
     specs is the caller's job (the Agenta service does it server-side).
 
     ``harness`` / ``sandbox`` / ``permission_policy`` are the run-selection fields: which
     coding agent to drive, where it runs, and how a permission-gating harness answers tool-use
-    prompts in a headless run. They live on ``AgentConfig`` (under ``data.parameters.agent``)
+    prompts in a headless run. They live on ``AgentTemplate`` (under ``data.parameters.agent``)
     rather than a separate object — there is one agent definition, not an agent plus a sidecar
     selection. ``sandbox`` is a backend/environment concern the caller reads to pick a backend;
     it never enters ``SessionConfig`` or the neutral run.
@@ -434,7 +526,7 @@ class AgentConfig(BaseModel):
     model_ref: Optional[ModelRef] = None
     tools: List[ToolConfig] = Field(default_factory=list)
     mcp_servers: List[MCPServerConfig] = Field(default_factory=list)
-    skills: List[SkillConfig] = Field(default_factory=list)
+    skills: List[SkillTemplate] = Field(default_factory=list)
     harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     sandbox_permission: Optional[SandboxPermission] = None
     # The run-selection fields (formerly the separate ``RunSelection``): the coding agent to
@@ -462,17 +554,17 @@ class AgentConfig(BaseModel):
 
     @field_validator("skills", mode="before")
     @classmethod
-    def _coerce_skills(cls, value: Any) -> List[SkillConfig]:
-        return parse_skill_configs(_as_list(value))
+    def _coerce_skills(cls, value: Any) -> List[SkillTemplate]:
+        return parse_skill_templates(_as_list(value))
 
     @classmethod
     def from_params(
         cls,
         params: Dict[str, Any],
         *,
-        defaults: Optional["AgentConfig"] = None,
-    ) -> "AgentConfig":
-        """Build an :class:`AgentConfig` from a request/config dict.
+        defaults: Optional["AgentTemplate"] = None,
+    ) -> "AgentTemplate":
+        """Build an :class:`AgentTemplate` from a request/config dict.
 
         Accepts three shapes, in priority order: the dedicated ``agent`` element, the
         playground ``prompt`` prompt-template (system message -> instructions, ``llm_config``
@@ -503,7 +595,7 @@ class AgentConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class HarnessAgentConfig(BaseModel):
+class HarnessAgentTemplate(BaseModel):
     """Base for a harness-specific config. A Harness produces one of these from the neutral
     config; a backend plumbs it as-is, with no business logic about how the harness works.
 
@@ -533,10 +625,10 @@ class HarnessAgentConfig(BaseModel):
     resolved_connection: Optional[ResolvedConnection] = None
     tool_callback: Optional[ToolCallback] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
-    skills: List[SkillConfig] = Field(default_factory=list)
+    skills: List[SkillTemplate] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
     # The neutral per-harness options bag (a map keyed by harness name), carried verbatim from
-    # ``AgentConfig.harness_kwargs`` by the harness adapter. The active harness's CONFIG translates
+    # ``AgentTemplate.harness_kwargs`` by the harness adapter. The active harness's CONFIG translates
     # its own slice into rendered files for the wire (see :meth:`wire_harness_files`); the raw bag
     # itself does not ride the wire anymore.
     harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
@@ -558,9 +650,11 @@ class HarnessAgentConfig(BaseModel):
 
     @field_validator("skills", mode="before")
     @classmethod
-    def _coerce_skills(cls, value: Any) -> List[SkillConfig]:
+    def _coerce_skills(cls, value: Any) -> List[SkillTemplate]:
         return [
-            item if isinstance(item, SkillConfig) else SkillConfig.model_validate(item)
+            item
+            if isinstance(item, SkillTemplate)
+            else SkillTemplate.model_validate(item)
             for item in value or []
         ]
 
@@ -653,7 +747,7 @@ class HarnessAgentConfig(BaseModel):
         return self.resolved_connection.to_wire()
 
 
-class PiAgentConfig(HarnessAgentConfig):
+class PiAgentTemplate(HarnessAgentTemplate):
     """Pi's config. Built-in tools by name plus resolved specs delivered natively (Pi has no
     MCP; the runner registers them through the Pi extension). Pi does not gate tool use, so
     no permission policy applies.
@@ -711,7 +805,7 @@ class PiAgentConfig(HarnessAgentConfig):
         return out
 
 
-class ClaudeAgentConfig(HarnessAgentConfig):
+class ClaudeAgentTemplate(HarnessAgentTemplate):
     """Claude's config. No Pi built-ins; tools are delivered over MCP, and
     ``permission_policy`` answers Claude's tool-use prompts in a headless run."""
 
@@ -768,7 +862,7 @@ class ClaudeAgentConfig(HarnessAgentConfig):
         return {"harnessFiles": files}
 
 
-class AgentaAgentConfig(PiAgentConfig):
+class AgentaAgentTemplate(PiAgentTemplate):
     """The Agenta harness's config. It *is* a Pi config (same engine, same tool delivery and
     system-prompt layers). ``skills`` ride the inherited :meth:`wire_skills` seam as resolved
     inline packages, not through ``wire_tools`` (skills are not tools)."""
@@ -793,7 +887,7 @@ class SessionConfig(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    agent: AgentConfig
+    agent: AgentTemplate
     secrets: Dict[str, str] = Field(default_factory=dict)
     # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``.
     # ``secrets`` is the compatibility alias for ``resolved_connection.env`` during the
@@ -801,6 +895,10 @@ class SessionConfig(BaseModel):
     resolved_connection: Optional[ResolvedConnection] = None
     permission_policy: PermissionPolicy = "auto"
     trace: Optional[TraceContext] = None
+    # The run's own context (trace + variant identity), refreshed per turn and consumed only by a
+    # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted from the
+    # wire when unset, so a run that needs no binding is byte-identical to before.
+    run_context: Optional[RunContext] = None
     session_id: Optional[str] = None
     builtin_names: List[str] = Field(
         default_factory=list,
@@ -853,8 +951,8 @@ def _as_list(raw: Any) -> List[Any]:
 def _split_model_ref(data: Any) -> Any:
     """Populate ``model_ref`` from a structured ``model`` and keep ``model`` a plain string.
 
-    Shared ``mode="before"`` validator body for :class:`AgentConfig` and
-    :class:`HarnessAgentConfig`. The lowest-risk wiring (no behavior change in Slice 1):
+    Shared ``mode="before"`` validator body for :class:`AgentTemplate` and
+    :class:`HarnessAgentTemplate`. The lowest-risk wiring (no behavior change in Slice 1):
 
     - ``model`` is a dict or a :class:`ModelRef` -> set ``model_ref`` from it and project
       ``model`` to its plain ``provider/model`` string. A structured config gains a typed ref
@@ -880,12 +978,12 @@ def _split_model_ref(data: Any) -> Any:
 
 def _parse_mcp_servers_raw(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> List[Any]:
     """Pull the raw ``mcp_servers`` list from a request/config dict, falling back to defaults.
 
     Reads ``mcp_servers`` from the ``agent`` element when present, else the flat request.
-    Canonical validation happens on :class:`AgentConfig` construction."""
+    Canonical validation happens on :class:`AgentTemplate` construction."""
     agent = params.get("agent")
     source = agent if isinstance(agent, dict) else params
     raw = source.get("mcp_servers")
@@ -896,13 +994,13 @@ def _parse_mcp_servers_raw(
 
 def _parse_skills_raw(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> List[Any]:
     """Pull the raw ``skills`` list from a request/config dict, falling back to defaults.
 
     Reads ``skills`` from the ``agent`` element when present, else the flat request. Mirrors
     the MCP path so an unparsed ``skills`` is not silently dropped; canonical validation happens
-    on :class:`AgentConfig` construction. Each entry is a concrete inline ``SkillConfig`` by the
+    on :class:`AgentTemplate` construction. Each entry is a concrete inline ``SkillTemplate`` by the
     time the request is built (any ``@ag.embed`` reference resolved server-side first)."""
     agent = params.get("agent")
     source = agent if isinstance(agent, dict) else params
@@ -914,7 +1012,7 @@ def _parse_skills_raw(
 
 def _parse_harness_kwargs(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> Dict[str, Dict[str, Any]]:
     """Pull the per-harness options bag from a request/config dict, falling back to defaults.
 
@@ -939,7 +1037,7 @@ def _parse_harness_kwargs(
 
 def _parse_run_selection(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> Tuple[str, str, "PermissionPolicy"]:
     """Pull the run-selection trio (harness / sandbox / permission_policy) from a request dict.
 
@@ -958,7 +1056,7 @@ def _parse_run_selection(
 
 def _parse_sandbox_permission(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> Optional[SandboxPermission]:
     """Pull the sandbox permission object from a request/config dict, falling back to defaults.
 
@@ -997,7 +1095,7 @@ def _system_text(messages: Optional[List[Any]]) -> str:
 
 def _parse_agent_fields(
     params: Dict[str, Any],
-    defaults: AgentConfig,
+    defaults: AgentTemplate,
 ) -> Tuple[Optional[str], Optional[str], Any]:
     """Pull (instructions, model, tools) from a request/config dict, with fallbacks."""
     agent = params.get("agent")

@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 import httpx
+from pydantic import ValidationError
 
 from oss.src.utils.logging import get_module_logger
 
@@ -18,6 +19,7 @@ from oss.src.core.tools.providers.composio.catalog import (
     ComposioCatalogClient,
     _derive_read_only,
 )
+from oss.src.core.tools.providers.composio.dtos import ComposioSearchResult
 from oss.src.core.gateway.providers.composio.errors import composio_error_detail
 from oss.src.utils.env import env
 
@@ -201,6 +203,85 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             error=result.get("error"),
             successful=result.get("successful", False),
         )
+
+    # -----------------------------------------------------------------------
+    # Discovery — semantic tool search (COMPOSIO_SEARCH_TOOLS)
+    # -----------------------------------------------------------------------
+
+    async def search_capabilities(
+        self,
+        *,
+        use_cases: List[str],
+        user_id: str,
+    ) -> ComposioSearchResult:
+        """Semantic tool search via the COMPOSIO_SEARCH_TOOLS meta-tool.
+
+        One call returns matched tools + alternatives + inline schemas + plan +
+        pitfalls + per-user connection state. ``user_id`` is the Composio user the
+        connection state is read for; Agenta passes ``str(project_id)`` so the
+        result reflects the calling project's connections.
+        """
+        payload: Dict[str, Any] = {
+            "user_id": user_id,
+            "arguments": {
+                "queries": [{"use_case": use_case} for use_case in use_cases],
+                "session": {"generate_id": True},
+            },
+        }
+
+        try:
+            result = await self._post(
+                "/tools/execute/COMPOSIO_SEARCH_TOOLS",
+                json=payload,
+            )
+        except httpx.HTTPStatusError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail=composio_error_detail(e),
+            ) from e
+        except httpx.HTTPError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail=composio_error_detail(e),
+            ) from e
+
+        # A non-object JSON body would make ``.get`` below raise AttributeError and leak
+        # a 500; treat it as a malformed envelope instead.
+        if not isinstance(result, dict):
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail="tool search returned a malformed envelope",
+            )
+
+        # Composio returns HTTP 200 with successful=false on a tool-level failure, so
+        # the HTTP guards above never catch it. Treat an unsuccessful or malformed
+        # envelope as an adapter error rather than silently reporting no capabilities.
+        if not result.get("successful", False):
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail=str(result.get("error") or "tool search was unsuccessful"),
+            )
+
+        data = result.get("data")
+        if not isinstance(data, dict):
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail="tool search returned no data",
+            )
+
+        try:
+            return ComposioSearchResult.model_validate(data)
+        except ValidationError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail=f"malformed tool search response: {e}",
+            ) from e
 
     # -----------------------------------------------------------------------
     # Slug mapping helpers

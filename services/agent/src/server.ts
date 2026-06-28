@@ -191,6 +191,10 @@ export function createRequestListener(
           return;
         }
 
+        // DEVELOPMENT-ONLY: the one-shot JSON path. The live agent always requests NDJSON
+        // (Accept: application/x-ndjson) and the SDK coalesces the batch result from the
+        // stream. This coalesced JSON response is kept only for local debugging of /run; no
+        // live caller hits it. Do not build new behavior on this branch.
         const result = await run(request);
         return send(res, result.ok ? 200 : 500, result);
       }

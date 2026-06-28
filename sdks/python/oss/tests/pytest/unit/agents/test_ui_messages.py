@@ -7,9 +7,9 @@ Three directions:
   preserved as structured ``tool_call`` / ``tool_result`` content blocks.
 - ``message_to_vercel_ui_message`` — outbound ``AgentResult`` / ``Message`` -> one
   ``UIMessage`` dict.
-- ``agent_run_to_vercel_parts`` — a live ``AgentRun`` -> Vercel UI Message Stream parts.
+- ``agent_run_to_vercel_parts`` — a live ``AgentStream`` -> Vercel UI Message Stream parts.
 
-The stream tests fabricate an ``AgentRun`` from a fixed record list (the same trick
+The stream tests fabricate an ``AgentStream`` from a fixed record list (the same trick
 ``test_streaming.py`` uses), so they are pure and need no backend.
 """
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from agenta.sdk.agents import AgentRun, AgentResult, Message
+from agenta.sdk.agents import AgentStream, AgentResult, Message
 from agenta.sdk.agents.adapters.vercel import (
     agent_run_to_vercel_parts,
     message_to_vercel_ui_message,
@@ -30,14 +30,14 @@ async def _from_list(records: List[Dict[str, Any]]):
         yield record
 
 
-def _run(events: List[Dict[str, Any]], result: Dict[str, Any]) -> AgentRun:
-    """An ``AgentRun`` over fabricated live events plus a terminal result record."""
+def _run(events: List[Dict[str, Any]], result: Dict[str, Any]) -> AgentStream:
+    """An ``AgentStream`` over fabricated live events plus a terminal result record."""
     records = [{"kind": "event", "event": e} for e in events]
     records.append({"kind": "result", "result": {"ok": True, **result}})
-    return AgentRun(_from_list(records))
+    return AgentStream(_from_list(records))
 
 
-async def _collect(run: AgentRun, **kwargs) -> List[Dict[str, Any]]:
+async def _collect(run: AgentStream, **kwargs) -> List[Dict[str, Any]]:
     return [part async for part in agent_run_to_vercel_parts(run, **kwargs)]
 
 
@@ -668,7 +668,7 @@ class TestUIMessageStream:
             {"kind": "event", "event": {"type": "message", "text": "partial"}},
             {"kind": "result", "result": {"ok": False, "error": "kaboom"}},
         ]
-        run = AgentRun(_from_list(records))
+        run = AgentStream(_from_list(records))
         parts = [part async for part in agent_run_to_vercel_parts(run, session_id="s1")]
         types = [p["type"] for p in parts]
         assert types[0] == "start"

@@ -50,13 +50,15 @@ class SecretsClient:
         _response = self._raw_client.list_secrets(request_options=request_options)
         return _response.data
     
-    def create_secret(self, *, header: Header, secret: SecretDto, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+    def create_secret(self, *, header: Header, secret: SecretDto, slug: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
         """
         Parameters
         ----------
         header : Header
         
         secret : SecretDto
+        
+        slug : typing.Optional[str]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -92,14 +94,14 @@ class SecretsClient:
             ),
         )
         """
-        _response = self._raw_client.create_secret(header=header, secret=secret, request_options=request_options)
+        _response = self._raw_client.create_secret(header=header, secret=secret, slug=slug, request_options=request_options)
         return _response.data
     
-    def read_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+    def read_secret(self, secret_id_or_slug: str, *, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
         """
         Parameters
         ----------
-        secret_id : str
+        secret_id_or_slug : str
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -117,10 +119,10 @@ class SecretsClient:
             api_key="YOUR_API_KEY",
         )
         client.secrets.read_secret(
-            secret_id="secret_id",
+            secret_id_or_slug="secret_id_or_slug",
         )
         """
-        _response = self._raw_client.read_secret(secret_id, request_options=request_options)
+        _response = self._raw_client.read_secret(secret_id_or_slug, request_options=request_options)
         return _response.data
     
     def update_secret(self, secret_id: str, *, header: typing.Optional[Header] = OMIT, secret: typing.Optional[SecretDto] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
@@ -228,13 +230,15 @@ class AsyncSecretsClient:
         _response = await self._raw_client.list_secrets(request_options=request_options)
         return _response.data
     
-    async def create_secret(self, *, header: Header, secret: SecretDto, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+    async def create_secret(self, *, header: Header, secret: SecretDto, slug: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
         """
         Parameters
         ----------
         header : Header
         
         secret : SecretDto
+        
+        slug : typing.Optional[str]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -278,14 +282,14 @@ class AsyncSecretsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_secret(header=header, secret=secret, request_options=request_options)
+        _response = await self._raw_client.create_secret(header=header, secret=secret, slug=slug, request_options=request_options)
         return _response.data
     
-    async def read_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+    async def read_secret(self, secret_id_or_slug: str, *, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
         """
         Parameters
         ----------
-        secret_id : str
+        secret_id_or_slug : str
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -308,13 +312,13 @@ class AsyncSecretsClient:
         
         async def main() -> None:
             await client.secrets.read_secret(
-                secret_id="secret_id",
+                secret_id_or_slug="secret_id_or_slug",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.read_secret(secret_id, request_options=request_options)
+        _response = await self._raw_client.read_secret(secret_id_or_slug, request_options=request_options)
         return _response.data
     
     async def update_secret(self, secret_id: str, *, header: typing.Optional[Header] = OMIT, secret: typing.Optional[SecretDto] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:

@@ -13,6 +13,7 @@ class TriggerDeliveryData(UniversalBaseModel):
     inputs: typing.Optional[typing.Dict[str, typing.Any]] = None
     result: typing.Optional[typing.Dict[str, typing.Any]] = None
     error: typing.Optional[str] = None
+    is_test: typing.Optional[bool] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

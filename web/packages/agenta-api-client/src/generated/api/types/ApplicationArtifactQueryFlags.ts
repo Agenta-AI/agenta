@@ -7,6 +7,4 @@ export interface ApplicationArtifactQueryFlags {
     is_application?: (boolean | null) | undefined;
     is_evaluator?: (boolean | null) | undefined;
     is_snippet?: (boolean | null) | undefined;
-    is_skill?: (boolean | null) | undefined;
-    is_platform?: (boolean | null) | undefined;
 }

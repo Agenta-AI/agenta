@@ -1,5 +1,5 @@
 /**
- * Unit tests for the pure round-trip helpers behind SkillConfigControl.
+ * Unit tests for the pure round-trip helpers behind SkillTemplateControl.
  *
  * A skills entry is either an inline SKILL.md package or an `@ag.embed` reference the backend
  * inlines server-side. The control edits the entry as JSON and must preserve an `@ag.embed`
@@ -10,10 +10,10 @@ import {describe, expect, it} from "vitest"
 
 import {
     isEmbedRef,
-    isPlatformSkill,
+    isStaticSkill,
     parseSkillEditorText,
-    platformEmbedSlug,
-} from "../../src/DrillInView/SchemaControls/SkillConfigControl"
+    staticEmbedSlug,
+} from "../../src/DrillInView/SchemaControls/SkillTemplateControl"
 
 const EMBED_ENTRY = {
     "@ag.embed": {
@@ -22,17 +22,17 @@ const EMBED_ENTRY = {
     },
 }
 
-const PLATFORM_EMBED_ENTRY = {
+const STATIC_EMBED_ENTRY = {
     "@ag.embed": {
-        "@ag.references": {workflow: {slug: "_agenta.agenta-getting-started"}},
+        "@ag.references": {workflow: {slug: "__ag__getting_started_with_agenta"}},
         "@ag.selector": {path: "parameters.skill"},
     },
 }
 
-const PLATFORM_REVISION_EMBED_ENTRY = {
+const STATIC_REVISION_EMBED_ENTRY = {
     "@ag.embed": {
         "@ag.references": {
-            workflow_revision: {slug: "_agenta.agenta-getting-started", version: "v3"},
+            workflow_revision: {slug: "__ag__getting_started_with_agenta", version: "v1"},
         },
         "@ag.selector": {path: "parameters.skill"},
     },
@@ -44,7 +44,7 @@ const INLINE_ENTRY = {
     body: "Read the changelog.",
 }
 
-describe("SkillConfigControl: isEmbedRef", () => {
+describe("SkillTemplateControl: isEmbedRef", () => {
     it("detects an @ag.embed reference entry", () => {
         expect(isEmbedRef(EMBED_ENTRY)).toBe(true)
     })
@@ -54,35 +54,35 @@ describe("SkillConfigControl: isEmbedRef", () => {
     })
 })
 
-describe("SkillConfigControl: isPlatformSkill", () => {
-    it("flags an embed whose workflow slug uses the reserved _agenta. namespace", () => {
-        expect(isPlatformSkill(PLATFORM_EMBED_ENTRY)).toBe(true)
-        expect(platformEmbedSlug(PLATFORM_EMBED_ENTRY)).toBe("_agenta.agenta-getting-started")
+describe("SkillTemplateControl: isStaticSkill", () => {
+    it("flags an embed whose workflow slug uses the reserved __ag__ namespace", () => {
+        expect(isStaticSkill(STATIC_EMBED_ENTRY)).toBe(true)
+        expect(staticEmbedSlug(STATIC_EMBED_ENTRY)).toBe("__ag__getting_started_with_agenta")
     })
 
     it("flags a pinned workflow_revision embed in the reserved namespace", () => {
-        expect(isPlatformSkill(PLATFORM_REVISION_EMBED_ENTRY)).toBe(true)
-        expect(platformEmbedSlug(PLATFORM_REVISION_EMBED_ENTRY)).toBe(
-            "_agenta.agenta-getting-started",
+        expect(isStaticSkill(STATIC_REVISION_EMBED_ENTRY)).toBe(true)
+        expect(staticEmbedSlug(STATIC_REVISION_EMBED_ENTRY)).toBe(
+            "__ag__getting_started_with_agenta",
         )
     })
 
     it("treats a non-reserved embed slug as a normal editable skill", () => {
-        expect(isPlatformSkill(EMBED_ENTRY)).toBe(false)
+        expect(isStaticSkill(EMBED_ENTRY)).toBe(false)
     })
 
     it("treats an inline package as a normal editable skill", () => {
-        expect(isPlatformSkill(INLINE_ENTRY)).toBe(false)
-        expect(platformEmbedSlug(INLINE_ENTRY)).toBeUndefined()
+        expect(isStaticSkill(INLINE_ENTRY)).toBe(false)
+        expect(staticEmbedSlug(INLINE_ENTRY)).toBeUndefined()
     })
 
-    it("honours a resolved flags.is_platform === true marker", () => {
-        expect(isPlatformSkill({name: "x", flags: {is_platform: true}})).toBe(true)
-        expect(isPlatformSkill({name: "x", flags: {is_platform: false}})).toBe(false)
+    it("honours a resolved flags.is_static === true marker", () => {
+        expect(isStaticSkill({name: "x", flags: {is_static: true}})).toBe(true)
+        expect(isStaticSkill({name: "x", flags: {is_static: false}})).toBe(false)
     })
 })
 
-describe("SkillConfigControl: parseSkillEditorText round-trip", () => {
+describe("SkillTemplateControl: parseSkillEditorText round-trip", () => {
     it("preserves an @ag.embed entry unchanged through the editor round-trip", () => {
         const text = JSON.stringify(EMBED_ENTRY)
         const parsed = parseSkillEditorText(text)
