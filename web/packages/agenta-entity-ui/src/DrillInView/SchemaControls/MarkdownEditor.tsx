@@ -42,6 +42,15 @@ import {Tag} from "antd"
 
 import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
 
+// Pure drop predicates — no component state, so they live at module scope (stable identity, no
+// need to thread them through the drag/drop callback deps).
+const isFileDrag = (e: DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
+const isMarkdownFile = (file: File) =>
+    /\.(md|markdown|mdx|txt)$/i.test(file.name) ||
+    file.type.startsWith("text/") ||
+    file.type === "application/json" ||
+    file.type === ""
+
 type MarkdownView = "source" | "rendered"
 
 export interface MarkdownEditorProps {
@@ -152,23 +161,22 @@ export function MarkdownEditor({
         }
     }, [value])
 
-    const handleChange = (next: string) => {
-        setText(next)
-        lastExternal.current = next
-        onChange(next)
-    }
+    // Stable so the memoized drop handler below never captures a stale `onChange` — some consumers
+    // (e.g. SkillFormView) pass a fresh inline `onChange` every render.
+    const handleChange = useCallback(
+        (next: string) => {
+            setText(next)
+            lastExternal.current = next
+            onChange(next)
+        },
+        [onChange],
+    )
 
     // Markdown-file drop: dropping a .md/.markdown/.txt (or any text/* file) onto the editor
     // replaces its content with the file's text. We intercept in the capture phase and only for
     // file drags, so Lexical's own internal text drag/drop keeps working.
     const [dragOver, setDragOver] = useState(false)
     const dropEnabled = editable && !disabled
-    const isFileDrag = (e: DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
-    const isMarkdownFile = (file: File) =>
-        /\.(md|markdown|mdx|txt)$/i.test(file.name) ||
-        file.type.startsWith("text/") ||
-        file.type === "application/json" ||
-        file.type === ""
 
     const handleDragOver = useCallback(
         (e: DragEvent) => {
@@ -197,9 +205,7 @@ export function MarkdownEditor({
             if (!file) return
             void file.text().then((content) => handleChange(content))
         },
-        // handleChange is stable enough for this usage (reads current onChange via closure).
-
-        [dropEnabled],
+        [dropEnabled, handleChange],
     )
 
     const viewToggle = canToggleView ? (

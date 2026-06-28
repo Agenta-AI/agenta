@@ -29,7 +29,7 @@ const MD_CLASS = [
     "[&_p]:my-2",
     "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1",
     // Per-depth list markers, matching the editor + the Lexical playground (1 → A → a, • → ◦ → ▪).
-    "[&_ol_ol]:list-[upper-alpha] [&_ol_ol_ol]:list-[lower-alpha] [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square]",
+    "[&_ol_ol]:list-[upper-alpha] [&_ol_ol_ol]:list-[lower-alpha] [&_ol_ol_ol_ol]:list-[upper-roman] [&_ol_ol_ol_ol_ol]:list-[lower-roman] [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square]",
     "[&_a]:text-[var(--ant-color-primary)] [&_a]:underline",
     "[&_code]:font-mono [&_code]:text-[0.86em] [&_code]:bg-[var(--ant-color-fill-tertiary)] [&_code]:border [&_code]:border-solid [&_code]:border-[var(--ant-color-border-secondary)] [&_code]:rounded [&_code]:px-1.5 [&_code]:py-px",
     "[&_pre]:my-2.5 [&_pre]:bg-[var(--ant-color-fill-quaternary)] [&_pre]:border [&_pre]:border-solid [&_pre]:border-[var(--ant-color-border-secondary)] [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto",
