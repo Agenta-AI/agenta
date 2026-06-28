@@ -21,7 +21,7 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
     GETTING_STARTED_WITH_AGENTA_SKILL,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
-from agenta.sdk.agents.skills.models import SkillConfig
+from agenta.sdk.agents.skills.models import SkillTemplate
 from agenta.sdk.engines.running.utils import (
     AGENTA_BUILTIN_SKILL_URI,
     infer_flags_from_data,
@@ -63,17 +63,17 @@ _STATIC_NAMESPACE_UUID = UUID("a6e6b3f2-2c4a-5f3a-9b6f-0a1b2c3d4e5f")
 # snippet carrying uri + parameters).
 
 
-def _skill_revision(skill_config: SkillConfig) -> WorkflowRevision:
+def _skill_revision(skill_template: SkillTemplate) -> WorkflowRevision:
     """A static skill as a full WorkflowRevision. The skill content is canonical in the SDK
     (agenta_builtins), imported here so the embed path (this catalogue) and the forced path
     (AgentaHarness) stay one source. Structural fields (ids / slug / version) and flags are filled
     by the catalogue on resolution."""
     return WorkflowRevision(
-        name=skill_config.name,
-        description=skill_config.description,
+        name=skill_template.name,
+        description=skill_template.description,
         data=WorkflowRevisionData(
             uri=AGENTA_BUILTIN_SKILL_URI,
-            parameters={"skill": skill_config.model_dump(mode="json")},
+            parameters={"skill": skill_template.model_dump(mode="json")},
         ),
     )
 

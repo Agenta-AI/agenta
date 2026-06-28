@@ -39,7 +39,7 @@ AGENT_INPUTS_SCHEMA = {
 # Reserved slug of the static default skill, served from code by the StaticWorkflowCatalog
 # (api/oss/src/core/workflows/static_catalog.py), never the database. The default config
 # references it by stable slug through an @ag.embed; the embed resolver inlines the catalogue's
-# SkillConfig (at the canonical parameters.skill selector) before the runner sees it. The
+# SkillTemplate (at the canonical parameters.skill selector) before the runner sees it. The
 # `__ag__` prefix is reserved: a user cannot author or shadow it. This replaces both
 # AGENTA_FORCED_SKILLS and the old per-project skill seeder. Single source: the SDK constant.
 _DEFAULT_SKILL_SLUG = GETTING_STARTED_WITH_AGENTA_SLUG

@@ -1184,12 +1184,12 @@ class AgentConfigSchema(AgSchemaMixin):
             "enforcement (strict or best-effort). Optional; unset means no declared boundary."
         ),
     )
-    skills: List[Union["SkillConfigSchema", "_SkillEmbedRefSchema"]] = Field(
+    skills: List[Union["_SkillTemplateRefSchema", "_SkillEmbedRefSchema"]] = Field(
         default_factory=list,
         title="Skills",
         description=(
-            "Skills the agent ships: each is an inline SKILL.md package (name, description, "
-            "body, optional bundled files) or an @ag.embed reference to a stored skill the "
+            "Skills the agent ships: each is an inline skill template (resolved from the "
+            "``skill-template`` catalog type) or an @ag.embed reference to a stored skill the "
             "backend inlines into that same shape before the runner sees it."
         ),
     )
@@ -1277,18 +1277,18 @@ class _SkillFileSchema(BaseModel):
     )
 
 
-class SkillConfigSchema(AgSchemaMixin):
+class SkillTemplateSchema(AgSchemaMixin):
     """The playground's editable inline-skill package (one ``skills`` entry), as one semantic type.
 
-    Schema-generation counterpart to the runtime :class:`agenta.sdk.agents.SkillConfig`: it emits
-    a rich JSON Schema for the ``skill_config`` control. The runtime model coerces the loose shapes
+    Schema-generation counterpart to the runtime :class:`agenta.sdk.agents.SkillTemplate`: it emits
+    a rich JSON Schema for the ``skill-template`` control. The runtime model coerces the loose shapes
     the playground emits; this strict twin describes them. A skill that lives elsewhere is authored
     as an ``@ag.embed`` reference instead, which the backend inlines into this same shape.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    __ag_type__ = "skill_config"
+    __ag_type__ = "skill-template"
 
     name: str = Field(
         min_length=1,
@@ -1332,7 +1332,7 @@ class _SkillEmbedRefSchema(BaseModel):
 
     The seeded default config and the playground both keep skills the user references (rather than
     writes inline) as a bare ``{"@ag.embed": {...}}`` object; the backend's embed resolver inlines
-    it into a :class:`SkillConfigSchema` shape before the runner sees it. So the raw/advanced
+    it into a :class:`SkillTemplateSchema` shape before the runner sees it. So the raw/advanced
     schema must accept this reference form alongside the inline package, or a valid default would
     fail validation. The embed body is intentionally permissive (``Dict[str, Any]``) — its inner
     ``@ag.references`` / ``@ag.selector`` keys are the embed resolver's contract, not this schema's.
@@ -1345,6 +1345,25 @@ class _SkillEmbedRefSchema(BaseModel):
         title="Embed reference",
         description="An @ag.embed reference resolved server-side into an inline skill package.",
     )
+
+
+class _SkillTemplateRefSchema(AgSchemaMixin):
+    """The inline ``skills`` arm, emitted as a bare ``{x-ag-type-ref: "skill-template"}`` node.
+
+    The agent config no longer inlines the full skill-template schema; it points at the
+    ``skill-template`` catalog type (``/catalog/types/skill-template``) the same way inputs point at
+    ``messages``. The frontend resolves the ref to render the editor. The author still writes an
+    inline skill package here; its full shape lives in the resolved ``skill-template`` type.
+    """
+
+    __ag_type_ref__ = "skill-template"
+
+    model_config = ConfigDict(extra="allow")
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        # A pure ref node: only the x-ag-type-ref marker, no inlined object shape.
+        return {"x-ag-type-ref": cls.__ag_type_ref__}
 
 
 class _ToolEmbedRefSchema(BaseModel):
@@ -1388,8 +1407,8 @@ CATALOG_TYPES = {
     AgentConfigSchema.ag_type(): _dereference_schema(
         AgentConfigSchema.model_json_schema()
     ),
-    SkillConfigSchema.ag_type(): _dereference_schema(
-        SkillConfigSchema.model_json_schema()
+    SkillTemplateSchema.ag_type(): _dereference_schema(
+        SkillTemplateSchema.model_json_schema()
     ),
     # The `/run` wire contract (request + result), exported from the dedicated Pydantic wire
     # models in `agenta.sdk.agents.wire_models`. This puts the service<->runner wire interface in

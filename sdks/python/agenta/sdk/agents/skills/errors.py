@@ -9,7 +9,7 @@ class SkillError(RuntimeError):
     """Base error for the agent skills subsystem."""
 
 
-class SkillConfigurationError(SkillError):
+class SkillValidationError(SkillError):
     def __init__(
         self,
         message: str,

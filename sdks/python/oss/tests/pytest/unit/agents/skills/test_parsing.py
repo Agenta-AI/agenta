@@ -1,4 +1,4 @@
-"""``parse_skill_configs``: list-of-dicts -> ``List[SkillConfig]`` with safe-path validation.
+"""``parse_skill_templates``: list-of-dicts -> ``List[SkillTemplate]`` with safe-path validation.
 
 Tolerates entries that are already plain dicts (the post-embed-resolution shape) and rejects
 bundled-file paths that are absolute or escape the skill dir. The index is carried on the error
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from agenta.sdk.agents import SkillConfig, parse_skill_config, parse_skill_configs
-from agenta.sdk.agents.skills import SkillConfigurationError
+from agenta.sdk.agents import SkillTemplate, parse_skill_template, parse_skill_templates
+from agenta.sdk.agents.skills import SkillValidationError
 
 
 def _skill(**overrides):
@@ -24,23 +24,23 @@ def _skill(**overrides):
 
 
 def test_parses_plain_dicts():
-    parsed = parse_skill_configs([_skill(), _skill(name="other")])
+    parsed = parse_skill_templates([_skill(), _skill(name="other")])
     assert [s.name for s in parsed] == ["release-notes", "other"]
-    assert all(isinstance(s, SkillConfig) for s in parsed)
+    assert all(isinstance(s, SkillTemplate) for s in parsed)
 
 
-def test_passes_through_skill_config_instances():
-    skill = SkillConfig(**_skill())
-    assert parse_skill_config(skill).name == "release-notes"
+def test_passes_through_skill_template_instances():
+    skill = SkillTemplate(**_skill())
+    assert parse_skill_template(skill).name == "release-notes"
 
 
 def test_empty_list_is_empty():
-    assert parse_skill_configs([]) == []
+    assert parse_skill_templates([]) == []
 
 
 def test_invalid_name_raises_with_index():
-    with pytest.raises(SkillConfigurationError) as exc:
-        parse_skill_configs([_skill(), _skill(name="Bad Name")])
+    with pytest.raises(SkillValidationError) as exc:
+        parse_skill_templates([_skill(), _skill(name="Bad Name")])
     assert exc.value.index == 1
 
 
@@ -58,14 +58,14 @@ def test_invalid_name_raises_with_index():
 )
 def test_rejects_unsafe_file_paths(path):
     # The model's path validator raises a ValidationError, which the parser wraps into a
-    # SkillConfigurationError (so unsafe paths are rejected on the parsing path too).
-    with pytest.raises(SkillConfigurationError):
-        parse_skill_config(_skill(files=[{"path": path, "content": "x"}]))
+    # SkillValidationError (so unsafe paths are rejected on the parsing path too).
+    with pytest.raises(SkillValidationError):
+        parse_skill_template(_skill(files=[{"path": path, "content": "x"}]))
 
 
 @pytest.mark.parametrize("path", ["scripts/foo.py", "references/notes.md", "a.txt"])
 def test_accepts_safe_relative_file_paths(path):
-    skill = parse_skill_config(_skill(files=[{"path": path, "content": "x"}]))
+    skill = parse_skill_template(_skill(files=[{"path": path, "content": "x"}]))
     assert skill.files[0].path == path
 
 
@@ -75,14 +75,14 @@ def test_unresolved_object_embed_raises_clear_error():
     embed = {
         "@ag.embed": {"@ag.references": {"workflow_revision": {"slug": "my-skill"}}}
     }
-    with pytest.raises(SkillConfigurationError) as exc:
-        parse_skill_config(embed)
+    with pytest.raises(SkillValidationError) as exc:
+        parse_skill_template(embed)
     assert "unresolved" in str(exc.value).lower()
 
 
 def test_unresolved_snippet_token_raises_clear_error():
-    with pytest.raises(SkillConfigurationError) as exc:
-        parse_skill_configs(
+    with pytest.raises(SkillValidationError) as exc:
+        parse_skill_templates(
             ["@{{workflow_revision.slug=my-skill, path=parameters.skill}}"]
         )
     assert "unresolved" in str(exc.value).lower()

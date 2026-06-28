@@ -2,8 +2,8 @@
 
 A skill is a non-runnable snippet identified by the builtin uri ``agenta:builtin:skill:v0``.
 ``is_skill`` is uri-derived (``key == "skill"``), not caller-settable, and a skill carries no
-execution surface (url / script / handler are all stripped). These tests pin that derivation and
-that ``is_skill`` is exposed on the SDK flag models.
+execution surface (url / script / handler are stripped); it keeps only its ``parameters`` and that
+parameters schema. These tests pin that derivation and that ``is_skill`` is on the SDK flag models.
 """
 
 from agenta.sdk.engines.running.utils import (
@@ -12,6 +12,7 @@ from agenta.sdk.engines.running.utils import (
     normalize_snippet_data,
 )
 from agenta.sdk.models.workflows import (
+    JsonSchemas,
     WorkflowFlags,
     WorkflowQueryFlags,
     WorkflowRevisionData,
@@ -53,12 +54,18 @@ def test_infer_flags_derives_is_skill_from_uri():
     assert flags.has_handler is False
 
 
-def test_normalize_snippet_data_keeps_only_uri_and_parameters():
+def test_normalize_snippet_data_keeps_uri_parameters_and_parameters_schema():
+    params_schema = {"type": "object", "properties": {"skill": {"type": "object"}}}
     data = WorkflowRevisionData(
         uri=AGENTA_BUILTIN_SKILL_URI,
         url="https://example.com/skill",
         script="print('x')",
         parameters={"skill": {"name": "s", "description": "d", "body": "b"}},
+        schemas=JsonSchemas(
+            parameters=params_schema,
+            inputs={"type": "object"},
+            outputs={"type": "object"},
+        ),
     )
 
     normalized = normalize_snippet_data(data)
@@ -69,3 +76,19 @@ def test_normalize_snippet_data_keeps_only_uri_and_parameters():
     }
     assert normalized.url is None
     assert normalized.script is None
+    # A snippet is non-runnable: it keeps the parameters schema but no inputs/outputs.
+    assert normalized.schemas is not None
+    assert normalized.schemas.parameters == params_schema
+    assert normalized.schemas.inputs is None
+    assert normalized.schemas.outputs is None
+
+
+def test_normalize_snippet_data_without_schemas_stays_none():
+    data = WorkflowRevisionData(
+        uri=AGENTA_BUILTIN_SKILL_URI,
+        parameters={"skill": {"name": "s", "description": "d", "body": "b"}},
+    )
+
+    normalized = normalize_snippet_data(data)
+
+    assert normalized.schemas is None

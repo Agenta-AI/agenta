@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
 from agenta.sdk.models.workflows import (
+    JsonSchemas,
     WorkflowFlags,
     WorkflowRevisionData,
 )
@@ -642,17 +643,26 @@ AGENTA_BUILTIN_SKILL_URI = "agenta:builtin:skill:v0"
 def normalize_snippet_data(
     data: Optional[WorkflowRevisionData],
 ) -> Optional[WorkflowRevisionData]:
-    """For a non-runnable snippet revision (a skill, for now), keep only ``uri`` + ``parameters``.
+    """For a non-runnable snippet revision (a skill, for now), keep ``uri`` + ``parameters`` and
+    only the ``parameters`` schema.
 
-    url / headers / runtime / script / schemas are all execution-surface concerns a snippet has
-    none of, so they are stripped. No-op for any runnable revision.
+    url / headers / runtime / script are execution-surface concerns a snippet has none of, so they
+    are stripped. A snippet is non-runnable: it has no inputs/outputs, so ``schemas`` keeps only
+    ``parameters`` (the shape that describes the snippet's content). No-op for any runnable revision.
     """
     if not data or not data.uri:
         return data
     _, _, key, _ = parse_uri(data.uri)
     if key != "skill":
         return data
-    return WorkflowRevisionData(uri=data.uri, parameters=data.parameters)
+    schemas = None
+    if data.schemas is not None and data.schemas.parameters is not None:
+        schemas = JsonSchemas(parameters=data.schemas.parameters)
+    return WorkflowRevisionData(
+        uri=data.uri,
+        parameters=data.parameters,
+        schemas=schemas,
+    )
 
 
 def _has_messages_input(inputs_schema: Optional[Dict[str, Any]]) -> bool:
