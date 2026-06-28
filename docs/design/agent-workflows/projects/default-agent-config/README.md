@@ -1,20 +1,22 @@
-# Default agent config
+# Default agent config (playground build kit)
 
-Make a new agent start useful. Pre-load its config with all the platform tools and the
-default Agenta skill, present by default and removable. Workflow (reference) tools are left
-as they are.
+The platform tools and the Agenta authoring skill are a Playground build kit. The backend
+injects them into the playground session so the agent can build and improve itself. They are
+shown read-only, toggled as a whole, and never committed to the published agent. The user's
+agent ships with only the user's own config.
 
 ## Files
 
-- `design.md` — the design. Problem, the injection-point finding, the locked decisions, the
-  change set by layer, and the resolved ownership question.
+- `design.md` — the design. The inject-not-commit model, the three questions answered, the
+  `build_kit` descriptor contract the drawer reads, the per-run flag, and the change set.
 - `research.md` — the code trace behind the design. Where the default comes from, how
-  platform tools and skills are shaped, and why no disable flag exists today.
-- `status.md` — current state, decisions, coordination, and out-of-scope items.
+  platform tools and skills are shaped, and the run-prep path. Code facts still valid; the
+  approach pivoted (see status).
+- `status.md` — the pivot, the fixed contract, open questions, and coordination.
 
 ## In one line
 
-The new-agent draft reads its values from the catalog template, which is backed by a bare
-SDK default. Point the catalog template at the enriched default (frozen platform tools plus
-the getting-started skill embed), keep the SDK builtin bare, so the defaults reach the draft
-and stay removable.
+Inject the build kit (platform tools, authoring skill, build permissions) into the
+playground session for display and for the run, strip it on commit, keep the published
+default bare. The drawer reads a read-only `build_kit` descriptor from `/inspect` and toggles
+it with one per-run flag.

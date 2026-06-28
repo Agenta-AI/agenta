@@ -1,40 +1,53 @@
-# Status: default agent config
+# Status: default agent config (playground build kit)
 
 ## Where we are
 
-Research done (`research.md`). Injection point confirmed in code and decided. Design final
-in `design.md`, all decisions locked. Ready for the consolidated design-docs PR.
+Model pivoted to inject-not-commit and the design is rewritten in `design.md`. The platform
+tools and the Agenta authoring skill are a Playground build kit: injected for the playground
+session, shown read-only, toggled as a whole, and never committed to the published agent.
+The descriptor contract for the drawer project is fixed. Two open questions remain for
+Mahmoud.
 
-## Decisions settled (by Mahmoud)
+## The pivot
 
-1. Default skill is embedded, not forced. Stop force-injecting getting-started; keep the
-   `force_skills` mechanism for later.
-2. Delete-only for v1. No `is_active` flag now.
-3. Platform tools are a frozen, explicit list, read from the catalog at build time.
-4. Defaults must surface where the new-agent draft reads them.
-5. Injection point: the catalog template carries the enriched default. The bare SDK builtin
-   interface stays bare. `/inspect` is not used for the draft's values; it is kept in sync
-   only so the service default and the runtime fallback do not drift.
+The earlier approach (materialize the defaults into the catalog template so a new agent
+commits them) was reviewed by Mahmoud and dropped. Defaults are not committed. They are a
+playground overlay. The designer handoff (`design_handoff_advanced_build_kit`) names the
+same thing: a "Playground build kit", "Removed on commit", "None of this is part of the
+published agent". `research.md` still holds the code trace; the code facts there are valid,
+only the approach changed.
 
-## Injection point (confirmed and decided)
+## The model
 
-The new-agent draft reads its editable values from the catalog
-(`template.data.parameters`), not from `/inspect` (the draft uses `/inspect` for schemas
-only). The catalog default comes from the bare SDK interface today
-(`build_agent_v0_default()` with no skill, no tools). The service `/inspect` enriches a
-default the draft never reads. That split was the gap. Fix: point the catalog template at
-the enriched default (platform tools plus the skill embed), keep the SDK builtin bare, keep
-`/inspect` in sync.
+- Build kit = backend-defined set of platform tools (`PLATFORM_OPS`) + the authoring skill +
+  build permissions (write files, execute code).
+- Inject for display and for the run. Strip on commit (it was never in the config).
+- The published-config default stays bare. The kit is a separate backend concept.
+
+## Contract fixed for the drawer project
+
+- Read-only `build_kit` descriptor in the `/inspect` response at `revision.data.build_kit`,
+  a sibling of `schemas`. Grouped by kind (`skills`, `tools`, `permissions`). Each row:
+  `key`, `name`, `description`; permission rows also `status`. Platform-owned, never echoed
+  back.
+- One per-run flag `flags.inject_build_kit` (boolean), set by the drawer toggle, default off
+  server-side. Kit off skips injection.
+
+## Open questions for Mahmoud
+
+1. Toggle persistence: ephemeral per session (lean) or a stored playground preference.
+2. Confirm the published default goes fully bare (drop the skill embed and the sandbox
+   boundary from the `/inspect` schema default into the kit). Touches the skills project.
 
 ## Coordination
 
-A separate skills subagent owns the getting-started skill content and naming. This project
-owns embed-by-default (the skill arrives as a removable embedded default config item). Do
-not write skill content here.
+- Drawer UX: advanced-build-kit project + the designer handoff. We feed it the descriptor.
+- Authoring skill content and naming: skills project (`#4918`). We reference the slug only.
+- Builder tools (`#4919`) add more platform ops; the kit reads `PLATFORM_OPS` at call time,
+  so new ops join automatically.
 
-## Out of scope (noted)
+## Out of scope
 
-- Disable-but-keep (`is_active` + resolver/wire drop).
-- Debug-mode UX where defaults are not shown.
-- A picker to add platform tools or skills back after deleting.
-- Real getting-started skill content.
+- Per-item edit or delete of kit items (kit is whole-toggle, read-only in v1).
+- A picker to add platform tools to the published agent.
+- Disable-but-keep for the user's own config.

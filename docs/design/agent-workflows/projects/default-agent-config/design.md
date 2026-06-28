@@ -1,240 +1,278 @@
-# Design: default agent config (platform tools and the default skill)
+# Design: the playground build kit (inject, do not commit)
 
 Status: draft for Mahmoud's review. Grounded in code on `gitbutler/edit` over
-`big-agents`, 2026-06-28. See `research.md` for the full code trace.
+`big-agents`, 2026-06-28. See `research.md` for the code trace. This rewrite replaces an
+earlier approach (materialize the defaults into the catalog template). That approach is
+dropped. See "What changed and why".
 
 ## Problem and goal
 
-When a user creates a new agent, the config arrives almost empty: no tools, no skills. We
-want a new agent to start useful. The config should arrive pre-loaded with:
+A new agent arrives almost empty. We want the playground to give the agent the tools and
+skills it needs to build and improve itself, without writing those tools and skills into the
+published agent.
 
-1. All the platform tools. Today that is the three core ops (`find_capabilities`,
-   `query_workflows`, `commit_revision`). Once the builder project ships its tools, the default
-   grows to carry every platform op the catalog holds: the three core ops plus the eight trigger
-   and cron ops (`create_schedule`, `create_subscription`, `list_schedules`,
-   `list_subscriptions`, `list_deliveries`, `list_connections`, `test_subscription`,
-   `find_triggers`). Several of these are approval-gated. They all ship with their catalog
-   default permissions, and the user can edit those permissions. This is intended (see decision 3
-   and the risks section).
-2. The default Agenta skill (`agenta-getting-started`), referenced by embed.
+The platform tools and the Agenta authoring skill are a build aid, not part of the user's
+agent. The user is shipping their agent. The platform ops (find capabilities, query
+workflows, commit a revision) and the authoring skill exist so the agent can scaffold and
+edit itself while the user works on it in the playground. Once the agent ships, it should
+not carry Agenta's authoring tools unless the user added their own.
 
-Workflow (reference) tools are user-added and stay exactly as they are. This design does
-not touch them.
+So the model is inject, not commit. The backend injects the kit into the playground
+session, for display and for the run. The commit writes only the user's real config.
 
-The defaults are opt-out. The user can remove any default item. Disable-but-keep is a
-later addition, not part of this design (see decision 2).
+## What changed and why
 
-Out of scope: the debug-mode UX issue where defaults are not shown, and any "add platform
-tool" picker. We cover making the defaults present and removable, nothing more on UX.
+The earlier draft made the platform tools and the skill embed part of the agent config and
+baked them into the catalog template, so a new agent committed them. Mahmoud reviewed that
+and rejected it. The defaults should not be committed to the agent. They are a playground
+overlay. The designer handoff (`design_handoff_advanced_build_kit`) names this exactly: a
+"Playground build kit" that is "Removed on commit" and "None of this is part of the
+published agent".
 
-## What ships today
+Two consequences. The published-config default stays bare. The build kit becomes a separate
+backend concept that the playground injects and the commit strips.
 
-- One builder is the source of the default agent config:
-  `build_agent_v0_default(...)` at
-  `/home/mahmoud/code/agenta/sdks/python/agenta/sdk/utils/types.py:1399`. It returns
-  `tools: []` and, only when asked, one skill embed. It already accepts `skill_slug=` and
-  `include_sandbox_permission=`.
-- Platform tools are catalog ops. Three exist today (`find_capabilities`, `query_workflows`,
-  `commit_revision`); the builder project adds eight more. A config entry is just
-  `{"type": "platform", "op": "<name>"}`. There is no wildcard.
-- The default skill is one placeholder, `agenta-getting-started`, served read-only from
-  code by the static catalog under the reserved slug `__ag__getting_started_with_agenta`.
-- Today the skill reaches a run two ways, and neither is what we want:
-  - The service `/inspect` schema default embeds it (passes `skill_slug`), but that path
-    does not reach the new-agent draft (see the injection-point finding below).
-  - The `pi_agenta` harness force-injects it via `AGENTA_FORCED_SKILLS`. Forced means the
-    user can never remove it. That is the opposite of opt-out.
-- No `enabled`/`disabled` flag exists on tools or skills. Items are present or absent.
+This is also simpler. Nothing about the kit is persisted into the agent, so there is no
+merge, no per-item delete marker, and no list of suppressed defaults in the stored config.
 
-## The injection point (the finding)
+## The model
 
-Mahmoud's instinct was right: the defaults must reach the temporary playground (the draft
-of a not-yet-created agent). I traced exactly where that draft gets its values.
+The build kit is a backend-defined set of three things:
 
-When the user creates a new agent, the frontend builds a local draft in
-`createEphemeralAppFromTemplate`
-(`/home/mahmoud/code/agenta/web/packages/agenta-entities/src/workflow/state/appUtils.ts:118`).
-It fills the draft from two different sources:
+- Tools: the platform ops, sourced from the catalog (`PLATFORM_OPS`).
+- Skills: the Agenta authoring skill.
+- Permissions: the sandbox elevation the agent needs to build, write files and execute code.
 
-- The editable parameter values come from the catalog template, `template.data.parameters`
-  (appUtils.ts:189). This is what the user sees and edits.
-- The schemas (the shape used to render controls) come from `/inspect`, best effort
-  (appUtils.ts:171-185). Only the schema shape. Not the parameter values.
+The kit has one source of truth in the backend. It flows three ways.
 
-So the draft's actual values come from the catalog, not from `/inspect`.
+- Display. The backend exposes the kit so the Advanced drawer renders it as a read-only
+  group the user can toggle on or off. The drawer owns that UX, not this design.
+- Run. When the playground runs the agent with the kit on, the backend injects the kit into
+  the effective config for that run, before tool and skill resolution. The agent runs with
+  the platform tools, the authoring skill, and the build permissions.
+- Commit. The commit writes only the user's config. The kit is never in the stored config,
+  so there is nothing to strip. It is absent by construction.
 
-The catalog builds `template.data.parameters` by reading the `default` off the parameters
-schema (`_extract_schema_parameter_defaults` in
-`/home/mahmoud/code/agenta/api/oss/src/resources/workflows/catalog.py:27`). That schema
-comes from the SDK interface registry, not from the service. The agent interface there is
-bare:
+The kit is off by default for any plain run of the agent. The playground turns it on. A
+production run of a published agent never injects it. This matters: the kit lets the agent
+rewrite itself and run code, which is a build-time power, not a shipped one.
+
+## The three questions
+
+### 1. How do we do this smartly, without too much complexity?
+
+Never commit the kit. That single rule removes the hard parts. There is no base-plus-patch
+merge in the stored config, no tombstone to record a deleted default, and no suppressed-list
+field. The stored config holds only the user's items, exactly as it does today.
+
+The kit is one backend definition. The run path injects it into the in-memory effective
+config at the existing run-prep step, then reuses the tool, skill, and permission resolution
+that already runs. The display path reads the same definition. The commit path does nothing
+new, because the kit was never in the config it serializes.
+
+The published-config default does not change. It stays bare. We do not touch the catalog
+template or the new-config seed. We add one concept (the kit) and one run flag (inject the
+kit for this session), and we move the authoring skill out of the published default and into
+the kit.
+
+### 2. Can we avoid hardcoding this in the frontend?
+
+Yes. The kit's contents come entirely from the backend. The backend names the tools, the
+skill, and the permissions, with labels for the drawer. The frontend renders the groups it
+receives and owns only the on or off toggle. It never lists a platform op or a skill name in
+its own code. The designer handoff says the same: "confirm the real set with the backend",
+and "the build-kit contents come from whatever Agenta already injects".
+
+### 3. Where does the injection happen, and how do we keep it out of the frontend?
+
+Two injection points, one backend source.
+
+- Display: the backend serves a build-kit descriptor. The drawer reads it. The set is
+  decided server-side.
+- Run: the agent service injects the kit into the effective config at run-prep, in `_agent`
+  (`/home/mahmoud/code/agenta/services/oss/src/agent/app.py:207`), before
+  `resolve_tools(agent_template.tools)` at line 227. Gated by the run flag. The injection is
+  harness-agnostic, so it works on `pi_core` as well as `pi_agenta`.
+
+The frontend never decides the set. It reads it for display and sends the toggle for the
+run.
+
+## Does `/inspect` already carry enough, or do we add a signal?
+
+`/inspect` is the right channel. The frontend already fetches it per workflow, so the drawer
+reads it with no new call. But the value `/inspect` carries today does not suffice. It
+carries the published-config schema default at
+`revision.data.schemas.parameters.properties.agent.default`
+(`/home/mahmoud/code/agenta/services/oss/src/agent/schemas.py:52`). That value's role is the
+seed for the user's persisted config. The build kit's role is an ephemeral overlay that the
+run injects and the commit excludes. Those are two different roles. Overloading the schema
+default to also mean "the kit to inject and strip" is the exact role confusion that caused
+the original gap, where the skill embed sat in a default the draft never read.
+
+So deliver a dedicated descriptor in the `/inspect` response, as a new read-only sibling of
+`schemas`, not inside the schema default. After this, `/inspect` carries two distinct things
+with two distinct roles: the bare schema default (the seed for the user's config) and the
+`build_kit` descriptor (the platform overlay). The exact descriptor shape is the contract
+below.
+
+Cleaning up the schema default is part of this. Today `schemas.py` enriches the published
+default with the skill embed and the sandbox boundary. Under this model those belong to the
+kit, not the published default. Move them. The published default returns to bare, the same
+value the SDK builtin already carries.
+
+## The build-kit contract (the drawer reads this)
+
+The advanced-build-kit drawer renders this exact shape and never invents its own. Field
+names are part of the contract.
+
+Delivered in the `/inspect` response at `revision.data.build_kit`, a read-only sibling of
+`revision.data.schemas`. It is platform-owned. The frontend reads it, renders it, and never
+writes, merges, or echoes it back.
 
 ```
-# interfaces.py:537
-default=build_agent_v0_default()   # no skill, no tools
+build_kit:
+  skills:      [ { key, name, description } ]                  # key = the skill slug
+  tools:       [ { key, name, description } ]                  # key = the platform op
+  permissions: [ { key, name, description, status } ]          # status only on permissions
 ```
 
-The comment on that line is explicit: "The minimal builtin default: no platform skill, no
-sandbox_permission. The agent service adds both via the same builder (see schemas.py)."
+- Grouped by kind: `skills`, `tools`, `permissions`. The drawer renders one read-only group
+  per kind, in that order.
+- Every row carries `key` (a stable identifier), `name` (the display name), and
+  `description` (the one-line purpose). `key` is the slug for a skill, the op for a tool, and
+  the permission key for a permission. The kind is the array the row sits in, so a row needs
+  no kind tag.
+- `permissions` rows additionally carry `status` (for example `on`), which the drawer shows
+  as the green status pill. Skills and tools rows have no `status`.
+- The source: `tools` from `PLATFORM_OPS` (the catalog owns the name, description, and per-op
+  permission), `skills` from the authoring skill (its slug, name, description), `permissions`
+  from the build permission set (write files, execute code). One backend builder produces all
+  three groups, and the same builder feeds the run-time injection, so the displayed kit and
+  the injected kit are the same set.
 
-So there are two separate defaults for the agent:
+The per-run flag the drawer toggle controls:
 
-- The SDK interface default (bare). Feeds the catalog, which feeds the new-agent draft.
-- The service `/inspect` default (enriched with the skill embed and the sandbox boundary).
-  Feeds `/inspect`, which the draft reads for schemas only, never for values.
+- `flags.inject_build_kit` (boolean), on the run request, request-scoped. The drawer's
+  enable or disable toggle sets it. When the kit is off the drawer sends `false`, the run
+  skips injection, and the agent runs with the user's config only. It defaults to off
+  server-side, so a request that omits it (any non-playground caller) never injects the kit.
+  The drawer defaults the toggle on, so a normal playground run sends `true`.
 
-That is the gap. The service enriches the default the draft never reads, and the draft
-reads the bare default the SDK interface declares. The skill embed the service adds, and
-the platform tools we want to add, do not reach a new agent.
+The two names intentionally pair: `build_kit` is the read-only catalog of what the toggle
+controls, and `inject_build_kit` is the toggle. They live in different messages (the inspect
+response versus the run request), so they never appear together.
 
-### Why the skill embed did not reach the draft
+## Change set, by layer
 
-The getting-started skill is already embedded in the default, but only on the service
-`/inspect` default. The catalog template, which is the surface the draft actually reads,
-still uses the bare builder. So the embed sits on a default no one reads for values. The
-fix is not to make the draft read `/inspect`. The fix is to put the enriched default (the
-platform tools plus the skill embed) into the catalog template path. Then it reaches the
-draft, and `/inspect` is not used for values at all.
+1. Build-kit definition. One backend builder returns the kit (tools from `PLATFORM_OPS`,
+   the authoring skill, the build permissions), with identifiers and labels. Single source.
+   The tool set is read from the catalog at call time, so a new op added by the builder-tools
+   project (`#4919`) joins the kit with no edit here. Likely home: the agent service or a
+   shared SDK helper that both the service and the API import.
 
-## The four decisions (locked by Mahmoud)
+2. Display signal. Serve the `build_kit` descriptor (the contract above) in the `/inspect`
+   response at `revision.data.build_kit`, a read-only sibling of `schemas`. The API inspect
+   proxy
+   (`/home/mahmoud/code/agenta/api/oss/src/apis/fastapi/applications/router.py:473`)
+   forwards the new sibling alongside `schemas`; confirm it passes `revision.data` through
+   rather than allow-listing fields. The same backend builder that produces the descriptor
+   feeds the run injection.
 
-1. The default skill is embedded, not forced. The default config carries an `@ag.embed`
-   of `__ag__getting_started_with_agenta`, present by default and removable. Stop
-   force-injecting it through the `pi_agenta` harness. Keep the `force_skills` mechanism in
-   the code for a future skill that carries real functionality.
-2. Delete-only for v1. No `is_active` flag now. Disable-but-keep comes later.
-3. Platform tools are a frozen, explicit list. Read all ops from the catalog at build
-   time, then store the result as a concrete list. No wildcard, no run-time resolution of
-   "all".
-4. The defaults must surface where the new-agent draft reads them, so the temporary
-   playground shows them.
+3. Run injection. In `_agent`
+   (`/home/mahmoud/code/agenta/services/oss/src/agent/app.py:207`), when
+   `flags.inject_build_kit` is true, merge the kit's tools into `agent_template.tools`, its
+   skill into `agent_template.skills`, and its permissions into the sandbox permission, before
+   the existing `resolve_tools` / `resolve_mcp_servers` calls. Reuse all existing resolution.
+   The flag rides `WorkflowInvokeRequestFlags` (`app.py:214`), defaults off server-side, and
+   the playground sends it on.
 
-## Proposed change set, by layer
+4. Published default stays bare. Revert the `schemas.py` enrichment so the `/inspect` schema
+   default and the catalog template both carry the bare default (no skill, no tools). The
+   skill embed and the sandbox boundary move into the kit. File:
+   `/home/mahmoud/code/agenta/services/oss/src/agent/schemas.py:52`. The catalog
+   (`/home/mahmoud/code/agenta/api/oss/src/resources/workflows/catalog.py`) needs no change;
+   the earlier materialize edit is dropped.
 
-The fix points the catalog template at the enriched default. The catalog is the surface
-the draft reads. Today it sources the agent default from the bare SDK builtin interface. It
-will instead source the enriched default: the same builder output the service already uses,
-plus the frozen platform-tools list. The SDK builtin interface stays bare. `/inspect` is
-not used for the draft's values.
+5. Stop force-injecting the skill. Set `AGENTA_FORCED_SKILLS = []`
+   (`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py:104`).
+   The authoring skill now reaches a playground run through the kit injector, not through the
+   `pi_agenta` harness force. Keep `force_skills`, `force_tools`, and the skill constant for a
+   future genuinely-forced item.
 
-1. SDK builder. Extend `build_agent_v0_default` with one option that adds the platform
-   tools, sourced from `PLATFORM_OPS.keys()` at build time and frozen into a concrete list
-   of `{"type": "platform", "op": "<name>"}` entries (decision 3). The skill embed already
-   has `skill_slug=`. The builder gains the ability to emit these; its own no-arg default
-   does not change, so the bare builtin stays bare. File:
-   `/home/mahmoud/code/agenta/sdks/python/agenta/sdk/utils/types.py:1399`.
-
-2. Catalog template (the load-bearing fix for the draft). Source the agent template entry's
-   parameter default from the enriched default
-   (`build_agent_v0_default(skill_slug=__ag__getting_started_with_agenta,
-   include_sandbox_permission=True, include_platform_tools=True)`) rather than the bare
-   builtin the interface registry carries. The existing extraction and normalization
-   pipeline then moves the object default into `data.parameters` as it already does, so
-   `template.data.parameters.agent` carries the platform tools and the skill embed. This is
-   the larger interface-registry wiring change: the catalog stops inheriting the bare
-   interface default for the agent entry. File:
-   `/home/mahmoud/code/agenta/api/oss/src/resources/workflows/catalog.py` (the
-   `_enrich_entry` / `_build_template_data` path for the agent entry). The enriched default
-   imports cleanly from the SDK (`build_agent_v0_default`, `PLATFORM_OPS`, and the slug
-   constant `GETTING_STARTED_WITH_AGENTA_SLUG`), so no new shared module is needed.
-
-3. Service `/inspect`. Already passes `skill_slug` and `include_sandbox_permission`. Add the
-   platform-tools option so its default and the catalog template share one enriched value
-   and cannot drift. This keeps `/inspect` consistent and keeps the runtime fallback (which
-   uses the service default) consistent. The frontend still does not read values from
-   `/inspect`. File:
-   `/home/mahmoud/code/agenta/services/oss/src/agent/schemas.py:52`.
-
-4. Stop force-injecting the skill. Set `AGENTA_FORCED_SKILLS = []`. Keep `force_skills`,
-   `GETTING_STARTED_WITH_AGENTA_SKILL`, the slug constant, and the static catalog. The
-   getting-started skill now reaches agents through the embedded default config, where the
-   user can remove it. File:
-   `/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py:104`.
-   Leave `AGENTA_FORCED_TOOLS = ["read", "bash"]` alone; those are Pi builtins for skill
-   rendering, unrelated to the platform-op tools.
-
-5. Frontend, removable defaults. The skill control currently renders a `__ag__` static
-   skill as read-only and non-removable ("cannot be edited or removed"). Opt-out needs the
-   reference removable. Split the two ideas: the skill's content stays read-only (it is
-   Agenta's skill), but the embed in my config can be deleted. Verify the tools control
-   renders `{"type":"platform","op":...}` entries and allows deleting them; if it does
-   not, add that. Files:
-   `/home/mahmoud/code/agenta/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/SkillTemplateControl.tsx`
-   and the tools control in the same folder. Adding or picking new platform tools is out
-   of scope; only delete must work.
-
-6. Tests. The agent-template default test asserts three sources today
-   (`/home/mahmoud/code/agenta/services/oss/tests/pytest/unit/agent/test_default_agent_template.py`):
-   builtin equals the bare builder, and the service equals bare plus extras. Keep
-   builtin-equals-bare. Update the service test so the extras now include the frozen
-   platform tools. Add a catalog test (in the API suite) that asserts the agent template's
-   `data.parameters.agent` carries the platform tools and the skill embed, which is the
-   real guarantee that the draft gets the defaults.
-
-The defaults bake into the stored revision at create or commit time. Existing agents are
-not touched. A new platform tool added to the catalog later appears only in agents created
-after that, which is the correct behavior for opt-out defaults.
-
-## Coordination
-
-A separate skills subagent owns the getting-started skill content and any naming updates.
-This design does not write skill content. It owns embed-by-default: the getting-started
-skill arrives as an embedded default config item, referenced by `@ag.embed` to its stable
-slug, present by default and removable. See the agent-creation-skills and skills-config
-projects for the skill content and the static catalog.
+6. Tests. The default-template test
+   (`/home/mahmoud/code/agenta/services/oss/tests/pytest/unit/agent/test_default_agent_template.py`)
+   asserts the service default equals bare plus the skill and sandbox extras. Update it: the
+   published default is now bare across the builtin, `/inspect`, and the catalog. Add a test
+   that the build-kit descriptor lists the platform ops and the authoring skill, and a
+   run-prep test that an inject-kit run resolves the platform tools while a kit-off run does
+   not.
 
 ## Interface design notes
 
-This design adds no new wire field and no new contract surface. That is deliberate and
-worth stating.
+The model rests on three clean separations. Each is a semantic-role split, not a feature
+split.
 
-- The platform tool entries reuse the existing `platform` tool shape
-  (`{"type": "platform", "op": "<name>"}`). The `op` is a stable identifier into the
-  catalog. Role: config that selects behavior, plus a routing key (`op`) the resolver maps
-  to a platform endpoint. No new field.
-- The skill entry reuses the existing `@ag.embed` shape, referencing a server-owned skill
-  by stable slug. Role: config plus a routing key (the slug). No new field.
-- Decision 2 (no `is_active`) means we do not add a disable field. Delete is the existing
-  present/absent semantics.
-- Decision 3 (frozen list) means we store concrete enumerated entries, not a new wildcard
-  token in the contract.
+- Inject versus commit. The kit is injected at session time, for display and for the run. It
+  is never written to the stored revision. The revision holds only user data. Role of the
+  kit: platform-owned policy applied at runtime. Role of the stored config: user-owned data.
+- Default versus override. The kit is the platform's default capability set, managed by
+  Agenta and not edited per item in v1. The user's config is the user layer. There is no
+  per-item override of a kit item, so there is no merge and no precedence rule to define yet.
+- Display versus persisted. The kit is display and session ephemeral. The agent config is
+  persisted. The toggle is a playground preference. It is not part of the persisted agent
+  config. If we persist the toggle at all, it is a playground or UI preference keyed to the
+  user and agent, never a field on the revision.
 
-So the only real interface question was ownership: which layer owns the enriched default.
-The answer, decided by Mahmoud, is the catalog template (with `/inspect` kept in sync), not
-the portable SDK interface. The skill embed and the platform tools both resolve server-side
-(the static catalog for the skill, the platform resolver and credentials for the tools). A
-bare SDK interface that ran standalone could not resolve them. Keeping them at the catalog
-and service layer respects the existing split and avoids breaking standalone SDK use of the
-builtin agent.
+Where each new field sits, by role:
+
+- The `build_kit` descriptor is platform-owned and read-only. It is a sibling of the config
+  in the `/inspect` response (`revision.data.build_kit`), never a member of `parameters.agent`.
+  The frontend reads it, never writes it. Role: a platform-declared capability catalog for
+  display and runtime, not user data.
+- The `inject_build_kit` flag is request-scoped policy. It rides the run request flags, not
+  the config. It defaults to the safe value, off, so a raw `/invoke` never grants the agent
+  authoring tools or execute-code by accident. Role: a per-run mode the playground sets.
+
+The design adds no field to the stored agent config. The `build_kit` descriptor lives in the
+inspect response, and the `inject_build_kit` flag lives on the run request. The stored
+contract (`parameters.agent`) is unchanged.
 
 ## Risks and edge cases
 
-- Several seeded tools are approval-gated by default in the catalog: `commit_revision` today,
-  and `create_schedule`, `create_subscription`, and `test_subscription` once the builder ships.
-  Seeding them does not change that. A new agent asks before it commits, schedules, subscribes,
-  or runs a live trigger test. The seeded tools keep their catalog default permissions, and the
-  user can edit them. This is intended; it is worth a line in the user-facing docs.
-- The skill content is a placeholder today. That is fine. Real content lands separately; it
-  is not this design's job.
-- The catalog and `/inspect` defaults must stay in sync. Sourcing both from one builder
-  call removes the drift that caused this gap in the first place.
-- Frontend delete of a static-skill embed must remove only my reference, not affect the
-  shared static skill. The slug points at a read-only catalog entry; deleting the embed
-  just drops the list item.
+- Safety. The kit grants self-commit and execute-code. It must never inject on a production
+  run. The flag defaults off server-side and only the playground turns it on. State this in
+  the docs and assert it in a test.
+- The toggle off path. Turning the kit off must produce a run with the user's config only, so
+  the user tests the agent as users will see it. That is the no-inject path, which is the
+  default, so it is the simple case.
+- Existing agents. They gain the kit in the playground with no migration, because the kit is
+  injected, not stored. Nothing is baked, so nothing goes stale.
+- Permissions overlap. The agent's own sandbox permission is a real committed field. The
+  kit's build permissions are a separate, session-only elevation. The drawer shows the kit's
+  permissions as a read-only status, distinct from the agent's own sandbox config. Keep the
+  two clearly separated so a kit-off run uses the agent's own permissions.
 
-## Out of scope and follow-ups
+## Out of scope and coordination
 
-- Disable-but-keep (an `is_active` or equivalent), with the resolver and wire drop step.
-- The debug-mode UX where defaults are not shown by default.
-- A picker to add platform tools or skills back after deleting them.
-- Real getting-started skill content.
+- The Advanced drawer UX (collapsible sections, the build-kit toggle, the read-only dimmed
+  rows) is owned by the advanced-build-kit project and the designer handoff. This design
+  feeds it the backend descriptor. It does not design the drawer.
+- The authoring skill content and naming are owned by the skills project (`#4918`). This
+  design references the skill by its stable slug. It does not write skill content.
+- Per-item edit or delete of kit items, and a picker to add platform tools to the published
+  agent, are out of scope. The kit is whole-toggle and read-only in v1.
 
-## Resolved: where the enriched default lives
+## Settled while drafting
 
-Decided by Mahmoud. The catalog template carries the enriched default (the frozen
-platform-tools list plus the getting-started skill embed). The bare SDK builtin interface
-stays bare. Server-resolved Agenta defaults do not go into the portable SDK default.
-`/inspect` is not used for the draft's values; if it is not in `/inspect`, we do not rely on
-`/inspect`, we use the catalog template. The catalog-templates path now sources the agent
-default from the enriched default rather than the bare builtin, and the tests that assert
-"builtin equals bare" and "service equals bare plus extras" are updated accordingly.
+- Where the descriptor lives. In the `/inspect` response, at `revision.data.build_kit`, a
+  read-only sibling of `schemas`. The drawer project depends on this exact channel, so it is
+  fixed, not open.
+
+## Open questions for Mahmoud
+
+1. The toggle's persistence. Ephemeral per playground session (resets to on), or a stored
+   playground preference per user and agent. I lean ephemeral for v1. It is the smaller
+   surface and the kit defaults on.
+2. Confirm the published default goes fully bare, including dropping the skill embed and the
+   sandbox boundary from the `/inspect` schema default, with both moving into the kit. This
+   touches the skills project's surface, so it needs their nod too.
