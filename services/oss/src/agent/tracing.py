@@ -153,16 +153,24 @@ def run_context() -> Optional[RunContext]:
     dispatch, server-side and hidden from the model (see
     ``projects/direct-call-tools/run-context.md``). The conversation id is not part of this blob —
     it rides the top-level ``sessionId`` field. Best-effort: any failure (or an entirely empty
-    context) returns ``None`` so the run proceeds and the ``runContext`` key is simply omitted."""
+    context) returns ``None`` so the run proceeds and the ``runContext`` key is simply omitted.
+
+    The workflow and the trace are captured as INDEPENDENT failure domains: a failure reading the
+    workflow references must not drop an otherwise-valid ``trace`` (and vice versa), so a trace-only
+    run still ships ``runContext.trace``."""
+    workflow = None
     try:
         workflow = _run_context_workflow()
-        trace = _run_context_trace()
-        if workflow is None and trace is None:
-            return None
-        return RunContext(workflow=workflow, trace=trace)
     except Exception:  # pylint: disable=broad-except
-        log.warning("agent: failed to capture run context", exc_info=True)
+        log.warning("agent: failed to capture run-context workflow", exc_info=True)
+    trace = None
+    try:
+        trace = _run_context_trace()
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: failed to capture run-context trace", exc_info=True)
+    if workflow is None and trace is None:
         return None
+    return RunContext(workflow=workflow, trace=trace)
 
 
 def record_usage(usage: Optional[Dict[str, Any]]) -> None:
