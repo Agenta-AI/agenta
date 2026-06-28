@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 import time
 
 import agenta as ag
@@ -170,6 +171,14 @@ from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.storage import MountStorage
 from oss.src.apis.fastapi.mounts.router import MountsRouter
 
+# Session streams
+from oss.src.dbs.postgres.sessions.dbes import SessionStreamDBE  # noqa: F401 (registers DBE)
+from oss.src.dbs.postgres.sessions.dao import SessionStreamsDAO
+from oss.src.core.sessions.service import SessionStreamsService
+from oss.src.apis.fastapi.sessions.router import SessionStreamsRouter
+from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
+from oss.src.dbs.redis.shared.engine import get_lock_engine
+
 
 from oss.src.routers import (
     user_profile,
@@ -235,6 +244,8 @@ async def lifespan(*args, **kwargs):
 
     await _triggers_broker.startup()
 
+    _orphan_sweep_task = asyncio.create_task(orphan_sweep_loop(_transactions_engine))
+
     # Best-effort: ingestion re-resolves on demand if this fails.
     if env.composio.enabled:
         try:
@@ -245,6 +256,8 @@ async def lifespan(*args, **kwargs):
             )
 
     yield
+
+    _orphan_sweep_task.cancel()
 
     await _triggers_broker.shutdown()
 
@@ -353,6 +366,11 @@ _OPENAPI_TAGS = [
     {
         "name": "Triggers",
         "description": "Inbound provider event triggers and their watchable event catalog.",
+    },
+    # --
+    {
+        "name": "Sessions",
+        "description": "Session runner coordination — invoke, cancel, steer, attach/detach, heartbeat, and liveness.",
     },
     # --
     {
@@ -506,6 +524,7 @@ environments_dao = GitDAO(
 
 evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
 folders_dao = FoldersDAO(engine=_transactions_engine)
+session_streams_dao = SessionStreamsDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
@@ -564,6 +583,13 @@ simple_queries_service = SimpleQueriesService(
 
 folders_service = FoldersService(
     folders_dao=folders_dao,
+)
+
+_lock_engine = get_lock_engine()
+
+session_streams_service = SessionStreamsService(
+    streams_dao=session_streams_dao,
+    lock_engine=_lock_engine,
 )
 
 workflows_service = WorkflowsService(
@@ -822,6 +848,10 @@ simple_applications = SimpleApplicationsRouter(
 
 folders = FoldersRouter(
     folders_service=folders_service,
+)
+
+session_streams = SessionStreamsRouter(
+    service=session_streams_service,
 )
 
 workflows = WorkflowsRouter(
@@ -1134,6 +1164,17 @@ app.include_router(
     router=folders.router,
     prefix="/folders",
     tags=["Folders"],
+)
+
+app.include_router(
+    router=session_streams.router,
+    tags=["Sessions"],
+)
+
+app.include_router(
+    router=session_streams.admin_router,
+    prefix="/admin/sessions/streams",
+    tags=["Sessions", "Admin"],
 )
 
 app.include_router(
