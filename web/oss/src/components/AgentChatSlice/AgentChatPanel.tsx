@@ -314,6 +314,36 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         if (el) setShowJump(!stickRef.current && !atLiveEdge(el))
     }, [messages, status])
 
+    // SC-4: interaction is intent, not just scrolling. While following, a real text selection inside
+    // the transcript — or opening a link in it — means the reader is engaging here, so release follow
+    // (exactly like a scroll). New content keeps arriving offscreen and the jump pill offers the way
+    // back. Keyboard / wheel / touch already release because they scroll (onScroll). The composer is
+    // exempt: its selections and links aren't inside the log, so `el.contains(...)` ignores them.
+    useEffect(() => {
+        const el = scrollRef.current
+        if (!el) return
+        const release = () => {
+            if (!stickRef.current) return
+            stickRef.current = false
+            setShowJump(!atLiveEdge(el))
+        }
+        const onSelectionChange = () => {
+            if (!stickRef.current) return
+            const sel = window.getSelection()
+            if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
+            if (sel.anchorNode && el.contains(sel.anchorNode)) release()
+        }
+        const onClick = (e: MouseEvent) => {
+            if ((e.target as HTMLElement | null)?.closest("a")) release()
+        }
+        document.addEventListener("selectionchange", onSelectionChange)
+        el.addEventListener("click", onClick)
+        return () => {
+            document.removeEventListener("selectionchange", onSelectionChange)
+            el.removeEventListener("click", onClick)
+        }
+    }, [])
+
     const handleSubmit = async (text: string) => {
         const trimmed = text.trim()
         const fileObjs = files
