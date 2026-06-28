@@ -1,5 +1,5 @@
 /**
- * SkillConfigControl
+ * SkillTemplateControl
  *
  * Schema-driven control for one declared skill on the agent config. Skills are a sibling of
  * `tools` and `mcp_servers`: each entry is either an inline SKILL.md package (`name`,
@@ -7,7 +7,7 @@
  * `@ag.embed` reference to a stored skill the backend inlines into that same shape before the
  * runner sees it. The shape is open enough that a JSON editor is the pragmatic v1 — the same
  * approach McpServerItemControl takes for MCP servers — with a name header and a delete control.
- * The typed shape lives in the `skill_config` catalog type (SkillConfigSchema in the SDK); this
+ * The typed shape lives in the `skill-template` catalog type (SkillTemplateSchema in the SDK); this
  * control just edits one entry of the `skills` array.
  *
  * The full inline-authoring form (separate fields per file, an upload affordance) is out of
@@ -23,7 +23,7 @@ import {MinusCircle} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
-export interface SkillConfigControlProps {
+export interface SkillTemplateControlProps {
     /** Skill value (object or JSON string). An inline package or an `@ag.embed` reference. */
     value: unknown
     /** Called when the skill value changes (only on valid JSON) */
@@ -54,8 +54,8 @@ export function isEmbedRef(skill: Record<string, unknown>): boolean {
     return "@ag.embed" in skill
 }
 
-/** The reserved slug namespace for platform-owned skills (mirrors the backend `_agenta.*`). */
-const PLATFORM_SLUG_PREFIX = "_agenta."
+/** The reserved slug namespace for static (Agenta-owned) skills (mirrors the backend `__ag__*`). */
+const STATIC_SLUG_PREFIX = "__ag__"
 
 function asObj(value: unknown): Record<string, unknown> | undefined {
     return isPlainObject(value) ? value : undefined
@@ -66,7 +66,7 @@ function asObj(value: unknown): Record<string, unknown> | undefined {
  * `workflow_revision` reference under `@ag.embed > @ag.references`. Returns `undefined` for an
  * inline (non-embed) entry or an embed without a slug.
  */
-export function platformEmbedSlug(skill: Record<string, unknown>): string | undefined {
+export function staticEmbedSlug(skill: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
     if (!refs) return undefined
     const workflowSlug = asObj(refs.workflow)?.slug
@@ -83,14 +83,14 @@ function embedRevisionVersion(skill: Record<string, unknown>): string | undefine
 }
 
 /**
- * Whether a skill entry is platform-owned and so read-only for the author. The reliable
- * client-side signal is the reserved `_agenta.` slug prefix on the embed's referenced workflow (or
- * pinned workflow_revision); a resolved object carrying `flags.is_platform === true` counts too.
+ * Whether a skill entry is static (Agenta-owned) and so read-only for the author. The reliable
+ * client-side signal is the reserved `__ag__` slug prefix on the embed's referenced workflow (or
+ * pinned workflow_revision); a resolved object carrying `flags.is_static === true` counts too.
  */
-export function isPlatformSkill(skill: Record<string, unknown>): boolean {
-    const slug = platformEmbedSlug(skill)
-    if (slug && slug.startsWith(PLATFORM_SLUG_PREFIX)) return true
-    return asObj(skill.flags)?.is_platform === true
+export function isStaticSkill(skill: Record<string, unknown>): boolean {
+    const slug = staticEmbedSlug(skill)
+    if (slug && slug.startsWith(STATIC_SLUG_PREFIX)) return true
+    return asObj(skill.flags)?.is_static === true
 }
 
 /**
@@ -116,18 +116,18 @@ function skillLabel(skill: Record<string, unknown>): string {
     return "Skill"
 }
 
-export const SkillConfigControl = memo(function SkillConfigControl({
+export const SkillTemplateControl = memo(function SkillTemplateControl({
     value,
     onChange,
     onDelete,
     disabled = false,
     className,
-}: SkillConfigControlProps) {
+}: SkillTemplateControlProps) {
     const {SharedEditor} = useDrillInUI()
     const skillObj = toSkillObj(value)
     const name = skillLabel(skillObj)
     const embed = isEmbedRef(skillObj)
-    const platform = isPlatformSkill(skillObj)
+    const isStatic = isStaticSkill(skillObj)
 
     const [editorText, setEditorText] = useState<string>(() => safeStringify(skillObj ?? {}))
 
@@ -177,10 +177,10 @@ export const SkillConfigControl = memo(function SkillConfigControl({
         </div>
     )
 
-    // A platform-owned skill is a default the author cannot edit or remove: render it read-only,
-    // with no JSON/body editor and no delete control (the embed and its body stay untouched).
-    if (platform) {
-        const slug = platformEmbedSlug(skillObj)
+    // A static (Agenta-owned) skill is a default the author cannot edit or remove: render it
+    // read-only, with no JSON/body editor and no delete control (the embed and its body stay intact).
+    if (isStatic) {
+        const slug = staticEmbedSlug(skillObj)
         const version = embedRevisionVersion(skillObj)
         return (
             <div
@@ -193,7 +193,7 @@ export const SkillConfigControl = memo(function SkillConfigControl({
                     <Typography.Text strong className="text-sm truncate">
                         {name}
                     </Typography.Text>
-                    <Tag color="default">Platform skill</Tag>
+                    <Tag color="default">Static skill</Tag>
                     {version && <Tag color="default">{version}</Tag>}
                 </div>
                 {slug && (

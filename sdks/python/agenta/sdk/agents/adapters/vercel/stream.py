@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, AsyncIterator, Dict, Iterator, Optional
 
 from ...dtos import AgentResult
-from ...streaming import AgentRun
+from ...streaming import AgentStream
 from .messages import TOOL_APPROVAL_REQUEST
 
 
@@ -49,13 +49,19 @@ def _map_finish_reason(stop_reason: Optional[str]) -> Optional[str]:
 
 
 async def agent_run_to_vercel_parts(
-    run: AgentRun,
+    run: AgentStream,
     *,
     session_id: Optional[str] = None,
     message_id: str = "msg-1",
     trace_id: Optional[str] = None,
 ) -> AsyncIterator[Dict[str, Any]]:
-    """Project a live ``AgentRun`` into Vercel UI Message Stream part dictionaries."""
+    """Project a live ``AgentStream`` into Vercel UI Message Stream part dictionaries.
+
+    DEVELOPMENT-ONLY. The live path is :func:`agent_stream_to_vercel_stream` in the routing
+    layer, which projects the handler's agenta event stream (not an ``AgentStream``). This
+    run-based variant pairs with the dev-only one-shot ``AgentStream`` debugging surface and is
+    kept for that; it is not on any live request path.
+    """
     start: Dict[str, Any] = {"type": "start", "messageId": message_id}
     if session_id is not None:
         start["messageMetadata"] = {"sessionId": session_id}
@@ -101,15 +107,15 @@ async def agent_run_to_vercel_parts(
                     "delta": data.get("text", ""),
                 }
                 yield {"type": "reasoning-end", "id": rid}
-            elif etype == "reasoning_start":
+            elif etype == "thought_start":
                 yield {"type": "reasoning-start", "id": data.get("id")}
-            elif etype == "reasoning_delta":
+            elif etype == "thought_delta":
                 yield {
                     "type": "reasoning-delta",
                     "id": data.get("id"),
                     "delta": data.get("delta", ""),
                 }
-            elif etype == "reasoning_end":
+            elif etype == "thought_end":
                 yield {"type": "reasoning-end", "id": data.get("id")}
             elif etype == "tool_call":
                 tool_call_id = data.get("id")
@@ -203,6 +209,157 @@ async def agent_run_to_vercel_parts(
     yield finish
 
 
+async def agent_stream_to_vercel_stream(
+    events: AsyncIterator[Dict[str, Any]],
+    *,
+    session_id: Optional[str] = None,
+    message_id: str = "msg-1",
+    trace_id: Optional[str] = None,
+) -> AsyncIterator[Dict[str, Any]]:
+    """Project a stream of neutral agenta events into Vercel UI Message Stream parts.
+
+    The routing-layer counterpart of :func:`agent_run_to_vercel_parts`. It consumes the agenta
+    event stream the handler yields (each event a ``{"type", "data"}`` dict) — NOT an
+    ``AgentStream`` — so the projection lives outside the workflow boundary, where format
+    negotiation belongs. ``usage`` and ``stop_reason`` are read from the in-stream ``usage`` /
+    ``done`` events; ``trace_id`` is passed in by routing (off the response), since there is no
+    run to fall back to here.
+    """
+    start: Dict[str, Any] = {"type": "start", "messageId": message_id}
+    if session_id is not None:
+        start["messageMetadata"] = {"sessionId": session_id}
+    yield start
+    yield {"type": "start-step"}
+
+    text_seq = 0
+    reasoning_seq = 0
+    usage: Optional[Dict[str, Any]] = None
+    stop_reason: Optional[str] = None
+    seen_tool_calls: set = set()
+
+    try:
+        async for event in events:
+            etype = event.get("type")
+            data = event.get("data") or {}
+
+            if etype == "message":
+                text_seq += 1
+                tid = f"text-{text_seq}"
+                yield {"type": "text-start", "id": tid}
+                yield {"type": "text-delta", "id": tid, "delta": data.get("text", "")}
+                yield {"type": "text-end", "id": tid}
+            elif etype == "message_start":
+                yield {"type": "text-start", "id": data.get("id")}
+            elif etype == "message_delta":
+                yield {
+                    "type": "text-delta",
+                    "id": data.get("id"),
+                    "delta": data.get("delta", ""),
+                }
+            elif etype == "message_end":
+                yield {"type": "text-end", "id": data.get("id")}
+            elif etype == "thought":
+                reasoning_seq += 1
+                rid = f"reasoning-{reasoning_seq}"
+                yield {"type": "reasoning-start", "id": rid}
+                yield {
+                    "type": "reasoning-delta",
+                    "id": rid,
+                    "delta": data.get("text", ""),
+                }
+                yield {"type": "reasoning-end", "id": rid}
+            elif etype == "thought_start":
+                yield {"type": "reasoning-start", "id": data.get("id")}
+            elif etype == "thought_delta":
+                yield {
+                    "type": "reasoning-delta",
+                    "id": data.get("id"),
+                    "delta": data.get("delta", ""),
+                }
+            elif etype == "thought_end":
+                yield {"type": "reasoning-end", "id": data.get("id")}
+            elif etype == "tool_call":
+                tool_call_id = data.get("id")
+                tool_name = data.get("name")
+                seen_tool_calls.add(tool_call_id)
+                yield {
+                    "type": "tool-input-start",
+                    "toolCallId": tool_call_id,
+                    "toolName": tool_name,
+                }
+                yield {
+                    "type": "tool-input-available",
+                    "toolCallId": tool_call_id,
+                    "toolName": tool_name,
+                    "input": data.get("input"),
+                }
+                if data.get("render") is not None:
+                    yield _render_part(tool_call_id, data["render"])
+            elif etype == "tool_result":
+                tool_call_id = data.get("id")
+                if data.get("denied"):
+                    yield {
+                        "type": "tool-output-denied",
+                        "toolCallId": tool_call_id,
+                    }
+                elif data.get("isError"):
+                    yield {
+                        "type": "tool-output-error",
+                        "toolCallId": tool_call_id,
+                        "errorText": _as_text(data.get("output")),
+                    }
+                else:
+                    structured = data.get("data")
+                    out = structured if structured is not None else data.get("output")
+                    yield {
+                        "type": "tool-output-available",
+                        "toolCallId": tool_call_id,
+                        "output": out,
+                    }
+                    if data.get("render") is not None:
+                        yield _render_part(tool_call_id, data["render"])
+            elif etype == "interaction_request":
+                for part in _interaction_parts(data, seen_tool_calls):
+                    yield part
+            elif etype == "data":
+                part: Dict[str, Any] = {
+                    "type": f"data-{data.get('name', 'data')}",
+                    "data": data.get("data"),
+                }
+                if data.get("transient"):
+                    part["transient"] = True
+                yield part
+            elif etype == "file":
+                yield {
+                    "type": "file",
+                    "url": data.get("url"),
+                    "mediaType": data.get("mediaType"),
+                }
+            elif etype == "usage":
+                usage = _usage_metadata(data)
+            elif etype == "error":
+                yield {"type": "error", "errorText": data.get("message", "")}
+            elif etype == "done":
+                stop_reason = data.get("stopReason")
+    except Exception as exc:
+        yield {"type": "error", "errorText": str(exc)}
+        return
+
+    yield {"type": "finish-step"}
+    finish: Dict[str, Any] = {"type": "finish"}
+    finish_reason = _map_finish_reason(stop_reason)
+    if finish_reason is not None:
+        finish["finishReason"] = finish_reason
+    metadata: Dict[str, Any] = {}
+    if usage:
+        metadata["usage"] = usage
+    if trace_id is not None:
+        metadata["traceId"] = trace_id
+    if metadata:
+        finish["messageMetadata"] = metadata
+    yield finish
+
+
 def _interaction_parts(
     data: Dict[str, Any], seen_tool_calls: set
 ) -> Iterator[Dict[str, Any]]:
@@ -219,26 +376,37 @@ def _interaction_parts(
     if kind == "permission":
         tool_call_id = _approval_tool_call_id(payload)
         tool_call = payload.get("toolCall")
-        if (
-            tool_call_id is not None
-            and tool_call_id not in seen_tool_calls
-            and isinstance(tool_call, dict)
-        ):
-            seen_tool_calls.add(tool_call_id)
+        if tool_call_id is not None and isinstance(tool_call, dict):
             tool_name = (
                 tool_call.get("name") or tool_call.get("title") or tool_call.get("kind")
             )
-            yield {
-                "type": "tool-input-start",
-                "toolCallId": tool_call_id,
-                "toolName": tool_name,
-            }
-            yield {
-                "type": "tool-input-available",
-                "toolCallId": tool_call_id,
-                "toolName": tool_name,
-                "input": tool_call.get("rawInput") or tool_call.get("input"),
-            }
+            real_input = tool_call.get("rawInput") or tool_call.get("input")
+            if tool_call_id not in seen_tool_calls:
+                # The runner parked without first surfacing the tool call, so
+                # synthesize a tool part for the approval to render against.
+                seen_tool_calls.add(tool_call_id)
+                yield {
+                    "type": "tool-input-start",
+                    "toolCallId": tool_call_id,
+                    "toolName": tool_name,
+                }
+                yield {
+                    "type": "tool-input-available",
+                    "toolCallId": tool_call_id,
+                    "toolName": tool_name,
+                    "input": real_input,
+                }
+            elif real_input:
+                # The tool call was already surfaced, often with empty input on a
+                # cold-replay resume. The approval request carries the real args, so
+                # re-emit `tool-input-available` to refresh the parked call's input
+                # instead of persisting `{}` (HITL approve-empty-input bug).
+                yield {
+                    "type": "tool-input-available",
+                    "toolCallId": tool_call_id,
+                    "toolName": tool_name,
+                    "input": real_input,
+                }
         yield {
             "type": TOOL_APPROVAL_REQUEST,
             "approvalId": data.get("id"),
@@ -292,7 +460,7 @@ def _as_text(value: Any) -> str:
     return value if isinstance(value, str) else str(value)
 
 
-def _safe_result(run: AgentRun) -> Optional[AgentResult]:
+def _safe_result(run: AgentStream) -> Optional[AgentResult]:
     try:
         return run.result()
     except Exception:

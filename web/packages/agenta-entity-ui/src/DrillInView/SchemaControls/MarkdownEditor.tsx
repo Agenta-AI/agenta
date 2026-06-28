@@ -27,6 +27,7 @@ import {
     useLexicalComposerContext,
 } from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
+import {cn} from "@agenta/ui/styles"
 import {Tag} from "antd"
 
 type MarkdownView = "source" | "rendered"
@@ -211,7 +212,11 @@ export function MarkdownEditor({
         >
             {showToolbar ? (
                 <div
-                    className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]"
+                    className={cn(
+                        "flex flex-col overflow-hidden",
+                        bordered &&
+                            "rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]",
+                    )}
                     style={boundStyle}
                 >
                     {toolbar}

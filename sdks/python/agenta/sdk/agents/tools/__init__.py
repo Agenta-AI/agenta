@@ -14,9 +14,15 @@ from .errors import (
     ToolConfigurationError,
     ToolError,
     ToolResolutionError,
+    UnknownPlatformOpError,
     UnsupportedToolProviderError,
 )
-from .interfaces import GatewayToolResolver, ToolSecretProvider, WorkflowToolResolver
+from .interfaces import (
+    GatewayToolResolver,
+    PlatformToolResolver,
+    ToolSecretProvider,
+    WorkflowToolResolver,
+)
 from .models import (
     BuiltinToolConfig,
     CallbackToolSpec,
@@ -27,8 +33,10 @@ from .models import (
     GatewayToolConfig,
     GatewayToolResolution,
     MissingSecretPolicy,
+    PlatformToolConfig,
     ReferenceToolConfig,
     ResolvedToolSet,
+    ToolCall,
     ToolCallback,
     ToolConfig,
     ToolConfigBase,
@@ -45,10 +53,12 @@ __all__ = [
     "CodeToolConfig",
     "ClientToolConfig",
     "ReferenceToolConfig",
+    "PlatformToolConfig",
     "ToolSpec",
     "CallbackToolSpec",
     "CodeToolSpec",
     "ClientToolSpec",
+    "ToolCall",
     "ToolCallback",
     "ResolvedToolSet",
     "GatewayToolResolution",
@@ -57,6 +67,7 @@ __all__ = [
     "ToolSecretProvider",
     "GatewayToolResolver",
     "WorkflowToolResolver",
+    "PlatformToolResolver",
     "EnvironmentToolSecretProvider",
     "parse_tool_config",
     "coerce_tool_config",
@@ -69,6 +80,7 @@ __all__ = [
     "ToolResolutionError",
     "GatewayToolResolutionError",
     "UnsupportedToolProviderError",
+    "UnknownPlatformOpError",
     "MissingToolSecretError",
     "DuplicateToolNameError",
 ]

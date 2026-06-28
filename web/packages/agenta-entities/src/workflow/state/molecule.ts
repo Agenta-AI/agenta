@@ -373,9 +373,8 @@ const workflowTypeAtomFamily = atomFamily((workflowId: string) =>
         if (flags?.is_code) return "code"
         if (flags?.is_hook) return "hook"
         if (flags?.is_match) return "match"
-        // Agent wins over `is_custom`/`is_chat`: an SDK-deployed agent currently
-        // surfaces as custom and is forced through chat by also flagging is_chat.
-        // Once WP-6 sets is_agent, that takes precedence so the agent lane is chosen.
+        // Agent wins over `is_custom`/`is_chat`: an agent may also carry is_chat
+        // (messages-in), so is_agent takes precedence to pick the agent lane.
         if (flags?.is_agent) return "agent"
         if (flags?.is_custom) return "custom"
         if (flags?.is_chat) return "chat"

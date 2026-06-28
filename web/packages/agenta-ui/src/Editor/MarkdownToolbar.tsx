@@ -155,7 +155,8 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                 "link",
                 "Link",
                 <LinkIcon size={15} />,
-                () => editor.dispatchCommand(TOGGLE_LINK_COMMAND, "https://"),
+                // Toggle: on an existing link, dispatch null to remove it; otherwise seed a new link.
+                () => editor.dispatchCommand(TOGGLE_LINK_COMMAND, active.link ? null : "https://"),
                 active.link,
             )}
             {button("code", "Code", <Code size={15} />, () => formatText("code"), active.code)}

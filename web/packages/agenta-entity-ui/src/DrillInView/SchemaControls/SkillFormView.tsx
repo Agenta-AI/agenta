@@ -2,7 +2,7 @@
  * SkillFormView
  *
  * Structured form view for one inline skill, the Form side of {@link ConfigItemDrawer}. Mirrors
- * the inline `SkillConfigSchema` shape (sdk/utils/types.py, `__ag_type__ = "skill_config"`): a
+ * the inline `SkillTemplateSchema` shape (sdk/utils/types.py, `__ag_type__ = "skill-template"`): a
  * kebab `name`, a `description` (the trigger the model matches), the `body` (SKILL.md Markdown),
  * the supporting `files[]`, and two behaviour flags.
  *

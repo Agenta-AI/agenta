@@ -1558,12 +1558,15 @@ function PlaygroundConfigSection({
                 : null
             const schemaTitle = fieldSchema?.title as string | undefined
 
-            // Agent workflows render the whole agent_config block as the panel body (its own sections
-            // each have headers and drawers), so the redundant top-level "Agent" collapse header is
-            // suppressed. Detected via the same `agent_config` schema marker AgentConfigControl uses.
+            // Agent workflows render the whole agent block as the panel body (its own sections each
+            // have headers and drawers), so the redundant top-level "Agent" collapse header is
+            // suppressed. Detected via the same schema marker AgentTemplateControl dispatches on —
+            // both the new `agent-template` and the legacy `agent_config` name, so it holds across
+            // the rename / un-migrated data.
+            const isAgentMarker = (v: unknown) => v === "agent-template" || v === "agent_config"
             if (
-                fieldSchema?.["x-ag-type-ref"] === "agent_config" ||
-                fieldSchema?.["x-ag-type"] === "agent_config"
+                isAgentMarker(fieldSchema?.["x-ag-type-ref"]) ||
+                isAgentMarker(fieldSchema?.["x-ag-type"])
             ) {
                 return null
             }

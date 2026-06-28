@@ -53,7 +53,7 @@ group by job:
 
   // tools + skills (see runner-to-tool-callback.md, runner-to-mcp-server.md)
   "tools":        [ "read", "edit" ],    // built-in tool names
-  "customTools":  [ /* ResolvedToolSpec[] */ ],
+  "customTools":  [ /* ResolvedToolSpec[]; a callback spec carries `call_ref` (gateway) XOR an optional `call` direct-call descriptor — plumbing only, see runner-to-tool-callback.md */ ],
   "toolCallback": { "endpoint": "...", "authorization": "..." },  // required if customTools set
   "mcpServers":   [ /* McpServerConfig[] */ ],
   "skills":       [ /* inline skill packages */ ],
@@ -64,9 +64,32 @@ group by job:
   "harnessFiles":      [ { "path": ".claude/settings.json", "content": "..." } ],
 
   // tracing (see service-and-runner-trace-export.md)
-  "trace": { "traceparent": "...", "endpoint": "...", "authorization": "...", "captureContent": true }
+  "trace": { "traceparent": "...", "endpoint": "...", "authorization": "...", "captureContent": true },
+
+  // run context — the run's own identity, refreshed per turn (direct-call tools, Phase 3a)
+  "runContext": {                          // omitted when the run has no own identity to bind
+    "workflow": {
+      "artifact": { "id": "...", "slug": "..." },              // the workflow
+      "variant":  { "id": "...", "slug": "..." },              // the variant
+      "revision": { "id": "...", "slug": "...", "version": "..." },
+      "is_draft": false                                        // committed revision vs playground draft
+    },
+    "trace": { "trace_id": "...", "span_id": "..." }
+  }
 }
 ```
+
+`runContext` is the run's own context (its trace + workflow identity), filled by the service in
+`app.py` from `run_context()` (`tracing.py`) and refreshed each turn. It is consumed ONLY by a
+tool's `call.context` binding at dispatch: the runner fills the bound request fields from this blob
+server-side, hidden from the model (see `runner-to-tool-callback.md`). `workflow` mirrors the
+platform's three workflow entities — `artifact` / `variant` / `revision`, each an `{id, slug,
+version}` reference — and `is_draft` says whether the run targets a committed revision or a
+playground draft. The conversation id is NOT carried here; it rides the top-level `sessionId`. The
+inner keys are deliberately snake_case — they are the binding namespace a `call.context` value
+(`"$ctx.<dotted.path>"`, e.g. `"$ctx.workflow.variant.id"`) addresses, not the wire's usual
+camelCase. Omitted when there is no identity to bind, so a run that needs no binding stays
+byte-identical.
 
 Two splits matter for back-compat. `provider` and `connection` appear only when the model
 arrives as a structured `model_ref`; a plain string like `"gpt-5.5"` leaves them off so the

@@ -9,13 +9,13 @@ from functools import wraps
 
 from fastapi import HTTPException
 
-from oss.src.core.workflows.types import ReservedWorkflowSlug
+from oss.src.core.workflows.types import StaticWorkflowSlug
 
 
-class ReservedWorkflowSlugException(HTTPException):
+class StaticWorkflowSlugException(HTTPException):
     def __init__(
         self,
-        message: str = "The slug prefix '_agenta.' is reserved for platform workflows.",
+        message: str = "The slug prefix '__ag__' is reserved for static workflows.",
     ):
         super().__init__(status_code=400, detail=message)
 
@@ -26,8 +26,8 @@ def handle_workflow_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
-            except ReservedWorkflowSlug as e:
-                raise ReservedWorkflowSlugException(message=e.message) from e
+            except StaticWorkflowSlug as e:
+                raise StaticWorkflowSlugException(message=e.message) from e
 
         return wrapper
 

@@ -682,7 +682,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 />
                 {/* Waiting indicator stays inside the last message so the reserve keeps it on-screen. */}
                 {isLast && status === "submitted" && message.role !== "assistant" && (
-                    <Bubble placement="start" variant="outlined" loading content="" />
+                    <Bubble placement="start" variant="borderless" loading content="" />
                 )}
                 {/* Stopped tag + Resend belong only to the LAST assistant turn (the one you cancelled),
                     gated on position so it can never smear onto past turns. Cleared on resend / ask. */}

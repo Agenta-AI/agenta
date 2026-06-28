@@ -1065,8 +1065,8 @@ _DEFAULT_AGENTS_MD = (
 
 # The single source of the run-selection defaults. The SDK builtin interface
 # (`agenta:builtin:agent:v0`) and the agent service (`AGENT_SCHEMAS` / the value
-# `AgentConfig.from_params` falls back to) both consume these via `build_agent_v0_default`, so a new
-# default changes one place. The harness default also seeds `AgentConfigSchema.harness`.
+# `AgentTemplate.from_params` falls back to) both consume these via `build_agent_v0_default`, so a new
+# default changes one place. The harness default also seeds `AgentTemplateSchema.harness`.
 _DEFAULT_HARNESS = "pi_core"
 _DEFAULT_SANDBOX = "local"
 _DEFAULT_PERMISSION_POLICY = "auto"
@@ -1082,7 +1082,13 @@ def _harness_field_schema_extra() -> Dict[str, Any]:
     Carries BOTH a flat ``enum`` of the bare values (so every existing consumer that reads
     ``schema.enum`` keeps working) and a ``oneOf`` of ``{const, title, x-ag-harness-slug}`` (so the
     playground shows the display name and the harness's versioned slug identity rides alongside its
-    bare value). The stored/wire harness value is still the bare ``const`` string."""
+    bare value). The stored/wire harness value is still the bare ``const`` string.
+
+    ``x-ag-harness-ref`` declares that this field's value selects a record in the ``harnesses``
+    catalog (``GET /catalog/harnesses/{value}``), where its capabilities live — the same
+    catalog/ref mechanism as ``x-ag-type-ref`` -> ``/catalog/types/``. The frontend resolves it
+    to drive the harness-filtered provider/model picker, instead of reading an inlined inspect
+    ``meta`` field."""
     return {
         "enum": [identity.value for identity in HARNESS_IDENTITIES],
         "oneOf": [
@@ -1093,24 +1099,25 @@ def _harness_field_schema_extra() -> Dict[str, Any]:
             }
             for identity in HARNESS_IDENTITIES
         ],
+        "x-ag-harness-ref": "harness",
     }
 
 
-class AgentConfigSchema(AgSchemaMixin):
+class AgentTemplateSchema(AgSchemaMixin):
     """The playground's editable agent config (the ``agent`` element), as one semantic type.
 
-    This is the schema-generation counterpart to the runtime :class:`agenta.sdk.agents.AgentConfig`
-    parser: it exists only to emit a rich JSON Schema for the ``agent_config`` control, so the
+    This is the schema-generation counterpart to the runtime :class:`agenta.sdk.agents.AgentTemplate`
+    parser: it exists only to emit a rich JSON Schema for the ``agent-template`` control, so the
     field shapes live in Pydantic (single source of truth) instead of a hand-written literal.
     It composes every editable field the control surfaces — the definition
     (``agents_md``/``model``/``tools``/``mcp_servers``) and the run-selection fields
     (``harness``/``sandbox``/``permission_policy``), all one config — and types
     ``tools``/``mcp_servers`` with the real tool-def models so the playground gets typed editors.
-    The runtime ``AgentConfig`` stays permissive (``List[Any]``) because its job is to coerce the
+    The runtime ``AgentTemplate`` stays permissive (``List[Any]``) because its job is to coerce the
     loose shapes the playground emits; this model is strict because its job is to describe them.
     """
 
-    __ag_type__ = "agent_config"
+    __ag_type__ = "agent-template"
 
     agents_md: str = Field(
         default=_DEFAULT_AGENTS_MD,
@@ -1177,12 +1184,12 @@ class AgentConfigSchema(AgSchemaMixin):
             "enforcement (strict or best-effort). Optional; unset means no declared boundary."
         ),
     )
-    skills: List[Union["SkillConfigSchema", "_SkillEmbedRefSchema"]] = Field(
+    skills: List[Union["_SkillTemplateRefSchema", "_SkillEmbedRefSchema"]] = Field(
         default_factory=list,
         title="Skills",
         description=(
-            "Skills the agent ships: each is an inline SKILL.md package (name, description, "
-            "body, optional bundled files) or an @ag.embed reference to a stored skill the "
+            "Skills the agent ships: each is an inline skill template (resolved from the "
+            "``skill-template`` catalog type) or an @ag.embed reference to a stored skill the "
             "backend inlines into that same shape before the runner sees it."
         ),
     )
@@ -1193,7 +1200,7 @@ def build_agent_v0_default(
     skill_slug: Optional[str] = None,
     include_sandbox_permission: bool = False,
 ) -> Dict[str, Any]:
-    """The default `agent_config` value, shared by the builtin interface and the service.
+    """The default `agent-template` value, shared by the builtin interface and the service.
 
     Base shape (always): instructions, model, empty tools/MCP, the run selection
     (harness/sandbox/permission policy). ``include_sandbox_permission`` adds the declared
@@ -1270,18 +1277,18 @@ class _SkillFileSchema(BaseModel):
     )
 
 
-class SkillConfigSchema(AgSchemaMixin):
+class SkillTemplateSchema(AgSchemaMixin):
     """The playground's editable inline-skill package (one ``skills`` entry), as one semantic type.
 
-    Schema-generation counterpart to the runtime :class:`agenta.sdk.agents.SkillConfig`: it emits
-    a rich JSON Schema for the ``skill_config`` control. The runtime model coerces the loose shapes
+    Schema-generation counterpart to the runtime :class:`agenta.sdk.agents.SkillTemplate`: it emits
+    a rich JSON Schema for the ``skill-template`` control. The runtime model coerces the loose shapes
     the playground emits; this strict twin describes them. A skill that lives elsewhere is authored
     as an ``@ag.embed`` reference instead, which the backend inlines into this same shape.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    __ag_type__ = "skill_config"
+    __ag_type__ = "skill-template"
 
     name: str = Field(
         min_length=1,
@@ -1325,7 +1332,7 @@ class _SkillEmbedRefSchema(BaseModel):
 
     The seeded default config and the playground both keep skills the user references (rather than
     writes inline) as a bare ``{"@ag.embed": {...}}`` object; the backend's embed resolver inlines
-    it into a :class:`SkillConfigSchema` shape before the runner sees it. So the raw/advanced
+    it into a :class:`SkillTemplateSchema` shape before the runner sees it. So the raw/advanced
     schema must accept this reference form alongside the inline package, or a valid default would
     fail validation. The embed body is intentionally permissive (``Dict[str, Any]``) — its inner
     ``@ag.references`` / ``@ag.selector`` keys are the embed resolver's contract, not this schema's.
@@ -1338,6 +1345,25 @@ class _SkillEmbedRefSchema(BaseModel):
         title="Embed reference",
         description="An @ag.embed reference resolved server-side into an inline skill package.",
     )
+
+
+class _SkillTemplateRefSchema(AgSchemaMixin):
+    """The inline ``skills`` arm, emitted as a bare ``{x-ag-type-ref: "skill-template"}`` node.
+
+    The agent config no longer inlines the full skill-template schema; it points at the
+    ``skill-template`` catalog type (``/catalog/types/skill-template``) the same way inputs point at
+    ``messages``. The frontend resolves the ref to render the editor. The author still writes an
+    inline skill package here; its full shape lives in the resolved ``skill-template`` type.
+    """
+
+    __ag_type_ref__ = "skill-template"
+
+    model_config = ConfigDict(extra="allow")
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        # A pure ref node: only the x-ag-type-ref marker, no inlined object shape.
+        return {"x-ag-type-ref": cls.__ag_type_ref__}
 
 
 class _ToolEmbedRefSchema(BaseModel):
@@ -1360,9 +1386,9 @@ class _ToolEmbedRefSchema(BaseModel):
     )
 
 
-# Resolve the forward references on AgentConfigSchema.skills + tools (inline / embed).
+# Resolve the forward references on AgentTemplateSchema.skills + tools (inline / embed).
 # A workflow referenced as a tool is the ``type:"reference"`` arm of ``ToolConfig`` itself.
-AgentConfigSchema.model_rebuild()
+AgentTemplateSchema.model_rebuild()
 
 
 CATALOG_TYPES = {
@@ -1378,11 +1404,11 @@ CATALOG_TYPES = {
     AgPermissions.ag_type(): _dereference_schema(AgPermissions.model_json_schema()),
     AgResponse.ag_type(): _dereference_schema(AgResponse.model_json_schema()),
     PromptTemplate.ag_type(): _dereference_schema(PromptTemplate.model_json_schema()),
-    AgentConfigSchema.ag_type(): _dereference_schema(
-        AgentConfigSchema.model_json_schema()
+    AgentTemplateSchema.ag_type(): _dereference_schema(
+        AgentTemplateSchema.model_json_schema()
     ),
-    SkillConfigSchema.ag_type(): _dereference_schema(
-        SkillConfigSchema.model_json_schema()
+    SkillTemplateSchema.ag_type(): _dereference_schema(
+        SkillTemplateSchema.model_json_schema()
     ),
     # The `/run` wire contract (request + result), exported from the dedicated Pydantic wire
     # models in `agenta.sdk.agents.wire_models`. This puts the service<->runner wire interface in

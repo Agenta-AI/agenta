@@ -138,12 +138,31 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
 def harness_capabilities_document() -> Dict[str, Dict[str, object]]:
     """The capability table as a plain JSON-able dict, keyed by harness type.
 
-    This is the exact shape the agent service publishes on the ``/inspect`` response ``meta``
-    (under ``harness_capabilities``). A plain dict so it serializes without a model import on the
-    consumer side (the frontend / a direct ``/inspect`` reader).
+    The connection-capability source of truth, used server-side for the agent-layer capability
+    checks (``harness_allows_provider`` / ``_mode`` / ``_deployment``). A plain dict so it
+    serializes without a model import on the consumer side.
+
+    NOT shipped on ``/inspect`` anymore. The frontend reads harness capabilities from the
+    ``harnesses`` catalog (``GET /catalog/harnesses/{ag_harness}``), built from
+    :func:`harness_catalog_document`, resolved by ``x-ag-harness-ref`` — like every other catalog
+    type — instead of an inlined, agent-only ``meta`` field on every inspect call.
     """
     return {
         harness: caps.model_dump()
+        for harness, caps in HARNESS_CONNECTION_CAPABILITIES.items()
+    }
+
+
+def harness_catalog_document() -> Dict[str, Dict[str, object]]:
+    """The ``harnesses`` catalog as a plain JSON-able dict, keyed by harness id.
+
+    One record per harness. ``capabilities`` is a FIELD (the connection-capability shape) so a
+    record can grow other harness facts (display name, default model, ...) without changing the
+    envelope. Served by ``GET /catalog/harnesses/`` and ``/{ag_harness}``; referenced from a
+    template's harness field via ``x-ag-harness-ref``.
+    """
+    return {
+        harness: {"harness": harness, "capabilities": caps.model_dump()}
         for harness, caps in HARNESS_CONNECTION_CAPABILITIES.items()
     }
 

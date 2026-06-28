@@ -5,12 +5,11 @@ import typing
 
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
-from ..types.ee_src_models_api_organization_models_organization import EeSrcModelsApiOrganizationModelsOrganization
 from ..types.invite_request import InviteRequest
+from ..types.organization import Organization
 from ..types.organization_details import OrganizationDetails
 from ..types.organization_domain_response import OrganizationDomainResponse
 from ..types.organization_provider_response import OrganizationProviderResponse
-from ..types.oss_src_models_api_organization_models_organization import OssSrcModelsApiOrganizationModelsOrganization
 from ..types.workspace_response import WorkspaceResponse
 from .raw_client import AsyncRawOrganizationsClient, RawOrganizationsClient
 
@@ -399,6 +398,68 @@ class OrganizationsClient:
         _response = self._raw_client.test_organization_provider(provider_id, request_options=request_options)
         return _response.data
     
+    def list_organizations(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Organization]:
+        """
+        Returns a list of organizations associated with the user's session.
+        
+        Returns:
+            list[Organization]: A list of organizations associated with the user's session.
+        
+        Raises:
+            HTTPException: If there is an error retrieving the organizations from the database.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.List[Organization]
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.organizations.list_organizations()
+        """
+        _response = self._raw_client.list_organizations(request_options=request_options)
+        return _response.data
+    
+    def create_organization(self, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Create a new organization.
+        
+        Parameters
+        ----------
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.organizations.create_organization()
+        """
+        _response = self._raw_client.create_organization(name=name, description=description, request_options=request_options)
+        return _response.data
+    
     def fetch_organization_details(self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> OrganizationDetails:
         """
         Return the details of the organization.
@@ -429,7 +490,7 @@ class OrganizationsClient:
         _response = self._raw_client.fetch_organization_details(organization_id, request_options=request_options)
         return _response.data
     
-    def update_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EeSrcModelsApiOrganizationModelsOrganization:
+    def update_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -450,7 +511,7 @@ class OrganizationsClient:
         
         Returns
         -------
-        EeSrcModelsApiOrganizationModelsOrganization
+        typing.Any
             Successful Response
         
         Examples
@@ -497,7 +558,7 @@ class OrganizationsClient:
         _response = self._raw_client.delete_organization(organization_id, request_options=request_options)
         return _response.data
     
-    def patch_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EeSrcModelsApiOrganizationModelsOrganization:
+    def patch_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -518,7 +579,7 @@ class OrganizationsClient:
         
         Returns
         -------
-        EeSrcModelsApiOrganizationModelsOrganization
+        typing.Any
             Successful Response
         
         Examples
@@ -533,172 +594,6 @@ class OrganizationsClient:
         )
         """
         _response = self._raw_client.patch_organization(organization_id, slug=slug, name=name, description=description, flags=flags, updated_at=updated_at, request_options=request_options)
-        return _response.data
-    
-    def create_workspace(self, organization_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkspaceResponse:
-        """
-        Parameters
-        ----------
-        organization_id : str
-        
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        type : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        WorkspaceResponse
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.organizations.create_workspace(
-            organization_id="organization_id",
-        )
-        """
-        _response = self._raw_client.create_workspace(organization_id, name=name, description=description, type=type, request_options=request_options)
-        return _response.data
-    
-    def update_workspace(self, organization_id: str, workspace_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, updated_at: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkspaceResponse:
-        """
-        Parameters
-        ----------
-        organization_id : str
-        
-        workspace_id : str
-        
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        updated_at : typing.Optional[dt.datetime]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        WorkspaceResponse
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.organizations.update_workspace(
-            organization_id="organization_id",
-            workspace_id="workspace_id",
-        )
-        """
-        _response = self._raw_client.update_workspace(organization_id, workspace_id, name=name, description=description, updated_at=updated_at, request_options=request_options)
-        return _response.data
-    
-    def transfer_organization_ownership(self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
-        """
-        Transfer organization ownership to another member.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        new_owner_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Any
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.organizations.transfer_organization_ownership(
-            organization_id="organization_id",
-            new_owner_id="new_owner_id",
-        )
-        """
-        _response = self._raw_client.transfer_organization_ownership(organization_id, new_owner_id, request_options=request_options)
-        return _response.data
-    
-    def list_organizations(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[OssSrcModelsApiOrganizationModelsOrganization]:
-        """
-        Returns a list of organizations associated with the user's session.
-        
-        Returns:
-            list[Organization]: A list of organizations associated with the user's session.
-        
-        Raises:
-            HTTPException: If there is an error retrieving the organizations from the database.
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.List[OssSrcModelsApiOrganizationModelsOrganization]
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.organizations.list_organizations()
-        """
-        _response = self._raw_client.list_organizations(request_options=request_options)
-        return _response.data
-    
-    def create_organization(self, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
-        """
-        Create a new organization.
-        
-        Parameters
-        ----------
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Any
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.organizations.create_organization()
-        """
-        _response = self._raw_client.create_organization(name=name, description=description, request_options=request_options)
         return _response.data
     
     def invite_user_to_workspace(self, organization_id: str, workspace_id: str, *, request: typing.Sequence[InviteRequest], request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
@@ -845,6 +740,115 @@ class OrganizationsClient:
         )
         """
         _response = self._raw_client.accept_invitation(organization_id, workspace_id, project_id=project_id, token=token, email=email, request_options=request_options)
+        return _response.data
+    
+    def transfer_organization_ownership(self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Transfer organization ownership to another member.
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        new_owner_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.organizations.transfer_organization_ownership(
+            organization_id="organization_id",
+            new_owner_id="new_owner_id",
+        )
+        """
+        _response = self._raw_client.transfer_organization_ownership(organization_id, new_owner_id, request_options=request_options)
+        return _response.data
+    
+    def create_workspace(self, organization_id: str, *, name: str, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkspaceResponse:
+        """
+        Create a new workspace in an organization (owner only).
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        name : str
+        
+        description : typing.Optional[str]
+        
+        type : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkspaceResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.organizations.create_workspace(
+            organization_id="organization_id",
+            name="name",
+        )
+        """
+        _response = self._raw_client.create_workspace(organization_id, name=name, description=description, type=type, request_options=request_options)
+        return _response.data
+    
+    def update_workspace(self, organization_id: str, workspace_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, updated_at: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkspaceResponse:
+        """
+        Update a workspace's details (requires EDIT_WORKSPACE permission).
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        workspace_id : str
+        
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        updated_at : typing.Optional[dt.datetime]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkspaceResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.organizations.update_workspace(
+            organization_id="organization_id",
+            workspace_id="workspace_id",
+        )
+        """
+        _response = self._raw_client.update_workspace(organization_id, workspace_id, name=name, description=description, updated_at=updated_at, request_options=request_options)
         return _response.data
 class AsyncOrganizationsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
@@ -1317,6 +1321,84 @@ class AsyncOrganizationsClient:
         _response = await self._raw_client.test_organization_provider(provider_id, request_options=request_options)
         return _response.data
     
+    async def list_organizations(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Organization]:
+        """
+        Returns a list of organizations associated with the user's session.
+        
+        Returns:
+            list[Organization]: A list of organizations associated with the user's session.
+        
+        Raises:
+            HTTPException: If there is an error retrieving the organizations from the database.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.List[Organization]
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.organizations.list_organizations()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.list_organizations(request_options=request_options)
+        return _response.data
+    
+    async def create_organization(self, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Create a new organization.
+        
+        Parameters
+        ----------
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.organizations.create_organization()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.create_organization(name=name, description=description, request_options=request_options)
+        return _response.data
+    
     async def fetch_organization_details(self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> OrganizationDetails:
         """
         Return the details of the organization.
@@ -1355,7 +1437,7 @@ class AsyncOrganizationsClient:
         _response = await self._raw_client.fetch_organization_details(organization_id, request_options=request_options)
         return _response.data
     
-    async def update_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EeSrcModelsApiOrganizationModelsOrganization:
+    async def update_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -1376,7 +1458,7 @@ class AsyncOrganizationsClient:
         
         Returns
         -------
-        EeSrcModelsApiOrganizationModelsOrganization
+        typing.Any
             Successful Response
         
         Examples
@@ -1439,7 +1521,7 @@ class AsyncOrganizationsClient:
         _response = await self._raw_client.delete_organization(organization_id, request_options=request_options)
         return _response.data
     
-    async def patch_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EeSrcModelsApiOrganizationModelsOrganization:
+    async def patch_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -1460,7 +1542,7 @@ class AsyncOrganizationsClient:
         
         Returns
         -------
-        EeSrcModelsApiOrganizationModelsOrganization
+        typing.Any
             Successful Response
         
         Examples
@@ -1483,212 +1565,6 @@ class AsyncOrganizationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.patch_organization(organization_id, slug=slug, name=name, description=description, flags=flags, updated_at=updated_at, request_options=request_options)
-        return _response.data
-    
-    async def create_workspace(self, organization_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkspaceResponse:
-        """
-        Parameters
-        ----------
-        organization_id : str
-        
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        type : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        WorkspaceResponse
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.organizations.create_workspace(
-                organization_id="organization_id",
-            )
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.create_workspace(organization_id, name=name, description=description, type=type, request_options=request_options)
-        return _response.data
-    
-    async def update_workspace(self, organization_id: str, workspace_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, updated_at: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkspaceResponse:
-        """
-        Parameters
-        ----------
-        organization_id : str
-        
-        workspace_id : str
-        
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        updated_at : typing.Optional[dt.datetime]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        WorkspaceResponse
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.organizations.update_workspace(
-                organization_id="organization_id",
-                workspace_id="workspace_id",
-            )
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.update_workspace(organization_id, workspace_id, name=name, description=description, updated_at=updated_at, request_options=request_options)
-        return _response.data
-    
-    async def transfer_organization_ownership(self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
-        """
-        Transfer organization ownership to another member.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        new_owner_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Any
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.organizations.transfer_organization_ownership(
-                organization_id="organization_id",
-                new_owner_id="new_owner_id",
-            )
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.transfer_organization_ownership(organization_id, new_owner_id, request_options=request_options)
-        return _response.data
-    
-    async def list_organizations(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[OssSrcModelsApiOrganizationModelsOrganization]:
-        """
-        Returns a list of organizations associated with the user's session.
-        
-        Returns:
-            list[Organization]: A list of organizations associated with the user's session.
-        
-        Raises:
-            HTTPException: If there is an error retrieving the organizations from the database.
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.List[OssSrcModelsApiOrganizationModelsOrganization]
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.organizations.list_organizations()
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.list_organizations(request_options=request_options)
-        return _response.data
-    
-    async def create_organization(self, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
-        """
-        Create a new organization.
-        
-        Parameters
-        ----------
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Any
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.organizations.create_organization()
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.create_organization(name=name, description=description, request_options=request_options)
         return _response.data
     
     async def invite_user_to_workspace(self, organization_id: str, workspace_id: str, *, request: typing.Sequence[InviteRequest], request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
@@ -1859,4 +1735,137 @@ class AsyncOrganizationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.accept_invitation(organization_id, workspace_id, project_id=project_id, token=token, email=email, request_options=request_options)
+        return _response.data
+    
+    async def transfer_organization_ownership(self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Transfer organization ownership to another member.
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        new_owner_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.organizations.transfer_organization_ownership(
+                organization_id="organization_id",
+                new_owner_id="new_owner_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.transfer_organization_ownership(organization_id, new_owner_id, request_options=request_options)
+        return _response.data
+    
+    async def create_workspace(self, organization_id: str, *, name: str, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkspaceResponse:
+        """
+        Create a new workspace in an organization (owner only).
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        name : str
+        
+        description : typing.Optional[str]
+        
+        type : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkspaceResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.organizations.create_workspace(
+                organization_id="organization_id",
+                name="name",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.create_workspace(organization_id, name=name, description=description, type=type, request_options=request_options)
+        return _response.data
+    
+    async def update_workspace(self, organization_id: str, workspace_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, updated_at: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkspaceResponse:
+        """
+        Update a workspace's details (requires EDIT_WORKSPACE permission).
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        workspace_id : str
+        
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        updated_at : typing.Optional[dt.datetime]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkspaceResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.organizations.update_workspace(
+                organization_id="organization_id",
+                workspace_id="workspace_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.update_workspace(organization_id, workspace_id, name=name, description=description, updated_at=updated_at, request_options=request_options)
         return _response.data

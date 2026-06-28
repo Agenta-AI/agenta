@@ -1,7 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {playgroundController} from "@agenta/playground"
+import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
@@ -19,6 +19,8 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
+    // Agent mode is single-panel (no comparison grid), so "Close panel" doesn't apply.
+    const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
 
     const closePanelDisabled = useMemo(() => {
         return selectedVariants.length === 1 && selectedVariants.includes(variantId)
@@ -59,18 +61,23 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 ),
                 icon: <Trash size={16} />,
             },
-            {type: "divider"},
-            {
-                key: "close",
-                label: "Close panel",
-                disabled: closePanelDisabled,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    handleClosePanel()
-                },
-            },
+            // Agent mode is single-panel, so there's nothing to close — hide it (and its divider).
+            ...(!isAgent
+                ? [
+                      {type: "divider" as const},
+                      {
+                          key: "close",
+                          label: "Close panel",
+                          disabled: closePanelDisabled,
+                          onClick: (e: {domEvent: {stopPropagation: () => void}}) => {
+                              e.domEvent.stopPropagation()
+                              handleClosePanel()
+                          },
+                      },
+                  ]
+                : []),
         ],
-        [handleClosePanel, closePanelDisabled, variantId, handleDiscardDraft, isDirty],
+        [handleClosePanel, closePanelDisabled, variantId, handleDiscardDraft, isDirty, isAgent],
     )
 
     return (

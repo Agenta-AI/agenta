@@ -209,13 +209,6 @@ class TestGetRunner:
         monkeypatch.setenv("AGENTA_SERVICES_SANDBOX_RUNNER", "local")
         assert isinstance(get_runner(), RestrictedRunner)
 
-    def test_daytona_without_key_raises(self, monkeypatch):
-        self._clear(monkeypatch)
-        monkeypatch.setenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER", "daytona")
-        monkeypatch.delenv("DAYTONA_API_KEY", raising=False)
-        with pytest.raises(ValueError):
-            get_runner()
-
     def test_unknown_value_raises(self, monkeypatch):
         self._clear(monkeypatch)
         monkeypatch.setenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER", "nope")

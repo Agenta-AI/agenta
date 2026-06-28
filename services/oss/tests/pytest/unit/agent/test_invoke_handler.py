@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from agenta.sdk.agents import (
-    AgentConfig,
+    AgentTemplate,
     AgentResult,
     ConnectionNotFoundError,
     ConnectionResolutionError,
@@ -74,7 +74,9 @@ def _patch_handler(monkeypatch, backend, *, builtins=(), tool_callback=None):
     )
     monkeypatch.setattr(app, "select_backend", lambda selection: backend)
     monkeypatch.setattr(
-        app, "_default_agent_config", lambda: AgentConfig(instructions="x", model="m")
+        app,
+        "_default_agent_template",
+        lambda: AgentTemplate(instructions="x", model="m"),
     )
     return recorded
 
@@ -95,7 +97,10 @@ async def _invoke(harness="pi_core", **agent):
 
 
 async def test_invoke_returns_assistant_message(patched):
-    assert await _invoke("pi_core") == {"role": "assistant", "content": "echo"}
+    # Agent v0 output is `outputs.messages`, so a batch turn returns the {messages: [...]} envelope.
+    assert await _invoke("pi_core") == {
+        "messages": [{"role": "assistant", "content": "echo"}]
+    }
 
 
 async def test_invoke_records_usage(patched):
@@ -160,14 +165,19 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     ]
     pi_body, agenta_body, claude_body = bodies
 
-    # (1) Response-layer guarantee: identical body regardless of harness.
+    # (1) Response-layer guarantee: identical body regardless of harness. Agent v0 output is
+    # `outputs.messages`, so each body is the {messages: [...]} envelope.
     assert (
         pi_body
         == agenta_body
         == claude_body
         == {
-            "role": "assistant",
-            "content": "echo",
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": "echo",
+                }
+            ]
         }
     )
 
@@ -216,8 +226,8 @@ async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
     monkeypatch.setattr(app, "resolve_tools", _failure)
     monkeypatch.setattr(
         app,
-        "_default_agent_config",
-        lambda: AgentConfig(
+        "_default_agent_template",
+        lambda: AgentTemplate(
             tools=[
                 {
                     "type": "gateway",
@@ -283,7 +293,9 @@ def _patch_resolution(monkeypatch, backend, *, resolve):
     monkeypatch.setattr(app, "record_usage", lambda usage: None)
     monkeypatch.setattr(app, "select_backend", lambda selection: backend)
     monkeypatch.setattr(
-        app, "_default_agent_config", lambda: AgentConfig(instructions="x", model="m")
+        app,
+        "_default_agent_template",
+        lambda: AgentTemplate(instructions="x", model="m"),
     )
     return built
 
@@ -395,7 +407,7 @@ async def test_default_connection_resolution_failure_degrades(
 
     body = await _invoke("pi_core", model={"provider": "openai", "model": "gpt-5.5"})
 
-    assert body == {"role": "assistant", "content": "echo"}
+    assert body == {"messages": [{"role": "assistant", "content": "echo"}]}
     assert backend.created_secrets == [{}]
     assert built[0].secrets == {}
     assert built[0].resolved_connection.credential_mode == "runtime_provided"
@@ -465,7 +477,7 @@ async def test_claude_bedrock_reaches_session(monkeypatch, fake_backend):
         "claude", model={"provider": "anthropic", "model": "anthropic.claude-x"}
     )
 
-    assert body == {"role": "assistant", "content": "echo"}
+    assert body == {"messages": [{"role": "assistant", "content": "echo"}]}
     assert built[0].resolved_connection.deployment == "bedrock"
     assert built[0].secrets == {"AWS_ACCESS_KEY_ID": "AKIA", "AWS_REGION": "us-east-1"}
 

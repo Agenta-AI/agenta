@@ -708,6 +708,53 @@ class RawTriggersClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def test_trigger_subscription(self, *, subscription: TriggerSubscriptionCreate, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TriggerDeliveryResponse]:
+        """
+        Parameters
+        ----------
+        subscription : TriggerSubscriptionCreate
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[TriggerDeliveryResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "triggers/subscriptions/test",method="POST",
+            json={
+                "subscription": convert_and_respect_annotation_metadata(object_=subscription, annotation=TriggerSubscriptionCreate, direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    TriggerDeliveryResponse,
+                    parse_obj_as(
+                        type_ =TriggerDeliveryResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def refresh_trigger_subscription(self, subscription_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TriggerSubscriptionResponse]:
         """
         Parameters
@@ -2088,6 +2135,53 @@ class AsyncRawTriggersClient:
                     TriggerSubscriptionsResponse,
                     parse_obj_as(
                         type_ =TriggerSubscriptionsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def test_trigger_subscription(self, *, subscription: TriggerSubscriptionCreate, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TriggerDeliveryResponse]:
+        """
+        Parameters
+        ----------
+        subscription : TriggerSubscriptionCreate
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[TriggerDeliveryResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "triggers/subscriptions/test",method="POST",
+            json={
+                "subscription": convert_and_respect_annotation_metadata(object_=subscription, annotation=TriggerSubscriptionCreate, direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    TriggerDeliveryResponse,
+                    parse_obj_as(
+                        type_ =TriggerDeliveryResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )

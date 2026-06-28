@@ -16,7 +16,7 @@ import pytest
 
 from agenta.sdk.agents import AgentResult, HarnessType
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
-from agenta.sdk.agents.streaming import AgentRun
+from agenta.sdk.agents.streaming import AgentStream
 
 
 class _FakeSandbox(Sandbox):
@@ -43,16 +43,24 @@ class _FakeSession(Session):
     async def prompt(self, messages, *, on_event=None) -> AgentResult:
         return self._result
 
-    def stream(self, messages) -> AgentRun:
+    def stream(self, messages) -> AgentStream:
         result = self._result
 
         async def _records():
+            # The terminal record carries the same coalesced result the one-shot path would
+            # return (output + usage + session id), so the handler's drain-and-coalesce sees
+            # usage exactly as a live run does.
             yield {
                 "kind": "result",
-                "result": {"ok": True, "output": result.output},
+                "result": {
+                    "ok": True,
+                    "output": result.output,
+                    "usage": result.usage,
+                    "sessionId": result.session_id,
+                },
             }
 
-        return AgentRun(_records())
+        return AgentStream(_records())
 
     async def destroy(self) -> None:
         self.destroyed = True
@@ -62,7 +70,7 @@ class FakeBackend(Backend):
     """Echoes a fixed result, regardless of harness. Records lifecycle for assertions.
 
     Crucially it also records the *harness-shaped* config each ``create_session`` receives
-    (the ``PiAgentConfig`` / ``ClaudeAgentConfig`` / ``AgentaAgentConfig`` the harness
+    (the ``PiAgentTemplate`` / ``ClaudeAgentTemplate`` / ``AgentaAgentTemplate`` the harness
     produced). This is the backend boundary where per-harness translation surfaces, so a
     handler test can assert the response body is identical across harnesses *and* that the
     translated configs diverge as designed (Pi keeps built-ins and forces auto; Claude drops
@@ -90,6 +98,9 @@ class FakeBackend(Backend):
         # This is the credential channel; a Slice 3 test asserts exactly one connection's env
         # reaches the boundary (or nothing, for a runtime_provided / unconfigured run).
         self.created_secrets: list[Optional[Mapping[str, str]]] = []
+        # The run context threaded into each session (direct-call tools, Phase 3a), in call order,
+        # so a test can assert the service-side run-context population reaches the boundary.
+        self.created_run_contexts: list = []
 
     async def setup(self) -> None:
         self.setup_calls += 1
@@ -101,11 +112,20 @@ class FakeBackend(Backend):
         return _FakeSandbox()
 
     async def create_session(
-        self, sandbox, config, *, harness, secrets=None, trace=None, session_id=None
+        self,
+        sandbox,
+        config,
+        *,
+        harness,
+        secrets=None,
+        trace=None,
+        run_context=None,
+        session_id=None,
     ) -> _FakeSession:
         self.created_configs.append(config)
         self.created_session_ids.append(session_id)
         self.created_secrets.append(secrets)
+        self.created_run_contexts.append(run_context)
         return _FakeSession(self._result)
 
 

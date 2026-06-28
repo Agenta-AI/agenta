@@ -1,37 +1,42 @@
 /**
- * AgentConfigControl
+ * AgentTemplateControl
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
  * of collapsible accordion sections (Model & harness, Instructions, Tools, MCP servers,
  * Advanced), built on the reusable {@link ConfigAccordionSection} primitive so the same
  * pattern can roll out to other config surfaces.
  *
- * Dispatched from `x-ag-type: "agent_config"` / `x-ag-type-ref: "agent_config"` (see
+ * Dispatched from `x-ag-type: "agent-template"` / `x-ag-type-ref: "agent-template"` (see
  * SchemaPropertyRenderer). It reuses the existing schema controls rather than inventing
  * new ones: the model selector (GroupedChoiceControl), the tool picker (ToolSelectorPopover
  * + ToolItemControl), the MCP server editor (McpServerItemControl), enum selects (harness,
  * sandbox, permission policy), and a textarea (agents_md). The field shape is the
- * `agent_config` catalog type generated from the SDK model (AgentConfigSchema in
+ * `agent-template` catalog type generated from the SDK model (AgentTemplateSchema in
  * agenta.sdk.utils.types); the agent service ships a thin `x-ag-type-ref` the playground
  * resolves and reads back (services/oss/src/agent).
  *
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {
+    type ButtonHTMLAttributes,
+    forwardRef,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {HeightCollapse, MarkdownPreview} from "@agenta/ui"
 import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI, type WorkflowReferencePayload} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {
-    CaretDown,
     CaretRight,
-    CaretUp,
     Check,
     Cpu,
     Cube,
@@ -54,7 +59,7 @@ import {useAtomValue} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
-import {agentConfigLayoutAtom} from "./agentConfigLayout"
+import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ClaudePermissionsControl} from "./ClaudePermissionsControl"
 import {ConfigItemDrawer, type ConfigItemView} from "./ConfigItemDrawer"
 import {
@@ -83,7 +88,7 @@ import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover
 import {parseGatewayFunctionName, type ToolObj} from "./toolUtils"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
-export interface AgentConfigControlProps {
+export interface AgentTemplateControlProps {
     schema?: SchemaProperty | null
     label?: string
     value?: Record<string, unknown> | null
@@ -304,11 +309,11 @@ function asObj(value: unknown): Record<string, unknown> | undefined {
         : undefined
 }
 
-/** The reserved slug namespace for platform-owned skills (mirrors the backend `_agenta.*`). */
-const PLATFORM_SKILL_SLUG_PREFIX = "_agenta."
+/** The reserved slug namespace for static (Agenta-owned) skills (mirrors the backend `__ag__*`). */
+const STATIC_SKILL_SLUG_PREFIX = "__ag__"
 
 /** The slug an `@ag.embed` entry points at (a `workflow` or pinned `workflow_revision` reference). */
-function platformEmbedSlug(skill: Record<string, unknown>): string | undefined {
+function staticEmbedSlug(skill: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
     if (!refs) return undefined
     const slug = asObj(refs.workflow)?.slug ?? asObj(refs.workflow_revision)?.slug
@@ -323,29 +328,29 @@ function embedRevisionVersion(skill: Record<string, unknown>): string | undefine
 }
 
 /**
- * Whether a skill entry is platform-owned and so read-only for the author. The reliable client-side
- * signal is the reserved `_agenta.` slug prefix on the embed's referenced workflow (or pinned
- * revision); a resolved object carrying `flags.is_platform === true` counts too.
+ * Whether a skill entry is static (Agenta-owned) and so read-only for the author. The reliable client-side
+ * signal is the reserved `__ag__` slug prefix on the embed's referenced workflow (or pinned
+ * revision); a resolved object carrying `flags.is_static === true` counts too.
  */
-function isPlatformSkill(skill: unknown): boolean {
+function isStaticSkill(skill: unknown): boolean {
     const s = asObj(skill)
     if (!s) return false
-    const slug = platformEmbedSlug(s)
-    if (slug && slug.startsWith(PLATFORM_SKILL_SLUG_PREFIX)) return true
-    return asObj(s.flags)?.is_platform === true
+    const slug = staticEmbedSlug(s)
+    if (slug && slug.startsWith(STATIC_SKILL_SLUG_PREFIX)) return true
+    return asObj(s.flags)?.is_static === true
 }
 
 function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
-    if (isPlatformSkill(s)) {
-        const slug = platformEmbedSlug(s)
+    if (isStaticSkill(s)) {
+        const slug = staticEmbedSlug(s)
         const version = embedRevisionVersion(s)
         return {
-            name: slug ?? "Platform skill",
+            name: slug ?? "Static skill",
             mono: "sk",
             color: "#6b7280",
-            tags: version ? ["platform", `v${version}`] : ["platform"],
-            typeLabel: "platform skill",
+            tags: version ? ["static", `v${version}`] : ["static"],
+            typeLabel: "static skill",
             subtitle: "Provided by Agenta — read-only",
         }
     }
@@ -375,11 +380,13 @@ function describeSkill(skill: unknown): ItemDescriptor {
 /** Strip Markdown syntax to a short single-line preview for an instructions file row. */
 function mdPreview(md: string): string {
     return (md ?? "")
-        .replace(/```[\s\S]*?```/g, " ")
-        .replace(/^#{1,6}\s+/gm, "")
-        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-        .replace(/[*_`>#]/g, "")
-        .replace(/\s+/g, " ")
+        .replace(/```[\s\S]*?```/g, " ") // fenced code blocks
+        .replace(/^#{1,6}\s+/gm, "") // heading markers
+        .replace(/^\s*[-*+]\s+/gm, "") // bullet list markers (so "- Greet…" reads as prose)
+        .replace(/^\s*\d+\.\s+/gm, "") // numbered list markers
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // links/images → their text
+        .replace(/[*_`>#]/g, "") // inline emphasis / quote chars
+        .replace(/\s+/g, " ") // collapse newlines + runs of whitespace
         .trim()
         .slice(0, 140)
 }
@@ -476,9 +483,33 @@ function ItemRow({
 }
 
 /**
- * An instructions markdown file row. Clicking the row opens the editor drawer; the caret toggles an
- * inline, read-only render of the FULL markdown so the content can be reviewed without leaving the
- * panel (the row preview alone is truncated).
+ * A text-only "add" link for a section's empty state — no border/background/padding, just inline
+ * link text inside a muted sentence (the section header keeps the compact `+` for quick-add).
+ *
+ * forwardRef + props spread so it can be a popover trigger (ToolSelectorPopover): the popover
+ * clones the trigger to attach its positioning ref + onClick. Without the ref it can't anchor and
+ * the popover renders at the top-left and immediately closes.
+ */
+const AddTextLink = forwardRef<
+    HTMLButtonElement,
+    {label: string} & ButtonHTMLAttributes<HTMLButtonElement>
+>(function AddTextLink({label, type = "button", ...rest}, ref) {
+    return (
+        <button
+            ref={ref}
+            type={type}
+            {...rest}
+            className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-c-1677FF,#1677ff)] hover:underline"
+        >
+            {label}
+        </button>
+    )
+})
+
+/**
+ * An instructions markdown file row. Avatar + filename + a 2-line preview of the (markdown-stripped)
+ * content, clamped with an ellipsis. The whole row opens the editor drawer for the full content —
+ * there is no inline expand, so it reads the same as the tool / MCP rows.
  */
 function InstructionsFileRow({
     filename,
@@ -489,9 +520,12 @@ function InstructionsFileRow({
     content: string
     onOpen: () => void
 }) {
-    const [expanded, setExpanded] = useState(false)
     const descriptor = describeInstruction(filename, content)
-    const hasContent = content.trim().length > 0
+    const wordCount = content.trim().split(/\s+/).filter(Boolean).length
+    const meta =
+        wordCount > 0
+            ? `Markdown · ${wordCount} word${wordCount === 1 ? "" : "s"}`
+            : "Markdown · empty"
     return (
         <div
             role="button"
@@ -503,56 +537,42 @@ function InstructionsFileRow({
                     onOpen()
                 }
             }}
-            className="group flex cursor-pointer items-start gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
+            className="group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2.5 transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
         >
             <ItemAvatar descriptor={descriptor} />
             <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-xs font-medium">{filename}</div>
-                {hasContent ? (
-                    // Rendered Markdown preview: clamped to a few lines, animating to its full
-                    // height on expand (CSS interpolate-size, via the shared HeightCollapse).
-                    <HeightCollapse open={expanded} collapsedHeight={58} className="mt-1">
-                        <MarkdownPreview
-                            content={content}
-                            className="text-[var(--ag-c-97A4B0,#97a4b0)]"
-                        />
-                    </HeightCollapse>
-                ) : (
-                    <Typography.Text type="secondary" className="text-xs">
-                        Empty file
+                {/* Identity row: filename (color inherits → theme-correct) + a muted meta, so the
+                    name/type/size reads separately from the content preview below. */}
+                <div className="flex items-baseline gap-2">
+                    <span className="truncate font-mono text-[13px] font-medium leading-tight">
+                        {filename}
+                    </span>
+                    <Typography.Text type="secondary" className="shrink-0 text-[11px]">
+                        {meta}
                     </Typography.Text>
-                )}
+                </div>
+                {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
+                    clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}
+                <Typography.Text
+                    type="secondary"
+                    className="mt-1 line-clamp-2 text-xs leading-snug"
+                >
+                    {descriptor.description}
+                </Typography.Text>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-                {hasContent ? (
-                    <Tooltip title={expanded ? "Show less" : "Show full content"}>
-                        <button
-                            type="button"
-                            aria-label={expanded ? "Show less" : "Show full content"}
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setExpanded((v) => !v)
-                            }}
-                            className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] hover:text-[var(--ag-c-586673,#586673)]"
-                        >
-                            {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
-                        </button>
-                    </Tooltip>
-                ) : null}
-                <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
-            </div>
+            <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
         </div>
     )
 }
 
-export function AgentConfigControl({
+export function AgentTemplateControl({
     schema,
     value,
     onChange,
     withTooltip,
     disabled,
     className,
-}: AgentConfigControlProps) {
+}: AgentTemplateControlProps) {
     const {gatewayTools, workflowReference} = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
 
@@ -620,8 +640,8 @@ export function AgentConfigControl({
 
     // How the config sections are laid out: stacked accordion (default), tabs, or cards.
     // Layout is a global, persisted preference set from the variant header menu (see
-    // agentConfigLayout); the panel only reads it.
-    const layout = useAtomValue(agentConfigLayoutAtom)
+    // agentTemplateLayout); the panel only reads it.
+    const layout = useAtomValue(agentTemplateLayoutAtom)
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
 
     // Update a single field of the agent config, leaving the rest intact.
@@ -881,7 +901,7 @@ export function AgentConfigControl({
 
     // Skills are a sibling of tools/MCP: a flat array on the agent config. Each entry is an inline
     // SKILL.md package (name + description + body + files + flags) or an `@ag.embed` reference the
-    // backend inlines — the `skill_config` catalog type (SkillConfigSchema in the SDK).
+    // backend inlines — the `skill-template` catalog type (SkillTemplateSchema in the SDK).
     const skills = useMemo(
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
@@ -1357,7 +1377,7 @@ export function AgentConfigControl({
                 <LabeledField
                     label="Connection"
                     description="Which stored connection supplies the credential. Project default uses the project's provider key."
-                    withTooltip
+                    withTooltip={withTooltip}
                 >
                     <Select<string>
                         value={connection.slug ?? "__default__"}
@@ -1559,38 +1579,40 @@ export function AgentConfigControl({
                 />
             ) : undefined,
             defaultOpen: true,
-            content: (
-                <>
-                    {tools.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            {tools.map((tool, index) => (
-                                <ItemRow
-                                    key={`tool-${index}`}
-                                    descriptor={describeTool(tool)}
-                                    onEdit={() =>
-                                        openEdit(
-                                            "tool",
-                                            index,
-                                            tool,
-                                            isFunctionTool(tool) ? "form" : "json",
-                                        )
-                                    }
-                                    onRemove={() => {
-                                        handleToolDelete(index)
-                                        closeEditor()
-                                    }}
-                                    disabled={disabled}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    {!disabled && (
-                        <div>
-                            <ToolSelectorPopover {...toolSelectorProps} />
-                        </div>
-                    )}
-                </>
-            ),
+            content:
+                tools.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                        {tools.map((tool, index) => (
+                            <ItemRow
+                                key={`tool-${index}`}
+                                descriptor={describeTool(tool)}
+                                onEdit={() =>
+                                    openEdit(
+                                        "tool",
+                                        index,
+                                        tool,
+                                        isFunctionTool(tool) ? "form" : "json",
+                                    )
+                                }
+                                onRemove={() => {
+                                    handleToolDelete(index)
+                                    closeEditor()
+                                }}
+                                disabled={disabled}
+                            />
+                        ))}
+                    </div>
+                ) : !disabled ? (
+                    // Empty: a muted line whose action is a borderless text link (the header + adds
+                    // once there are items). The link is the ToolSelectorPopover trigger.
+                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        No tools yet —{" "}
+                        <ToolSelectorPopover
+                            {...toolSelectorProps}
+                            trigger={<AddTextLink label="add a tool" />}
+                        />
+                    </span>
+                ) : null,
         },
         hasMcp && {
             key: "mcp",
@@ -1599,33 +1621,28 @@ export function AgentConfigControl({
             summary: countSummary(mcpServers.length, "server"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
-            content: (
-                <>
-                    {mcpServers.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            {mcpServers.map((server, index) => (
-                                <ItemRow
-                                    key={`mcp-${index}`}
-                                    descriptor={describeMcp(server)}
-                                    onEdit={() => openEdit("mcp", index, server, "form")}
-                                    onRemove={() => {
-                                        handleMcpServerDelete(index)
-                                        closeEditor()
-                                    }}
-                                    disabled={disabled}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    {!disabled && (
-                        <div>
-                            <Button icon={<Plus size={14} />} onClick={handleAddMcpServer}>
-                                Add MCP server
-                            </Button>
-                        </div>
-                    )}
-                </>
-            ),
+            content:
+                mcpServers.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                        {mcpServers.map((server, index) => (
+                            <ItemRow
+                                key={`mcp-${index}`}
+                                descriptor={describeMcp(server)}
+                                onEdit={() => openEdit("mcp", index, server, "form")}
+                                onRemove={() => {
+                                    handleMcpServerDelete(index)
+                                    closeEditor()
+                                }}
+                                disabled={disabled}
+                            />
+                        ))}
+                    </div>
+                ) : !disabled ? (
+                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        No MCP servers yet —{" "}
+                        <AddTextLink label="add a server" onClick={handleAddMcpServer} />
+                    </span>
+                ) : null,
         },
         hasSkills && {
             key: "skills",
@@ -1634,42 +1651,36 @@ export function AgentConfigControl({
             summary: countSummary(skills.length, "skill"),
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
-            content: (
-                <>
-                    {skills.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            {skills.map((skill, index) => (
-                                <ItemRow
-                                    key={`skill-${index}`}
-                                    descriptor={describeSkill(skill)}
-                                    onEdit={() =>
-                                        openEdit(
-                                            "skill",
-                                            index,
-                                            skill,
-                                            isEmbedRefSkill(skill) ? "json" : "form",
-                                        )
-                                    }
-                                    onRemove={() => {
-                                        handleSkillDelete(index)
-                                        closeEditor()
-                                    }}
-                                    // Platform skills (`_agenta.*`) are read-only: no remove, and
-                                    // the drawer opens disabled (see the skill drawer below).
-                                    disabled={disabled || isPlatformSkill(skill)}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    {!disabled && (
-                        <div>
-                            <Button icon={<Plus size={14} />} onClick={handleAddSkill}>
-                                Add skill
-                            </Button>
-                        </div>
-                    )}
-                </>
-            ),
+            content:
+                skills.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                        {skills.map((skill, index) => (
+                            <ItemRow
+                                key={`skill-${index}`}
+                                descriptor={describeSkill(skill)}
+                                onEdit={() =>
+                                    openEdit(
+                                        "skill",
+                                        index,
+                                        skill,
+                                        isEmbedRefSkill(skill) ? "json" : "form",
+                                    )
+                                }
+                                onRemove={() => {
+                                    handleSkillDelete(index)
+                                    closeEditor()
+                                }}
+                                // Static skills (`__ag__*`) are read-only: no remove, and
+                                // the drawer opens disabled (see the skill drawer below).
+                                disabled={disabled || isStaticSkill(skill)}
+                            />
+                        ))}
+                    </div>
+                ) : !disabled ? (
+                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        No skills yet — <AddTextLink label="add a skill" onClick={handleAddSkill} />
+                    </span>
+                ) : null,
         },
         hasAdvanced && {
             key: "advanced",
@@ -1698,6 +1709,11 @@ export function AgentConfigControl({
                     No agent configuration fields are available for this schema.
                 </Typography.Text>
             ) : layout === "tabs" ? (
+                // Tabs renders each section's body inline (it does not thread `onOpen`). For the two
+                // drawer sections (Model & harness, Advanced) that means live editing without the
+                // drawer's draft/cancel — intentional: Tabs is a non-default, see-everything layout,
+                // and live edits match the rest of the playground (edit → dirty → commit). The
+                // draft/cancel drawer is an accordion/cards nicety, not a correctness requirement.
                 <Tabs
                     items={sections.map((s) => ({
                         key: s.key,
@@ -1850,14 +1866,14 @@ export function AgentConfigControl({
                     onSave={commitDraft}
                     saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
                     jsonOnly={isEmbedRefSkill(draft)}
-                    // Platform skills (`_agenta.*`) are read-only — view their JSON but can't edit.
-                    disabled={disabled || isPlatformSkill(draft)}
+                    // Static skills (`__ag__*`) are read-only — view their JSON but can't edit.
+                    disabled={disabled || isStaticSkill(draft)}
                     form={
                         <SkillFormView
                             key={`skill-form-${editing.mode}-${editing.index}`}
                             value={draft}
                             onChange={(v) => setDraft(v)}
-                            disabled={disabled || isPlatformSkill(draft)}
+                            disabled={disabled || isStaticSkill(draft)}
                         />
                     }
                     json={
@@ -1866,7 +1882,7 @@ export function AgentConfigControl({
                             value={draft}
                             onChange={(v) => setDraft(v as Record<string, unknown>)}
                             onValidityChange={(valid) => setJsonInvalid(!valid)}
-                            disabled={disabled || isPlatformSkill(draft)}
+                            disabled={disabled || isStaticSkill(draft)}
                         />
                     }
                 />

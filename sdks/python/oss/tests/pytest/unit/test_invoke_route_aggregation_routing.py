@@ -64,11 +64,14 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
-def _post(client, *, accept, flags=None):
+def _post(client, *, accept, flags=None, history_header=None):
     body = {"data": {"inputs": {"value": "x"}}}
     if flags is not None:
         body["flags"] = flags
-    return client.post("/invoke", json=body, headers={"accept": accept})
+    headers = {"accept": accept}
+    if history_header is not None:
+        headers["x-ag-messages-history"] = history_header
+    return client.post("/invoke", json=body, headers=headers)
 
 
 def test_json_accept_aggregates_streaming_handler_to_batch():
@@ -88,6 +91,38 @@ def test_json_accept_default_history_is_last_only():
     assert resp.status_code == 200
     body = resp.json()
     assert body["data"]["outputs"] == ["b:x"]
+
+
+def test_history_full_header_keeps_full_list():
+    # Negotiation 3: `x-ag-messages-history: full` is HTTP sugar for `flags.history=True`,
+    # mirroring Accept->stream. A batch Accept aggregates; history=full keeps all events.
+    with _offline_tracing():
+        resp = _post(_client(), accept="application/json", history_header="full")
+
+    assert resp.status_code == 200
+    assert resp.json()["data"]["outputs"] == ["a:x", "b:x"]
+
+
+def test_history_last_header_trims_to_last():
+    with _offline_tracing():
+        resp = _post(_client(), accept="application/json", history_header="last")
+
+    assert resp.status_code == 200
+    assert resp.json()["data"]["outputs"] == ["b:x"]
+
+
+def test_explicit_history_flag_wins_over_header():
+    # body flag history=True must NOT be overridden by the `last` header (body wins).
+    with _offline_tracing():
+        resp = _post(
+            _client(),
+            accept="application/json",
+            flags={"history": True},
+            history_header="last",
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["data"]["outputs"] == ["a:x", "b:x"]
 
 
 def test_sse_accept_still_streams():
@@ -140,7 +175,7 @@ def test_error_with_stream_accept_returns_json_error_not_406():
 def _branching_client() -> TestClient:
     """Mirrors the agent handler: reads `request.flags.stream` to branch generator vs batch."""
     from agenta.sdk.models.workflows import (
-        WorkflowRequestFlags,
+        WorkflowInvokeRequestFlags,
         WorkflowServiceRequest,
     )
 
@@ -153,7 +188,7 @@ def _branching_client() -> TestClient:
 
     @route("/", app=app)
     async def wf(request: WorkflowServiceRequest, value: str = "x"):
-        stream = WorkflowRequestFlags(**(request.flags or {})).stream
+        stream = WorkflowInvokeRequestFlags(**(request.flags or {})).stream
         if stream:
 
             async def gen():
