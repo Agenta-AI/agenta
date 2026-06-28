@@ -1357,7 +1357,7 @@ export function AgentConfigControl({
                 <LabeledField
                     label="Connection"
                     description="Which stored connection supplies the credential. Project default uses the project's provider key."
-                    withTooltip
+                    withTooltip={withTooltip}
                 >
                     <Select<string>
                         value={connection.slug ?? "__default__"}

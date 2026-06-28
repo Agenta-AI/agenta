@@ -221,7 +221,7 @@ const AgentChatConversation = ({
                     />
                 ))}
                 {status === "submitted" && messages[messages.length - 1]?.role !== "assistant" && (
-                    <Bubble placement="start" variant="outlined" loading content="" />
+                    <Bubble placement="start" variant="borderless" loading content="" />
                 )}
             </div>
 

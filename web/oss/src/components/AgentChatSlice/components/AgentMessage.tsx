@@ -225,7 +225,7 @@ const AgentMessage = ({
         return (
             <Bubble
                 placement="start"
-                variant="outlined"
+                variant="borderless"
                 avatar={avatarFor(false)}
                 loading
                 content=""

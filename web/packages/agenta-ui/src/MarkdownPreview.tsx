@@ -31,10 +31,13 @@ const MD_CLASS = [
 export function MarkdownPreview({content, className}: MarkdownPreviewProps) {
     const html = useMemo(() => {
         if (!content?.trim()) return ""
+        // DOMPurify needs a DOM, so it can't sanitize on the server. Rather than emit the raw
+        // `marked` output into SSR markup (user-authored content → stored XSS), render nothing on
+        // the server and let the client produce the sanitized HTML. This component only renders in
+        // client surfaces and its content is client-loaded, so there's no real content to lose.
+        if (typeof window === "undefined") return ""
         const raw = marked.parse(content, {async: false, gfm: true, breaks: true}) as string
-        // DOMPurify needs a DOM; on the server fall back to the raw render (this component is only
-        // shown in interactive, client-rendered surfaces).
-        return typeof window === "undefined" ? raw : DOMPurify.sanitize(raw)
+        return DOMPurify.sanitize(raw)
     }, [content])
 
     if (!html) return null
