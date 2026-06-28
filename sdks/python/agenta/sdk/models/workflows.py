@@ -78,6 +78,7 @@ class WorkflowFlags(BaseModel):
     is_match: bool = False
     is_feedback: bool = False
     is_agent: bool = False
+    is_skill: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -87,14 +88,12 @@ class WorkflowFlags(BaseModel):
     has_script: bool = False
     ## function
     has_handler: bool = False
+    # slug-derived
+    is_static: bool = False
     # user-defined
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False
-    is_skill: bool = False
-    # platform-owned (read-only): served from the PlatformWorkflowCatalog under the reserved
-    # `_agenta.*` slug namespace, never the database. A client must not edit or delete it.
-    is_platform: bool = False
 
 
 class WorkflowQueryFlags(BaseModel):
@@ -110,6 +109,7 @@ class WorkflowQueryFlags(BaseModel):
     is_match: Optional[bool] = None
     is_feedback: Optional[bool] = None
     is_agent: Optional[bool] = None
+    is_skill: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
@@ -119,12 +119,12 @@ class WorkflowQueryFlags(BaseModel):
     has_script: Optional[bool] = None
     ## function
     has_handler: Optional[bool] = None
+    # slug-derived
+    is_static: Optional[bool] = None
     # user-defined
     is_application: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_snippet: Optional[bool] = None
-    is_skill: Optional[bool] = None
-    is_platform: Optional[bool] = None
 
 
 class WorkflowInvokeRequestFlags(BaseModel):

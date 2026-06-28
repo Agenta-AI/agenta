@@ -1,6 +1,6 @@
 """Core contracts the workflows service depends on (not concrete DB/DAO).
 
-The :class:`PlatformWorkflowProvider` is the read-only seam for platform-owned workflows served
+The :class:`StaticWorkflowProvider` is the read-only seam for static workflows served
 from code under a reserved slug namespace. ``WorkflowsService`` depends on this interface, never on
 a concrete catalogue, so the layering rule (core depends on interfaces, the composition root wires
 the implementation) holds.
@@ -13,52 +13,48 @@ from uuid import UUID
 from oss.src.core.workflows.dtos import WorkflowRevision
 
 
-class PlatformWorkflowProvider(ABC):
+class StaticWorkflowProvider(ABC):
     """A read-only provider of synthetic, code-defined workflow revisions.
 
-    Platform workflows live under a reserved slug namespace and are served from code, never the
+    Static workflows live under a reserved slug namespace and are served from code, never the
     database. The provider answers two questions for ``WorkflowsService``: whether a slug belongs
     to the reserved namespace (so the service short-circuits before any DB lookup and so user
     create/edit/commit can be rejected), and what synthetic revision a reserved slug resolves to.
     """
 
     @abstractmethod
-    def is_reserved_slug(self, slug: Optional[str]) -> bool:
-        """Whether ``slug`` is in the reserved platform namespace.
+    def is_static_slug(self, slug: Optional[str]) -> bool:
+        """Whether ``slug`` is in the reserved static namespace.
 
         A slug in this namespace is never read from or written to the database.
         """
 
     @abstractmethod
-    def is_reserved_id(self, entity_id: Optional[UUID]) -> bool:
-        """Whether ``entity_id`` is a synthetic platform artifact / variant / revision id.
+    def is_static_id(self, entity_id: Optional[UUID]) -> bool:
+        """Whether ``entity_id`` is a synthetic static artifact / variant / revision id.
 
         Lets an id-only reference short-circuit to the catalogue (deploy emits synthetic ids), so
-        a platform id never DB-queries.
+        a static id never DB-queries.
         """
 
     @abstractmethod
-    def get_revision(
+    def retrieve_revision(
         self,
         *,
-        slug: str,
+        id: Optional[UUID] = None,
+        slug: Optional[str] = None,
         version: Optional[str] = None,
     ) -> Optional[WorkflowRevision]:
-        """Resolve a reserved slug to a synthetic :class:`WorkflowRevision`.
+        """Resolve a static reference to a synthetic :class:`WorkflowRevision`.
 
-        With no ``version`` (an artifact-level lookup) returns the catalogue entry's ``current``
-        version. With a ``version`` (a revision-level lookup) returns that immutable version, or
-        ``None`` if the slug is unknown or the version does not exist.
-        """
+        Accepts any of an ``id`` (artifact / variant / revision), a reserved ``slug``, and a
+        ``version``; an internal check dispatches:
 
-    @abstractmethod
-    def get_revision_by_id(
-        self,
-        *,
-        entity_id: UUID,
-    ) -> Optional[WorkflowRevision]:
-        """Resolve a synthetic platform id (artifact / variant / revision) to its revision.
+        - ``id`` (id-only ref): an artifact / variant id resolves to ``latest``; a revision id pins
+          its version. Returns ``None`` if the id is not a known static id.
+        - ``slug`` (+ optional ``version``): no ``version`` resolves to the entry's ``latest``; a
+          ``version`` pins that immutable version. Returns ``None`` if the slug or version is
+          unknown.
 
-        An artifact or variant id resolves to the ``current`` revision; a revision id pins its
-        version. Returns ``None`` if ``entity_id`` is not a known platform id.
+        Returns ``None`` if nothing resolvable was supplied.
         """

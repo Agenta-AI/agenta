@@ -121,7 +121,7 @@ async def test_embed_skill_resolves_to_a_concrete_package_on_the_wire(make_env):
             {
                 "@ag.embed": {
                     "@ag.references": {
-                        "workflow": {"slug": "_agenta.agenta-getting-started"}
+                        "workflow": {"slug": "__ag__getting_started_with_agenta"}
                     },
                     "@ag.selector": {"path": "parameters.skill"},
                 }

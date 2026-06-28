@@ -117,13 +117,10 @@ class WorkflowVariantSlugAlias(AliasConfig):
 
 
 class WorkflowArtifactFlags(BaseModel):
+    # role / intent (user-declared, persisted)
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False
-    is_skill: bool = False
-    # platform-owned (read-only): served from the PlatformWorkflowCatalog under the reserved
-    # `_agenta.*` slug namespace, never the database. Lives in JSONB flags, no migration.
-    is_platform: bool = False
 
 
 class WorkflowVariantFlags(WorkflowArtifactFlags):
@@ -142,6 +139,8 @@ class WorkflowRevisionFlags(WorkflowArtifactFlags):
     is_code: bool = False
     is_match: bool = False
     is_feedback: bool = False
+    is_agent: bool = False
+    is_skill: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -151,14 +150,14 @@ class WorkflowRevisionFlags(WorkflowArtifactFlags):
     has_script: bool = False
     ## function
     has_handler: bool = False
+    # slug-derived
+    is_static: bool = False
 
 
 class WorkflowArtifactQueryFlags(BaseModel):
     is_application: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_snippet: Optional[bool] = None
-    is_skill: Optional[bool] = None
-    is_platform: Optional[bool] = None
 
 
 class WorkflowVariantQueryFlags(WorkflowArtifactQueryFlags):
@@ -177,6 +176,8 @@ class WorkflowRevisionQueryFlags(WorkflowArtifactQueryFlags):
     is_code: Optional[bool] = None
     is_match: Optional[bool] = None
     is_feedback: Optional[bool] = None
+    is_agent: Optional[bool] = None
+    is_skill: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
@@ -186,6 +187,8 @@ class WorkflowRevisionQueryFlags(WorkflowArtifactQueryFlags):
     has_script: Optional[bool] = None
     ## function
     has_handler: Optional[bool] = None
+    # slug-derived
+    is_static: Optional[bool] = None
 
 
 class WorkflowFlags(WorkflowRevisionFlags):
@@ -196,15 +199,10 @@ class WorkflowQueryFlags(WorkflowRevisionQueryFlags):
     """Legacy full workflow query flag set."""
 
 
-class WorkflowCatalogFlags(BaseModel):
+class WorkflowCatalogFlags(WorkflowArtifactFlags):
     is_archived: bool = False
     is_recommended: bool = False
-    #
-    is_application: bool = False
-    is_evaluator: bool = False
-    is_snippet: bool = False
-    is_skill: bool = False
-    is_platform: bool = False
+    # + is_application, is_evaluator, is_snippet
 
 
 # workflows --------------------------------------------------------------------
@@ -460,6 +458,8 @@ class WorkflowCatalogHarness(WorkflowCatalogMappingMixin, Header):
 
 class WorkflowCatalogTemplate(WorkflowCatalogMappingMixin, Header):
     key: str
+
+    slug: Optional[str] = None
 
     categories: Optional[list[str]] = None
 
