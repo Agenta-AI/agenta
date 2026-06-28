@@ -41,9 +41,12 @@ import {
  * Next.js dev Runtime Error overlay (F-033). */
 const ignoreStreamRejection = () => {}
 
-/** Top-edge fade for the message scroll area: transparent at the very top, fully opaque by 28px.
- * Applied as a CSS mask so the content itself fades (no colored overlay), correct in any theme. */
-const TOP_FADE_MASK = "linear-gradient(to bottom, transparent 0, #000 28px)"
+/** Height of the top-edge fade, in px. Shared by the CSS mask and the SC-1 pin so a pinned turn
+ * lands BELOW the fade (otherwise the freshly-asked question renders partially faded). */
+const TOP_FADE_PX = 28
+/** Top-edge fade for the message scroll area: transparent at the very top, fully opaque by
+ * TOP_FADE_PX. Applied as a CSS mask so the content itself fades (correct in any theme). */
+const TOP_FADE_MASK = `linear-gradient(to bottom, transparent 0, #000 ${TOP_FADE_PX}px)`
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -377,7 +380,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         armPinRef.current = false
         programmaticScrollRef.current = true
         const top = node.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
-        el.scrollTop = Math.max(0, top - 12)
+        // Land the pinned message below the top fade (+4px breathing room) so it isn't dimmed.
+        el.scrollTop = Math.max(0, top - TOP_FADE_PX - 4)
         // SC-3: anchor the pinned position so a late image/markdown load above doesn't push it down.
         recordAnchor()
         requestAnimationFrame(() => {
