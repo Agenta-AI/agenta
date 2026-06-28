@@ -73,8 +73,8 @@ export type {ToolObj, ToolFunction} from "./toolUtils"
 export {McpServerItemControl} from "./McpServerItemControl"
 export type {McpServerItemControlProps} from "./McpServerItemControl"
 
-export {SkillConfigControl} from "./SkillConfigControl"
-export type {SkillConfigControlProps} from "./SkillConfigControl"
+export {SkillTemplateControl} from "./SkillTemplateControl"
+export type {SkillTemplateControlProps} from "./SkillTemplateControl"
 
 export {SandboxPermissionControl} from "./SandboxPermissionControl"
 export type {SandboxPermissionControlProps} from "./SandboxPermissionControl"

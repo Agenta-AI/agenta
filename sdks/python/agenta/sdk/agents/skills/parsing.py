@@ -1,12 +1,12 @@
 """Strict parsing of inline skill configuration.
 
-Parses a raw ``skills`` list (entries are either :class:`SkillConfig` or plain dicts, the
-latter being the post-embed-resolution shape) into validated :class:`SkillConfig` objects.
+Parses a raw ``skills`` list (entries are either :class:`SkillTemplate` or plain dicts, the
+latter being the post-embed-resolution shape) into validated :class:`SkillTemplate` objects.
 
 The actual rules — the name pattern, field bounds, and the safe-relative-file-path /
 ``SKILL.md`` checks — live on the Pydantic models (:mod:`.models`), so *every* construction path
-(including a direct ``SkillConfig(...)``) enforces them. This module only adapts the model's
-:class:`~pydantic.ValidationError` into a :class:`SkillConfigurationError` that carries the
+(including a direct ``SkillTemplate(...)``) enforces them. This module only adapts the model's
+:class:`~pydantic.ValidationError` into a :class:`SkillValidationError` that carries the
 offending list index.
 """
 
@@ -16,8 +16,8 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import ValidationError
 
-from .errors import SkillConfigurationError
-from .models import SkillConfig
+from .errors import SkillValidationError
+from .models import SkillTemplate
 
 # Embed markers the server-side resolver inlines before the runner. If one survives to here,
 # resolution was skipped (e.g. `flags.resolve=False`), so we raise a clear, typed error rather
@@ -60,29 +60,29 @@ def _unresolved_embed_message(value: Any) -> str | None:
     return None
 
 
-def parse_skill_config(value: SkillConfig | Mapping[str, Any]) -> SkillConfig:
+def parse_skill_template(value: SkillTemplate | Mapping[str, Any]) -> SkillTemplate:
     message = _unresolved_embed_message(value)
     if message is not None:
-        raise SkillConfigurationError(message, value=value)
+        raise SkillValidationError(message, value=value)
     try:
-        return SkillConfig.model_validate(value)
+        return SkillTemplate.model_validate(value)
     except ValidationError as exc:
-        raise SkillConfigurationError(
+        raise SkillValidationError(
             "Invalid skill configuration: "
             f"{exc.errors(include_url=False, include_input=False)}",
             value=value,
         ) from exc
 
 
-def parse_skill_configs(
-    values: Sequence[SkillConfig | Mapping[str, Any]],
-) -> list[SkillConfig]:
-    parsed: list[SkillConfig] = []
+def parse_skill_templates(
+    values: Sequence[SkillTemplate | Mapping[str, Any]],
+) -> list[SkillTemplate]:
+    parsed: list[SkillTemplate] = []
     for index, value in enumerate(values):
         try:
-            parsed.append(parse_skill_config(value))
-        except SkillConfigurationError as exc:
-            raise SkillConfigurationError(
+            parsed.append(parse_skill_template(value))
+        except SkillValidationError as exc:
+            raise SkillValidationError(
                 str(exc),
                 index=index,
                 value=value,

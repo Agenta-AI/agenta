@@ -32,7 +32,7 @@ from agenta.sdk.agents import (
     RunContextTrace,
     RunContextWorkflow,
     SandboxPermission,
-    SkillConfig,
+    SkillTemplate,
     ToolCallback,
     TraceContext,
 )
@@ -220,7 +220,7 @@ def test_request_to_wire_skills_ride_their_own_seam_not_tools():
     # Skills are emitted by `wire_skills`, not folded into the tool wire.
     config = PiAgentConfig(skills=[dict(_SKILL)])
     assert "skills" not in config.wire_tools()
-    assert config.wire_skills() == {"skills": [SkillConfig(**_SKILL).to_wire()]}
+    assert config.wire_skills() == {"skills": [SkillTemplate(**_SKILL).to_wire()]}
 
 
 def test_request_to_wire_omits_skills_when_none():

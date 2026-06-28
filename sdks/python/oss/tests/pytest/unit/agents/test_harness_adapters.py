@@ -173,9 +173,9 @@ def test_agenta_does_not_duplicate_an_already_present_platform_skill(make_env):
 
 
 def test_force_skills_unions_forced_after_author_skills():
-    from agenta.sdk.agents.skills import SkillConfig
+    from agenta.sdk.agents.skills import SkillTemplate
 
-    author = SkillConfig(
+    author = SkillTemplate(
         name="release-notes", description="Draft notes.", body="Do it."
     )
 

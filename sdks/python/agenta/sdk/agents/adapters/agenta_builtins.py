@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from ..skills import SkillConfig
+from ..skills import SkillTemplate
 
 # The base AGENTS.md preamble. The author's own ``instructions`` are appended after this, so
 # the final AGENTS.md is ``AGENTA_PREAMBLE`` + the author's project conventions.
@@ -63,7 +63,7 @@ AGENTA_FORCED_TOOLS: List[str] = ["read", "bash"]
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
-# SkillConfig below. Kept here so the catalogue and the forced path share one slug constant.
+# SkillTemplate below. Kept here so the catalogue and the forced path share one slug constant.
 GETTING_STARTED_WITH_AGENTA_SLUG = "__ag__getting_started_with_agenta"
 
 # Canonical SKILL.md body for the platform "getting started" skill. Single source of the body
@@ -89,8 +89,8 @@ _GETTING_STARTED_BODY = (
 )
 
 # The platform default skill as a concrete inline package. This is the canonical content; the
-# server-side catalogue serves the same SkillConfig for the reserved slug above.
-GETTING_STARTED_WITH_AGENTA_SKILL = SkillConfig(
+# server-side catalogue serves the same SkillTemplate for the reserved slug above.
+GETTING_STARTED_WITH_AGENTA_SKILL = SkillTemplate(
     name="agenta-getting-started",
     description=(
         "Getting started on the Agenta platform: how an Agenta agent should behave, ask for "
@@ -101,7 +101,7 @@ GETTING_STARTED_WITH_AGENTA_SKILL = SkillConfig(
 
 # Platform skills every pi_agenta run carries, regardless of the author's config. These are the
 # actually-forced skills (see module docstring); unioned in by `force_skills`.
-AGENTA_FORCED_SKILLS: List[SkillConfig] = [GETTING_STARTED_WITH_AGENTA_SKILL]
+AGENTA_FORCED_SKILLS: List[SkillTemplate] = [GETTING_STARTED_WITH_AGENTA_SKILL]
 
 
 def _join(*parts: Optional[str]) -> Optional[str]:
@@ -136,7 +136,7 @@ def force_tools(builtin_tools: List[str]) -> List[str]:
     return out
 
 
-def force_skills(skills: List[SkillConfig]) -> List[SkillConfig]:
+def force_skills(skills: List[SkillTemplate]) -> List[SkillTemplate]:
     """Union the author's skills with the forced platform skills, de-duplicated by name.
 
     The author's skills come first and win on a name clash (a config that already carries the
@@ -144,7 +144,7 @@ def force_skills(skills: List[SkillConfig]) -> List[SkillConfig]:
     forced platform skill not already present is appended. This is what makes the ``_agenta``
     platform skill actually forced on a custom ``pi_agenta`` config that drops the embed."""
     seen = {skill.name for skill in skills}
-    out: List[SkillConfig] = list(skills)
+    out: List[SkillTemplate] = list(skills)
     for forced in AGENTA_FORCED_SKILLS:
         if forced.name not in seen:
             seen.add(forced.name)

@@ -100,12 +100,12 @@ from .mcp import (
     ResolvedMCPServer,
 )
 from .skills import (
-    SkillConfig,
-    SkillConfigurationError,
+    SkillTemplate,
+    SkillValidationError,
     SkillError,
     SkillFile,
-    parse_skill_config,
-    parse_skill_configs,
+    parse_skill_template,
+    parse_skill_templates,
     skill_to_wire,
     skills_to_wire,
 )
@@ -219,14 +219,14 @@ __all__ = [
     "MCPDisabledError",
     "MissingMCPSecretError",
     # Skills are a sibling subsystem
-    "SkillConfig",
+    "SkillTemplate",
     "SkillFile",
-    "parse_skill_config",
-    "parse_skill_configs",
+    "parse_skill_template",
+    "parse_skill_templates",
     "skill_to_wire",
     "skills_to_wire",
     "SkillError",
-    "SkillConfigurationError",
+    "SkillValidationError",
     # Connections are a sibling subsystem (provider / model / auth)
     "ModelRef",
     "Connection",

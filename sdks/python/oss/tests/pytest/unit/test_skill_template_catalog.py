@@ -1,24 +1,24 @@
-"""The ``skill_config`` catalog type and the ``skills`` field on the agent-config twin.
+"""The ``skill-template`` catalog type and the ``skills`` field on the agent-config twin.
 
 These pin that the playground gets a typed editor for an inline skill package and that the
 agent-config control renders a list of those skills, where each item is EITHER an inline
-``skill_config`` package OR an ``@ag.embed`` reference the backend inlines server-side.
+``skill-template`` package OR an ``@ag.embed`` reference the backend inlines server-side.
 """
 
 import jsonschema
 
-from agenta.sdk.utils.types import CATALOG_TYPES, SkillConfigSchema
+from agenta.sdk.utils.types import CATALOG_TYPES, SkillTemplateSchema
 
 
-def test_skill_config_registered_in_catalog():
-    assert SkillConfigSchema.ag_type() == "skill_config"
-    assert "skill_config" in CATALOG_TYPES
+def test_skill_template_registered_in_catalog():
+    assert SkillTemplateSchema.ag_type() == "skill-template"
+    assert "skill-template" in CATALOG_TYPES
 
 
-def test_skill_config_schema_shape():
-    schema = CATALOG_TYPES["skill_config"]
+def test_skill_template_schema_shape():
+    schema = CATALOG_TYPES["skill-template"]
 
-    assert schema["x-ag-type"] == "skill_config"
+    assert schema["x-ag-type"] == "skill-template"
     assert set(schema["properties"]) == {
         "name",
         "description",
@@ -36,18 +36,20 @@ def test_skill_config_schema_shape():
     assert set(file_item["properties"]) == {"path", "content", "executable"}
 
 
-def test_agent_config_catalog_exposes_skills_as_inline_or_embed_union():
+def test_agent_config_catalog_exposes_skills_as_ref_or_embed_union():
     agent_config = CATALOG_TYPES["agent_config"]
 
     assert "skills" in agent_config["properties"]
     skills_item = agent_config["properties"]["skills"]["items"]
 
-    # Each entry is a union: an inline skill_config package, or an @ag.embed reference.
+    # Each entry is a union: a skill-template ref (resolved from /catalog/types/skill-template),
+    # or an @ag.embed reference. The full inline shape lives in the skill-template catalog type,
+    # not inlined here (mirrors how inputs reference `messages`).
     variants = skills_item["anyOf"]
     assert len(variants) == 2
 
-    inline = next(v for v in variants if v.get("x-ag-type") == "skill_config")
-    assert {"name", "description", "body"}.issubset(inline["properties"])
+    ref = next(v for v in variants if v.get("x-ag-type-ref") == "skill-template")
+    assert "properties" not in ref  # a bare ref node, not the inlined schema
 
     embed = next(v for v in variants if "@ag.embed" in v.get("properties", {}))
     assert embed["required"] == ["@ag.embed"]
