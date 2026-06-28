@@ -11,6 +11,7 @@ from ..core.pydantic_utilities import parse_obj_as
 from ..core.request_options import RequestOptions
 from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
+from ..types.capabilities_result import CapabilitiesResult
 from ..types.http_validation_error import HttpValidationError
 from ..types.tool_call_data import ToolCallData
 from ..types.tool_call_response import ToolCallResponse
@@ -665,6 +666,65 @@ class RawToolsClient:
                     ToolResolveResponse,
                     parse_obj_as(
                         type_ =ToolResolveResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def discover_tool_capabilities(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[CapabilitiesResult]:
+        """
+        Discover the tools that fit a set of use cases, translated to Agenta terms.
+        
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[CapabilitiesResult]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "tools/discover",method="POST",
+            json={
+                "use_cases": use_cases,
+                "provider": provider,
+                "limit_alternatives": limit_alternatives,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    CapabilitiesResult,
+                    parse_obj_as(
+                        type_ =CapabilitiesResult,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1367,6 +1427,65 @@ class AsyncRawToolsClient:
                     ToolResolveResponse,
                     parse_obj_as(
                         type_ =ToolResolveResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def discover_tool_capabilities(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[CapabilitiesResult]:
+        """
+        Discover the tools that fit a set of use cases, translated to Agenta terms.
+        
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[CapabilitiesResult]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "tools/discover",method="POST",
+            json={
+                "use_cases": use_cases,
+                "provider": provider,
+                "limit_alternatives": limit_alternatives,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    CapabilitiesResult,
+                    parse_obj_as(
+                        type_ =CapabilitiesResult,  # type: ignore
                         object_ =_response.json()
                     )
                 )

@@ -4,6 +4,7 @@ import typing
 
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
+from ..types.capabilities_result import CapabilitiesResult
 from ..types.tool_call_data import ToolCallData
 from ..types.tool_call_response import ToolCallResponse
 from ..types.tool_catalog_action_response import ToolCatalogActionResponse
@@ -488,6 +489,44 @@ class ToolsClient:
         client.tools.resolve_tools()
         """
         _response = self._raw_client.resolve_tools(tools=tools, request_options=request_options)
+        return _response.data
+    
+    def discover_tool_capabilities(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> CapabilitiesResult:
+        """
+        Discover the tools that fit a set of use cases, translated to Agenta terms.
+        
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        CapabilitiesResult
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.tools.discover_tool_capabilities(
+            use_cases=["use_cases"],
+        )
+        """
+        _response = self._raw_client.discover_tool_capabilities(use_cases=use_cases, provider=provider, limit_alternatives=limit_alternatives, request_options=request_options)
         return _response.data
     
     def call_tool(self, *, data: ToolCallData, request_options: typing.Optional[RequestOptions] = None) -> ToolCallResponse:
@@ -1104,6 +1143,52 @@ class AsyncToolsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.resolve_tools(tools=tools, request_options=request_options)
+        return _response.data
+    
+    async def discover_tool_capabilities(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> CapabilitiesResult:
+        """
+        Discover the tools that fit a set of use cases, translated to Agenta terms.
+        
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        CapabilitiesResult
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.tools.discover_tool_capabilities(
+                use_cases=["use_cases"],
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.discover_tool_capabilities(use_cases=use_cases, provider=provider, limit_alternatives=limit_alternatives, request_options=request_options)
         return _response.data
     
     async def call_tool(self, *, data: ToolCallData, request_options: typing.Optional[RequestOptions] = None) -> ToolCallResponse:
