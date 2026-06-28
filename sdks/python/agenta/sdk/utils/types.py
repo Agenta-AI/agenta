@@ -1131,12 +1131,14 @@ class AgentConfigSchema(AgSchemaMixin):
         description="Model the agent runs on.",
         json_schema_extra={"x-parameter": "grouped_choice"},
     )
-    tools: List[ToolConfig] = Field(
+    tools: List[Union[ToolConfig, "_ToolEmbedRefSchema"]] = Field(
         default_factory=list,
         title="Tools",
         description=(
             "Runnable tools the agent can call: harness built-ins, server-side gateway "
-            "actions (e.g. Composio), sandboxed code, or client-fulfilled tools."
+            "actions (e.g. Composio), sandboxed code, client-fulfilled tools, or a workflow "
+            "referenced as a tool (a type:'reference' entry the Agenta service runs server-side "
+            "as a callback tool). A workflow value can also be inlined via @ag.embed."
         ),
     )
     mcp_servers: List[MCPServerConfig] = Field(
@@ -1345,7 +1347,28 @@ class _SkillEmbedRefSchema(BaseModel):
     )
 
 
-# Resolve the forward references on AgentConfigSchema.skills (inline + embed-ref variants).
+class _ToolEmbedRefSchema(BaseModel):
+    """An ``@ag.embed`` reference standing in for one ``tools`` entry (the embed syntax).
+
+    Mirrors :class:`_SkillEmbedRefSchema`: the playground keeps a tool the author references
+    (rather than writes inline) as a bare ``{"@ag.embed": {...}}`` object, and the backend's
+    embed resolver inlines it into a concrete ``client`` tool config before the runner sees it.
+    The raw/advanced schema must accept this reference form alongside the concrete tool variants.
+    The embed body stays permissive (``Dict[str, Any]``) — its inner ``@ag.references`` /
+    ``@ag.selector`` keys are the embed resolver's contract, not this schema's.
+    """
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    embed: Dict[str, Any] = Field(
+        alias="@ag.embed",
+        title="Embed reference",
+        description="An @ag.embed reference resolved server-side into an inline client tool.",
+    )
+
+
+# Resolve the forward references on AgentConfigSchema.skills + tools (inline / embed).
+# A workflow referenced as a tool is the ``type:"reference"`` arm of ``ToolConfig`` itself.
 AgentConfigSchema.model_rebuild()
 
 

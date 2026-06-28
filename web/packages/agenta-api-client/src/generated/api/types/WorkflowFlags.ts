@@ -7,6 +7,8 @@ export interface WorkflowFlags {
     is_application?: boolean | undefined;
     is_evaluator?: boolean | undefined;
     is_snippet?: boolean | undefined;
+    is_skill?: boolean | undefined;
+    is_platform?: boolean | undefined;
     is_managed?: boolean | undefined;
     is_custom?: boolean | undefined;
     is_llm?: boolean | undefined;

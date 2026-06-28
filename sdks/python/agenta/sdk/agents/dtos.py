@@ -746,16 +746,22 @@ class ClaudeAgentConfig(HarnessAgentConfig):
         """Render the Claude harness's permission settings into a ``.claude/settings.json`` file
         the runner drops in the cwd. This is the claude adapter (Layer 1 translation), done in
         Python: parse the author's ``harness_kwargs["claude"]["permissions"]`` slice, merge the
-        Layer-2 ``sandbox_permission`` derivation and the per-MCP-server Layer-3 permissions, and
-        emit one ``harnessFiles`` entry. Omitted when Claude has nothing to write (no author options
-        and no derived rules), so a boundary-free Claude run is byte-identical to before."""
+        Layer-2 ``sandbox_permission`` derivation, the per-MCP-server Layer-3 permissions, and the
+        per-resolved-tool Layer-3 permissions (``tool_specs`` -> ``mcp__agenta-tools__<tool>`` rules,
+        F-046), and emit one ``harnessFiles`` entry. The resolved-tool rules matter because Claude
+        Code's own permission gate fires BEFORE the runner relay, so without an ``allow`` rule an
+        ``allow`` tool always parks. Omitted when Claude has nothing to write (no author options and
+        no derived rules), so a boundary-free Claude run is byte-identical to before."""
         # Lazy import: ``adapters.claude_settings`` is light, but importing it at module top would
         # run ``adapters/__init__`` (which imports the harness adapters, which import this module),
         # so it is imported here to keep ``dtos`` free of that cycle.
         from .adapters.claude_settings import build_claude_settings_files
 
         files = build_claude_settings_files(
-            self.harness_kwargs, self.sandbox_permission, self.mcp_servers
+            self.harness_kwargs,
+            self.sandbox_permission,
+            self.mcp_servers,
+            self.tool_specs,
         )
         if not files:
             return {}

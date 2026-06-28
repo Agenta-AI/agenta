@@ -8,4 +8,5 @@ export interface TriggerDeliveryData {
     inputs?: (Record<string, unknown> | null) | undefined;
     result?: (Record<string, unknown> | null) | undefined;
     error?: (string | null) | undefined;
+    is_test?: (boolean | null) | undefined;
 }

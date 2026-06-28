@@ -56,11 +56,23 @@ from oss.src.core.tools.service import (
     ToolsService,
 )
 from oss.src.core.gateway.connections.utils import decode_oauth_state
+from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.dtos import (
+    WorkflowServiceRequest,
+    WorkflowServiceRequestData,
+)
+from oss.src.core.shared.dtos import Reference
 from oss.src.utils.env import env
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+
+# A workflow referenced as an agent tool (a ``type:"reference"`` tool) carries this call_ref
+# prefix. Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
+# {action}.{connection}``): the callback encodes the targeting axis + identity —
+# ``workflow.variant.{slug}[.{version}]`` or ``workflow.environment.{environment}.{slug}``.
+_WORKFLOW_CALL_REF_PREFIX = "workflow."
 
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
 
@@ -115,8 +127,13 @@ class ToolsRouter:
         self,
         *,
         tools_service: ToolsService,
+        workflows_service: Optional[WorkflowsService] = None,
     ):
         self.tools_service = tools_service
+        # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
+        # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
+        # Optional so a deployment that wires only the tools service still serves gateway tools.
+        self.workflows_service = workflows_service
 
         self.router = APIRouter()
 
@@ -972,6 +989,13 @@ class ToolsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
+        # Route by the call_ref prefix: a referenced-workflow (@ag.reference) tool carries a
+        # ``workflow.{slug}[.{version}]`` call_ref and runs a workflow revision server-side; a
+        # Composio gateway tool carries the 5-segment ``tools.*`` slug and runs via the adapter.
+        call_ref = body.data.function.name.replace("__", ".")
+        if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
+            return await self._call_workflow_tool(request=request, body=body)
+
         # Parse tool slug — accept both dot and double-underscore formats.
         # Double-underscore is used for LLM function names where dots are forbidden.
         slug_parts = body.data.function.name.replace("__", ".").split(".")
@@ -1055,6 +1079,135 @@ class ToolsRouter:
                 if execution_result.successful
                 else "STATUS_CODE_ERROR",
                 message=execution_result.error,
+            ),
+        )
+
+        return ToolCallResponse(call=result)
+
+    @staticmethod
+    def _validate_slug_segments(*, segments: List[str]) -> None:
+        """Reject any call_ref segment with characters outside the safe slug allowlist."""
+        for segment in segments:
+            if not _SLUG_SEGMENT_RE.fullmatch(segment):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid characters in workflow tool segment: {segment!r}",
+                )
+
+    async def _call_workflow_tool(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """Execute a workflow referenced as an agent tool (``type:"reference"``) server-side.
+
+        The model's call routes here via a ``workflow.{axis}.*`` call_ref. We parse the targeting
+        axis, invoke the selected workflow revision with the model's arguments as ``inputs``, and
+        return its outputs as the tool result. Connections/secrets the workflow needs stay
+        server-side (auth is minted from the caller's project + user), the same safety shape a
+        gateway tool has.
+
+        Grammar (after the ``workflow.`` prefix):
+
+        - ``variant.{slug}`` / ``variant.{slug}.{version}`` — the workflow's latest revision by
+          slug, or a pinned revision. Mapped to the ``workflow`` reference family.
+        - ``environment.{environment}.{slug}`` — whatever revision is deployed in ``environment``
+          for the workflow ``slug``. Mapped to the ``environment`` + ``workflow`` families (the
+          environment selects the revision via the derived ``{slug}.revision`` key)."""
+        if self.workflows_service is None:
+            raise HTTPException(
+                status_code=501,
+                detail="Workflow tools are not enabled on this deployment.",
+            )
+
+        invalid_call_ref = HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid workflow tool call_ref: {body.data.function.name}. "
+                "Expected: workflow.variant.{slug}[.{version}] or "
+                "workflow.environment.{environment}.{slug}"
+            ),
+        )
+
+        remainder = body.data.function.name.replace("__", ".")[
+            len(_WORKFLOW_CALL_REF_PREFIX) :
+        ]
+        parts = remainder.split(".")
+        axis = parts[0] if parts else ""
+        operands = parts[1:]
+
+        if axis == "variant":
+            # ``variant.{slug}`` (latest) or ``variant.{slug}.{version}`` (pinned).
+            if len(operands) not in (1, 2):
+                raise invalid_call_ref
+            slug = operands[0]
+            version = operands[1] if len(operands) == 2 else None
+            segments = [slug] + ([version] if version else [])
+            self._validate_slug_segments(segments=segments)
+            references = {"workflow": Reference(slug=slug, version=version)}
+        elif axis == "environment":
+            # ``environment.{environment}.{slug}`` — the environment pins the revision; the
+            # workflow ref supplies the ``{slug}.revision`` selector key the env lookup needs.
+            if len(operands) != 2:
+                raise invalid_call_ref
+            environment, slug = operands
+            self._validate_slug_segments(segments=[environment, slug])
+            references = {
+                "environment": Reference(slug=environment),
+                "workflow": Reference(slug=slug),
+            }
+        else:
+            raise invalid_call_ref
+
+        # Normalise arguments — the LLM may send them as a JSON string.
+        arguments = body.data.function.arguments
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError as e:
+                log.warning("Failed to parse workflow tool arguments as JSON: %s", e)
+                arguments = {}
+        elif not isinstance(arguments, dict):
+            arguments = {}
+
+        invoke_request = WorkflowServiceRequest(
+            references=references,
+            data=WorkflowServiceRequestData(inputs=arguments),
+        )
+
+        try:
+            response = await self.workflows_service.invoke_workflow(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                request=invoke_request,
+            )
+        except Exception as e:
+            log.error("Workflow tool invocation failed", exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Workflow tool '{slug}' invocation failed.",
+            ) from e
+
+        status_code = response.status.code if response.status else 200
+        successful = status_code is not None and 200 <= status_code < 300
+        outputs = response.data.outputs if response.data else None
+        message = (
+            None
+            if successful
+            else (response.status.message if response.status else None)
+        )
+
+        result = ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=json.dumps(outputs),
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_OK" if successful else "STATUS_CODE_ERROR",
+                message=message,
             ),
         )
 
