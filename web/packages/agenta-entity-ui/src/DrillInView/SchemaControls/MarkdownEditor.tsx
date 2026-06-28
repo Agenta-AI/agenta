@@ -37,6 +37,7 @@ import {
 } from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
+import {registerCodeHighlighting} from "@lexical/code"
 import {Tag} from "antd"
 
 type MarkdownView = "source" | "rendered"
@@ -89,6 +90,17 @@ function MarkdownViewSync({enabled}: {enabled: boolean}) {
         return () => cancelAnimationFrame(frame)
     }, [editor, enabled])
 
+    return null
+}
+
+/**
+ * Enables Prism syntax highlighting for code blocks in the rich view. The shared editor registers
+ * the CodeNode/CodeHighlightNode types but never turns on the highlighter, so fenced blocks render
+ * as plain monospace until this runs. The token colors come from the `editor-token*` theme classes.
+ */
+function CodeHighlightSync() {
+    const [editor] = useLexicalComposerContext()
+    useEffect(() => registerCodeHighlighting(editor), [editor])
     return null
 }
 
@@ -304,6 +316,7 @@ export function MarkdownEditor({
                 body
             )}
             <MarkdownViewSync enabled={markdownView} />
+            <CodeHighlightSync />
         </EditorProvider>
     )
 }

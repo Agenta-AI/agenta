@@ -11,9 +11,9 @@
  * size picker to insert a table; when the caret is inside a table, a second menu exposes row/column
  * insert + delete operations (mirroring the Lexical playground's table controls).
  */
-import {type ReactNode, useCallback, useEffect, useState} from "react"
+import {type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
-import {$createCodeNode, $isCodeNode} from "@lexical/code"
+import {$createCodeNode, $isCodeNode, getCodeLanguageOptions} from "@lexical/code"
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from "@lexical/link"
 import {INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, ListNode} from "@lexical/list"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
@@ -34,7 +34,7 @@ import {
     INSERT_TABLE_COMMAND,
 } from "@lexical/table"
 import {$getNearestNodeOfType} from "@lexical/utils"
-import {Button, Dropdown, Input, type MenuProps, Popover} from "antd"
+import {Button, Dropdown, Input, type MenuProps, Popover, Select} from "antd"
 import {
     $createParagraphNode,
     $getSelection,
@@ -133,6 +133,12 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
     })
     // The current block type (paragraph / h1-h3 / quote / code), shown in the block-type menu.
     const [blockType, setBlockType] = useState<string>("paragraph")
+    // The active code block's language (only meaningful when blockType === "code").
+    const [codeLanguage, setCodeLanguage] = useState<string>("")
+    const languageOptions = useMemo(
+        () => getCodeLanguageOptions().map(([value, label]) => ({value, label})),
+        [],
+    )
     // The URL under the caret (empty when not on a link), seeded into the link popover.
     const [linkUrl, setLinkUrl] = useState("")
     const [linkOpen, setLinkOpen] = useState(false)
@@ -164,6 +170,7 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                             ? "code"
                             : "paragraph",
                 )
+                setCodeLanguage(block && $isCodeNode(block) ? (block.getLanguage() ?? "") : "")
                 setActive({
                     bold: selection.hasFormat("bold"),
                     italic: selection.hasFormat("italic"),
@@ -192,17 +199,47 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
         [editor],
     )
 
-    // Convert the current block to the chosen type. Headings/quote/code all go through
+    // Convert the current block to the chosen type. Headings/quote/paragraph go through
     // `$setBlocksType`; the markdown serializer maps them back to `#`, `>` and fenced blocks.
+    // Code is special: with a multi-line selection, `$setBlocksType` makes one code node per line
+    // (the stacked-chips bug), so mirror the Lexical playground — insert one code node and write
+    // the text back with its line breaks preserved as code lines.
     const formatBlock = useCallback(
         (key: string) => {
+            if (key === "code") {
+                editor.update(() => {
+                    const selection = $getSelection()
+                    if (!$isRangeSelection(selection)) return
+                    if (selection.isCollapsed()) {
+                        $setBlocksType(selection, () => $createCodeNode())
+                    } else {
+                        const text = selection.getTextContent()
+                        selection.insertNodes([$createCodeNode()])
+                        const next = $getSelection()
+                        if ($isRangeSelection(next)) next.insertRawText(text)
+                    }
+                })
+                return
+            }
             if (key === "quote") setBlock(() => $createQuoteNode())
-            else if (key === "code") setBlock(() => $createCodeNode())
             else if (key === "h1" || key === "h2" || key === "h3")
                 setBlock(() => $createHeadingNode(key))
             else setBlock(() => $createParagraphNode())
         },
-        [setBlock],
+        [editor, setBlock],
+    )
+
+    // Set the language on the code block under the caret (drives Prism highlighting).
+    const setCodeBlockLanguage = useCallback(
+        (lang: string) => {
+            editor.update(() => {
+                const selection = $getSelection()
+                if (!$isRangeSelection(selection)) return
+                const block = selection.anchor.getNode().getTopLevelElement()
+                if (block && $isCodeNode(block)) block.setLanguage(lang)
+            })
+        },
+        [editor],
     )
 
     // Apply / clear the link on the current selection. The editor keeps its last RangeSelection
@@ -331,6 +368,21 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                     <ChevronDown size={13} className="shrink-0" />
                 </button>
             </Dropdown>
+
+            {/* Language picker — only when the caret is inside a code block; drives highlighting. */}
+            {blockType === "code" && !disabled ? (
+                <Select
+                    showSearch
+                    value={codeLanguage || undefined}
+                    placeholder="Language"
+                    options={languageOptions}
+                    onChange={setCodeBlockLanguage}
+                    optionFilterProp="label"
+                    popupMatchSelectWidth={false}
+                    className="min-w-[120px]"
+                    variant="filled"
+                />
+            ) : null}
             {divider}
             {button("b", "Bold", <Bold size={15} />, () => formatText("bold"), active.bold)}
             {button("i", "Italic", <Italic size={15} />, () => formatText("italic"), active.italic)}
