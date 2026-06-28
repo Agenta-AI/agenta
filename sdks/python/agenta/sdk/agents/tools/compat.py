@@ -116,12 +116,17 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     # in the runner and 500s server-side dispatch with "Unsupported tool configuration
     # shape".
     if isinstance(function.get("name"), str):
-        client_config = {
+        client_config: dict[str, Any] = {
             "type": "client",
             "name": function["name"],
             "description": function.get("description"),
-            "input_schema": function.get("parameters") or {},
         }
+        # Only forward a schema when the function actually declares one. A missing/empty
+        # ``parameters`` must NOT become ``{}`` — that would override ClientToolConfig's
+        # default object schema and widen the contract to "any JSON" for no-arg tools.
+        parameters = function.get("parameters")
+        if parameters:
+            client_config["input_schema"] = parameters
         return parse_tool_config(_copy_tool_metadata(data, client_config))
 
     if isinstance(data.get("name"), str) and "type" not in data:

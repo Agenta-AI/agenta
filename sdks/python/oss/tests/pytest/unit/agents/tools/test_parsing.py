@@ -160,6 +160,9 @@ def test_compat_parser_function_tool_carries_metadata():
     assert isinstance(client, ClientToolConfig)
     assert client.needs_approval is True
     assert client.permission == "deny"
+    # No `parameters` => keep ClientToolConfig's default object schema, NOT a bare {} that
+    # would widen the contract to "any JSON".
+    assert client.input_schema == {"type": "object", "properties": {}}
 
 
 def test_coerce_tool_configs_rejects_invalid_on_error():

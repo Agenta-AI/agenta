@@ -148,6 +148,7 @@ function TriggerRow({
     name,
     subtitle,
     active,
+    disabled,
     toggleDisabled,
     onToggle,
     onOpen,
@@ -157,23 +158,30 @@ function TriggerRow({
     name: string
     subtitle: string
     active: boolean
+    disabled?: boolean
     toggleDisabled?: boolean
     onToggle: (next: boolean) => Promise<void>
     onOpen: () => void
     menuItems: MenuProps["items"]
 }) {
+    // Read-only mode opens nothing: the row's target is an editable drawer.
+    const open = disabled ? undefined : onOpen
     return (
         <div
             role="button"
-            tabIndex={0}
-            onClick={onOpen}
+            tabIndex={disabled ? -1 : 0}
+            aria-disabled={disabled || undefined}
+            onClick={open}
             onKeyDown={(e) => {
+                // Only the row itself activates — keyboard events bubbling up from the
+                // toggle or ⋯ menu must not also open the drawer.
+                if (e.target !== e.currentTarget || !open) return
                 if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
-                    onOpen()
+                    open()
                 }
             }}
-            className="group flex cursor-pointer items-center gap-2.5 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 transition-colors hover:border-[var(--ag-colorBorder)]"
+            className={`group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:border-[var(--ag-colorBorder)]"}`}
         >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]">
                 {icon}
@@ -333,6 +341,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 key: "edit",
                 label: "Edit",
                 icon: <PencilSimpleLine size={16} />,
+                disabled,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                     if (record.id)
@@ -346,6 +355,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 key: "refresh",
                 label: "Refresh",
                 icon: <ArrowsClockwise size={16} />,
+                disabled,
                 onClick: async (e) => {
                     e.domEvent.stopPropagation()
                     if (!record.id) return
@@ -362,6 +372,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 key: "revoke",
                 label: "Revoke",
                 icon: <XCircle size={16} />,
+                disabled,
                 onClick: async (e) => {
                     e.domEvent.stopPropagation()
                     if (!record.id) return
@@ -378,6 +389,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 label: "Delete",
                 icon: <Trash size={16} />,
                 danger: true,
+                disabled,
                 onClick: async (e) => {
                     e.domEvent.stopPropagation()
                     if (!record.id) return
@@ -398,6 +410,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
             revokeSubscription,
             removeSubscription,
             runInPlayground,
+            disabled,
         ],
     )
 
@@ -444,6 +457,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 key: "edit",
                 label: "Edit",
                 icon: <PencilSimpleLine size={16} />,
+                disabled,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                     if (record.id)
@@ -459,6 +473,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 label: "Delete",
                 icon: <Trash size={16} />,
                 danger: true,
+                disabled,
                 onClick: async (e) => {
                     e.domEvent.stopPropagation()
                     if (!record.id) return
@@ -471,7 +486,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 },
             },
         ],
-        [openDeliveries, openScheduleDrawer, removeSchedule, runInPlayground, entityId],
+        [openDeliveries, openScheduleDrawer, removeSchedule, runInPlayground, entityId, disabled],
     )
 
     return (
@@ -492,6 +507,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                                 name={record.name || record.id || "Schedule"}
                                 subtitle={cron ? describeCron(cron) : "Recurring schedule"}
                                 active={isEntityActive(record)}
+                                disabled={disabled}
                                 toggleDisabled={disabled || !record.id}
                                 onToggle={handleScheduleToggle(record)}
                                 onOpen={() =>
@@ -518,6 +534,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                                 name={record.name || record.id || "Subscription"}
                                 subtitle={subtitle}
                                 active={isEntityActive(record)}
+                                disabled={disabled}
                                 toggleDisabled={disabled || !record.id || !isEntityValid(record)}
                                 onToggle={handleSubscriptionToggle(record)}
                                 onOpen={() =>

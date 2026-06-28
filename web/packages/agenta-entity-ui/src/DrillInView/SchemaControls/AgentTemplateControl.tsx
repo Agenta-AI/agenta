@@ -1357,7 +1357,15 @@ export function AgentTemplateControl({
                                 {s.title}
                             </span>
                         ),
-                        children: <div className="flex flex-col gap-3 pt-1">{s.content}</div>,
+                        children: (
+                            // Render the section's `extra` (the add-action, e.g. Add trigger)
+                            // here too — the accordion/cards layouts surface it via `extra`,
+                            // and dropping it leaves tab-layout users unable to add items.
+                            <div className="flex flex-col gap-3 pt-1">
+                                {s.extra ? <div className="flex justify-end">{s.extra}</div> : null}
+                                {s.content}
+                            </div>
+                        ),
                     }))}
                 />
             ) : layout === "cards" ? (

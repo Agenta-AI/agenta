@@ -218,7 +218,12 @@ export default function TriggerDeliveriesDrawer() {
     return (
         <Drawer
             open={open}
-            onClose={() => setState(null)}
+            onClose={() => {
+                // This drawer stays mounted (atom-driven), so the payload-modal state
+                // would otherwise survive a close and flash on the next open.
+                setViewing(null)
+                setState(null)
+            }}
             title={`Deliveries${state?.name ? ` · ${state.name}` : ""}`}
             width={820}
             destroyOnClose

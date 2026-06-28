@@ -71,6 +71,24 @@ function normalizeJson(text: string): string {
     }
 }
 
+/**
+ * The bound revision id can live under any of three reference keys depending on how the
+ * subscription was created: `buildData` writes it as `application_variant`, while other flows
+ * use `application_revision` / `workflow_revision`. Read all three from one place so the write
+ * and read keys can't drift — otherwise a subscription created here reopens with no binding and
+ * fails "Bind a workflow" on the next edit.
+ */
+function extractBoundRevId(
+    refs: Record<string, {id?: string | null} | null | undefined> | null | undefined,
+): string | null {
+    return (
+        refs?.application_revision?.id ??
+        refs?.application_variant?.id ??
+        refs?.workflow_revision?.id ??
+        null
+    )
+}
+
 // ---------------------------------------------------------------------------
 // TriggerSubscriptionDrawer (root) — create or edit a subscription.
 //
@@ -174,8 +192,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 enabled: isEntityActive(subscription),
                 bindMode: envRef ? "environment" : "revision",
                 environmentSlug: envRef?.slug ?? null,
-                workflowRevId:
-                    refs?.application_revision?.id ?? refs?.workflow_revision?.id ?? null,
+                workflowRevId: extractBoundRevId(refs),
                 inputs: subscription.data?.inputs_fields
                     ? JSON.stringify(subscription.data.inputs_fields)
                     : normalizeJson(DEFAULT_INPUTS_MAPPING),
@@ -240,7 +257,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
             setEnvironmentSlug(envRef.slug ?? null)
             setAppSlug(refs?.application?.slug ?? null)
         } else {
-            const wfId = refs?.application_revision?.id ?? refs?.workflow_revision?.id ?? null
+            const wfId = extractBoundRevId(refs)
             setWorkflowRevId(wfId)
             setWorkflowLabel(wfId)
         }
@@ -262,7 +279,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         // Capture the app slug up front so "By environment" mode can build its
         // reference even though the default mode is "By revision".
         setAppSlug(refs?.application?.slug ?? null)
-        const variantId = refs?.application_variant?.id ?? refs?.application_revision?.id ?? null
+        const variantId = extractBoundRevId(refs)
         if (!variantId) return
         const appId = refs?.application?.id ?? null
         const label = state?.defaultBoundLabel ?? appId ?? variantId
