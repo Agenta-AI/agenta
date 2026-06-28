@@ -111,11 +111,12 @@ def coerce_tool_config(value: Any) -> ToolConfig:
 
     # OpenAI function shape: {"type": "function", "function": {name, description,
     # parameters}}. A gateway slug in ``function.name`` is handled above; any other
-    # function tool is client-fulfilled. The name is nested under ``function.name``
+    # ``type:"function"`` tool is client-fulfilled. The name is nested under ``function.name``
     # (not top-level), so read it from there — otherwise it resolves to ``undefined``
     # in the runner and 500s server-side dispatch with "Unsupported tool configuration
-    # shape".
-    if isinstance(function.get("name"), str):
+    # shape". Gate on ``type == "function"`` so an unknown/typo'd shape that merely
+    # carries a stray ``function.name`` fails loud instead of silently coercing.
+    if data.get("type") == "function" and isinstance(function.get("name"), str):
         client_config: dict[str, Any] = {
             "type": "client",
             "name": function["name"],

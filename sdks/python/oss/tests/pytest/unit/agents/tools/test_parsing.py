@@ -165,6 +165,14 @@ def test_compat_parser_function_tool_carries_metadata():
     assert client.input_schema == {"type": "object", "properties": {}}
 
 
+def test_compat_parser_rejects_function_shape_without_type():
+    # The function -> client coercion is gated on the explicit `type: "function"` shape. A
+    # `function.name` that is not a gateway slug and carries no `type` is an unknown shape and
+    # must fail loud rather than silently becoming a client tool.
+    with pytest.raises(ToolConfigurationError):
+        coerce_tool_config({"function": {"name": "not_a_slug"}})
+
+
 def test_coerce_tool_configs_rejects_invalid_on_error():
     with pytest.raises(ValueError):
         coerce_tool_configs(["read"], on_error="bogus")  # type: ignore[arg-type]
