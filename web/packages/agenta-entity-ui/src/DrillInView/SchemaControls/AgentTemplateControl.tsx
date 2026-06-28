@@ -1347,31 +1347,27 @@ export function AgentTemplateControl({
 
     // Model & harness drawer body. With inspect capabilities: harness cards + model picker on the
     // left, a real compatibility panel on the right. Without them: the plain harness select.
-    const modelHarnessDrawerBody = capabilities ? (
-        <div className="flex h-full min-h-0 gap-6">
-            <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-                <div className="flex gap-2 rounded-md bg-[var(--ant-color-fill-quaternary)] p-2.5">
-                    <Lightbulb
-                        size={15}
-                        className="mt-px shrink-0 text-[var(--ag-c-586673,#586673)]"
-                    />
-                    <span className="text-[11.5px] leading-snug text-[var(--ag-c-586673,#586673)]">
-                        The harness is the runtime that executes your agent. It decides which
-                        providers, hosting and connection options you can use.
-                    </span>
-                </div>
-                <div>
-                    <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                        Harness
-                    </div>
-                    {harnessCards}
-                </div>
-                {modelPicker}
+    // Shared Model & harness controls — rendered by both the wide drawer body (with the
+    // compatibility side panel) and the trimmed tabs-inline body (single column, no chrome).
+    const modelHarnessControls = capabilities ? (
+        <>
+            <div className="flex gap-2 rounded-md bg-[var(--ant-color-fill-quaternary)] p-2.5">
+                <Lightbulb size={15} className="mt-px shrink-0 text-[var(--ag-c-586673,#586673)]" />
+                <span className="text-[11.5px] leading-snug text-[var(--ag-c-586673,#586673)]">
+                    The harness is the runtime that executes your agent. It decides which providers,
+                    hosting and connection options you can use.
+                </span>
             </div>
-            <div className="w-[240px] shrink-0 overflow-y-auto">{compatibilityPanel}</div>
-        </div>
+            <div>
+                <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    Harness
+                </div>
+                {harnessCards}
+            </div>
+            {modelPicker}
+        </>
     ) : (
-        <div className="flex h-full flex-col gap-3 overflow-y-auto">
+        <>
             {harnessProps.kind && (
                 <HarnessSelectControl
                     schema={harnessProps.kind}
@@ -1383,8 +1379,23 @@ export function AgentTemplateControl({
                 />
             )}
             {modelPicker}
-        </div>
+        </>
     )
+
+    const modelHarnessDrawerBody = capabilities ? (
+        <div className="flex h-full min-h-0 gap-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+                {modelHarnessControls}
+            </div>
+            <div className="w-[240px] shrink-0 overflow-y-auto">{compatibilityPanel}</div>
+        </div>
+    ) : (
+        <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
+    )
+
+    // Trimmed body for the tabs layout: the same controls in one column, without the drawer's
+    // two-panel split or side panel (which read as out-of-place chrome inside a tab).
+    const modelHarnessInline = <div className="flex flex-col gap-4">{modelHarnessControls}</div>
 
     // Authentication (credential source) — moved out of Model & harness into Advanced.
     const authControls = props.llm ? (
@@ -1497,115 +1508,124 @@ export function AgentTemplateControl({
     // settings on the left; version history on the right. Authentication moved here.
     const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
     const hasPermissionsGroup = Boolean(headlessSchema || hasClaudePermissions)
-    const advancedDrawerBody = (
-        <div className="flex h-full min-h-0 gap-6">
-            <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-                {authControls ? (
-                    <div>
-                        <div className="mb-0.5 flex items-center gap-1.5">
-                            <Key size={15} className="text-[var(--ag-c-586673,#586673)]" />
-                            <span className="text-[13px] font-medium">Authentication</span>
-                        </div>
-                        <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
-                            Where the model credential comes from when this agent runs.
-                        </p>
-                        <div className="ml-[22px]">{authControls}</div>
+    // Shared Advanced controls (Authentication / Execution / Permissions groups), rendered by
+    // both the wide drawer body (with the version-history side panel) and the tabs-inline body.
+    const advancedControls = (
+        <>
+            {authControls ? (
+                <div>
+                    <div className="mb-0.5 flex items-center gap-1.5">
+                        <Key size={15} className="text-[var(--ag-c-586673,#586673)]" />
+                        <span className="text-[13px] font-medium">Authentication</span>
                     </div>
-                ) : null}
+                    <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        Where the model credential comes from when this agent runs.
+                    </p>
+                    <div className="ml-[22px]">{authControls}</div>
+                </div>
+            ) : null}
 
-                {hasExecutionGroup ? (
-                    <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-4">
-                        <div className="mb-0.5 flex items-center gap-1.5">
-                            <Cube size={15} className="text-[var(--ag-c-586673,#586673)]" />
-                            <span className="text-[13px] font-medium">Execution environment</span>
-                        </div>
-                        <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
-                            Where the agent&apos;s tools and code run, and what that sandbox may
-                            touch.
-                        </p>
-                        <div className="ml-[22px] flex flex-col gap-2.5">
-                            {sandboxProps.kind && (
+            {hasExecutionGroup ? (
+                <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-4">
+                    <div className="mb-0.5 flex items-center gap-1.5">
+                        <Cube size={15} className="text-[var(--ag-c-586673,#586673)]" />
+                        <span className="text-[13px] font-medium">Execution environment</span>
+                    </div>
+                    <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        Where the agent&apos;s tools and code run, and what that sandbox may touch.
+                    </p>
+                    <div className="ml-[22px] flex flex-col gap-2.5">
+                        {sandboxProps.kind && (
+                            <EnumSelectControl
+                                schema={sandboxProps.kind}
+                                label="Sandbox"
+                                value={(sandbox.kind as string | null) ?? null}
+                                onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
+                                withTooltip={withTooltip}
+                                disabled={disabled}
+                            />
+                        )}
+                        {sandboxProps.permissions ? (
+                            <SandboxPermissionControl
+                                value={
+                                    (sandbox.permissions as Record<string, unknown> | null) ?? null
+                                }
+                                onChange={(v) =>
+                                    setSection("sandbox", {...sandbox, permissions: v})
+                                }
+                                disabled={disabled}
+                            />
+                        ) : null}
+                    </div>
+                </div>
+            ) : null}
+
+            {hasPermissionsGroup ? (
+                <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-4">
+                    <div className="mb-0.5 flex items-center gap-1.5">
+                        <ShieldCheck size={15} className="text-[var(--ag-c-586673,#586673)]" />
+                        <span className="text-[13px] font-medium">Permissions</span>
+                    </div>
+                    <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        What the agent may do on its own before it must ask.
+                    </p>
+                    <div className="ml-[22px] flex flex-col gap-2.5">
+                        {headlessSchema ? (
+                            isPiHarness ? (
+                                <div className="flex items-center gap-1.5 text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                    <EyeSlash size={13} />
+                                    Permission policy isn&apos;t used by the Pi harness.
+                                </div>
+                            ) : (
                                 <EnumSelectControl
-                                    schema={sandboxProps.kind}
-                                    label="Sandbox"
-                                    value={(sandbox.kind as string | null) ?? null}
-                                    onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
+                                    schema={headlessSchema}
+                                    label="Permission policy"
+                                    value={headlessValue}
+                                    onChange={(v) =>
+                                        setSection("runner", {
+                                            ...runner,
+                                            interactions: {...runnerInteractions, headless: v},
+                                        })
+                                    }
                                     withTooltip={withTooltip}
                                     disabled={disabled}
                                 />
-                            )}
-                            {sandboxProps.permissions ? (
-                                <SandboxPermissionControl
-                                    value={
-                                        (sandbox.permissions as Record<string, unknown> | null) ??
-                                        null
-                                    }
-                                    onChange={(v) =>
-                                        setSection("sandbox", {...sandbox, permissions: v})
-                                    }
+                            )
+                        ) : null}
+                        {hasClaudePermissions ? (
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-1.5">
+                                    <Typography.Text className="text-xs font-medium">
+                                        Claude permissions
+                                    </Typography.Text>
+                                    <span className="rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                                        Claude harness
+                                    </span>
+                                </div>
+                                <ClaudePermissionsControl
+                                    value={claudePermissions}
+                                    onChange={setClaudePermissions}
                                     disabled={disabled}
                                 />
-                            ) : null}
-                        </div>
+                            </div>
+                        ) : null}
                     </div>
-                ) : null}
+                </div>
+            ) : null}
+        </>
+    )
 
-                {hasPermissionsGroup ? (
-                    <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-4">
-                        <div className="mb-0.5 flex items-center gap-1.5">
-                            <ShieldCheck size={15} className="text-[var(--ag-c-586673,#586673)]" />
-                            <span className="text-[13px] font-medium">Permissions</span>
-                        </div>
-                        <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
-                            What the agent may do on its own before it must ask.
-                        </p>
-                        <div className="ml-[22px] flex flex-col gap-2.5">
-                            {headlessSchema ? (
-                                isPiHarness ? (
-                                    <div className="flex items-center gap-1.5 text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                        <EyeSlash size={13} />
-                                        Permission policy isn&apos;t used by the Pi harness.
-                                    </div>
-                                ) : (
-                                    <EnumSelectControl
-                                        schema={headlessSchema}
-                                        label="Permission policy"
-                                        value={headlessValue}
-                                        onChange={(v) =>
-                                            setSection("runner", {
-                                                ...runner,
-                                                interactions: {...runnerInteractions, headless: v},
-                                            })
-                                        }
-                                        withTooltip={withTooltip}
-                                        disabled={disabled}
-                                    />
-                                )
-                            ) : null}
-                            {hasClaudePermissions ? (
-                                <div className="flex flex-col gap-1.5">
-                                    <div className="flex items-center gap-1.5">
-                                        <Typography.Text className="text-xs font-medium">
-                                            Claude permissions
-                                        </Typography.Text>
-                                        <span className="rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
-                                            Claude harness
-                                        </span>
-                                    </div>
-                                    <ClaudePermissionsControl
-                                        value={claudePermissions}
-                                        onChange={setClaudePermissions}
-                                        disabled={disabled}
-                                    />
-                                </div>
-                            ) : null}
-                        </div>
-                    </div>
-                ) : null}
+    const advancedDrawerBody = (
+        <div className="flex h-full min-h-0 gap-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+                {advancedControls}
             </div>
             <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
         </div>
     )
+
+    // Trimmed body for the tabs layout: the grouped controls in one column, no side panel.
+    const advancedInline = <div className="flex flex-col gap-4">{advancedControls}</div>
 
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
     // tabs / cards) without duplicating the content. Schema-gated, like before.
@@ -1618,6 +1638,7 @@ export function AgentTemplateControl({
             defaultOpen: true,
             onOpen: () => openSectionDrawer("model-harness"),
             content: modelHarnessDrawerBody,
+            inlineContent: modelHarnessInline,
         },
         hasInstructions && {
             key: "instructions",
@@ -1781,6 +1802,7 @@ export function AgentTemplateControl({
             summary: advancedSummary,
             onOpen: () => openSectionDrawer("advanced"),
             content: advancedDrawerBody,
+            inlineContent: advancedInline,
         },
     ].filter(Boolean) as {
         key: string
@@ -1791,6 +1813,9 @@ export function AgentTemplateControl({
         defaultOpen?: boolean
         onOpen?: () => void
         content: React.ReactNode
+        // Trimmed single-column body for the tabs layout (drawer sections only); falls back to
+        // `content` when a section has no separate inline form.
+        inlineContent?: React.ReactNode
     }[]
 
     return (
@@ -1800,11 +1825,11 @@ export function AgentTemplateControl({
                     No agent configuration fields are available for this schema.
                 </Typography.Text>
             ) : layout === "tabs" ? (
-                // Tabs renders each section's body inline (it does not thread `onOpen`). For the two
-                // drawer sections (Model & harness, Advanced) that means live editing without the
-                // drawer's draft/cancel — intentional: Tabs is a non-default, see-everything layout,
-                // and live edits match the rest of the playground (edit → dirty → commit). The
-                // draft/cancel drawer is an accordion/cards nicety, not a correctness requirement.
+                // Tabs is the non-default "see-everything" layout: it renders each section's body
+                // inline (no `onOpen` drawer), so edits are live (edit → dirty → commit) like the
+                // rest of the playground. The drawer sections (Model & harness, Advanced) supply a
+                // trimmed `inlineContent` here so the tab shows just their controls — not the wide
+                // two-panel drawer body, whose side panel reads as out-of-place chrome inline.
                 <Tabs
                     items={sections.map((s) => ({
                         key: s.key,
@@ -1814,7 +1839,11 @@ export function AgentTemplateControl({
                                 {s.title}
                             </span>
                         ),
-                        children: <div className="flex flex-col gap-3 pt-1">{s.content}</div>,
+                        children: (
+                            <div className="flex flex-col gap-3 pt-1">
+                                {s.inlineContent ?? s.content}
+                            </div>
+                        ),
                     }))}
                 />
             ) : layout === "cards" ? (
