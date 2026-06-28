@@ -166,14 +166,10 @@ def _claude_payload():
         tool_callback=_CALLBACK,
         permission_policy="deny",
         skills=[dict(_SKILL)],
-        harness_kwargs={
-            "claude": {
-                "permissions": {
-                    "default_mode": "acceptEdits",
-                    "allow": ["Read", "Bash(npm run:*)"],
-                    "deny": ["WebFetch"],
-                }
-            }
+        harness_permissions={
+            "default_mode": "acceptEdits",
+            "allow": ["Read", "Bash(npm run:*)"],
+            "deny": ["WebFetch"],
         },
     )
     return request_to_wire(
@@ -647,14 +643,9 @@ def test_request_to_wire_omits_harness_files_when_none():
 
 def test_request_to_wire_pi_renders_no_harness_files_from_its_options():
     # The per-harness translation is now in Python and only the claude config renders files; a Pi
-    # config carrying options (even a `claude` slice that is never its concern) emits no
-    # `harnessFiles`. The raw options map no longer rides the wire.
-    config = PiAgentTemplate(
-        harness_kwargs={
-            "pi": {"system": "You are Pi."},
-            "claude": {"permissions": {"default_mode": "plan"}},
-        }
-    )
+    # config carrying its prompt overrides emits no `harnessFiles` (those ride `systemPrompt` /
+    # `appendSystemPrompt`, not a file).
+    config = PiAgentTemplate(system="You are Pi.")
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
@@ -673,7 +664,7 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
     # `mcp__<server>` ask. The author's deny keeps its position; derived rules append (deduped).
     config = ClaudeAgentTemplate(
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
-        harness_kwargs={"claude": {"permissions": {"default_mode": "plan"}}},
+        harness_permissions={"default_mode": "plan"},
         mcp_servers=[
             {
                 "name": "github",

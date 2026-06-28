@@ -7,7 +7,7 @@
  * into its env at run time. The shape is open enough that a JSON editor is the pragmatic v1 —
  * the same approach ToolItemControl takes for tool definitions — with a name header and a delete
  * control. The typed shape lives in the `agent-template` catalog type (AgentTemplateSchema /
- * McpServer in the SDK); this control just edits one entry of the `mcp_servers` array.
+ * McpServer in the SDK); this control just edits one entry of the `agent.mcps` array.
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 

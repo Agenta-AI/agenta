@@ -7,13 +7,16 @@
  * pattern can roll out to other config surfaces.
  *
  * Dispatched from `x-ag-type: "agent-template"` / `x-ag-type-ref: "agent-template"` (see
- * SchemaPropertyRenderer). It reuses the existing schema controls rather than inventing
- * new ones: the model selector (GroupedChoiceControl), the tool picker (ToolSelectorPopover
- * + ToolItemControl), the MCP server editor (McpServerItemControl), enum selects (harness,
- * sandbox, permission policy), and a textarea (agents_md). The field shape is the
+ * SchemaPropertyRenderer). Its `value` IS the agent template (the `parameters.agent` object,
+ * just as the prompt control's value is the prompt template): the portable definition
+ * (instructions/llm/tools/mcps/skills) is FLAT on it, and the execution parts
+ * (harness/runner/sandbox) are nested sub-objects. It reuses the existing schema controls rather
+ * than inventing new ones: the model selector (GroupedChoiceControl), the tool picker
+ * (ToolSelectorPopover + ToolItemControl), the MCP server editor (McpServerItemControl), enum
+ * selects (harness, sandbox, permission policy), and a textarea (agents_md). The shape is the
  * `agent-template` catalog type generated from the SDK model (AgentTemplateSchema in
- * agenta.sdk.utils.types); the agent service ships a thin `x-ag-type-ref` the playground
- * resolves and reads back (services/oss/src/agent).
+ * agenta.sdk.utils.types); the agent service ships a thin `x-ag-type-ref` the playground resolves
+ * and reads back (services/oss/src/agent).
  *
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
@@ -54,13 +57,14 @@ import {
     Warning,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Select, Tabs, Tag, Tooltip, Typography} from "antd"
+import {Button, Select, Switch, Tabs, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ClaudePermissionsControl} from "./ClaudePermissionsControl"
+import {CodeEditor} from "./CodeEditor"
 import {ConfigItemDrawer, type ConfigItemView} from "./ConfigItemDrawer"
 import {
     allowedConnectionModes,
@@ -642,25 +646,65 @@ export function AgentTemplateControl({
     // Layout is a global, persisted preference set from the variant header menu (see
     // agentTemplateLayout); the panel only reads it.
     const layout = useAtomValue(agentTemplateLayoutAtom)
-    const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
 
-    // Update a single field of the agent config, leaving the rest intact.
-    const setField = useCallback(
+    // `config` IS the agent template (the `parameters.agent` value), exactly as the prompt control's
+    // value is the prompt template. `schema` is the `agent-template` catalog type: the portable
+    // definition's fields (instructions/llm/tools/mcps/skills) are FLAT on it; the execution parts
+    // (harness/runner/sandbox) are nested sub-objects, each with its own `.properties`.
+    const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
+    const subProps = useCallback(
+        (section: string): Record<string, SchemaProperty> =>
+            (props[section]?.properties as Record<string, SchemaProperty>) ?? {},
+        [props],
+    )
+    const harnessProps = subProps("harness")
+    const runnerProps = subProps("runner")
+    const sandboxProps = subProps("sandbox")
+
+    const asObject = useCallback(
+        (key: string): Record<string, unknown> =>
+            config[key] && typeof config[key] === "object" && !Array.isArray(config[key])
+                ? (config[key] as Record<string, unknown>)
+                : {},
+        [config],
+    )
+    const harness = asObject("harness")
+    const runner = asObject("runner")
+    const sandbox = asObject("sandbox")
+
+    // The runner's headless interaction default (was the flat `permission_policy`).
+    const runnerInteractions =
+        runner.interactions && typeof runner.interactions === "object"
+            ? (runner.interactions as Record<string, unknown>)
+            : {}
+    const headlessValue = (runnerInteractions.headless as string | null | undefined) ?? null
+    const headlessSchema = (
+        runnerProps.interactions?.properties as Record<string, SchemaProperty> | undefined
+    )?.headless
+
+    // Replace one nested execution section (harness / runner / sandbox), leaving the rest intact.
+    const setSection = useCallback(
+        (key: string, sectionValue: unknown) => onChange({...config, [key]: sectionValue}),
+        [config, onChange],
+    )
+    // Set one flat field of the agent definition (instructions / llm / tools / mcps / skills).
+    const setAgentField = useCallback(
         (key: string, fieldValue: unknown) => onChange({...config, [key]: fieldValue}),
         [config, onChange],
     )
 
-    // Model + credential connection (the ModelRef). `config.model` is ALWAYS a structured ModelRef
-    // (the harness-filtered picker only ever produces one); a legacy bare string is read for
-    // display. composeModelValue carries through extra keys (e.g. `params`) so a form edit never
-    // silently drops them. The picker is harness-filtered: selecting a model sets BOTH the model id
-    // and its provider, fed by the `/inspect` capability map below.
-    const harnessValue = typeof config.harness === "string" ? config.harness : null
+    // Model + credential connection (`llm`). It is ALWAYS a structured object (the harness-filtered
+    // picker only ever produces one); a legacy bare string is read for display. composeModelValue
+    // carries through extra keys (e.g. `extras`) so a form edit never silently drops them. The picker
+    // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
+    // `/inspect` capability map below.
+    const harnessValue = typeof harness.kind === "string" ? (harness.kind as string) : null
     // Pi (`pi_core`/`pi_agenta`) never gates tool use (`permissions: false`); a permission
     // policy is meaningless for it, so the field is hidden for Pi. Only Claude honors it.
     const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
-    const modelId = useMemo(() => modelIdFromConfig(config.model), [config.model])
-    const connection = useMemo(() => connectionFromConfig(config.model), [config.model])
+    const llm = config.llm
+    const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
+    const connection = useMemo(() => connectionFromConfig(llm), [llm])
 
     // Per-harness capability map from the `/inspect` response meta, keyed by the open revision.
     // Null when inspect hasn't resolved or the agent didn't publish it (older agents / standalone),
@@ -693,7 +737,7 @@ export function AgentTemplateControl({
     )
     const hasInspectModels = modelGroups.length > 0
 
-    // Compose the new `config.model` ModelRef from the current fields, overriding some. Picking a
+    // Compose the new `config.llm` ModelRef from the current fields, overriding some. Picking a
     // model derives its provider from the harness's published groups (sets both).
     const writeModel = useCallback(
         (patch: {
@@ -713,18 +757,18 @@ export function AgentTemplateControl({
             } else {
                 nextProvider = connection.provider
             }
-            setField(
-                "model",
+            setAgentField(
+                "llm",
                 composeModelValue({
                     modelId: nextModelId,
                     provider: nextProvider,
                     mode: patch.mode !== undefined ? patch.mode : connection.mode,
                     slug: patch.slug !== undefined ? patch.slug : connection.slug,
-                    existing: config.model,
+                    existing: llm,
                 }),
             )
         },
-        [setField, modelId, connection, config.model, capabilities, harnessValue],
+        [setAgentField, modelId, connection, llm, capabilities, harnessValue],
     )
 
     // NB: we deliberately do NOT clear the model when switching to a harness that can't reach it
@@ -748,45 +792,62 @@ export function AgentTemplateControl({
         [vaultSecrets, capabilities, harnessValue, connection.provider],
     )
 
-    // Claude permissions (Layer 1, Claude-only): the Claude harness's own permission knobs, kept in
-    // the neutral `harness_kwargs.claude.permissions` bag. Shown in Advanced only for the Claude
-    // harness; writes preserve any other harness_kwargs slices.
-    const harnessKwargs = useMemo(
-        () =>
-            config.harness_kwargs && typeof config.harness_kwargs === "object"
-                ? (config.harness_kwargs as Record<string, unknown>)
-                : {},
-        [config.harness_kwargs],
-    )
-    const claudePermissions = useMemo(() => {
-        const claude =
-            harnessKwargs.claude && typeof harnessKwargs.claude === "object"
-                ? (harnessKwargs.claude as Record<string, unknown>)
-                : undefined
-        const perms = claude?.permissions
-        return perms && typeof perms === "object" ? (perms as Record<string, unknown>) : null
-    }, [harnessKwargs])
-    const setClaudePermissions = useCallback(
-        (next: Record<string, unknown>) => {
-            const claude =
-                harnessKwargs.claude && typeof harnessKwargs.claude === "object"
-                    ? (harnessKwargs.claude as Record<string, unknown>)
-                    : {}
-            setField("harness_kwargs", {
-                ...harnessKwargs,
-                claude: {...claude, permissions: next},
-            })
+    // Raw-JSON escape hatch for the whole `agent.llm` value (collapsed by default).
+    const [showModelJson, setShowModelJson] = useState(false)
+    const [modelJsonText, setModelJsonText] = useState(() => JSON.stringify(llm ?? "", null, 2))
+    const handleModelJsonChange = useCallback(
+        (text: string) => {
+            setModelJsonText(text)
+            try {
+                setAgentField("llm", text ? JSON.parse(text) : "")
+            } catch {
+                // Keep the invalid text in the editor; don't propagate until it parses.
+            }
         },
-        [harnessKwargs, setField],
+        [setAgentField],
+    )
+    const handleToggleModelJson = useCallback(
+        (next: boolean) => {
+            if (next) setModelJsonText(JSON.stringify(llm ?? "", null, 2))
+            setShowModelJson(next)
+        },
+        [llm],
+    )
+    // Keep the open JSON buffer in sync when `agent.llm` changes from OUTSIDE the editor
+    // (the model picker or the authentication cards). Guard with a structural compare so we
+    // only resync on external changes — when the buffer already represents `agent.llm`
+    // (the user is typing here) we skip, so we never reformat mid-edit or fight the cursor.
+    useEffect(() => {
+        if (!showModelJson) return
+        let bufferValue: unknown
+        try {
+            bufferValue = modelJsonText ? JSON.parse(modelJsonText) : ""
+        } catch {
+            return // invalid in-progress JSON — leave the user's text untouched
+        }
+        if (JSON.stringify(bufferValue) !== JSON.stringify(llm ?? "")) {
+            setModelJsonText(JSON.stringify(llm ?? "", null, 2))
+        }
+    }, [llm, showModelJson, modelJsonText])
+
+    // Claude permissions (Layer 1, Claude-only): the Claude harness's own permission knobs, the
+    // first-class `harness.permissions` slice. Shown in Advanced only for the Claude harness.
+    const claudePermissions = useMemo(() => {
+        const perms = harness.permissions
+        return perms && typeof perms === "object" ? (perms as Record<string, unknown>) : null
+    }, [harness])
+    const setClaudePermissions = useCallback(
+        (next: Record<string, unknown>) => setSection("harness", {...harness, permissions: next}),
+        [harness, setSection],
     )
 
-    // Tools live as a flat array on the agent config (the same tool-object shape the
+    // Tools live as a flat array on the agent definition (the same tool-object shape the
     // prompt control uses, so the backend resolver parses them identically).
     const tools = useMemo(
         () => (Array.isArray(config.tools) ? (config.tools as unknown[]) : []),
         [config.tools],
     )
-    const setTools = useCallback((next: unknown[]) => setField("tools", next), [setField])
+    const setTools = useCallback((next: unknown[]) => setAgentField("tools", next), [setAgentField])
 
     const handleAddTool = useCallback(
         (tool: ToolObj, meta?: ToolSelectionMeta) => {
@@ -884,12 +945,12 @@ export function AgentTemplateControl({
     // open McpServer shape (name + stdio command/args/env or remote url, secret names), edited
     // as JSON the backend resolver parses identically to `tools`.
     const mcpServers = useMemo(
-        () => (Array.isArray(config.mcp_servers) ? (config.mcp_servers as unknown[]) : []),
-        [config.mcp_servers],
+        () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
+        [config.mcps],
     )
     const setMcpServers = useCallback(
-        (next: unknown[]) => setField("mcp_servers", next),
-        [setField],
+        (next: unknown[]) => setAgentField("mcps", next),
+        [setAgentField],
     )
     const handleAddMcpServer = useCallback(() => {
         openCreate("mcp", {name: "", transport: "stdio", command: "", args: []}, "form")
@@ -906,7 +967,10 @@ export function AgentTemplateControl({
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
     )
-    const setSkills = useCallback((next: unknown[]) => setField("skills", next), [setField])
+    const setSkills = useCallback(
+        (next: unknown[]) => setAgentField("skills", next),
+        [setAgentField],
+    )
     const handleAddSkill = useCallback(() => {
         openCreate("skill", {name: "", description: "", body: ""}, "form")
     }, [openCreate])
@@ -967,29 +1031,29 @@ export function AgentTemplateControl({
         return false
     }, [editing, draft])
 
-    // ``agents_md`` is the catalog-schema field; ``instructions`` is read as a fallback so an
-    // already-stored agent config (the legacy key) still populates the editor.
-    const agentsMd =
-        (config.agents_md as string | null | undefined) ??
-        (config.instructions as string | null | undefined) ??
-        null
+    // ``instructions.agents_md`` is the one instruction document (flat on the template).
+    const instructions =
+        config.instructions && typeof config.instructions === "object"
+            ? (config.instructions as Record<string, unknown>)
+            : {}
+    const agentsMd = (instructions.agents_md as string | null | undefined) ?? null
 
     const modelSummary =
-        [enumLabel(props.harness, config.harness), enumLabel(props.model, modelId)]
+        [enumLabel(harnessProps.kind, harness.kind), enumLabel(props.llm, modelId)]
             .filter(Boolean)
             .join(" · ") || undefined
 
-    const hasInstructions = Boolean(props.agents_md)
-    const hasModelOrHarness = Boolean(props.model || props.harness)
+    const hasInstructions = Boolean(props.instructions)
+    const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     const hasTools = Boolean(props.tools)
-    const hasMcp = Boolean(props.mcp_servers)
+    const hasMcp = Boolean(props.mcps)
     const hasSkills = Boolean(props.skills)
     const hasClaudePermissions = harnessValue === "claude"
     const hasAdvanced = Boolean(
         props.model || // Authentication lives in Advanced now
-        props.sandbox ||
-        props.permission_policy ||
-        props.sandbox_permission ||
+        sandboxProps.kind ||
+        sandboxProps.permissions ||
+        runnerProps.interactions ||
         hasClaudePermissions,
     )
 
@@ -1117,7 +1181,7 @@ export function AgentTemplateControl({
                         key={h}
                         type="button"
                         disabled={disabled}
-                        onClick={() => setField("harness", h)}
+                        onClick={() => setSection("harness", {...harness, kind: h})}
                         className={cn(
                             "flex w-full flex-col gap-1.5 rounded-lg border border-solid p-2.5 text-left transition-colors",
                             disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
@@ -1305,12 +1369,12 @@ export function AgentTemplateControl({
         </div>
     ) : (
         <div className="flex h-full flex-col gap-3 overflow-y-auto">
-            {props.harness && (
+            {harnessProps.kind && (
                 <HarnessSelectControl
-                    schema={props.harness}
+                    schema={harnessProps.kind}
                     label="Harness"
-                    value={(config.harness as string | null) ?? null}
-                    onChange={(v) => setField("harness", v)}
+                    value={(harness.kind as string | null) ?? null}
+                    onChange={(v) => setSection("harness", {...harness, kind: v})}
                     withTooltip={withTooltip}
                     disabled={disabled}
                 />
@@ -1395,6 +1459,25 @@ export function AgentTemplateControl({
                     />
                 </LabeledField>
             )}
+
+            {/* Raw-JSON escape hatch for the whole `agent.llm` value (model + connection),
+                collapsed by default. */}
+            <div className="flex items-center gap-2">
+                <Switch
+                    checked={showModelJson}
+                    onChange={handleToggleModelJson}
+                    disabled={disabled}
+                />
+                <Typography.Text className="text-xs">Edit as JSON</Typography.Text>
+            </div>
+            {showModelJson && (
+                <CodeEditor
+                    value={modelJsonText}
+                    onChange={handleModelJsonChange}
+                    language="json"
+                    disabled={disabled}
+                />
+            )}
         </div>
     ) : null
 
@@ -1402,15 +1485,15 @@ export function AgentTemplateControl({
     const advancedSummary =
         [
             props.model ? (connection.mode === "agenta" ? "Agenta-managed" : "Self-managed") : null,
-            config.sandbox ? `Sandbox: ${String(config.sandbox)}` : null,
+            sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : null,
         ]
             .filter(Boolean)
             .join(" · ") || undefined
 
     // Advanced drawer body — two panels (consistent with Model & harness): grouped, explained
     // settings on the left; version history on the right. Authentication moved here.
-    const hasExecutionGroup = Boolean(props.sandbox || props.sandbox_permission)
-    const hasPermissionsGroup = Boolean(props.permission_policy || hasClaudePermissions)
+    const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
+    const hasPermissionsGroup = Boolean(headlessSchema || hasClaudePermissions)
     const advancedDrawerBody = (
         <div className="flex h-full min-h-0 gap-6">
             <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
@@ -1438,25 +1521,25 @@ export function AgentTemplateControl({
                             touch.
                         </p>
                         <div className="ml-[22px] flex flex-col gap-2.5">
-                            {props.sandbox && (
+                            {sandboxProps.kind && (
                                 <EnumSelectControl
-                                    schema={props.sandbox}
+                                    schema={sandboxProps.kind}
                                     label="Sandbox"
-                                    value={(config.sandbox as string | null) ?? null}
-                                    onChange={(v) => setField("sandbox", v)}
+                                    value={(sandbox.kind as string | null) ?? null}
+                                    onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
                                     withTooltip={withTooltip}
                                     disabled={disabled}
                                 />
                             )}
-                            {props.sandbox_permission ? (
+                            {sandboxProps.permissions ? (
                                 <SandboxPermissionControl
                                     value={
-                                        (config.sandbox_permission as Record<
-                                            string,
-                                            unknown
-                                        > | null) ?? null
+                                        (sandbox.permissions as Record<string, unknown> | null) ??
+                                        null
                                     }
-                                    onChange={(v) => setField("sandbox_permission", v)}
+                                    onChange={(v) =>
+                                        setSection("sandbox", {...sandbox, permissions: v})
+                                    }
                                     disabled={disabled}
                                 />
                             ) : null}
@@ -1474,7 +1557,7 @@ export function AgentTemplateControl({
                             What the agent may do on its own before it must ask.
                         </p>
                         <div className="ml-[22px] flex flex-col gap-2.5">
-                            {props.permission_policy ? (
+                            {headlessSchema ? (
                                 isPiHarness ? (
                                     <div className="flex items-center gap-1.5 text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
                                         <EyeSlash size={13} />
@@ -1482,10 +1565,15 @@ export function AgentTemplateControl({
                                     </div>
                                 ) : (
                                     <EnumSelectControl
-                                        schema={props.permission_policy}
+                                        schema={headlessSchema}
                                         label="Permission policy"
-                                        value={(config.permission_policy as string | null) ?? null}
-                                        onChange={(v) => setField("permission_policy", v)}
+                                        value={headlessValue}
+                                        onChange={(v) =>
+                                            setSection("runner", {
+                                                ...runner,
+                                                interactions: {...runnerInteractions, headless: v},
+                                            })
+                                        }
                                         withTooltip={withTooltip}
                                         disabled={disabled}
                                     />
@@ -1896,7 +1984,10 @@ export function AgentTemplateControl({
                     onChange={setInstructionDraft}
                     onCancel={() => setEditingInstruction(null)}
                     onSave={() => {
-                        setField("agents_md", instructionDraft)
+                        setAgentField("instructions", {
+                            ...instructions,
+                            agents_md: instructionDraft,
+                        })
                         setEditingInstruction(null)
                     }}
                     disabled={disabled}

@@ -34,11 +34,19 @@ def test_identity_value_is_the_bare_harness_string():
     assert values == {"pi_core", "pi_agenta", "claude"}
 
 
+def _harness_kind_field():
+    # The harness selector now lives at `harness.kind` in the nested envelope.
+    return CATALOG_TYPES["agent-template"]["properties"]["harness"]["properties"][
+        "kind"
+    ]
+
+
 def test_agent_template_harness_field_carries_enum_and_oneOf_from_the_registry():
-    # The agent_template catalog type's harness field carries BOTH a flat `enum` (back-compat for
-    # every `schema.enum` consumer) and a `oneOf` of `{const, title, x-ag-harness-slug}` built from
-    # the same registry, so the playground shows the display name + slug while writing the bare value.
-    harness = CATALOG_TYPES["agent-template"]["properties"]["harness"]
+    # The agent-template catalog type's `harness.kind` field carries BOTH a flat `enum` (back-compat
+    # for every `schema.enum` consumer) and a `oneOf` of `{const, title, x-ag-harness-slug}` built
+    # from the same registry, so the playground shows the display name + slug while writing the bare
+    # value.
+    harness = _harness_kind_field()
 
     assert harness["type"] == "string"
     assert harness["default"] == "pi_core"
@@ -55,5 +63,5 @@ def test_agent_template_harness_field_carries_enum_and_oneOf_from_the_registry()
 def test_harness_oneOf_const_values_match_the_enum():
     # The `oneOf` consts and the flat `enum` describe the same value set, so a control reading
     # either shape offers the same harnesses.
-    harness = CATALOG_TYPES["agent-template"]["properties"]["harness"]
+    harness = _harness_kind_field()
     assert [entry["const"] for entry in harness["oneOf"]] == harness["enum"]

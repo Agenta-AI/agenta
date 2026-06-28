@@ -58,13 +58,13 @@ def test_coerce_full_dict_with_a_connection():
         {
             "provider": "openai",
             "model": "gpt-5.5",
-            "params": {"reasoning_effort": "high"},
+            "extras": {"reasoning_effort": "high"},
             "connection": {"mode": "agenta", "slug": "openai-prod"},
         }
     )
     assert ref.provider == "openai"
     assert ref.model == "gpt-5.5"
-    assert ref.params == {"reasoning_effort": "high"}
+    assert ref.extras == {"reasoning_effort": "high"}
     assert ref.connection.mode == "agenta"
     assert ref.connection.slug == "openai-prod"
 

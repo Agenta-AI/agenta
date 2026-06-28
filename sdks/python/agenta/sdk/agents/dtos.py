@@ -523,44 +523,49 @@ class AgentResult(BaseModel):
 
 
 class AgentTemplate(BaseModel):
-    """What an agent is and how it runs — the single agent definition. ``instructions`` becomes
+    """What an agent is and how it runs — the parsed agent template. ``instructions`` becomes
     ``AGENTS.md``. ``tools`` are provider-agnostic references; resolving them into runnable
     specs is the caller's job (the Agenta service does it server-side).
 
-    ``harness`` / ``sandbox`` / ``permission_policy`` are the run-selection fields: which
-    coding agent to drive, where it runs, and how a permission-gating harness answers tool-use
-    prompts in a headless run. They live on ``AgentTemplate`` (under ``data.parameters.agent``)
-    rather than a separate object — there is one agent definition, not an agent plus a sidecar
-    selection. ``sandbox`` is a backend/environment concern the caller reads to pick a backend;
-    it never enters ``SessionConfig`` or the neutral run.
+    The authoring template is one object at ``parameters.agent``: the definition flat
+    (instructions/llm/tools/mcps/skills) plus nested ``harness`` / ``runner`` / ``sandbox`` sections
+    (see ``big-agents-audit/agent-template-migration.md``). This runtime model is the FLATTENED parse
+    of it: the harness adapters and ``wire_*`` methods read these flat fields. ``from_params`` reads
+    the template and projects it here.
 
-    ``harness_kwargs`` is the per-harness escape hatch: a map keyed by harness name
-    (``"pi_core"``, ``"claude"``) whose value is a free-form bag of knobs only that harness
-    understands, for example Pi's ``system`` / ``append_system`` prompt overrides. The
-    config stays harness-agnostic because each Harness adapter reads only its own slice and
-    ignores the rest; a key for a harness that is not running is simply never looked at. Both
-    Pi-family harnesses (``pi_core`` and ``pi_agenta``) read the ``pi_core`` slice.
+    ``harness`` / ``sandbox`` / ``permission_policy`` are the execution selectors: which coding
+    agent to drive (``harness.kind``), where it runs (``sandbox.kind``), and how a
+    permission-gating harness answers a tool-use interaction in a headless run
+    (``runner.interactions.headless``). ``sandbox`` is a backend/environment concern the caller
+    reads to pick a backend; it never enters the neutral run.
+
+    ``harness_permissions`` is the selected harness's first-class allow/ask/deny posture (was
+    ``harness_kwargs.<gating-harness>.permissions``); a gating harness (Claude) renders it into
+    its settings. ``harness_extras`` is the selected harness's escape-hatch bag (was the keyed
+    ``harness_kwargs`` slice), e.g. Pi's ``system`` / ``append_system`` prompt overrides. Only
+    the selected harness's slice is carried — the keyed-by-harness bag collapses at parse time.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     instructions: Optional[str] = None
-    # ``model`` stays the back-compat plain string every caller reads and hands to a harness.
-    # ``model_ref`` is the structured provider/model/connection ref, populated only when the
-    # incoming ``model`` is structured (a dict or a ``ModelRef``); a plain string leaves it
-    # ``None`` so a string-only config's wire is byte-identical to before. See
-    # ``_split_model_ref`` and the provider-model-auth design (Concern 1).
+    # ``model`` is the plain string every caller reads and hands to a harness. ``model_ref`` is
+    # the structured provider/model/connection ref, populated only when the incoming model is
+    # structured (a dict or a ``ModelRef``); a plain string leaves it ``None`` so a string-only
+    # config's wire is byte-identical. See ``_split_model_ref`` and the provider-model-auth design.
     model: Optional[str] = None
     model_ref: Optional[ModelRef] = None
     tools: List[ToolConfig] = Field(default_factory=list)
     mcp_servers: List[MCPServerConfig] = Field(default_factory=list)
     skills: List[SkillTemplate] = Field(default_factory=list)
-    harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    # The selected harness's slice (the keyed-by-harness bag collapses at parse time).
+    harness_permissions: Dict[str, Any] = Field(default_factory=dict)
+    harness_extras: Dict[str, Any] = Field(default_factory=dict)
     sandbox_permission: Optional[SandboxPermission] = None
-    # The run-selection fields (formerly the separate ``RunSelection``): the coding agent to
-    # drive, where it runs, and the headless permission policy. The caller reads ``harness`` /
-    # ``sandbox`` to pick a harness class and backend; ``permission_policy`` is the sidecar
-    # action-permission a gating harness (Claude) consults.
+    # The execution selectors: the coding agent to drive, where it runs, and the headless
+    # interaction default (sourced from ``runner.interactions.headless``). The caller reads
+    # ``harness`` / ``sandbox`` to pick a harness class and backend; ``permission_policy`` is the
+    # headless answer a gating harness (Claude) consults.
     harness: str = "pi_core"
     sandbox: str = "local"
     permission_policy: PermissionPolicy = "auto"
@@ -594,23 +599,26 @@ class AgentTemplate(BaseModel):
     ) -> "AgentTemplate":
         """Build an :class:`AgentTemplate` from a request/config dict.
 
-        Accepts three shapes, in priority order: the dedicated ``agent`` element, the
-        playground ``prompt`` prompt-template (system message -> instructions, ``llm_config``
-        -> model + tools), and a flat ``{model, agents_md, tools}``. Unset fields fall back
-        to ``defaults``. ``harness_kwargs`` and the run-selection fields
-        (``harness`` / ``sandbox`` / ``permission_policy``) are read from the ``agent`` element
-        (or the flat request) when present.
+        Accepts two shapes, in priority order: the agent template at ``parameters.agent``
+        (``{instructions, llm, tools, mcps, skills, harness, runner, sandbox}``), and the playground
+        ``prompt`` prompt-template (system message -> instructions, ``llm_config`` -> model + tools)
+        for a bare chat run. Unset fields fall back to ``defaults``. The execution selectors are read
+        from the template's nested ``harness`` / ``runner`` / ``sandbox`` sections; the selected
+        harness's ``permissions`` / ``extras`` collapse onto the flat ``harness_permissions`` /
+        ``harness_extras`` here.
         """
         base = defaults or cls()
         instructions, model, tools = _parse_agent_fields(params, base)
         harness, sandbox, permission_policy = _parse_run_selection(params, base)
+        harness_permissions, harness_extras = _parse_harness_slice(params, base)
         return cls(
             instructions=instructions,
             model=model,
             tools=_as_list(tools),
             mcp_servers=_parse_mcp_servers_raw(params, base),
             skills=_parse_skills_raw(params, base),
-            harness_kwargs=_parse_harness_kwargs(params, base),
+            harness_permissions=harness_permissions,
+            harness_extras=harness_extras,
             sandbox_permission=_parse_sandbox_permission(params, base),
             harness=harness,
             sandbox=sandbox,
@@ -655,11 +663,11 @@ class HarnessAgentTemplate(BaseModel):
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
     skills: List[SkillTemplate] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
-    # The neutral per-harness options bag (a map keyed by harness name), carried verbatim from
-    # ``AgentTemplate.harness_kwargs`` by the harness adapter. The active harness's CONFIG translates
-    # its own slice into rendered files for the wire (see :meth:`wire_harness_files`); the raw bag
-    # itself does not ride the wire anymore.
-    harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    # The selected harness's first-class allow/ask/deny posture, carried verbatim from
+    # ``AgentTemplate.harness_permissions`` by the harness adapter. A gating harness's CONFIG renders
+    # it into files for the wire (see :meth:`wire_harness_files`); the raw slice does not ride the
+    # wire.
+    harness_permissions: Dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -724,11 +732,11 @@ class HarnessAgentTemplate(BaseModel):
         renders to drop in the session cwd before the session starts. Empty by default (Pi/Agenta
         render none), so a config that produces no files is unchanged (the golden wire contract).
 
-        This is where the per-harness translation of the generic ``harness_kwargs`` bag happens in
-        Python (it used to happen in the TS runner). A harness that turns its own options slice into
-        a config file overrides this; the runner is then a dumb writer that materializes each
-        ``{path, content}`` entry into the cwd (``path`` relative to cwd) and has no harness
-        knowledge."""
+        This is where the per-harness translation of the harness's first-class ``permissions`` /
+        ``extras`` slice happens in Python (it used to happen in the TS runner). A harness that turns
+        its own slice into a config file overrides this; the runner is then a dumb writer that
+        materializes each ``{path, content}`` entry into the cwd (``path`` relative to cwd) and has
+        no harness knowledge."""
         return {}
 
     def wire_model_ref(self) -> Dict[str, Any]:
@@ -867,8 +875,8 @@ class ClaudeAgentTemplate(HarnessAgentTemplate):
     def wire_harness_files(self) -> Dict[str, Any]:
         """Render the Claude harness's permission settings into a ``.claude/settings.json`` file
         the runner drops in the cwd. This is the claude adapter (Layer 1 translation), done in
-        Python: parse the author's ``harness_kwargs["claude"]["permissions"]`` slice, merge the
-        Layer-2 ``sandbox_permission`` derivation, the per-MCP-server Layer-3 permissions, and the
+        Python: parse the author's first-class ``harness_permissions`` slice, merge the Layer-2
+        ``sandbox_permission`` derivation, the per-MCP-server Layer-3 permissions, and the
         per-resolved-tool Layer-3 permissions (``tool_specs`` -> ``mcp__agenta-tools__<tool>`` rules,
         F-046), and emit one ``harnessFiles`` entry. The resolved-tool rules matter because Claude
         Code's own permission gate fires BEFORE the runner relay, so without an ``allow`` rule an
@@ -880,7 +888,7 @@ class ClaudeAgentTemplate(HarnessAgentTemplate):
         from .adapters.claude_settings import build_claude_settings_files
 
         files = build_claude_settings_files(
-            self.harness_kwargs,
+            self.harness_permissions,
             self.sandbox_permission,
             self.mcp_servers,
             self.tool_specs,
@@ -1004,17 +1012,38 @@ def _split_model_ref(data: Any) -> Any:
     return data
 
 
+def _template(params: Dict[str, Any]) -> Dict[str, Any]:
+    """The agent template value from a request dict, or ``{}``.
+
+    The whole template sits at ``parameters.agent`` (the ``agent-template`` catalog type), exactly
+    as the prompt template sits at ``parameters.prompt``. The portable definition
+    (instructions/llm/tools/mcps/skills) is flat on it, and the execution parts (``harness`` /
+    ``runner`` / ``sandbox``) are nested sub-objects. A caller may also pass the bare template
+    directly (SDK use, resolved params), in which case ``params`` already holds the definition
+    fields; the two are told apart by whether ``params["agent"]`` is itself a dict."""
+    agent = params.get("agent")
+    return agent if isinstance(agent, dict) else params
+
+
+def _agent_element(params: Dict[str, Any]) -> Dict[str, Any]:
+    """The agent template's definition fields (instructions/llm/tools/mcps/skills), or ``{}``."""
+    return _template(params)
+
+
+def _section(params: Dict[str, Any], key: str) -> Dict[str, Any]:
+    """One execution section (``harness`` / ``runner`` / ``sandbox``) of the template, or ``{}``."""
+    value = _template(params).get(key)
+    return value if isinstance(value, dict) else {}
+
+
 def _parse_mcp_servers_raw(
     params: Dict[str, Any],
     defaults: AgentTemplate,
 ) -> List[Any]:
-    """Pull the raw ``mcp_servers`` list from a request/config dict, falling back to defaults.
+    """Pull the raw ``mcps`` list from the nested ``agent`` element, falling back to defaults.
 
-    Reads ``mcp_servers`` from the ``agent`` element when present, else the flat request.
     Canonical validation happens on :class:`AgentTemplate` construction."""
-    agent = params.get("agent")
-    source = agent if isinstance(agent, dict) else params
-    raw = source.get("mcp_servers")
+    raw = _agent_element(params).get("mcps")
     if raw is None:
         return list(defaults.mcp_servers)
     return _as_list(raw)
@@ -1024,61 +1053,52 @@ def _parse_skills_raw(
     params: Dict[str, Any],
     defaults: AgentTemplate,
 ) -> List[Any]:
-    """Pull the raw ``skills`` list from a request/config dict, falling back to defaults.
+    """Pull the raw ``skills`` list from the nested ``agent`` element, falling back to defaults.
 
-    Reads ``skills`` from the ``agent`` element when present, else the flat request. Mirrors
-    the MCP path so an unparsed ``skills`` is not silently dropped; canonical validation happens
-    on :class:`AgentTemplate` construction. Each entry is a concrete inline ``SkillTemplate`` by the
-    time the request is built (any ``@ag.embed`` reference resolved server-side first)."""
-    agent = params.get("agent")
-    source = agent if isinstance(agent, dict) else params
-    raw = source.get("skills")
+    Mirrors the MCP path so an unparsed ``skills`` is not silently dropped; canonical validation
+    happens on :class:`AgentTemplate` construction. Each entry is a concrete inline ``SkillTemplate``
+    by the time the request is built (any ``@ag.embed`` reference resolved server-side first)."""
+    raw = _agent_element(params).get("skills")
     if raw is None:
         return list(defaults.skills)
     return _as_list(raw)
 
 
-def _parse_harness_kwargs(
+def _parse_harness_slice(
     params: Dict[str, Any],
     defaults: AgentTemplate,
-) -> Dict[str, Dict[str, Any]]:
-    """Pull the per-harness options bag from a request/config dict, falling back to defaults.
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Pull the selected harness's first-class ``permissions`` + escape-hatch ``extras``.
 
-    Reads ``harness_kwargs`` from the ``agent`` element when present, else from the flat
-    request. Keeps only well-formed entries (a harness name mapping to an options dict) and
-    lower-cases the harness key so it matches :class:`HarnessType` values.
-    """
-    agent = params.get("agent")
-    source = agent if isinstance(agent, dict) else params
-    raw = source.get("harness_kwargs")
-    if not isinstance(raw, dict):
-        return dict(defaults.harness_kwargs)
-    # An explicit empty dict clears inherited per-harness options; only an
-    # *absent* key (caught above) falls back to defaults. Distinguishing the two
-    # lets a caller remove an inherited prompt/permission override by sending {}.
-    options: Dict[str, Dict[str, Any]] = {}
-    for name, opts in raw.items():
-        if isinstance(opts, dict):
-            options[str(name).lower()] = dict(opts)
-    return options
+    Reads ``harness.permissions`` / ``harness.extras`` from the envelope. The keyed-by-harness
+    bag is gone: the template carries only the selected harness's slice. An absent section falls
+    back to ``defaults``; an explicit empty dict clears the inherited slice."""
+    harness = _section(params, "harness")
+    permissions = harness.get("permissions")
+    extras = harness.get("extras")
+    return (
+        dict(permissions)
+        if isinstance(permissions, dict)
+        else dict(defaults.harness_permissions),
+        dict(extras) if isinstance(extras, dict) else dict(defaults.harness_extras),
+    )
 
 
 def _parse_run_selection(
     params: Dict[str, Any],
     defaults: AgentTemplate,
 ) -> Tuple[str, str, "PermissionPolicy"]:
-    """Pull the run-selection trio (harness / sandbox / permission_policy) from a request dict.
+    """Pull the execution selectors (harness kind / sandbox kind / headless interaction default).
 
-    Reads from the ``agent`` element when present, else the flat request, falling back to
-    ``defaults``. Each value is lower-cased so a playground-supplied ``"Claude"`` / ``"Daytona"``
-    matches the bare :class:`HarnessType` / sandbox values the caller selects on."""
-    agent = params.get("agent")
-    source = agent if isinstance(agent, dict) else params
-    harness = str(source.get("harness") or defaults.harness).lower()
-    sandbox = str(source.get("sandbox") or defaults.sandbox).lower()
-    permission_policy = str(
-        source.get("permission_policy") or defaults.permission_policy
-    ).lower()
+    ``harness`` from ``harness.kind``, ``sandbox`` from ``sandbox.kind``, and the headless
+    permission default from ``runner.interactions.headless`` (was the flat ``permission_policy``).
+    Falls back to ``defaults``. The kinds are lower-cased so a playground-supplied ``"Claude"`` /
+    ``"Daytona"`` matches the bare :class:`HarnessType` / sandbox values the caller selects on."""
+    harness = str(_section(params, "harness").get("kind") or defaults.harness).lower()
+    sandbox = str(_section(params, "sandbox").get("kind") or defaults.sandbox).lower()
+    interactions = _section(params, "runner").get("interactions")
+    headless = interactions.get("headless") if isinstance(interactions, dict) else None
+    permission_policy = str(headless or defaults.permission_policy).lower()
     return harness, sandbox, permission_policy
 
 
@@ -1086,14 +1106,11 @@ def _parse_sandbox_permission(
     params: Dict[str, Any],
     defaults: AgentTemplate,
 ) -> Optional[SandboxPermission]:
-    """Pull the sandbox permission object from a request/config dict, falling back to defaults.
+    """Pull the sandbox boundary from ``sandbox.permissions``, falling back to defaults.
 
-    Reads ``sandbox_permission`` from the ``agent`` element when present, else the flat request.
     Validates the loose dict into a :class:`SandboxPermission`; an absent value stays ``None`` so
-    it never reaches the wire (existing configs are unaffected)."""
-    agent = params.get("agent")
-    source = agent if isinstance(agent, dict) else params
-    raw = source.get("sandbox_permission")
+    it never reaches the wire (a boundary-free run is unchanged)."""
+    raw = _section(params, "sandbox").get("permissions")
     if raw is None:
         return defaults.sandbox_permission
     if isinstance(raw, SandboxPermission):
@@ -1121,20 +1138,54 @@ def _system_text(messages: Optional[List[Any]]) -> str:
     return "\n\n".join(part for part in parts if part)
 
 
+def _model_from_llm(llm: Dict[str, Any]) -> Any:
+    """Project the nested ``agent.llm`` object back to the ``model`` value the validator consumes.
+
+    A plain ``{model: "gpt-5.5"}`` (no provider / connection / extras) projects to the bare string
+    so ``model_ref`` stays ``None`` and the wire is byte-identical. A structured llm (any of
+    ``provider`` / ``connection`` / non-empty ``extras`` present) projects to a ``ModelRef``-shaped
+    dict (``params`` is the ModelRef field name for the ``extras`` knobs bag) so ``_split_model_ref``
+    builds the typed ref."""
+    model = llm.get("model")
+    provider = llm.get("provider")
+    connection = llm.get("connection")
+    extras = llm.get("extras")
+    structured = bool(provider) or bool(connection) or bool(extras)
+    if not structured:
+        return model
+    ref: Dict[str, Any] = {"model": model}
+    if provider:
+        ref["provider"] = provider
+    if connection:
+        ref["connection"] = connection
+    if extras:
+        ref["extras"] = extras
+    return ref
+
+
 def _parse_agent_fields(
     params: Dict[str, Any],
     defaults: AgentTemplate,
 ) -> Tuple[Optional[str], Optional[str], Any]:
-    """Pull (instructions, model, tools) from a request/config dict, with fallbacks."""
-    agent = params.get("agent")
-    if isinstance(agent, dict):
-        # ``agents_md`` is the field the playground/catalog schema exposes; ``instructions`` is
-        # the legacy key kept as a fallback so already-stored agent configs still resolve.
+    """Pull (instructions, model, tools) from a request/config dict, with fallbacks.
+
+    Two shapes: the agent template at ``parameters.agent`` (``instructions.agents_md`` / ``llm`` /
+    ``tools`` flat on it), and the ``prompt`` prompt-template for a bare chat run. The agent-template
+    shape wins when present; the prompt fallback applies only when there is no agent template."""
+    has_template = isinstance(params.get("agent"), dict) or any(
+        key in params for key in ("instructions", "llm", "tools", "mcps", "skills")
+    )
+    if has_template:
+        agent = _template(params)
+        instructions = agent.get("instructions")
+        agents_md = (
+            instructions.get("agents_md") if isinstance(instructions, dict) else None
+        )
+        llm = agent.get("llm")
+        model = _model_from_llm(llm) if isinstance(llm, dict) else None
         return (
-            agent.get("agents_md")
-            or agent.get("instructions")
-            or defaults.instructions,
-            agent.get("model") or defaults.model,
+            agents_md or defaults.instructions,
+            model if model is not None else defaults.model,
             agent.get("tools") if agent.get("tools") is not None else defaults.tools,
         )
 
@@ -1146,11 +1197,8 @@ def _parse_agent_fields(
         raw_tools = llm_config.get("tools")
         if raw_tools is None:
             raw_tools = prompt_cfg.get("tools")
-    else:
-        model = params.get("model") or defaults.model
-        instructions = params.get("agents_md") or defaults.instructions
-        raw_tools = params.get("tools")
+        if raw_tools is None:
+            raw_tools = defaults.tools
+        return instructions, model, raw_tools
 
-    if raw_tools is None:
-        raw_tools = defaults.tools
-    return instructions, model, raw_tools
+    return defaults.instructions, defaults.model, defaults.tools

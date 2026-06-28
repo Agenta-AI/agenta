@@ -28,14 +28,15 @@ AGENT_INPUTS_SCHEMA = {
     },
 }
 
-# The agent config element: one composite control the playground renders for the whole
-# agent config, instead of reusing `prompt-template` plus loose params. The field shape is
-# the `agent-template` catalog type (AgentTemplateSchema in agenta.sdk.utils.types), so this is a
-# thin `x-ag-type-ref` the playground resolves against `/workflows/catalog/types/agent_template`
-# and dispatches to the AgentTemplateControl (web/packages/agenta-entity-ui/.../AgentTemplateControl.tsx).
-# The catalog type keeps the typed tools/mcp_servers shape in one place; this schema only
-# carries the default that the playground pre-fills. The agent handler reads it from
-# `parameters.agent` in app.py.
+# The agent template is one object at `parameters.agent` (just as the chat workflow's prompt template
+# is one object at `parameters.prompt`): the `agent-template` catalog type, with the portable
+# definition (instructions/llm/tools/mcps/skills) flat on it and the execution parts (harness/runner/
+# sandbox) as nested sub-objects. So `parameters.agent` carries the `x-ag-type-ref: agent-template`
+# the playground resolves against `/workflows/catalog/types/agent-template` and dispatches to the one
+# composite AgentTemplateControl (web/packages/agenta-entity-ui/.../AgentTemplateControl.tsx). The
+# catalog type keeps the typed tools/mcps shape in one place; this schema only carries the default the
+# playground pre-fills. The agent handler passes `parameters` verbatim to `AgentTemplate.from_params`,
+# which reads the template at `parameters.agent` (so a tool is at `parameters.agent.tools`).
 # Reserved slug of the static default skill, served from code by the StaticWorkflowCatalog
 # (api/oss/src/core/workflows/static_catalog.py), never the database. The default config
 # references it by stable slug through an @ag.embed; the embed resolver inlines the catalogue's

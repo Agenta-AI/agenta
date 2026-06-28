@@ -8,9 +8,9 @@ whatever ``harnessFiles`` the adapter produced into the session cwd. The Claude 
 file is the only clean Claude-config path because the sandbox-agent daemon strips ACP ``_meta``.
 
 Four rule sources merge here:
- - the AUTHOR's options (Layer 1), read from the generic ``harness_kwargs["claude"]["permissions"]``
-   slice: ``default_mode`` + per-tool ``allow``/``deny``/``ask`` strings. This is the only place the
-   claude-specific shape of that slice is known.
+ - the AUTHOR's options (Layer 1), read from the harness's first-class ``permissions`` slice
+   (``harness.permissions`` in the template): ``default_mode`` + per-tool ``allow``/``deny``/``ask``
+   strings. This is the only place the claude-specific shape of that slice is known.
  - rules DERIVED from ``sandbox_permission`` (Layer 2): baseline reinforcement of the sandbox
    boundary as Claude-tool rules (block web tools when egress is off, block edits when the
    filesystem is read-only/off). A safety floor, not the primary enforcement.
@@ -34,7 +34,7 @@ means "gate -> HITL/policy".
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Sequence
 
 # Claude Code's four permission modes (its ``permissions.defaultMode``); any other authored value
 # is dropped.
@@ -63,7 +63,7 @@ def _string_list(value: Any) -> List[str]:
 
 
 def _parse_author_permissions(slice_: Any) -> Dict[str, Any]:
-    """Parse the untyped author block from ``harness_kwargs["claude"]["permissions"]``.
+    """Parse the untyped author block from the harness's ``permissions`` slice.
 
     ``default_mode`` (also accepted as ``defaultMode``) survives only when it is one of the four
     valid modes; ``allow``/``deny``/``ask`` become string lists. This is where the claude-specific
@@ -199,24 +199,25 @@ def _get(obj: Any, key: str) -> Any:
 
 
 def build_claude_settings_files(
-    harness_kwargs: Optional[Dict[str, Any]],
+    harness_permissions: Any,
     sandbox_permission: Any = None,
     mcp_servers: Any = None,
     tool_specs: Any = None,
 ) -> List[Dict[str, str]]:
     """Build the Claude ``settings.json`` as a generic ``harnessFiles`` entry, or ``[]`` if none.
 
-    Reads the author's Layer-1 options from ``harness_kwargs["claude"]["permissions"]``, merges
-    them with the Layer-2-derived rules (from ``sandbox_permission``), the Layer-3-derived MCP rules
-    (from ``mcp_servers``), and the Layer-3-derived per-resolved-tool rules (from ``tool_specs``,
-    F-046), dedupes each list, and emits the smallest valid file: ``permissions.defaultMode`` is set
-    only when authored (and valid), and each allow/deny/ask list appears only when non-empty. When
-    there is nothing to write at all (no author options AND no derived rules) it returns ``[]`` so
-    the runner writes no file.
+    Reads the author's Layer-1 options from the harness's ``permissions`` slice
+    (``harness.permissions`` in the template), merges them with the Layer-2-derived rules (from
+    ``sandbox_permission``), the Layer-3-derived MCP rules (from ``mcp_servers``), and the
+    Layer-3-derived per-resolved-tool rules (from ``tool_specs``, F-046), dedupes each list, and
+    emits the smallest valid file: ``permissions.defaultMode`` is set only when authored (and
+    valid), and each allow/deny/ask list appears only when non-empty. When there is nothing to
+    write at all (no author options AND no derived rules) it returns ``[]`` so the runner writes
+    no file.
 
     Returns ``[{"path": ".claude/settings.json", "content": <json str>}]`` or ``[]``.
     """
-    author = _parse_author_permissions(_claude_permissions_slice(harness_kwargs))
+    author = _parse_author_permissions(harness_permissions)
 
     # Merge order: author rules first, then derived rules (Layer 2, then Layer 3). ``_dedupe``
     # keeps first-seen order, so an author rule wins its position and derived rules append.
@@ -255,13 +256,3 @@ def build_claude_settings_files(
 
     content = json.dumps({"permissions": permissions}, indent=2)
     return [{"path": SETTINGS_PATH, "content": content}]
-
-
-def _claude_permissions_slice(harness_kwargs: Optional[Dict[str, Any]]) -> Any:
-    """Pull the ``claude.permissions`` slice from the generic per-harness options map."""
-    if not isinstance(harness_kwargs, dict):
-        return None
-    claude = harness_kwargs.get("claude")
-    if not isinstance(claude, dict):
-        return None
-    return claude.get("permissions")
