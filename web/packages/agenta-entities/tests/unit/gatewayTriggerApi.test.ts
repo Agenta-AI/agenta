@@ -157,8 +157,15 @@ describe("connections (F2 — shared rows)", () => {
 
         const [url, body, opts] = post.mock.calls[0]
         expect(url).toBe("https://api.test/triggers/connections/query")
-        expect(body).toEqual({provider_key: "composio", integration_key: "github"})
-        expect(opts.params).toMatchObject({project_id: "proj-42"})
+        // The backend reads provider_key/integration_key as Query params (not the body):
+        // the filters travel in the query string and the POST body is empty. Sending them in
+        // the body drops the filter and returns ALL connections.
+        expect(body).toEqual({})
+        expect(opts.params).toMatchObject({
+            project_id: "proj-42",
+            provider_key: "composio",
+            integration_key: "github",
+        })
         expect(res.connections[0]).toMatchObject({id: "conn-1", integration_key: "github"})
     })
 

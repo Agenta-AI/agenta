@@ -1,8 +1,8 @@
 /**
  * SkillTemplateControl
  *
- * Schema-driven control for one declared skill on the agent config. Skills are a sibling of
- * `tools` and `mcp_servers`: each entry is either an inline SKILL.md package (`name`,
+ * Schema-driven control for one declared skill on the agent definition. Skills are a sibling of
+ * `tools` and `mcps`: each entry is either an inline SKILL.md package (`name`,
  * `description`, `body`, optional bundled `files`, and the two behavior flags) or an
  * `@ag.embed` reference to a stored skill the backend inlines into that same shape before the
  * runner sees it. The shape is open enough that a JSON editor is the pragmatic v1 — the same

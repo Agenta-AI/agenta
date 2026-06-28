@@ -117,25 +117,29 @@ async def test_embed_skill_resolves_to_a_concrete_package_on_the_wire(make_env):
     # The author config references a skill by an `@ag.embed` inside the skills list (the platform default-config shape). The resolver inlines the stored `SkillTemplate` BEFORE the handler
     # builds the AgentTemplate, so the runner must never see the embed -- only a concrete package.
     params_with_embed = {
-        "skills": [
-            {
-                "@ag.embed": {
-                    "@ag.references": {
-                        "workflow": {"slug": "__ag__getting_started_with_agenta"}
-                    },
-                    "@ag.selector": {"path": "parameters.skill"},
+        "agent": {
+            "skills": [
+                {
+                    "@ag.embed": {
+                        "@ag.references": {
+                            "workflow": {"slug": "__ag__getting_started_with_agenta"}
+                        },
+                        "@ag.selector": {"path": "parameters.skill"},
+                    }
                 }
-            }
-        ]
+            ]
+        }
     }
     resolved_params = {
-        "skills": [
-            {
-                "name": "agenta-getting-started",
-                "description": "Get started with Agenta.",
-                "body": "Welcome. Here is how to begin.",
-            }
-        ]
+        "agent": {
+            "skills": [
+                {
+                    "name": "agenta-getting-started",
+                    "description": "Get started with Agenta.",
+                    "body": "Welcome. Here is how to begin.",
+                }
+            ]
+        }
     }
 
     request = WorkflowInvokeRequest(

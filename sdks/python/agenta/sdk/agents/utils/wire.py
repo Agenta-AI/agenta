@@ -98,7 +98,7 @@ def request_to_wire(
     and ``wire_model_ref``'s ``provider`` (its ``env`` never reaches the wire; the secret rides
     ``secrets``).
     ``config.wire_harness_files()`` adds the generic ``harnessFiles`` array: files the active
-    harness's config rendered from its own ``harness_kwargs`` slice, to materialize in the session
+    harness's config rendered from its own ``permissions`` / ``extras`` slice, to materialize in the session
     cwd before the session starts (``path`` relative to cwd, ``content`` the file text). Omitted
     unless the config produced any files. This is where the per-harness translation happens in
     Python (e.g. the claude config renders ``.claude/settings.json``); the runner is a dumb writer
@@ -117,7 +117,13 @@ def request_to_wire(
         "model": config.model,
         "messages": [message.to_wire() for message in messages],
         "secrets": dict(secrets or {}),
-        "trace": trace.to_wire() if trace else None,
+        # The run's tracing inputs ride the wire grouped by role (see the trace/telemetry interface
+        # restructure): `context.propagation` carries the per-call W3C trace-context headers, and
+        # `telemetry` carries the operator-owned exporter config + capture policy. Both come from the
+        # single `trace` capture; both are null when the run has no trace context (the standalone
+        # case), matching the prior single-`trace`-null behavior.
+        "context": trace.context_to_wire() if trace else None,
+        "telemetry": trace.telemetry_to_wire() if trace else None,
         **config.wire_tools(),
         **config.wire_prompt(),
         **config.wire_mcp(),

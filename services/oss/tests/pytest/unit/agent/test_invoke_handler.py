@@ -88,11 +88,27 @@ def patched(monkeypatch, fake_backend):
     return backend, recorded
 
 
+def _template(harness="pi_core", *, model=None, permission_policy=None, skills=None):
+    """Build the agent-template value from loose kwargs the tests still pass flat.
+
+    Everything lives on the one template (at `parameters.agent`): `model`/`skills` are the
+    definition; `harness`/`permission_policy` are the nested execution sections
+    (`harness.kind` / `runner.interactions.headless`)."""
+    template: dict = {"harness": {"kind": harness}}
+    if model is not None:
+        template["llm"] = model if isinstance(model, dict) else {"model": model}
+    if skills is not None:
+        template["skills"] = skills
+    if permission_policy is not None:
+        template["runner"] = {"interactions": {"headless": permission_policy}}
+    return template
+
+
 async def _invoke(harness="pi_core", **agent):
     return await app._agent(
         request=_request(),
         messages=[{"role": "user", "content": "hi"}],
-        parameters={"agent": {"harness": harness, **agent}},
+        parameters={"agent": _template(harness, **agent)},
     )
 
 
@@ -122,7 +138,7 @@ async def test_messages_session_id_reaches_session_config(patched):
     await app._agent(
         request=_request(session_id="sess_request"),
         messages=[{"role": "user", "content": "hi"}],
-        parameters={"agent": {"harness": "pi_core"}},
+        parameters={"agent": {"harness": {"kind": "pi_core"}}},
     )
 
     assert backend.created_session_ids == ["sess_request"]
@@ -250,7 +266,7 @@ async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
         await app._agent(
             request=_request(stream=True),
             messages=[{"role": "user", "content": "hi"}],
-            parameters={"agent": {"harness": "pi_core"}},
+            parameters={"agent": {"harness": {"kind": "pi_core"}}},
         )
 
 

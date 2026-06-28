@@ -35,12 +35,15 @@ import {toAgentaMessages} from "./toAgentaMessage"
  */
 const stubConfig = () => ({
     parameters: {
-        prompt: {
-            messages: [{role: "system", content: "You are a helpful agent."}],
-            llm_config: {model: "gpt-4o-mini", tools: []},
+        agent: {
+            instructions: {agents_md: "You are a helpful agent."},
+            llm: {model: "gpt-4o-mini"},
+            tools: [],
+            mcps: [],
+            harness: {kind: "pi_core"},
+            runner: {kind: "sidecar", interactions: {headless: "auto"}},
+            sandbox: {kind: "local"},
         },
-        harness: "pi_core",
-        sandbox: "local",
     },
     references: {
         application: null,
@@ -49,37 +52,39 @@ const stubConfig = () => ({
     },
 })
 
+/** Default a nested execution section onto the template, the resolved config's own value winning. */
+const withSection = (
+    section: unknown,
+    defaults: Record<string, unknown>,
+): Record<string, unknown> => ({
+    ...defaults,
+    ...(section && typeof section === "object" && !Array.isArray(section)
+        ? (section as Record<string, unknown>)
+        : {}),
+})
+
 /**
  * Real config from the app's latest revision when `appId` is set and loaded; else the stub.
- * Returns `{parameters, references}`: `parameters` is the agent config the backend reads as
- * `data.parameters`. `harness`/`sandbox` are run-selection fields on the AGENT CONFIG
- * (`parameters.agent`); they are defaulted there but never override values the resolved
- * config already carries.
+ * Returns `{parameters, references}`: `parameters` is the template the backend reads as
+ * `data.parameters`. The agent template lives at `parameters.agent` (the definition flat plus
+ * nested `harness`/`runner`/`sandbox`); the execution sections are defaulted but never override
+ * values the resolved config already carries.
  */
-// Legacy pre-migration run-selection keys that now live inside `agent`. Stripped from the
-// top level when `agent` is present so we never emit both wire shapes for one config.
-const LEGACY_RUN_SELECTION_KEYS = ["harness", "sandbox", "permission_policy"] as const
-
 const configFor = (appId?: string | null) => {
     const resolved = resolveAppAgConfig(appId)
     if (!resolved) return stubConfig()
     const agConfig = resolved.ag_config as Record<string, unknown>
-    const agent = agConfig.agent
-    let parameters: Record<string, unknown>
-    if (agent && typeof agent === "object") {
-        const rest = {...agConfig}
-        for (const key of LEGACY_RUN_SELECTION_KEYS) delete rest[key]
-        parameters = {
-            ...rest,
-            agent: {
-                harness: "pi_core",
-                sandbox: "local",
-                ...(agent as Record<string, unknown>),
-            },
-        }
-    } else {
-        parameters = {harness: "pi_core", sandbox: "local", ...agConfig}
-    }
+    const template = agConfig.agent
+    const withDefaults = (t: Record<string, unknown>): Record<string, unknown> => ({
+        ...t,
+        harness: withSection(t.harness, {kind: "pi_core"}),
+        runner: withSection(t.runner, {kind: "sidecar", interactions: {headless: "auto"}}),
+        sandbox: withSection(t.sandbox, {kind: "local"}),
+    })
+    const parameters =
+        template && typeof template === "object" && !Array.isArray(template)
+            ? {...agConfig, agent: withDefaults(template as Record<string, unknown>)}
+            : withDefaults(agConfig)
     return {parameters, references: resolved.references}
 }
 

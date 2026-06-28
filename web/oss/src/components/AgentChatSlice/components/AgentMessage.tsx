@@ -28,7 +28,7 @@ import {
     type MessageUsageMetrics,
 } from "../assets/trace"
 
-import ToolPart from "./ToolPart"
+import ToolActivity from "./ToolActivity"
 
 const {Text} = Typography
 
@@ -48,7 +48,9 @@ interface AgentMessageProps {
     /** This is the last message AND the conversation is streaming — i.e. the one being
      * generated right now. Only it shows the loading state; settled turns never do. */
     isStreaming?: boolean
-    onRewind: () => void
+    /** Stable across renders (parent passes a `useCallback`'d handler) so the `memo()` below
+     * isn't defeated — the message to rewind to is passed in, not closed over per render. */
+    onRewind: (message: UIMessage) => void
     onApprovalResponse: (args: {id: string; approved: boolean}) => void
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
      * run of "no response" bubbles down to the first one. */
@@ -79,7 +81,7 @@ const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) =>
                     setExpanded((e) => !e)
                 }}
                 aria-expanded={expanded}
-                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextTertiary transition-colors hover:bg-[var(--ag-rgba-051729-04)] hover:text-colorTextSecondary"
+                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextTertiary transition-colors hover:bg-colorFillQuaternary hover:text-colorTextSecondary"
             >
                 <CaretRight
                     size={11}
@@ -118,12 +120,12 @@ const RunErrorBody = ({text}: {text: string}) => {
     const isLong = text.length > 220 || text.includes("\n")
 
     return (
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-2 rounded-md bg-[var(--ant-color-error-bg)] px-3 py-2">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <Text className="!text-xs !font-medium !text-colorError">The agent run failed</Text>
                 {expanded ? (
-                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-colorErrorBorder bg-[var(--ant-color-error-bg)] p-2 font-mono text-[11px] !text-colorErrorText">
+                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-[11px] !text-colorErrorText">
                         {text}
                     </pre>
                 ) : (
@@ -225,7 +227,7 @@ const AgentMessage = ({
         return (
             <Bubble
                 placement="start"
-                variant="outlined"
+                variant="borderless"
                 avatar={avatarFor(false)}
                 loading
                 content=""
@@ -233,68 +235,92 @@ const AgentMessage = ({
         )
     }
 
+    // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts
+    // into one ToolActivity group (a run of calls reads as a single "Used N tools" line).
+    type RenderItem =
+        | {kind: "part"; part: UIMessage["parts"][number]; index: number}
+        | {kind: "tools"; parts: ToolUIPart[]; index: number}
+    const renderItems: RenderItem[] = []
+    message.parts.forEach((part, i) => {
+        if (isToolPart(part.type)) {
+            const last = renderItems[renderItems.length - 1]
+            if (last && last.kind === "tools") last.parts.push(part as ToolUIPart)
+            else renderItems.push({kind: "tools", parts: [part as ToolUIPart], index: i})
+            return
+        }
+        renderItems.push({kind: "part", part, index: i})
+    })
+    // The tool group's "View full trace" opens the same per-turn trace the action row does.
+    const onViewTrace = traceId ? () => openTraceDrawer({traceId}) : undefined
+
+    const renderLeafPart = (part: UIMessage["parts"][number], i: number) => {
+        // Stable, globally-unique key per rendered part. The part index alone collides
+        // across messages that React reconciles together (duplicate-key warnings); the
+        // message id scopes it so each part is unique across the whole conversation.
+        const partKey = `${message.id}-${i}`
+        if (part.type === "text") {
+            const text = (part as {text: string}).text
+            if (!text) return null
+            // Render markdown for both roles so typed markdown displays properly.
+            return <Markdown key={partKey} content={text} />
+        }
+        if (part.type === "reasoning") {
+            const reasoning = part as ReasoningUIPart
+            if (!reasoning.text) return null
+            return (
+                <ReasoningPart
+                    key={partKey}
+                    text={reasoning.text}
+                    streaming={reasoning.state === "streaming"}
+                />
+            )
+        }
+        // Multi-modality: render attachments (sent by the user or returned by the
+        // agent) as X `FileCard`s — images preview inline, other kinds show a typed
+        // file chip with a download link.
+        if (part.type === "file") {
+            const file = part as FileUIPart
+            const kind = fileKind(file.mediaType)
+            return (
+                <FileCard
+                    key={partKey}
+                    name={filePartName(file)}
+                    type={kind}
+                    src={file.url}
+                    size="small"
+                    className="max-w-full"
+                    description={
+                        kind === "file" ? (
+                            <a
+                                href={file.url}
+                                download={filePartName(file)}
+                                className="text-xs text-colorPrimary"
+                            >
+                                {file.mediaType}
+                            </a>
+                        ) : undefined
+                    }
+                />
+            )
+        }
+        return null
+    }
+
     const defaultBody = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
-            {message.parts.map((part, i) => {
-                // Stable, globally-unique key per rendered part. The part index alone collides
-                // across messages that React reconciles together (duplicate-key warnings); the
-                // message id scopes it so each part is unique across the whole conversation.
-                const partKey = `${message.id}-${i}`
-                if (part.type === "text") {
-                    const text = (part as {text: string}).text
-                    if (!text) return null
-                    // Render markdown for both roles so typed markdown displays properly.
-                    return <Markdown key={partKey} content={text} />
-                }
-                if (part.type === "reasoning") {
-                    const reasoning = part as ReasoningUIPart
-                    if (!reasoning.text) return null
+            {renderItems.map((item) => {
+                if (item.kind === "tools") {
                     return (
-                        <ReasoningPart
-                            key={partKey}
-                            text={reasoning.text}
-                            streaming={reasoning.state === "streaming"}
-                        />
-                    )
-                }
-                if (isToolPart(part.type)) {
-                    return (
-                        <ToolPart
-                            key={partKey}
-                            part={part as ToolUIPart}
+                        <ToolActivity
+                            key={`${message.id}-tools-${item.index}`}
+                            parts={item.parts}
+                            isStreaming={isStreaming}
                             onApprovalResponse={onApprovalResponse}
+                            onViewTrace={onViewTrace}
                         />
                     )
                 }
-                // Multi-modality: render attachments (sent by the user or returned by the
-                // agent) as X `FileCard`s — images preview inline, other kinds show a typed
-                // file chip with a download link.
-                if (part.type === "file") {
-                    const file = part as FileUIPart
-                    const kind = fileKind(file.mediaType)
-                    return (
-                        <FileCard
-                            key={partKey}
-                            name={filePartName(file)}
-                            type={kind}
-                            src={file.url}
-                            size="small"
-                            className="max-w-full"
-                            description={
-                                kind === "file" ? (
-                                    <a
-                                        href={file.url}
-                                        download={filePartName(file)}
-                                        className="text-xs text-colorPrimary"
-                                    >
-                                        {file.mediaType}
-                                    </a>
-                                ) : undefined
-                            }
-                        />
-                    )
-                }
-                return null
+                return renderLeafPart(item.part, item.index)
             })}
 
             {sources.length > 0 && (
@@ -359,7 +385,7 @@ const AgentMessage = ({
             ? "Rewind here — edit and re-run the conversation from this message"
             : "Rewind here — re-run this turn",
         icon: <ArrowUUpLeft size={14} />,
-        onItemClick: () => onRewind(),
+        onItemClick: () => onRewind(message),
     }
 
     const toolbar = isUser ? (
@@ -402,13 +428,15 @@ const AgentMessage = ({
         >
             <Bubble<React.ReactNode>
                 placement={isUser ? "end" : "start"}
-                variant={isUser ? "filled" : "outlined"}
+                // Borderless assistant turns: content sits on the panel bg with just the avatar and
+                // spacing, so tool cards aren't wrapped in an extra outline. User stays filled.
+                variant={isUser ? "filled" : "borderless"}
                 avatar={avatarFor(isUser)}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
-                    content: `min-w-0 max-w-full overflow-hidden ${
-                        isError ? "!border-colorErrorBorder !bg-[var(--ant-color-error-bg)]" : ""
-                    }`,
+                    // Error styling is a self-contained callout in RunErrorBody now, not painted on
+                    // the (borderless) bubble content — otherwise it bleeds edge-to-edge with no pad.
+                    content: "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 content={body}

@@ -19,8 +19,8 @@
  *   { session_id, references, data: { inputs: { messages }, parameters } }
  *  - `parameters` is the DRAFT-AWARE config (`workflowMolecule.selectors.configuration`,
  *    merged draft + server) so unsaved left-panel edits apply to the agent run.
- *  - `harness`/`sandbox` live on the agent config (`parameters.agent`), defaulted but
- *    never overriding a value the resolved config already carries.
+ *  - the execution sections (`harness`/`runner`/`sandbox`) are nested in the agent template at
+ *    `parameters.agent`, defaulted but never overriding a value the resolved config carries.
  *  - `project_id` / `application_id` ride the URL QUERY (never the body), and
  *    `project_id` only travels alongside auth — mirroring `executionItems.ts`.
  */
@@ -112,7 +112,7 @@ export function buildAgentReferences(rev: RevisionLike | null | undefined): Agen
  * The backend validates an MCP server `name` (and a skill's `name`/`description`/`body`)
  * as min-length 1, so a blank entry — e.g. an "Add MCP server" or "Add skill" block the
  * user hasn't filled in yet — 500s the whole run ("… too short"). Walks the parameters
- * generically so it works wherever `mcp_servers` / `skills` are nested.
+ * generically so it works wherever `mcps` / `skills` are nested (under `agent`).
  */
 const hasUsableName = (entry: unknown): boolean => {
     const name = (entry as {name?: unknown} | null)?.name
@@ -184,7 +184,7 @@ const pruneBlankEntries = (value: unknown): unknown => {
     if (value && typeof value === "object") {
         const out: Record<string, unknown> = {}
         for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-            if (key === "mcp_servers" && Array.isArray(val)) {
+            if (key === "mcps" && Array.isArray(val)) {
                 out[key] = val.filter(hasUsableName).map(pruneBlankEntries)
             } else if (key === "skills" && Array.isArray(val)) {
                 out[key] = val.filter(isUsableSkill).map(pruneBlankEntries)
@@ -226,27 +226,41 @@ const hasAnswer = (message: unknown): boolean => {
 }
 
 /**
- * Default the agent run-selection fields (`harness`/`sandbox`) onto the AGENT CONFIG
- * (`parameters.agent`), not as top-level params siblings. They are part of one `AgentTemplate`
- * now, so they belong inside the `agent` block. A value the resolved config already carries
- * always wins; the schema nests the config under `agent`, but a flat config (no `agent` key)
- * is still defaulted at the top level so a non-schema config keeps working.
+ * Default the execution sections onto the agent template before sending.
+ *
+ * `config` is the full `parameters`; the template lives at `parameters.agent` (the definition flat
+ * plus nested `harness` / `runner` / `sandbox` sections). The execution sections are defaulted
+ * (harness `pi_core`, runner `sidecar` answering headless interactions `auto`, sandbox `local`) so a
+ * config that omits them still runs; a value the resolved config carries always wins (spread last).
+ * The definition fields are passed through untouched.
  */
-// Legacy pre-migration run-selection keys that now live inside `agent`. Stripped from the
-// top level when `agent` is present so we never emit both wire shapes for one config.
-const LEGACY_RUN_SELECTION_KEYS = ["harness", "sandbox", "permission_policy"] as const
+const withSection = (
+    section: unknown,
+    defaults: Record<string, unknown>,
+): Record<string, unknown> => ({
+    ...defaults,
+    ...(section && typeof section === "object" && !Array.isArray(section)
+        ? (section as Record<string, unknown>)
+        : {}),
+})
+
+const withTemplateDefaults = (template: Record<string, unknown>): Record<string, unknown> => ({
+    ...template,
+    harness: withSection(template.harness, {kind: "pi_core"}),
+    runner: withSection(template.runner, {
+        kind: "sidecar",
+        interactions: {headless: "auto"},
+    }),
+    sandbox: withSection(template.sandbox, {kind: "local"}),
+})
 
 const withAgentRunDefaults = (config: Record<string, unknown>): Record<string, unknown> => {
-    const agent = config.agent
-    if (agent && typeof agent === "object") {
-        const rest = {...config}
-        for (const key of LEGACY_RUN_SELECTION_KEYS) delete rest[key]
-        return {
-            ...rest,
-            agent: {harness: "pi_core", sandbox: "local", ...(agent as Record<string, unknown>)},
-        }
+    const template = config.agent
+    if (template && typeof template === "object" && !Array.isArray(template)) {
+        return {...config, agent: withTemplateDefaults(template as Record<string, unknown>)}
     }
-    return {harness: "pi_core", sandbox: "local", ...config}
+    // No `agent` wrapper (a bare template) — default its sections directly.
+    return withTemplateDefaults(config)
 }
 
 const withQuery = (url: string, params: Record<string, string | undefined>): string => {
@@ -290,9 +304,8 @@ export async function buildAgentRequest(
         | Record<string, unknown>
         | null
         | undefined
-    // `harness`/`sandbox` are run-selection fields on the AGENT CONFIG (`parameters.agent`), not
-    // top-level params siblings. Default them inside the `agent` block, never overriding values
-    // the resolved config already carries.
+    // The execution sections (`harness`/`runner`/`sandbox`) are nested in the template at
+    // `parameters.agent`. Default them, never overriding values the resolved config carries.
     const parameters = pruneBlankEntries(withAgentRunDefaults(config ?? {})) as Record<
         string,
         unknown
@@ -302,7 +315,25 @@ export async function buildAgentRequest(
         | RevisionLike
         | null
         | undefined
-    const references = buildAgentReferences(entity)
+
+    // Whether the run may CLAIM its committed identity. The service derives draft-ness purely
+    // from a resolved committed-revision reference — `services/oss/src/agent/tracing.py`
+    // `_run_context_workflow`: `is_draft = revision is None` — and a self-targeting "update myself"
+    // tool binds the revision/variant that reference resolves to. So the run may forward the
+    // reference family ONLY when it is actually running that committed revision unchanged:
+    //  - dirty (unsaved left-panel edits): the run is an inline-config draft; forwarding the
+    //    revision would wrongly mark it non-draft and bind a tool to a revision whose config
+    //    differs from what's running. The resolver also re-resolves a bare variant ref to its
+    //    latest revision, so the variant must be dropped too — send no references at all.
+    //  - uncommitted local draft (no real revision UUID): same inline-config-draft case.
+    // This matches the service's documented contract: "a playground run of an unsaved inline
+    // config carries no revision reference, so is_draft is True". App scoping rides the
+    // `application_id` URL query (derived below), so a draft run stays associated with its app.
+    const fullReferences = buildAgentReferences(entity)
+    const isDirty = store.get(workflowMolecule.selectors.isDirty(entityId)) as boolean
+    const isCommittedRevisionRun =
+        !isDirty && typeof fullReferences?.application_revision?.id === "string"
+    const references = isCommittedRevisionRun ? fullReferences : null
 
     const headersFactory = store.get(executionHeadersAtom)
     // Negotiation 1 (transport): the Accept header picks the response channel `/invoke`
@@ -322,7 +353,9 @@ export async function buildAgentRequest(
     }
 
     const projectId = store.get(projectIdAtom) || undefined
-    const appId = references?.application?.id
+    // App scoping rides the URL even for a draft run (where `references` is null), so the run
+    // stays associated with its app — read it from the full identity, not the gated `references`.
+    const appId = fullReferences?.application?.id
     const url = withQuery(invocationUrl, {
         application_id: appId,
         // Mirror executionItems.ts: project_id only travels alongside auth.

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
 import {
     describeCron,
     isEntityActive,
@@ -15,8 +16,10 @@ import {
     type TriggerScheduleEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
+import {Play} from "@phosphor-icons/react"
 import {
     Button,
     DatePicker,
@@ -24,12 +27,14 @@ import {
     Drawer,
     Form,
     Input,
+    Segmented,
     Spin,
     Switch,
+    Select,
     Typography,
     message,
 } from "antd"
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {
     createWorkflowRevisionAdapter,
@@ -47,6 +52,16 @@ const SCHEDULE_EVENT_KEY = "schedule.tick"
 const applicationRevisionAdapter = createWorkflowRevisionAdapter({
     workflowListAtom: appWorkflowsListQueryStateAtom,
 })
+
+// Compact a JSON string for stable comparison (so formatting doesn't count as a
+// change when computing the dirty state).
+function normalizeJson(text: string): string {
+    try {
+        return JSON.stringify(JSON.parse(text))
+    } catch {
+        return text
+    }
+}
 
 // ---------------------------------------------------------------------------
 // TriggerScheduleDrawer (root) — create or edit a schedule.
@@ -69,7 +84,7 @@ export default function TriggerScheduleDrawer() {
             open={open}
             onClose={handleClose}
             title={isEdit ? "Edit schedule" : "New schedule"}
-            width={640}
+            width={state?.playgroundEntityId ? 920 : 640}
             destroyOnClose
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
@@ -88,6 +103,7 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
     const [state] = useAtom(triggerScheduleDrawerAtom)
     const scheduleId = state?.scheduleId
     const isEdit = !!scheduleId
+    const playgroundEntityId = state?.playgroundEntityId
 
     const {
         schedule,
@@ -109,6 +125,14 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
     const [inputsText, setInputsText] = useState("{}")
     const [inputsError, setInputsError] = useState<string | null>(null)
 
+    // Run agent version: bind to a specific revision (the picker) or to an
+    // environment (always runs whatever is deployed there).
+    const [bindMode, setBindMode] = useState<"revision" | "environment">("revision")
+    const [environmentSlug, setEnvironmentSlug] = useState<string | null>(null)
+    const [appSlug, setAppSlug] = useState<string | null>(null)
+    const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
+    const environments = envQuery.data?.environments ?? []
+
     // Prefill from the freshly-fetched schedule (edit mode).
     useEffect(() => {
         if (!isEdit || !schedule) return
@@ -117,24 +141,130 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
         setStartTime(schedule.data?.start_time ?? null)
         setEndTime(schedule.data?.end_time ?? null)
         setEnabled(isEntityActive(schedule))
-        const wfId =
-            schedule.data?.references?.application_revision?.id ??
-            schedule.data?.references?.application_variant?.id ??
-            schedule.data?.references?.workflow_revision?.id ??
-            null
-        setWorkflowRevId(wfId)
-        setWorkflowLabel(wfId)
+        const refs = schedule.data?.references
+        const envRef = refs?.environment
+        if (envRef) {
+            setBindMode("environment")
+            setEnvironmentSlug(envRef.slug ?? null)
+            setAppSlug(refs?.application?.slug ?? null)
+        } else {
+            const wfId =
+                refs?.application_revision?.id ??
+                refs?.application_variant?.id ??
+                refs?.workflow_revision?.id ??
+                null
+            setWorkflowRevId(wfId)
+            setWorkflowLabel(wfId)
+        }
         setInputsText(JSON.stringify(schedule.data?.inputs_fields ?? {}, null, 2))
     }, [isEdit, schedule])
 
+    // Create-mode default-bind: when opened with `defaultReferences` (e.g. from an
+    // agent's config panel), pre-bind the new schedule to that workflow so the user
+    // doesn't have to re-pick it. Seed `workflowRevId` from the variant ref and, when
+    // present, the workflow (app) id via the selection metadata so `handleSubmit`
+    // emits the same `{application, application_variant}` shape a fresh pick would.
+    useEffect(() => {
+        if (isEdit) return
+        const refs = state?.defaultReferences
+        setAppSlug(refs?.application?.slug ?? null)
+        const variantId = refs?.application_variant?.id ?? refs?.application_revision?.id ?? null
+        if (!variantId) return
+        const appId = refs?.application?.id ?? null
+        const label = state?.defaultBoundLabel ?? appId ?? variantId
+        setWorkflowRevId(variantId)
+        setWorkflowLabel(label)
+        setWorkflowSelection({
+            type: "workflowRevision",
+            id: variantId,
+            label,
+            path: [],
+            metadata: {
+                workflowId: appId ?? "",
+                workflowName: state?.defaultBoundLabel ?? "",
+                variantId,
+                variantName: "",
+                revision: 0,
+            },
+        })
+        // Run once per open; `state` is keyed so the form remounts per drawer open.
+    }, [isEdit])
+
     const cronValidation = useMemo(() => validateCron(cron), [cron])
+
+    // Save enables only on draft changes vs the starting point (loaded schedule in
+    // edit, defaults in new). Normalized JSON so formatting isn't a change.
+    const baselineSnapshot = useMemo(() => {
+        if (isEdit && schedule) {
+            const refs = schedule.data?.references
+            const envRef = refs?.environment
+            return JSON.stringify({
+                name: schedule.name ?? "",
+                cron: schedule.data?.schedule ?? DEFAULT_CRON,
+                startTime: schedule.data?.start_time ?? null,
+                endTime: schedule.data?.end_time ?? null,
+                enabled: isEntityActive(schedule),
+                bindMode: envRef ? "environment" : "revision",
+                environmentSlug: envRef?.slug ?? null,
+                workflowRevId:
+                    refs?.application_revision?.id ??
+                    refs?.application_variant?.id ??
+                    refs?.workflow_revision?.id ??
+                    null,
+                inputs: normalizeJson(JSON.stringify(schedule.data?.inputs_fields ?? {})),
+            })
+        }
+        return JSON.stringify({
+            name: "",
+            cron: DEFAULT_CRON,
+            startTime: null,
+            endTime: null,
+            enabled: true,
+            bindMode: "revision",
+            environmentSlug: null,
+            workflowRevId: null,
+            inputs: normalizeJson("{}"),
+        })
+    }, [isEdit, schedule])
+
+    const isDirty = useMemo(
+        () =>
+            baselineSnapshot !==
+            JSON.stringify({
+                name,
+                cron,
+                startTime,
+                endTime,
+                enabled,
+                bindMode,
+                environmentSlug: environmentSlug ?? null,
+                workflowRevId: workflowRevId ?? null,
+                inputs: normalizeJson(inputsText),
+            }),
+        [
+            baselineSnapshot,
+            name,
+            cron,
+            startTime,
+            endTime,
+            enabled,
+            bindMode,
+            environmentSlug,
+            workflowRevId,
+            inputsText,
+        ],
+    )
 
     const handleSubmit = useCallback(async () => {
         if (!cronValidation.valid) {
             message.error(cronValidation.error ?? "Invalid cron expression")
             return
         }
-        if (!workflowRevId) {
+        if (bindMode === "environment" && !environmentSlug) {
+            message.error("Select an environment")
+            return
+        }
+        if (bindMode === "revision" && !workflowRevId) {
             message.error("Bind a workflow")
             return
         }
@@ -156,13 +286,25 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
         // On a fresh pick, send the application family by the picker's ids (its
         // leaf is the variant id). Without a re-pick (edit), resend the stored
         // already-complete references. The BE completes the family either way.
-        const meta = workflowSelection?.metadata
-        const references = meta
-            ? {
-                  ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
-                  application_variant: {id: workflowRevId},
-              }
-            : (schedule?.data?.references ?? {application_variant: {id: workflowRevId}})
+        let references: TriggerScheduleData["references"]
+        if (bindMode === "environment") {
+            references = environmentSlug
+                ? {
+                      environment: {slug: environmentSlug},
+                      ...(appSlug ? {application: {slug: appSlug}} : {}),
+                  }
+                : undefined
+        } else {
+            const meta = workflowSelection?.metadata
+            references = meta
+                ? {
+                      ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
+                      application_variant: {id: workflowRevId as string},
+                  }
+                : (schedule?.data?.references ?? {
+                      application_variant: {id: workflowRevId as string},
+                  })
+        }
 
         const data: TriggerScheduleData = {
             event_key: schedule?.data?.event_key ?? SCHEDULE_EVENT_KEY,
@@ -212,6 +354,9 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
         cron,
         startTime,
         endTime,
+        bindMode,
+        environmentSlug,
+        appSlug,
         workflowRevId,
         workflowSelection,
         inputsText,
@@ -233,69 +378,194 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
     }
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                <Form layout="vertical">
-                    <Form.Item label="Name">
-                        <Input
-                            placeholder="Schedule name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                        />
-                    </Form.Item>
+        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+                <div
+                    className={`flex min-w-0 flex-1 flex-col overflow-hidden${
+                        playgroundEntityId
+                            ? " border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]"
+                            : ""
+                    }`}
+                >
+                    <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+                        <Form layout="vertical">
+                            <Form.Item label="Name">
+                                <Input
+                                    placeholder="Schedule name"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                />
+                            </Form.Item>
 
-                    <CronField value={cron} onChange={setCron} />
+                            <CronField value={cron} onChange={setCron} />
 
-                    <WindowField
-                        startTime={startTime}
-                        endTime={endTime}
-                        onChangeStart={setStartTime}
-                        onChangeEnd={setEndTime}
-                    />
-
-                    <Form.Item label="Bound workflow" required>
-                        <div className="flex items-center gap-2">
-                            <EntityPicker<WorkflowRevisionSelectionResult>
-                                variant="popover-cascader"
-                                adapter={applicationRevisionAdapter}
-                                onSelect={(selection) => {
-                                    setWorkflowRevId(selection.id)
-                                    setWorkflowSelection(selection)
-                                    setWorkflowLabel(selection.label)
-                                }}
-                                size="small"
-                                placeholder={workflowLabel ?? "Select workflow revision"}
+                            <WindowField
+                                startTime={startTime}
+                                endTime={endTime}
+                                onChangeStart={setStartTime}
+                                onChangeEnd={setEndTime}
                             />
-                            {workflowLabel && (
-                                <Typography.Text type="secondary" className="text-xs truncate">
-                                    {workflowLabel}
-                                </Typography.Text>
-                            )}
-                        </div>
-                    </Form.Item>
 
-                    <Divider className="!my-2" />
+                            <Form.Item label="Run agent version" required>
+                                <div className="flex flex-col gap-2">
+                                    <Segmented
+                                        value={bindMode}
+                                        onChange={(v) =>
+                                            setBindMode(v as "revision" | "environment")
+                                        }
+                                        options={[
+                                            {label: "By revision", value: "revision"},
+                                            {label: "By environment", value: "environment"},
+                                        ]}
+                                    />
+                                    {bindMode === "revision" ? (
+                                        <EntityPicker<WorkflowRevisionSelectionResult>
+                                            variant="popover-cascader"
+                                            adapter={applicationRevisionAdapter}
+                                            onSelect={(selection) => {
+                                                setWorkflowRevId(selection.id)
+                                                setWorkflowSelection(selection)
+                                                setWorkflowLabel(selection.label)
+                                            }}
+                                            size="small"
+                                            placeholder={
+                                                workflowLabel ?? "Select workflow revision"
+                                            }
+                                        />
+                                    ) : (
+                                        <>
+                                            <Select
+                                                placeholder="Select an environment"
+                                                value={environmentSlug ?? undefined}
+                                                onChange={(v) => setEnvironmentSlug(v)}
+                                                loading={envQuery.isLoading}
+                                                options={environments.map((e) => ({
+                                                    value: e.slug,
+                                                    label: e.name || e.slug,
+                                                }))}
+                                            />
+                                            <Typography.Text
+                                                type="secondary"
+                                                className="!text-[11px] leading-snug"
+                                            >
+                                                Runs whatever revision is deployed to this
+                                                environment.
+                                            </Typography.Text>
+                                        </>
+                                    )}
+                                </div>
+                            </Form.Item>
 
-                    <InputsField
-                        value={inputsText}
-                        onChange={setInputsText}
-                        error={inputsError}
-                        disabled={isMutating}
+                            <Divider className="!my-2" />
+
+                            <InputsField
+                                value={inputsText}
+                                onChange={setInputsText}
+                                error={inputsError}
+                                disabled={isMutating}
+                            />
+
+                            <Form.Item label="Active">
+                                <Switch checked={enabled} onChange={setEnabled} />
+                            </Form.Item>
+                        </Form>
+                    </div>
+                </div>
+
+                {playgroundEntityId && (
+                    <SchedulePlaygroundPanel
+                        onClose={onClose}
+                        playgroundEntityId={playgroundEntityId}
+                        name={name}
+                        cron={cron}
+                        inputsText={inputsText}
                     />
-
-                    <Form.Item label="Active">
-                        <Switch checked={enabled} onChange={setEnabled} />
-                    </Form.Item>
-                </Form>
+                )}
             </div>
 
             <Divider className="!m-0" />
 
             <div className="flex justify-end gap-2 px-6 py-3 shrink-0">
                 <Button onClick={onClose}>Cancel</Button>
-                <Button type="primary" loading={isMutating} onClick={handleSubmit}>
+                <Button
+                    type="primary"
+                    loading={isMutating}
+                    disabled={!isDirty}
+                    onClick={handleSubmit}
+                >
                     {isEdit ? "Save" : "Create"}
                 </Button>
+            </div>
+        </div>
+    )
+}
+
+// ---------------------------------------------------------------------------
+// SchedulePlaygroundPanel — the drawer's right panel (shown only from a
+// playground). A cron has no external event to wait for: its payload is the
+// static inputs on the left. So "Run in playground" simulates a scheduled tick —
+// it channels those inputs straight into the agent's chat session (no save, no
+// waiting).
+// ---------------------------------------------------------------------------
+
+function SchedulePlaygroundPanel({
+    onClose,
+    playgroundEntityId,
+    name,
+    cron,
+    inputsText,
+}: {
+    onClose: () => void
+    playgroundEntityId: string
+    name: string
+    cron: string
+    inputsText: string
+}) {
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId))
+
+    const parsed = useMemo<{ok: boolean; value: Record<string, unknown>}>(() => {
+        try {
+            return {ok: true, value: inputsText.trim() ? JSON.parse(inputsText) : {}}
+        } catch {
+            return {ok: false, value: {}}
+        }
+    }, [inputsText])
+
+    const handleRun = useCallback(() => {
+        if (!parsed.ok) {
+            message.error("Inputs is not valid JSON")
+            return
+        }
+        const label = name || "Scheduled run"
+        const text = `[Scheduled run · ${label} (${cron})]\n\`\`\`json\n${JSON.stringify(parsed.value, null, 2)}\n\`\`\``
+        setPendingRun({text, nonce: Date.now()})
+        onClose()
+    }, [parsed, name, cron, setPendingRun, onClose])
+
+    return (
+        <div className="flex w-[340px] shrink-0 flex-col overflow-hidden bg-[var(--ag-colorFillQuaternary)]">
+            <div className="flex shrink-0 items-center gap-2 px-4 pb-1 pt-4 text-sm font-medium">
+                <Play size={15} />
+                Test Scheduled Event
+            </div>
+            <div className="shrink-0 px-4 pb-3 text-[11.5px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                A cron fires with the static inputs on the left — there&apos;s no event to wait for.
+                Simulate a scheduled run to preview the agent.
+            </div>
+            <div className="shrink-0 px-4">
+                <Button block type="primary" icon={<Play size={14} />} onClick={handleRun}>
+                    Run in playground
+                </Button>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4 pt-3">
+                <div className="shrink-0 text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                    Inputs sent
+                </div>
+                <pre className="mt-1.5 flex-1 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] p-2.5 text-[11px] leading-snug">
+                    {parsed.ok
+                        ? JSON.stringify(parsed.value, null, 2)
+                        : "Inputs is not valid JSON."}
+                </pre>
             </div>
         </div>
     )
@@ -339,7 +609,10 @@ function CronField({value, onChange}: {value: string; onChange: (next: string) =
                         Next runs (UTC):
                     </Typography.Text>
                     {nextRuns.map((run) => (
-                        <code key={run.toISOString()} className="text-[11px] text-gray-500">
+                        <code
+                            key={run.toISOString()}
+                            className="text-[11px] text-[var(--ag-colorTextSecondary)]"
+                        >
                             {run.toISOString().replace("T", " ").replace(".000Z", " UTC")}
                         </code>
                     ))}
@@ -416,7 +689,7 @@ function InputsField({
             validateStatus={error ? "error" : undefined}
             help={error ?? "Static inputs passed to the workflow on each tick (JSON)"}
         >
-            <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-hidden">
+            <div className="rounded-lg border border-solid border-[var(--ag-colorBorder)] overflow-hidden">
                 <Editor
                     initialValue={value || "{}"}
                     onChange={({textContent}) => onChange(textContent)}

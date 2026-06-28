@@ -7,7 +7,7 @@ the code-defined catalog (``op_catalog.py``), so the adapter only needs the back
 per-request auth to assemble the shared :class:`ToolCallback` (which gives the runner the origin to
 resolve the relative ``call.path`` against, and the caller credential to reuse).
 
-The catalog owns the description, endpoint, input schema, run-context bind, and per-op default
+The catalog owns the description, endpoint, input schema, run-context bindings, and per-op default
 permission/approval. The config's ``needs_approval`` / ``permission`` override the catalog default
 when set; otherwise the catalog default applies (a mutating op defaults to approval, a read to
 auto-allow).

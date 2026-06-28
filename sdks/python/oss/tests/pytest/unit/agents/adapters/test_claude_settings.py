@@ -1,10 +1,9 @@
 """The Python claude adapter: ``build_claude_settings_files`` (Layer 1 + Layer 2/3 derivation).
 
 This is the translation that used to live in the TS runner's ``claude-settings.ts``. It merges
-three rule sources into one ``.claude/settings.json``: the author's
-``harness_kwargs["claude"]["permissions"]`` slice, the Layer-2 sandbox-boundary derivation, and
-the per-MCP-server Layer-3 permissions. The runner is now a dumb writer of the rendered
-``harnessFiles`` entry this produces.
+three rule sources into one ``.claude/settings.json``: the author's first-class harness
+``permissions`` slice, the Layer-2 sandbox-boundary derivation, and the per-MCP-server Layer-3
+permissions. The runner is now a dumb writer of the rendered ``harnessFiles`` entry this produces.
 """
 
 from __future__ import annotations
@@ -36,7 +35,8 @@ def _settings(files):
 
 
 def _claude(permissions):
-    return {"claude": {"permissions": permissions}}
+    # The first arg to build_claude_settings_files is the harness's `permissions` slice directly.
+    return permissions
 
 
 def test_renders_author_mode_and_rules():
@@ -183,9 +183,9 @@ def test_empty_inputs_render_nothing():
     )
 
 
-def test_non_claude_slice_renders_nothing():
-    # Only the `claude` slice is the claude adapter's concern; a `pi` slice contributes nothing.
-    assert build_claude_settings_files({"pi": {"system": "You are Pi."}}) == []
+def test_malformed_permissions_slice_renders_nothing():
+    # A non-permissions dict (e.g. a stray Pi prompt slice mistakenly passed) yields no rules.
+    assert build_claude_settings_files({"system": "You are Pi."}) == []
 
 
 # --------------------------------------------------------------------------- F-046:
