@@ -13,6 +13,7 @@
  */
 import {type ReactNode, useCallback, useEffect, useState} from "react"
 
+import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from "@lexical/link"
 import {INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, ListNode} from "@lexical/list"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
@@ -35,6 +36,7 @@ import {
 import {$getNearestNodeOfType} from "@lexical/utils"
 import {Button, Dropdown, Input, type MenuProps, Popover} from "antd"
 import {
+    $createParagraphNode,
     $getSelection,
     $isRangeSelection,
     type ElementNode,
@@ -45,15 +47,22 @@ import {
     Bold,
     ChevronDown,
     Code,
-    Heading2,
     Italic,
     Link as LinkIcon,
     List,
     ListOrdered,
-    Quote,
     Table as TableIcon,
     Unlink,
 } from "lucide-react"
+
+const BLOCK_TYPES = [
+    {key: "paragraph", label: "Normal text"},
+    {key: "h1", label: "Heading 1"},
+    {key: "h2", label: "Heading 2"},
+    {key: "h3", label: "Heading 3"},
+    {key: "quote", label: "Quote"},
+    {key: "code", label: "Code block"},
+] as const
 
 export interface MarkdownToolbarProps {
     /** Disable the buttons (e.g. while the editor shows raw Markdown source or is read-only). */
@@ -97,8 +106,8 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
                             className={[
                                 "h-4 w-4 rounded-[2px] border border-solid transition-colors",
                                 on
-                                    ? "border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg,var(--ag-c-EAEFF5,#eaeff5))]"
-                                    : "border-[var(--ag-c-EAEFF5,#eaeff5)] bg-transparent",
+                                    ? "border-[var(--ant-color-primary)] bg-[var(--ant-color-primary)]"
+                                    : "border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)]",
                             ].join(" ")}
                         />
                     )
@@ -117,13 +126,13 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
         bold: false,
         italic: false,
         code: false,
-        heading: false,
-        quote: false,
         bullet: false,
         ordered: false,
         link: false,
         insideTable: false,
     })
+    // The current block type (paragraph / h1-h3 / quote / code), shown in the block-type menu.
+    const [blockType, setBlockType] = useState<string>("paragraph")
     // The URL under the caret (empty when not on a link), seeded into the link popover.
     const [linkUrl, setLinkUrl] = useState("")
     const [linkOpen, setLinkOpen] = useState(false)
@@ -146,12 +155,19 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                       ? parent
                       : null
                 setLinkUrl(linkNode ? linkNode.getURL() : "")
+                setBlockType(
+                    block && $isHeadingNode(block)
+                        ? block.getTag()
+                        : block && $isQuoteNode(block)
+                          ? "quote"
+                          : block && $isCodeNode(block)
+                            ? "code"
+                            : "paragraph",
+                )
                 setActive({
                     bold: selection.hasFormat("bold"),
                     italic: selection.hasFormat("italic"),
                     code: selection.hasFormat("code"),
-                    heading: $isHeadingNode(block),
-                    quote: $isQuoteNode(block),
                     bullet: listType === "bullet",
                     ordered: listType === "number",
                     link: Boolean(linkNode),
@@ -174,6 +190,19 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
             })
         },
         [editor],
+    )
+
+    // Convert the current block to the chosen type. Headings/quote/code all go through
+    // `$setBlocksType`; the markdown serializer maps them back to `#`, `>` and fenced blocks.
+    const formatBlock = useCallback(
+        (key: string) => {
+            if (key === "quote") setBlock(() => $createQuoteNode())
+            else if (key === "code") setBlock(() => $createCodeNode())
+            else if (key === "h1" || key === "h2" || key === "h3")
+                setBlock(() => $createHeadingNode(key))
+            else setBlock(() => $createParagraphNode())
+        },
+        [setBlock],
     )
 
     // Apply / clear the link on the current selection. The editor keeps its last RangeSelection
@@ -271,17 +300,47 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
         <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--ag-c-EAEFF5,#eaeff5)]" aria-hidden />
     )
 
+    const blockLabel = BLOCK_TYPES.find((b) => b.key === blockType)?.label ?? "Normal text"
+
     return (
         <div className="flex items-center gap-0.5">
-            {button(
-                "h",
-                "Heading",
-                <Heading2 size={15} />,
-                () => setBlock(() => $createHeadingNode("h2")),
-                active.heading,
-            )}
+            {/* Block type — paragraph / headings / quote / code block. */}
+            <Dropdown
+                disabled={disabled}
+                trigger={["click"]}
+                placement="bottomLeft"
+                menu={{
+                    selectable: true,
+                    selectedKeys: [blockType],
+                    items: BLOCK_TYPES.map((b) => ({key: b.key, label: b.label})),
+                    onClick: ({key, domEvent}) => {
+                        domEvent.preventDefault()
+                        formatBlock(key)
+                    },
+                }}
+            >
+                <button
+                    type="button"
+                    title="Text style"
+                    aria-label="Text style"
+                    disabled={disabled}
+                    onMouseDown={(e) => e.preventDefault()}
+                    className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs`}
+                >
+                    <span className="truncate">{blockLabel}</span>
+                    <ChevronDown size={13} className="shrink-0" />
+                </button>
+            </Dropdown>
+            {divider}
             {button("b", "Bold", <Bold size={15} />, () => formatText("bold"), active.bold)}
             {button("i", "Italic", <Italic size={15} />, () => formatText("italic"), active.italic)}
+            {button(
+                "code",
+                "Inline code",
+                <Code size={15} />,
+                () => formatText("code"),
+                active.code,
+            )}
             {divider}
             {button(
                 "ul",
@@ -296,14 +355,6 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                 <ListOrdered size={15} />,
                 () => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
                 active.ordered,
-            )}
-            {button("code", "Code", <Code size={15} />, () => formatText("code"), active.code)}
-            {button(
-                "quote",
-                "Quote",
-                <Quote size={15} />,
-                () => setBlock(() => $createQuoteNode()),
-                active.quote,
             )}
             {divider}
 
