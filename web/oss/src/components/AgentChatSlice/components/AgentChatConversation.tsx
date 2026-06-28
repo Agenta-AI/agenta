@@ -58,6 +58,9 @@ const AgentChatConversation = ({
 }) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
+    // Themed confirm dialogs: the hook form's contextHolder renders in-tree so it inherits the app
+    // theme (the static Modal.confirm renders detached and loses it — white box in dark mode).
+    const [modal, modalContextHolder] = Modal.useModal()
     const [input, setInput] = useState("")
     // Pending attachments for the next message. Kept client-side only: `beforeUpload`
     // returns false so antd never uploads; we read each `originFileObj` into a data: URL at
@@ -156,12 +159,14 @@ const AgentChatConversation = ({
         }
 
         if (sideEffects.length > 0) {
-            Modal.confirm({
+            modal.confirm({
                 title: "Rewind past a tool that already ran?",
                 content: `${sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
                 okText: "Rewind anyway",
                 okButtonProps: {danger: true},
                 cancelText: "Cancel",
+                centered: true,
+                style: {borderRadius: 16},
                 onOk: run,
             })
         } else {
@@ -171,6 +176,8 @@ const AgentChatConversation = ({
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
+            {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
+            {modalContextHolder}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-col">
                     <Text type="secondary" className="!text-xs">

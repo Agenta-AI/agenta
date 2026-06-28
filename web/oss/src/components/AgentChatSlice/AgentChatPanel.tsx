@@ -188,6 +188,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
     // Ids already on screen — restored/settled turns don't re-animate; only turns added live fade in.
     const seenIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
+    // Themed confirm dialogs. The static `Modal.confirm` renders detached from the app's
+    // ConfigProvider, so it loses the theme (white box in dark mode). The hook form's
+    // `contextHolder` is rendered in-tree, so its dialogs inherit the theme — same look as the
+    // declarative EnhancedModal (centered, 16px radius).
+    const [modal, modalContextHolder] = Modal.useModal()
 
     const senderRef = useRef<React.ComponentRef<typeof Sender>>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -629,12 +634,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         }
 
         if (sideEffects.length > 0) {
-            Modal.confirm({
+            modal.confirm({
                 title: "Rewind past a tool that already ran?",
                 content: `${sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
                 okText: "Rewind anyway",
                 okButtonProps: {danger: true},
                 cancelText: "Cancel",
+                centered: true,
+                style: {borderRadius: 16},
                 onOk: run,
             })
         } else {
@@ -708,6 +715,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             onDragLeave={onDragLeave}
             onDrop={onDrop}
         >
+            {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
+            {modalContextHolder}
             {isDragging && (
                 <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
                     <UploadSimple size={26} className="text-colorPrimary" />
