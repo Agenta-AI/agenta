@@ -33,7 +33,7 @@ export type McpServerEntry = McpServerStdio | McpServerHttp;
  * SSRF guard for a user HTTP MCP `url`. The runner emits the run's Agenta-resolved named secrets
  * as request headers to this author-supplied URL, so an attacker-controlled config could point it
  * at an internal/metadata endpoint and exfiltrate a credential (a classic server-side request
- * forgery). The capability is flag-gated (`AGENTA_AGENT_ENABLE_MCP`, off by default) and
+ * forgery). The capability is flag-gated (`AGENTA_AGENT_MCP_SERVERS_ENABLED`, off by default) and
  * config-trust, so a scheme + host guard is enough rather than full DNS-resolution pinning:
  *
  *  - require `https` (the secret rides in a header; `http` would send it in clear text). Opt out
