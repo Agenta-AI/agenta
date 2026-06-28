@@ -521,6 +521,11 @@ function InstructionsFileRow({
     onOpen: () => void
 }) {
     const descriptor = describeInstruction(filename, content)
+    const wordCount = content.trim().split(/\s+/).filter(Boolean).length
+    const meta =
+        wordCount > 0
+            ? `Markdown · ${wordCount} word${wordCount === 1 ? "" : "s"}`
+            : "Markdown · empty"
     return (
         <div
             role="button"
@@ -532,21 +537,30 @@ function InstructionsFileRow({
                     onOpen()
                 }
             }}
-            className="group flex cursor-pointer items-start gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
+            className="group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2.5 transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
         >
             <ItemAvatar descriptor={descriptor} />
             <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-xs font-medium">{filename}</div>
+                {/* Identity row: filename (color inherits → theme-correct) + a muted meta, so the
+                    name/type/size reads separately from the content preview below. */}
+                <div className="flex items-baseline gap-2">
+                    <span className="truncate font-mono text-[13px] font-medium leading-tight">
+                        {filename}
+                    </span>
+                    <Typography.Text type="secondary" className="shrink-0 text-[11px]">
+                        {meta}
+                    </Typography.Text>
+                </div>
                 {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
                     clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}
                 <Typography.Text
                     type="secondary"
-                    className="mt-0.5 line-clamp-2 text-xs leading-snug"
+                    className="mt-1 line-clamp-2 text-xs leading-snug"
                 >
                     {descriptor.description}
                 </Typography.Text>
             </div>
-            <CaretRight size={14} className="mt-0.5 shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
+            <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
         </div>
     )
 }
