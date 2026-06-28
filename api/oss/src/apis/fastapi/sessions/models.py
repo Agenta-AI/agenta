@@ -146,3 +146,17 @@ class InteractionsResponse(BaseModel):
 
 class InteractionRespondRequest(BaseModel):
     answer: Optional[Dict[str, Any]] = None
+
+
+# ---------------------------------------------------------------------------
+# Admin transcript ingest model
+# ---------------------------------------------------------------------------
+
+
+class TranscriptIngestRequest(BaseModel):
+    project_id: UUID
+    session_id: UUID
+    event_index: Optional[int] = None
+    sender: Optional[str] = None
+    session_update: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None

@@ -13,7 +13,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from oss.src.tasks.asyncio.sessions.interactions_worker import InteractionsWorker
 
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -39,6 +42,8 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.states.service import SessionStatesService
 from oss.src.core.sessions.states.dtos import SessionStateUpsert
 from oss.src.core.sessions.transcripts.service import TranscriptsService
+from oss.src.core.sessions.transcripts.dtos import TranscriptEvent
+from oss.src.core.sessions.transcripts.streaming import publish_transcript
 from oss.src.core.sessions.interactions.service import InteractionsService
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.mounts.service import SessionMountsService
@@ -69,6 +74,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionStateSandboxIdUpsertRequest,
     SessionStateUpsertRequest,
     # transcripts
+    TranscriptIngestRequest,
     TranscriptQueryRequest,
     TranscriptResponse,
     TranscriptsQueryResponse,
@@ -435,11 +441,12 @@ class SessionStatesRouter:
 
 
 class TranscriptsRouter:
-    """Transcripts sub-router — /sessions/transcripts/*"""
+    """Transcripts sub-router — /sessions/transcripts/* + /admin/sessions/transcripts/*"""
 
     def __init__(self, transcripts_service: TranscriptsService):
         self.transcripts_service = transcripts_service
         self.router = APIRouter()
+        self.admin_router = APIRouter()
 
         self.router.add_api_route(
             "/query",
@@ -458,6 +465,14 @@ class TranscriptsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TranscriptResponse,
             response_model_exclude_none=True,
+        )
+
+        self.admin_router.add_api_route(
+            "/ingest",
+            self.ingest_transcript_event,
+            methods=["POST"],
+            operation_id="admin_sessions_transcripts_ingest",
+            tags=["Sessions", "Admin"],
         )
 
     @intercept_exceptions()
@@ -502,6 +517,28 @@ class TranscriptsRouter:
         )
         return TranscriptResponse(transcript=transcript)
 
+    @intercept_exceptions()
+    async def ingest_transcript_event(
+        self,
+        request: Request,
+        body: TranscriptIngestRequest,
+    ) -> dict:
+        if not getattr(request.state, "admin", False):
+            raise FORBIDDEN_EXCEPTION
+
+        await publish_transcript(
+            project_id=body.project_id,
+            transcript_event=TranscriptEvent(
+                session_id=body.session_id,
+                project_id=body.project_id,
+                event_index=body.event_index,
+                sender=body.sender,
+                session_update=body.session_update,
+                payload=body.payload,
+            ),
+        )
+        return {"ok": True}
+
 
 class InteractionsRouter:
     """Interactions sub-router — /sessions/interactions/* + /admin/sessions/interactions/*"""
@@ -511,9 +548,11 @@ class InteractionsRouter:
         *,
         interactions_service: InteractionsService,
         workflows_service: WorkflowsService,
+        interactions_worker: Optional["InteractionsWorker"] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
+        self.interactions_worker = interactions_worker
 
         self.router = APIRouter()
         self.admin_router = APIRouter()
@@ -671,6 +710,21 @@ class InteractionsRouter:
                 detail="Interaction is no longer pending",
             )
 
+        answer = body.answer or {}
+
+        # Respond fires through the interactions worker (detached, off the API request thread):
+        # the worker re-authorizes the stored refs at fire time and hands the run to the runner
+        # without awaiting completion. Fall back to the inline blocking invoke only when no worker
+        # is wired (keeps the route usable in minimal/test compositions).
+        if self.interactions_worker is not None:
+            await self.interactions_worker.respond(
+                project_id=project_id,
+                user_id=user_id,
+                interaction_id=interaction_id,
+                answer=answer,
+            )
+            return InteractionResponse(count=1, interaction=interaction)
+
         references = (
             {
                 k: v.model_dump(mode="json")
@@ -684,7 +738,6 @@ class InteractionsRouter:
             if interaction.data and interaction.data.selector
             else None
         )
-        answer = body.answer or {}
 
         invoke_request = WorkflowServiceRequest(
             references=references,
@@ -762,13 +815,14 @@ class SessionsRouter:
     """Composes all session sub-domain routers into one object.
 
     The entrypoint mounts:
-      sessions_router.streams.router          → no prefix (paths include /sessions/streams/…)
-      sessions_router.streams.admin_router    → prefix /admin/sessions/streams
-      sessions_router.states.router           → prefix /sessions
-      sessions_router.transcripts.router      → prefix /sessions/transcripts
-      sessions_router.interactions.router     → prefix /sessions/interactions
-      sessions_router.interactions.admin_router → prefix /admin/sessions/interactions
-      sessions_router.mounts.router           → prefix /sessions
+      sessions_router.streams.router               → no prefix (paths include /sessions/streams/…)
+      sessions_router.streams.admin_router         → prefix /admin/sessions/streams
+      sessions_router.states.router                → prefix /sessions
+      sessions_router.transcripts.router           → prefix /sessions/transcripts
+      sessions_router.transcripts.admin_router     → prefix /admin/sessions/transcripts
+      sessions_router.interactions.router          → prefix /sessions/interactions
+      sessions_router.interactions.admin_router    → prefix /admin/sessions/interactions
+      sessions_router.mounts.router                → prefix /sessions
     """
 
     def __init__(
@@ -780,6 +834,7 @@ class SessionsRouter:
         interactions_service: InteractionsService,
         workflows_service: WorkflowsService,
         session_mounts_service: SessionMountsService,
+        interactions_worker: Optional["InteractionsWorker"] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(service=streams_service)
         self.states = SessionStatesRouter(session_states_service=states_service)
@@ -787,6 +842,7 @@ class SessionsRouter:
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,
             workflows_service=workflows_service,
+            interactions_worker=interactions_worker,
         )
         self.mounts = SessionMountsRouter(
             session_mounts_service=session_mounts_service,

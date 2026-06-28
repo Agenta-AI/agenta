@@ -71,6 +71,8 @@ KNOWN_REQUEST_KEYS = {
     "skills",
     "sandboxPermission",
     "harnessFiles",
+    "runId",
+    "projectId",
 }
 
 _CUSTOM_TOOL = {
@@ -321,6 +323,50 @@ def test_request_to_wire_omits_run_context_when_empty():
         run_context=RunContext(),
     )
     assert "runContext" not in payload
+
+
+def test_request_to_wire_carries_run_id_when_set():
+    payload = request_to_wire(
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        run_id="run-abc123",
+    )
+    assert payload["runId"] == "run-abc123"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_omits_run_id_when_none():
+    payload = request_to_wire(
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "runId" not in payload
+
+
+def test_request_to_wire_carries_project_id_when_set():
+    payload = request_to_wire(
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        project_id="proj-abc123",
+    )
+    assert payload["projectId"] == "proj-abc123"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_omits_project_id_when_none():
+    payload = request_to_wire(
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "projectId" not in payload
 
 
 def test_request_to_wire_claude_matches_golden(golden):
