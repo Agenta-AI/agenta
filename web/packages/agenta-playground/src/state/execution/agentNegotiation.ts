@@ -25,9 +25,15 @@ import type {AgentChannelMode} from "./channelMode"
 export interface NegotiatingFetch {
     /** A `fetch` middleware to hand the AI-SDK transport. */
     fetch: typeof globalThis.fetch
-    /** The channel the LAST request actually resolved to — drives how the transport
-     * parses the body (SSE stream vs. one-shot batch replay). */
-    resolvedMode: () => AgentChannelMode
+    /**
+     * The channel a response actually resolved to — drives how the transport parses the body
+     * (SSE stream vs. one-shot batch replay).
+     *
+     * Pass the response body the transport is about to parse (`response.body`); the mode is bound
+     * to that exact stream, so request and parse can never disagree even if requests overlap. With
+     * no argument it returns the LAST negotiated mode (kept for callers that don't have the stream).
+     */
+    resolvedMode: (stream?: ReadableStream<Uint8Array> | null) => AgentChannelMode
 }
 
 type Headersish = HeadersInit | undefined
@@ -72,15 +78,25 @@ const NOT_ACCEPTABLE = 406
 
 export function createNegotiatingFetch(baseFetch?: typeof globalThis.fetch): NegotiatingFetch {
     const base = baseFetch ?? globalThis.fetch.bind(globalThis)
-    let mode: AgentChannelMode = "stream"
+
+    // Bind the resolved mode to the response body STREAM, not a shared variable: the transport
+    // reads it back when it parses that body, so keying on the stream keeps request and parse in
+    // lockstep even if two requests on this transport ever overlap. `last` is the no-arg fallback.
+    const modes = new WeakMap<ReadableStream<Uint8Array>, AgentChannelMode>()
+    let last: AgentChannelMode = "stream"
+
+    const remember = (res: Response, mode: AgentChannelMode): Response => {
+        last = mode
+        if (res.body) modes.set(res.body, mode)
+        return res
+    }
 
     const fetch: typeof globalThis.fetch = async (input, init) => {
         const wantsStream = headerValue(init?.headers, "accept").includes("text/event-stream")
 
         // Explicit batch request (toggle = batch) — no stream attempt.
         if (!wantsStream) {
-            mode = "batch"
-            return base(input, init)
+            return remember(await base(input, init), "batch")
         }
 
         const res = await base(input, init)
@@ -89,21 +105,30 @@ export function createNegotiatingFetch(baseFetch?: typeof globalThis.fetch): Neg
             // The server may honour the stream or, having no preference path, answer batch JSON.
             // Trust the response Content-Type over our request intent.
             const isStream = (res.headers.get("content-type") ?? "").includes("text/event-stream")
-            mode = isStream ? "stream" : "batch"
-            return res
+            return remember(res, isStream ? "stream" : "batch")
         }
 
         // Negotiation failed because the handler can't stream — fall back to batch.
         if (res.status === NOT_ACCEPTABLE) {
-            mode = "batch"
-            return base(input, {...init, headers: withAccept(init?.headers, "application/json")})
+            const batch = await base(input, {
+                ...init,
+                headers: withAccept(init?.headers, "application/json"),
+            })
+            return remember(batch, "batch")
         }
 
         // A real error (4xx/5xx with the run's JSON envelope). Hand it back untouched so the
         // AI-SDK transport throws its body text and `useChat` renders it inline.
-        mode = "stream"
-        return res
+        return remember(res, "stream")
     }
 
-    return {fetch, resolvedMode: () => mode}
+    const resolvedMode = (stream?: ReadableStream<Uint8Array> | null): AgentChannelMode => {
+        if (stream) {
+            const mode = modes.get(stream)
+            if (mode) return mode
+        }
+        return last
+    }
+
+    return {fetch, resolvedMode}
 }

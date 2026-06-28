@@ -203,8 +203,10 @@ export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
 
     protected processResponseStream(stream: ReadableStream<Uint8Array>): ReadableStream<AnyChunk> {
         // Parse by the channel the request actually resolved to, not the requested one — a stream
-        // request can come back as a batch via the 406 fallback.
-        if (this.negotiator.resolvedMode() === "batch") return batchJsonToUiMessageStream(stream)
+        // request can come back as a batch via the 406 fallback. The mode is keyed off this exact
+        // body stream (`resolvedMode(stream)`), so request and parse stay in lockstep.
+        if (this.negotiator.resolvedMode(stream) === "batch")
+            return batchJsonToUiMessageStream(stream)
         return super.processResponseStream(stream)
     }
 }
