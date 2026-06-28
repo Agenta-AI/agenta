@@ -3,13 +3,13 @@ concrete inline packages, whether they were authored inline or pulled in via an 
 
 These lock the two author shapes the skills feature ships:
 
-1. **Inline skill -> wire.** An `AgentTemplate` carrying an inline `SkillConfig` produces a runner
+1. **Inline skill -> wire.** An `AgentTemplate` carrying an inline `SkillTemplate` produces a runner
    request whose `skills[0]` is the materialized inline package (name/description/body/files +
    camelCase flags), via the `wire_skills()` seam that `request_to_wire` spreads.
 
 2. **Embed skill -> resolve -> wire.** An `AgentTemplate` whose `skills` list holds an `@ag.embed`
    entry, run through the resolution middleware against a MOCKED resolve endpoint that returns a
-   `SkillConfig`-shaped `parameters.skill`, ends up on the wire as a concrete inline package (the
+   `SkillTemplate`-shaped `parameters.skill`, ends up on the wire as a concrete inline package (the
    embed is gone). This mirrors how the resolver tests mock `/workflows/revisions/resolve`, then
    carries the resolved params the rest of the way: `from_params` -> harness -> `request_to_wire`.
 
@@ -31,7 +31,7 @@ from agenta.sdk.agents import (
     PiHarness,
     SessionConfig,
 )
-from agenta.sdk.agents.skills import SkillConfig
+from agenta.sdk.agents.skills import SkillTemplate
 from agenta.sdk.agents.utils import request_to_wire
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
@@ -96,7 +96,7 @@ def test_minimal_inline_skill_omits_optional_flags_on_the_wire(make_env):
     agent = AgentTemplate(
         instructions="hi",
         model="gpt-5.5",
-        skills=[SkillConfig(name="a", description="d", body="b")],
+        skills=[SkillTemplate(name="a", description="d", body="b")],
     )
 
     wire = _pi_wire(env, agent)
@@ -114,7 +114,7 @@ def test_minimal_inline_skill_omits_optional_flags_on_the_wire(make_env):
 
 @pytest.mark.asyncio
 async def test_embed_skill_resolves_to_a_concrete_package_on_the_wire(make_env):
-    # The author config references a skill by an `@ag.embed` inside the skills list (the platform default-config shape). The resolver inlines the stored `SkillConfig` BEFORE the handler
+    # The author config references a skill by an `@ag.embed` inside the skills list (the platform default-config shape). The resolver inlines the stored `SkillTemplate` BEFORE the handler
     # builds the AgentTemplate, so the runner must never see the embed -- only a concrete package.
     params_with_embed = {
         "skills": [

@@ -294,11 +294,11 @@ function asObj(value: unknown): Record<string, unknown> | undefined {
         : undefined
 }
 
-/** The reserved slug namespace for platform-owned skills (mirrors the backend `_agenta.*`). */
-const PLATFORM_SKILL_SLUG_PREFIX = "_agenta."
+/** The reserved slug namespace for static (Agenta-owned) skills (mirrors the backend `__ag__*`). */
+const STATIC_SKILL_SLUG_PREFIX = "__ag__"
 
 /** The slug an `@ag.embed` entry points at (a `workflow` or pinned `workflow_revision` reference). */
-function platformEmbedSlug(skill: Record<string, unknown>): string | undefined {
+function staticEmbedSlug(skill: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
     if (!refs) return undefined
     const slug = asObj(refs.workflow)?.slug ?? asObj(refs.workflow_revision)?.slug
@@ -313,29 +313,29 @@ function embedRevisionVersion(skill: Record<string, unknown>): string | undefine
 }
 
 /**
- * Whether a skill entry is platform-owned and so read-only for the author. The reliable client-side
- * signal is the reserved `_agenta.` slug prefix on the embed's referenced workflow (or pinned
- * revision); a resolved object carrying `flags.is_platform === true` counts too.
+ * Whether a skill entry is static (Agenta-owned) and so read-only for the author. The reliable client-side
+ * signal is the reserved `__ag__` slug prefix on the embed's referenced workflow (or pinned
+ * revision); a resolved object carrying `flags.is_static === true` counts too.
  */
-function isPlatformSkill(skill: unknown): boolean {
+function isStaticSkill(skill: unknown): boolean {
     const s = asObj(skill)
     if (!s) return false
-    const slug = platformEmbedSlug(s)
-    if (slug && slug.startsWith(PLATFORM_SKILL_SLUG_PREFIX)) return true
-    return asObj(s.flags)?.is_platform === true
+    const slug = staticEmbedSlug(s)
+    if (slug && slug.startsWith(STATIC_SKILL_SLUG_PREFIX)) return true
+    return asObj(s.flags)?.is_static === true
 }
 
 function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
-    if (isPlatformSkill(s)) {
-        const slug = platformEmbedSlug(s)
+    if (isStaticSkill(s)) {
+        const slug = staticEmbedSlug(s)
         const version = embedRevisionVersion(s)
         return {
-            name: slug ?? "Platform skill",
+            name: slug ?? "Static skill",
             mono: "sk",
             color: "#6b7280",
-            tags: version ? ["platform", `v${version}`] : ["platform"],
-            typeLabel: "platform skill",
+            tags: version ? ["static", `v${version}`] : ["static"],
+            typeLabel: "static skill",
             subtitle: "Provided by Agenta — read-only",
         }
     }
@@ -794,7 +794,7 @@ export function AgentTemplateControl({
 
     // Skills are a sibling of tools/MCP: a flat array on the agent config. Each entry is an inline
     // SKILL.md package (name + description + body + files + flags) or an `@ag.embed` reference the
-    // backend inlines — the `skill_config` catalog type (SkillConfigSchema in the SDK).
+    // backend inlines — the `skill-template` catalog type (SkillTemplateSchema in the SDK).
     const skills = useMemo(
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
@@ -1235,9 +1235,9 @@ export function AgentTemplateControl({
                                         handleSkillDelete(index)
                                         closeEditor()
                                     }}
-                                    // Platform skills (`_agenta.*`) are read-only: no remove, and
+                                    // Static skills (`__ag__*`) are read-only: no remove, and
                                     // the drawer opens disabled (see the skill drawer below).
-                                    disabled={disabled || isPlatformSkill(skill)}
+                                    disabled={disabled || isStaticSkill(skill)}
                                 />
                             ))}
                         </div>
@@ -1471,14 +1471,14 @@ export function AgentTemplateControl({
                     onSave={commitDraft}
                     saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
                     jsonOnly={isEmbedRefSkill(draft)}
-                    // Platform skills (`_agenta.*`) are read-only — view their JSON but can't edit.
-                    disabled={disabled || isPlatformSkill(draft)}
+                    // Static skills (`__ag__*`) are read-only — view their JSON but can't edit.
+                    disabled={disabled || isStaticSkill(draft)}
                     form={
                         <SkillFormView
                             key={`skill-form-${editing.mode}-${editing.index}`}
                             value={draft}
                             onChange={(v) => setDraft(v)}
-                            disabled={disabled || isPlatformSkill(draft)}
+                            disabled={disabled || isStaticSkill(draft)}
                         />
                     }
                     json={
@@ -1487,7 +1487,7 @@ export function AgentTemplateControl({
                             value={draft}
                             onChange={(v) => setDraft(v as Record<string, unknown>)}
                             onValidityChange={(valid) => setJsonInvalid(!valid)}
-                            disabled={disabled || isPlatformSkill(draft)}
+                            disabled={disabled || isStaticSkill(draft)}
                         />
                     }
                 />

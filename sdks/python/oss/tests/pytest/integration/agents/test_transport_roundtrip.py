@@ -21,7 +21,7 @@ from agenta.sdk.agents import (
     PiHarness,
     SessionConfig,
 )
-from agenta.sdk.agents.skills import SkillConfig
+from agenta.sdk.agents.skills import SkillTemplate
 
 from ._fake_runner_backend import FakeRunnerBackend
 
@@ -142,7 +142,7 @@ async def test_resolved_skill_reaches_the_runner_over_the_wire(tmp_path):
     # arrive at the runner as a concrete `skills` package over the real wire + transport, not as
     # an embed and not dropped. The skill-echo runner reports the `skills` it saw.
     harness = PiHarness(Environment(_backend(tmp_path, _SKILL_ECHO_RUNNER)))
-    skill = SkillConfig(
+    skill = SkillTemplate(
         name="release-notes",
         description="Draft release notes.",
         body="Read the changelog, then write notes.",

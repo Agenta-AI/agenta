@@ -29,7 +29,7 @@ from .mcp import (
     mcp_servers_to_wire,
     parse_mcp_server_configs,
 )
-from .skills import SkillConfig, parse_skill_configs, skills_to_wire
+from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
 from .tools.models import coerce_tool_spec
 
@@ -526,7 +526,7 @@ class AgentTemplate(BaseModel):
     model_ref: Optional[ModelRef] = None
     tools: List[ToolConfig] = Field(default_factory=list)
     mcp_servers: List[MCPServerConfig] = Field(default_factory=list)
-    skills: List[SkillConfig] = Field(default_factory=list)
+    skills: List[SkillTemplate] = Field(default_factory=list)
     harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     sandbox_permission: Optional[SandboxPermission] = None
     # The run-selection fields (formerly the separate ``RunSelection``): the coding agent to
@@ -554,8 +554,8 @@ class AgentTemplate(BaseModel):
 
     @field_validator("skills", mode="before")
     @classmethod
-    def _coerce_skills(cls, value: Any) -> List[SkillConfig]:
-        return parse_skill_configs(_as_list(value))
+    def _coerce_skills(cls, value: Any) -> List[SkillTemplate]:
+        return parse_skill_templates(_as_list(value))
 
     @classmethod
     def from_params(
@@ -625,7 +625,7 @@ class HarnessAgentTemplate(BaseModel):
     resolved_connection: Optional[ResolvedConnection] = None
     tool_callback: Optional[ToolCallback] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
-    skills: List[SkillConfig] = Field(default_factory=list)
+    skills: List[SkillTemplate] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
     # The neutral per-harness options bag (a map keyed by harness name), carried verbatim from
     # ``AgentTemplate.harness_kwargs`` by the harness adapter. The active harness's CONFIG translates
@@ -650,9 +650,11 @@ class HarnessAgentTemplate(BaseModel):
 
     @field_validator("skills", mode="before")
     @classmethod
-    def _coerce_skills(cls, value: Any) -> List[SkillConfig]:
+    def _coerce_skills(cls, value: Any) -> List[SkillTemplate]:
         return [
-            item if isinstance(item, SkillConfig) else SkillConfig.model_validate(item)
+            item
+            if isinstance(item, SkillTemplate)
+            else SkillTemplate.model_validate(item)
             for item in value or []
         ]
 
@@ -998,7 +1000,7 @@ def _parse_skills_raw(
 
     Reads ``skills`` from the ``agent`` element when present, else the flat request. Mirrors
     the MCP path so an unparsed ``skills`` is not silently dropped; canonical validation happens
-    on :class:`AgentTemplate` construction. Each entry is a concrete inline ``SkillConfig`` by the
+    on :class:`AgentTemplate` construction. Each entry is a concrete inline ``SkillTemplate`` by the
     time the request is built (any ``@ag.embed`` reference resolved server-side first)."""
     agent = params.get("agent")
     source = agent if isinstance(agent, dict) else params

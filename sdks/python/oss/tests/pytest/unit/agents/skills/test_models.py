@@ -1,4 +1,4 @@
-"""``SkillConfig`` / ``SkillFile`` validation: the single inline-package shape.
+"""``SkillTemplate`` / ``SkillFile`` validation: the single inline-package shape.
 
 A skill is one shape (no discriminator). These lock the name pattern, the required fields, the
 length bounds, the default-deny flags, and ``extra="forbid"`` so a stray key never rides the
@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from agenta.sdk.agents import SkillConfig, SkillFile
+from agenta.sdk.agents import SkillTemplate, SkillFile
 
 
 def _skill(**overrides):
@@ -24,7 +24,7 @@ def _skill(**overrides):
 
 
 def test_minimal_skill_defaults():
-    skill = SkillConfig(**_skill())
+    skill = SkillTemplate(**_skill())
     assert skill.name == "release-notes"
     assert skill.files == []
     assert skill.disable_model_invocation is False
@@ -33,7 +33,7 @@ def test_minimal_skill_defaults():
 
 @pytest.mark.parametrize("name", ["release-notes", "a", "skill1", "a-b-c", "x9"])
 def test_valid_skill_names(name):
-    assert SkillConfig(**_skill(name=name)).name == name
+    assert SkillTemplate(**_skill(name=name)).name == name
 
 
 @pytest.mark.parametrize(
@@ -50,26 +50,26 @@ def test_valid_skill_names(name):
 )
 def test_invalid_skill_names_rejected(name):
     with pytest.raises(ValidationError):
-        SkillConfig(**_skill(name=name))
+        SkillTemplate(**_skill(name=name))
 
 
 def test_description_required_and_bounded():
     with pytest.raises(ValidationError):
-        SkillConfig(**_skill(description=""))
+        SkillTemplate(**_skill(description=""))
     with pytest.raises(ValidationError):
-        SkillConfig(**_skill(description="x" * 1025))
+        SkillTemplate(**_skill(description="x" * 1025))
 
 
 def test_body_required_and_bounded():
     with pytest.raises(ValidationError):
-        SkillConfig(**_skill(body=""))
+        SkillTemplate(**_skill(body=""))
     with pytest.raises(ValidationError):
-        SkillConfig(**_skill(body="x" * 50_001))
+        SkillTemplate(**_skill(body="x" * 50_001))
 
 
 def test_extra_fields_forbidden():
     with pytest.raises(ValidationError):
-        SkillConfig(**_skill(source="curated"))
+        SkillTemplate(**_skill(source="curated"))
 
 
 def test_skill_file_defaults_and_bounds():
@@ -105,7 +105,7 @@ def test_skill_file_path_validated_on_the_model(path):
     with pytest.raises(ValidationError):
         SkillFile(path=path, content="x")
     with pytest.raises(ValidationError):
-        SkillConfig(**_skill(files=[{"path": path, "content": "x"}]))
+        SkillTemplate(**_skill(files=[{"path": path, "content": "x"}]))
 
 
 @pytest.mark.parametrize(
@@ -117,7 +117,7 @@ def test_skill_file_safe_paths_accepted_on_the_model(path):
 
 
 def test_to_wire_minimal_omits_optional_flags():
-    wire = SkillConfig(**_skill()).to_wire()
+    wire = SkillTemplate(**_skill()).to_wire()
     assert wire == {
         "name": "release-notes",
         "description": "Draft release notes from a changelog.",
@@ -129,7 +129,7 @@ def test_to_wire_minimal_omits_optional_flags():
 
 
 def test_to_wire_carries_files_and_flags_camelcase():
-    wire = SkillConfig(
+    wire = SkillTemplate(
         **_skill(
             files=[
                 {"path": "scripts/foo.py", "content": "print(1)", "executable": True}
