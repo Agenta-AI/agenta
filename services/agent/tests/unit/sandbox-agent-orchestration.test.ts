@@ -225,6 +225,9 @@ function fakeHarness(options: FakeOptions = {}) {
       async onPermission() {
         return options.permissionDecision ?? "allow";
       },
+      async onClientTool() {
+        return "deny" as const;
+      },
     }),
   };
 

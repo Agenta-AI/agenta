@@ -14,6 +14,7 @@ from ...dtos import AgentResult, ContentBlock, Message
 TOOL_APPROVAL_REQUEST = "tool-approval-request"
 TOOL_APPROVAL_RESPONSE = "tool-approval-response"
 TOOL_OUTPUT_AVAILABLE = "tool-output-available"
+TOOL_OUTPUT_AVAILABLE_TYPES = {TOOL_OUTPUT_AVAILABLE, "TOOL_OUTPUT_AVAILABLE"}
 
 
 def vercel_messages_to_agenta_messages(raw: Optional[List[Any]]) -> List[Message]:
@@ -80,7 +81,7 @@ def _part_to_blocks(part: Any) -> List[ContentBlock]:
         return _approval_response_blocks(part)
 
     if (
-        ptype == TOOL_OUTPUT_AVAILABLE
+        ptype in TOOL_OUTPUT_AVAILABLE_TYPES
         or ptype == "dynamic-tool"
         or ptype.startswith("tool-")
     ):
@@ -96,12 +97,12 @@ def _tool_part_blocks(part: Dict[str, Any], ptype: str) -> List[ContentBlock]:
     if (
         tool_name is None
         and ptype.startswith("tool-")
-        and ptype != TOOL_OUTPUT_AVAILABLE
+        and ptype not in TOOL_OUTPUT_AVAILABLE_TYPES
     ):
         tool_name = ptype[len("tool-") :]
 
     blocks: List[ContentBlock] = []
-    if ptype != TOOL_OUTPUT_AVAILABLE or "input" in part:
+    if ptype not in TOOL_OUTPUT_AVAILABLE_TYPES or "input" in part:
         blocks.append(
             ContentBlock(
                 type="tool_call",

@@ -21,6 +21,10 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
     GETTING_STARTED_WITH_AGENTA_SKILL,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
+from agenta.sdk.agents.platform.workflow import (
+    REQUEST_CONNECTION_TOOL_NAME,
+    REQUEST_CONNECTION_WORKFLOW_SLUG,
+)
 from agenta.sdk.agents.skills.models import SkillTemplate
 from agenta.sdk.engines.running.utils import (
     AGENTA_BUILTIN_SKILL_URI,
@@ -78,12 +82,40 @@ def _skill_revision(skill_template: SkillTemplate) -> WorkflowRevision:
     )
 
 
+def _client_tool_revision() -> WorkflowRevision:
+    return WorkflowRevision(
+        name="Request connection",
+        description="Ask the user to connect an external account.",
+        data=WorkflowRevisionData(
+            uri="client:tool:request_connection:v0",
+            parameters={
+                "tool": {
+                    "kind": "client",
+                    "name": REQUEST_CONNECTION_TOOL_NAME,
+                    "description": "Request a connection from the user.",
+                    "input_schema": {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                    "render": {"kind": "connect"},
+                }
+            },
+        ),
+    )
+
+
 # Each entry: a reserved slug -> {latest: <ver>, versions: {<ver>: WorkflowRevision}}.
 _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
     GETTING_STARTED_WITH_AGENTA_SLUG: {
         "latest": "v1",
         "versions": {
             "v1": _skill_revision(GETTING_STARTED_WITH_AGENTA_SKILL),
+        },
+    },
+    REQUEST_CONNECTION_WORKFLOW_SLUG: {
+        "latest": "v1",
+        "versions": {
+            "v1": _client_tool_revision(),
         },
     },
 }

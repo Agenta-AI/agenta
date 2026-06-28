@@ -33,6 +33,9 @@ describe("attachPermissionResponder", () => {
         seenRequests.push(request);
         return "allow";
       },
+      async onClientTool() {
+        return "deny";
+      },
     };
 
     attachPermissionResponder({
@@ -102,6 +105,9 @@ describe("attachPermissionResponder", () => {
         async onPermission() {
           return "park";
         },
+        async onClientTool() {
+          return "park" as const;
+        },
       },
     });
     handler?.({
@@ -137,6 +143,9 @@ describe("attachPermissionResponder", () => {
       responder: {
         async onPermission() {
           return "deny";
+        },
+        async onClientTool() {
+          return "deny" as const;
         },
       },
     });

@@ -44,6 +44,8 @@ export type PermissionDecision = "allow" | "deny";
 /** The full set of responder outcomes, including the runner-internal `park`. */
 export type ResponderOutcome = PermissionDecision | "park";
 
+export type ClientToolOutcome = "deny" | "park" | { output: unknown };
+
 /** A permission gate raised by the harness, normalized from the ACP request. */
 export interface PermissionRequest {
   /** The ACP permission id; reused as the `interaction_request` event id for reply matching. */
@@ -54,6 +56,15 @@ export interface PermissionRequest {
   raw?: unknown;
 }
 
+export interface ClientToolRequest {
+  /** Reused as the `interaction_request` event id for reply matching. */
+  id: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  raw?: unknown;
+}
+
 /**
  * Answers interaction requests the harness raises. Permission is the only kind wired today;
  * `input` (elicitation) and `client_tool` are forward-looking and will extend this interface
@@ -61,6 +72,7 @@ export interface PermissionRequest {
  */
 export interface Responder {
   onPermission(request: PermissionRequest): Promise<ResponderOutcome>;
+  onClientTool(request: ClientToolRequest): Promise<ClientToolOutcome>;
 }
 
 /** Headless responder: a fixed policy, no human in the loop. Never parks (no human surface). */
@@ -70,6 +82,10 @@ export class PolicyResponder implements Responder {
   async onPermission(_request: PermissionRequest): Promise<ResponderOutcome> {
     return this.policy === "deny" ? "deny" : "allow";
   }
+
+  async onClientTool(_request: ClientToolRequest): Promise<ClientToolOutcome> {
+    return "deny";
+  }
 }
 
 /**
@@ -78,7 +94,7 @@ export class PolicyResponder implements Responder {
  *
  *   1. `toolCallId` — the precise, warm match. When the harness re-presents the SAME ACP
  *      tool-call id (same session), this resolves the exact parked call.
- *   2. `approvalKey(name, input)` — the cold-replay anchor. A cold-replayed run rebuilds the
+ *   2. `parkedCallKey(name, input)` — the cold-replay anchor. A cold-replayed run rebuilds the
  *      session from the replayed transcript and mints a FRESH tool-call id for the re-raised
  *      gate, so the id no longer matches. The stable anchor is then the tool's NAME **plus
  *      its arguments**: the resumed call re-derives the same name and the same args, so it
@@ -89,7 +105,7 @@ export class PolicyResponder implements Responder {
  * HITL bypass. Binding the cold-replay key to name + args closes that hole while keeping the
  * legitimate approve -> resume path working (resume re-raises the same name + args).
  */
-export type ApprovalDecisions = ReadonlyMap<string, PermissionDecision>;
+export type ApprovalDecisions = ReadonlyMap<string, unknown>;
 
 /**
  * The cold-replay approval anchor: the tool name bound to its arguments. Resume re-derives
@@ -107,7 +123,7 @@ export type ApprovalDecisions = ReadonlyMap<string, PermissionDecision>;
  * Returns `undefined` (NO key, fail closed -> re-prompt) only when there is no tool name, or
  * the args are not plain JSON (bigint / cycle / NaN/Infinity / non-plain object like Date/Map).
  */
-export function approvalKey(
+export function parkedCallKey(
   toolName: string | undefined,
   input: unknown,
 ): string | undefined {
@@ -183,18 +199,35 @@ export class HITLResponder implements Responder {
   ) {}
 
   async onPermission(request: PermissionRequest): Promise<ResponderOutcome> {
-    const stored = this.lookup(request);
+    const stored = this.lookupPermission(request);
     if (stored) return stored;
     if (this.hasHumanSurface) return "park"; // human must decide; end the turn, tool pending
     return this.basePolicy === "deny" ? "deny" : "allow"; // headless: PolicyResponder parity
   }
 
-  private lookup(request: PermissionRequest): PermissionDecision | undefined {
+  async onClientTool(request: ClientToolRequest): Promise<ClientToolOutcome> {
+    const stored = this.lookupClientTool(request);
+    if (stored.found) return { output: stored.output };
+    if (this.hasHumanSurface) return "park";
+    return "deny";
+  }
+
+  private lookupPermission(request: PermissionRequest): PermissionDecision | undefined {
     for (const key of permissionRequestKeys(request)) {
       const decision = this.decisions.get(key);
-      if (decision) return decision;
+      if (isPermissionDecision(decision)) return decision;
     }
     return undefined;
+  }
+
+  private lookupClientTool(request: ClientToolRequest): { found: boolean; output?: unknown } {
+    for (const key of clientToolRequestKeys(request)) {
+      if (this.decisions.has(key)) {
+        const output = this.decisions.get(key);
+        if (!isPermissionDecision(output)) return { found: true, output };
+      }
+    }
+    return { found: false };
   }
 }
 
@@ -224,7 +257,15 @@ function permissionRequestKeys(request: PermissionRequest): string[] {
   const toolCallId = toolCall?.toolCallId;
   if (typeof toolCallId === "string" && toolCallId) keys.push(toolCallId);
   const name = permissionToolName(toolCall);
-  const argsKey = approvalKey(name, toolCall?.rawInput ?? toolCall?.input);
+  const argsKey = parkedCallKey(name, toolCall?.rawInput ?? toolCall?.input);
+  if (argsKey) keys.push(argsKey);
+  return keys;
+}
+
+function clientToolRequestKeys(request: ClientToolRequest): string[] {
+  const keys: string[] = [];
+  if (request.toolCallId) keys.push(request.toolCallId);
+  const argsKey = parkedCallKey(request.toolName, request.input);
   if (argsKey) keys.push(argsKey);
   return keys;
 }
@@ -249,7 +290,7 @@ function permissionToolName(toolCall: unknown): string | undefined {
  * approval response (an ordinary tool result carries the tool's real output, not an `approved`
  * flag), so no new wire carrier is needed.
  *
- * Each decision is indexed ONLY by `approvalKey(name, args)` — the cold-replay anchor. The
+ * Each decision is indexed ONLY by `parkedCallKey(name, args)` — the cold-replay anchor. The
  * name/args are recovered from the matching `tool_call` block (same `toolCallId`) the egress
  * folds into the transcript.
  *
@@ -264,8 +305,8 @@ function permissionToolName(toolCall: unknown): string | undefined {
  */
 export function extractApprovalDecisions(
   request: AgentRunRequest,
-): Map<string, PermissionDecision> {
-  const decisions = new Map<string, PermissionDecision>();
+): Map<string, unknown> {
+  const decisions = new Map<string, unknown>();
   // First pass: recover each tool call's name + args, keyed by its id, so an approval reply
   // (which may carry only the id + the `{approved}` envelope) can be bound to name + args.
   const callShapeById = new Map<string, { name?: string; input?: unknown }>();
@@ -285,8 +326,8 @@ export function extractApprovalDecisions(
     const content = message?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
-      const decision = approvalDecisionOf(block);
-      if (!decision) continue;
+      const result = parkedCallResultOf(block);
+      if (!result.found) continue;
       // Bind the cold-replay name+args key: prefer the block's own name/input, else the
       // correlated tool_call block (same id). Never key by bare name or by a replayed id.
       const shape = block.toolCallId
@@ -294,18 +335,23 @@ export function extractApprovalDecisions(
         : undefined;
       const name = block.toolName ?? shape?.name;
       const input = block.input ?? shape?.input;
-      const argsKey = approvalKey(name, input);
-      if (argsKey) decisions.set(argsKey, decision);
+      const argsKey = parkedCallKey(name, input);
+      if (argsKey) decisions.set(argsKey, result.output);
     }
   }
   return decisions;
 }
 
-/** A `tool_result` block whose `output` is an `{ approved: boolean }` envelope -> a decision. */
-function approvalDecisionOf(
-  block: ContentBlock,
-): PermissionDecision | undefined {
-  if (!block || block.type !== "tool_result") return undefined;
+function isPermissionDecision(value: unknown): value is PermissionDecision {
+  return value === "allow" || value === "deny";
+}
+
+/**
+ * A parked call reply. Permission responses use `{ approved: boolean }`; client tools carry their
+ * real structured `output`.
+ */
+function parkedCallResultOf(block: ContentBlock): { found: boolean; output?: unknown } {
+  if (!block || block.type !== "tool_result") return { found: false };
   const output = block.output;
   if (
     output &&
@@ -313,9 +359,12 @@ function approvalDecisionOf(
     !Array.isArray(output) &&
     typeof (output as { approved?: unknown }).approved === "boolean"
   ) {
-    return (output as { approved: boolean }).approved ? "allow" : "deny";
+    return {
+      found: true,
+      output: (output as { approved: boolean }).approved ? "allow" : "deny",
+    };
   }
-  return undefined;
+  return { found: true, output };
 }
 
 /**
