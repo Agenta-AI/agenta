@@ -134,11 +134,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const senderRef = useRef<React.ComponentRef<typeof Sender>>(null)
     const dropContainerRef = useRef<HTMLDivElement>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
-    const stickRef = useRef(true)
+    // SC-2: a restored thread opens parked (not following) at the last user message; a brand-new empty
+    // session follows the bottom as the first answer streams.
+    const stickRef = useRef(initialMessages.length === 0)
     const [showJump, setShowJump] = useState(false)
-    // SC-1: arm a one-shot scroll that pins the new user message to the top after it mounts. The room
-    // for the answer to stream into comes from `min-h-full` on the last turn (CSS), not a JS spacer.
-    const armPinRef = useRef(false)
+    // Arm a one-shot scroll that pins a user message to the top once it has mounted. Used both for a
+    // freshly-submitted turn (SC-1) and, when a saved thread is restored, for its last user message
+    // (SC-2) — both resolve "the last user message" the same way in the pin effect below.
+    const armPinRef = useRef(initialMessages.some((m) => m.role === "user"))
     // Set while we move the scroll position ourselves (the SC-1 pin). onScroll ignores the resulting
     // event so a programmatic pin isn't mistaken for the user reaching the live edge (which would flip
     // stick-to-bottom on and jam the view back down, undoing the pin).
@@ -278,9 +281,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         scrollToBottom()
     }, [scrollToBottom])
 
-    // SC-1: once the optimistic user message has mounted, pin it to the top of the viewport (one
-    // time). The last turn carries `min-h-full`, so the answer streams into the space below it without
-    // any JS spacer math.
+    // Pin the last user message to the top of the viewport, one time, when armed: on a fresh submit
+    // (SC-1, so the answer streams into the fill below) and on restoring a saved thread (SC-2, so it
+    // reopens at the last meaningful turn rather than the absolute bottom).
     useLayoutEffect(() => {
         if (!armPinRef.current) return
         const el = scrollRef.current
