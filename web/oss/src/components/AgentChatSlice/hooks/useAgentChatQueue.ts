@@ -27,19 +27,29 @@ interface UseAgentChatQueueArgs {
 export const useAgentChatQueue = ({status, messages, sendQueued}: UseAgentChatQueueArgs) => {
     const [queued, setQueued] = useState<QueuedMessage[]>([])
 
-    // Single entry point for a user message: send it now only when the queue is empty AND the turn
-    // is releasable — the same gate the release effect uses. Otherwise append, so a new message
-    // never jumps ahead of older queued ones (and never fires into a busy/HITL/errored turn).
+    // One latch shared by both send paths caps releases to one per settle and preserves FIFO.
+    const releasingRef = useRef(false)
+    const queuedRef = useRef(queued)
+    useEffect(() => {
+        queuedRef.current = queued
+    }, [queued])
+
+    // Send now only if idle, unlatched, and the queue is empty; otherwise append (FIFO).
     const submit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
-            if (queued.length === 0 && canReleaseQueuedMessage(status, messages)) {
+            if (
+                !releasingRef.current &&
+                queuedRef.current.length === 0 &&
+                canReleaseQueuedMessage(status, messages)
+            ) {
+                releasingRef.current = true
                 sendQueued(message)
             } else {
                 setQueued((q) => [...q, message])
             }
         },
-        [queued, status, messages, sendQueued],
+        [status, messages, sendQueued],
     )
 
     const removeQueued = useCallback((id: string) => {
@@ -48,10 +58,7 @@ export const useAgentChatQueue = ({status, messages, sendQueued}: UseAgentChatQu
 
     const clearQueue = useCallback(() => setQueued([]), [])
 
-    // Release the head of the queue when the stream settles. The ref guards the tick between
-    // `sendQueued()` and `status` flipping away from "ready", so a single settle releases exactly
-    // one message (not the whole queue in one render).
-    const releasingRef = useRef(false)
+    // Release the queue head once the stream settles; the latch caps it at one per settle.
     useEffect(() => {
         if (status !== "ready") {
             releasingRef.current = false

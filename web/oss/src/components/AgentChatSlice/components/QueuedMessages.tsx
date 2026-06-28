@@ -17,7 +17,7 @@ import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 
 const {Text} = Typography
 
-/** One attachment as a small square tile: an image thumbnail, else a type icon (no filename). */
+/** One attachment tile: image thumbnail, else a type icon. */
 const Attachment = ({part}: {part: FileUIPart}) => {
     const name = filePartName(part)
     const kind = fileKind(part.mediaType)
@@ -35,10 +35,12 @@ const Attachment = ({part}: {part: FileUIPart}) => {
     const Icon = kind === "audio" ? SpeakerHigh : kind === "video" ? VideoCamera : FileIcon
     return (
         <span
+            role="img"
+            aria-label={name}
             title={name}
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary text-colorTextSecondary"
         >
-            <Icon size={12} />
+            <Icon size={12} aria-hidden />
         </span>
     )
 }
@@ -76,7 +78,7 @@ const QueuedList = ({
                         </span>
                         <div className="flex min-w-0 flex-1 flex-col gap-1">
                             {text ? (
-                                // 2-line clamp; full text on hover — queued messages can be long.
+                                // Clamp to 2 lines; full text on hover.
                                 <span
                                     title={text}
                                     className="line-clamp-2 whitespace-pre-wrap break-words text-xs leading-5 text-colorText"
