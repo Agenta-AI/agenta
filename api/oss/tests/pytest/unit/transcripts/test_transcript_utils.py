@@ -5,7 +5,6 @@ Covers:
 - coalesce_events: chunk folding, empty agent_message dropping
 """
 
-
 from oss.src.core.sessions.transcripts.utils import (
     REPLAY_PREFIX,
     coalesce_events,
