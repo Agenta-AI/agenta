@@ -61,10 +61,9 @@ class PiHarness(Harness):
     def _to_harness_config(self, config: SessionConfig) -> PiAgentTemplate:
         # Pi delivers tools natively: built-in names plus resolved specs registered through
         # the Pi extension. Pi does not gate tool use, so the permission policy is dropped.
-        # Pi reads its own slice of the neutral harness_kwargs bag (the `pi_core` key, shared
-        # by both Pi-family harnesses): `system` replaces Pi's base prompt, `append_system`
-        # extends it (both leave AGENTS.md untouched).
-        pi_options = config.agent.harness_kwargs.get(HarnessType.PI.value, {})
+        # Pi reads the selected harness's escape-hatch `extras`: `system` replaces Pi's base
+        # prompt, `append_system` extends it (both leave AGENTS.md untouched).
+        extras = config.agent.harness_extras
         return PiAgentTemplate(
             agents_md=config.agent.instructions,
             model=config.agent.model,
@@ -75,9 +74,9 @@ class PiHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
-            harness_kwargs=config.agent.harness_kwargs,
-            system=_opt_str(pi_options.get("system")),
-            append_system=_opt_str(pi_options.get("append_system")),
+            harness_permissions=config.agent.harness_permissions,
+            system=_opt_str(extras.get("system")),
+            append_system=_opt_str(extras.get("append_system")),
         )
 
 
@@ -95,11 +94,10 @@ class ClaudeHarness(Harness):
             )
         # Skills stay on the harness config; the runner materializes them under `.claude/skills`
         # in the session cwd so Claude ACP can load the same resolved inline packages.
-        # The whole neutral harness_kwargs bag (plus sandbox_permission + mcp_servers) is threaded
-        # onto the ClaudeAgentTemplate; the config's `wire_harness_files` (the Python claude adapter)
-        # parses the `claude.permissions` slice and renders `.claude/settings.json` as a generic
-        # `harnessFiles` entry. No claude-specific parsing happens here; the runner just writes the
-        # files into the cwd.
+        # The harness's first-class `permissions` slice (plus sandbox_permission + mcp_servers) is
+        # threaded onto the ClaudeAgentTemplate; the config's `wire_harness_files` (the Python claude
+        # adapter) renders `.claude/settings.json` as a generic `harnessFiles` entry. No
+        # claude-specific parsing happens here; the runner just writes the files into the cwd.
         return ClaudeAgentTemplate(
             agents_md=config.agent.instructions,
             model=config.agent.model,
@@ -109,7 +107,7 @@ class ClaudeHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
-            harness_kwargs=config.agent.harness_kwargs,
+            harness_permissions=config.agent.harness_permissions,
             permission_policy=config.permission_policy,
         )
 
@@ -118,7 +116,7 @@ class AgentaHarness(Harness):
     """Pi with an Agenta opinion. Same engine as :class:`PiHarness`, but every run carries the
     forced Agenta extras (see :mod:`.agenta_builtins`): a base AGENTS.md preamble the author's
     instructions are appended to, a forced persona ``append_system``, and forced tools. The
-    author's own Pi ``harness_kwargs`` (``system`` / ``append_system``) still apply, layered
+    author's own Pi ``harness.extras`` (``system`` / ``append_system``) still apply, layered
     after the forced bits. The author's resolved inline skills ride the neutral config, and the
     forced platform skill(s) are unioned in (de-duped by name) so a custom config that drops the
     default template's ``_agenta`` embed still carries the platform skill."""
@@ -126,9 +124,9 @@ class AgentaHarness(Harness):
     harness_type = HarnessType.AGENTA
 
     def _to_harness_config(self, config: SessionConfig) -> AgentaAgentTemplate:
-        # The author's Pi options still apply; the pi_agenta harness reads the same `pi_core`
-        # slice as PiHarness (it drives Pi) and layers its forced extras on top.
-        pi_options = config.agent.harness_kwargs.get(HarnessType.PI.value, {})
+        # The author's Pi options still apply; the pi_agenta harness reads the same harness
+        # `extras` as PiHarness (it drives Pi) and layers its forced extras on top.
+        extras = config.agent.harness_extras
         return AgentaAgentTemplate(
             agents_md=compose_instructions(config.agent.instructions),
             model=config.agent.model,
@@ -141,11 +139,9 @@ class AgentaHarness(Harness):
             # drops the default template's `_agenta` embed still gets the platform skill.
             skills=force_skills(list(config.agent.skills)),
             sandbox_permission=config.agent.sandbox_permission,
-            harness_kwargs=config.agent.harness_kwargs,
-            system=_opt_str(pi_options.get("system")),
-            append_system=compose_append_system(
-                _opt_str(pi_options.get("append_system"))
-            ),
+            harness_permissions=config.agent.harness_permissions,
+            system=_opt_str(extras.get("system")),
+            append_system=compose_append_system(_opt_str(extras.get("append_system"))),
         )
 
 

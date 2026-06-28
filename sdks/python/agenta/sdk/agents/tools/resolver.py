@@ -199,7 +199,7 @@ class ToolResolver:
         # ``callback`` executor as gateway/workflow — a ``CallbackToolSpec`` plus the single shared
         # ``ToolCallback`` — but each spec carries a direct ``call`` descriptor, so the runner calls
         # the endpoint directly (no ``/tools/call`` hop). The catalog supplies the description, the
-        # endpoint, the input schema, and the run-context ``bind``.
+        # endpoint, the input schema, and the run-context ``context_bindings``.
         if platform_configs:
             if self._platform_resolver is None:
                 raise UnsupportedToolProviderError("platform")
