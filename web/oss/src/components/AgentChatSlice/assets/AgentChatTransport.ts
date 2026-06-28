@@ -87,10 +87,10 @@ function normalizeToParts(msg: BatchMessage | undefined): BatchPart[] {
 
 /**
  * Pull the assistant message out of a `WorkflowBatchResponse`. `data.outputs` is typed `Any`
- * server-side; today it's a single neutral `{role, content}` Message, but accept the other
- * plausible shapes too (a list of messages, a `{messages: [...]}` wrapper, a UIMessage with
- * `parts`, or a bare string). Falls back to stringifying whatever arrived so a turn never renders
- * empty.
+ * server-side; the agent's canonical output is `outputs.messages` (a `{messages: [...]}`
+ * envelope), but accept the other plausible shapes too (a single `{role, content}`, a bare
+ * list, a UIMessage with `parts`, or a bare string). Falls back to stringifying whatever
+ * arrived so a turn never renders empty.
  */
 function extractAssistantMessage(json: unknown): BatchMessage {
     const root = (json ?? {}) as Record<string, unknown>

@@ -33,16 +33,42 @@ export interface ChatMessage {
 }
 
 /**
- * Trace context threaded in from the Agenta service so the agent run joins the caller's
- * /invoke trace instead of starting its own. All fields optional; with none set the run is
- * traced standalone (or not at all) using env config.
+ * W3C trace-context propagation threaded in from the Agenta service so the agent run joins the
+ * caller's /invoke trace instead of starting its own. `traceparent` / `baggage` are the standard
+ * W3C propagation headers, kept verbatim. This is per-call protocol CONTEXT (it changes every
+ * turn) — distinct from the operator-owned `telemetry` config (where spans export, what is
+ * captured) and from `runContext` (the run's own resource identity, bound into tool requests).
+ * All fields optional; with none set the run is traced standalone (or not at all) using env config.
  */
-export interface TraceContext {
+export interface Propagation {
   traceparent?: string;
   baggage?: string;
+}
+
+export interface RequestContext {
+  propagation?: Propagation;
+}
+
+/**
+ * How this run's telemetry behaves: where spans are exported and what may be captured. This is
+ * operator/policy-owned CONFIG, distinct from the per-call propagation `context` above.
+ *
+ *  - `capture.content.enabled` is the capture POLICY: default on; `false` strips message and tool
+ *    content from the exported spans.
+ *  - `exporters.otlp` is the OTLP destination: `endpoint` is the traces URL, and `headers` carries
+ *    the exporter CREDENTIAL under the standard `authorization` header (kept verbatim), so the
+ *    secret lives under the thing it authenticates rather than as a free-floating field.
+ *
+ * All fields optional; an absent endpoint/headers falls back to the runner's env config.
+ */
+export interface OtlpExporter {
   endpoint?: string;
-  authorization?: string;
-  captureContent?: boolean;
+  headers?: Record<string, string>;
+}
+
+export interface Telemetry {
+  capture?: { content?: { enabled?: boolean } };
+  exporters?: { otlp?: OtlpExporter };
 }
 
 /**
@@ -56,16 +82,35 @@ export interface TraceContext {
  *  - `needsApproval`: gate the call on a human yes/no (mechanics owned by the run-event layer).
  *  - `render`: a generative-UI hint (see `RenderHint`).
  *
- * `callRef` is set for `callback` tools (the slug the bridge sends back to /tools/call);
- * `runtime`/`code`/`env` for `code` tools. The Composio key and connection auth stay
- * server-side.
+ * `callRef` is set for `callback` (gateway) tools (the slug the bridge sends back to
+ * /tools/call); `call` is set for direct-call callback tools (reference / platform), which the
+ * runner calls directly instead of routing through /tools/call. A callback spec carries `call`
+ * XOR `callRef`. `runtime`/`code`/`env` for `code` tools. The Composio key and connection auth
+ * stay server-side.
  */
 export interface ResolvedToolSpec {
   name: string;
   description?: string;
   inputSchema?: Record<string, unknown> | null;
-  /** Set for `callback` (gateway) tools only; absent for `code` / `client`. */
+  /** Set for gateway `callback` tools (routes through /tools/call); absent for `code` / `client`, and absent when `call` is set. */
   callRef?: string;
+  /**
+   * Direct-call descriptor (direct-call tools, Phase 1). When set, the runner calls this Agenta
+   * endpoint DIRECTLY (reusing the run's `toolCallback.authorization`) instead of routing through
+   * `/tools/call`. `path` is an absolute path from the Agenta origin (the runner derives the
+   * origin from `toolCallback.endpoint`, so a tool can never reach a non-Agenta host); `body` are
+   * static server-fixed fields baked at resolve time; `context` maps a dotted body path to a
+   * `"$ctx.<key>"` token the runner fills from the run context at dispatch; `args_into` is the
+   * dotted path where the model's arguments are placed (absent = the body root). A spec carries
+   * `call` XOR `callRef`. Plumbing only here: nothing emits or dispatches it yet.
+   */
+  call?: {
+    method: "GET" | "POST";
+    path: string;
+    body?: Record<string, unknown>;
+    context?: Record<string, string>;
+    args_into?: string;
+  };
   kind?: "callback" | "code" | "client";
   runtime?: "python" | "node";
   code?: string;
@@ -87,6 +132,45 @@ export interface ResolvedToolSpec {
 export interface ToolCallbackContext {
   endpoint: string;
   authorization?: string;
+}
+
+/** One workflow entity inside `RunContext.workflow`: the platform's `{id, slug, version}`
+ * reference shape (the API's `Reference`). `version` is meaningful only on the revision. */
+export interface RunContextReference {
+  id?: string;
+  slug?: string;
+  version?: string;
+}
+
+/**
+ * The run's own context, delivered on `/run` and refreshed per turn (direct-call tools, Phase 3a;
+ * see `projects/direct-call-tools/run-context.md`). The service computes it from the invocation's
+ * own trace + workflow identity. It is consumed ONLY by a tool's `call.context` binding: the runner
+ * fills bound request fields from this blob at dispatch, server-side and hidden from the model. The
+ * model never reads run context directly.
+ *
+ * `workflow` mirrors the platform's three workflow entities — the `artifact` (the workflow), the
+ * `variant`, and the `revision` — so the run's identity reads the same way the rest of the platform
+ * names a workflow; `is_draft` says whether the run targets a committed revision (`false`) or an
+ * uncommitted playground draft (`true`). The conversation id is NOT carried here — it rides the
+ * top-level `sessionId` field, and the runner owns the live id across turns.
+ *
+ * The inner keys are deliberately snake_case (`workflow.variant.id`, `trace.trace_id`): they are
+ * the binding NAMESPACE a `call.context` value (`"$ctx.<dotted.path>"`) addresses, so they match
+ * those tokens exactly rather than the rest of the wire's camelCase. Every field is optional and
+ * best-effort — the service fills what it holds and omits the rest.
+ */
+export interface RunContext {
+  workflow?: {
+    artifact?: RunContextReference;
+    variant?: RunContextReference;
+    revision?: RunContextReference;
+    is_draft?: boolean;
+  };
+  trace?: {
+    trace_id?: string;
+    span_id?: string;
+  };
 }
 
 /**
@@ -207,9 +291,9 @@ export type AgentEvent =
   | { type: "message_start"; id: string }
   | { type: "message_delta"; id: string; delta: string }
   | { type: "message_end"; id: string }
-  | { type: "reasoning_start"; id: string }
-  | { type: "reasoning_delta"; id: string; delta: string }
-  | { type: "reasoning_end"; id: string }
+  | { type: "thought_start"; id: string }
+  | { type: "thought_delta"; id: string; delta: string }
+  | { type: "thought_end"; id: string }
   | {
       type: "tool_call";
       id?: string;
@@ -357,8 +441,24 @@ export interface AgentRunRequest {
    * first-party wire field plus runner-side translation.
    */
   harnessFiles?: Array<{ path: string; content: string }>;
-  /** Tracing: thread the Agenta trace context across the boundary. */
-  trace?: TraceContext;
+  /**
+   * W3C trace-context propagation: nests the run under the caller's /invoke span so the agent's
+   * work joins the same trace (see `service-and-runner-trace-export.md`). Per-call context; the
+   * run's own resource identity rides `runContext`, and the exporter config rides `telemetry`.
+   */
+  context?: RequestContext;
+  /**
+   * Telemetry config: where this run's spans export (`exporters.otlp`) and the content-capture
+   * policy (`capture.content.enabled`). Operator/policy-owned; falls back to the runner's env.
+   */
+  telemetry?: Telemetry;
+  /**
+   * The run's own context (trace + variant identity), refreshed per turn (direct-call tools,
+   * Phase 3a). Consumed only by a tool's `call.context` binding at dispatch — the runner fills the
+   * bound request fields from this blob server-side, hidden from the model (see `RunContext` and
+   * `tools/direct.ts` `assembleBody`). Omitted when the run has no own identity to bind.
+   */
+  runContext?: RunContext;
 }
 
 export interface AgentRunResult {

@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
-import {ArrowClockwise, Trash} from "@phosphor-icons/react"
+import {ArrowClockwise, GearSix, Trash} from "@phosphor-icons/react"
 import {Button, Table, Tooltip, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
@@ -85,6 +85,7 @@ export default function ConnectionsList({integrationKey, connections}: Props) {
                     value ? formatDay({date: value, outputFormat: "YYYY-MM-DD HH:mm"}) : "-",
             },
             {
+                title: <GearSix size={16} />,
                 key: "actions",
                 width: 80,
                 align: "center" as const,

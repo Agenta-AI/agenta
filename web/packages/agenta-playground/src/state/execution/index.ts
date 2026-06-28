@@ -358,3 +358,5 @@ export {agentChannelModeAtom, type AgentChannelMode} from "./channelMode"
 export {createNegotiatingFetch, type NegotiatingFetch} from "./agentNegotiation"
 // Agent-lane HITL resume predicate (approve AND deny both resume the conversation).
 export {agentShouldResumeAfterApproval} from "./agentApprovalResume"
+// Agent-lane queued-message release gate (never releases mid-HITL or pre-resume).
+export {canReleaseQueuedMessage, isHitlPending} from "./agentMessageQueue"

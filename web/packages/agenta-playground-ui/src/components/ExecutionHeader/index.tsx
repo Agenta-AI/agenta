@@ -93,7 +93,10 @@ const ExecutionHeader = ({
     const runTests = () => runAll(entityId ? {entityId} : undefined)
     const canRun = !isChatMode || !isComparisonView || canRunAllChat
 
-    useRunAllShortcut({isRunning, canRun, onRun: runTests})
+    // Agent panels run from the composer (the header is hidden for them, `if (isAgent) return null`
+    // below). This hook is registered before that early return, so gate it on `!isAgent` too — else
+    // ⌘/Ctrl+Enter still fires runAll in agent mode.
+    useRunAllShortcut({isRunning, canRun: !isAgent && canRun, onRun: runTests})
 
     const runAllTooltip = hasEvaluators
         ? "Run the prompt and evaluators on all test cases."
@@ -101,6 +104,10 @@ const ExecutionHeader = ({
 
     const showCollapseToggle = !isComparisonView
     // const showRunOptions = !isComparisonView && entityId
+
+    // The agent panel owns its own chat composer and has no generation rows, so this execution
+    // header (a "Chat" label + collapse toggle + run controls) serves no purpose in agent mode.
+    if (isAgent) return null
 
     return (
         <div

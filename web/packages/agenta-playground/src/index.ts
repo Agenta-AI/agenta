@@ -80,6 +80,8 @@ export {
 export type {AgentRequest, AgentChannelMode, NegotiatingFetch} from "./state"
 // HITL resume predicate for `useChat`'s `sendAutomaticallyWhen` (approve AND deny resume).
 export {agentShouldResumeAfterApproval} from "./state"
+// Queued-message release gate for the agent chat composer (HITL-safe, one-by-one).
+export {canReleaseQueuedMessage, isHitlPending} from "./state"
 
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)

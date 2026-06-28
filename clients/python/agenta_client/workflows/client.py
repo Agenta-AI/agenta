@@ -13,6 +13,8 @@ from ..types.simple_workflow_query import SimpleWorkflowQuery
 from ..types.simple_workflow_response import SimpleWorkflowResponse
 from ..types.simple_workflows_response import SimpleWorkflowsResponse
 from ..types.windowing import Windowing
+from ..types.workflow_catalog_harness_response import WorkflowCatalogHarnessResponse
+from ..types.workflow_catalog_harnesses_response import WorkflowCatalogHarnessesResponse
 from ..types.workflow_catalog_preset_response import WorkflowCatalogPresetResponse
 from ..types.workflow_catalog_presets_response import WorkflowCatalogPresetsResponse
 from ..types.workflow_catalog_template_response import WorkflowCatalogTemplateResponse
@@ -122,6 +124,72 @@ class WorkflowsClient:
         )
         """
         _response = self._raw_client.fetch_workflow_catalog_type(ag_type, request_options=request_options)
+        return _response.data
+    
+    def list_workflow_catalog_harnesses(self, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogHarnessesResponse:
+        """
+        List the agent harness records shipped with the product.
+        
+        Each record carries the harness `capabilities` (providers, deployments, connection
+        modes, model selection, models). A workflow's harness field references one via
+        `x-ag-harness-ref`, resolved against `/catalog/harnesses/{ag_harness}`.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkflowCatalogHarnessesResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.workflows.list_workflow_catalog_harnesses()
+        """
+        _response = self._raw_client.list_workflow_catalog_harnesses(request_options=request_options)
+        return _response.data
+    
+    def fetch_workflow_catalog_harness(self, ag_harness: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogHarnessResponse:
+        """
+        Return a single harness record (with its `capabilities`).
+        
+        Returns 404 when the `ag_harness` is not part of the shipped catalog.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
+        Parameters
+        ----------
+        ag_harness : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkflowCatalogHarnessResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.workflows.fetch_workflow_catalog_harness(
+            ag_harness="ag_harness",
+        )
+        """
+        _response = self._raw_client.fetch_workflow_catalog_harness(ag_harness, request_options=request_options)
         return _response.data
     
     def list_workflow_catalog_templates(self, *, include_archived: typing.Optional[bool] = None, is_application: typing.Optional[bool] = None, is_evaluator: typing.Optional[bool] = None, is_snippet: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTemplatesResponse:
@@ -1512,6 +1580,88 @@ class AsyncWorkflowsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_workflow_catalog_type(ag_type, request_options=request_options)
+        return _response.data
+    
+    async def list_workflow_catalog_harnesses(self, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogHarnessesResponse:
+        """
+        List the agent harness records shipped with the product.
+        
+        Each record carries the harness `capabilities` (providers, deployments, connection
+        modes, model selection, models). A workflow's harness field references one via
+        `x-ag-harness-ref`, resolved against `/catalog/harnesses/{ag_harness}`.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkflowCatalogHarnessesResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.workflows.list_workflow_catalog_harnesses()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.list_workflow_catalog_harnesses(request_options=request_options)
+        return _response.data
+    
+    async def fetch_workflow_catalog_harness(self, ag_harness: str, *, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogHarnessResponse:
+        """
+        Return a single harness record (with its `capabilities`).
+        
+        Returns 404 when the `ag_harness` is not part of the shipped catalog.
+        
+        See: [Workflows](/reference/api-guide/workflows).
+        
+        Parameters
+        ----------
+        ag_harness : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkflowCatalogHarnessResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.workflows.fetch_workflow_catalog_harness(
+                ag_harness="ag_harness",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_workflow_catalog_harness(ag_harness, request_options=request_options)
         return _response.data
     
     async def list_workflow_catalog_templates(self, *, include_archived: typing.Optional[bool] = None, is_application: typing.Optional[bool] = None, is_evaluator: typing.Optional[bool] = None, is_snippet: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowCatalogTemplatesResponse:

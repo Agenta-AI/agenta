@@ -55,12 +55,28 @@ attached. See [tools.md](../tools.md#status-and-known-gaps).
 
 ## Permissions
 
-Claude gates tool use behind a permission prompt. In an Agenta run there is no human at the
-keyboard to answer it, so the runner answers for it. By default it auto-approves, because the
-tools are backend-resolved and trusted. The per-run permission policy (or an env override)
-can flip this to deny, which rejects tool use instead. This is handled on
-`session.onPermissionRequest`, a hook Pi does not need because Pi does not gate tools this
-way.
+Claude gates tool use behind its own permission prompt. There are two places a per-tool
+permission lands, and both matter.
+
+The first is static, written before the session starts: the claude adapter renders a
+`.claude/settings.json` file (`sdks/python/agenta/sdk/agents/adapters/claude_settings.py`,
+delivered on the `harnessFiles` wire seam) whose `permissions.allow` / `permissions.ask` /
+`permissions.deny` lists Claude Code reads via `settingSources`. Each backend-resolved EXECUTABLE
+tool (callback/code) gets a per-tool rule `mcp__agenta-tools__<name>`, because that is how Claude
+addresses a tool of the internal `agenta-tools` MCP server above. A tool whose
+`effective_permission()` is `allow` gets an allow rule, so Claude runs it without raising a gate;
+`deny` gets a deny rule; `ask` or unset gets no allow rule, so the gate still fires.
+
+The second is dynamic: a gate that does fire arrives at `session.onPermissionRequest`, where the
+runner answers for the (absent) human. When a human surface exists the runner parks the undecided
+gate for a HITL approval round-trip; otherwise it falls to the per-run permission policy (auto or
+deny). Pi does not need this hook because Pi does not gate tools this way.
+
+Both layers are needed because Claude's gate fires BEFORE the runner relay that would otherwise
+honor an `allow`. Without the settings.json rule, an `allow` resolved tool always parked
+(finding F-046); the rule is what lets it run. The `ask`/unset path is left to the gate on
+purpose, so HITL approval is preserved. Note that `permission_policy: "auto"` is NOT a blanket
+bypass — it still means "gate, then HITL or policy", not "allow everything".
 
 ## Tracing from the event stream
 

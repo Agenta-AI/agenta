@@ -17,6 +17,7 @@ from agenta.sdk.engines.running.utils import (
     infer_flags_from_data,
     infer_url_from_uri,
     infer_outputs_schema,
+    normalize_snippet_data,
     parse_uri,
     retrieve_interface,
 )
@@ -91,10 +92,10 @@ from oss.src.core.git.types import (
     needs_default_variant_resolution,
     validate_retrieve_refs_consistent,
 )
-from oss.src.core.workflows.interfaces import PlatformWorkflowProvider
+from oss.src.core.workflows.interfaces import StaticWorkflowProvider
 from oss.src.core.workflows.types import (
-    ReservedWorkflowSlug,
-    is_reserved_workflow_slug,
+    StaticWorkflowSlug,
+    is_static_workflow_slug,
 )
 
 # Resolution is now handled by EmbedsService
@@ -128,13 +129,11 @@ class WorkflowsService:
             "is_application",
             "is_evaluator",
             "is_snippet",
-            "is_skill",
-            "is_platform",
         }
     )
-    # Platform-owned flags a user may never persist. Only the synthetic catalogue revision sets
-    # is_platform=True, and it never touches the DB; any user-supplied value is scrubbed on write.
-    SERVER_OWNED_FLAG_KEYS = frozenset({"is_platform"})
+    # Server-owned flags a user may never persist. Only the synthetic catalogue revision sets
+    # is_static=True, and it never touches the DB; any user-supplied value is scrubbed on write.
+    SERVER_OWNED_FLAG_KEYS = frozenset({"is_static"})
 
     def __init__(
         self,
@@ -143,57 +142,57 @@ class WorkflowsService:
         #
         environments_service: Optional["EnvironmentsService"] = None,  # type: ignore
         embeds_service: Optional["EmbedsService"] = None,  # type: ignore
-        platform_catalog: Optional[PlatformWorkflowProvider] = None,
+        static_catalog: Optional[StaticWorkflowProvider] = None,
     ):
         self.workflows_dao = workflows_dao
         self.environments_service = environments_service
         self.embeds_service = embeds_service
-        self.platform_catalog = platform_catalog
+        self.static_catalog = static_catalog
 
     @staticmethod
     def _artifact_cache_key(artifact_id: UUID) -> str:
         return str(artifact_id)
 
-    def _reject_reserved_slug(self, slug: Optional[str]) -> None:
-        """Reject a user-supplied slug in the reserved platform namespace.
+    def _reject_static_slug(self, slug: Optional[str]) -> None:
+        """Reject a user-supplied slug in the reserved static namespace.
 
-        Platform workflows are served from code by the catalogue; a user must not be able to
+        Static workflows are served from code by the catalogue; a user must not be able to
         author or shadow one. The check is a pure function independent of the catalogue, so it
         holds even when no catalogue is injected (evaluators, migrations, the worker). Resolution
         of a reserved slug never falls through to the DB, so this guard plus that short-circuit
         close both directions.
         """
-        if is_reserved_workflow_slug(slug):
-            raise ReservedWorkflowSlug(slug)
+        if is_static_workflow_slug(slug):
+            raise StaticWorkflowSlug(slug)
 
     @classmethod
     def _scrub_server_owned_flags(cls, flags: dict) -> dict:
-        """Strip server-owned flags from a user-supplied stored-flags dict before persistence.
+        """Force a present server-owned flag to False in a user-supplied stored-flags dict.
 
-        ``is_platform`` is owned by the platform catalogue (the synthetic revision is the only
-        thing that may set it true, and it never touches the DB). A user-supplied value is silently
-        coerced to false by dropping the key so a forged ``is_platform=true`` can never round-trip
-        through the database.
+        ``is_static`` is slug-derived, never user-declarable: the DB always stores it False, and the
+        read path re-infers it from the (reserved) slug. When a caller supplies it, hard-code False
+        (rather than dropping the key) so the stored row stays explicit and a forged
+        ``is_static=true`` can never round-trip. A dict that never had the key (e.g. the artifact
+        flag dump) is untouched.
         """
         return {
-            key: value
+            key: (False if key in cls.SERVER_OWNED_FLAG_KEYS else value)
             for key, value in flags.items()
-            if key not in cls.SERVER_OWNED_FLAG_KEYS
         }
 
     @classmethod
     def _drop_default_server_owned_query_flags(cls, flags: dict) -> dict:
         """For query filters: drop a server-owned flag only when it is False (its default).
 
-        A caller re-posting a workflow's serialized flags carries ``is_platform=False``;
-        filtering on it would match nothing, since the key is scrubbed on write and is never
-        stored. An explicit ``is_platform=True`` is a deliberate platform-catalogue filter and
-        is preserved.
+        A caller re-posting a workflow's serialized flags carries ``is_static=False``; filtering on
+        it would match nothing useful (every stored row is False; staticness is read-time slug
+        inference, not a stored fact). An explicit ``is_static=True`` is dropped too for the same
+        reason: it does not correspond to any stored value.
         """
         return {
             key: value
             for key, value in flags.items()
-            if not (key in cls.SERVER_OWNED_FLAG_KEYS and value is False)
+            if key not in cls.SERVER_OWNED_FLAG_KEYS
         }
 
     async def _get_cached_workflow(
@@ -275,7 +274,7 @@ class WorkflowsService:
         else:
             return {}
 
-        # is_platform is server-owned; never persist a user-supplied value.
+        # is_static is server-owned (slug-derived); never persist a user-supplied value.
         return cls._scrub_server_owned_flags(dumped)
 
     @classmethod
@@ -444,14 +443,19 @@ class WorkflowsService:
             include_archived=include_archived,
         )
 
-        return revision.model_copy(
-            update={
-                "flags": self._merge_workflow_flags(
-                    artifact_flags=workflow.flags if workflow else None,
-                    revision_flags=revision.flags,
-                )
-            }
+        merged_flags = self._merge_workflow_flags(
+            artifact_flags=workflow.flags if workflow else None,
+            revision_flags=revision.flags,
         )
+
+        # is_static is slug-derived, never stored. Re-infer it on read from the (reserved) slug so a
+        # consumer recognizes a static revision without slug-sniffing.
+        if is_static_workflow_slug(revision.slug):
+            merged_flags = (merged_flags or WorkflowRevisionFlags()).model_copy(
+                update={"is_static": True}
+            )
+
+        return revision.model_copy(update={"flags": merged_flags})
 
     @staticmethod
     def _validate_execution_reference_families(
@@ -680,7 +684,7 @@ class WorkflowsService:
         #
         workflow_id: Optional[UUID] = None,
     ) -> Optional[Workflow]:
-        self._reject_reserved_slug(workflow_create.slug)
+        self._reject_static_slug(workflow_create.slug)
 
         artifact_flags = self._artifact_flags_from_any(workflow_create.flags)
         artifact_create = ArtifactCreate(
@@ -919,7 +923,7 @@ class WorkflowsService:
         #
         workflow_variant_create: WorkflowVariantCreate,
     ) -> Optional[WorkflowVariant]:
-        self._reject_reserved_slug(workflow_variant_create.slug)
+        self._reject_static_slug(workflow_variant_create.slug)
 
         _variant_create = VariantCreate(
             **workflow_variant_create.model_dump(
@@ -1086,7 +1090,7 @@ class WorkflowsService:
         workflow_variant_ref: Reference,
         workflow_revision_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowVariant]:
-        self._reject_reserved_slug(workflow_variant_fork.slug)
+        self._reject_static_slug(workflow_variant_fork.slug)
 
         source_variant = await self.fetch_workflow_variant(
             project_id=project_id,
@@ -1196,7 +1200,7 @@ class WorkflowsService:
         #
         workflow_revision_create: WorkflowRevisionCreate,
     ) -> Optional[WorkflowRevision]:
-        self._reject_reserved_slug(workflow_revision_create.slug)
+        self._reject_static_slug(workflow_revision_create.slug)
 
         _revision_create = RevisionCreate(
             **workflow_revision_create.model_dump(
@@ -1229,61 +1233,61 @@ class WorkflowsService:
         )
 
     @staticmethod
-    def _ref_is_reserved(ref: Optional[Reference]) -> bool:
-        return ref is not None and is_reserved_workflow_slug(ref.slug)
+    def _ref_is_static(ref: Optional[Reference]) -> bool:
+        return ref is not None and is_static_workflow_slug(ref.slug)
 
-    def _ref_has_reserved_id(self, ref: Optional[Reference]) -> bool:
+    def _ref_has_static_id(self, ref: Optional[Reference]) -> bool:
         return (
             ref is not None
-            and self.platform_catalog is not None
-            and self.platform_catalog.is_reserved_id(ref.id)
+            and self.static_catalog is not None
+            and self.static_catalog.is_static_id(ref.id)
         )
 
-    def _resolve_platform_revision(
+    def _resolve_static_revision(
         self,
         *,
         workflow_ref: Optional[Reference],
         workflow_variant_ref: Optional[Reference],
         workflow_revision_ref: Optional[Reference],
     ) -> tuple[bool, Optional[WorkflowRevision]]:
-        """Resolve a reserved-namespace reference to a synthetic catalogue revision.
+        """Resolve a static-namespace reference to a synthetic catalogue revision.
 
-        Returns ``(is_reserved, revision)``. When ``is_reserved`` is True the reference is in the
-        platform namespace (by reserved ``_agenta.*`` slug, or by a synthetic catalogue id) and the
+        Returns ``(is_static, revision)``. When ``is_static`` is True the reference is in the
+        static namespace (by reserved ``__ag__*`` slug, or by a synthetic catalogue id) and the
         caller must NOT fall through to the DB — even when ``revision`` is None (an unknown version,
-        a non-matching paired ref, or no catalogue injected), so a user can never shadow platform
-        content. The reserved-slug detection is a pure function independent of the catalogue, so a
-        reserved slug short-circuits even when no catalogue is wired (``revision`` is then None).
+        a non-matching paired ref, or no catalogue injected), so a user can never shadow static
+        content. The static-slug detection is a pure function independent of the catalogue, so a
+        static slug short-circuits even when no catalogue is wired (``revision`` is then None).
         A revision-level reference resolves to its ``version``; an artifact / variant reference
-        resolves to ``current`` (or to a pinned ``version``). A non-reserved reference returns
+        resolves to ``latest`` (or to a pinned ``version``). A non-static reference returns
         ``(False, None)`` so the caller continues to the DB path unchanged.
         """
-        reserved = (
-            self._ref_is_reserved(workflow_revision_ref)
-            or self._ref_is_reserved(workflow_ref)
-            or self._ref_is_reserved(workflow_variant_ref)
-            or self._ref_has_reserved_id(workflow_revision_ref)
-            or self._ref_has_reserved_id(workflow_ref)
-            or self._ref_has_reserved_id(workflow_variant_ref)
+        static = (
+            self._ref_is_static(workflow_revision_ref)
+            or self._ref_is_static(workflow_ref)
+            or self._ref_is_static(workflow_variant_ref)
+            or self._ref_has_static_id(workflow_revision_ref)
+            or self._ref_has_static_id(workflow_ref)
+            or self._ref_has_static_id(workflow_variant_ref)
         )
 
-        if not reserved:
+        if not static:
             return (False, None)
 
-        # Reserved: never fall through to the DB. Without a catalogue we still short-circuit, but
+        # Static: never fall through to the DB. Without a catalogue we still short-circuit, but
         # there is no synthetic content to serve, so return None.
-        if not self.platform_catalog:
+        if not self.static_catalog:
             return (True, None)
 
-        # A reserved reference must not silently ignore a paired ref that points elsewhere. Resolve
-        # the platform revision, then reject (return None) when any sibling ref is non-matching.
-        revision = self._lookup_platform_revision(
+        # A static reference must not silently ignore a paired ref that points elsewhere. Resolve
+        # the static revision, then reject (return None) when any sibling ref is non-matching.
+        revision = self._lookup_static_revision(
             workflow_ref=workflow_ref,
             workflow_variant_ref=workflow_variant_ref,
             workflow_revision_ref=workflow_revision_ref,
         )
 
-        if revision is not None and not self._platform_refs_consistent(
+        if revision is not None and not self._static_refs_consistent(
             revision=revision,
             workflow_ref=workflow_ref,
             workflow_variant_ref=workflow_variant_ref,
@@ -1293,48 +1297,48 @@ class WorkflowsService:
 
         return (True, revision)
 
-    def _lookup_platform_revision(
+    def _lookup_static_revision(
         self,
         *,
         workflow_ref: Optional[Reference],
         workflow_variant_ref: Optional[Reference],
         workflow_revision_ref: Optional[Reference],
     ) -> Optional[WorkflowRevision]:
-        # Slug refs first (the revision ref pins a version), then id-only refs via the reverse
-        # index. A revision-level slug resolves to its version; artifact / variant to current.
-        if self._ref_is_reserved(workflow_revision_ref):
-            return self.platform_catalog.get_revision(
+        # Slug refs first (the revision ref pins a version), then id-only refs. A revision-level
+        # slug resolves to its version; artifact / variant to latest. retrieve_revision dispatches.
+        if self._ref_is_static(workflow_revision_ref):
+            return self.static_catalog.retrieve_revision(
                 slug=workflow_revision_ref.slug,
                 version=workflow_revision_ref.version,
             )
-        if self._ref_is_reserved(workflow_ref):
-            return self.platform_catalog.get_revision(
+        if self._ref_is_static(workflow_ref):
+            return self.static_catalog.retrieve_revision(
                 slug=workflow_ref.slug,
                 version=workflow_ref.version,
             )
-        if self._ref_is_reserved(workflow_variant_ref):
-            return self.platform_catalog.get_revision(
+        if self._ref_is_static(workflow_variant_ref):
+            return self.static_catalog.retrieve_revision(
                 slug=workflow_variant_ref.slug,
                 version=workflow_variant_ref.version,
             )
 
         for ref in (workflow_revision_ref, workflow_ref, workflow_variant_ref):
-            if self._ref_has_reserved_id(ref):
-                return self.platform_catalog.get_revision_by_id(entity_id=ref.id)
+            if self._ref_has_static_id(ref):
+                return self.static_catalog.retrieve_revision(id=ref.id)
 
         return None
 
     @staticmethod
-    def _platform_refs_consistent(
+    def _static_refs_consistent(
         *,
         revision: WorkflowRevision,
         workflow_ref: Optional[Reference],
         workflow_variant_ref: Optional[Reference],
         workflow_revision_ref: Optional[Reference],
     ) -> bool:
-        """Whether every supplied ref agrees with the resolved platform revision.
+        """Whether every supplied ref agrees with the resolved static revision.
 
-        A platform reference that carries a non-matching sibling (e.g. an unrelated variant id) must
+        A static reference that carries a non-matching sibling (e.g. an unrelated variant id) must
         not be served as if the extra ref did not exist.
         """
         # The reserved namespace uses one slug across all three levels, so every level's slug ref
@@ -1370,18 +1374,18 @@ class WorkflowsService:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
 
-        # Platform workflows live under the reserved `_agenta.*` slug namespace (or a synthetic
+        # Static workflows live under the reserved `__ag__*` slug namespace (or a synthetic
         # catalogue id) and are served from code, never from Postgres. Resolve them before any DB
-        # lookup so a user can never shadow platform content. A reserved reference never falls
+        # lookup so a user can never shadow static content. A reserved reference never falls
         # through to the DB, even when its version is unknown, a paired ref is non-matching, or no
         # catalogue is injected; a non-reserved reference falls through unchanged.
-        is_reserved, platform_revision = self._resolve_platform_revision(
+        is_reserved, static_revision = self._resolve_static_revision(
             workflow_ref=workflow_ref,
             workflow_variant_ref=workflow_variant_ref,
             workflow_revision_ref=workflow_revision_ref,
         )
         if is_reserved:
-            return platform_revision
+            return static_revision
 
         validate_variant_refs_sufficient(
             variant_ref=workflow_variant_ref,
@@ -1706,9 +1710,11 @@ class WorkflowsService:
         #
         emit: bool = True,
     ) -> Optional[WorkflowRevision]:
-        self._reject_reserved_slug(workflow_revision_commit.slug)
+        self._reject_static_slug(workflow_revision_commit.slug)
 
-        data = workflow_revision_commit.data
+        # A snippet (skill) is non-runnable content: strip every execution-surface field, only uri +
+        # parameters survive. Holds even if a caller posts the skill uri under a normal slug.
+        data = normalize_snippet_data(workflow_revision_commit.data)
         if data and data.uri and not data.url:
             _, kind, _, _ = parse_uri(data.uri)
             if kind != "builtin":
@@ -1749,18 +1755,20 @@ class WorkflowsService:
             if schemas_dict:
                 data = data.model_copy(update={"schemas": JsonSchemas(**schemas_dict)})
 
+        _revision_slug = workflow_revision_commit.slug or uuid4().hex[-12:]
         _revision_commit = RevisionCommit(
             **workflow_revision_commit.model_dump(
                 mode="json",
                 exclude_none=True,
                 exclude={"flags", "data", "slug"},
             ),
-            slug=workflow_revision_commit.slug or uuid4().hex[-12:],
+            slug=_revision_slug,
             flags=self._dump_stored_revision_flags(
                 self._revision_flags_from_any(
                     infer_flags_from_data(
                         flags=workflow_revision_commit.flags,
                         data=data,
+                        slug=_revision_slug,
                     )
                 )
             )

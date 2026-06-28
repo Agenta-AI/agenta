@@ -1,14 +1,13 @@
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from fastapi import APIRouter
 
 from oss.src.utils.exceptions import intercept_exceptions
 
-from ee.src.core.access.entitlements.types import SCOPES, Tracker
+from ee.src.core.access.entitlements.types import Tracker
 from ee.src.core.access.controls import (
     get_plans,
     get_plan_description,
-    get_roles,
 )
 
 
@@ -37,13 +36,6 @@ class AccessRouter:
             operation_id="fetch_access_plans",
         )
 
-        self.router.add_api_route(
-            "/roles",
-            self.fetch_roles,
-            methods=["GET"],
-            operation_id="fetch_access_roles",
-        )
-
     @intercept_exceptions()
     async def fetch_plans(self) -> Dict[str, Dict[str, Any]]:
         """Return the effective plan catalog: slug -> entitlement controls.
@@ -60,16 +52,3 @@ class AccessRouter:
                 payload["description"] = description
             plans[slug] = payload
         return plans
-
-    @intercept_exceptions()
-    async def fetch_roles(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Return the effective role catalog per scope.
-
-        Scopes are `organization`, `workspace`, `project`. Each entry has
-        `role`, `description`, and `permissions`. Permissions are returned
-        verbatim from access-controls, including the `"*"` wildcard for
-        `owner` — callers that need to render the full permission list
-        should expand the wildcard themselves (see
-        `ee.src.services.db_manager_ee._expand_permissions`).
-        """
-        return {scope: list(get_roles(scope)) for scope in SCOPES}

@@ -6,33 +6,58 @@
  * use — so it carries the same text ↔ markdown-source view toggle. Prompt-variable tokens are
  * disabled (these are documents, not templated prompts).
  *
- * It defaults to the Markdown *source* (plaintext) view; rendering Markdown is an explicit toggle.
- * The shared MarkdownPlugin only swaps view on a `SET_MARKDOWN_VIEW` command (the storage atom
- * alone doesn't), so the view is driven by local `markdownView` state via a small synchronizer
- * mounted inside the composer (after the editor, so the command is registered). The toggle button
- * just flips that state; it doesn't need composer context.
+ * View can be uncontrolled (defaults to `defaultView`, with the header/toolbar toggle flipping it)
+ * or controlled via `view` + `onViewChange`. With `showToolbar`, a formatting toolbar mounts above
+ * the editor (it formats the rendered rich-text view; it's disabled in source view). `editable`
+ * false renders read-only (for a Preview pane), and `hideHeader` drops the built-in filename/toggle
+ * header when the host supplies its own chrome.
  *
- * The whole subtree mounts under an `EditorProvider` with `noProvider` on the editor, so the editor
- * and its header (where the toggle sits) share one composer context.
+ * The whole subtree mounts under an `EditorProvider` with `noProvider` on the editor, so the editor,
+ * its header, and the toolbar share one composer context.
  *
- * Controlled: seeds from `value` and re-syncs when `value` changes from outside (e.g. a skill
+ * Controlled value: seeds from `value` and re-syncs when `value` changes from outside (e.g. a skill
  * upload populating the body), while leaving the cursor alone during local typing.
  */
-import {useEffect, useId, useLayoutEffect, useRef, useState} from "react"
+import {type CSSProperties, useEffect, useId, useLayoutEffect, useRef, useState} from "react"
 
-import {EditorProvider, SET_MARKDOWN_VIEW, useLexicalComposerContext} from "@agenta/ui"
+import {
+    EditorProvider,
+    MarkdownToolbar,
+    SET_MARKDOWN_VIEW,
+    useLexicalComposerContext,
+} from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip} from "antd"
+import {cn} from "@agenta/ui/styles"
+import {Tag} from "antd"
+
+type MarkdownView = "source" | "rendered"
 
 export interface MarkdownEditorProps {
     value: string
     onChange: (next: string) => void
     placeholder?: string
     disabled?: boolean
-    /** Optional file-name tag shown on the left of the editor toolbar (e.g. "AGENTS.md"). Fills
-     * the toolbar band the view toggle would otherwise leave empty. */
+    /** Optional file-name tag shown on the left of the editor toolbar (e.g. "AGENTS.md"). */
     filename?: string
+    /** Show a formatting toolbar (heading/bold/italic/lists/link/code/quote) above the editor. */
+    showToolbar?: boolean
+    /** Initial view when uncontrolled. @default "source" */
+    defaultView?: MarkdownView
+    /** Controlled view. When set, the toggle calls `onViewChange` instead of local state. */
+    view?: MarkdownView
+    onViewChange?: (view: MarkdownView) => void
+    /** Read-only when false (e.g. a Preview pane). @default true */
+    editable?: boolean
+    /** Drop the built-in filename/toggle header (the host supplies its own chrome). */
+    hideHeader?: boolean
+    /** Draw a border around the editor. @default true */
+    bordered?: boolean
+    /** Fill the drawer height (fixed, tall) with the toolbar pinned and content scrolling. For an
+     * editor that IS the whole drawer body. @default false */
+    fill?: boolean
+    /** Cap the editor height (px or CSS length): content-sized up to the cap, then the toolbar pins
+     * and the content scrolls inside. For an editor that's one field among others. */
+    maxHeight?: number | string
 }
 
 /**
@@ -64,6 +89,15 @@ export function MarkdownEditor({
     placeholder,
     disabled,
     filename,
+    showToolbar = false,
+    defaultView = "source",
+    view,
+    onViewChange,
+    editable = true,
+    hideHeader = false,
+    bordered = true,
+    fill = false,
+    maxHeight,
 }: MarkdownEditorProps) {
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
@@ -72,8 +106,18 @@ export function MarkdownEditor({
 
     const [text, setText] = useState(value ?? "")
     const lastExternal = useRef(value ?? "")
-    // Default to the Markdown source (plaintext) view — rendering Markdown is an explicit toggle.
-    const [markdownView, setMarkdownView] = useState(true)
+    const [internalView, setInternalView] = useState<MarkdownView>(defaultView)
+
+    const effectiveView = view ?? internalView
+    const markdownView = effectiveView === "source"
+    const readOnly = !editable
+    const editorDisabled = Boolean(disabled) || readOnly
+    // The toggle is available unless the view is controlled with no change handler.
+    const canToggleView = view === undefined || onViewChange !== undefined
+    const setView = (next: MarkdownView) => {
+        if (view !== undefined) onViewChange?.(next)
+        else setInternalView(next)
+    }
 
     // Re-seed only when the value changes from outside (not on our own edits), so an upload that
     // sets the body flows in without fighting the cursor during typing.
@@ -91,54 +135,100 @@ export function MarkdownEditor({
         onChange(next)
     }
 
+    const viewToggle = canToggleView ? (
+        <button
+            type="button"
+            onClick={() => setView(markdownView ? "rendered" : "source")}
+            disabled={disabled}
+            className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-[var(--ag-c-97A4B0,#97a4b0)] transition-colors hover:text-[var(--ag-c-586673,#586673)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+            {markdownView ? "Rich text" : "Markdown"}
+        </button>
+    ) : null
+
+    // Toolbar row pinned above a scroll area this component owns, so it never moves with content.
+    // `justify-between` puts formatting on the left and the source/rich toggle hard-right.
+    const toolbar = (
+        <div className="flex shrink-0 items-center justify-between gap-1 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-1.5">
+            <MarkdownToolbar disabled={editorDisabled || markdownView} />
+            {viewToggle}
+        </div>
+    )
+
+    const plainHeader = hideHeader ? undefined : (
+        <div className="flex w-full items-center justify-between gap-2">
+            {filename ? (
+                <Tag
+                    bordered
+                    className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
+                >
+                    {filename}
+                </Tag>
+            ) : (
+                <span />
+            )}
+            {viewToggle}
+        </div>
+    )
+
+    // Bound the box on this component's own wrapper (self-sized, so it doesn't depend on the parent
+    // flex/height chain). `fill` = fixed drawer-body height (≈ header+footer+padding). `maxHeight` =
+    // content-sized up to a cap. Either way the toolbar pins and content scrolls inside.
+    const boundStyle: CSSProperties | undefined = fill
+        ? {height: "calc(100vh - 152px)"}
+        : maxHeight != null
+          ? {maxHeight: typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight}
+          : undefined
+
+    const editorEl = (
+        <SharedEditor
+            id={editorId}
+            noProvider
+            editorType={showToolbar || !bordered ? "borderless" : "border"}
+            // Suppress the borderless hover/focus border so it doesn't flash inside the toolbar box.
+            className={
+                showToolbar
+                    ? "!border-transparent hover:!border-transparent focus:!border-transparent"
+                    : undefined
+            }
+            initialValue={text}
+            value={text}
+            handleChange={handleChange}
+            disabled={editorDisabled}
+            placeholder={placeholder}
+            editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
+            syncWithInitialValueChanges
+            header={showToolbar ? undefined : plainHeader}
+        />
+    )
+
     return (
         <EditorProvider
             id={editorId}
             codeOnly={false}
             enableTokens={false}
             showToolbar={false}
-            disabled={disabled}
+            disabled={editorDisabled}
         >
-            <SharedEditor
-                id={editorId}
-                noProvider
-                editorType="border"
-                initialValue={text}
-                value={text}
-                handleChange={handleChange}
-                disabled={disabled}
-                placeholder={placeholder}
-                editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
-                syncWithInitialValueChanges
-                header={
-                    <div className="flex w-full items-center justify-between gap-2">
-                        {filename ? (
-                            <Tag
-                                bordered
-                                className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
-                            >
-                                {filename}
-                            </Tag>
-                        ) : (
-                            <span />
-                        )}
-                        <Tooltip title={markdownView ? "Preview markdown" : "Edit source"}>
-                            <Button
-                                type="text"
-                                icon={
-                                    markdownView ? (
-                                        <MarkdownLogoIcon size={14} />
-                                    ) : (
-                                        <TextAa size={14} />
-                                    )
-                                }
-                                onClick={() => setMarkdownView((v) => !v)}
-                                disabled={disabled}
-                            />
-                        </Tooltip>
-                    </div>
-                }
-            />
+            {showToolbar ? (
+                <div
+                    className={cn(
+                        "flex flex-col overflow-hidden",
+                        bordered &&
+                            "rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]",
+                    )}
+                    style={boundStyle}
+                >
+                    {toolbar}
+                    <div className="min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
+                </div>
+            ) : boundStyle ? (
+                <div className="overflow-y-auto" style={boundStyle}>
+                    {editorEl}
+                </div>
+            ) : (
+                editorEl
+            )}
             <MarkdownViewSync enabled={markdownView} />
         </EditorProvider>
     )

@@ -20,15 +20,19 @@ import json
 import pytest
 
 from agenta.sdk.agents import (
-    AgentaAgentConfig,
-    ClaudeAgentConfig,
+    AgentaAgentTemplate,
+    ClaudeAgentTemplate,
     Endpoint,
     HarnessType,
     Message,
-    PiAgentConfig,
+    PiAgentTemplate,
     ResolvedConnection,
+    RunContext,
+    RunContextReference,
+    RunContextTrace,
+    RunContextWorkflow,
     SandboxPermission,
-    SkillConfig,
+    SkillTemplate,
     ToolCallback,
     TraceContext,
 )
@@ -54,7 +58,9 @@ KNOWN_REQUEST_KEYS = {
     "credentialMode",
     "messages",
     "secrets",
-    "trace",
+    "context",
+    "telemetry",
+    "runContext",
     "tools",
     "customTools",
     "mcpServers",
@@ -75,6 +81,21 @@ _CUSTOM_TOOL = {
     "kind": "callback",
     "readOnly": True,
 }
+# A DIRECT-CALL tool (direct-call tools, Phase 1): a callback spec that carries a `call`
+# descriptor instead of a `callRef` (the `call` XOR `callRef` rule). Plumbing only — nothing
+# emits or dispatches it yet; the golden pins the wire shape so the optional field round-trips.
+_DIRECT_CALL_TOOL = {
+    "name": "get_weather",
+    "description": "Look up weather for a city",
+    "inputSchema": {"type": "object", "properties": {"city": {"type": "string"}}},
+    "kind": "callback",
+    "call": {
+        "method": "POST",
+        "path": "/api/workflows/invoke",
+        "body": {"references": {"workflow_revision": {"id": "rev_abc123"}}},
+        "args_into": "data.inputs",
+    },
+}
 _CALLBACK = ToolCallback(
     endpoint="https://api.example/tools/call", authorization="Access tok-123"
 )
@@ -93,11 +114,11 @@ _SKILL = {
 
 
 def _pi_payload():
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="openai-codex/gpt-5.5",
         builtin_tools=["read", "write"],
-        custom_tools=[dict(_CUSTOM_TOOL)],
+        custom_tools=[dict(_CUSTOM_TOOL), dict(_DIRECT_CALL_TOOL)],
         tool_callback=_CALLBACK,
         skills=[dict(_SKILL)],
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
@@ -116,26 +137,39 @@ def _pi_payload():
             authorization="Access tok-123",
             capture_content=True,
         ),
+        # The run's own context (trace + workflow identity), refreshed per turn and consumed only by
+        # a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). The workflow is
+        # grouped into the platform's three entities (artifact / variant / revision); `to_wire`
+        # drops the unset reference fields. The conversation id rides the top-level `session_id`,
+        # not run context.
+        run_context=RunContext(
+            workflow=RunContextWorkflow(
+                artifact=RunContextReference(id="wf_abc"),
+                variant=RunContextReference(id="var_abc", slug="weather-agent"),
+                revision=RunContextReference(id="rev_abc123", version="3"),
+                is_draft=False,
+            ),
+            trace=RunContextTrace(
+                trace_id="0af7651916cd43dd8448eb211c80319c",
+                span_id="b7ad6b7169203331",
+            ),
+        ),
         session_id="sess-1",
     )
 
 
 def _claude_payload():
-    config = ClaudeAgentConfig(
+    config = ClaudeAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="claude-sonnet-4-6",
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         permission_policy="deny",
         skills=[dict(_SKILL)],
-        harness_kwargs={
-            "claude": {
-                "permissions": {
-                    "default_mode": "acceptEdits",
-                    "allow": ["Read", "Bash(npm run:*)"],
-                    "deny": ["WebFetch"],
-                }
-            }
+        harness_permissions={
+            "default_mode": "acceptEdits",
+            "allow": ["Read", "Bash(npm run:*)"],
+            "deny": ["WebFetch"],
         },
     )
     return request_to_wire(
@@ -150,7 +184,7 @@ def _claude_payload():
 
 
 def _agenta_payload():
-    config = AgentaAgentConfig(
+    config = AgentaAgentTemplate(
         agents_md="Agenta preamble + project rules.",
         model="gpt-5.5",
         builtin_tools=["read", "bash"],
@@ -181,9 +215,9 @@ def test_request_to_wire_agenta_carries_skills_and_pi_shape():
 
 def test_request_to_wire_skills_ride_their_own_seam_not_tools():
     # Skills are emitted by `wire_skills`, not folded into the tool wire.
-    config = PiAgentConfig(skills=[dict(_SKILL)])
+    config = PiAgentTemplate(skills=[dict(_SKILL)])
     assert "skills" not in config.wire_tools()
-    assert config.wire_skills() == {"skills": [SkillConfig(**_SKILL).to_wire()]}
+    assert config.wire_skills() == {"skills": [SkillTemplate(**_SKILL).to_wire()]}
 
 
 def test_request_to_wire_omits_skills_when_none():
@@ -191,7 +225,7 @@ def test_request_to_wire_omits_skills_when_none():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "skills" not in payload
@@ -204,6 +238,56 @@ def test_request_to_wire_pi_matches_golden(golden):
     assert payload["customTools"][0]["readOnly"] is True
     # No explicit author permission + read_only=True -> derived `allow` rides the wire.
     assert payload["customTools"][0]["permission"] == "allow"
+    # The direct-call tool rides the wire carrying its `call` descriptor and NO `callRef`
+    # (the `call` XOR `callRef` rule). The descriptor keeps method/path/body and the snake_case
+    # `args_into`; `context` is unset so it is omitted. Plumbing only — the runner forwards it
+    # opaquely in Phase 1.
+    direct = payload["customTools"][1]
+    assert direct["kind"] == "callback"
+    assert "callRef" not in direct
+    assert direct["call"] == {
+        "method": "POST",
+        "path": "/api/workflows/invoke",
+        "body": {"references": {"workflow_revision": {"id": "rev_abc123"}}},
+        "args_into": "data.inputs",
+    }
+    # The run's own context rides as `runContext` (direct-call tools, Phase 3a): the workflow +
+    # trace identity, with snake_case inner keys (the `$ctx.<key>` binding namespace), the workflow
+    # grouped into artifact / variant / revision references, and the unset reference fields dropped
+    # by `to_wire`. The conversation id is NOT here — it rides the top-level `sessionId`.
+    assert payload["runContext"] == {
+        "workflow": {
+            "artifact": {"id": "wf_abc"},
+            "variant": {"id": "var_abc", "slug": "weather-agent"},
+            "revision": {"id": "rev_abc123", "version": "3"},
+            "is_draft": False,
+        },
+        "trace": {
+            "trace_id": "0af7651916cd43dd8448eb211c80319c",
+            "span_id": "b7ad6b7169203331",
+        },
+    }
+    assert "session_id" not in payload["runContext"]
+    # The run's tracing inputs ride the wire grouped by role (trace/telemetry restructure): the
+    # per-call W3C propagation under `context.propagation`, and the operator-owned exporter config +
+    # capture policy under `telemetry` (the credential nested under the OTLP exporter's standard
+    # `authorization` header). No single `trace` bucket mixes the four roles anymore.
+    assert payload["context"] == {
+        "propagation": {
+            "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            "baggage": None,
+        }
+    }
+    assert payload["telemetry"] == {
+        "capture": {"content": {"enabled": True}},
+        "exporters": {
+            "otlp": {
+                "endpoint": "https://otlp.example/v1/traces",
+                "headers": {"authorization": "Access tok-123"},
+            }
+        },
+    }
+    assert "trace" not in payload
     # The declared sandbox boundary rides the wire as nested camelCase `sandboxPermission`;
     # the unset `filesystem` is dropped (declared, not enforced) so it never appears.
     assert payload["sandboxPermission"] == {
@@ -214,9 +298,41 @@ def test_request_to_wire_pi_matches_golden(golden):
     assert "harnessFiles" not in payload
 
 
+def test_request_to_wire_omits_run_context_when_none():
+    # No run context passed -> no `runContext` key (a run that needs no `call.context` binding stays
+    # byte-identical to before, the same discipline skills/mcpServers/sandboxPermission use).
+    payload = request_to_wire(
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "runContext" not in payload
+
+
+def test_request_to_wire_omits_run_context_when_empty():
+    # An entirely-empty run context (no identity to bind) serializes to {} and is dropped, so it
+    # never rides the wire as a noise `"runContext": {}` key.
+    payload = request_to_wire(
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        run_context=RunContext(),
+    )
+    assert "runContext" not in payload
+
+
 def test_request_to_wire_claude_matches_golden(golden):
     payload = _claude_payload()
     assert payload == golden("run_request.claude.json")
+    # The claude payload threads no run context, so `runContext` is absent (the golden has none).
+    assert "runContext" not in payload
+    # No trace context threaded on this config: both role-separated keys are null (matching the
+    # prior single `trace: null`), and the legacy `trace` key is gone.
+    assert payload["context"] is None
+    assert payload["telemetry"] is None
+    assert "trace" not in payload
     # No explicit author permission + read_only=True -> derived `allow` rides the wire.
     assert payload["customTools"][0]["permission"] == "allow"
     # Claude-specific invariants the golden encodes, asserted explicitly so a failure reads clearly.
@@ -234,6 +350,9 @@ def test_request_to_wire_claude_matches_golden(golden):
     assert "sandboxPermission" not in payload
     # The claude adapter (Python) translated the author's permissions slice into a rendered
     # `.claude/settings.json`, carried on the generic `harnessFiles` seam. The runner writes it blind.
+    # The `allow` list also carries the per-resolved-tool rule for the internal `agenta-tools` MCP
+    # server (F-046): `_CUSTOM_TOOL` is a read-only callback tool -> effective `allow` ->
+    # `mcp__agenta-tools__get_user`, so Claude runs it instead of parking on its own permission gate.
     assert payload["harnessFiles"] == [
         {
             "path": ".claude/settings.json",
@@ -241,7 +360,11 @@ def test_request_to_wire_claude_matches_golden(golden):
                 {
                     "permissions": {
                         "defaultMode": "acceptEdits",
-                        "allow": ["Read", "Bash(npm run:*)"],
+                        "allow": [
+                            "Read",
+                            "Bash(npm run:*)",
+                            "mcp__agenta-tools__get_user",
+                        ],
                         "deny": ["WebFetch"],
                     }
                 },
@@ -257,7 +380,7 @@ def test_request_to_wire_has_no_prompt_key():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "prompt" not in payload
@@ -278,7 +401,7 @@ def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
     # resolved `model` overrides the config-build `model`, `provider`/`deployment`/
     # `credentialMode`/`endpoint.baseUrl` ride the wire, and the secret `key` NEVER does (it
     # rides `secrets`; `env` is masked from the wire by `ResolvedConnection.to_wire`).
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         model="openai/gpt-5.5",  # the config-build model
         resolved_connection=ResolvedConnection(
             provider="openai",
@@ -314,7 +437,7 @@ def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
 def test_request_to_wire_omits_resolved_connection_when_none():
     # No resolved connection -> no resolved-connection keys, so a config without one is
     # byte-identical to before (the golden contract; the golden fixtures set none).
-    config = PiAgentConfig(model="gpt-5.5")
+    config = PiAgentTemplate(model="gpt-5.5")
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
@@ -334,7 +457,7 @@ def test_pi_permission_policy_is_always_auto():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert payload["permissionPolicy"] == "auto"
@@ -425,7 +548,7 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
     # The three-axes surface reaches the wire intact: a code spec keeps its executor fields
     # (kind/runtime/code/env) and the orthogonal axes (needsApproval/render); a client spec
     # has no callRef; user MCP servers ride `mcpServers`.
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         custom_tools=[
             {
                 "name": "calc",
@@ -488,7 +611,7 @@ def test_request_to_wire_omits_mcp_servers_when_none():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "mcpServers" not in payload
@@ -500,7 +623,7 @@ def test_request_to_wire_omits_sandbox_permission_when_none():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "sandboxPermission" not in payload
@@ -512,7 +635,7 @@ def test_request_to_wire_omits_harness_files_when_none():
     payload = request_to_wire(
         harness=HarnessType.CLAUDE,
         sandbox="local",
-        config=ClaudeAgentConfig(),
+        config=ClaudeAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "harnessFiles" not in payload
@@ -520,14 +643,9 @@ def test_request_to_wire_omits_harness_files_when_none():
 
 def test_request_to_wire_pi_renders_no_harness_files_from_its_options():
     # The per-harness translation is now in Python and only the claude config renders files; a Pi
-    # config carrying options (even a `claude` slice that is never its concern) emits no
-    # `harnessFiles`. The raw options map no longer rides the wire.
-    config = PiAgentConfig(
-        harness_kwargs={
-            "pi": {"system": "You are Pi."},
-            "claude": {"permissions": {"default_mode": "plan"}},
-        }
-    )
+    # config carrying its prompt overrides emits no `harnessFiles` (those ride `systemPrompt` /
+    # `appendSystemPrompt`, not a file).
+    config = PiAgentTemplate(system="You are Pi.")
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
@@ -544,9 +662,9 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
     # permissions slice with the Layer-2 sandbox derivation and Layer-3 MCP permissions into one
     # `.claude/settings.json` file. network:off -> WebFetch/WebSearch deny; an `ask` MCP server ->
     # `mcp__<server>` ask. The author's deny keeps its position; derived rules append (deduped).
-    config = ClaudeAgentConfig(
+    config = ClaudeAgentTemplate(
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
-        harness_kwargs={"claude": {"permissions": {"default_mode": "plan"}}},
+        harness_permissions={"default_mode": "plan"},
         mcp_servers=[
             {
                 "name": "github",
@@ -576,7 +694,7 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
 
 def test_request_to_wire_carries_sandbox_permission_allowlist():
     # The allowlist mode rides the wire with its CIDR ranges and the default enforcement.
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         sandbox_permission=SandboxPermission(
             network={"mode": "allowlist", "allowlist": ["10.0.0.0/8"]},
         )

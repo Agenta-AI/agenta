@@ -2,7 +2,7 @@
 
 Layers (Agenta's hexagonal vocabulary):
 
-- ``dtos.py`` — data contracts (``AgentConfig``, ``SessionConfig``, ``Message``, ...).
+- ``dtos.py`` — data contracts (``AgentTemplate``, ``SessionConfig``, ``Message``, ...).
 - ``interfaces.py`` — the ports (ABCs): ``Backend``, ``Environment``, ``Sandbox``,
   ``Session``, ``Harness``.
 - ``adapters/`` — implementations: ``SandboxAgentBackend`` / ``LocalBackend``
@@ -15,7 +15,7 @@ Standalone usage::
     from agenta.sdk.agents import Message
 
     cfg = ag.ConfigManager.get_from_registry(app_slug="my-agent")
-    agent = ag.AgentConfig.from_params(cfg)
+    agent = ag.AgentTemplate.from_params(cfg)
     harness = ag.PiHarness(ag.Environment(ag.SandboxAgentBackend()))
     result = await harness.prompt(ag.SessionConfig(agent=agent), [Message(role="user", content="hi")])
 """
@@ -53,21 +53,25 @@ from .connections import (
     UnsupportedProviderError,
 )
 from .dtos import (
-    AgentaAgentConfig,
-    AgentConfig,
-    AgentEvent,
+    AgentaAgentTemplate,
+    AgentTemplate,
+    Event,
     AgentResult,
-    ClaudeAgentConfig,
+    ClaudeAgentTemplate,
     ContentBlock,
     HARNESS_IDENTITIES,
-    HarnessAgentConfig,
+    HarnessAgentTemplate,
     HarnessCapabilities,
     HarnessIdentity,
     HarnessType,
     Message,
     NetworkEgress,
     PermissionPolicy,
-    PiAgentConfig,
+    PiAgentTemplate,
+    RunContext,
+    RunContextReference,
+    RunContextTrace,
+    RunContextWorkflow,
     SandboxPermission,
     SessionConfig,
     ToolCallback,
@@ -96,16 +100,16 @@ from .mcp import (
     ResolvedMCPServer,
 )
 from .skills import (
-    SkillConfig,
-    SkillConfigurationError,
+    SkillTemplate,
+    SkillValidationError,
     SkillError,
     SkillFile,
-    parse_skill_config,
-    parse_skill_configs,
+    parse_skill_template,
+    parse_skill_templates,
     skill_to_wire,
     skills_to_wire,
 )
-from .streaming import AgentRun
+from .streaming import AgentStream
 from .tools import (
     BuiltinToolConfig,
     CallbackToolSpec,
@@ -121,7 +125,10 @@ from .tools import (
     GatewayToolResolutionError,
     MissingSecretPolicy,
     MissingToolSecretError,
+    PlatformToolConfig,
+    ReferenceToolConfig,
     ResolvedToolSet,
+    ToolCall,
     ToolConfig,
     ToolConfigError,
     ToolConfigurationError,
@@ -130,6 +137,7 @@ from .tools import (
     ToolSecretProvider,
     ToolSpec,
     UnsupportedToolProviderError,
+    WorkflowToolResolver,
     coerce_tool_config,
     coerce_tool_configs,
     parse_tool_config,
@@ -142,12 +150,12 @@ from .adapters.vercel import (
 
 __all__ = [
     # DTOs
-    "AgentConfig",
+    "AgentTemplate",
     "SessionConfig",
-    "HarnessAgentConfig",
-    "PiAgentConfig",
-    "ClaudeAgentConfig",
-    "AgentaAgentConfig",
+    "HarnessAgentTemplate",
+    "PiAgentTemplate",
+    "ClaudeAgentTemplate",
+    "AgentaAgentTemplate",
     "HarnessType",
     "HarnessIdentity",
     "HARNESS_IDENTITIES",
@@ -155,14 +163,18 @@ __all__ = [
     "ContentBlock",
     "Message",
     "to_messages",
-    "AgentEvent",
+    "Event",
     "AgentResult",
-    "AgentRun",
+    "AgentStream",
     # Former flat Vercel adapter names (compatibility; new code uses adapters.vercel)
     "from_ui_messages",
     "to_ui_message",
     "ui_message_stream",
     "TraceContext",
+    "RunContext",
+    "RunContextReference",
+    "RunContextWorkflow",
+    "RunContextTrace",
     "ToolCallback",
     "PermissionPolicy",
     "SandboxPermission",
@@ -173,15 +185,19 @@ __all__ = [
     "GatewayToolConfig",
     "CodeToolConfig",
     "ClientToolConfig",
+    "ReferenceToolConfig",
+    "PlatformToolConfig",
     "ToolSpec",
     "CallbackToolSpec",
     "CodeToolSpec",
     "ClientToolSpec",
+    "ToolCall",
     "ResolvedToolSet",
     "GatewayToolResolution",
     "ToolResolver",
     "ToolSecretProvider",
     "GatewayToolResolver",
+    "WorkflowToolResolver",
     "EnvironmentToolSecretProvider",
     "MissingSecretPolicy",
     "parse_tool_config",
@@ -203,14 +219,14 @@ __all__ = [
     "MCPDisabledError",
     "MissingMCPSecretError",
     # Skills are a sibling subsystem
-    "SkillConfig",
+    "SkillTemplate",
     "SkillFile",
-    "parse_skill_config",
-    "parse_skill_configs",
+    "parse_skill_template",
+    "parse_skill_templates",
     "skill_to_wire",
     "skills_to_wire",
     "SkillError",
-    "SkillConfigurationError",
+    "SkillValidationError",
     # Connections are a sibling subsystem (provider / model / auth)
     "ModelRef",
     "Connection",

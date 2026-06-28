@@ -3,12 +3,13 @@
 /**
  * @example
  *     {
- *         organization_id: "organization_id"
+ *         organization_id: "organization_id",
+ *         name: "name"
  *     }
  */
 export interface CreateWorkspace {
     organization_id: string;
-    name?: string | null;
+    name: string;
     description?: string | null;
     type?: string | null;
 }

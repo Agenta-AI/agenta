@@ -8,7 +8,7 @@ from sqlalchemy import Connection, update, func, or_, insert, delete
 
 from oss.src.models.db_models import APIKeyDB
 from oss.src.models.db_models import ProjectDB
-from ee.src.models.extended.deprecated_models import DeprecatedAPIKeyDB
+from ee.databases.postgres.migrations.core.deprecated_models import DeprecatedAPIKeyDB
 
 
 BATCH_SIZE = 200

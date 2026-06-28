@@ -21,7 +21,7 @@ _SKILL_NAME = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9]+(-[a-z0-9]+
 def _validate_safe_skill_file_path(path: str) -> str:
     """Reject a bundled-file ``path`` that is absolute, escapes the skill dir, or collides with
     the composed ``SKILL.md``. Enforced on the model itself (not only in ``parsing.py``) so every
-    construction path — direct ``SkillFile(...)`` / ``SkillConfig(...)`` included — is safe."""
+    construction path — direct ``SkillFile(...)`` / ``SkillTemplate(...)`` included — is safe."""
     if path.startswith("/") or path.startswith("\\"):
         raise ValueError(
             f"Skill file path must be relative, got absolute path: {path!r}"
@@ -74,7 +74,7 @@ class SkillFile(BaseModel):
         }
 
 
-class SkillConfig(BaseModel):
+class SkillTemplate(BaseModel):
     """An inline skill package. The SKILL.md frontmatter + body and any bundled files ride the
     wire as content; the runner materializes them into a skill dir at run time. ``name`` and
     ``description`` are the two portable frontmatter fields; ``body`` is this skill's own

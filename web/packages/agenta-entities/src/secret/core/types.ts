@@ -16,6 +16,7 @@
  *     migration; not a wire shape.
  */
 
+import type {LlmProvider} from "@agenta/shared/types"
 import {AgentaApi} from "@agentaai/api-client"
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,30 @@ export type StandardProviderSettingsDto = AgentaApi.StandardProviderSettingsDto
 export type CustomProviderDto = AgentaApi.CustomProviderDto
 export type CustomProviderSettingsDto = AgentaApi.CustomProviderSettingsDto
 export type CustomModelSettingsDto = AgentaApi.CustomModelSettingsDto
+
+export type CustomSecretDto = AgentaApi.CustomSecretDto
+export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto
+
+export const CustomSecretFormat = AgentaApi.CustomSecretFormat
+export type CustomSecretFormat = AgentaApi.CustomSecretFormat
+
+/**
+ * Flat json content for a `json`-format custom secret: a single-level map of
+ * primitives. Mirrors the backend's flat-only validation (no nesting/arrays).
+ */
+export type CustomSecretContent = CustomSecretSettingsDto["content"]
+
+/**
+ * Table/form row for a user-named vault secret (`custom_secret`). Extends the
+ * shared `LlmProvider` row (so it flows through the generic vault transforms)
+ * with the two fields named secrets need: the `format` and a `content` that is
+ * a text blob or a flat json object — wider than `LlmProvider.key` (string only).
+ */
+export interface NamedSecretRow extends LlmProvider {
+    slug?: string
+    format: CustomSecretFormat
+    content: CustomSecretContent
+}
 
 // `SecretKind` / `StandardProviderKind` / `CustomProviderKind` are Fern
 // const-asserted objects. Re-export both the value and the derived type

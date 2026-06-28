@@ -147,6 +147,14 @@ class ToolAmbiguousError(ToolsError):
         )
 
 
+class DiscoveryUnsupportedError(ToolsError):
+    """Raised when a provider has no semantic tool-discovery (search) capability."""
+
+    def __init__(self, provider_key: str):
+        self.provider_key = provider_key
+        super().__init__(f"Tool discovery is not supported by provider: {provider_key}")
+
+
 class AdapterError(ToolsError):
     """Raised when an adapter operation fails."""
 

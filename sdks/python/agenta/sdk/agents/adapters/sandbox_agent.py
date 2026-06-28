@@ -20,17 +20,18 @@ from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Sequence
 from ..dtos import (
     AgentResult,
     EventSink,
-    HarnessAgentConfig,
+    HarnessAgentTemplate,
     HarnessType,
     Message,
+    RunContext,
     TraceContext,
 )
 from ..interfaces import Backend, Sandbox, Session
-from ..streaming import AgentRun
+from ..streaming import AgentStream
 from ..utils import (
-    deliver_http,
+    deliver_http_result,
     deliver_http_stream,
-    deliver_subprocess,
+    deliver_subprocess_result,
     deliver_subprocess_stream,
     request_to_wire,
     result_from_wire,
@@ -60,11 +61,12 @@ class SandboxAgentSession(Session):
         self,
         backend: "SandboxAgentBackend",
         sandbox: SandboxAgentSandbox,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]],
         trace: Optional[TraceContext],
+        run_context: Optional[RunContext],
         session_id: Optional[str],
     ) -> None:
         self._backend = backend
@@ -73,6 +75,7 @@ class SandboxAgentSession(Session):
         self._harness = harness
         self._secrets = dict(secrets or {})
         self._trace = trace
+        self._run_context = run_context
         self._session_id = session_id
 
     @property
@@ -88,6 +91,7 @@ class SandboxAgentSession(Session):
             messages=messages,
             secrets=self._secrets,
             trace=self._trace,
+            run_context=self._run_context,
             session_id=self._session_id,
         )
 
@@ -102,16 +106,18 @@ class SandboxAgentSession(Session):
         *,
         on_event: Optional[EventSink] = None,
     ) -> AgentResult:
-        data = await self._backend._deliver(self._wire_payload(messages))
+        # DEV-ONLY (unused). The agent runs over `stream()`; the normalizer coalesces the batch
+        # result from the drained stream. Kept for local debugging of the one-shot /run path.
+        data = await self._backend._deliver_result(self._wire_payload(messages))
         result = result_from_wire(data)
         self._absorb_result(result)
         _emit_events(result, on_event)
         return result
 
-    def stream(self, messages: Sequence[Message]) -> AgentRun:
-        """Run one turn over the streaming transport, yielding events live (see AgentRun)."""
+    def stream(self, messages: Sequence[Message]) -> AgentStream:
+        """Run one turn over the streaming transport, yielding events live (see AgentStream)."""
         records = self._backend._deliver_stream(self._wire_payload(messages))
-        return AgentRun(records).on_result(self._absorb_result)
+        return AgentStream(records).on_result(self._absorb_result)
 
 
 class SandboxAgentBackend(Backend):
@@ -147,11 +153,12 @@ class SandboxAgentBackend(Backend):
     async def create_session(
         self,
         sandbox: Sandbox,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
+        run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
     ) -> SandboxAgentSession:
         if not isinstance(sandbox, SandboxAgentSandbox):
@@ -165,18 +172,20 @@ class SandboxAgentBackend(Backend):
             harness=harness,
             secrets=secrets,
             trace=trace,
+            run_context=run_context,
             session_id=session_id,
         )
 
-    async def _deliver(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _deliver_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        # DEV-ONLY (unused): the one-shot result transport. The agent path uses _deliver_stream.
         if self._url:
-            return await deliver_http(self._url, payload, timeout=self._timeout)
-        return await deliver_subprocess(
+            return await deliver_http_result(self._url, payload, timeout=self._timeout)
+        return await deliver_subprocess_result(
             self._command, payload, cwd=self._cwd, timeout=self._timeout
         )
 
     def _deliver_stream(self, payload: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
-        """The live counterpart of ``_deliver``: an NDJSON record stream from the runner."""
+        """The live counterpart of ``_deliver_result``: an NDJSON record stream from the runner."""
         if self._url:
             return deliver_http_stream(self._url, payload, timeout=self._timeout)
         return deliver_subprocess_stream(

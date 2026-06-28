@@ -60,7 +60,7 @@ class WebhooksDispatcher:
         secret_id: UUID,
     ) -> Optional[str]:
         try:
-            secret_dto = await self.vault_service.get_secret(
+            secret_dto = await self.vault_service.get_secret_by_id(
                 project_id=project_id,
                 #
                 secret_id=secret_id,

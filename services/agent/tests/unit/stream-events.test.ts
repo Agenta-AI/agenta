@@ -72,17 +72,17 @@ describe("createSandboxAgentOtel state machine", () => {
     assert.equal(mStart.length, 2, "two message_start");
     assert.equal(mEnd.length, 2, "two message_end");
     assert.deepEqual(mStart.map((e) => e.id), ["msg-0", "msg-1"], "stable monotonic text ids");
-    const rStart = ofType(emitted, "reasoning_start");
-    const rEnd = ofType(emitted, "reasoning_end");
-    assert.equal(rStart.length, 1, "one reasoning_start");
-    assert.equal(rEnd.length, 1, "one reasoning_end");
+    const rStart = ofType(emitted, "thought_start");
+    const rEnd = ofType(emitted, "thought_end");
+    assert.equal(rStart.length, 1, "one thought_start");
+    assert.equal(rEnd.length, 1, "one thought_end");
 
     // Deltas are pure and reconstruct the full text, with no overlap/repeat.
     const text = ofType(emitted, "message_delta").map((e) => e.delta).join("");
     assert.equal(text, "Hello world It is sunny.", "concatenated deltas == full text");
     assert.equal(text, finalText, "deltas match finish() output");
-    const reasoning = ofType(emitted, "reasoning_delta").map((e) => e.delta).join("");
-    assert.equal(reasoning, "thinking...", "concatenated reasoning deltas");
+    const reasoning = ofType(emitted, "thought_delta").map((e) => e.delta).join("");
+    assert.equal(reasoning, "thinking...", "concatenated thought deltas");
 
     // Ordering invariant: each block's start precedes its deltas precede its end; tool result
     // lands before the second text block opens.
@@ -110,7 +110,7 @@ describe("createSandboxAgentOtel state machine", () => {
     assert.equal(messages[0].text, "Hello world It is sunny.", "coalesced text == final");
     assert.equal(messages[0].text, finalText);
     assert.equal(ofType(events, "thought").length, 1, "one coalesced thought");
-    for (const t of ["message_start", "message_delta", "message_end", "reasoning_start", "reasoning_delta", "reasoning_end"]) {
+    for (const t of ["message_start", "message_delta", "message_end", "thought_start", "thought_delta", "thought_end"]) {
       assert.equal(events.filter((e) => e.type === t).length, 0, `no ${t} on the one-shot path`);
     }
 

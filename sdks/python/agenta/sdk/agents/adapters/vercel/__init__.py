@@ -1,6 +1,6 @@
 """Vercel AI SDK adapters for the agent runtime.
 
-The neutral agent runtime speaks ``Message``, ``AgentEvent``, and ``AgentRun``. This package
+The neutral agent runtime speaks ``Message``, ``Event``, and ``AgentStream``. This package
 is the browser protocol adapter: Vercel ``UIMessage`` request bodies, UI Message Stream parts,
 SSE framing, and the Vercel protocol headers ``/invoke`` stamps on a vercel-format response.
 """

@@ -16,7 +16,7 @@ from oss.src.models.db_models import (
     ProjectDB,
     UserDB,
 )
-from ee.src.models.db_models import (
+from oss.src.models.db_models import (
     OrganizationMemberDB,
     WorkspaceMemberDB,
     ProjectMemberDB,

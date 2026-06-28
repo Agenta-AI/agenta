@@ -179,6 +179,7 @@ export {buildAgentRequest, buildAgentReferences, type AgentRequest} from "./exec
 export {agentChannelModeAtom, type AgentChannelMode} from "./execution"
 export {createNegotiatingFetch, type NegotiatingFetch} from "./execution"
 export {agentShouldResumeAfterApproval} from "./execution"
+export {canReleaseQueuedMessage, isHitlPending} from "./execution"
 
 export {filterUnreferencedColumnsForSource} from "./execution"
 

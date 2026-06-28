@@ -11,11 +11,6 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.core.events.service import EventsService
 
-from ee.src.routers import (
-    workspace_router,
-    organization_router as _organization_router,
-)
-
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.tracing.dao import TracingRetentionDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
@@ -31,9 +26,7 @@ from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
 from ee.src.apis.fastapi.spans.router import SpansRetentionRouter
 from ee.src.apis.fastapi.events.router import EventsRouter, EventsRetentionRouter
-from ee.src.apis.fastapi.organizations.router import (
-    router as organization_router,
-)
+from ee.src.apis.fastapi.organizations.router import router as organization_router
 from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
 # DBS --------------------------------------------------------------------------
@@ -161,18 +154,6 @@ def extend_main(app: FastAPI):
         organization_router,
         prefix="/organizations",
         tags=["Organizations"],
-    )
-
-    app.include_router(
-        _organization_router.router,
-        prefix="/organizations",
-        tags=["Organizations"],
-    )
-
-    app.include_router(
-        workspace_router.router,
-        prefix="/workspaces",
-        tags=["Workspaces"],
     )
 
     # --------------------------------------------------------------------------

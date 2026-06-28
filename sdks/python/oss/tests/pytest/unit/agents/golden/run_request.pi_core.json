@@ -8,12 +8,38 @@
     {"role": "user", "content": "hi"}
   ],
   "secrets": {"OPENAI_API_KEY": "sk-test"},
-  "trace": {
-    "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
-    "baggage": null,
-    "endpoint": "https://otlp.example/v1/traces",
-    "authorization": "Access tok-123",
-    "captureContent": true
+  "context": {
+    "propagation": {
+      "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+      "baggage": null
+    }
+  },
+  "telemetry": {
+    "capture": {
+      "content": {
+        "enabled": true
+      }
+    },
+    "exporters": {
+      "otlp": {
+        "endpoint": "https://otlp.example/v1/traces",
+        "headers": {
+          "authorization": "Access tok-123"
+        }
+      }
+    }
+  },
+  "runContext": {
+    "workflow": {
+      "artifact": {"id": "wf_abc"},
+      "variant": {"id": "var_abc", "slug": "weather-agent"},
+      "revision": {"id": "rev_abc123", "version": "3"},
+      "is_draft": false
+    },
+    "trace": {
+      "trace_id": "0af7651916cd43dd8448eb211c80319c",
+      "span_id": "b7ad6b7169203331"
+    }
   },
   "tools": ["read", "write"],
   "customTools": [
@@ -25,6 +51,18 @@
       "kind": "callback",
       "readOnly": true,
       "permission": "allow"
+    },
+    {
+      "name": "get_weather",
+      "description": "Look up weather for a city",
+      "inputSchema": {"type": "object", "properties": {"city": {"type": "string"}}},
+      "kind": "callback",
+      "call": {
+        "method": "POST",
+        "path": "/api/workflows/invoke",
+        "body": {"references": {"workflow_revision": {"id": "rev_abc123"}}},
+        "args_into": "data.inputs"
+      }
     }
   ],
   "toolCallback": {

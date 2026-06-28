@@ -1,19 +1,19 @@
 /**
  * connectionUtils
  *
- * Pure helpers for the agent config's model + credential connection (the `ModelRef` shape from
- * the provider-model-auth project). In this POC the agent config `model` is ALWAYS a structured
- * `ModelRef` object — `{provider, model, params?, connection?: {mode, slug?}}` — never a free-text
+ * Pure helpers for the agent template's model + credential connection (the `agent.llm` object,
+ * the `ModelRef` shape from the provider-model-auth project). In this POC the llm value is ALWAYS a
+ * structured object — `{provider, model, extras?, connection?: {mode, slug?}}` — never a free-text
  * string. The harness-filtered unified picker (provider + model + authentication + connection) is
- * the only way to set it, and it always produces a ModelRef. These helpers translate between the
- * form fields the AgentConfigControl renders and that on-the-wire object.
+ * the only way to set it, and it always produces this object. These helpers translate between the
+ * form fields the AgentTemplateControl renders and that on-the-wire object.
  *
  * The per-harness capability surface (which providers/models/connection-modes a harness can reach)
  * is published on the `/inspect` response `meta.harness_capabilities`; the frontend renders from it
  * via the passed-in `HarnessCapabilitiesMap` rather than a static FE copy. When the map is absent
  * (older agents, a standalone control) the helpers fall back permissively.
  *
- * They live in their own module (not inline in AgentConfigControl) so the package unit tests can
+ * They live in their own module (not inline in AgentTemplateControl) so the package unit tests can
  * import and exercise them without a React harness.
  *
  * Design: docs/design/agent-workflows/projects/agent-model-picker/ (the picker UX + inspect model
@@ -41,11 +41,11 @@ export interface ConnectionFields {
     slug: string | null
 }
 
-/** The structured `ModelRef` object shape (a subset; extra keys round-trip untouched). */
+/** The structured `agent.llm` object shape (a subset; extra keys round-trip untouched). */
 interface ModelRefObject {
     provider?: string | null
     model?: string | null
-    params?: Record<string, unknown>
+    extras?: Record<string, unknown>
     connection?: {mode?: string | null; slug?: string | null} | null
     [key: string]: unknown
 }
@@ -94,8 +94,8 @@ export interface ComposeModelValueArgs {
     mode: ConnectionMode
     slug: string | null
     /**
-     * The prior `config.model` value. When it is a structured object, its extra keys (notably
-     * `params`, set via the raw-JSON hatch) are carried through so a form edit never silently
+     * The prior `agent.llm` value. When it is a structured object, its extra keys (notably
+     * `extras`, set via the raw-JSON hatch) are carried through so a form edit never silently
      * drops them. The form-managed keys (model/provider/connection) are then overwritten.
      */
     existing?: unknown
@@ -109,7 +109,7 @@ const FORM_MANAGED_KEYS = new Set(["model", "provider", "connection"])
  * Always returns the structured object (never a bare string): the picker always produces a
  * ModelRef. The `connection` is emitted only when it carries non-default info (a `self_managed`
  * mode, or an `agenta` slug); the `slug` is emitted only for an agenta connection. Extra keys on
- * the prior object (e.g. `params`) ride through.
+ * the prior object (e.g. `extras`) ride through.
  */
 export function composeModelValue({
     modelId,
@@ -121,7 +121,7 @@ export function composeModelValue({
     const id = modelId ?? ""
     const hasProvider = Boolean(provider)
 
-    // Extra keys (params, deployment, ...) the form does not edit but must not drop.
+    // Extra keys (extras, deployment, ...) the form does not edit but must not drop.
     const extras: Record<string, unknown> = {}
     if (isModelRefObject(existing)) {
         for (const [key, val] of Object.entries(existing)) {

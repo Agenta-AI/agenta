@@ -1,5 +1,5 @@
 """
-`request.flags` must be a typed `WorkflowRequestFlags` carrying the per-call
+`request.flags` must be a typed `WorkflowInvokeRequestFlags` carrying the per-call
 COMMAND directives — `stream`, `history`, `control` (all bool) — distinct from
 the descriptor `WorkflowFlags` (`is_chat`/`is_agent`/...) which describes what a
 workflow IS, not what a call should DO.
@@ -14,18 +14,20 @@ on the invoke request.
 # The type exists with the three boolean command fields
 # --------------------------------------------------------------------------- #
 def test_workflow_request_flags_type_exists():
-    from agenta.sdk.models.workflows import WorkflowRequestFlags  # RED: not defined
+    from agenta.sdk.models.workflows import (
+        WorkflowInvokeRequestFlags,
+    )  # RED: not defined
 
-    flags = WorkflowRequestFlags(stream=True, history=False, control=True)
+    flags = WorkflowInvokeRequestFlags(stream=True, history=False, control=True)
     assert flags.stream is True
     assert flags.history is False
     assert flags.control is True
 
 
 def test_workflow_request_flags_default_none():
-    from agenta.sdk.models.workflows import WorkflowRequestFlags
+    from agenta.sdk.models.workflows import WorkflowInvokeRequestFlags
 
-    flags = WorkflowRequestFlags()
+    flags = WorkflowInvokeRequestFlags()
     # absent = not set; the reader treats None as False, but the model keeps the
     # tri-state so "unset" is distinguishable from explicit False.
     assert flags.stream is None
@@ -34,14 +36,14 @@ def test_workflow_request_flags_default_none():
 
 
 # --------------------------------------------------------------------------- #
-# The request boundary stays dict-ish (loose). WorkflowRequestFlags is the typed
+# The request boundary stays dict-ish (loose). WorkflowInvokeRequestFlags is the typed
 # ACCESSOR the running layer builds to read the per-call directives — not the wire
 # type. So req.flags is a plain dict; parsing it yields the typed view.
 # --------------------------------------------------------------------------- #
 def test_invoke_request_flags_dict_parses_via_accessor():
     from agenta.sdk.models.workflows import (
         WorkflowInvokeRequest,
-        WorkflowRequestFlags,
+        WorkflowInvokeRequestFlags,
     )
 
     req = WorkflowInvokeRequest(
@@ -52,7 +54,7 @@ def test_invoke_request_flags_dict_parses_via_accessor():
     assert isinstance(req.flags, dict)
 
     # running layer parses it into the typed accessor
-    parsed = WorkflowRequestFlags(**(req.flags or {}))
+    parsed = WorkflowInvokeRequestFlags(**(req.flags or {}))
     assert parsed.stream is False
     assert parsed.history is True
     assert parsed.control is None
@@ -64,10 +66,10 @@ def test_invoke_request_flags_dict_parses_via_accessor():
 # --------------------------------------------------------------------------- #
 def test_format_is_not_a_request_flag():
     """format is http-only; the command flags are stream/history/control/resolve."""
-    from agenta.sdk.models.workflows import WorkflowRequestFlags
+    from agenta.sdk.models.workflows import WorkflowInvokeRequestFlags
 
-    assert "format" not in WorkflowRequestFlags.model_fields
-    assert set(WorkflowRequestFlags.model_fields) == {
+    assert "format" not in WorkflowInvokeRequestFlags.model_fields
+    assert set(WorkflowInvokeRequestFlags.model_fields) == {
         "stream",
         "history",
         "control",

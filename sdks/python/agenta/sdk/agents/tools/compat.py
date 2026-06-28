@@ -12,6 +12,8 @@ from .models import (
     ClientToolConfig,
     CodeToolConfig,
     GatewayToolConfig,
+    PlatformToolConfig,
+    ReferenceToolConfig,
     ToolConfig,
 )
 from .parsing import parse_tool_config
@@ -74,6 +76,8 @@ def coerce_tool_config(value: Any) -> ToolConfig:
             GatewayToolConfig,
             CodeToolConfig,
             ClientToolConfig,
+            ReferenceToolConfig,
+            PlatformToolConfig,
         ),
     ):
         return value
@@ -90,7 +94,14 @@ def coerce_tool_config(value: Any) -> ToolConfig:
         data["type"] = "gateway"
         data.setdefault("provider", "composio")
 
-    if data.get("type") in {"builtin", "gateway", "code", "client"}:
+    if data.get("type") in {
+        "builtin",
+        "gateway",
+        "code",
+        "client",
+        "reference",
+        "platform",
+    }:
         return parse_tool_config(data)
 
     function = data.get("function") if isinstance(data.get("function"), dict) else {}
