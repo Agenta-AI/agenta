@@ -319,7 +319,7 @@ export function MarkdownEditor({
             )}
             <MarkdownViewSync enabled={markdownView} />
             <CodeHighlightSync />
-            {!editorDisabled ? <CodeBlockLanguageMenu /> : null}
+            <CodeBlockLanguageMenu editable={!editorDisabled} />
         </EditorProvider>
     )
 }
