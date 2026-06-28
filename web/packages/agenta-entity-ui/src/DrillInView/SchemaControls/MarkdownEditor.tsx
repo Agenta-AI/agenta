@@ -18,7 +18,16 @@
  * Controlled value: seeds from `value` and re-syncs when `value` changes from outside (e.g. a skill
  * upload populating the body), while leaving the cursor alone during local typing.
  */
-import {type CSSProperties, useEffect, useId, useLayoutEffect, useRef, useState} from "react"
+import {
+    type CSSProperties,
+    type DragEvent,
+    useCallback,
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from "react"
 
 import {
     EditorProvider,
@@ -135,6 +144,50 @@ export function MarkdownEditor({
         onChange(next)
     }
 
+    // Markdown-file drop: dropping a .md/.markdown/.txt (or any text/* file) onto the editor
+    // replaces its content with the file's text. We intercept in the capture phase and only for
+    // file drags, so Lexical's own internal text drag/drop keeps working.
+    const [dragOver, setDragOver] = useState(false)
+    const dropEnabled = editable && !disabled
+    const isFileDrag = (e: DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
+    const isMarkdownFile = (file: File) =>
+        /\.(md|markdown|mdx|txt)$/i.test(file.name) ||
+        file.type.startsWith("text/") ||
+        file.type === "application/json" ||
+        file.type === ""
+
+    const handleDragOver = useCallback(
+        (e: DragEvent) => {
+            if (!dropEnabled || !isFileDrag(e)) return
+            e.preventDefault()
+            e.stopPropagation()
+            e.dataTransfer.dropEffect = "copy"
+            setDragOver(true)
+        },
+        [dropEnabled],
+    )
+
+    const handleDragLeave = useCallback((e: DragEvent) => {
+        // Ignore leaves into child nodes; only clear when the pointer exits the wrapper.
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+        setDragOver(false)
+    }, [])
+
+    const handleDrop = useCallback(
+        (e: DragEvent) => {
+            if (!dropEnabled || !isFileDrag(e)) return
+            e.preventDefault()
+            e.stopPropagation()
+            setDragOver(false)
+            const file = Array.from(e.dataTransfer.files).find(isMarkdownFile)
+            if (!file) return
+            void file.text().then((content) => handleChange(content))
+        },
+        // handleChange is stable enough for this usage (reads current onChange via closure).
+
+        [dropEnabled],
+    )
+
     const viewToggle = canToggleView ? (
         <button
             type="button"
@@ -202,6 +255,25 @@ export function MarkdownEditor({
         />
     )
 
+    const body = showToolbar ? (
+        <div
+            className={cn(
+                "flex flex-col overflow-hidden",
+                bordered && "rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]",
+            )}
+            style={boundStyle}
+        >
+            {toolbar}
+            <div className="min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
+        </div>
+    ) : boundStyle ? (
+        <div className="overflow-y-auto" style={boundStyle}>
+            {editorEl}
+        </div>
+    ) : (
+        editorEl
+    )
+
     return (
         <EditorProvider
             id={editorId}
@@ -210,24 +282,24 @@ export function MarkdownEditor({
             showToolbar={false}
             disabled={editorDisabled}
         >
-            {showToolbar ? (
+            {dropEnabled ? (
                 <div
-                    className={cn(
-                        "flex flex-col overflow-hidden",
-                        bordered &&
-                            "rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]",
-                    )}
-                    style={boundStyle}
+                    className="relative"
+                    onDragOverCapture={handleDragOver}
+                    onDragLeaveCapture={handleDragLeave}
+                    onDropCapture={handleDrop}
                 >
-                    {toolbar}
-                    <div className="min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
-                </div>
-            ) : boundStyle ? (
-                <div className="overflow-y-auto" style={boundStyle}>
-                    {editorEl}
+                    {body}
+                    {dragOver ? (
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg,rgba(22,119,255,0.08))]">
+                            <span className="rounded-md bg-[var(--ant-color-bg-elevated,#fff)] px-3 py-1.5 text-xs font-medium text-[var(--ag-c-586673,#586673)] shadow-sm">
+                                Drop a Markdown file to replace the content
+                            </span>
+                        </div>
+                    ) : null}
                 </div>
             ) : (
-                editorEl
+                body
             )}
             <MarkdownViewSync enabled={markdownView} />
         </EditorProvider>
