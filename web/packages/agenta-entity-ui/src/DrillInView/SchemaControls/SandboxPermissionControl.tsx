@@ -1,14 +1,14 @@
 /**
  * SandboxPermissionControl
  *
- * The `sandbox_permission` field of the agent config (capability config "layer 2"): the sandbox
+ * The `sandbox.permissions` field of the agent template (capability config "layer 2"): the sandbox
  * security boundary the agent runs inside, applied by every harness. Mirrors the SDK shape
  * (agenta.sdk.agents.dtos `SandboxPermission`):
  *   { network: { mode: "on" | "off" | "allowlist", allowlist: string[] },
  *     filesystem?: "on" | "readonly" | "off",
  *     enforcement: "strict" | "best_effort" }
  *
- * The emitted `agent-template` schema exposes `sandbox_permission` as a nullable object, so the
+ * The emitted `agent-template` schema exposes `sandbox.permissions` as a nullable object, so the
  * generic renderer can only offer a drill-in. This renders the four knobs as a real form: a
  * network-mode selector, a CIDR allowlist (only when mode = allowlist), an optional filesystem
  * selector, and an enforcement selector. Non-destructive: an unset value stays `null` (no declared

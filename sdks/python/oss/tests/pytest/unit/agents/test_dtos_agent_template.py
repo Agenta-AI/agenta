@@ -1,9 +1,11 @@
-"""``AgentTemplate.from_params`` (the three request shapes), including the run-selection fields.
+"""``AgentTemplate.from_params`` (the accepted request shapes), including the execution selectors.
 
-The handler parses whatever the playground or a stored config sends into one ``AgentTemplate``.
-This file locks the three accepted shapes, the defaults fall-through, the ``harness_kwargs``
-escape hatch, and the run-selection parsing (``harness`` / ``sandbox`` / ``permission_policy``,
-which now live on ``AgentTemplate`` rather than a separate ``RunSelection``).
+The handler parses whatever the playground or a stored template sends into one ``AgentTemplate``.
+This file locks the nested agent-template envelope (``{agent, harness, runner, sandbox}``), the
+``prompt`` prompt-template shape for a bare chat run, the defaults fall-through, the selected
+harness's ``permissions`` / ``extras`` slice, and the execution selectors (``harness.kind`` /
+``sandbox.kind`` / ``runner.interactions.headless``, which live on ``AgentTemplate`` rather than a
+separate ``RunSelection``).
 """
 
 from __future__ import annotations
@@ -19,22 +21,45 @@ _DEFAULTS = AgentTemplate(instructions="default-md", model="default-model", tool
 # ----------------------------------------------------------- AgentTemplate shapes
 
 
-def test_from_params_agent_element_shape():
+def test_from_params_agent_template_at_parameters_agent():
+    # The template sits at `parameters.agent` (like the prompt template at `parameters.prompt`):
+    # the definition flat, the execution parts nested inside the same template object.
     config = AgentTemplate.from_params(
         {
             "agent": {
-                "instructions": "I",
-                "model": "M",
+                "instructions": {"agents_md": "I"},
+                "llm": {"model": "M"},
                 "tools": [{"type": "builtin", "name": "read"}],
-                "harness_kwargs": {"pi_core": {"system": "S"}},
-            }
+                "harness": {"kind": "claude", "extras": {"system": "S"}},
+                "runner": {"interactions": {"headless": "deny"}},
+                "sandbox": {"kind": "daytona"},
+            },
         },
         defaults=_DEFAULTS,
     )
     assert config.instructions == "I"
     assert config.model == "M"
     assert config.tools == [BuiltinToolConfig(name="read")]
-    assert config.harness_kwargs == {"pi_core": {"system": "S"}}
+    assert config.harness == "claude"
+    assert config.harness_extras == {"system": "S"}
+    assert config.sandbox == "daytona"
+    assert config.permission_policy == "deny"
+
+
+def test_from_params_bare_template():
+    # A caller may pass the template directly (no `parameters.agent` wrapper) — SDK use / resolved
+    # params. The definition fields read straight off the top level.
+    config = AgentTemplate.from_params(
+        {
+            "instructions": {"agents_md": "I"},
+            "llm": {"model": "M"},
+            "harness": {"kind": "claude"},
+        },
+        defaults=_DEFAULTS,
+    )
+    assert config.instructions == "I"
+    assert config.model == "M"
+    assert config.harness == "claude"
 
 
 def test_from_params_prompt_template_shape():
@@ -73,14 +98,33 @@ def test_from_params_prompt_template_joins_multiple_system_messages():
     assert config.instructions == "First.\n\nSecond."
 
 
-def test_from_params_flat_shape():
+def test_from_params_structured_llm_builds_model_ref():
+    # A structured `agent.llm` (provider / connection / extras) builds the typed model_ref;
+    # `extras` is the neutral knobs bag (was ModelRef.params).
     config = AgentTemplate.from_params(
-        {"model": "M", "agents_md": "A", "tools": [{"name": "x"}]},
-        defaults=_DEFAULTS,
+        {
+            "agent": {
+                "llm": {
+                    "model": "gpt-5.5",
+                    "provider": "openai",
+                    "connection": {"mode": "agenta", "slug": "openai-prod"},
+                    "extras": {"reasoning_effort": "high"},
+                }
+            }
+        }
     )
-    assert config.instructions == "A"
-    assert config.model == "M"
-    assert config.tools == [BuiltinToolConfig(name="x")]
+    assert config.model == "openai/gpt-5.5"
+    assert config.model_ref is not None
+    assert config.model_ref.provider == "openai"
+    assert config.model_ref.connection.slug == "openai-prod"
+    assert config.model_ref.extras == {"reasoning_effort": "high"}
+
+
+def test_from_params_plain_string_model_leaves_model_ref_none():
+    # A plain `agent.llm.model` string leaves model_ref None so the wire stays byte-identical.
+    config = AgentTemplate.from_params({"agent": {"llm": {"model": "gpt-5.5"}}})
+    assert config.model == "gpt-5.5"
+    assert config.model_ref is None
 
 
 def test_from_params_falls_back_to_defaults():
@@ -92,7 +136,7 @@ def test_from_params_falls_back_to_defaults():
 
 def test_from_params_agent_element_preserves_default_tools_when_absent():
     config = AgentTemplate.from_params(
-        {"agent": {"instructions": "I", "model": "M"}},
+        {"agent": {"instructions": {"agents_md": "I"}, "llm": {"model": "M"}}},
         defaults=_DEFAULTS,
     )
 
@@ -130,58 +174,58 @@ def test_from_params_parses_skills_from_agent_element():
     assert [s.name for s in config.skills] == ["release-notes"]
 
 
-def test_from_params_parses_skills_from_flat_request():
-    config = AgentTemplate.from_params({"skills": [dict(_SKILL)]})
-    assert [s.name for s in config.skills] == ["release-notes"]
-
-
 def test_from_params_skills_default_empty():
     # An absent `skills` is not silently dropped into a default it never had; it is just empty.
-    config = AgentTemplate.from_params({"agent": {"instructions": "I"}})
+    config = AgentTemplate.from_params({"agent": {"instructions": {"agents_md": "I"}}})
     assert config.skills == []
 
 
 def test_from_params_skills_falls_back_to_defaults_when_absent():
     defaults = AgentTemplate(skills=[dict(_SKILL)])
     config = AgentTemplate.from_params(
-        {"agent": {"instructions": "I"}}, defaults=defaults
+        {"agent": {"instructions": {"agents_md": "I"}}}, defaults=defaults
     )
     assert [s.name for s in config.skills] == ["release-notes"]
 
 
-def test_harness_kwargs_drops_malformed_and_lowercases_keys():
+# ------------------------------------------------- harness permissions / extras
+
+
+def test_harness_slice_reads_permissions_and_extras():
     config = AgentTemplate.from_params(
         {
-            "agent": {
-                "harness_kwargs": {
-                    "PI_CORE": {"system": "S"},  # key lower-cased
-                    "claude": "not a dict",  # dropped
-                }
+            "harness": {
+                "kind": "claude",
+                "permissions": {"default_mode": "plan", "allow": ["Read"]},
+                "extras": {"system": "S"},
             }
         }
     )
-    assert config.harness_kwargs == {"pi_core": {"system": "S"}}
+    assert config.harness_permissions == {"default_mode": "plan", "allow": ["Read"]}
+    assert config.harness_extras == {"system": "S"}
 
 
-def test_harness_kwargs_falls_back_to_defaults_when_absent():
-    defaults = AgentTemplate(harness_kwargs={"pi_core": {"system": "D"}})
-    config = AgentTemplate.from_params(
-        {"agent": {"instructions": "I"}}, defaults=defaults
+def test_harness_slice_falls_back_to_defaults_when_absent():
+    defaults = AgentTemplate(
+        harness_permissions={"default_mode": "plan"}, harness_extras={"system": "D"}
     )
-    assert config.harness_kwargs == {"pi_core": {"system": "D"}}
-
-
-def test_harness_kwargs_explicit_empty_clears_defaults():
-    # An explicit empty dict clears inherited per-harness options; only an absent
-    # key falls back to defaults.
-    defaults = AgentTemplate(harness_kwargs={"pi_core": {"system": "D"}})
     config = AgentTemplate.from_params(
-        {"agent": {"harness_kwargs": {}}}, defaults=defaults
+        {"agent": {"instructions": {"agents_md": "I"}}}, defaults=defaults
     )
-    assert config.harness_kwargs == {}
+    assert config.harness_permissions == {"default_mode": "plan"}
+    assert config.harness_extras == {"system": "D"}
 
 
-# ---------------------------------------------------- run-selection fields
+def test_harness_slice_explicit_empty_clears_defaults():
+    # An explicit empty dict clears the inherited slice; only an absent section falls back.
+    defaults = AgentTemplate(harness_extras={"system": "D"})
+    config = AgentTemplate.from_params(
+        {"harness": {"kind": "pi_core", "extras": {}}}, defaults=defaults
+    )
+    assert config.harness_extras == {}
+
+
+# ---------------------------------------------------- execution selectors
 
 
 def test_run_selection_defaults():
@@ -193,14 +237,12 @@ def test_run_selection_defaults():
     )
 
 
-def test_run_selection_reads_agent_subdict_and_lowercases():
+def test_run_selection_reads_envelope_sections_and_lowercases():
     config = AgentTemplate.from_params(
         {
-            "agent": {
-                "harness": "Claude",
-                "sandbox": "Daytona",
-                "permission_policy": "Deny",
-            }
+            "harness": {"kind": "Claude"},
+            "sandbox": {"kind": "Daytona"},
+            "runner": {"interactions": {"headless": "Deny"}},
         }
     )
     assert (config.harness, config.sandbox, config.permission_policy) == (
@@ -215,8 +257,3 @@ def test_run_selection_honors_defaults():
     config = AgentTemplate.from_params({}, defaults=defaults)
     assert config.harness == "claude"
     assert config.sandbox == "daytona"
-
-
-def test_run_selection_reads_flat_request():
-    config = AgentTemplate.from_params({"harness": "claude"})
-    assert config.harness == "claude"
