@@ -3,17 +3,23 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
 import {generateId} from "@agenta/shared/utils"
 import {useChat} from "@ai-sdk/react"
-import {Attachments, Bubble, Sender} from "@ant-design/x"
-import {ArrowDown, Paperclip} from "@phosphor-icons/react"
+import {Bubble, Sender} from "@ant-design/x"
+import {ArrowDown, Paperclip, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {AgentChatTransport} from "./assets/AgentChatTransport"
+import {
+    type AttachmentRejection,
+    DEFAULT_ATTACHMENT_LIMITS,
+    validateIncoming,
+} from "./assets/attachments"
 import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import AgentMessage from "./components/AgentMessage"
+import ComposerAttachments from "./components/ComposerAttachments"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionTabLabel from "./components/SessionTabLabel"
 import {useChatScopeKey} from "./state/scope"
@@ -34,6 +40,10 @@ import {
  * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
  * Next.js dev Runtime Error overlay (F-033). */
 const ignoreStreamRejection = () => {}
+
+/** Top-edge fade for the message scroll area: transparent at the very top, fully opaque by 28px.
+ * Applied as a CSS mask so the content itself fades (no colored overlay), correct in any theme. */
+const TOP_FADE_MASK = "linear-gradient(to bottom, transparent 0, #000 28px)"
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -105,14 +115,21 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     const [input, setInput] = useState("")
     const [files, setFiles] = useState<UploadFile[]>([])
+    // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
+    const [rejections, setRejections] = useState<AttachmentRejection[]>([])
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+    // Single limits object so it can later be swapped for capability-derived limits.
+    const limits = DEFAULT_ATTACHMENT_LIMITS
+    const atMax = files.length >= limits.maxCount
+    // Drag-over state for the whole-panel drop overlay (depth counter avoids child flicker).
+    const dragDepthRef = useRef(0)
+    const [isDragging, setIsDragging] = useState(false)
     // Ids of assistant turns whose stream was stopped (user-cancel or teardown).
     const [stoppedIds, setStoppedIds] = useState<Set<string>>(() => new Set())
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
 
     const senderRef = useRef<React.ComponentRef<typeof Sender>>(null)
-    const dropContainerRef = useRef<HTMLDivElement>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     const stickRef = useRef(true)
     const [showJump, setShowJump] = useState(false)
@@ -248,6 +265,56 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         scrollToBottom()
     }, [scrollToBottom])
 
+    const toUploadFile = (file: File): UploadFile => ({
+        uid: `${file.name}-${file.lastModified}-${file.size}`,
+        name: file.name,
+        status: "done",
+        originFileObj: file as UploadFile["originFileObj"],
+    })
+
+    /** Add files from paste / programmatic sources through the guardrails. */
+    const addFiles = (incoming: File[]) => {
+        const {accepted, rejections: rej} = validateIncoming(incoming, files.length, limits)
+        if (accepted.length) {
+            setFiles((prev) => [...prev, ...accepted.map(toUploadFile)])
+            setAttachmentsOpen(true)
+        }
+        setRejections(rej)
+    }
+
+    const removeFile = (uid: string) => setFiles((prev) => prev.filter((f) => f.uid !== uid))
+
+    // Native drag-and-drop onto the whole panel. A depth counter ignores dragenter/leave from
+    // nested children so the overlay doesn't flicker; only file drags (not text) are handled.
+    const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
+    const onDragEnter = (e: React.DragEvent) => {
+        if (!isFileDrag(e)) return
+        dragDepthRef.current += 1
+        setIsDragging(true)
+    }
+    const onDragOver = (e: React.DragEvent) => {
+        if (isFileDrag(e)) e.preventDefault()
+    }
+    const onDragLeave = (e: React.DragEvent) => {
+        if (!isFileDrag(e)) return
+        dragDepthRef.current -= 1
+        if (dragDepthRef.current <= 0) {
+            dragDepthRef.current = 0
+            setIsDragging(false)
+        }
+    }
+    const onDrop = (e: React.DragEvent) => {
+        if (!isFileDrag(e)) return
+        e.preventDefault()
+        dragDepthRef.current = 0
+        setIsDragging(false)
+        const dropped = Array.from(e.dataTransfer.files)
+        if (dropped.length) {
+            addFiles(dropped)
+            setAttachmentsOpen(true)
+        }
+    }
+
     const handleSubmit = async (text: string) => {
         const trimmed = text.trim()
         const fileObjs = files
@@ -268,6 +335,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         ).catch(ignoreStreamRejection)
         setInput("")
         setFiles([])
+        setRejections([])
         setAttachmentsOpen(false)
     }
 
@@ -305,20 +373,44 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const lastId = messages[messages.length - 1]?.id
 
     return (
-        <div className="flex h-full min-h-0 w-full flex-col gap-3">
+        <div
+            className="relative flex h-full min-h-0 w-full flex-col gap-3"
+            onDragEnter={onDragEnter}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+        >
+            {isDragging && (
+                <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
+                    <UploadSimple size={26} className="text-colorPrimary" />
+                    <span className="text-sm font-medium text-colorPrimary">Drop files here</span>
+                    <span className="text-xs text-colorTextSecondary">
+                        {limits.label} · up to {limits.maxCount},{" "}
+                        {Math.round(limits.maxBytes / 1024 / 1024)} MB each
+                    </span>
+                </div>
+            )}
             {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
             <div className="relative flex min-h-0 flex-1 flex-col">
                 <div
                     ref={(el) => {
                         scrollRef.current = el
-                        dropContainerRef.current = el
                     }}
                     onScroll={onScroll}
                     role="log"
                     aria-live="polite"
                     aria-label="Agent conversation"
-                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3"
+                    // `pt-8` (32px) ≥ the 28px fade so the first message sits below the fade at
+                    // rest (the empty top padding absorbs it); it only fades once scrolled up.
+                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8"
+                    // Fade content into the top edge (under the tab bar) as it scrolls up. A
+                    // gradient mask on the scroll container: transparent at the very top → opaque
+                    // by 28px → opaque the rest of the way. GPU-composited, no JS, theme-agnostic.
+                    style={{
+                        maskImage: TOP_FADE_MASK,
+                        WebkitMaskImage: TOP_FADE_MASK,
+                    }}
                 >
                     {messages.length === 0 && (
                         <div className="m-auto text-center text-xs text-colorTextTertiary">
@@ -378,63 +470,54 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 )}
             </div>
 
-            <Sender
-                ref={senderRef}
-                value={input}
-                onChange={setInput}
-                loading={busy}
-                onSubmit={handleSubmit}
-                onCancel={handleStop}
-                onPasteFile={(pasted) => {
-                    setFiles((prev) => [
-                        ...prev,
-                        ...Array.from(pasted).map((file) => ({
-                            uid: `${file.name}-${file.lastModified}-${file.size}`,
-                            name: file.name,
-                            status: "done" as const,
-                            originFileObj: file as UploadFile["originFileObj"],
-                        })),
-                    ])
-                    setAttachmentsOpen(true)
-                }}
-                prefix={
-                    <Tooltip title="Attach files">
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<Paperclip size={16} />}
-                            onClick={() => setAttachmentsOpen((open) => !open)}
-                            aria-label="Attach files"
-                        />
-                    </Tooltip>
-                }
-                header={
-                    <div
-                        className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
-                            attachmentsOpen || files.length > 0
-                                ? "grid-rows-[1fr] opacity-100"
-                                : "grid-rows-[0fr] opacity-0"
-                        }`}
-                    >
-                        <div className="min-h-0 overflow-hidden">
-                            <div className="border-b border-solid border-colorBorderSecondary p-2">
-                                <Attachments
-                                    items={files}
-                                    beforeUpload={() => false}
-                                    onChange={({fileList}) => setFiles(fileList)}
-                                    getDropContainer={() => dropContainerRef.current}
-                                    placeholder={(type) => ({
-                                        title: type === "drop" ? "Drop files here" : "Attach files",
-                                        description:
-                                            "Click or drag — sent inline to the agent as data URLs.",
-                                    })}
+            {/* Neutralize antd X Sender's header chrome: `.ant-sender-header-header` ships a
+                tinted (`colorFillAlter`) + top-rounded box that reads as a second border inside
+                the composer; flatten it and drop the header-content's double padding so our
+                attachment panel sits flush on the composer surface. */}
+            <div className="[&_.ant-sender-header-content]:!p-0 [&_.ant-sender-header-header]:!rounded-none [&_.ant-sender-header-header]:!bg-transparent">
+                <Sender
+                    ref={senderRef}
+                    value={input}
+                    onChange={setInput}
+                    loading={busy}
+                    onSubmit={handleSubmit}
+                    onCancel={handleStop}
+                    onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                    prefix={
+                        <Tooltip title={atMax ? `Up to ${limits.maxCount} files` : "Attach files"}>
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={<Paperclip size={16} />}
+                                disabled={atMax}
+                                onClick={() => setAttachmentsOpen((open) => !open)}
+                                aria-label="Attach files"
+                            />
+                        </Tooltip>
+                    }
+                    header={
+                        <div
+                            className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+                                attachmentsOpen || files.length > 0
+                                    ? "grid-rows-[1fr] opacity-100"
+                                    : "grid-rows-[0fr] opacity-0"
+                            }`}
+                        >
+                            <div className="min-h-0 overflow-hidden">
+                                <ComposerAttachments
+                                    files={files}
+                                    rejections={rejections}
+                                    limits={limits}
+                                    onAdd={addFiles}
+                                    onRemove={removeFile}
+                                    onDismissRejections={() => setRejections([])}
                                 />
                             </div>
                         </div>
-                    </div>
-                }
-                placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
-            />
+                    }
+                    placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
+                />
+            </div>
         </div>
     )
 }
