@@ -181,7 +181,7 @@ class PlatformToolConfig(ToolConfigBase):
     logic. The author names which endpoint to expose via ``op`` (a key in the platform-op catalog,
     ``agenta.sdk.agents.platform.op_catalog``); the catalog owns everything else: the model-facing
     description, the endpoint (method + relative path), the request input schema, any self-targeting
-    fields bound from run context (``bind``), and the default permission/approval.
+    fields bound from run context (``context_bindings``), and the default permission/approval.
 
     ``resolve_tools`` turns it into a ``CallbackToolSpec`` carrying a direct ``call`` descriptor
     (not a ``call_ref``): the runner calls the existing endpoint directly with the run's caller

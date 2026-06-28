@@ -138,9 +138,9 @@ Resolution runs per type:
   (`sdks/python/agenta/sdk/agents/platform/platform_tools.py`). Like reference it makes no HTTP
   round-trip — the op is fully described by the code-defined catalog
   (`platform/op_catalog.py`). It looks up the op, expands the catalog input schema (`x-ag-type-ref`
-  resolved against `CATALOG_TYPES`), strips the op's `bind` fields from the model-visible schema,
-  and builds a `CallbackToolSpec` whose `call` points at the existing endpoint
-  (`call.context` carries the bind map). It assembles the same shared `ToolCallback` to
+  resolved against `CATALOG_TYPES`), strips the op's `context_bindings` fields from the
+  model-visible schema, and builds a `CallbackToolSpec` whose `call` points at the existing endpoint
+  (`call.context` carries the context bindings). It assembles the same shared `ToolCallback` to
   `{api}/tools/call` (gateway/reference/platform share the one callback; it gives the runner the
   origin to resolve the relative `call.path` against).
 - **Gateway** is the involved one. `AgentaGatewayToolResolver`
@@ -258,7 +258,7 @@ relay path. The runner needs no platform-specific code — it dispatches any `ca
 branch already exists for reference tools).
 
 For a **self-targeting** op the agent's own identity is bound server-side. The catalog entry
-declares a `bind` map (an endpoint body path → a `$ctx.<key>` run-context token); the resolver
+declares a `context_bindings` map (an endpoint body path → a `$ctx.<key>` run-context token); the resolver
 strips those fields from the model-visible schema and emits them as `call.context`, and the runner
 fills them from the per-turn `runContext` at dispatch (see
 [run context](../../projects/direct-call-tools/run-context.md)). So `commit_revision` binds the
@@ -359,7 +359,7 @@ Each catalog entry (`PlatformOp`, a typed model validated at import) maps an `op
 | `description` | The model-facing description (SDK-owned). |
 | `method`, `path` | The existing endpoint to call: `GET`/`POST` and a relative `/api/...` path. |
 | `input_schema` / `input_schema_ref` | The request input schema — inline JSON Schema, or a `CATALOG_TYPES` key (expanded via `x-ag-type-ref`). Exactly one. |
-| `bind` | Self-targeting fields: an endpoint body path → a `$ctx.<key>` run-context token. Stripped from the model schema; emitted as `call.context`. |
+| `context_bindings` | Self-targeting fields: an endpoint body path → a `$ctx.<key>` run-context token. Stripped from the model schema; emitted as `call.context`. |
 | `default_permission`, `default_needs_approval` | Per-op gate. Mutating ops default to approval; reads to auto-allow. The config's `needs_approval`/`permission` override. |
 
 Each op has a stable reserved id, `tools.agenta.<op>` (the same namespace as the original
@@ -430,7 +430,7 @@ The contract and the field-by-field Composio→Agenta mapping live in the
 | MCP config | `sdks/python/agenta/sdk/agents/mcp/models.py` |
 | SDK resolution algorithm | `sdks/python/agenta/sdk/agents/tools/resolver.py` |
 | SDK platform composition (`resolve_tools`/`resolve_mcp`) | `sdks/python/agenta/sdk/agents/platform/resolve.py` |
-| Platform-op catalog (the `op` table + schema/bind resolution) | `sdks/python/agenta/sdk/agents/platform/op_catalog.py` |
+| Platform-op catalog (the `op` table + schema/context-binding resolution) | `sdks/python/agenta/sdk/agents/platform/op_catalog.py` |
 | Platform tool resolver (catalog → `CallbackToolSpec` + `call`) | `sdks/python/agenta/sdk/agents/platform/platform_tools.py` |
 | `x-ag-type-ref` schema expansion | `sdks/python/agenta/sdk/agents/platform/_schema.py` |
 | Service entrypoints (shims + MCP gate) | `services/oss/src/agent/tools/resolver.py`, `__init__.py` |
