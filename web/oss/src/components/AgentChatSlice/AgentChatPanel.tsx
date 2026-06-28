@@ -190,23 +190,21 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     const senderRef = useRef<React.ComponentRef<typeof Sender>>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
-    // SC-2: a restored thread opens parked (not following) at the last user message; a brand-new empty
-    // session follows the bottom as the first answer streams.
-    const stickRef = useRef(initialMessages.length === 0)
+    // Stick to the bottom of the scrollable area. This is the ONE source of truth for auto-scroll:
+    // the active turn reserves a viewport (min-h-full), so "bottom" puts the latest question at the
+    // top with the answer streaming into the space below — the pin is emergent, not computed. A real
+    // user scroll-up releases it (onScroll); jump-to-latest re-arms it.
+    const stickRef = useRef(true)
     const [showJump, setShowJump] = useState(false)
-    // Arm a one-shot scroll that pins a user message to the top once it has mounted. Used both for a
-    // freshly-submitted turn (SC-1) and, when a saved thread is restored, for its last user message
-    // (SC-2) — both resolve "the last user message" the same way in the pin effect below.
-    const armPinRef = useRef(initialMessages.some((m) => m.role === "user"))
-    // Set while we move the scroll position ourselves (the SC-1 pin). onScroll ignores the resulting
-    // event so a programmatic pin isn't mistaken for the user reaching the live edge (which would flip
-    // stick-to-bottom on and jam the view back down, undoing the pin).
+    // Arm a one-shot scroll to the bottom: on a fresh submit (glide) and on restoring a saved thread
+    // (instant). Combined with min-h-full this is the whole SC-1/SC-2 positioning — no per-element pin.
+    const armBottomRef = useRef(initialMessages.length > 0)
+    const animateBottomRef = useRef(false)
+    // Set while WE move the scroll (the bottom glide / SC-3 compensation). onScroll ignores the
+    // resulting event so our own scroll isn't mistaken for the user reaching/leaving the live edge.
     const programmaticScrollRef = useRef(false)
-    // Teardown for the in-flight smooth pin (removes its listeners + fallback timer), and whether the
-    // NEXT pin should animate. A fresh submit (SC-1) glides the question to the top; a thread restore /
-    // tab switch (SC-2) jumps — you want to open already-positioned, not watch it scroll.
+    // Teardown for the in-flight smooth scroll (removes its listeners + fallback timer).
     const pinCleanupRef = useRef<(() => void) | null>(null)
-    const animatePinRef = useRef(false)
 
     // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
     // placeholder that `prepareSendMessagesRequest` overrides per request.
@@ -469,40 +467,30 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         return () => ro.disconnect()
     }, [messages.length])
 
-    // Pin the last user message to the top of the viewport, one time, when armed: on a fresh submit
-    // (SC-1, so the answer streams into the fill below) and on restoring a saved thread (SC-2, so it
-    // reopens at the last meaningful turn rather than the absolute bottom).
+    // SC-1 (submit) / SC-2 (restore): scroll the log to the bottom, once, when armed. With the active
+    // turn reserving a viewport (min-h-full + top padding to clear the fade), "bottom" shows the new
+    // question pinned at the top and the answer streaming into the space below — no per-element pin to
+    // compute, nothing to keep re-aligning as content arrives. A fresh submit glides; a restore jumps.
+    // Follow (stickRef) resumes only ON SETTLE so the per-token follow effect can't jam mid-glide.
     useLayoutEffect(() => {
-        if (!armPinRef.current) return
+        if (!armBottomRef.current) return
         const el = scrollRef.current
         if (!el) return
-        const lastUser = [...messages].reverse().find((m) => m.role === "user")
-        if (!lastUser) return
-        let node: HTMLElement | null = null
-        try {
-            node = el.querySelector<HTMLElement>(`[data-mid="${lastUser.id}"]`)
-        } catch {
-            node = null
-        }
-        if (!node) return
-        armPinRef.current = false
+        armBottomRef.current = false
         programmaticScrollRef.current = true
-        const top = node.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
-        // Land the pinned message below the top fade (+4px breathing room) so it isn't dimmed.
-        const target = Math.max(0, top - TOP_FADE_PX - 4)
         const settle = () => {
-            // SC-3: anchor the pinned position so a late image/markdown load above doesn't push it down.
-            recordAnchor()
+            el.scrollTop = el.scrollHeight // catch anything that streamed in during the glide
+            stickRef.current = true
             programmaticScrollRef.current = false
         }
-        if (animatePinRef.current) {
-            animatePinRef.current = false
-            animatePinTo(el, target, settle)
+        if (animateBottomRef.current) {
+            animateBottomRef.current = false
+            animatePinTo(el, el.scrollHeight, settle)
         } else {
-            el.scrollTop = target
+            el.scrollTop = el.scrollHeight
             requestAnimationFrame(settle)
         }
-    }, [messages, recordAnchor, animatePinTo])
+    }, [messages, animatePinTo])
 
     // Keep the jump pill honest as content streams/settles: show it when the real latest message is
     // below the fold (e.g. a long answer growing past the viewport while parked at the top), and hide
@@ -599,12 +587,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             .filter((f): f is File => Boolean(f))
         if ((!trimmed && fileObjs.length === 0) || busy) return
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
-        // SC-1: pin the new turn to the top; the answer streams into the space below it. We park the
-        // view (not following) and clear any prior "stopped" marker — it's resolved by asking again.
-        // animatePinRef → the pin glides (a fresh submit), vs the instant jump used on thread restore.
+        // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
+        // with the answer streaming below. Park during the glide, follow again on settle. Clear any
+        // prior "stopped" marker — it's resolved by asking again.
         stickRef.current = false
-        armPinRef.current = true
-        animatePinRef.current = true
+        armBottomRef.current = true
+        animateBottomRef.current = true
         setShowJump(false)
         setStopped(false)
         // Swallow the rejection — a stream error/abort is already surfaced via `onError` and
@@ -759,10 +747,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     )}
                     {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
                     {activeStart < messages.length && (
-                        // SC-1: the active turn reserves a viewport (min-h-full) while streaming with
-                        // prior conversation above, so the question pins to the top and the answer
-                        // lands below it. One stable wrapper for the whole turn → no mid-stream jump.
-                        <div className={`flex flex-col gap-3${reserveActive ? " min-h-full" : ""}`}>
+                        // The active turn reserves a viewport (min-h-full) when there's prior
+                        // conversation, so sticking to the bottom shows the question at the top with the
+                        // answer streaming into the space below — the "pin" is this layout, not JS.
+                        // `pt-8` keeps the question clear of the top fade once it reaches the top.
+                        <div
+                            className={`flex flex-col gap-3${reserveActive ? " min-h-full pt-8" : ""}`}
+                        >
                             {messages
                                 .slice(activeStart)
                                 .map((m, i) => renderMessage(m, activeStart + i))}
