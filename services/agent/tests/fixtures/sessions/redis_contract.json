@@ -1,0 +1,23 @@
+{
+  "ttls": {
+    "alive": 3600,
+    "attached": 60,
+    "owner": 120,
+    "heartbeat_interval": 30,
+    "heartbeat_write_threshold": 60
+  },
+  "keys": {
+    "alive_example": "alive:session:sess-123",
+    "attached_example": "attached:session:sess-123",
+    "owner_example": "owner:session:sess-123",
+    "displaced_channel_example": "displaced:session:sess-123"
+  },
+  "displacement_payload": {
+    "reason": "stolen",
+    "by": "watcher-abc"
+  },
+  "release_if_owner_lua": "local current = redis.call('GET', KEYS[1])\nif current == ARGV[1] then\n    return redis.call('DEL', KEYS[1])\nelse\n    return 0\nend",
+  "concurrency_cap": 1000,
+  "session_id_max_len": 128,
+  "session_id_pattern": "^[a-zA-Z0-9_\\-]{1,128}$"
+}
