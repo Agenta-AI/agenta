@@ -96,6 +96,18 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(tool.readOnly, true);
     // The Layer-3 permission (derived `allow` from read-only) reaches the runner.
     assert.equal(tool.permission, "allow");
+    // The direct-call tool (direct-call tools, Phase 1) reaches the runner carrying its `call`
+    // descriptor and NO `callRef` (the `call` XOR `callRef` rule). Plumbing only here: the runner
+    // forwards it opaquely; no dispatch branch reads it yet.
+    const direct = req.customTools![1];
+    assert.equal(direct.kind, "callback");
+    assert.equal(direct.callRef, undefined);
+    assert.equal(direct.call!.method, "POST");
+    assert.equal(direct.call!.path, "/api/workflows/invoke");
+    assert.equal(direct.call!.args_into, "data.inputs");
+    assert.deepEqual(direct.call!.body, {
+      references: { workflow_revision: { id: "rev_abc123" } },
+    });
     // Pi exposes the prompt overrides.
     assert.equal(req.systemPrompt, "You are Pi.");
     assert.equal(req.appendSystemPrompt, "Be terse.");

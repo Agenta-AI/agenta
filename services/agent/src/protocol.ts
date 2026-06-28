@@ -56,16 +56,35 @@ export interface TraceContext {
  *  - `needsApproval`: gate the call on a human yes/no (mechanics owned by the run-event layer).
  *  - `render`: a generative-UI hint (see `RenderHint`).
  *
- * `callRef` is set for `callback` tools (the slug the bridge sends back to /tools/call);
- * `runtime`/`code`/`env` for `code` tools. The Composio key and connection auth stay
- * server-side.
+ * `callRef` is set for `callback` (gateway) tools (the slug the bridge sends back to
+ * /tools/call); `call` is set for direct-call callback tools (reference / platform), which the
+ * runner calls directly instead of routing through /tools/call. A callback spec carries `call`
+ * XOR `callRef`. `runtime`/`code`/`env` for `code` tools. The Composio key and connection auth
+ * stay server-side.
  */
 export interface ResolvedToolSpec {
   name: string;
   description?: string;
   inputSchema?: Record<string, unknown> | null;
-  /** Set for `callback` (gateway) tools only; absent for `code` / `client`. */
+  /** Set for gateway `callback` tools (routes through /tools/call); absent for `code` / `client`, and absent when `call` is set. */
   callRef?: string;
+  /**
+   * Direct-call descriptor (direct-call tools, Phase 1). When set, the runner calls this Agenta
+   * endpoint DIRECTLY (reusing the run's `toolCallback.authorization`) instead of routing through
+   * `/tools/call`. `path` is an absolute path from the Agenta origin (the runner derives the
+   * origin from `toolCallback.endpoint`, so a tool can never reach a non-Agenta host); `body` are
+   * static server-fixed fields baked at resolve time; `context` maps a dotted body path to a
+   * `"$ctx.<key>"` token the runner fills from the run context at dispatch; `args_into` is the
+   * dotted path where the model's arguments are placed (absent = the body root). A spec carries
+   * `call` XOR `callRef`. Plumbing only here: nothing emits or dispatches it yet.
+   */
+  call?: {
+    method: "GET" | "POST";
+    path: string;
+    body?: Record<string, unknown>;
+    context?: Record<string, string>;
+    args_into?: string;
+  };
   kind?: "callback" | "code" | "client";
   runtime?: "python" | "node";
   code?: string;

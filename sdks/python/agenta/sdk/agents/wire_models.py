@@ -129,13 +129,33 @@ class WireRenderHint(_WireModel):
     component: Optional[str] = None
 
 
+class WireToolCall(_WireModel):
+    """The direct-call descriptor on a resolved tool (direct-call tools, Phase 1).
+
+    Present on a callback tool instead of ``callRef`` when the runner should call an Agenta
+    endpoint DIRECTLY (``call`` XOR ``callRef``). ``path`` is an absolute path from the Agenta
+    origin; ``body`` are static server-fixed fields; ``context`` maps a dotted body path to a
+    ``"$ctx.<key>"`` token the runner fills from the run context; ``args_into`` is the dotted path
+    where the model's arguments are placed. All fields optional on the wire, matching the
+    contract's implicitly-all-optional convention. Plumbing only in this phase: it rides the wire
+    but nothing emits or dispatches it yet.
+    """
+
+    method: Optional[str] = None
+    path: Optional[str] = None
+    body: Optional[Dict[str, Any]] = None
+    context: Optional[Dict[str, str]] = None
+    args_into: Optional[str] = None
+
+
 class WireResolvedToolSpec(_WireModel):
     """A resolved tool the runner delivers to the harness (the three-axis tool surface).
 
     ``kind`` is the executor axis (``callback`` / ``code`` / ``client`` / ``builtin``);
     ``needsApproval`` / ``render`` are the orthogonal axes; ``callRef`` / ``runtime`` / ``code``
-    / ``env`` are executor-specific. Extra fields are allowed so an executor variant the schema
-    has not enumerated still validates.
+    / ``env`` are executor-specific. ``call`` is the direct-call descriptor a callback tool carries
+    instead of ``callRef`` (direct-call tools, Phase 1). Extra fields are allowed so an executor
+    variant the schema has not enumerated still validates.
     """
 
     name: str
@@ -143,6 +163,7 @@ class WireResolvedToolSpec(_WireModel):
     input_schema: Optional[Dict[str, Any]] = Field(default=None, alias="inputSchema")
     kind: Optional[str] = None
     call_ref: Optional[str] = Field(default=None, alias="callRef")
+    call: Optional[WireToolCall] = None
     runtime: Optional[str] = None
     code: Optional[str] = None
     env: Optional[Dict[str, str]] = None
