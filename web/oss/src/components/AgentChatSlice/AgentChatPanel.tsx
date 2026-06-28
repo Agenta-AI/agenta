@@ -4,7 +4,7 @@ import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playgro
 import {generateId} from "@agenta/shared/utils"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
-import {ArrowDown, Paperclip} from "@phosphor-icons/react"
+import {ArrowDown, Paperclip, Stop} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
@@ -14,8 +14,10 @@ import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import AgentMessage from "./components/AgentMessage"
+import QueuedMessages from "./components/QueuedMessages"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionTabLabel from "./components/SessionTabLabel"
+import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useChatScopeKey} from "./state/scope"
 import {
     type AgentChatSession,
@@ -163,6 +165,39 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     const busy = status === "submitted" || status === "streaming"
 
+    // `handleRewind` is passed to every memo'd `AgentMessage`, so it must stay referentially
+    // stable — a streamed token must not recreate it and re-render the whole list. `messages`/
+    // `busy` change every token, so read them through refs instead of capturing them.
+    const messagesRef = useRef(messages)
+    messagesRef.current = messages
+    const busyRef = useRef(busy)
+    busyRef.current = busy
+
+    // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
+    // release effect doesn't churn on every token.
+    const sendQueued = useCallback(
+        (item: QueuedMessage) => {
+            stickRef.current = true
+            setShowJump(false)
+            sendMessage(
+                item.fileParts && item.fileParts.length
+                    ? item.text
+                        ? {text: item.text, files: item.fileParts}
+                        : {files: item.fileParts}
+                    : {text: item.text},
+            ).catch(ignoreStreamRejection)
+        },
+        [sendMessage],
+    )
+
+    // Queue messages typed while a turn is streaming or paused on a HITL approval; released
+    // one-by-one once the turn truly settles (never mid-approval).
+    const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
+        status,
+        messages,
+        sendQueued,
+    })
+
     // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
     // it renders as a red error bubble with the real reason (and persists with the session via the
     // effect below), instead of a transient top banner + a generic "no response". FE-only — it
@@ -253,54 +288,49 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         const fileObjs = files
             .map((f) => f.originFileObj as File | undefined)
             .filter((f): f is File => Boolean(f))
-        if ((!trimmed && fileObjs.length === 0) || busy) return
+        if (!trimmed && fileObjs.length === 0) return
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
-        stickRef.current = true
-        setShowJump(false)
-        // Swallow the rejection — a stream error/abort is already surfaced via `onError` and
-        // the in-chat `error` alert; without this it bubbles to the Next.js dev overlay (F-033).
-        sendMessage(
-            fileParts
-                ? trimmed
-                    ? {text: trimmed, files: fileParts}
-                    : {files: fileParts}
-                : {text: trimmed},
-        ).catch(ignoreStreamRejection)
+        // One path: `submit` sends now or queues behind held messages via the shared release gate.
+        submit({text: trimmed, fileParts})
         setInput("")
         setFiles([])
         setAttachmentsOpen(false)
     }
 
-    const handleRewind = (message: UIMessage) => {
-        if (busy) return
-        const idx = messages.findIndex((m) => m.id === message.id)
-        if (idx < 0) return
-        const isUser = message.role === "user"
-        const sideEffects = sideEffectingToolsInRange(messages.slice(idx))
+    const handleRewind = useCallback(
+        (message: UIMessage) => {
+            const msgs = messagesRef.current
+            if (busyRef.current) return
+            const idx = msgs.findIndex((m) => m.id === message.id)
+            if (idx < 0) return
+            const isUser = message.role === "user"
+            const sideEffects = sideEffectingToolsInRange(msgs.slice(idx))
 
-        const run = () => {
-            if (isUser) {
-                setMessages(messages.slice(0, idx))
-                setInput(messageText(message))
-                requestAnimationFrame(() => senderRef.current?.focus())
-            } else {
-                regenerate({messageId: message.id}).catch(ignoreStreamRejection)
+            const run = () => {
+                if (isUser) {
+                    setMessages(msgs.slice(0, idx))
+                    setInput(messageText(message))
+                    requestAnimationFrame(() => senderRef.current?.focus())
+                } else {
+                    regenerate({messageId: message.id}).catch(ignoreStreamRejection)
+                }
             }
-        }
 
-        if (sideEffects.length > 0) {
-            Modal.confirm({
-                title: "Rewind past a tool that already ran?",
-                content: `${sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
-                okText: "Rewind anyway",
-                okButtonProps: {danger: true},
-                cancelText: "Cancel",
-                onOk: run,
-            })
-        } else {
-            run()
-        }
-    }
+            if (sideEffects.length > 0) {
+                Modal.confirm({
+                    title: "Rewind past a tool that already ran?",
+                    content: `${sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
+                    okText: "Rewind anyway",
+                    okButtonProps: {danger: true},
+                    cancelText: "Cancel",
+                    onOk: run,
+                })
+            } else {
+                run()
+            }
+        },
+        [regenerate, setMessages],
+    )
 
     const lastId = messages[messages.length - 1]?.id
 
@@ -330,7 +360,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                             <AgentMessage
                                 message={message}
                                 isStreaming={busy && index === messages.length - 1}
-                                onRewind={() => handleRewind(message)}
+                                onRewind={handleRewind}
                                 onApprovalResponse={addToolApprovalResponse}
                                 precededByEmptyAssistant={
                                     index > 0 && isEmptyAssistantTurn(messages[index - 1])
@@ -382,9 +412,45 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 ref={senderRef}
                 value={input}
                 onChange={setInput}
-                loading={busy}
+                // NOT `loading={busy}`: Ant X gates `onSubmit` on `!loading`, so a loading Sender
+                // can't submit. The send button stays live and routes to the queue while busy
+                // (see `handleSubmit`); stopping the stream lives in the footer below instead.
                 onSubmit={handleSubmit}
-                onCancel={handleStop}
+                footer={
+                    busy || hitlPending || queued.length > 0 ? (
+                        <div className="flex items-center justify-between gap-2">
+                            {/* Left: collapsed queue pill → popover (fixed footprint at any size). */}
+                            {queued.length > 0 ? (
+                                <QueuedMessages
+                                    queued={queued}
+                                    onRemove={removeQueued}
+                                    onClear={clearQueue}
+                                />
+                            ) : (
+                                <span />
+                            )}
+                            {/* Right: why nothing is sending — streaming (stoppable) vs HITL-held. */}
+                            {busy ? (
+                                <span className="inline-flex items-center gap-2">
+                                    <span className="text-xs text-colorTextTertiary">
+                                        Streaming…
+                                    </span>
+                                    <Button
+                                        size="small"
+                                        icon={<Stop size={14} weight="fill" />}
+                                        onClick={handleStop}
+                                    >
+                                        Stop
+                                    </Button>
+                                </span>
+                            ) : hitlPending ? (
+                                <span className="text-xs text-colorTextTertiary">
+                                    Waiting for approval
+                                </span>
+                            ) : null}
+                        </div>
+                    ) : null
+                }
                 onPasteFile={(pasted) => {
                     setFiles((prev) => [
                         ...prev,
