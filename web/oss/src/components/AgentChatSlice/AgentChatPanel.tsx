@@ -166,6 +166,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // event so a programmatic pin isn't mistaken for the user reaching the live edge (which would flip
     // stick-to-bottom on and jam the view back down, undoing the pin).
     const programmaticScrollRef = useRef(false)
+    // rAF handle for the smooth pin animation, and whether the NEXT pin should animate. A fresh
+    // submit (SC-1) animates so the question glides to the top; a thread restore / tab switch
+    // (SC-2) jumps — you want to open already-positioned, not watch it scroll.
+    const pinAnimRef = useRef<number | null>(null)
+    const animatePinRef = useRef(false)
 
     // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
     // placeholder that `prepareSendMessagesRequest` overrides per request.
@@ -302,6 +307,56 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         if (el) el.scrollTop = el.scrollHeight
     }, [])
 
+    // Smoothly scroll the log to `target` (the SC-1 pin). programmaticScrollRef stays set for the
+    // whole animation so onScroll / the ResizeObserver ignore the intermediate frames; a real user
+    // wheel/touch cancels it and hands control back. Honors prefers-reduced-motion (instant).
+    const animatePinTo = useCallback((el: HTMLDivElement, target: number, onSettle: () => void) => {
+        if (pinAnimRef.current != null) cancelAnimationFrame(pinAnimRef.current)
+        const start = el.scrollTop
+        const dist = target - start
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        if (reduce || Math.abs(dist) < 2) {
+            el.scrollTop = target
+            onSettle()
+            return
+        }
+        const cancel = () => {
+            if (pinAnimRef.current != null) cancelAnimationFrame(pinAnimRef.current)
+            pinAnimRef.current = null
+            el.removeEventListener("wheel", cancel)
+            el.removeEventListener("touchstart", cancel)
+            // Hand control back: clear the guard so the user's scroll is honored by onScroll.
+            programmaticScrollRef.current = false
+        }
+        const finish = () => {
+            pinAnimRef.current = null
+            el.removeEventListener("wheel", cancel)
+            el.removeEventListener("touchstart", cancel)
+            onSettle()
+        }
+        el.addEventListener("wheel", cancel, {passive: true})
+        el.addEventListener("touchstart", cancel, {passive: true})
+        const ease = (t: number) => 1 - Math.pow(1 - t, 3) // easeOutCubic — quick out, soft land
+        const dur = 280
+        let startTs: number | null = null
+        const step = (ts: number) => {
+            if (startTs == null) startTs = ts
+            const t = Math.min(1, (ts - startTs) / dur)
+            el.scrollTop = start + dist * ease(t)
+            if (t < 1) pinAnimRef.current = requestAnimationFrame(step)
+            else finish()
+        }
+        pinAnimRef.current = requestAnimationFrame(step)
+    }, [])
+
+    // Stop any in-flight pin animation on unmount (tab close / revision swap).
+    useEffect(
+        () => () => {
+            if (pinAnimRef.current != null) cancelAnimationFrame(pinAnimRef.current)
+        },
+        [],
+    )
+
     useEffect(() => {
         if (stickRef.current) scrollToBottom()
     }, [messages, status, scrollToBottom])
@@ -381,13 +436,20 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         programmaticScrollRef.current = true
         const top = node.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
         // Land the pinned message below the top fade (+4px breathing room) so it isn't dimmed.
-        el.scrollTop = Math.max(0, top - TOP_FADE_PX - 4)
-        // SC-3: anchor the pinned position so a late image/markdown load above doesn't push it down.
-        recordAnchor()
-        requestAnimationFrame(() => {
+        const target = Math.max(0, top - TOP_FADE_PX - 4)
+        const settle = () => {
+            // SC-3: anchor the pinned position so a late image/markdown load above doesn't push it down.
+            recordAnchor()
             programmaticScrollRef.current = false
-        })
-    }, [messages, recordAnchor])
+        }
+        if (animatePinRef.current) {
+            animatePinRef.current = false
+            animatePinTo(el, target, settle)
+        } else {
+            el.scrollTop = target
+            requestAnimationFrame(settle)
+        }
+    }, [messages, recordAnchor, animatePinTo])
 
     // Keep the jump pill honest as content streams/settles: show it when the real latest message is
     // below the fold (e.g. a long answer growing past the viewport while parked at the top), and hide
@@ -486,8 +548,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
         // SC-1: pin the new turn to the top; the answer streams into the space below it. We park the
         // view (not following) and clear any prior "stopped" marker — it's resolved by asking again.
+        // animatePinRef → the pin glides (a fresh submit), vs the instant jump used on thread restore.
         stickRef.current = false
         armPinRef.current = true
+        animatePinRef.current = true
         setShowJump(false)
         setStopped(false)
         // Swallow the rejection — a stream error/abort is already surfaced via `onError` and
