@@ -1134,12 +1134,14 @@ export function AgentTemplateControl({
                 </span>
             </div>
             <div className="flex flex-col gap-2.5 opacity-50">
-                {[42, 32, 38].map((w, i) => (
+                {["w-[42%]", "w-[32%]", "w-[38%]"].map((widthClass, i) => (
                     <div key={i} className="flex items-center gap-2">
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
                         <span
-                            className="h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]"
-                            style={{width: `${w}%`}}
+                            className={cn(
+                                "h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]",
+                                widthClass,
+                            )}
                         />
                     </div>
                 ))}
@@ -1207,7 +1209,7 @@ export function AgentTemplateControl({
                                 )}
                             </span>
                             <span className="text-xs font-medium">
-                                {enumLabel(props.harness, h) || h}
+                                {enumLabel(harnessProps.kind, h) || h}
                             </span>
                             {selected ? (
                                 <span className="ml-auto rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
@@ -1328,7 +1330,7 @@ export function AgentTemplateControl({
                                             )}
                                             <span className="text-[var(--ag-c-586673,#586673)]">
                                                 <span className="text-[var(--ag-c-1C2C3D,#1c2c3d)]">
-                                                    {enumLabel(props.harness, h) || h}
+                                                    {enumLabel(harnessProps.kind, h) || h}
                                                 </span>{" "}
                                                 {keeps
                                                     ? "supports your model."
