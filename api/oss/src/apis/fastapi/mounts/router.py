@@ -196,19 +196,6 @@ class MountsRouter:
             status_code=status.HTTP_200_OK,
         )
 
-        # Session-filtered view: mounted under /sessions, exposed at /sessions/mounts/query
-        self.sessions_router = APIRouter()
-
-        self.sessions_router.add_api_route(
-            "/mounts/query",
-            self.query_session_mounts,
-            methods=["POST"],
-            operation_id="query_session_mounts",
-            response_model=MountsResponse,
-            response_model_exclude_none=True,
-            status_code=status.HTTP_200_OK,
-        )
-
     async def _check(self, request: Request, permission: Permission) -> None:
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
@@ -351,31 +338,6 @@ class MountsRouter:
             )
 
         return MountResponse(count=1, mount=mount)
-
-    @intercept_exceptions()
-    async def query_session_mounts(
-        self,
-        request: Request,
-        *,
-        body: MountQueryRequest,
-        session_id: Optional[str] = Query(default=None),
-        include_archived: bool = Query(default=False),
-    ) -> MountsResponse:
-        await self._check(request, Permission.VIEW_SESSIONS)
-
-        mount_query = merge_mount_query(
-            session_id=session_id,
-            include_archived=include_archived,
-            body_query=body.mount,
-        )
-
-        mounts = await self.mounts_service.query_mounts(
-            project_id=UUID(request.state.project_id),
-            mount_query=mount_query,
-            windowing=body.windowing,
-        )
-
-        return MountsResponse(count=len(mounts), mounts=mounts)
 
     # -----------------------------------------------------------------------
     # File ops (durable store contents)

@@ -3,9 +3,9 @@ import asyncio
 
 from redis.asyncio import Redis
 
-from oss.src.core.transcripts.service import TranscriptsService
-from oss.src.dbs.postgres.transcripts.dao import TranscriptsDAO
-from oss.src.tasks.asyncio.transcripts.worker import TranscriptsWorker
+from oss.src.core.sessions.transcripts.service import TranscriptsService
+from oss.src.dbs.postgres.sessions.transcripts.dao import TranscriptsDAO
+from oss.src.tasks.asyncio.sessions.transcripts_worker import TranscriptsWorker
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars

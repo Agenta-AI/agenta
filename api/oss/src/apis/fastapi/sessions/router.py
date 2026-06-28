@@ -1,12 +1,19 @@
-"""Session streams API router.
+"""Unified sessions API router.
 
-Mounted at /sessions/streams/ — a top-level resource, NOT /sessions/{id}/stream.
-Exposes: invoke (DATA/FORCE matrix), heartbeat, detach, query, liveness.
+Composes four sub-domain routers:
+  - SessionStreamsRouter  — /sessions/streams/* and /admin/sessions/streams/*
+  - SessionStatesRouter  — /sessions/states/*
+  - TranscriptsRouter    — /sessions/transcripts/*
+  - InteractionsRouter   — /sessions/interactions/* and /admin/sessions/interactions/*
 """
 
+import re
 from functools import wraps
+from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
+from typing import Optional, Union
 
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -15,21 +22,40 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
-from oss.src.core.sessions.dtos import (
+# Core domain imports — new paths
+from oss.src.core.sessions.streams.dtos import (
     SessionHeartbeatRequest,
     SessionInvokeRequest,
     SessionStreamQuery,
 )
-from oss.src.core.sessions.exceptions import (
+from oss.src.core.sessions.streams.types import (
     ConcurrencyCapExceeded,
     SessionIdInvalid,
     SessionRunInUse,
     SessionStreamAlreadyExists,
     SessionStreamNotFound,
 )
-from oss.src.core.sessions.service import SessionStreamsService
+from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.states.service import SessionStatesService
+from oss.src.core.sessions.states.dtos import SessionStateUpsert
+from oss.src.core.sessions.transcripts.service import TranscriptsService
+from oss.src.core.sessions.interactions.service import InteractionsService
+from oss.src.core.sessions.interactions.types import InteractionNotFound
+from oss.src.core.sessions.mounts.service import SessionMountsService
+from oss.src.core.workflows.dtos import (
+    WorkflowServiceRequest,
+    WorkflowServiceRequestData,
+)
+from oss.src.core.workflows.service import WorkflowsService
+
+from oss.src.apis.fastapi.mounts.models import (
+    MountQueryRequest,
+    MountsResponse,
+)
+from oss.src.apis.fastapi.mounts.utils import merge_mount_query
 
 from oss.src.apis.fastapi.sessions.models import (
+    # streams
     SessionDetachRequestModel,
     SessionHeartbeatRequestModel,
     SessionInvokeRequestModel,
@@ -38,9 +64,35 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionStreamQueryRequestModel,
     SessionStreamResponseModel,
     SessionStreamsResponseModel,
+    # states
+    SessionStateResponse,
+    SessionStateSandboxIdUpsertRequest,
+    SessionStateUpsertRequest,
+    # transcripts
+    TranscriptQueryRequest,
+    TranscriptResponse,
+    TranscriptsQueryResponse,
+    # interactions
+    InteractionCreateRequest,
+    InteractionQueryRequest,
+    InteractionRespondRequest,
+    InteractionResponse,
+    InteractionsResponse,
+    InteractionTransitionRequest,
 )
 
 log = get_module_logger(__name__)
+
+# SEC-8: allow letters, digits, hyphens, underscores, dots — no slashes or control chars
+_SESSION_ID_RE = re.compile(r"^[\w.\-]{1,256}$")
+
+
+def _validate_session_id_http(session_id: str) -> None:
+    if not _SESSION_ID_RE.match(session_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="session_id contains invalid characters or is empty.",
+        )
 
 
 def _handle_session_exceptions():
@@ -83,7 +135,14 @@ def _handle_session_exceptions():
     return decorator
 
 
+# ---------------------------------------------------------------------------
+# Sub-routers
+# ---------------------------------------------------------------------------
+
+
 class SessionStreamsRouter:
+    """Streams sub-router — /sessions/streams/* + /admin/sessions/streams/*"""
+
     def __init__(self, *, service: SessionStreamsService) -> None:
         self._service = service
         self.router = APIRouter()
@@ -111,9 +170,6 @@ class SessionStreamsRouter:
             tags=["Sessions"],
         )
 
-        # --- admin (runner-only) write tier ---
-        # heartbeat + detach are runner-internal coordination writes, authenticated
-        # via the runner's admin auth (request.state.admin), not project RBAC.
         self.admin_router.add_api_route(
             "/heartbeat",
             self.heartbeat,
@@ -253,4 +309,485 @@ class SessionStreamsRouter:
             alive=liveness.alive,
             attached=liveness.attached,
             reattachable=liveness.reattachable,
+        )
+
+
+class SessionStatesRouter:
+    """States sub-router — /sessions/states/*"""
+
+    __test__ = False
+
+    def __init__(self, *, session_states_service: SessionStatesService):
+        self.session_states_service = session_states_service
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/states/{session_id}",
+            self.get_session_state,
+            methods=["GET"],
+            operation_id="get_session_state",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionStateResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/states/{session_id}",
+            self.set_session_state,
+            methods=["PUT"],
+            operation_id="set_session_state",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionStateResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/states/{session_id}/sandbox-id",
+            self.set_sandbox_id,
+            methods=["PUT"],
+            operation_id="set_session_state_sandbox_id",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionStateResponse,
+            response_model_exclude_none=True,
+        )
+
+    @intercept_exceptions()
+    async def get_session_state(
+        self,
+        request: Request,
+        *,
+        session_id: str,
+    ) -> SessionStateResponse:
+        _validate_session_id_http(session_id)
+
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        session_state = await self.session_states_service.get_session_state(
+            project_id=UUID(request.state.project_id),
+            session_id=session_id,
+        )
+        return SessionStateResponse(
+            count=1 if session_state else 0,
+            session_state=session_state,
+        )
+
+    @intercept_exceptions()
+    async def set_session_state(
+        self,
+        request: Request,
+        *,
+        session_id: str,
+        session_state_upsert_request: SessionStateUpsertRequest,
+    ) -> SessionStateResponse:
+        _validate_session_id_http(session_id)
+
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        session_state = await self.session_states_service.set_session_state(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            session_id=session_id,
+            upsert=SessionStateUpsert(
+                data=session_state_upsert_request.data,
+                sandbox_id=session_state_upsert_request.sandbox_id,
+            ),
+        )
+        return SessionStateResponse(
+            count=1 if session_state else 0,
+            session_state=session_state,
+        )
+
+    @intercept_exceptions()
+    async def set_sandbox_id(
+        self,
+        request: Request,
+        *,
+        session_id: str,
+        session_state_sandbox_id_upsert_request: SessionStateSandboxIdUpsertRequest,
+    ) -> SessionStateResponse:
+        _validate_session_id_http(session_id)
+
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        session_state = await self.session_states_service.set_sandbox_id(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            session_id=session_id,
+            sandbox_id=session_state_sandbox_id_upsert_request.sandbox_id,
+        )
+        return SessionStateResponse(
+            count=1 if session_state else 0,
+            session_state=session_state,
+        )
+
+
+class TranscriptsRouter:
+    """Transcripts sub-router — /sessions/transcripts/*"""
+
+    def __init__(self, transcripts_service: TranscriptsService):
+        self.transcripts_service = transcripts_service
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/query",
+            self.query_transcripts,
+            methods=["POST"],
+            operation_id="query_transcripts_rpc",
+            status_code=status.HTTP_200_OK,
+            response_model=TranscriptsQueryResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/{event_id}",
+            self.get_transcript_event,
+            methods=["GET"],
+            operation_id="get_transcript_event",
+            status_code=status.HTTP_200_OK,
+            response_model=TranscriptResponse,
+            response_model_exclude_none=True,
+        )
+
+    @intercept_exceptions()
+    async def query_transcripts(
+        self,
+        request: Request,
+        *,
+        query_request: TranscriptQueryRequest,
+    ) -> Union[TranscriptsQueryResponse, JSONResponse]:
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        transcripts = await self.transcripts_service.get_transcript(
+            project_id=UUID(request.state.project_id),
+            session_id=query_request.session_id,
+        )
+        return TranscriptsQueryResponse(
+            count=len(transcripts),
+            transcripts=transcripts,
+        )
+
+    @intercept_exceptions()
+    async def get_transcript_event(
+        self,
+        request: Request,
+        event_id: UUID,
+    ) -> Union[TranscriptResponse, JSONResponse]:
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        transcript = await self.transcripts_service.get_event(
+            project_id=UUID(request.state.project_id),
+            event_id=event_id,
+        )
+        return TranscriptResponse(transcript=transcript)
+
+
+class InteractionsRouter:
+    """Interactions sub-router — /sessions/interactions/* + /admin/sessions/interactions/*"""
+
+    def __init__(
+        self,
+        *,
+        interactions_service: InteractionsService,
+        workflows_service: WorkflowsService,
+    ) -> None:
+        self.interactions_service = interactions_service
+        self.workflows_service = workflows_service
+
+        self.router = APIRouter()
+        self.admin_router = APIRouter()
+
+        self.router.add_api_route(
+            "/query",
+            self.query_interactions,
+            methods=["POST"],
+            operation_id="query_interactions",
+        )
+        self.router.add_api_route(
+            "/{interaction_id}",
+            self.fetch_interaction,
+            methods=["GET"],
+            operation_id="fetch_interaction",
+        )
+        self.router.add_api_route(
+            "/{interaction_id}/respond",
+            self.respond_interaction,
+            methods=["POST"],
+            operation_id="respond_interaction",
+        )
+
+        self.admin_router.add_api_route(
+            "/",
+            self.create_interaction,
+            methods=["POST"],
+            operation_id="admin_create_interaction",
+        )
+        self.admin_router.add_api_route(
+            "/transition",
+            self.transition_interaction,
+            methods=["POST"],
+            operation_id="admin_transition_interaction",
+        )
+
+    @intercept_exceptions()
+    async def create_interaction(
+        self,
+        request: Request,
+        body: InteractionCreateRequest,
+    ) -> InteractionResponse:
+        if not getattr(request.state, "admin", False):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+        interaction = await self.interactions_service.create_interaction(
+            project_id=body.interaction.project_id,
+            interaction=body.interaction,
+        )
+        return InteractionResponse(count=1, interaction=interaction)
+
+    @intercept_exceptions()
+    async def transition_interaction(
+        self,
+        request: Request,
+        body: InteractionTransitionRequest,
+    ) -> InteractionResponse:
+        if not getattr(request.state, "admin", False):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+        try:
+            interaction = await self.interactions_service.transition_interaction(
+                transition=body.transition,
+            )
+        except InteractionNotFound:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Interaction not found or already terminal",
+            )
+        return InteractionResponse(count=1, interaction=interaction)
+
+    @intercept_exceptions()
+    async def query_interactions(
+        self,
+        request: Request,
+        body: InteractionQueryRequest,
+    ) -> InteractionsResponse:
+        project_id: UUID = request.state.project_id
+
+        authorized = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        )
+        if not authorized:
+            raise FORBIDDEN_EXCEPTION
+
+        interactions = await self.interactions_service.query_interactions(
+            project_id=project_id,
+            query=body.query,
+            windowing=body.windowing,
+        )
+        return InteractionsResponse(count=len(interactions), interactions=interactions)
+
+    @intercept_exceptions()
+    async def fetch_interaction(
+        self,
+        request: Request,
+        interaction_id: UUID,
+    ) -> InteractionResponse:
+        project_id: UUID = request.state.project_id
+
+        authorized = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        )
+        if not authorized:
+            raise FORBIDDEN_EXCEPTION
+
+        try:
+            interaction = await self.interactions_service.fetch_interaction(
+                project_id=project_id,
+                interaction_id=interaction_id,
+            )
+        except InteractionNotFound:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Interaction not found",
+            )
+        return InteractionResponse(count=1, interaction=interaction)
+
+    @intercept_exceptions()
+    async def respond_interaction(
+        self,
+        request: Request,
+        interaction_id: UUID,
+        body: InteractionRespondRequest,
+    ) -> InteractionResponse:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        authorized = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        )
+        if not authorized:
+            raise FORBIDDEN_EXCEPTION
+
+        try:
+            interaction = await self.interactions_service.fetch_interaction(
+                project_id=project_id,
+                interaction_id=interaction_id,
+            )
+        except InteractionNotFound:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Interaction not found",
+            )
+
+        if interaction.status and interaction.status.code != "pending":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Interaction is no longer pending",
+            )
+
+        references = (
+            {
+                k: v.model_dump(mode="json")
+                for k, v in interaction.data.references.items()
+            }
+            if interaction.data and interaction.data.references
+            else None
+        )
+        selector = (
+            interaction.data.selector.model_dump(mode="json")
+            if interaction.data and interaction.data.selector
+            else None
+        )
+        answer = body.answer or {}
+
+        invoke_request = WorkflowServiceRequest(
+            references=references,
+            selector=selector,
+            data=WorkflowServiceRequestData(inputs=answer),
+        )
+
+        await self.workflows_service.invoke_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            request=invoke_request,
+        )
+
+        return InteractionResponse(count=1, interaction=interaction)
+
+
+class SessionMountsRouter:
+    """Session-scoped view over mounts — /sessions/mounts/*.
+
+    Thin: delegates to ``SessionMountsService`` (itself a wrapper over the
+    full mounts domain). No mounts logic or storage lives here.
+    """
+
+    def __init__(self, *, session_mounts_service: SessionMountsService) -> None:
+        self.session_mounts_service = session_mounts_service
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/mounts/query",
+            self.query_session_mounts,
+            methods=["POST"],
+            operation_id="query_session_mounts",
+            response_model=MountsResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+
+    @intercept_exceptions()
+    async def query_session_mounts(
+        self,
+        request: Request,
+        *,
+        body: MountQueryRequest,
+        session_id: Optional[str] = Query(default=None),
+        include_archived: bool = Query(default=False),
+    ) -> MountsResponse:
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        mount_query = merge_mount_query(
+            session_id=session_id,
+            include_archived=include_archived,
+            body_query=body.mount,
+        )
+
+        mounts = await self.session_mounts_service.query_mounts(
+            project_id=UUID(request.state.project_id),
+            mount_query=mount_query,
+            windowing=body.windowing,
+        )
+
+        return MountsResponse(count=len(mounts), mounts=mounts)
+
+
+# ---------------------------------------------------------------------------
+# Top-level composer
+# ---------------------------------------------------------------------------
+
+
+class SessionsRouter:
+    """Composes all session sub-domain routers into one object.
+
+    The entrypoint mounts:
+      sessions_router.streams.router          → no prefix (paths include /sessions/streams/…)
+      sessions_router.streams.admin_router    → prefix /admin/sessions/streams
+      sessions_router.states.router           → prefix /sessions
+      sessions_router.transcripts.router      → prefix /sessions/transcripts
+      sessions_router.interactions.router     → prefix /sessions/interactions
+      sessions_router.interactions.admin_router → prefix /admin/sessions/interactions
+      sessions_router.mounts.router           → prefix /sessions
+    """
+
+    def __init__(
+        self,
+        *,
+        streams_service: SessionStreamsService,
+        states_service: SessionStatesService,
+        transcripts_service: TranscriptsService,
+        interactions_service: InteractionsService,
+        workflows_service: WorkflowsService,
+        session_mounts_service: SessionMountsService,
+    ) -> None:
+        self.streams = SessionStreamsRouter(service=streams_service)
+        self.states = SessionStatesRouter(session_states_service=states_service)
+        self.transcripts = TranscriptsRouter(transcripts_service=transcripts_service)
+        self.interactions = InteractionsRouter(
+            interactions_service=interactions_service,
+            workflows_service=workflows_service,
+        )
+        self.mounts = SessionMountsRouter(
+            session_mounts_service=session_mounts_service,
         )

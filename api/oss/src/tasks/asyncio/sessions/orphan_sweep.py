@@ -12,8 +12,8 @@ from datetime import datetime, timezone, timedelta
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
-from oss.src.dbs.postgres.sessions.dbes import SessionStreamDBE
-from oss.src.core.sessions.dtos import StreamStatusCode, SessionStreamStatus
+from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
+from oss.src.core.sessions.streams.dtos import StreamStatusCode, SessionStreamStatus
 
 from sqlalchemy import select
 

@@ -68,7 +68,6 @@ from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.events.dao import EventsDAO
-from oss.src.dbs.postgres.transcripts.dao import TranscriptsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
@@ -79,7 +78,7 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.events.service import EventsService
-from oss.src.core.transcripts.service import TranscriptsService
+from oss.src.core.sessions.transcripts.service import TranscriptsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
@@ -128,7 +127,7 @@ from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
-from oss.src.apis.fastapi.transcripts.router import TranscriptsRouter
+from oss.src.apis.fastapi.sessions.router import SessionsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.core.annotations.service import AnnotationsService
@@ -137,10 +136,9 @@ from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
-from oss.src.dbs.postgres.session_states.dbes import SessionStateDBE  # noqa: F401
-from oss.src.dbs.postgres.session_states.dao import SessionStatesDAO
-from oss.src.core.sessions.service import SessionStatesService
-from oss.src.apis.fastapi.session_states.router import SessionStatesRouter
+from oss.src.dbs.postgres.sessions.states.dbes import SessionStateDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.states.dao import SessionStatesDAO
+from oss.src.core.sessions.states.service import SessionStatesService
 
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
@@ -169,21 +167,23 @@ from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.storage import MountStorage
+from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.apis.fastapi.mounts.router import MountsRouter
 
 # Session streams
-from oss.src.dbs.postgres.sessions.dbes import SessionStreamDBE  # noqa: F401 (registers DBE)
-from oss.src.dbs.postgres.sessions.dao import SessionStreamsDAO
-from oss.src.core.sessions.service import SessionStreamsService
-from oss.src.apis.fastapi.sessions.router import SessionStreamsRouter
+from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
+from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 
 # Interactions
-from oss.src.dbs.postgres.interactions.dbes import InteractionDBE  # noqa: F401
-from oss.src.dbs.postgres.interactions.dao import InteractionsDAO
-from oss.src.core.interactions.service import InteractionsService
-from oss.src.apis.fastapi.interactions.router import InteractionsRouter
+from oss.src.dbs.postgres.sessions.interactions.dbes import InteractionDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.interactions.dao import InteractionsDAO
+from oss.src.core.sessions.interactions.service import InteractionsService
+
+# Transcripts DAO (analytics DB)
+from oss.src.dbs.postgres.sessions.transcripts.dao import TranscriptsDAO
 
 
 from oss.src.routers import (
@@ -376,7 +376,7 @@ _OPENAPI_TAGS = [
     # --
     {
         "name": "Sessions",
-        "description": "Session runner coordination — invoke, cancel, steer, attach/detach, heartbeat, and liveness.",
+        "description": "Agent sessions — runner coordination (invoke/cancel/steer/attach/detach/heartbeat/liveness), state persistence (durable SDK record and sandbox resume pointer), transcripts, and streams.",
     },
     {
         "name": "Interactions",
@@ -386,10 +386,6 @@ _OPENAPI_TAGS = [
     {
         "name": "Folders",
         "description": "Organize applications and other resources into folder hierarchies.",
-    },
-    {
-        "name": "Sessions",
-        "description": "Agent session data — transcripts and other per-session streams.",
     },
     # --
     {
@@ -413,10 +409,6 @@ _OPENAPI_TAGS = [
     # --
     # Billing inserted here by EE (extend_app_schema)
     # --
-    {
-        "name": "Sessions",
-        "description": "Session state persistence — durable SDK record and sandbox resume pointer.",
-    },
     # --
     {
         "name": "Admin",
@@ -497,7 +489,7 @@ webhooks_dao = WebhooksDAO(engine=_transactions_engine)
 
 tracing_dao = TracingDAO(engine=_analytics_engine)
 events_dao = EventsDAO(engine=_analytics_engine)
-transcripts_dao = TranscriptsDAO(engine=_analytics_engine)
+transcripts_dao = TranscriptsDAO(engine=_analytics_engine)  # analytics DB
 
 testcases_dao = BlobsDAO(
     engine=_transactions_engine,
@@ -800,6 +792,10 @@ mounts_service = MountsService(
     mount_storage=mounts_storage,
 )
 
+session_mounts_service = SessionMountsService(
+    mounts_service=mounts_service,
+)
+
 _t_services_done = time.perf_counter() - _t_services
 print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
 _t_routers = time.perf_counter()
@@ -866,10 +862,6 @@ folders = FoldersRouter(
     folders_service=folders_service,
 )
 
-session_streams = SessionStreamsRouter(
-    service=session_streams_service,
-)
-
 workflows = WorkflowsRouter(
     workflows_service=workflows_service,
     environments_service=environments_service,
@@ -924,17 +916,8 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
-interactions = InteractionsRouter(
-    interactions_service=interactions_service,
-    workflows_service=workflows_service,
-)
-
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
-)
-
-transcripts = TranscriptsRouter(
-    transcripts_service=transcripts_service,
 )
 
 annotations_service = AnnotationsService(
@@ -974,8 +957,13 @@ session_states_service = SessionStatesService(
     session_states_dao=session_states_dao,
 )
 
-session_states = SessionStatesRouter(
-    session_states_service=session_states_service,
+sessions = SessionsRouter(
+    streams_service=session_streams_service,
+    states_service=session_states_service,
+    transcripts_service=transcripts_service,
+    interactions_service=interactions_service,
+    workflows_service=workflows_service,
+    session_mounts_service=session_mounts_service,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------
@@ -1188,12 +1176,12 @@ app.include_router(
 )
 
 app.include_router(
-    router=session_streams.router,
+    router=sessions.streams.router,
     tags=["Sessions"],
 )
 
 app.include_router(
-    router=session_streams.admin_router,
+    router=sessions.streams.admin_router,
     prefix="/admin/sessions/streams",
     tags=["Sessions", "Admin"],
 )
@@ -1348,15 +1336,15 @@ app.include_router(
 )
 
 app.include_router(
-    router=interactions.router,
+    router=sessions.interactions.router,
     prefix="/sessions/interactions",
-    tags=["Interactions"],
+    tags=["Sessions"],
 )
 
 app.include_router(
-    router=interactions.admin_router,
+    router=sessions.interactions.admin_router,
     prefix="/admin/sessions/interactions",
-    tags=["Interactions", "Admin"],
+    tags=["Sessions", "Admin"],
     include_in_schema=False,
 )
 
@@ -1413,13 +1401,13 @@ app.include_router(
 )
 
 app.include_router(
-    router=mounts.sessions_router,
+    router=sessions.mounts.router,
     prefix="/sessions",
-    tags=["Mounts"],
+    tags=["Sessions"],
 )
 
 app.include_router(
-    router=transcripts.router,
+    router=sessions.transcripts.router,
     prefix="/sessions/transcripts",
     tags=["Sessions"],
 )
@@ -1431,7 +1419,7 @@ app.include_router(
 )
 
 app.include_router(
-    router=session_states.router,
+    router=sessions.states.router,
     prefix="/sessions",
     tags=["Sessions"],
 )

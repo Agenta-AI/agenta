@@ -9,28 +9,28 @@ from oss.src.dbs.postgres.shared.engine import (
     get_analytics_engine,
 )
 from oss.src.dbs.postgres.events.dao import EventsDAO
-from oss.src.dbs.postgres.transcripts.dao import TranscriptsDAO
+from oss.src.dbs.postgres.sessions.transcripts.dao import TranscriptsDAO
 from oss.src.core.events.service import EventsService
-from oss.src.core.transcripts.service import TranscriptsService
+from oss.src.core.sessions.transcripts.service import TranscriptsService
 
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.tracing.dao import TracingRetentionDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.dbs.postgres.events.dao import EventsRetentionDAO
-from ee.src.dbs.postgres.transcripts.dao import TranscriptsRetentionDAO
+from ee.src.dbs.postgres.sessions.transcripts.dao import TranscriptsRetentionDAO
 
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingRetentionService
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.events.service import EventsRetentionService
-from ee.src.core.transcripts.service import TranscriptsRetentionService
+from ee.src.core.sessions.transcripts.service import TranscriptsRetentionService
 
 from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
 from ee.src.apis.fastapi.spans.router import SpansRetentionRouter
 from ee.src.apis.fastapi.events.router import EventsRouter, EventsRetentionRouter
-from ee.src.apis.fastapi.transcripts.router import TranscriptsRetentionRouter
+from ee.src.apis.fastapi.sessions.transcripts.router import TranscriptsRetentionRouter
 from ee.src.apis.fastapi.organizations.router import router as organization_router
 from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 

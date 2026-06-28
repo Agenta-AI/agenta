@@ -3,7 +3,7 @@
 import pytest
 from fastapi import HTTPException
 
-from oss.src.apis.fastapi.session_states.router import _validate_session_id
+from oss.src.apis.fastapi.sessions.router import _validate_session_id_http as _validate_session_id
 
 
 class TestSessionIdValidation:

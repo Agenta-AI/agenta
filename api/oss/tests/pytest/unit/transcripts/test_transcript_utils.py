@@ -1,4 +1,4 @@
-"""Unit tests for core/transcripts/utils.py.
+"""Unit tests for core/sessions/transcripts/utils.py.
 
 Covers:
 - strip_replay: idempotent, only strips the replay prefix, leaves real content intact
@@ -6,7 +6,7 @@ Covers:
 """
 
 
-from oss.src.core.transcripts.utils import (
+from oss.src.core.sessions.transcripts.utils import (
     REPLAY_PREFIX,
     coalesce_events,
     strip_replay,
