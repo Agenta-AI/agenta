@@ -4,7 +4,6 @@ import pytest
 
 from agenta.sdk.agents.tools import (
     BuiltinToolConfig,
-    ClientToolConfig,
     GatewayToolConfig,
     PlatformToolConfig,
     ReferenceToolConfig,
@@ -120,57 +119,6 @@ def test_compat_parser_omits_permission_when_absent():
         }
     )
     assert gateway.permission is None
-
-
-def test_compat_parser_maps_openai_function_to_client_tool():
-    # The FE writes custom tools in the OpenAI function shape. Coerce them to a
-    # client tool, reading the name from ``function.name`` (not top-level) — a
-    # non-gateway function tool previously raised "Unsupported tool configuration
-    # shape" (server dispatch 500) and resolved to an ``undefined`` name in the runner.
-    client = coerce_tool_config(
-        {
-            "type": "function",
-            "function": {
-                "name": "get_weather",
-                "description": "Get current weather",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"location": {"type": "string"}},
-                    "required": ["location"],
-                },
-            },
-        }
-    )
-    assert isinstance(client, ClientToolConfig)
-    assert client.name == "get_weather"
-    assert client.description == "Get current weather"
-    assert client.input_schema["properties"]["location"]["type"] == "string"
-
-
-def test_compat_parser_function_tool_carries_metadata():
-    # Approval/permission siblings survive the function -> client coercion.
-    client = coerce_tool_config(
-        {
-            "type": "function",
-            "function": {"name": "get_weather"},
-            "needs_approval": True,
-            "permission": "deny",
-        }
-    )
-    assert isinstance(client, ClientToolConfig)
-    assert client.needs_approval is True
-    assert client.permission == "deny"
-    # No `parameters` => keep ClientToolConfig's default object schema, NOT a bare {} that
-    # would widen the contract to "any JSON".
-    assert client.input_schema == {"type": "object", "properties": {}}
-
-
-def test_compat_parser_rejects_function_shape_without_type():
-    # The function -> client coercion is gated on the explicit `type: "function"` shape. A
-    # `function.name` that is not a gateway slug and carries no `type` is an unknown shape and
-    # must fail loud rather than silently becoming a client tool.
-    with pytest.raises(ToolConfigurationError):
-        coerce_tool_config({"function": {"name": "not_a_slug"}})
 
 
 def test_coerce_tool_configs_rejects_invalid_on_error():

@@ -109,27 +109,6 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     if gateway:
         return parse_tool_config(_copy_tool_metadata(data, gateway))
 
-    # OpenAI function shape: {"type": "function", "function": {name, description,
-    # parameters}}. A gateway slug in ``function.name`` is handled above; any other
-    # ``type:"function"`` tool is client-fulfilled. The name is nested under ``function.name``
-    # (not top-level), so read it from there — otherwise it resolves to ``undefined``
-    # in the runner and 500s server-side dispatch with "Unsupported tool configuration
-    # shape". Gate on ``type == "function"`` so an unknown/typo'd shape that merely
-    # carries a stray ``function.name`` fails loud instead of silently coercing.
-    if data.get("type") == "function" and isinstance(function.get("name"), str):
-        client_config: dict[str, Any] = {
-            "type": "client",
-            "name": function["name"],
-            "description": function.get("description"),
-        }
-        # Only forward a schema when the function actually declares one. A missing/empty
-        # ``parameters`` must NOT become ``{}`` — that would override ClientToolConfig's
-        # default object schema and widen the contract to "any JSON" for no-arg tools.
-        parameters = function.get("parameters")
-        if parameters:
-            client_config["input_schema"] = parameters
-        return parse_tool_config(_copy_tool_metadata(data, client_config))
-
     if isinstance(data.get("name"), str) and "type" not in data:
         return BuiltinToolConfig(name=data["name"])
 
