@@ -252,6 +252,28 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         }
     }, [sessionId, stop])
 
+    // ── SC-3: anchor-based scroll preservation ──
+    // We do scroll-anchoring ourselves (Safari has no CSS overflow-anchor, and it would fight our
+    // programmatic pins). While NOT following, remember the topmost visible message; when content above
+    // it changes height (an image loads, markdown/code renders, a tool card expands), we compensate
+    // scrollTop so that message stays on the same line. Growth BELOW the anchor (the streaming answer)
+    // doesn't move it, so it's left alone.
+    const anchorRef = useRef<{id: string; top: number} | null>(null)
+    const recordAnchor = useCallback(() => {
+        const el = scrollRef.current
+        if (!el) return
+        const containerTop = el.getBoundingClientRect().top
+        for (const w of el.querySelectorAll<HTMLElement>("[data-mid]")) {
+            const r = w.getBoundingClientRect()
+            // First message whose bottom is still below the viewport top = the topmost visible one.
+            if (r.bottom > containerTop + 1) {
+                anchorRef.current = {id: w.dataset.mid ?? "", top: r.top - containerTop}
+                return
+            }
+        }
+        anchorRef.current = null
+    }, [])
+
     // ── DT4 autoscroll: stick to the bottom of the scrollable area while following ──
     // The fill (min-h-full turn group) makes "question at top" the scroll bottom for a short answer
     // and the answer's end the bottom for a long one, so scrollHeight is the right target (+ pb-6 gap).
@@ -273,13 +295,51 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         // it (that was the yank). The jump pill instead tracks whether the real latest message is in view.
         stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
         setShowJump(!atLiveEdge(el))
-    }, [])
+        // Remember where the reader is parked so SC-3 can hold it through layout changes above.
+        if (!stickRef.current) recordAnchor()
+    }, [recordAnchor])
 
     const jumpToLatest = useCallback(() => {
         stickRef.current = true
         setShowJump(false)
         scrollToBottom()
     }, [scrollToBottom])
+
+    // SC-3: when any message resizes (image load, markdown/code render, tool-card expand), hold the
+    // reader's place. Following → keep pinned to the bottom; otherwise compensate scrollTop so the
+    // anchored (topmost visible) message stays on the same line. Guarded so it never fights our own
+    // pins. Re-subscribed when the message set changes (a part growing fires on the same wrapper).
+    useEffect(() => {
+        const el = scrollRef.current
+        if (!el) return
+        const onResize = () => {
+            if (programmaticScrollRef.current) return
+            if (stickRef.current) {
+                el.scrollTop = el.scrollHeight
+                return
+            }
+            const a = anchorRef.current
+            if (!a) return
+            let node: HTMLElement | null = null
+            try {
+                node = el.querySelector<HTMLElement>(`[data-mid="${a.id}"]`)
+            } catch {
+                node = null
+            }
+            if (!node) return
+            const delta = node.getBoundingClientRect().top - el.getBoundingClientRect().top - a.top
+            if (Math.abs(delta) > 0.5) {
+                programmaticScrollRef.current = true
+                el.scrollTop += delta
+                requestAnimationFrame(() => {
+                    programmaticScrollRef.current = false
+                })
+            }
+        }
+        const ro = new ResizeObserver(onResize)
+        el.querySelectorAll("[data-mid]").forEach((w) => ro.observe(w))
+        return () => ro.disconnect()
+    }, [messages.length])
 
     // Pin the last user message to the top of the viewport, one time, when armed: on a fresh submit
     // (SC-1, so the answer streams into the fill below) and on restoring a saved thread (SC-2, so it
@@ -301,10 +361,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         programmaticScrollRef.current = true
         const top = node.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
         el.scrollTop = Math.max(0, top - 12)
+        // SC-3: anchor the pinned position so a late image/markdown load above doesn't push it down.
+        recordAnchor()
         requestAnimationFrame(() => {
             programmaticScrollRef.current = false
         })
-    }, [messages])
+    }, [messages, recordAnchor])
 
     // Keep the jump pill honest as content streams/settles: show it when the real latest message is
     // below the fold (e.g. a long answer growing past the viewport while parked at the top), and hide
@@ -469,7 +531,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     role="log"
                     aria-live="polite"
                     aria-label="Agent conversation"
-                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pb-6"
+                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pb-6 [overflow-anchor:none]"
                 >
                     {messages.length === 0 && (
                         <div className="m-auto text-center text-xs text-colorTextTertiary">
