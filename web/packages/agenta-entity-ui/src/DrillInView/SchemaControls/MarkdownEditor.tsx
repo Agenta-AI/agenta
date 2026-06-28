@@ -18,7 +18,16 @@
  * Controlled value: seeds from `value` and re-syncs when `value` changes from outside (e.g. a skill
  * upload populating the body), while leaving the cursor alone during local typing.
  */
-import {type CSSProperties, useEffect, useId, useLayoutEffect, useRef, useState} from "react"
+import {
+    type CSSProperties,
+    type DragEvent,
+    useCallback,
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from "react"
 
 import {
     EditorProvider,
@@ -28,7 +37,19 @@ import {
 } from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
+import {registerCodeHighlighting} from "@lexical/code"
 import {Tag} from "antd"
+
+import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
+
+// Pure drop predicates — no component state, so they live at module scope (stable identity, no
+// need to thread them through the drag/drop callback deps).
+const isFileDrag = (e: DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
+const isMarkdownFile = (file: File) =>
+    /\.(md|markdown|mdx|txt)$/i.test(file.name) ||
+    file.type.startsWith("text/") ||
+    file.type === "application/json" ||
+    file.type === ""
 
 type MarkdownView = "source" | "rendered"
 
@@ -83,6 +104,17 @@ function MarkdownViewSync({enabled}: {enabled: boolean}) {
     return null
 }
 
+/**
+ * Enables Prism syntax highlighting for code blocks in the rich view. The shared editor registers
+ * the CodeNode/CodeHighlightNode types but never turns on the highlighter, so fenced blocks render
+ * as plain monospace until this runs. The token colors come from the `editor-token*` theme classes.
+ */
+function CodeHighlightSync() {
+    const [editor] = useLexicalComposerContext()
+    useEffect(() => registerCodeHighlighting(editor), [editor])
+    return null
+}
+
 export function MarkdownEditor({
     value,
     onChange,
@@ -129,11 +161,52 @@ export function MarkdownEditor({
         }
     }, [value])
 
-    const handleChange = (next: string) => {
-        setText(next)
-        lastExternal.current = next
-        onChange(next)
-    }
+    // Stable so the memoized drop handler below never captures a stale `onChange` — some consumers
+    // (e.g. SkillFormView) pass a fresh inline `onChange` every render.
+    const handleChange = useCallback(
+        (next: string) => {
+            setText(next)
+            lastExternal.current = next
+            onChange(next)
+        },
+        [onChange],
+    )
+
+    // Markdown-file drop: dropping a .md/.markdown/.txt (or any text/* file) onto the editor
+    // replaces its content with the file's text. We intercept in the capture phase and only for
+    // file drags, so Lexical's own internal text drag/drop keeps working.
+    const [dragOver, setDragOver] = useState(false)
+    const dropEnabled = editable && !disabled
+
+    const handleDragOver = useCallback(
+        (e: DragEvent) => {
+            if (!dropEnabled || !isFileDrag(e)) return
+            e.preventDefault()
+            e.stopPropagation()
+            e.dataTransfer.dropEffect = "copy"
+            setDragOver(true)
+        },
+        [dropEnabled],
+    )
+
+    const handleDragLeave = useCallback((e: DragEvent) => {
+        // Ignore leaves into child nodes; only clear when the pointer exits the wrapper.
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+        setDragOver(false)
+    }, [])
+
+    const handleDrop = useCallback(
+        (e: DragEvent) => {
+            if (!dropEnabled || !isFileDrag(e)) return
+            e.preventDefault()
+            e.stopPropagation()
+            setDragOver(false)
+            const file = Array.from(e.dataTransfer.files).find(isMarkdownFile)
+            if (!file) return
+            void file.text().then((content) => handleChange(content))
+        },
+        [dropEnabled, handleChange],
+    )
 
     const viewToggle = canToggleView ? (
         <button
@@ -202,6 +275,27 @@ export function MarkdownEditor({
         />
     )
 
+    // `md-prose` scopes the document prose styles (Option B) defined in editor-theme.css to these
+    // Markdown editors only, so the shared prompt/chat editor theme is untouched.
+    const body = showToolbar ? (
+        <div
+            className={cn(
+                "flex flex-col overflow-hidden",
+                bordered && "rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]",
+            )}
+            style={boundStyle}
+        >
+            {toolbar}
+            <div className="md-prose min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
+        </div>
+    ) : boundStyle ? (
+        <div className="md-prose overflow-y-auto" style={boundStyle}>
+            {editorEl}
+        </div>
+    ) : (
+        <div className="md-prose">{editorEl}</div>
+    )
+
     return (
         <EditorProvider
             id={editorId}
@@ -210,26 +304,28 @@ export function MarkdownEditor({
             showToolbar={false}
             disabled={editorDisabled}
         >
-            {showToolbar ? (
+            {dropEnabled ? (
                 <div
-                    className={cn(
-                        "flex flex-col overflow-hidden",
-                        bordered &&
-                            "rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]",
-                    )}
-                    style={boundStyle}
+                    className="relative"
+                    onDragOverCapture={handleDragOver}
+                    onDragLeaveCapture={handleDragLeave}
+                    onDropCapture={handleDrop}
                 >
-                    {toolbar}
-                    <div className="min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
-                </div>
-            ) : boundStyle ? (
-                <div className="overflow-y-auto" style={boundStyle}>
-                    {editorEl}
+                    {body}
+                    {dragOver ? (
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg,rgba(22,119,255,0.08))]">
+                            <span className="rounded-md bg-[var(--ant-color-bg-elevated,#fff)] px-3 py-1.5 text-xs font-medium text-[var(--ag-c-586673,#586673)] shadow-sm">
+                                Drop a Markdown file to replace the content
+                            </span>
+                        </div>
+                    ) : null}
                 </div>
             ) : (
-                editorEl
+                body
             )}
             <MarkdownViewSync enabled={markdownView} />
+            <CodeHighlightSync />
+            <CodeBlockLanguageMenu editable={!editorDisabled} />
         </EditorProvider>
     )
 }

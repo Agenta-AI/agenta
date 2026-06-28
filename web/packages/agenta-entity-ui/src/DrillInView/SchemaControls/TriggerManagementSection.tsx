@@ -15,7 +15,7 @@
  *  2. Default-bind — opening a create drawer from this section pre-binds the new trigger
  *     to the current agent via `defaultReferences` (see the trigger drawer atoms).
  */
-import {useCallback, useMemo} from "react"
+import {type ReactNode, useCallback, useMemo} from "react"
 
 import {
     describeCron,
@@ -60,6 +60,8 @@ import TriggerCatalogDrawer from "../../gatewayTrigger/drawers/TriggerCatalogDra
 import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"
 import TriggerScheduleDrawer from "../../gatewayTrigger/drawers/TriggerScheduleDrawer"
 import TriggerSubscriptionDrawer from "../../gatewayTrigger/drawers/TriggerSubscriptionDrawer"
+
+import {AddTextLink} from "./AddTextLink"
 
 export interface TriggerManagementSectionProps {
     /** The open agent's revision id (the drill-in entityId). */
@@ -492,10 +494,15 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
     return (
         <div className="flex flex-col gap-2">
             {count === 0 ? (
-                <Typography.Text type="secondary" className="text-xs">
-                    No triggers yet. Add an app trigger or a schedule to run this agent
-                    automatically.
-                </Typography.Text>
+                !disabled ? (
+                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        No triggers yet —{" "}
+                        <AddTriggerDropdown
+                            entityId={entityId}
+                            trigger={<AddTextLink label="add a trigger" />}
+                        />
+                    </span>
+                ) : null
             ) : (
                 <div className="flex flex-col gap-2">
                     {scopedSchedules.map((record) => {
@@ -574,7 +581,14 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
  * the current agent). Kept separate from the section body because the accordion renders
  * `extra` outside the section content.
  */
-export function AddTriggerDropdown({entityId}: {entityId: string | null}) {
+export function AddTriggerDropdown({
+    entityId,
+    trigger,
+}: {
+    entityId: string | null
+    /** Custom trigger element (e.g. an inline text-link for an empty state). Defaults to a `+`. */
+    trigger?: ReactNode
+}) {
     const {defaultReferences, defaultBoundLabel} = useAgentTriggers(entityId)
     const openCatalog = useSetAtom(triggerCatalogDrawerOpenAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
@@ -614,14 +628,16 @@ export function AddTriggerDropdown({entityId}: {entityId: string | null}) {
 
     return (
         <Dropdown trigger={["click"]} menu={{items}} styles={{root: {width: 200}}}>
-            <Tooltip title="Add trigger">
-                <Button
-                    type="text"
-                    icon={<Plus size={16} />}
-                    aria-label="Add trigger"
-                    onClick={(e) => e.stopPropagation()}
-                />
-            </Tooltip>
+            {trigger ?? (
+                <Tooltip title="Add trigger">
+                    <Button
+                        type="text"
+                        icon={<Plus size={16} />}
+                        aria-label="Add trigger"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </Tooltip>
+            )}
         </Dropdown>
     )
 }
