@@ -92,6 +92,15 @@ switch, mirroring the model warning. Tracked as the harness-gating follow-up.
 - Reference (`@ag.reference`) chips in the editor — they live on the embedref branch (#4877) and
   light up here when that merges.
 - Optional: model remap (instead of clear) when switching harness.
+- Tool draft validation depth — the per-kind `draftInvalid` only checks an inline function's name
+  today. Under the incoming `kind`-discriminated tool schema (`schema-driven-config-proposal.md`,
+  CHANGE-3) every entry must validate against its per-kind sub-schema. Tighten when that lands; the
+  registry's per-kind `draftInvalid`/`createSeed` get replaced wholesale (the current `tool.createSeed`
+  is an unused stub — creation seeds from the picker). Raised from PR #4923 review.
+- Named-connection slug on a provider change — intentionally kept today (the option list is
+  vault-secret async, so an eager clear would wipe a valid slug mid-load). When provider becomes
+  first-class via `ModelSpec` (`../agent-workflows/scratch/notes-model-auth.md`, R2), re-bind or clear the slug when the
+  derived provider changes. Raised from PR #4923 review.
 
 ## Verification
 

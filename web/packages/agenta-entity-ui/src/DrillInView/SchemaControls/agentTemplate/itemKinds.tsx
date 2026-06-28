@@ -77,6 +77,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         editView: (item) => (isFunctionTool(item) ? "form" : "json"),
         jsonOnly: (draft) => !isFunctionTool(draft),
         isReadOnly: () => false,
+        // Unused for tools: creation seeds from the picker (buildInlineFunctionTool), not this.
         createSeed: () => ({}),
         draftInvalid: (draft) => {
             const fn = draft.function as Record<string, unknown> | undefined
