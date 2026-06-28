@@ -1050,7 +1050,7 @@ export function AgentTemplateControl({
     const hasSkills = Boolean(props.skills)
     const hasClaudePermissions = harnessValue === "claude"
     const hasAdvanced = Boolean(
-        props.model || // Authentication lives in Advanced now
+        props.llm || // Authentication lives in Advanced now
         sandboxProps.kind ||
         sandboxProps.permissions ||
         runnerProps.interactions ||
@@ -1090,7 +1090,7 @@ export function AgentTemplateControl({
     )
 
     // The Model picker (inspect-filtered when available, else the schema catalog).
-    const modelPicker = props.model ? (
+    const modelPicker = props.llm ? (
         hasInspectModels ? (
             <LabeledField
                 label="Model"
@@ -1109,7 +1109,10 @@ export function AgentTemplateControl({
             </LabeledField>
         ) : (
             <GroupedChoiceControl
-                schema={props.model}
+                schema={
+                    (props.llm?.properties as Record<string, SchemaProperty> | undefined)?.model ??
+                    props.llm
+                }
                 label="Model"
                 value={modelId}
                 onChange={(v) => writeModel({modelId: v})}
@@ -1274,7 +1277,7 @@ export function AgentTemplateControl({
                                 No model selected.
                             </span>
                         )}
-                        {props.model ? (
+                        {props.llm ? (
                             <div
                                 className={cn(
                                     "flex items-start gap-1.5",
@@ -1384,7 +1387,7 @@ export function AgentTemplateControl({
     )
 
     // Authentication (credential source) — moved out of Model & harness into Advanced.
-    const authControls = props.model ? (
+    const authControls = props.llm ? (
         <div className="flex flex-col gap-2">
             {modeOptions.map((m) => {
                 const selected = connection.mode === m
@@ -1484,7 +1487,7 @@ export function AgentTemplateControl({
     // Advanced header summary: auth mode + sandbox, so the collapsed header still conveys state.
     const advancedSummary =
         [
-            props.model ? (connection.mode === "agenta" ? "Agenta-managed" : "Self-managed") : null,
+            props.llm ? (connection.mode === "agenta" ? "Agenta-managed" : "Self-managed") : null,
             sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : null,
         ]
             .filter(Boolean)
