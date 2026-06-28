@@ -21,10 +21,12 @@ if typing.TYPE_CHECKING:
     from .invocations.client import AsyncInvocationsClient, InvocationsClient
     from .keys.client import AsyncKeysClient, KeysClient
     from .legacy.client import AsyncLegacyClient, LegacyClient
+    from .mounts.client import AsyncMountsClient, MountsClient
     from .organizations.client import AsyncOrganizationsClient, OrganizationsClient
     from .projects.client import AsyncProjectsClient, ProjectsClient
     from .queries.client import AsyncQueriesClient, QueriesClient
     from .secrets.client import AsyncSecretsClient, SecretsClient
+    from .sessions.client import AsyncSessionsClient, SessionsClient
     from .status.client import AsyncStatusClient, StatusClient
     from .testcases.client import AsyncTestcasesClient, TestcasesClient
     from .testsets.client import AsyncTestsetsClient, TestsetsClient
@@ -93,6 +95,7 @@ class AgentaApi:
         self._testsets: typing.Optional[TestsetsClient] = None
         self._queries: typing.Optional[QueriesClient] = None
         self._folders: typing.Optional[FoldersClient] = None
+        self._sessions: typing.Optional[SessionsClient] = None
         self._applications: typing.Optional[ApplicationsClient] = None
         self._workflows: typing.Optional[WorkflowsClient] = None
         self._evaluators: typing.Optional[EvaluatorsClient] = None
@@ -100,6 +103,7 @@ class AgentaApi:
         self._tools: typing.Optional[ToolsClient] = None
         self._triggers: typing.Optional[TriggersClient] = None
         self._evaluations: typing.Optional[EvaluationsClient] = None
+        self._mounts: typing.Optional[MountsClient] = None
         self._status: typing.Optional[StatusClient] = None
         self._projects: typing.Optional[ProjectsClient] = None
         self._users: typing.Optional[UsersClient] = None
@@ -205,6 +209,13 @@ class AgentaApi:
         return self._folders
     
     @property
+    def sessions(self):
+        if self._sessions is None:
+            from .sessions.client import SessionsClient  # noqa: E402
+            self._sessions = SessionsClient(client_wrapper=self._client_wrapper)
+        return self._sessions
+    
+    @property
     def applications(self):
         if self._applications is None:
             from .applications.client import ApplicationsClient  # noqa: E402
@@ -252,6 +263,13 @@ class AgentaApi:
             from .evaluations.client import EvaluationsClient  # noqa: E402
             self._evaluations = EvaluationsClient(client_wrapper=self._client_wrapper)
         return self._evaluations
+    
+    @property
+    def mounts(self):
+        if self._mounts is None:
+            from .mounts.client import MountsClient  # noqa: E402
+            self._mounts = MountsClient(client_wrapper=self._client_wrapper)
+        return self._mounts
     
     @property
     def status(self):
@@ -345,6 +363,7 @@ class AsyncAgentaApi:
         self._testsets: typing.Optional[AsyncTestsetsClient] = None
         self._queries: typing.Optional[AsyncQueriesClient] = None
         self._folders: typing.Optional[AsyncFoldersClient] = None
+        self._sessions: typing.Optional[AsyncSessionsClient] = None
         self._applications: typing.Optional[AsyncApplicationsClient] = None
         self._workflows: typing.Optional[AsyncWorkflowsClient] = None
         self._evaluators: typing.Optional[AsyncEvaluatorsClient] = None
@@ -352,6 +371,7 @@ class AsyncAgentaApi:
         self._tools: typing.Optional[AsyncToolsClient] = None
         self._triggers: typing.Optional[AsyncTriggersClient] = None
         self._evaluations: typing.Optional[AsyncEvaluationsClient] = None
+        self._mounts: typing.Optional[AsyncMountsClient] = None
         self._status: typing.Optional[AsyncStatusClient] = None
         self._projects: typing.Optional[AsyncProjectsClient] = None
         self._users: typing.Optional[AsyncUsersClient] = None
@@ -457,6 +477,13 @@ class AsyncAgentaApi:
         return self._folders
     
     @property
+    def sessions(self):
+        if self._sessions is None:
+            from .sessions.client import AsyncSessionsClient  # noqa: E402
+            self._sessions = AsyncSessionsClient(client_wrapper=self._client_wrapper)
+        return self._sessions
+    
+    @property
     def applications(self):
         if self._applications is None:
             from .applications.client import AsyncApplicationsClient  # noqa: E402
@@ -504,6 +531,13 @@ class AsyncAgentaApi:
             from .evaluations.client import AsyncEvaluationsClient  # noqa: E402
             self._evaluations = AsyncEvaluationsClient(client_wrapper=self._client_wrapper)
         return self._evaluations
+    
+    @property
+    def mounts(self):
+        if self._mounts is None:
+            from .mounts.client import AsyncMountsClient  # noqa: E402
+            self._mounts = AsyncMountsClient(client_wrapper=self._client_wrapper)
+        return self._mounts
     
     @property
     def status(self):
