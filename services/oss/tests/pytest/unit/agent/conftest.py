@@ -98,6 +98,9 @@ class FakeBackend(Backend):
         # This is the credential channel; a Slice 3 test asserts exactly one connection's env
         # reaches the boundary (or nothing, for a runtime_provided / unconfigured run).
         self.created_secrets: list[Optional[Mapping[str, str]]] = []
+        # The run context threaded into each session (direct-call tools, Phase 3a), in call order,
+        # so a test can assert the service-side run-context population reaches the boundary.
+        self.created_run_contexts: list = []
 
     async def setup(self) -> None:
         self.setup_calls += 1
@@ -109,11 +112,20 @@ class FakeBackend(Backend):
         return _FakeSandbox()
 
     async def create_session(
-        self, sandbox, config, *, harness, secrets=None, trace=None, session_id=None
+        self,
+        sandbox,
+        config,
+        *,
+        harness,
+        secrets=None,
+        trace=None,
+        run_context=None,
+        session_id=None,
     ) -> _FakeSession:
         self.created_configs.append(config)
         self.created_session_ids.append(session_id)
         self.created_secrets.append(secrets)
+        self.created_run_contexts.append(run_context)
         return _FakeSession(self._result)
 
 

@@ -15,6 +15,18 @@
     "authorization": "Access tok-123",
     "captureContent": true
   },
+  "runContext": {
+    "workflow": {
+      "artifact": {"id": "wf_abc"},
+      "variant": {"id": "var_abc", "slug": "weather-agent"},
+      "revision": {"id": "rev_abc123", "version": "3"},
+      "is_draft": false
+    },
+    "trace": {
+      "trace_id": "0af7651916cd43dd8448eb211c80319c",
+      "span_id": "b7ad6b7169203331"
+    }
+  },
   "tools": ["read", "write"],
   "customTools": [
     {

@@ -27,6 +27,7 @@ from .dtos import (
     HarnessAgentConfig,
     HarnessType,
     Message,
+    RunContext,
     SessionConfig,
     TraceContext,
 )
@@ -126,6 +127,7 @@ class Backend(ABC):
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
+        run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
     ) -> Session:
         """Open a session in ``sandbox`` for an already-harness-shaped ``config``."""
@@ -190,6 +192,7 @@ class Environment:
             harness=harness,
             secrets=session_config.secrets,
             trace=session_config.trace,
+            run_context=session_config.run_context,
             session_id=session_config.session_id,
         )
 

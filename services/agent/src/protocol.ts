@@ -108,6 +108,45 @@ export interface ToolCallbackContext {
   authorization?: string;
 }
 
+/** One workflow entity inside `RunContext.workflow`: the platform's `{id, slug, version}`
+ * reference shape (the API's `Reference`). `version` is meaningful only on the revision. */
+export interface RunContextReference {
+  id?: string;
+  slug?: string;
+  version?: string;
+}
+
+/**
+ * The run's own context, delivered on `/run` and refreshed per turn (direct-call tools, Phase 3a;
+ * see `projects/direct-call-tools/run-context.md`). The service computes it from the invocation's
+ * own trace + workflow identity. It is consumed ONLY by a tool's `call.context` binding: the runner
+ * fills bound request fields from this blob at dispatch, server-side and hidden from the model. The
+ * model never reads run context directly.
+ *
+ * `workflow` mirrors the platform's three workflow entities — the `artifact` (the workflow), the
+ * `variant`, and the `revision` — so the run's identity reads the same way the rest of the platform
+ * names a workflow; `is_draft` says whether the run targets a committed revision (`false`) or an
+ * uncommitted playground draft (`true`). The conversation id is NOT carried here — it rides the
+ * top-level `sessionId` field, and the runner owns the live id across turns.
+ *
+ * The inner keys are deliberately snake_case (`workflow.variant.id`, `trace.trace_id`): they are
+ * the binding NAMESPACE a `call.context` value (`"$ctx.<dotted.path>"`) addresses, so they match
+ * those tokens exactly rather than the rest of the wire's camelCase. Every field is optional and
+ * best-effort — the service fills what it holds and omits the rest.
+ */
+export interface RunContext {
+  workflow?: {
+    artifact?: RunContextReference;
+    variant?: RunContextReference;
+    revision?: RunContextReference;
+    is_draft?: boolean;
+  };
+  trace?: {
+    trace_id?: string;
+    span_id?: string;
+  };
+}
+
 /**
  * One bundled file laid beside SKILL.md by relative `path`. `content` is inline UTF-8 text;
  * `executable` requests a `chmod +x` that the runner honors only when the skill's
@@ -378,6 +417,13 @@ export interface AgentRunRequest {
   harnessFiles?: Array<{ path: string; content: string }>;
   /** Tracing: thread the Agenta trace context across the boundary. */
   trace?: TraceContext;
+  /**
+   * The run's own context (trace + variant identity), refreshed per turn (direct-call tools,
+   * Phase 3a). Consumed only by a tool's `call.context` binding at dispatch — the runner fills the
+   * bound request fields from this blob server-side, hidden from the model (see `RunContext` and
+   * `tools/direct.ts` `assembleBody`). Omitted when the run has no own identity to bind.
+   */
+  runContext?: RunContext;
 }
 
 export interface AgentRunResult {

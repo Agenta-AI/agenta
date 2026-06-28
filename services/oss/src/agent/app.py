@@ -59,7 +59,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from oss.src.agent.config import load_config, runner_dir, runner_url
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.tools import resolve_mcp_servers, resolve_tools
-from oss.src.agent.tracing import record_usage, trace_context
+from oss.src.agent.tracing import record_usage, run_context, trace_context
 
 log = get_module_logger(__name__)
 
@@ -245,6 +245,10 @@ async def _agent(
         resolved_connection=resolved_connection,
         permission_policy=agent_config.permission_policy,
         trace=trace_context(),
+        # The run's own context (trace + workflow identity), refreshed each turn and consumed only
+        # by a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). The
+        # conversation id is threaded separately as `session_id` below, not duplicated in here.
+        run_context=run_context(),
         session_id=session_id,
         builtin_names=resolved_tools.builtin_names,
         tool_specs=resolved_tools.tool_specs,

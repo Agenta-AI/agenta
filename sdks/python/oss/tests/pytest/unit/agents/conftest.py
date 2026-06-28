@@ -142,6 +142,7 @@ class FakeBackend(Backend):
         harness,
         secrets=None,
         trace=None,
+        run_context=None,
         session_id=None,
     ) -> FakeSession:
         self.created_sessions.append(
@@ -151,6 +152,7 @@ class FakeBackend(Backend):
                 "harness": harness,
                 "secrets": secrets,
                 "trace": trace,
+                "run_context": run_context,
                 "session_id": session_id,
             }
         )

@@ -45,6 +45,7 @@ const KNOWN_REQUEST_KEYS = [
   "messages",
   "secrets",
   "trace",
+  "runContext",
   "tools",
   "customTools",
   "mcpServers",
@@ -108,6 +109,18 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.deepEqual(direct.call!.body, {
       references: { workflow_revision: { id: "rev_abc123" } },
     });
+    // The run's own context (direct-call tools, Phase 3a) reaches the runner as `runContext`, with
+    // snake_case inner keys (the `$ctx.<key>` binding namespace) and the workflow grouped into the
+    // platform's artifact / variant / revision entities. The runner fills a tool's `call.context`
+    // from this blob at dispatch (see tools/direct.ts `assembleBody`); the model never reads it.
+    assert.equal(req.runContext!.workflow!.variant!.id, "var_abc");
+    assert.equal(req.runContext!.workflow!.variant!.slug, "weather-agent");
+    assert.equal(req.runContext!.workflow!.revision!.id, "rev_abc123");
+    assert.equal(req.runContext!.workflow!.is_draft, false);
+    assert.equal(req.runContext!.trace!.trace_id, "0af7651916cd43dd8448eb211c80319c");
+    // The conversation id is NOT duplicated in run context; it rides the top-level `sessionId`.
+    assert.equal((req.runContext as Record<string, unknown>).session_id, undefined);
+    assert.equal(req.sessionId, "sess-1");
     // Pi exposes the prompt overrides.
     assert.equal(req.systemPrompt, "You are Pi.");
     assert.equal(req.appendSystemPrompt, "Be terse.");
@@ -137,6 +150,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.permissionPolicy, "deny"); // Claude gates tool use
     assert.equal(req.systemPrompt, undefined); // Claude exposes no prompt overrides
     assert.equal(req.appendSystemPrompt, undefined);
+    assert.equal(req.runContext, undefined); // no run context threaded on this config
     assert.equal(req.sandboxPermission, undefined); // no boundary declared on this config
     // The Claude harness's permission knobs are translated to a rendered file in Python: the
     // wire carries a generic `harnessFiles` entry the runner writes blind into the cwd.

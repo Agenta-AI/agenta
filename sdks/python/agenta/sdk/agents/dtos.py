@@ -376,6 +376,98 @@ class TraceContext(BaseModel):
         }
 
 
+class RunContextReference(BaseModel):
+    """One workflow entity inside :class:`RunContextWorkflow` — the artifact, the variant, or
+    the revision (direct-call tools, Phase 3a).
+
+    Mirrors the platform's canonical workflow reference shape (``{id, slug, version}``, the API's
+    ``Reference``) so the run-context identity reads the same way the rest of the platform names a
+    workflow entity. ``version`` is meaningful only for a revision; it stays unset on the artifact
+    and the variant. All fields optional and best-effort."""
+
+    id: Optional[str] = None
+    slug: Optional[str] = None
+    version: Optional[str] = None
+
+
+class RunContextWorkflow(BaseModel):
+    """The running workflow's own identity (direct-call tools, Phase 3a).
+
+    Part of the per-turn :class:`RunContext` blob, grouped into the same three entities the
+    platform uses for a workflow — the ``artifact`` (the workflow), the ``variant``, and the
+    ``revision`` — each an ``{id, slug, version}`` :class:`RunContextReference`. A self-targeting
+    platform tool binds one of these into its request body server-side (e.g.
+    ``$ctx.workflow.variant.id`` for "update myself"), so the model supplies only the payload and
+    cannot retarget a different variant. ``is_draft`` says whether the run targets a committed
+    revision (``False``) or an uncommitted playground draft (``True``); it is inferred from whether
+    a stored revision was referenced. All fields optional and best-effort: the service fills what
+    it holds and omits the rest."""
+
+    artifact: Optional[RunContextReference] = None
+    variant: Optional[RunContextReference] = None
+    revision: Optional[RunContextReference] = None
+    is_draft: Optional[bool] = None
+
+
+class RunContextTrace(BaseModel):
+    """The current run's own trace identity (direct-call tools, Phase 3a).
+
+    A tool that acts on the run's own trace (e.g. "annotate my trace") binds
+    ``$ctx.trace.trace_id`` into its request body server-side."""
+
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
+
+
+class RunContext(BaseModel):
+    """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
+    Phase 3a; see ``projects/direct-call-tools/run-context.md``).
+
+    The service computes this from the invocation's own trace + workflow identity and sends it on
+    the ``/run`` request. It is consumed ONLY by a tool's ``call.context`` binding: the runner
+    fills bound request fields from this blob at dispatch, server-side and hidden from the model.
+    The model never reads run context directly.
+
+    The inner keys are deliberately snake_case (``workflow.variant.id``, ``trace.trace_id``): they
+    are the binding NAMESPACE that a catalog entry's ``$ctx.<dotted.path>`` token addresses, so
+    they match those tokens exactly rather than the wire's camelCase convention. The conversation
+    id is NOT carried here — it rides the top-level ``sessionId`` field, and the runner owns the
+    live id across turns; duplicating it in run context would only let it go stale. ``to_wire``
+    emits only the sub-objects/fields that are set, so a run with no identity yields an empty blob
+    (and the serializer omits the key entirely)."""
+
+    workflow: Optional[RunContextWorkflow] = None
+    trace: Optional[RunContextTrace] = None
+
+    def to_wire(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        if self.workflow is not None:
+            workflow: Dict[str, Any] = {}
+            for entity in ("artifact", "variant", "revision"):
+                reference = getattr(self.workflow, entity)
+                if reference is not None:
+                    fields = {
+                        key: value
+                        for key, value in reference.model_dump().items()
+                        if value is not None
+                    }
+                    if fields:
+                        workflow[entity] = fields
+            if self.workflow.is_draft is not None:
+                workflow["is_draft"] = self.workflow.is_draft
+            if workflow:
+                out["workflow"] = workflow
+        if self.trace is not None:
+            trace = {
+                key: value
+                for key, value in self.trace.model_dump().items()
+                if value is not None
+            }
+            if trace:
+                out["trace"] = trace
+        return out
+
+
 # ---------------------------------------------------------------------------
 # Run result
 # ---------------------------------------------------------------------------
@@ -801,6 +893,10 @@ class SessionConfig(BaseModel):
     resolved_connection: Optional[ResolvedConnection] = None
     permission_policy: PermissionPolicy = "auto"
     trace: Optional[TraceContext] = None
+    # The run's own context (trace + variant identity), refreshed per turn and consumed only by a
+    # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted from the
+    # wire when unset, so a run that needs no binding is byte-identical to before.
+    run_context: Optional[RunContext] = None
     session_id: Optional[str] = None
     builtin_names: List[str] = Field(
         default_factory=list,
