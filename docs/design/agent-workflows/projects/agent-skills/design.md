@@ -19,9 +19,10 @@ build. Two are deep dives on the hardest sub-flows.
 | `discover-and-wire-tools` | Find action tools and get their integrations connected. | A tested draft. Promote and adapt. |
 | `set-up-triggers` | Set up a cron job or an event trigger, and test it. | New. |
 
-The skills reach the agent through the playground build kit, injected at run time and never
-committed. They are not an `@ag.embed` in the committed config. The `default-agent-config`
-project owns that mechanism; this project owns the skill content, the names, and the slugs.
+The skills reach the agent through the build-kit overlay, as `@ag.embed` entries the frontend
+applies for a playground run and excludes on commit. They are not an `@ag.embed` in the committed
+config. The `default-agent-config` project owns that overlay; this project owns the skill content,
+the names, and the slugs.
 
 We do not have the final skill prose yet. We know what each skill must teach. So this design
 fixes the set, the naming, and the contracts, and ships placeholder bodies that capture the
@@ -60,7 +61,7 @@ own it guesses the sequence. The skills turn "build me an app" into a guided flo
 So this project owns the skill content and the skill naming. It does not own three things it
 leans on, and only references them:
 
-- Which skills reach a new agent, and the inject mechanism.
+- Which skills reach a new agent, and the build-kit overlay mechanism.
   Owned by [`../default-agent-config/`](../default-agent-config/design.md).
 - The build-flow tools the skills name (`find_capabilities`, `commit_revision`,
   `create_schedule`, `create_subscription`, and the rest). Most do not exist yet.
@@ -74,10 +75,11 @@ reopen them:
 
 - The agent becomes the app. Self-modification only. The agent edits and commits itself. It does
   not build other workflows in this round.
-- Defaults are injected, not committed. The platform tools and the build skills are a build aid
-  the playground injects for the run. The commit writes only the user's own config.
-- Skills arrive by inject, not by force. `AGENTA_FORCED_SKILLS` goes empty. The force mechanism
-  stays in the code for a future skill that carries real functionality.
+- Defaults ride a build-kit overlay, not the committed config. The platform tools and the build
+  skills are a build aid the frontend applies for the run. The commit writes only the user's own
+  config.
+- Skills reach a run as `@ag.embed` entries in that overlay. The published default is bare, so a
+  skill is present only because the overlay carries its embed.
 
 ## 2. From the build flow to the skill set
 
@@ -306,39 +308,46 @@ delivery with `list_deliveries`. Tell the user what fired and what it produced.
 
 # Part B. How does a skill reach the agent?
 
-## 4. The delivery model: inject, do not commit
+## 4. The delivery model: the build-kit overlay
 
 This is the part that changed most since the first draft, and the part to coordinate with
 `default-agent-config`. The first draft said the build skills reach the agent as an `@ag.embed`
 in the committed default config. That is no longer how it works.
 
-The current model is inject, not commit. The platform tools and the build skills are a build aid,
-not part of the user's shipped agent. So the playground injects them for the run, and the commit
-writes only the user's own config.
+The current model is a build-kit overlay. The build kit is an agent-template overlay, a partial
+`parameters.agent` the backend serves read-only on the inspect response at
+`additional_context.playground_build_kit.agent_template_overlay`. The platform tools and the build
+skills are a build aid, not part of the user's shipped agent. The frontend applies the overlay for
+a playground run and excludes it on commit. `default-agent-config` owns the overlay.
 
-- The build skills ride the playground build kit, alongside the platform tools and the build
-  permissions. The kit is a backend-defined set with one source of truth.
+- The build skills ride the overlay's `skills` list, alongside the platform tools and the build
+  permissions. The overlay is a backend-defined set with one source of truth.
   See [`../default-agent-config/design.md`](../default-agent-config/design.md).
-- At run time, when the build kit is on, the backend merges the kit's skills into the effective
-  config before skill resolution. The agent runs with the build skills present.
-- The commit writes only the user's config. The build skills are never in the stored revision,
-  so there is nothing to strip. They are absent by construction.
-- The playground shows the injected skills read-only in the Advanced drawer, marked removed on
-  commit. That drawer is owned by [`../advanced-build-kit/design.md`](../advanced-build-kit/design.md).
+- Each build skill is an ordinary `@ag.embed` reference in that list, of the shape
+  `{ "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__..." } } } }`. The reference
+  identifies the skill, which carries its own name and description.
+- On a kit-on run, the frontend applies the overlay onto a throwaway copy of `parameters.agent`:
+  object fields deep-merge, list fields identity-merge. The build skills join whatever the user
+  authored. The agent service stays dumb: there is no run flag and no service-side merge.
+- The commit excludes the overlay. The build skills are never in the stored revision, so there is
+  nothing to strip. They are absent by construction.
+- The playground shows the overlay's skills read-only in the Advanced drawer, marked removed on
+  commit. That drawer is folded into [`../default-agent-config/design.md`](../default-agent-config/design.md).
 
-The kit references each build skill by its stable slug. The kit's `skills` group carries one row
-per build skill: the slug, the display name, and the description. This project supplies those
-slugs, names, and descriptions; the kit reads them.
+The overlay references each build skill by its stable slug, through the `@ag.embed` shape above.
+The reference carries no parallel `key`, `name`, or `description`; the skill carries those itself.
+This project supplies the slugs and registers each skill in the static catalog; the overlay
+embeds them.
 
 A user-added skill is different. A user can still add their own skill the normal way: an inline
 `SkillTemplate`, or an `@ag.embed` reference, in the committed `skills` list. Those are committed
 and shipped. The build skills are not. The two paths stay separate, and that separation is the
 whole point: Agenta's build aid never leaks into the user's published agent.
 
-One open coordination point (section 7): `default-agent-config` currently describes the kit as
-carrying a single "authoring skill," while this design needs the kit to carry the full build set,
-because the orchestrator references the focused skills and they must be co-present. The kit's
-`skills` group is an array, so it can carry all four. Confirm the kit injects the set.
+One open coordination point (section 7): `default-agent-config` currently describes the overlay as
+carrying a single "authoring skill," while this design needs it to carry the full build set,
+because the orchestrator references the focused skills and they must be co-present. The overlay's
+`skills` list is an array, so it can carry all four. Confirm the overlay carries the set.
 
 ## 5. Naming
 
@@ -387,8 +396,9 @@ The keys a skill example must use, old on the left, current on the right:
 | `tools` | `tools` (unchanged, flat on the template) | `dtos.py` |
 | `skills` | `skills` (unchanged, flat on the template) | `dtos.py` |
 
-The harness kind values are unchanged: `pi_core`, `pi_agenta`, `claude`. The runner block is new:
-`runner.kind = "sidecar"` and `runner.interactions.headless` is `"auto"` or `"deny"`.
+The harness kind values are unchanged by the rename; `harness.kind` still carries the bare
+selector. The runner block is new: `runner.kind = "sidecar"` and `runner.interactions.headless`
+is `"auto"` or `"deny"`.
 
 Which skill carries naming debt:
 
@@ -411,7 +421,7 @@ How does a skill declare which tools it teaches? It does not, and it should not.
   general harness skill standard. Pi, Claude, OpenCode, and Antigravity all read the same
   frontmatter. A skill is content and metadata. It grants no tools and carries no behavior. We
   keep it a general standard.
-- A skill names its tools in prose, in its body. The build kit injects the build skills and the
+- A skill names its tools in prose, in its body. The overlay carries the build skills and the
   platform tools together, so they arrive co-present at run time. If a tool a skill names is
   absent, the agent simply cannot call it. Nothing in the skill breaks. The harness exposes
   whatever tools it has, and the skill is plain Markdown either way.
@@ -430,16 +440,14 @@ How does a skill declare which tools it teaches? It does not, and it should not.
   the human-readable copies at all (section 8).
 - Promote `discover-and-wire-tools` to a platform skill with the section-3.3 edits.
 - Single-source the `agenta-getting-started` body (section 3.1).
-- Supply the kit's skill rows (slug, name, description) for the build set, for the inject path and
-  the drawer to read.
-- Set `AGENTA_FORCED_SKILLS = []`
-  (`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py:104`), and
-  keep the `force_skills` machinery for a future skill that carries real functionality.
+- Supply each build skill's reserved slug, registered in the static catalog, so the overlay can
+  embed it by `@ag.embed` reference. The skill carries its own name and description; the overlay
+  adds none.
 
 **Frontend (Arda):**
 
-- The Advanced drawer renders the injected build skills read-only, in the build-kit section,
-  marked removed on commit. Owned by [`../advanced-build-kit/design.md`](../advanced-build-kit/design.md).
+- The Advanced drawer renders the overlay's build skills read-only, in the build-kit section,
+  marked removed on commit. Folded into [`../default-agent-config/design.md`](../default-agent-config/design.md).
   The skills only depend on it.
 - The connection round-trip the build skills reference (surface the sign-in link, pause, resume).
   Owned by [`../agent-fe-roundtrip/design.md`](../agent-fe-roundtrip/design.md). The skills
@@ -458,9 +466,9 @@ How does a skill declare which tools it teaches? It does not, and it should not.
    into the preamble, and drop the separate behavior skill, once we confirm nothing else depends
    on the slug.
 
-3. **Does the kit inject the full build set.** `default-agent-config` describes the kit as
+3. **Does the overlay carry the full build set.** `default-agent-config` describes the overlay as
    carrying one authoring skill; this design needs all of the build skills present so the
-   orchestrator can reference the focused ones (section 4). Confirm the kit's `skills` group
+   orchestrator can reference the focused ones (section 4). Confirm the overlay's `skills` list
    carries the set.
 
 4. **Single-sourcing the getting-started body.** The body lives twice today: the SDK constant
