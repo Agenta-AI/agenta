@@ -6,7 +6,7 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
-class OssSrcModelsApiOrganizationModelsOrganization(UniversalBaseModel):
+class Organization(UniversalBaseModel):
     id: str
     slug: typing.Optional[str] = None
     name: typing.Optional[str] = None

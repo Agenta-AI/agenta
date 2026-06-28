@@ -523,6 +523,39 @@ class TriggersClient:
         _response = self._raw_client.query_trigger_subscriptions(subscription=subscription, windowing=windowing, request_options=request_options)
         return _response.data
     
+    def test_trigger_subscription(self, *, subscription: TriggerSubscriptionCreate, request_options: typing.Optional[RequestOptions] = None) -> TriggerDeliveryResponse:
+        """
+        Parameters
+        ----------
+        subscription : TriggerSubscriptionCreate
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        TriggerDeliveryResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi, TriggerSubscriptionCreate, TriggerSubscriptionData
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.triggers.test_trigger_subscription(
+            subscription=TriggerSubscriptionCreate(
+                connection_id="connection_id",
+                data=TriggerSubscriptionData(
+                    event_key="event_key",
+                ),
+            ),
+        )
+        """
+        _response = self._raw_client.test_trigger_subscription(subscription=subscription, request_options=request_options)
+        return _response.data
+    
     def refresh_trigger_subscription(self, subscription_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TriggerSubscriptionResponse:
         """
         Parameters
@@ -1658,6 +1691,51 @@ class AsyncTriggersClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.query_trigger_subscriptions(subscription=subscription, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    async def test_trigger_subscription(self, *, subscription: TriggerSubscriptionCreate, request_options: typing.Optional[RequestOptions] = None) -> TriggerDeliveryResponse:
+        """
+        Parameters
+        ----------
+        subscription : TriggerSubscriptionCreate
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        TriggerDeliveryResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import (
+            AsyncAgentaApi,
+            TriggerSubscriptionCreate,
+            TriggerSubscriptionData,
+        )
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.triggers.test_trigger_subscription(
+                subscription=TriggerSubscriptionCreate(
+                    connection_id="connection_id",
+                    data=TriggerSubscriptionData(
+                        event_key="event_key",
+                    ),
+                ),
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.test_trigger_subscription(subscription=subscription, request_options=request_options)
         return _response.data
     
     async def refresh_trigger_subscription(self, subscription_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TriggerSubscriptionResponse:

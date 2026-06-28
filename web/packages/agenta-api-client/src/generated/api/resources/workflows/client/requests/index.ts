@@ -3,6 +3,7 @@ export type { ArchiveWorkflowRequest } from "./ArchiveWorkflowRequest.js";
 export type { ArchiveWorkflowRevisionRequest } from "./ArchiveWorkflowRevisionRequest.js";
 export type { ArchiveWorkflowVariantRequest } from "./ArchiveWorkflowVariantRequest.js";
 export type { FetchSimpleWorkflowRequest } from "./FetchSimpleWorkflowRequest.js";
+export type { FetchWorkflowCatalogHarnessRequest } from "./FetchWorkflowCatalogHarnessRequest.js";
 export type { FetchWorkflowCatalogPresetRequest } from "./FetchWorkflowCatalogPresetRequest.js";
 export type { FetchWorkflowCatalogTemplateRequest } from "./FetchWorkflowCatalogTemplateRequest.js";
 export type { FetchWorkflowCatalogTypeRequest } from "./FetchWorkflowCatalogTypeRequest.js";

@@ -4,8 +4,6 @@ export interface SimpleEvaluatorFlags {
     is_application?: boolean | undefined;
     is_evaluator?: boolean | undefined;
     is_snippet?: boolean | undefined;
-    is_skill?: boolean | undefined;
-    is_platform?: boolean | undefined;
     is_managed?: boolean | undefined;
     is_custom?: boolean | undefined;
     is_llm?: boolean | undefined;
@@ -13,8 +11,11 @@ export interface SimpleEvaluatorFlags {
     is_code?: boolean | undefined;
     is_match?: boolean | undefined;
     is_feedback?: boolean | undefined;
+    is_agent?: boolean | undefined;
+    is_skill?: boolean | undefined;
     is_chat?: boolean | undefined;
     has_url?: boolean | undefined;
     has_script?: boolean | undefined;
     has_handler?: boolean | undefined;
+    is_static?: boolean | undefined;
 }
