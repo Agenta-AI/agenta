@@ -1698,6 +1698,11 @@ export function AgentConfigControl({
                     No agent configuration fields are available for this schema.
                 </Typography.Text>
             ) : layout === "tabs" ? (
+                // Tabs renders each section's body inline (it does not thread `onOpen`). For the two
+                // drawer sections (Model & harness, Advanced) that means live editing without the
+                // drawer's draft/cancel — intentional: Tabs is a non-default, see-everything layout,
+                // and live edits match the rest of the playground (edit → dirty → commit). The
+                // draft/cancel drawer is an accordion/cards nicety, not a correctness requirement.
                 <Tabs
                     items={sections.map((s) => ({
                         key: s.key,
