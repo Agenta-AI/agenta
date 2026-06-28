@@ -36,17 +36,19 @@ export function buildPiExtensionEnv(
   opts: { relayDir?: string; usageOutPath?: string; skills?: string[] } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
-  const trace = tracing ? request.trace : undefined;
-  if (trace?.traceparent) env.TRACEPARENT = trace.traceparent;
-  if (trace?.endpoint) env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = trace.endpoint;
-  if (trace?.authorization)
-    env.OTEL_EXPORTER_OTLP_HEADERS = `Authorization=${trace.authorization}`;
-  if (trace && trace.captureContent === false)
+  const propagation = tracing ? request.context?.propagation : undefined;
+  const telemetry = tracing ? request.telemetry : undefined;
+  const otlp = telemetry?.exporters?.otlp;
+  if (propagation?.traceparent) env.TRACEPARENT = propagation.traceparent;
+  if (otlp?.endpoint) env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = otlp.endpoint;
+  if (otlp?.headers?.authorization)
+    env.OTEL_EXPORTER_OTLP_HEADERS = `Authorization=${otlp.headers.authorization}`;
+  if (telemetry?.capture?.content?.enabled === false)
     env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED = "false";
   // The skills that materialized for this run (author + forced `_agenta.*`), so Pi's own agent
   // span records which skills loaded (F-029). Only set under tracing (the extension's only span
   // consumer); a JSON array string the extension parses.
-  if (trace && opts.skills && opts.skills.length > 0)
+  if (telemetry && opts.skills && opts.skills.length > 0)
     env.AGENTA_AGENT_SKILLS_LOADED = JSON.stringify(opts.skills);
 
   const specs = publicToolSpecs(

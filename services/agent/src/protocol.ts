@@ -33,16 +33,42 @@ export interface ChatMessage {
 }
 
 /**
- * Trace context threaded in from the Agenta service so the agent run joins the caller's
- * /invoke trace instead of starting its own. All fields optional; with none set the run is
- * traced standalone (or not at all) using env config.
+ * W3C trace-context propagation threaded in from the Agenta service so the agent run joins the
+ * caller's /invoke trace instead of starting its own. `traceparent` / `baggage` are the standard
+ * W3C propagation headers, kept verbatim. This is per-call protocol CONTEXT (it changes every
+ * turn) — distinct from the operator-owned `telemetry` config (where spans export, what is
+ * captured) and from `runContext` (the run's own resource identity, bound into tool requests).
+ * All fields optional; with none set the run is traced standalone (or not at all) using env config.
  */
-export interface TraceContext {
+export interface Propagation {
   traceparent?: string;
   baggage?: string;
+}
+
+export interface RequestContext {
+  propagation?: Propagation;
+}
+
+/**
+ * How this run's telemetry behaves: where spans are exported and what may be captured. This is
+ * operator/policy-owned CONFIG, distinct from the per-call propagation `context` above.
+ *
+ *  - `capture.content.enabled` is the capture POLICY: default on; `false` strips message and tool
+ *    content from the exported spans.
+ *  - `exporters.otlp` is the OTLP destination: `endpoint` is the traces URL, and `headers` carries
+ *    the exporter CREDENTIAL under the standard `authorization` header (kept verbatim), so the
+ *    secret lives under the thing it authenticates rather than as a free-floating field.
+ *
+ * All fields optional; an absent endpoint/headers falls back to the runner's env config.
+ */
+export interface OtlpExporter {
   endpoint?: string;
-  authorization?: string;
-  captureContent?: boolean;
+  headers?: Record<string, string>;
+}
+
+export interface Telemetry {
+  capture?: { content?: { enabled?: boolean } };
+  exporters?: { otlp?: OtlpExporter };
 }
 
 /**
@@ -415,8 +441,17 @@ export interface AgentRunRequest {
    * first-party wire field plus runner-side translation.
    */
   harnessFiles?: Array<{ path: string; content: string }>;
-  /** Tracing: thread the Agenta trace context across the boundary. */
-  trace?: TraceContext;
+  /**
+   * W3C trace-context propagation: nests the run under the caller's /invoke span so the agent's
+   * work joins the same trace (see `service-and-runner-trace-export.md`). Per-call context; the
+   * run's own resource identity rides `runContext`, and the exporter config rides `telemetry`.
+   */
+  context?: RequestContext;
+  /**
+   * Telemetry config: where this run's spans export (`exporters.otlp`) and the content-capture
+   * policy (`capture.content.enabled`). Operator/policy-owned; falls back to the runner's env.
+   */
+  telemetry?: Telemetry;
   /**
    * The run's own context (trace + variant identity), refreshed per turn (direct-call tools,
    * Phase 3a). Consumed only by a tool's `call.context` binding at dispatch — the runner fills the

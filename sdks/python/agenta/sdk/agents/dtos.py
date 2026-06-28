@@ -356,9 +356,22 @@ EventSink = Callable[[Event], None]
 
 
 class TraceContext(BaseModel):
-    """Agenta trace context threaded into a harness run, so it nests under the caller's
-    workflow span. All fields optional; with none set the run traces standalone (or not at
-    all), the standalone-SDK case."""
+    """The run's tracing inputs, captured once per turn and serialized into TWO role-separated wire
+    objects (this is one capture, not one wire field).
+
+    The fields below are the flat capture (what the service reads off the active span and env), but
+    they play three different roles, so they ride the wire grouped by role rather than in one
+    ``trace`` bucket (see the trace/telemetry interface restructure):
+
+    - ``traceparent`` / ``baggage`` are per-call protocol CONTEXT (the W3C trace-context propagation
+      headers, kept verbatim). They ride ``context.propagation`` via :meth:`context_to_wire`.
+    - ``endpoint`` / ``authorization`` / ``capture_content`` are operator-owned telemetry CONFIG +
+      POLICY + CREDENTIAL: where spans export, what is captured, and the exporter auth. They ride
+      ``telemetry`` via :meth:`telemetry_to_wire`, with the credential nested under the exporter's
+      ``headers`` rather than as a free-floating field.
+
+    All fields optional; with none set the run traces standalone (or not at all), the
+    standalone-SDK case."""
 
     traceparent: Optional[str] = None
     baggage: Optional[str] = None
@@ -366,13 +379,28 @@ class TraceContext(BaseModel):
     authorization: Optional[str] = None  # full Authorization header value
     capture_content: bool = True
 
-    def to_wire(self) -> Dict[str, Any]:
+    def context_to_wire(self) -> Dict[str, Any]:
+        """The per-call propagation CONTEXT (W3C ``traceparent`` / ``baggage``), grouped under
+        ``context.propagation`` so it reads as protocol context, not config."""
         return {
-            "traceparent": self.traceparent,
-            "baggage": self.baggage,
-            "endpoint": self.endpoint,
-            "authorization": self.authorization,
-            "captureContent": self.capture_content,
+            "propagation": {
+                "traceparent": self.traceparent,
+                "baggage": self.baggage,
+            }
+        }
+
+    def telemetry_to_wire(self) -> Dict[str, Any]:
+        """The telemetry CONFIG: the capture POLICY (``capture.content.enabled``) and the OTLP
+        exporter destination (``exporters.otlp.endpoint``) with the CREDENTIAL nested under the
+        exporter's standard ``authorization`` header."""
+        return {
+            "capture": {"content": {"enabled": self.capture_content}},
+            "exporters": {
+                "otlp": {
+                    "endpoint": self.endpoint,
+                    "headers": {"authorization": self.authorization},
+                }
+            },
         }
 
 
