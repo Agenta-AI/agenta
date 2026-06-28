@@ -181,7 +181,10 @@ from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.dbs.postgres.sessions.interactions.dbes import InteractionDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.interactions.dao import InteractionsDAO
 from oss.src.core.sessions.interactions.service import InteractionsService
-from oss.src.tasks.asyncio.sessions.interactions_worker import InteractionsWorker
+from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
+    InteractionsDispatcher,
+)
+from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
 
 # Transcripts DAO (analytics DB)
 from oss.src.dbs.postgres.sessions.transcripts.dao import TranscriptsDAO
@@ -770,10 +773,25 @@ async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
     return result.run_id
 
 
-interactions_worker = InteractionsWorker(
+# Producer side of the interactions pipeline: the respond route enqueues
+# `interactions.respond` tasks here; entrypoints/worker_interactions.py consumes them.
+_interactions_broker = RedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:interactions",
+    consumer_group_name="api-interactions-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
     dispatch_fn=_dispatch_detached_run,
+)
+
+_interactions_worker = InteractionsWorker(
+    broker=_interactions_broker,
+    dispatcher=_interactions_dispatcher,
 )
 
 # Producer side of the inbound dispatch pipeline: the ingress route enqueues
@@ -984,7 +1002,7 @@ sessions = SessionsRouter(
     interactions_service=interactions_service,
     workflows_service=workflows_service,
     session_mounts_service=session_mounts_service,
-    interactions_worker=interactions_worker,
+    respond_task=_interactions_worker.respond_interaction,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------

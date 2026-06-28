@@ -1,11 +1,13 @@
-"""Unit tests for InteractionsWorker — blocking and detached dispatch paths."""
+"""Unit tests for InteractionsDispatcher — blocking and detached dispatch paths."""
 
 from types import SimpleNamespace
 from uuid import uuid4
 
 from unittest.mock import AsyncMock, MagicMock
 
-from oss.src.tasks.asyncio.sessions.interactions_worker import InteractionsWorker
+from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
+    InteractionsDispatcher,
+)
 
 
 def _make_interaction(*, with_refs=True):
@@ -39,7 +41,7 @@ async def test_respond_fallback_calls_invoke_when_no_dispatch_fn():
     workflows_service = MagicMock()
     workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
 
-    worker = InteractionsWorker(
+    worker = InteractionsDispatcher(
         workflows_service=workflows_service,
         interactions_service=interactions_service,
     )
@@ -70,7 +72,7 @@ async def test_respond_detached_calls_dispatch_fn_not_invoke():
 
     dispatch_fn = AsyncMock(return_value="run-xyz")
 
-    worker = InteractionsWorker(
+    worker = InteractionsDispatcher(
         workflows_service=workflows_service,
         interactions_service=interactions_service,
         dispatch_fn=dispatch_fn,

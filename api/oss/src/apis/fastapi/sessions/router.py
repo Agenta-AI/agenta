@@ -13,10 +13,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from typing import Optional, Union, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from oss.src.tasks.asyncio.sessions.interactions_worker import InteractionsWorker
+from typing import Any, Optional, Union
 
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -548,11 +545,11 @@ class InteractionsRouter:
         *,
         interactions_service: InteractionsService,
         workflows_service: WorkflowsService,
-        interactions_worker: Optional["InteractionsWorker"] = None,
+        respond_task: Optional[Any] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
-        self.interactions_worker = interactions_worker
+        self.respond_task = respond_task
 
         self.router = APIRouter()
         self.admin_router = APIRouter()
@@ -712,15 +709,15 @@ class InteractionsRouter:
 
         answer = body.answer or {}
 
-        # Respond fires through the interactions worker (detached, off the API request thread):
-        # the worker re-authorizes the stored refs at fire time and hands the run to the runner
-        # without awaiting completion. Fall back to the inline blocking invoke only when no worker
-        # is wired (keeps the route usable in minimal/test compositions).
-        if self.interactions_worker is not None:
-            await self.interactions_worker.respond(
-                project_id=project_id,
-                user_id=user_id,
-                interaction_id=interaction_id,
+        # Respond is enqueued onto the interactions worker (detached, off the API request
+        # thread): worker-interactions re-authorizes the stored refs at fire time and hands
+        # the run to the runner without awaiting completion. Fall back to the inline blocking
+        # invoke only when no worker is wired (keeps the route usable in minimal/test compositions).
+        if self.respond_task is not None:
+            await self.respond_task.kiq(
+                project_id=str(project_id),
+                user_id=str(user_id),
+                interaction_id=str(interaction_id),
                 answer=answer,
             )
             return InteractionResponse(count=1, interaction=interaction)
@@ -834,7 +831,7 @@ class SessionsRouter:
         interactions_service: InteractionsService,
         workflows_service: WorkflowsService,
         session_mounts_service: SessionMountsService,
-        interactions_worker: Optional["InteractionsWorker"] = None,
+        respond_task: Optional[Any] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(service=streams_service)
         self.states = SessionStatesRouter(session_states_service=states_service)
@@ -842,7 +839,7 @@ class SessionsRouter:
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,
             workflows_service=workflows_service,
-            interactions_worker=interactions_worker,
+            respond_task=respond_task,
         )
         self.mounts = SessionMountsRouter(
             session_mounts_service=session_mounts_service,

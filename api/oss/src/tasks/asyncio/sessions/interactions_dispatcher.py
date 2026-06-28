@@ -14,8 +14,8 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
-class InteractionsWorker:
-    """Respond-via-invoke worker. When dispatch_fn is supplied, fires detached (no blocking await)."""
+class InteractionsDispatcher:
+    """Respond-via-invoke logic. When dispatch_fn is supplied, fires detached (no blocking await)."""
 
     def __init__(
         self,

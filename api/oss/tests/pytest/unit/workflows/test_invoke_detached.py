@@ -196,13 +196,15 @@ async def test_invoke_workflow_batch_still_returns_400_when_no_service_url():
 
 def test_dispatch_fn_injected_into_both_consumers():
     """The entrypoint wires a real dispatch_fn into both detached consumers."""
-    from oss.src.tasks.asyncio.sessions.interactions_worker import InteractionsWorker
+    from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
+        InteractionsDispatcher,
+    )
     from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 
     async def _dispatch(*, project_id, user_id, request):
         return "run-1"
 
-    worker = InteractionsWorker(
+    worker = InteractionsDispatcher(
         workflows_service=SimpleNamespace(),
         interactions_service=SimpleNamespace(),
         dispatch_fn=_dispatch,
