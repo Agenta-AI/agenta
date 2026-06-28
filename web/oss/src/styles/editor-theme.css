@@ -848,7 +848,10 @@ pre::-webkit-scrollbar-thumb {
     padding: 1px 5px;
     font-size: 86%;
 }
-.md-prose .editor-code {
+/* The shared `.editor-inner:not(.code-editor) .editor-code` rule (specificity 0-3-0) sets an 8px
+   padding + light fill and would beat a plain `.md-prose .editor-code` (0-2-0). Scope this to the
+   rendered input (`:not(.markdown-view)`, so source view is untouched) to reach 0-4-0 and win. */
+.md-prose .editor-input:not(.markdown-view) .editor-code {
     display: block;
     background-color: var(--ant-color-fill-quaternary);
     border: 0.5px solid var(--ant-color-border-secondary);
