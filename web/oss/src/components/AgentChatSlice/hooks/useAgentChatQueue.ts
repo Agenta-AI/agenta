@@ -27,9 +27,20 @@ interface UseAgentChatQueueArgs {
 export const useAgentChatQueue = ({status, messages, sendQueued}: UseAgentChatQueueArgs) => {
     const [queued, setQueued] = useState<QueuedMessage[]>([])
 
-    const enqueue = useCallback((item: {text: string; fileParts?: FileUIPart[]}) => {
-        setQueued((q) => [...q, {...item, id: generateId()}])
-    }, [])
+    // Single entry point for a user message: send it now only when the queue is empty AND the turn
+    // is releasable — the same gate the release effect uses. Otherwise append, so a new message
+    // never jumps ahead of older queued ones (and never fires into a busy/HITL/errored turn).
+    const submit = useCallback(
+        (item: {text: string; fileParts?: FileUIPart[]}) => {
+            const message: QueuedMessage = {...item, id: generateId()}
+            if (queued.length === 0 && canReleaseQueuedMessage(status, messages)) {
+                sendQueued(message)
+            } else {
+                setQueued((q) => [...q, message])
+            }
+        },
+        [queued, status, messages, sendQueued],
+    )
 
     const removeQueued = useCallback((id: string) => {
         setQueued((q) => q.filter((m) => m.id !== id))
@@ -56,7 +67,7 @@ export const useAgentChatQueue = ({status, messages, sendQueued}: UseAgentChatQu
 
     return {
         queued,
-        enqueue,
+        submit,
         removeQueued,
         clearQueue,
         /** The conversation is paused on a HITL approval — typed messages should queue, not send. */

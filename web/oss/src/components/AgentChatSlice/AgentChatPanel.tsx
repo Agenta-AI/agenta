@@ -192,7 +192,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval).
-    const {queued, enqueue, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
+    const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
         status,
         messages,
         sendQueued,
@@ -290,23 +290,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             .filter((f): f is File => Boolean(f))
         if (!trimmed && fileObjs.length === 0) return
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
-        // A turn is in flight (or paused on a HITL approval) — queue this message instead of
-        // sending; `useAgentChatQueue` releases it after the turn settles. Otherwise send now.
-        if (busy || hitlPending) {
-            enqueue({text: trimmed, fileParts})
-        } else {
-            stickRef.current = true
-            setShowJump(false)
-            // Swallow the rejection — a stream error/abort is already surfaced via `onError` and
-            // the in-chat `error` alert; without this it bubbles to the Next.js dev overlay (F-033).
-            sendMessage(
-                fileParts
-                    ? trimmed
-                        ? {text: trimmed, files: fileParts}
-                        : {files: fileParts}
-                    : {text: trimmed},
-            ).catch(ignoreStreamRejection)
-        }
+        // One path: `submit` sends now or queues behind held messages via the shared release gate.
+        submit({text: trimmed, fileParts})
         setInput("")
         setFiles([])
         setAttachmentsOpen(false)
@@ -432,7 +417,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 // (see `handleSubmit`); stopping the stream lives in the footer below instead.
                 onSubmit={handleSubmit}
                 footer={
-                    busy || queued.length > 0 ? (
+                    busy || hitlPending || queued.length > 0 ? (
                         <div className="flex items-center justify-between gap-2">
                             {/* Left: collapsed queue pill → popover (fixed footprint at any size). */}
                             {queued.length > 0 ? (

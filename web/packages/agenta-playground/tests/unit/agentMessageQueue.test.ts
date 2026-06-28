@@ -98,6 +98,16 @@ describe("canReleaseQueuedMessage", () => {
         ).toBe(false)
     })
 
+    it("does NOT release in the pre-resume window after a denial is answered", () => {
+        // Deny also resumes (the runner gets the denial round-trip), so the queue must hold here too.
+        expect(
+            canReleaseQueuedMessage("ready", [
+                user("do it"),
+                assistantWithTool("approval-responded", false),
+            ]),
+        ).toBe(false)
+    })
+
     it("releases once the approved tool has produced output and the turn settled", () => {
         expect(
             canReleaseQueuedMessage("ready", [
