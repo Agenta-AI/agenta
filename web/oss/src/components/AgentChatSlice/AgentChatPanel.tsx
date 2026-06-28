@@ -129,6 +129,40 @@ const atLiveEdge = (el: HTMLElement): boolean => {
     return last.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom < 24
 }
 
+/**
+ * One message row. Carries `data-mid` (load-bearing for the pin / anchor / ResizeObserver, which all
+ * query it). A message added after mount (`enter`) fades in — OPACITY ONLY, deliberately: opacity
+ * doesn't change geometry, so it can't move the scroll position or trip the SC-3 ResizeObserver. A
+ * restored thread's messages render with `enter=false` (no cascade). Honors reduced-motion: the
+ * initial transparency and the transition are both `motion-safe`, so it's instant-visible otherwise.
+ */
+const MessageRow = ({
+    mid,
+    enter,
+    children,
+}: {
+    mid: string
+    enter: boolean
+    children: React.ReactNode
+}) => {
+    const [shown, setShown] = useState(!enter)
+    useEffect(() => {
+        if (!enter) return
+        const raf = requestAnimationFrame(() => setShown(true))
+        return () => cancelAnimationFrame(raf)
+    }, [enter])
+    return (
+        <div
+            data-mid={mid}
+            className={`flex flex-col gap-1 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out ${
+                shown ? "opacity-100" : "motion-safe:opacity-0"
+            }`}
+        >
+            {children}
+        </div>
+    )
+}
+
 const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
@@ -151,6 +185,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const [stopped, setStopped] = useState(false)
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    // Ids already on screen — restored/settled turns don't re-animate; only turns added live fade in.
+    const seenIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
 
     const senderRef = useRef<React.ComponentRef<typeof Sender>>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -356,6 +392,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         },
         [],
     )
+
+    // After each commit, mark on-screen messages as seen so they don't re-animate on later renders
+    // (e.g. streaming tokens). Done in an effect, not during render, so StrictMode's double invoke
+    // doesn't mark a brand-new message before its first paint and rob it of the fade.
+    useEffect(() => {
+        for (const m of messages) seenIdsRef.current.add(m.id)
+    }, [messages])
 
     useEffect(() => {
         if (stickRef.current) scrollToBottom()
@@ -615,8 +658,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     const renderMessage = (message: UIMessage, index: number) => {
         const isLast = index === messages.length - 1
+        // New since mount → fade in once. Mark seen immediately so a re-render mid-stream (tokens
+        // arriving) doesn't re-arm the animation; the row keeps its mounted state by key anyway.
+        // Don't mutate seenIdsRef here — that runs during render (unsafe under StrictMode's double
+        // invoke). Marking happens in an effect after commit.
+        const enter = !seenIdsRef.current.has(message.id)
         return (
-            <div key={message.id} data-mid={message.id} className="flex flex-col gap-1">
+            <MessageRow key={message.id} mid={message.id} enter={enter}>
                 <AgentMessage
                     message={message}
                     isStreaming={busy && isLast}
@@ -649,7 +697,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         </Button>
                     </div>
                 )}
-            </div>
+            </MessageRow>
         )
     }
 
