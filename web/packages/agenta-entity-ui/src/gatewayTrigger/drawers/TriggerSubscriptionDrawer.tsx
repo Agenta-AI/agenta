@@ -1,9 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
 import {
     isEntityActive,
     isEntityValid,
     previewValue,
+    queryTriggerDeliveries,
     resolveSelectorPreview,
     testTriggerSubscription,
     triggerApiErrorMessage,
@@ -12,6 +14,7 @@ import {
     useTriggerConnectionsQuery,
     useTriggerEvent,
     useTriggerSubscription,
+    useTriggerSubscriptions,
     type TriggerConnection,
     type TriggerDelivery,
     type TriggerSubscriptionCreate,
@@ -19,10 +22,25 @@ import {
     type TriggerSubscriptionEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Editor} from "@agenta/ui/editor"
-import {Lightning} from "@phosphor-icons/react"
-import {Button, Divider, Drawer, Form, Input, Select, Spin, Switch, Typography, message} from "antd"
-import {useAtom} from "jotai"
+import {Code, Lightning, Play} from "@phosphor-icons/react"
+import {
+    Button,
+    Divider,
+    Drawer,
+    Form,
+    Input,
+    Modal,
+    Segmented,
+    Select,
+    Spin,
+    Switch,
+    Tooltip,
+    Typography,
+    message,
+} from "antd"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import SchemaForm, {type SchemaFormHandle} from "../../gatewayTool/components/SchemaForm"
 import {
@@ -42,6 +60,34 @@ const DEFAULT_INPUTS_MAPPING = '{"context": "$"}'
 const applicationRevisionAdapter = createWorkflowRevisionAdapter({
     workflowListAtom: appWorkflowsListQueryStateAtom,
 })
+
+// Compact a JSON string for stable comparison (so formatting/whitespace don't
+// register as edits when computing the dirty state).
+function normalizeJson(text: string): string {
+    try {
+        return JSON.stringify(JSON.parse(text))
+    } catch {
+        return text
+    }
+}
+
+/**
+ * The bound revision id can live under any of three reference keys depending on how the
+ * subscription was created: `buildData` writes it as `application_variant`, while other flows
+ * use `application_revision` / `workflow_revision`. Read all three from one place so the write
+ * and read keys can't drift — otherwise a subscription created here reopens with no binding and
+ * fails "Bind a workflow" on the next edit.
+ */
+function extractBoundRevId(
+    refs: Record<string, {id?: string | null} | null | undefined> | null | undefined,
+): string | null {
+    return (
+        refs?.application_revision?.id ??
+        refs?.application_variant?.id ??
+        refs?.workflow_revision?.id ??
+        null
+    )
+}
 
 // ---------------------------------------------------------------------------
 // TriggerSubscriptionDrawer (root) — create or edit a subscription.
@@ -63,10 +109,10 @@ export default function TriggerSubscriptionDrawer() {
             open={open}
             onClose={handleClose}
             title={isEdit ? "Edit subscription" : "New subscription"}
-            width={640}
+            width={920}
             destroyOnClose
             styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
+                body: {padding: 0, display: "flex", overflow: "hidden"},
             }}
         >
             {state && (
@@ -96,7 +142,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
 
     const [name, setName] = useState("")
     const [connectionId, setConnectionId] = useState<string | undefined>(state?.connectionId)
-    const [eventKey, setEventKey] = useState("")
+    const [eventKey, setEventKey] = useState(state?.eventKey ?? "")
     const [enabled, setEnabled] = useState(true)
     const [workflowRevId, setWorkflowRevId] = useState<string | null>(null)
     const [workflowSelection, setWorkflowSelection] =
@@ -107,12 +153,92 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     const [inputsText, setInputsText] = useState(DEFAULT_INPUTS_MAPPING)
     const [inputsError, setInputsError] = useState<string | null>(null)
 
-    // Test = fire-and-inspect: create a transient is_test subscription, wait for
-    // the first captured event, show it. Independent of Save (separate row, torn
-    // down server-side). The binding is NOT required to test.
-    const [isTesting, setIsTesting] = useState(false)
-    const [testResult, setTestResult] = useState<TriggerDelivery | null>(null)
-    const testAbortRef = useRef<AbortController | null>(null)
+    // Run agent version: bind to a specific revision (the picker) or to an
+    // environment (always runs whatever is deployed there). Environment binding
+    // resolves via the app slug + environment (triggers/service.py).
+    const [bindMode, setBindMode] = useState<"revision" | "environment">("revision")
+    const [environmentSlug, setEnvironmentSlug] = useState<string | null>(null)
+    const [appSlug, setAppSlug] = useState<string | null>(null)
+    const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
+    const environments = envQuery.data?.environments ?? []
+
+    // FE guard for a backend limitation: Composio upserts one trigger instance per
+    // (connection, event), and `trigger_id` is unique — so testing/creating a second
+    // subscription for an event that already has one 500s. Detect it and disable Test.
+    const {subscriptions} = useTriggerSubscriptions()
+    const alreadySubscribed = useMemo(
+        () =>
+            Boolean(connectionId && eventKey) &&
+            subscriptions.some(
+                (s) =>
+                    s.id !== subscriptionId &&
+                    s.connection_id === connectionId &&
+                    s.data?.event_key === eventKey,
+            ),
+        [subscriptions, connectionId, eventKey, subscriptionId],
+    )
+
+    // Save is enabled only when the config differs from its starting point: the
+    // loaded subscription (edit) or the empty/prefilled defaults (new). Compared
+    // as normalized JSON so formatting doesn't count as a change.
+    const baselineSnapshot = useMemo(() => {
+        if (isEdit && subscription) {
+            const refs = subscription.data?.references
+            const envRef = refs?.environment
+            return JSON.stringify({
+                name: subscription.name ?? "",
+                connectionId: subscription.connection_id ?? null,
+                eventKey: subscription.data?.event_key ?? "",
+                enabled: isEntityActive(subscription),
+                bindMode: envRef ? "environment" : "revision",
+                environmentSlug: envRef?.slug ?? null,
+                workflowRevId: extractBoundRevId(refs),
+                inputs: subscription.data?.inputs_fields
+                    ? JSON.stringify(subscription.data.inputs_fields)
+                    : normalizeJson(DEFAULT_INPUTS_MAPPING),
+            })
+        }
+        return JSON.stringify({
+            name: "",
+            connectionId: state?.connectionId ?? null,
+            eventKey: state?.eventKey ?? "",
+            enabled: true,
+            bindMode: "revision",
+            environmentSlug: null,
+            workflowRevId: null,
+            inputs: normalizeJson(DEFAULT_INPUTS_MAPPING),
+        })
+    }, [isEdit, subscription, state?.connectionId, state?.eventKey])
+
+    const isDirty = useMemo(
+        () =>
+            baselineSnapshot !==
+            JSON.stringify({
+                name,
+                connectionId: connectionId ?? null,
+                eventKey,
+                enabled,
+                bindMode,
+                environmentSlug: environmentSlug ?? null,
+                workflowRevId: workflowRevId ?? null,
+                inputs: normalizeJson(inputsText),
+            }),
+        [
+            baselineSnapshot,
+            name,
+            connectionId,
+            eventKey,
+            enabled,
+            bindMode,
+            environmentSlug,
+            workflowRevId,
+            inputsText,
+        ],
+    )
+
+    // Only the right-hand TestPlaygroundPanel runs/captures events; the form just
+    // hands it the playground entityId (present only when opened from a playground).
+    const playgroundEntityId = state?.playgroundEntityId
 
     const [configForm] = Form.useForm()
     const configFormRef = useRef<SchemaFormHandle>(null)
@@ -124,18 +250,56 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         setConnectionId(subscription.connection_id)
         setEventKey(subscription.data?.event_key ?? "")
         setEnabled(isEntityActive(subscription))
-        const wfId =
-            subscription.data?.references?.application_revision?.id ??
-            subscription.data?.references?.workflow_revision?.id ??
-            null
-        setWorkflowRevId(wfId)
-        setWorkflowLabel(wfId)
+        const refs = subscription.data?.references
+        const envRef = refs?.environment
+        if (envRef) {
+            setBindMode("environment")
+            setEnvironmentSlug(envRef.slug ?? null)
+            setAppSlug(refs?.application?.slug ?? null)
+        } else {
+            const wfId = extractBoundRevId(refs)
+            setWorkflowRevId(wfId)
+            setWorkflowLabel(wfId)
+        }
         setInputsText(
             subscription.data?.inputs_fields
                 ? JSON.stringify(subscription.data.inputs_fields, null, 2)
                 : DEFAULT_INPUTS_MAPPING,
         )
     }, [isEdit, subscription])
+
+    // Create-mode default-bind: when opened with `defaultReferences` (e.g. from an
+    // agent's config panel), pre-bind the new subscription to that workflow so the
+    // user doesn't have to re-pick it. Seed `workflowRevId` from the variant ref and,
+    // when present, the workflow (app) id via the selection metadata so `buildData`
+    // emits the same `{application, application_variant}` shape a fresh pick would.
+    useEffect(() => {
+        if (isEdit) return
+        const refs = state?.defaultReferences
+        // Capture the app slug up front so "By environment" mode can build its
+        // reference even though the default mode is "By revision".
+        setAppSlug(refs?.application?.slug ?? null)
+        const variantId = extractBoundRevId(refs)
+        if (!variantId) return
+        const appId = refs?.application?.id ?? null
+        const label = state?.defaultBoundLabel ?? appId ?? variantId
+        setWorkflowRevId(variantId)
+        setWorkflowLabel(label)
+        setWorkflowSelection({
+            type: "workflowRevision",
+            id: variantId,
+            label,
+            path: [],
+            metadata: {
+                workflowId: appId ?? "",
+                workflowName: state?.defaultBoundLabel ?? "",
+                variantId,
+                variantName: "",
+                revision: 0,
+            },
+        })
+        // Run once per open; `state` is keyed so the form remounts per drawer open.
+    }, [isEdit])
 
     const selectedConnection = useMemo<TriggerConnection | undefined>(
         () => connections.find((c) => c.id === connectionId),
@@ -172,9 +336,15 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 message.error("Select an event")
                 return null
             }
-            if (requireBinding && !workflowRevId) {
-                message.error("Bind a workflow")
-                return null
+            if (requireBinding) {
+                if (bindMode === "environment" && !environmentSlug) {
+                    message.error("Select an environment")
+                    return null
+                }
+                if (bindMode === "revision" && !workflowRevId) {
+                    message.error("Bind a workflow")
+                    return null
+                }
             }
 
             // inputs_fields is either a JSON object (field-by-field) or a bare
@@ -197,18 +367,31 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 return null
             }
 
-            // On a fresh pick, send the application family by the picker's ids (its
-            // leaf is the variant id). Without a re-pick (edit), resend the stored
-            // already-complete references. The BE completes the family either way.
-            const meta = workflowSelection?.metadata
-            const references = meta
-                ? {
-                      ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
-                      application_variant: {id: workflowRevId},
-                  }
-                : workflowRevId
-                  ? (subscription?.data?.references ?? {application_variant: {id: workflowRevId}})
-                  : undefined
+            // "By environment" binds {environment, application(slug)} — the BE resolves
+            // the deployed revision. "By revision": on a fresh pick send the application
+            // family by the picker's ids (leaf = variant id); without a re-pick (edit)
+            // resend the stored family. The BE completes either family.
+            let references: TriggerSubscriptionData["references"]
+            if (bindMode === "environment") {
+                references = environmentSlug
+                    ? {
+                          environment: {slug: environmentSlug},
+                          ...(appSlug ? {application: {slug: appSlug}} : {}),
+                      }
+                    : undefined
+            } else {
+                const meta = workflowSelection?.metadata
+                references = meta
+                    ? {
+                          ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
+                          application_variant: {id: workflowRevId as string},
+                      }
+                    : workflowRevId
+                      ? (subscription?.data?.references ?? {
+                            application_variant: {id: workflowRevId},
+                        })
+                      : undefined
+            }
 
             return {
                 event_key: eventKey,
@@ -217,7 +400,17 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 references,
             }
         },
-        [connectionId, eventKey, workflowRevId, inputsText, workflowSelection, subscription],
+        [
+            connectionId,
+            eventKey,
+            bindMode,
+            environmentSlug,
+            appSlug,
+            workflowRevId,
+            inputsText,
+            workflowSelection,
+            subscription,
+        ],
     )
 
     const handleSubmit = useCallback(async () => {
@@ -266,44 +459,6 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         }
     }, [buildData, connectionId, isEdit, subscription, name, enabled, edit, create, onClose])
 
-    // Fire-and-inspect: the /test endpoint creates an is_test subscription,
-    // long-polls for the first captured event, then tears it down server-side.
-    // The drawer stays open; re-clicking runs another capture.
-    const handleTest = useCallback(async () => {
-        const data = await buildData(false)
-        if (!data || !connectionId) return
-
-        const controller = new AbortController()
-        testAbortRef.current = controller
-        setIsTesting(true)
-        setTestResult(null)
-        try {
-            const {delivery} = await testTriggerSubscription(
-                {name: name || null, connection_id: connectionId, data},
-                {signal: controller.signal},
-            )
-            if (delivery) {
-                setTestResult(delivery)
-                message.success("Captured a test event")
-            } else {
-                message.info("No event arrived before the test timed out")
-            }
-        } catch (error) {
-            // A user-initiated cancel isn't an error; the server tears the test
-            // subscription down regardless of the dropped request.
-            if (!controller.signal.aborted) {
-                message.error(triggerApiErrorMessage(error, "Test failed"))
-            }
-        } finally {
-            testAbortRef.current = null
-            setIsTesting(false)
-        }
-    }, [buildData, connectionId, name])
-
-    const handleCancelTest = useCallback(() => {
-        testAbortRef.current?.abort()
-    }, [])
-
     if (isEdit && subLoading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -313,170 +468,509 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     }
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                <Form layout="vertical">
-                    <Form.Item label="Name">
-                        <Input
-                            placeholder="Subscription name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                        />
-                    </Form.Item>
+        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+                <div className="flex min-w-0 flex-[1.4] flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
+                    <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+                        <Form layout="vertical">
+                            <Form.Item label="Name">
+                                <Input
+                                    placeholder="Subscription name"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                />
+                            </Form.Item>
 
-                    <Form.Item label="Connection" required>
-                        <Select
-                            placeholder="Select a connected integration"
-                            value={connectionId}
-                            onChange={(v) => {
-                                setConnectionId(v)
-                                setEventKey("")
-                            }}
-                            loading={connectionsLoading}
-                            disabled={isEdit}
-                            options={connections.map((c) => ({
-                                value: c.id ?? "",
-                                label: `${c.name || c.slug || c.integration_key} (${c.integration_key})`,
-                            }))}
-                        />
-                    </Form.Item>
+                            <Form.Item label="Connection" required>
+                                <Select
+                                    placeholder="Select a connected integration"
+                                    value={connectionId}
+                                    onChange={(v) => {
+                                        setConnectionId(v)
+                                        setEventKey("")
+                                    }}
+                                    loading={connectionsLoading}
+                                    disabled={isEdit}
+                                    options={connections.map((c) => ({
+                                        value: c.id ?? "",
+                                        label: `${c.name || c.slug || c.integration_key} (${c.integration_key})`,
+                                    }))}
+                                />
+                            </Form.Item>
 
-                    <Form.Item label="Event" required>
-                        <EventSelect
-                            integrationKey={integrationKey}
-                            value={eventKey}
-                            onChange={setEventKey}
-                            disabled={!connectionId}
-                        />
-                        <Typography.Text type="secondary" className="text-xs">
-                            Provider: {DEFAULT_PROVIDER}
-                            {integrationKey ? ` · ${integrationKey}` : ""}
-                        </Typography.Text>
-                    </Form.Item>
-
-                    <Form.Item label="Bound workflow" required>
-                        <div className="flex items-center gap-2">
-                            <EntityPicker<WorkflowRevisionSelectionResult>
-                                variant="popover-cascader"
-                                adapter={applicationRevisionAdapter}
-                                onSelect={(selection) => {
-                                    setWorkflowRevId(selection.id)
-                                    setWorkflowSelection(selection)
-                                    setWorkflowLabel(selection.label)
-                                }}
-                                size="small"
-                                placeholder={workflowLabel ?? "Select workflow revision"}
-                            />
-                            {workflowLabel && (
-                                <Typography.Text type="secondary" className="text-xs truncate">
-                                    {workflowLabel}
+                            <Form.Item label="Event" required>
+                                <EventSelect
+                                    integrationKey={integrationKey}
+                                    value={eventKey}
+                                    onChange={setEventKey}
+                                    disabled={!connectionId}
+                                />
+                                <Typography.Text type="secondary" className="text-xs">
+                                    Provider: {DEFAULT_PROVIDER}
+                                    {integrationKey ? ` · ${integrationKey}` : ""}
                                 </Typography.Text>
-                            )}
-                        </div>
-                    </Form.Item>
+                            </Form.Item>
 
-                    <Divider className="!my-2" />
+                            <Form.Item label="Run agent version" required>
+                                <div className="flex flex-col gap-2">
+                                    <Segmented
+                                        value={bindMode}
+                                        onChange={(v) =>
+                                            setBindMode(v as "revision" | "environment")
+                                        }
+                                        options={[
+                                            {label: "By revision", value: "revision"},
+                                            {label: "By environment", value: "environment"},
+                                        ]}
+                                    />
+                                    {bindMode === "revision" ? (
+                                        <EntityPicker<WorkflowRevisionSelectionResult>
+                                            variant="popover-cascader"
+                                            adapter={applicationRevisionAdapter}
+                                            onSelect={(selection) => {
+                                                setWorkflowRevId(selection.id)
+                                                setWorkflowSelection(selection)
+                                                setWorkflowLabel(selection.label)
+                                            }}
+                                            size="small"
+                                            placeholder={
+                                                workflowLabel ?? "Select workflow revision"
+                                            }
+                                        />
+                                    ) : (
+                                        <>
+                                            <Select
+                                                placeholder="Select an environment"
+                                                value={environmentSlug ?? undefined}
+                                                onChange={(v) => setEnvironmentSlug(v)}
+                                                loading={envQuery.isLoading}
+                                                options={environments.map((e) => ({
+                                                    value: e.slug,
+                                                    label: e.name || e.slug,
+                                                }))}
+                                            />
+                                            <Typography.Text
+                                                type="secondary"
+                                                className="!text-[11px] leading-snug"
+                                            >
+                                                Runs whatever revision is deployed to this
+                                                environment.
+                                            </Typography.Text>
+                                        </>
+                                    )}
+                                </div>
+                            </Form.Item>
 
-                    <Typography.Text strong className="text-sm">
-                        Trigger configuration
-                    </Typography.Text>
-                    <div className="mt-2 mb-4">
-                        {!eventKey ? (
-                            <Typography.Text type="secondary" className="text-xs">
-                                Select an event to configure its trigger.
+                            <Divider className="!my-2" />
+
+                            <Typography.Text strong className="text-sm">
+                                Trigger configuration
                             </Typography.Text>
-                        ) : eventLoading ? (
-                            <div className="flex items-center justify-center py-6">
-                                <Spin />
+                            <div className="mt-2 mb-4">
+                                {!eventKey ? (
+                                    <Typography.Text type="secondary" className="text-xs">
+                                        Select an event to configure its trigger.
+                                    </Typography.Text>
+                                ) : eventLoading ? (
+                                    <div className="flex items-center justify-center py-6">
+                                        <Spin />
+                                    </div>
+                                ) : (
+                                    <SchemaForm
+                                        ref={configFormRef}
+                                        schema={triggerConfigSchema}
+                                        form={configForm}
+                                        disabled={isMutating}
+                                    />
+                                )}
                             </div>
-                        ) : (
-                            <SchemaForm
-                                ref={configFormRef}
-                                schema={triggerConfigSchema}
-                                form={configForm}
+
+                            <InputsMappingField
+                                value={inputsText}
+                                onChange={setInputsText}
+                                error={inputsError}
+                                onErrorChange={setInputsError}
+                                eventPayload={
+                                    (eventDetail?.payload ?? null) as Record<string, unknown> | null
+                                }
                                 disabled={isMutating}
                             />
-                        )}
+
+                            <Form.Item label="Active">
+                                <Switch checked={enabled} onChange={setEnabled} />
+                            </Form.Item>
+                        </Form>
                     </div>
+                </div>
 
-                    <InputsMappingField
-                        value={inputsText}
-                        onChange={setInputsText}
-                        error={inputsError}
-                        onErrorChange={setInputsError}
-                        eventPayload={
-                            (eventDetail?.payload ?? null) as Record<string, unknown> | null
-                        }
-                        disabled={isMutating}
-                    />
-
-                    <Form.Item label="Active">
-                        <Switch checked={enabled} onChange={setEnabled} />
-                    </Form.Item>
-
-                    <CapturedEventField result={testResult} isTesting={isTesting} />
-                </Form>
+                <TestPlaygroundPanel
+                    onClose={onClose}
+                    isEdit={isEdit}
+                    subscriptionId={subscriptionId}
+                    playgroundEntityId={playgroundEntityId}
+                    connectionId={connectionId}
+                    name={name}
+                    eventKey={eventKey}
+                    existingName={subscription?.name ?? null}
+                    buildData={buildData}
+                    disabledReason={
+                        alreadySubscribed
+                            ? "This event already has a subscription — remove it from the Triggers list to test"
+                            : null
+                    }
+                />
             </div>
 
             <Divider className="!m-0" />
 
-            <div className="flex items-center justify-between gap-2 px-6 py-3 shrink-0">
-                {isTesting ? (
-                    <Button danger onClick={handleCancelTest}>
-                        Cancel
-                    </Button>
-                ) : (
-                    <Button disabled={isMutating} onClick={handleTest}>
-                        Test
-                    </Button>
-                )}
-                <Button
-                    type="primary"
-                    loading={isMutating}
-                    disabled={isTesting}
-                    onClick={handleSubmit}
+            {/* Footer spans the whole drawer; it persists only — testing/running
+                lives in the right panel. Save enables only on draft changes. */}
+            <div className="flex items-center justify-end gap-2 px-6 py-3 shrink-0">
+                <Button onClick={onClose}>Cancel</Button>
+                <Tooltip
+                    title={
+                        alreadySubscribed
+                            ? "This event already has a subscription — remove it from the Triggers list to replace"
+                            : ""
+                    }
                 >
-                    {isEdit ? "Save" : "Create"}
-                </Button>
+                    {/* span wrapper so the tooltip still shows over a disabled button */}
+                    <span>
+                        <Button
+                            type="primary"
+                            loading={isMutating}
+                            disabled={!isDirty || alreadySubscribed}
+                            onClick={handleSubmit}
+                        >
+                            {isEdit ? "Save" : "Create"}
+                        </Button>
+                    </span>
+                </Tooltip>
             </div>
         </div>
     )
 }
 
 // ---------------------------------------------------------------------------
-// CapturedEventField — shows the event the Test button captured.
+// TestPlaygroundPanel — the drawer's right panel: capture a live event and run
+// it in the playground.
 //
-// While a test is in flight it prompts the user to trigger the event from the
-// provider; once a delivery lands it pretty-prints the captured context
-// (delivery.data.inputs — the resolved `$` event by default).
+// - Edit mode: lists the last few real deliveries (queryTriggerDeliveries) for
+//   one-click replay, and "Wait for a new event" polls the live subscription's
+//   own deliveries until a fresh one arrives (the sub already occupies the
+//   provider slot, so a transient test sub would collide).
+// - New mode: "Wait for an event" spins up a throwaway is_test subscription via
+//   the /test endpoint, captures the first event, then tears it down.
+//
+// "Run in playground" is hidden when there is no playground (workspace settings).
 // ---------------------------------------------------------------------------
 
-function CapturedEventField({
-    result,
-    isTesting,
+function formatRelativeTime(iso?: string | null): string {
+    if (!iso) return ""
+    const t = new Date(iso).getTime()
+    if (Number.isNaN(t)) return ""
+    const minutes = Math.round((Date.now() - t) / 60000)
+    if (minutes < 1) return "just now"
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.round(hours / 24)
+    return days === 1 ? "yesterday" : `${days}d ago`
+}
+
+function deliveryInputs(delivery: TriggerDelivery): Record<string, unknown> {
+    return (delivery.data?.inputs ?? delivery.data ?? {}) as Record<string, unknown>
+}
+
+function hasInputs(delivery: TriggerDelivery): boolean {
+    return Object.keys(deliveryInputs(delivery)).length > 0
+}
+
+function deliveryTime(delivery: TriggerDelivery): number {
+    const iso = (delivery as {created_at?: string}).created_at
+    const t = iso ? new Date(iso).getTime() : NaN
+    return Number.isNaN(t) ? 0 : t
+}
+
+// The deliveries endpoint isn't guaranteed newest-first, so sort by time before
+// slicing — otherwise a freshly captured event can land in the middle.
+function recentWithInputs(deliveries: TriggerDelivery[]): TriggerDelivery[] {
+    return [...deliveries]
+        .filter(hasInputs)
+        .sort((a, b) => deliveryTime(b) - deliveryTime(a))
+        .slice(0, 3)
+}
+
+function DeliveryCard({
+    delivery,
+    highlight,
+    onRun,
+    onView,
 }: {
-    result: TriggerDelivery | null
-    isTesting: boolean
+    delivery: TriggerDelivery
+    highlight?: boolean
+    onRun?: (delivery: TriggerDelivery) => void
+    onView?: (delivery: TriggerDelivery) => void
 }) {
-    if (!isTesting && !result) return null
+    const snippet = useMemo(() => {
+        const inputs = deliveryInputs(delivery)
+        const msg = inputs.message
+        if (typeof msg === "string" && msg.trim()) return msg
+        const flat = JSON.stringify(inputs)
+        return flat.length > 90 ? `${flat.slice(0, 90)}…` : flat
+    }, [delivery])
+    const when = formatRelativeTime((delivery as {created_at?: string}).created_at)
 
     return (
-        <Form.Item label="Captured event">
-            {isTesting ? (
-                <div className="flex items-center gap-2">
+        <div
+            className={`flex flex-col gap-2 rounded border border-solid p-2.5 ${
+                highlight
+                    ? "border-[var(--ag-colorInfoBorder)] bg-[var(--ag-colorInfoBg)]"
+                    : "border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)]"
+            }`}
+        >
+            <div className="flex items-center gap-1.5">
+                {highlight && (
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                )}
+                <Typography.Text className="!text-[12px] !font-medium">
+                    Captured event
+                </Typography.Text>
+                {when && (
+                    <Typography.Text type="secondary" className="!ml-auto !text-[11px]">
+                        {when}
+                    </Typography.Text>
+                )}
+            </div>
+            <Typography.Text type="secondary" className="!text-[12px] break-words line-clamp-2">
+                {snippet}
+            </Typography.Text>
+            {(onRun || onView) && (
+                <div className="flex items-center gap-1">
+                    {onRun && (
+                        <Button icon={<Play size={13} />} onClick={() => onRun(delivery)}>
+                            Run in playground
+                        </Button>
+                    )}
+                    {onView && (
+                        <Button
+                            type="text"
+                            icon={<Code size={13} />}
+                            onClick={() => onView(delivery)}
+                        >
+                            View payload
+                        </Button>
+                    )}
+                </div>
+            )}
+        </div>
+    )
+}
+
+function TestPlaygroundPanel({
+    onClose,
+    isEdit,
+    subscriptionId,
+    playgroundEntityId,
+    connectionId,
+    name,
+    eventKey,
+    existingName,
+    buildData,
+    disabledReason,
+}: {
+    onClose: () => void
+    isEdit: boolean
+    subscriptionId?: string
+    playgroundEntityId?: string
+    connectionId?: string
+    name: string
+    eventKey: string
+    existingName: string | null
+    buildData: (requireBinding: boolean) => Promise<TriggerSubscriptionData | null>
+    disabledReason: string | null
+}) {
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
+    const [isTesting, setIsTesting] = useState(false)
+    const [recent, setRecent] = useState<TriggerDelivery[]>([])
+    const [captured, setCaptured] = useState<TriggerDelivery | null>(null)
+    const [justCapturedId, setJustCapturedId] = useState<string | null>(null)
+    const [viewing, setViewing] = useState<TriggerDelivery | null>(null)
+    const testAbortRef = useRef<AbortController | null>(null)
+
+    const loadRecent = useCallback(async () => {
+        if (!isEdit || !subscriptionId) return
+        try {
+            const {deliveries} = await queryTriggerDeliveries({subscription_id: subscriptionId})
+            setRecent(recentWithInputs(deliveries))
+        } catch {
+            // Non-fatal — the panel just shows no history.
+        }
+    }, [isEdit, subscriptionId])
+
+    useEffect(() => {
+        loadRecent()
+    }, [loadRecent])
+
+    // Abort an in-flight wait if the drawer closes (destroyOnClose unmounts us).
+    useEffect(() => () => testAbortRef.current?.abort(), [])
+
+    const handleTest = useCallback(async () => {
+        const controller = new AbortController()
+        testAbortRef.current = controller
+        setIsTesting(true)
+        try {
+            if (isEdit) {
+                if (!subscriptionId) return
+                // Snapshot every existing delivery so we only surface one that
+                // arrives AFTER this wait starts (the history has many).
+                const {deliveries: baseline} = await queryTriggerDeliveries({
+                    subscription_id: subscriptionId,
+                })
+                const seenIds = new Set(baseline.map((d) => d.id))
+                const deadline = Date.now() + 300_000
+                while (Date.now() < deadline) {
+                    if (controller.signal.aborted) return
+                    const {deliveries} = await queryTriggerDeliveries({
+                        subscription_id: subscriptionId,
+                    })
+                    const fresh = deliveries.filter(hasInputs).find((d) => !seenIds.has(d.id))
+                    if (fresh) {
+                        setJustCapturedId(fresh.id ?? null)
+                        setRecent(recentWithInputs(deliveries))
+                        message.success("Captured an event")
+                        return
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 2000))
+                }
+                message.info("No event arrived before the test timed out")
+                return
+            }
+
+            // New mode: throwaway is_test subscription via the /test endpoint.
+            const data = await buildData(false)
+            if (!data || !connectionId) return
+            const {delivery} = await testTriggerSubscription(
+                {name: name || null, connection_id: connectionId, data},
+                {signal: controller.signal},
+            )
+            if (delivery) {
+                setCaptured(delivery)
+                setJustCapturedId(delivery.id ?? null)
+                message.success("Captured a test event")
+            } else {
+                message.info("No event arrived before the test timed out")
+            }
+        } catch (error) {
+            if (!controller.signal.aborted) {
+                message.error(triggerApiErrorMessage(error, "Test failed"))
+            }
+        } finally {
+            testAbortRef.current = null
+            setIsTesting(false)
+        }
+    }, [isEdit, subscriptionId, buildData, connectionId, name])
+
+    const handleCancel = useCallback(() => testAbortRef.current?.abort(), [])
+
+    const runInPlayground = useCallback(
+        (delivery: TriggerDelivery) => {
+            if (!playgroundEntityId) return
+            const label = name || existingName || eventKey || "trigger"
+            const text = `[Triggered by ${label}${eventKey ? ` · ${eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
+                deliveryInputs(delivery),
+                null,
+                2,
+            )}\n\`\`\``
+            setPendingRun({text, nonce: Date.now()})
+            onClose()
+        },
+        [playgroundEntityId, name, existingName, eventKey, setPendingRun, onClose],
+    )
+
+    const cards = isEdit ? recent : captured ? [captured] : []
+    const waitDisabled = !isEdit && !!disabledReason
+
+    return (
+        <div className="flex w-[340px] shrink-0 flex-col overflow-hidden bg-[var(--ag-colorFillQuaternary)]">
+            <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-4 text-sm font-medium">
+                <Play size={15} />
+                Test Subscription Event
+            </div>
+            <div className="shrink-0 px-4 pb-2">
+                {isTesting ? (
+                    <Button danger block onClick={handleCancel}>
+                        Cancel
+                    </Button>
+                ) : (
+                    <Tooltip title={waitDisabled ? disabledReason : ""}>
+                        <span className="block">
+                            <Button
+                                block
+                                type="primary"
+                                icon={<Lightning size={14} />}
+                                disabled={waitDisabled}
+                                onClick={handleTest}
+                            >
+                                {isEdit ? "Wait for a new event" : "Wait for an event"}
+                            </Button>
+                        </span>
+                    </Tooltip>
+                )}
+            </div>
+
+            {isTesting && (
+                <div className="flex shrink-0 items-center gap-2 px-4 pb-2">
                     <Spin size="small" />
-                    <Typography.Text type="secondary" className="text-xs">
+                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
                         Waiting for an event — trigger it from the provider now.
                     </Typography.Text>
                 </div>
-            ) : (
-                <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-auto max-h-[240px] p-2">
-                    <pre className="text-[11px] leading-snug whitespace-pre-wrap break-words m-0">
-                        {JSON.stringify(result?.data?.inputs ?? result?.data ?? {}, null, 2)}
-                    </pre>
+            )}
+
+            {cards.length > 0 && (
+                <div className="shrink-0 px-4 pb-1 pt-1 text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                    Recent events
                 </div>
             )}
-        </Form.Item>
+
+            <div className="flex flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 pb-4">
+                {cards.length === 0 && !isTesting ? (
+                    <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
+                        <Lightning size={28} className="text-[var(--ag-colorTextTertiary)]" />
+                        <Typography.Text type="secondary" className="text-xs">
+                            No events captured yet
+                        </Typography.Text>
+                        <Typography.Text className="!text-[11px] leading-snug !text-[var(--ag-colorTextTertiary)]">
+                            Trigger this event from the provider and it&apos;ll appear here, ready
+                            to run in the playground.
+                        </Typography.Text>
+                    </div>
+                ) : (
+                    cards.map((d) => (
+                        <DeliveryCard
+                            key={d.id}
+                            delivery={d}
+                            highlight={d.id === justCapturedId}
+                            onRun={playgroundEntityId ? runInPlayground : undefined}
+                            onView={setViewing}
+                        />
+                    ))
+                )}
+            </div>
+
+            <Modal
+                open={!!viewing}
+                onCancel={() => setViewing(null)}
+                footer={null}
+                title="Event payload"
+                width={640}
+            >
+                <pre className="m-0 max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded bg-[var(--ag-colorFillQuaternary)] p-3 text-[12px] leading-snug">
+                    {viewing ? JSON.stringify(viewing.data ?? viewing, null, 2) : ""}
+                </pre>
+            </Modal>
+        </div>
     )
 }
 
@@ -592,7 +1086,7 @@ function InputsMappingField({
             validateStatus={error ? "error" : undefined}
             help={error ?? "Maps event context to the workflow inputs (JSON)"}
         >
-            <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-hidden">
+            <div className="rounded-lg border border-solid border-[var(--ag-colorBorder)] overflow-hidden">
                 <Editor
                     initialValue={value || "{}"}
                     onChange={({textContent}) => onChange(textContent)}
@@ -617,7 +1111,7 @@ function InputsMappingField({
                     {payloadKeys.slice(0, 12).map((k) => (
                         <code
                             key={k}
-                            className="text-[11px] px-1 rounded bg-gray-100 dark:bg-gray-800"
+                            className="text-[11px] px-1 rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorText)]"
                         >
                             $.{k}
                         </code>
@@ -637,15 +1131,15 @@ function InputsMappingField({
                             key={`${leaf.key}-${i}`}
                             className="flex items-center gap-1.5 text-[11px] leading-snug"
                         >
-                            <code className="text-gray-500">{leaf.key}</code>
-                            <span className="text-gray-400">→</span>
+                            <code className="text-[var(--ag-colorTextSecondary)]">{leaf.key}</code>
+                            <span className="text-[var(--ag-colorTextTertiary)]">→</span>
                             {leaf.isSelector ? (
                                 leaf.resolved === undefined ? (
                                     <Typography.Text type="warning" className="!text-[11px]">
                                         no sample value
                                     </Typography.Text>
                                 ) : (
-                                    <code className="text-green-600 dark:text-green-400 truncate max-w-[280px]">
+                                    <code className="text-[var(--ag-colorSuccess)] truncate max-w-[280px]">
                                         {leaf.resolved}
                                     </code>
                                 )

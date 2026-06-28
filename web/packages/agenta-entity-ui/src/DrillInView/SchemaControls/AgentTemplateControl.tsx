@@ -49,6 +49,7 @@ import {
     GraphIcon,
     Key,
     Lightbulb,
+    Lightning,
     Plugs,
     Plus,
     ShieldCheck,
@@ -90,6 +91,11 @@ import {SkillFormView} from "./SkillFormView"
 import {ToolFormView} from "./ToolFormView"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
 import {parseGatewayFunctionName, type ToolObj} from "./toolUtils"
+import {
+    AddTriggerDropdown,
+    TriggerManagementSection,
+    useAgentTriggers,
+} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 export interface AgentTemplateControlProps {
@@ -711,6 +717,9 @@ export function AgentTemplateControl({
     // in which case the connectionUtils helpers fall back permissively.
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
+    // Triggers bound to this agent (for the section count badge). The section body and
+    // the header add-dropdown derive scoping from the same hook.
+    const {count: triggerCount} = useAgentTriggers(revisionId)
     const capabilities = useAtomValue(
         useMemo(() => harnessCapabilitiesAtomFamily(revisionId ?? ""), [revisionId]),
     )
@@ -1796,6 +1805,24 @@ export function AgentTemplateControl({
                     </span>
                 ) : null,
         },
+        {
+            key: "triggers",
+            icon: <Lightning size={16} />,
+            title: (
+                <span className="inline-flex items-center gap-2">
+                    Triggers
+                    {triggerCount > 0 ? (
+                        <Tag className="m-0 font-normal" bordered>
+                            {triggerCount}
+                        </Tag>
+                    ) : null}
+                </span>
+            ),
+            summary: countSummary(triggerCount, "trigger"),
+            extra: !disabled ? <AddTriggerDropdown entityId={revisionId} /> : undefined,
+            defaultOpen: triggerCount > 0,
+            content: <TriggerManagementSection entityId={revisionId} disabled={disabled} />,
+        },
         hasAdvanced && {
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
@@ -1842,7 +1869,12 @@ export function AgentTemplateControl({
                             </span>
                         ),
                         children: (
+                            // Render the section's `extra` (the add-action, e.g. Add trigger)
+                            // here too — the accordion/cards layouts surface it via `extra`, and
+                            // dropping it leaves tab-layout users unable to add items. The body is
+                            // the trimmed `inlineContent` (drawer sections) or `content` otherwise.
                             <div className="flex flex-col gap-3 pt-1">
+                                {s.extra ? <div className="flex justify-end">{s.extra}</div> : null}
                                 {s.inlineContent ?? s.content}
                             </div>
                         ),
