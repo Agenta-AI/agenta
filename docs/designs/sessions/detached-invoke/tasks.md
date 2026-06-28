@@ -10,11 +10,11 @@
 - [x] **"Started" signal = the alive-lock-acquisition handshake**, not a new event. Return
       `run_id`+accepted once `alive` is held and the run is owned by a heartbeating runner.
 - [x] **Both triggers (subscription + schedule) and interactions respond go detached.**
-- [x] **Interactions worker → DELETE** (no broker/retry/dedup; respond fires detached inline).
-- [x] **Triggers worker → KEEP** — the durable Redis-Stream between the `202`-acked
-      `/composio/events/` ingress and dispatch is load-bearing (Composio won't re-deliver);
-      detach removes the *await*, not the *queue*. Both workers also keep the seconds-long,
-      network-bound detach handshake off the API process.
+- [x] **KEEP BOTH workers.** Detached invoke is seconds-long and network-bound (run spin-up +
+      alive-lock handshake + possible drain-before-attach on a steer). That wait must stay OFF the
+      API process and OFF the provider ack path. So both the triggers worker AND the interactions
+      worker remain; respond fires detached from the interactions worker, NOT inline on the API
+      request thread. (Triggers worker additionally owns the durable `/composio/events/` queue.)
 - [x] **Triggers delivery** = write `dispatched`/accepted at fire time (record run_id); terminal
       outcome observable via trace/transcript. No awaiting.
 - [x] No new permissions (RUN_SESSIONS covers respond; triggers system-authored).
@@ -56,8 +56,8 @@
 
 - [ ] **Interactions respond**: build `WorkflowServiceRequest` from stored refs+answer, invoke
       **detached**, return. Re-authorize refs at fire time. Interaction marked `resolved` by the
-      runner (single writer). **Delete `InteractionsWorker`**; respond fires from the endpoint
-      (on its worker path, not the API request thread — see §6).
+      runner (single writer). Respond fires via the **interactions worker** (KEEP it), NOT inline
+      on the API request thread — the seconds-long network-bound detach handshake stays off the API.
 - [ ] **Triggers dispatch** (`tasks/asyncio/triggers/dispatcher.py` `_run`): replace the awaited
       `invoke_workflow` with detached invoke. Write delivery = `dispatched` at fire time. Preserve
       `is_test` (no invoke) and `is_valid`/no-refs (failed delivery) branches unchanged.
@@ -70,9 +70,10 @@
 
 ## 6. Worker shape
 
-- [ ] **Delete** `tasks/asyncio/sessions/interactions_worker.py` + its wiring; respond path calls
-      detached invoke directly.
-- [ ] **Keep** the triggers worker (consume side) — it still drains the durable queue and now
+- [ ] **KEEP** the interactions worker — respond fires the detached invoke from the worker, off
+      the API request thread (the alive-handshake + possible drain wait is seconds-long and
+      network-bound). Do NOT delete it.
+- [ ] **KEEP** the triggers worker (consume side) — it still drains the durable queue and now
       fires detached (fast, non-blocking) instead of awaiting. The seconds-long network-bound
       detach handshake runs here, off the API + off the provider ack path.
 
