@@ -53,23 +53,16 @@ import {useAtomValue} from "jotai"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
-import {countSummary, cloneItem, enumLabel} from "./agentTemplate/agentTemplateUtils"
-import {
-    describeMcp,
-    describeSkill,
-    describeTool,
-    isBuiltinPayloadMatch,
-    isEmbedRefSkill,
-    isFunctionTool,
-    isStaticSkill,
-    toolName,
-    toolReferenceSlug,
-} from "./agentTemplate/itemDescriptors"
-import {InstructionsFileRow, ItemRow} from "./agentTemplate/ItemRow"
+import {countSummary, enumLabel} from "./agentTemplate/agentTemplateUtils"
+import {ConfigItemList} from "./agentTemplate/ConfigItemList"
+import {isBuiltinPayloadMatch, toolName, toolReferenceSlug} from "./agentTemplate/itemDescriptors"
+import {ITEM_KINDS} from "./agentTemplate/itemKinds"
+import {InstructionsFileRow} from "./agentTemplate/ItemRow"
+import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ClaudePermissionsControl} from "./ClaudePermissionsControl"
 import {CodeEditor} from "./CodeEditor"
-import {ConfigItemDrawer, type ConfigItemView} from "./ConfigItemDrawer"
+import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {
     allowedConnectionModes,
     buildModelOptionGroups,
@@ -87,11 +80,8 @@ import {GroupedChoiceControl} from "./GroupedChoiceControl"
 import {HarnessSelectControl} from "./HarnessSelectControl"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
-import {McpServerFormView} from "./McpServerFormView"
 import {SandboxPermissionControl} from "./SandboxPermissionControl"
 import {SectionDrawer} from "./SectionDrawer"
-import {SkillFormView} from "./SkillFormView"
-import {ToolFormView} from "./ToolFormView"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
 import {type ToolObj} from "./toolUtils"
 import {
@@ -129,34 +119,26 @@ export function AgentTemplateControl({
         configRef.current = config
     }, [config])
 
-    // The item-config drawer (tools / MCP servers). Edits happen on a local `draft`; they only
-    // apply to the config on Save. So creating an item never pollutes the config until confirmed,
-    // and editing an existing item can be cancelled cleanly (Cancel/X discards the draft).
-    const [editing, setEditing] = useState<{
-        kind: "tool" | "mcp" | "skill"
-        mode: "create" | "edit"
-        index: number
-    } | null>(null)
-    const [draft, setDraft] = useState<Record<string, unknown>>({})
-    const [drawerView, setDrawerView] = useState<ConfigItemView>("form")
     const [referenceSelectorOpen, setReferenceSelectorOpen] = useState(false)
-    const openCreate = useCallback(
-        (kind: "tool" | "mcp" | "skill", seed: Record<string, unknown>, view: ConfigItemView) => {
-            setDraft(seed)
-            setDrawerView(view)
-            setEditing({kind, mode: "create", index: -1})
-        },
-        [],
-    )
-    const openEdit = useCallback(
-        (kind: "tool" | "mcp" | "skill", index: number, item: unknown, view: ConfigItemView) => {
-            setDraft(cloneItem(item))
-            setDrawerView(view)
-            setEditing({kind, mode: "edit", index})
-        },
-        [],
-    )
-    const closeEditor = useCallback(() => setEditing(null), [])
+    // The item-config drawer (tools / MCP servers / skills). Edits happen on a local `draft`; they
+    // only apply to the config on Save, so creating an item never pollutes the config until
+    // confirmed, and editing an existing item can be cancelled cleanly (Cancel/X discards the
+    // draft). The shared machine writes to each kind's array via the ITEM_KINDS registry.
+    const {
+        editing,
+        draft,
+        setDraft,
+        drawerView,
+        setDrawerView,
+        jsonInvalid,
+        setJsonInvalid,
+        openCreate,
+        openEdit,
+        closeEditor,
+        commitDraft,
+        removeItem,
+        draftInvalid,
+    } = useConfigItemDrawer({config, onChange})
 
     // Instructions file editor. The section is modelled as a file list (one AGENTS.md today, more
     // soon), so each file opens here. Draft + Save mirrors the item drawer: edits apply on Save.
@@ -458,11 +440,6 @@ export function AgentTemplateControl({
         [workflowReference, onChange],
     )
 
-    const handleToolDelete = useCallback(
-        (index: number) => setTools(tools.filter((_, i) => i !== index)),
-        [tools, setTools],
-    )
-
     const handleRemoveToolByName = useCallback(
         (name: string) => setTools(tools.filter((tool) => toolName(tool) !== name)),
         [tools, setTools],
@@ -494,16 +471,9 @@ export function AgentTemplateControl({
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
     )
-    const setMcpServers = useCallback(
-        (next: unknown[]) => setAgentField("mcps", next),
-        [setAgentField],
-    )
-    const handleAddMcpServer = useCallback(() => {
-        openCreate("mcp", {name: "", transport: "stdio", command: "", args: []}, "form")
-    }, [openCreate])
-    const handleMcpServerDelete = useCallback(
-        (index: number) => setMcpServers(mcpServers.filter((_, i) => i !== index)),
-        [mcpServers, setMcpServers],
+    const handleAddMcpServer = useCallback(
+        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed(), "form"),
+        [openCreate],
     )
 
     // Skills are a sibling of tools/MCP: a flat array on the agent config. Each entry is an inline
@@ -513,69 +483,10 @@ export function AgentTemplateControl({
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
     )
-    const setSkills = useCallback(
-        (next: unknown[]) => setAgentField("skills", next),
-        [setAgentField],
+    const handleAddSkill = useCallback(
+        () => openCreate("skill", ITEM_KINDS.skill.createSeed(), "form"),
+        [openCreate],
     )
-    const handleAddSkill = useCallback(() => {
-        openCreate("skill", {name: "", description: "", body: ""}, "form")
-    }, [openCreate])
-    const handleSkillDelete = useCallback(
-        (index: number) => setSkills(skills.filter((_, i) => i !== index)),
-        [skills, setSkills],
-    )
-
-    // Apply the drawer's draft to the config: append (create) or replace at index (edit).
-    const commitDraft = useCallback(() => {
-        if (!editing) return
-        if (editing.kind === "tool") {
-            const next = [...tools]
-            if (editing.mode === "create") next.push(draft)
-            else next[editing.index] = draft
-            setTools(next)
-        } else if (editing.kind === "mcp") {
-            const next = [...mcpServers]
-            if (editing.mode === "create") next.push(draft)
-            else next[editing.index] = draft
-            setMcpServers(next)
-        } else {
-            const next = [...skills]
-            if (editing.mode === "create") next.push(draft)
-            else next[editing.index] = draft
-            setSkills(next)
-        }
-        setEditing(null)
-    }, [editing, draft, tools, mcpServers, skills, setTools, setMcpServers, setSkills])
-
-    // Block Save until the draft has the minimum it needs to be a valid item (a name). `@ag.embed`
-    // skill references carry no name and are always valid (they round-trip as-is).
-    // JSON-view parse validity from the open drawer's JsonObjectEditor; blocks Save while the
-    // raw JSON is invalid. The editor keeps invalid text local and stops emitting onChange, so
-    // without this Save would silently commit the last valid draft.
-    const [jsonInvalid, setJsonInvalid] = useState(false)
-    // Reset when the open item changes — each editor is keyed/remounts and starts valid.
-    useEffect(() => {
-        setJsonInvalid(false)
-    }, [editing])
-
-    const draftInvalid = useMemo(() => {
-        if (!editing) return true
-        if (editing.kind === "mcp") {
-            // A server needs a launch target too, not just a name: stdio → command, http → url.
-            const name = String(draft.name ?? "").trim()
-            const transport = draft.transport === "http" ? "http" : "stdio"
-            const target =
-                transport === "http"
-                    ? String(draft.url ?? "").trim()
-                    : String(draft.command ?? "").trim()
-            return !name || !target
-        }
-        if (editing.kind === "skill")
-            return !isEmbedRefSkill(draft) && !String(draft.name ?? "").trim()
-        const fn = draft.function as Record<string, unknown> | undefined
-        if (fn && typeof fn === "object") return !String(fn.name ?? "").trim()
-        return false
-    }, [editing, draft])
 
     // ``instructions.agents_md`` is the one instruction document (flat on the template).
     const instructions =
@@ -1239,40 +1150,23 @@ export function AgentTemplateControl({
                 />
             ) : undefined,
             defaultOpen: true,
-            content:
-                tools.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                        {tools.map((tool, index) => (
-                            <ItemRow
-                                key={`tool-${index}`}
-                                descriptor={describeTool(tool)}
-                                onEdit={() =>
-                                    openEdit(
-                                        "tool",
-                                        index,
-                                        tool,
-                                        isFunctionTool(tool) ? "form" : "json",
-                                    )
-                                }
-                                onRemove={() => {
-                                    handleToolDelete(index)
-                                    closeEditor()
-                                }}
-                                disabled={disabled}
-                            />
-                        ))}
-                    </div>
-                ) : !disabled ? (
-                    // Empty: a muted line whose action is a borderless text link (the header + adds
-                    // once there are items). The link is the ToolSelectorPopover trigger.
-                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
-                        No tools yet —{" "}
+            content: (
+                <ConfigItemList
+                    kind="tool"
+                    items={tools}
+                    openEdit={openEdit}
+                    removeItem={removeItem}
+                    closeEditor={closeEditor}
+                    disabled={disabled}
+                    // The empty-state add is the same popover as the header +.
+                    emptyAdd={
                         <ToolSelectorPopover
                             {...toolSelectorProps}
                             trigger={<AddTextLink label="add a tool" />}
                         />
-                    </span>
-                ) : null,
+                    }
+                />
+            ),
         },
         hasMcp && {
             key: "mcp",
@@ -1281,28 +1175,17 @@ export function AgentTemplateControl({
             summary: countSummary(mcpServers.length, "server"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
-            content:
-                mcpServers.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                        {mcpServers.map((server, index) => (
-                            <ItemRow
-                                key={`mcp-${index}`}
-                                descriptor={describeMcp(server)}
-                                onEdit={() => openEdit("mcp", index, server, "form")}
-                                onRemove={() => {
-                                    handleMcpServerDelete(index)
-                                    closeEditor()
-                                }}
-                                disabled={disabled}
-                            />
-                        ))}
-                    </div>
-                ) : !disabled ? (
-                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
-                        No MCP servers yet —{" "}
-                        <AddTextLink label="add a server" onClick={handleAddMcpServer} />
-                    </span>
-                ) : null,
+            content: (
+                <ConfigItemList
+                    kind="mcp"
+                    items={mcpServers}
+                    openEdit={openEdit}
+                    removeItem={removeItem}
+                    closeEditor={closeEditor}
+                    disabled={disabled}
+                    emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
+                />
+            ),
         },
         hasSkills && {
             key: "skills",
@@ -1311,36 +1194,17 @@ export function AgentTemplateControl({
             summary: countSummary(skills.length, "skill"),
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
-            content:
-                skills.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                        {skills.map((skill, index) => (
-                            <ItemRow
-                                key={`skill-${index}`}
-                                descriptor={describeSkill(skill)}
-                                onEdit={() =>
-                                    openEdit(
-                                        "skill",
-                                        index,
-                                        skill,
-                                        isEmbedRefSkill(skill) ? "json" : "form",
-                                    )
-                                }
-                                onRemove={() => {
-                                    handleSkillDelete(index)
-                                    closeEditor()
-                                }}
-                                // Static skills (`__ag__*`) are read-only: no remove, and
-                                // the drawer opens disabled (see the skill drawer below).
-                                disabled={disabled || isStaticSkill(skill)}
-                            />
-                        ))}
-                    </div>
-                ) : !disabled ? (
-                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
-                        No skills yet — <AddTextLink label="add a skill" onClick={handleAddSkill} />
-                    </span>
-                ) : null,
+            content: (
+                <ConfigItemList
+                    kind="skill"
+                    items={skills}
+                    openEdit={openEdit}
+                    removeItem={removeItem}
+                    closeEditor={closeEditor}
+                    disabled={disabled}
+                    emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
+                />
+            ),
         },
         {
             key: "triggers",
@@ -1452,132 +1316,53 @@ export function AgentTemplateControl({
                 ))
             )}
 
-            {editing && editing.kind === "tool" && (
-                <ConfigItemDrawer
-                    open
-                    mode={editing.mode}
-                    icon={<Wrench size={16} />}
-                    title={
-                        describeTool(draft).name && describeTool(draft).name !== "Tool"
-                            ? describeTool(draft).name
-                            : "New tool"
-                    }
-                    badge={{
-                        text: describeTool(draft).typeLabel,
-                        color: describeTool(draft).typeColor,
-                    }}
-                    subtitle={describeTool(draft).subtitle}
-                    footerNote="Changes apply to this agent configuration"
-                    view={drawerView}
-                    onViewChange={setDrawerView}
-                    onCancel={closeEditor}
-                    onSave={commitDraft}
-                    saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
-                    jsonOnly={!isFunctionTool(draft)}
-                    disabled={disabled}
-                    form={
-                        <ToolFormView
-                            key={`tool-form-${editing.mode}-${editing.index}`}
-                            value={draft}
-                            onChange={(v) => setDraft(v as Record<string, unknown>)}
-                            disabled={disabled}
-                        />
-                    }
-                    json={
-                        <JsonObjectEditor
-                            key={`tool-json-${editing.mode}-${editing.index}`}
-                            value={draft}
-                            onChange={(v) => setDraft(v as Record<string, unknown>)}
-                            onValidityChange={(valid) => setJsonInvalid(!valid)}
-                            disabled={disabled}
-                        />
-                    }
-                />
-            )}
-
-            {editing && editing.kind === "mcp" && (
-                <ConfigItemDrawer
-                    open
-                    mode={editing.mode}
-                    icon={<Plugs size={16} />}
-                    title={String(draft.name ?? "").trim() || "New MCP server"}
-                    badge={{
-                        text: describeMcp(draft).typeLabel,
-                        color: describeMcp(draft).typeColor,
-                    }}
-                    subtitle={describeMcp(draft).subtitle}
-                    footerNote="Changes apply to this agent configuration"
-                    view={drawerView}
-                    onViewChange={setDrawerView}
-                    onCancel={closeEditor}
-                    onSave={commitDraft}
-                    saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
-                    disabled={disabled}
-                    form={
-                        <McpServerFormView
-                            key={`mcp-form-${editing.mode}-${editing.index}`}
-                            value={draft}
-                            onChange={(v) => setDraft(v)}
-                            disabled={disabled}
-                        />
-                    }
-                    json={
-                        <JsonObjectEditor
-                            key={`mcp-json-${editing.mode}-${editing.index}`}
-                            value={draft}
-                            onChange={(v) => setDraft(v as Record<string, unknown>)}
-                            onValidityChange={(valid) => setJsonInvalid(!valid)}
-                            disabled={disabled}
-                        />
-                    }
-                />
-            )}
-
-            {editing && editing.kind === "skill" && (
-                <ConfigItemDrawer
-                    open
-                    mode={editing.mode}
-                    icon={<GraduationCap size={16} />}
-                    title={
-                        isEmbedRefSkill(draft)
-                            ? "Skill reference"
-                            : String(draft.name ?? "").trim() || "New skill"
-                    }
-                    badge={{
-                        text: describeSkill(draft).typeLabel,
-                        color: describeSkill(draft).typeColor,
-                    }}
-                    subtitle={describeSkill(draft).subtitle}
-                    footerNote="Changes apply to this agent configuration"
-                    // Wider than the default 600 — the skill drawer is two-pane (Files + editor).
-                    width={760}
-                    view={drawerView}
-                    onViewChange={setDrawerView}
-                    onCancel={closeEditor}
-                    onSave={commitDraft}
-                    saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
-                    jsonOnly={isEmbedRefSkill(draft)}
-                    // Static skills (`__ag__*`) are read-only — view their JSON but can't edit.
-                    disabled={disabled || isStaticSkill(draft)}
-                    form={
-                        <SkillFormView
-                            key={`skill-form-${editing.mode}-${editing.index}`}
-                            value={draft}
-                            onChange={(v) => setDraft(v)}
-                            disabled={disabled || isStaticSkill(draft)}
-                        />
-                    }
-                    json={
-                        <JsonObjectEditor
-                            key={`skill-json-${editing.mode}-${editing.index}`}
-                            value={draft}
-                            onChange={(v) => setDraft(v as Record<string, unknown>)}
-                            onValidityChange={(valid) => setJsonInvalid(!valid)}
-                            disabled={disabled || isStaticSkill(draft)}
-                        />
-                    }
-                />
-            )}
+            {editing
+                ? (() => {
+                      // One drawer for all three kinds — the per-kind icon/title/form/view rules
+                      // come from the ITEM_KINDS registry (replaces three near-identical blocks).
+                      const def = ITEM_KINDS[editing.kind]
+                      const desc = def.describe(draft)
+                      const readOnly = disabled || def.isReadOnly(draft)
+                      const Form = def.FormView
+                      const itemKey = `${editing.kind}-${editing.mode}-${editing.index}`
+                      return (
+                          <ConfigItemDrawer
+                              open
+                              mode={editing.mode}
+                              icon={def.icon}
+                              title={def.drawerTitle(draft)}
+                              badge={{text: desc.typeLabel, color: desc.typeColor}}
+                              subtitle={desc.subtitle}
+                              footerNote="Changes apply to this agent configuration"
+                              width={def.drawerWidth}
+                              view={drawerView}
+                              onViewChange={setDrawerView}
+                              onCancel={closeEditor}
+                              onSave={commitDraft}
+                              saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
+                              jsonOnly={def.jsonOnly(draft)}
+                              disabled={readOnly}
+                              form={
+                                  <Form
+                                      key={`form-${itemKey}`}
+                                      value={draft}
+                                      onChange={(v) => setDraft(v)}
+                                      disabled={readOnly}
+                                  />
+                              }
+                              json={
+                                  <JsonObjectEditor
+                                      key={`json-${itemKey}`}
+                                      value={draft}
+                                      onChange={(v) => setDraft(v as Record<string, unknown>)}
+                                      onValidityChange={(valid) => setJsonInvalid(!valid)}
+                                      disabled={readOnly}
+                                  />
+                              }
+                          />
+                      )
+                  })()
+                : null}
 
             {editingInstruction && (
                 <InstructionsDrawer
