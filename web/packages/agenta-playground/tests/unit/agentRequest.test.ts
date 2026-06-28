@@ -34,6 +34,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
                 invocationUrl: mk<string | null>(null),
                 configuration: mk<Record<string, unknown> | null>(null),
                 data: mk<Record<string, unknown> | null>(null),
+                isDirty: mk<boolean>(false),
             },
         },
     }
@@ -42,8 +43,8 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 
-import {agentChannelModeAtom} from "../../src/state/execution/channelMode"
 import {buildAgentRequest, buildAgentReferences} from "../../src/state/execution/agentRequest"
+import {agentChannelModeAtom} from "../../src/state/execution/channelMode"
 import {executionHeadersAtom} from "../../src/state/execution/webWorkerIntegration"
 
 const REAL_APP = "11111111-1111-4111-8111-111111111111"
@@ -56,7 +57,12 @@ const set = (store: any, sel: any, id: string, value: unknown) =>
 function seed(
     store: ReturnType<typeof createStore>,
     id: string,
-    over: {url?: string | null; config?: Record<string, unknown> | null; data?: any},
+    over: {
+        url?: string | null
+        config?: Record<string, unknown> | null
+        data?: any
+        isDirty?: boolean
+    },
 ) {
     set(
         store,
@@ -66,6 +72,7 @@ function seed(
     )
     set(store, workflowMolecule.selectors.configuration, id, over.config ?? {temperature: 0.7})
     set(store, workflowMolecule.selectors.data, id, over.data ?? null)
+    set(store, workflowMolecule.selectors.isDirty, id, over.isDirty ?? false)
 }
 
 describe("buildAgentReferences (draft-id stripping)", () => {
@@ -187,8 +194,11 @@ describe("buildAgentRequest", () => {
         expect(parameters.agent).toMatchObject({model: "gpt-5.5", harness: "pi_core"})
     })
 
-    it("INCLUDES references built from the entity identity", async () => {
+    it("INCLUDES references for a CLEAN committed revision run (marks it non-draft)", async () => {
+        // A run of an unmodified committed revision claims its identity: the service marks it
+        // non-draft from the resolved revision reference and a self-targeting tool binds it.
         seed(store, "e", {
+            isDirty: false,
             data: {
                 id: REAL_REV,
                 version: 3,
@@ -203,16 +213,34 @@ describe("buildAgentRequest", () => {
         expect(refs.application_revision).toMatchObject({id: REAL_REV, version: "3"})
     })
 
-    it("STRIPS local-draft (non-UUID) ids from references", async () => {
+    it("OMITS references for a DIRTY committed revision (inline-config draft), keeping app scoping", async () => {
+        // Unsaved left-panel edits make this an inline-config draft. Forwarding the committed
+        // revision would wrongly mark it non-draft and bind a self-targeting tool to a revision
+        // whose config differs from what's running, so references are dropped entirely. The app
+        // still scopes the run via the URL query.
         seed(store, "e", {
-            data: {id: "draft-local-xyz", workflow_id: REAL_APP, version: 1},
+            isDirty: true,
+            data: {
+                id: REAL_REV,
+                version: 3,
+                workflow_id: REAL_APP,
+                workflow_variant_id: REAL_VARIANT,
+            },
         })
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
-        const refs = req!.requestBody.references as any
-        // real app id survives; the draft revision id is dropped (version still rides)
-        expect(refs.application.id).toBe(REAL_APP)
-        expect(refs.application_revision?.id).toBeUndefined()
-        expect(refs.application_revision?.version).toBe("1")
+        expect(req!.requestBody.references).toBeNull()
+        expect(req!.invocationUrl).toContain(`application_id=${REAL_APP}`)
+    })
+
+    it("OMITS references for an UNCOMMITTED local draft (no real revision id), keeping app scoping", async () => {
+        // A never-committed local draft has no committed revision UUID, so it is an inline-config
+        // draft too — send no references, but keep the app scoping in the URL.
+        seed(store, "e", {
+            data: {id: "draft-local-xyz", workflow_id: REAL_APP, workflow_variant_id: REAL_VARIANT},
+        })
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        expect(req!.requestBody.references).toBeNull()
+        expect(req!.invocationUrl).toContain(`application_id=${REAL_APP}`)
     })
 
     it("puts project_id + application_id in the URL QUERY, never the body", async () => {
