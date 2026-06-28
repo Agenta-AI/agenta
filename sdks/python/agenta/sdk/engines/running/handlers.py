@@ -63,7 +63,6 @@ from agenta.sdk.engines.running.errors import (
     MatchV0Error,
     CodeV0Error,
     MockV0Error,
-    ConfigV0Error,
     FeedbackV0Error,
 )
 
@@ -2935,27 +2934,6 @@ async def code_v0(
 
     raise InvalidOutputsV0Error(
         expected=["dict", "str", "int", "float", "bool"], got=_result
-    )
-
-
-@instrument()
-@instrument()
-async def config_v0(
-    request: Optional[Data] = None,
-    revision: Optional[Data] = None,
-    inputs: Optional[Data] = None,
-    parameters: Optional[Data] = None,
-    outputs: Optional[Union[Data, str]] = None,
-    trace: Optional[Data] = None,
-    testcase: Optional[Data] = None,
-) -> Any:
-    """
-    Interface-only handler for agenta:custom:config:v0.
-
-    Configurations are not directly invocable.
-    """
-    raise ConfigV0Error(
-        message="agenta:custom:config:v0 is not runnable.",
     )
 
 

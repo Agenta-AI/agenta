@@ -58,6 +58,8 @@ from oss.src.apis.fastapi.workflows.models import (
     #
     WorkflowCatalogTypeResponse,  # noqa: F401
     WorkflowCatalogTypesResponse,
+    WorkflowCatalogHarnessResponse,  # noqa: F401
+    WorkflowCatalogHarnessesResponse,
     WorkflowCatalogPresetResponse,
     WorkflowCatalogTemplateResponse,
     WorkflowCatalogTemplatesResponse,
@@ -89,6 +91,8 @@ from oss.src.apis.fastapi.environments.utils import (
 from oss.src.resources.workflows.catalog import (
     get_workflow_catalog_types,
     get_workflow_catalog_type,
+    get_workflow_catalog_harnesses,
+    get_workflow_catalog_harness,
     get_filtered_workflow_catalog_templates,
     get_workflow_catalog_template,
     get_filtered_workflow_catalog_presets,
@@ -134,6 +138,26 @@ class WorkflowsRouter:
             operation_id="fetch_workflow_catalog_type",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowCatalogTypeResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/harnesses/",
+            self.list_workflow_catalog_harnesses,
+            methods=["GET"],
+            operation_id="list_workflow_catalog_harnesses",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowCatalogHarnessesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/harnesses/{ag_harness}",
+            self.fetch_workflow_catalog_harness,
+            methods=["GET"],
+            operation_id="fetch_workflow_catalog_harness",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowCatalogHarnessResponse,
             response_model_exclude_none=True,
         )
 
@@ -469,6 +493,52 @@ class WorkflowsRouter:
         return WorkflowCatalogTypeResponse(
             count=1,
             type=workflow_type,
+        )
+
+    @intercept_exceptions()
+    async def list_workflow_catalog_harnesses(
+        self,
+    ) -> WorkflowCatalogHarnessesResponse:
+        """
+        List the agent harness records shipped with the product.
+
+        Each record carries the harness `capabilities` (providers, deployments, connection
+        modes, model selection, models). A workflow's harness field references one via
+        `x-ag-harness-ref`, resolved against `/catalog/harnesses/{ag_harness}`.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
+        harnesses = get_workflow_catalog_harnesses()
+
+        return WorkflowCatalogHarnessesResponse(
+            count=len(harnesses),
+            harnesses=harnesses,
+        )
+
+    @intercept_exceptions()
+    async def fetch_workflow_catalog_harness(
+        self,
+        *,
+        ag_harness: str,
+    ) -> WorkflowCatalogHarnessResponse:
+        """
+        Return a single harness record (with its `capabilities`).
+
+        Returns 404 when the `ag_harness` is not part of the shipped catalog.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
+        harness = get_workflow_catalog_harness(ag_harness=ag_harness)
+
+        if harness is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Unknown ag-harness: {ag_harness}",
+            )
+
+        return WorkflowCatalogHarnessResponse(
+            count=1,
+            harness=harness,
         )
 
     @intercept_exceptions()

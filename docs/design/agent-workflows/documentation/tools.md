@@ -35,6 +35,7 @@ shares two fields through `ToolConfigBase`, and then a `type` discriminator pick
 | `code` | `name`, `runtime` (`python`/`node`), `script`, `input_schema`, `secrets` | An inline snippet the author writes, with named vault secrets injected. |
 | `client` | `name`, `input_schema` | A tool the browser fulfils, like "ask the user to pick a date." |
 | `reference` | `ref_by` (`variant`/`environment`), `slug`, optional `environment`/`version`, optional `name`/`description`/`input_schema` | A workflow referenced as a tool (see below); the service runs the referenced workflow revision when the model calls it. |
+| `platform` | `op` (a platform-op catalog key), optional `needs_approval`/`permission` | An existing Agenta endpoint exposed to the agent (e.g. `find_capabilities`, `query_workflows`, `commit_revision`); the runner calls the endpoint directly. See [Platform tools](#platform-tools-existing-agenta-endpoints) below. |
 
 A tool can also be a **workflow** referenced as a tool:
 
@@ -53,6 +54,17 @@ A tool can also be a **workflow** referenced as a tool:
 A `type: "reference"` tool is plain config, not a marker: the generic resolver (`ResolverMiddleware`
 + the API embed resolver in `api/oss/src/core/embeds/utils.py`) only ever INLINES `@ag.embed` and
 has no special case for reference tools; all tool-specific mapping lives in `resolve_tools`.
+
+A tool can also be a **platform** tool — an existing Agenta endpoint exposed to the agent:
+
+- **`type: "platform"`** — a `PlatformToolConfig`. The author writes only `{type:"platform", op}`
+  (plus optional `needs_approval`/`permission`); the `op` names an entry in the platform-op catalog
+  (`sdks/python/agenta/sdk/agents/platform/op_catalog.py`), which owns everything else: the
+  model-facing description, the endpoint (method + relative path), the input schema, any
+  self-targeting fields bound from run context, and the per-op default permission/approval.
+  `resolve_tools` turns it into a `CallbackToolSpec` carrying a direct `call` descriptor, so the
+  runner calls the existing endpoint directly (no `/tools/call` hop). See
+  [Platform tools](#platform-tools-existing-agenta-endpoints).
 
 MCP servers are a sibling field, `AgentConfig.mcp_servers`, not a tool type. They are declared
 in `sdks/python/agenta/sdk/agents/mcp/models.py` and resolved alongside tools. They are
@@ -84,6 +96,7 @@ because it is the seam between the two lives of a tool:
 | `code` | `CodeToolSpec` with secrets in `env` | `code` |
 | `client` | `ClientToolSpec` | `client` |
 | `reference` | `CallbackToolSpec` with a `workflow.{axis}.*` `call_ref` | `callback` |
+| `platform` | `CallbackToolSpec` with a direct `call` (method/path/context) | `callback` |
 
 The resolved specs are also defined in `tools/models.py` (`CallbackToolSpec`, `CodeToolSpec`,
 `ClientToolSpec`), and the matching TypeScript shape is `ResolvedToolSpec` in
@@ -121,6 +134,15 @@ Resolution runs per type:
   `ToolCallback` to `{api}/tools/call`. Gateway and reference share the one `ToolCallback`
   (same endpoint, same per-request auth); the server-side `/tools/call` routes by the `call_ref`
   prefix (`tools.*` vs `workflow.*`).
+- **Platform** (a `type: "platform"` tool) resolves through `AgentaPlatformToolResolver`
+  (`sdks/python/agenta/sdk/agents/platform/platform_tools.py`). Like reference it makes no HTTP
+  round-trip — the op is fully described by the code-defined catalog
+  (`platform/op_catalog.py`). It looks up the op, expands the catalog input schema (`x-ag-type-ref`
+  resolved against `CATALOG_TYPES`), strips the op's `bind` fields from the model-visible schema,
+  and builds a `CallbackToolSpec` whose `call` points at the existing endpoint
+  (`call.context` carries the bind map). It assembles the same shared `ToolCallback` to
+  `{api}/tools/call` (gateway/reference/platform share the one callback; it gives the runner the
+  origin to resolve the relative `call.path` against).
 - **Gateway** is the involved one. `AgentaGatewayToolResolver`
   (`sdks/python/agenta/sdk/agents/platform/gateway.py`, re-exported by
   `services/oss/src/agent/tools/gateway.py`) posts the references to the API's
@@ -224,6 +246,26 @@ non-Pi internal MCP channel (a loopback HTTP MCP server the runner serves) uses 
 even on local runs, because the harness calling it is kept blind to the private spec — only
 public metadata crosses the channel, and execution relays back to the runner.
 
+### Platform tools: the runner calls an existing Agenta endpoint directly
+
+A `type: "platform"` tool exposes an EXISTING Agenta endpoint to the agent — a thin wrapper, no
+new endpoint and no hidden logic. It resolves to a `CallbackToolSpec` carrying a direct `call`
+descriptor (`{method, path, body?, context?, args_into?}`) instead of a `call_ref`, so the runner
+calls the endpoint directly with the run's caller credential. There is no `/tools/call` hop. The
+SSRF guard binds the call to the run's own Agenta origin and confines it to the API mount
+(`directCallUrl` in `services/agent/src/tools/direct.ts`); the same dispatch handles the Daytona
+relay path. The runner needs no platform-specific code — it dispatches any `call` opaquely (the
+branch already exists for reference tools).
+
+For a **self-targeting** op the agent's own identity is bound server-side. The catalog entry
+declares a `bind` map (an endpoint body path → a `$ctx.<key>` run-context token); the resolver
+strips those fields from the model-visible schema and emits them as `call.context`, and the runner
+fills them from the per-turn `runContext` at dispatch (see
+[run context](../../projects/direct-call-tools/run-context.md)). So `commit_revision` binds the
+running variant id — the model supplies only the new config and can never retarget a different
+variant. Permission/approval ride the same axes as every other tool type, so HITL still works on a
+direct call.
+
 ### Code tools: the runner runs them locally
 
 Execution is a local subprocess inside the runner. `runCodeTool`
@@ -302,12 +344,79 @@ spec onto the `tool_call` and `tool_result` events so the egress can project it 
 without a spec lookup. The hint can name a prebuilt component, ship rendered source, or carry a
 declarative UI spec (`RenderHint` in `protocol.ts`).
 
+## Platform tools (existing Agenta endpoints)
+
+A platform tool exposes an existing Agenta endpoint to the agent so it can act on the platform —
+discover tools, query workflows, even update itself. The set of exposable endpoints is a
+code-defined catalog in `sdks/python/agenta/sdk/agents/platform/op_catalog.py`. The author writes
+only `{type:"platform", op}`; the catalog owns the rest. Adding an op is a data change to the
+catalog, not new plumbing.
+
+Each catalog entry (`PlatformOp`, a typed model validated at import) maps an `op` to:
+
+| Field | Meaning |
+| --- | --- |
+| `description` | The model-facing description (SDK-owned). |
+| `method`, `path` | The existing endpoint to call: `GET`/`POST` and a relative `/api/...` path. |
+| `input_schema` / `input_schema_ref` | The request input schema — inline JSON Schema, or a `CATALOG_TYPES` key (expanded via `x-ag-type-ref`). Exactly one. |
+| `bind` | Self-targeting fields: an endpoint body path → a `$ctx.<key>` run-context token. Stripped from the model schema; emitted as `call.context`. |
+| `default_permission`, `default_needs_approval` | Per-op gate. Mutating ops default to approval; reads to auto-allow. The config's `needs_approval`/`permission` override. |
+
+Each op has a stable reserved id, `tools.agenta.<op>` (the same namespace as the original
+`find_capabilities`). The first, minimal-useful set of ops:
+
+| Op | Endpoint | Gate | Notes |
+| --- | --- | --- | --- |
+| `find_capabilities` | `POST /api/tools/discover` | read (auto-allow) | Tool discovery; makes the discover endpoint agent-usable end to end (see below). |
+| `query_workflows` | `POST /api/workflows/query` | read (auto-allow) | List the project's workflow artifacts with optional filters. |
+| `commit_revision` | `POST /api/workflows/revisions/commit` | mutating (approval) | "Update yourself": binds `workflow_revision.workflow_variant_id` ← `$ctx.workflow.variant.id`, so the agent can only ever commit a revision to its own variant. |
+
+This mirrors two existing patterns: the reserved `tools.agenta.*` tool (PR #4884,
+`find_capabilities`) and the evaluators catalog
+(`api/oss/src/resources/evaluators/evaluators.py`, a code-defined table of named ops). Multi-step
+operations (e.g. create-then-commit) are composed by the harness across several endpoint-wrapper
+calls, guided by a skill — not collapsed into a new convenience endpoint. We expose the endpoints
+we have; we do not add new ones.
+
+## Tool discovery: `find_capabilities`
+
+Before an agent can attach a tool it has to find the right one. `find_capabilities` turns a set
+of plain-language use cases into Agenta-shaped tools, each integration's connection state, and
+operating guidance — in one call, so a builder agent never guesses slugs or learns Composio.
+
+- **Endpoint:** `POST /tools/discover` (project-scoped via caller auth, `VIEW_TOOLS`). Request:
+  `{use_cases: string[], provider?: "composio", limit_alternatives?: 3}`. Response: the
+  `CapabilitiesResult` contract (`capabilities[]`, `connections[]`, `guidance`, `ready`,
+  `notes`).
+- **What it does:** wraps Composio's `COMPOSIO_SEARCH_TOOLS` and translates the result to Agenta
+  concepts (`integration` + `action`, connection slugs, our `POST /tools/connections/`
+  affordance). The raw Composio slug rides along only as an opaque `provider_action`. It reports
+  each integration's connection state (`ready` / `needs_auth` / `needs_input`) read fresh from
+  the project's `gateway_connections`; the tool/schema half is cached (the search runs an LLM
+  internally, so it is a few seconds).
+- **Scope (v1):** action tools only. A use case that reads like a trigger ("listen for…") is
+  flagged in `notes` and on the capability; event listening is a separate trigger subscription
+  (a follow-up). Composio has no semantic trigger search.
+- **Agent-facing tool:** `find_capabilities` is the first [platform tool](#platform-tools-existing-agenta-endpoints).
+  An agent config declares it as `{type:"platform", op:"find_capabilities"}`, and
+  `platform.resolve_tools` emits a `CallbackToolSpec` with a direct `call` to
+  `POST /api/tools/discover` — so the model can call it end to end (no `/tools/call` hop). The
+  server-side `/tools/call` `tools.agenta.*` dispatch (the original delivery path) still exists for
+  now and is removed in a later phase once nothing routes through it. The runner needs no change.
+
+The contract and the field-by-field Composio→Agenta mapping live in the
+[tool-discovery design](../../projects/tool-discovery/design.md). The setup-agent loop
+(discover → resolve connections → create → test) is the
+[discover-and-wire-tools skill](../../projects/tool-discovery/skills/discover-and-wire-tools/SKILL.md).
+
 ## The whole picture
 
 | Tool type | Resolves to | Who executes | Where | Secret handling |
 | --- | --- | --- | --- | --- |
 | Built-in | a name | the harness | in the harness | none |
 | Gateway | `callback` spec + `call_ref` | the Agenta service | back at the service (`/tools/call`), relayed via files on Daytona | key and connection auth stay server-side |
+| Reference | `callback` spec + `workflow.*` `call_ref` | the Agenta service | the referenced workflow revision, server-side | connections/secrets stay server-side |
+| Platform | `callback` spec + direct `call` | the Agenta service | the exposed endpoint, called directly (no `/tools/call` hop) | caller credential reused; self-targeting ids bound server-side |
 | Code | `code` spec + `env` | the runner | a local subprocess | only the tool's own secrets, scoped to the child |
 | Client | `client` spec | the browser | the user's browser, next turn | none |
 | MCP | resolved server + `env` | a server process | a stdio child the daemon launches | secrets injected into the server env |
@@ -321,10 +430,15 @@ declarative UI spec (`RenderHint` in `protocol.ts`).
 | MCP config | `sdks/python/agenta/sdk/agents/mcp/models.py` |
 | SDK resolution algorithm | `sdks/python/agenta/sdk/agents/tools/resolver.py` |
 | SDK platform composition (`resolve_tools`/`resolve_mcp`) | `sdks/python/agenta/sdk/agents/platform/resolve.py` |
+| Platform-op catalog (the `op` table + schema/bind resolution) | `sdks/python/agenta/sdk/agents/platform/op_catalog.py` |
+| Platform tool resolver (catalog → `CallbackToolSpec` + `call`) | `sdks/python/agenta/sdk/agents/platform/platform_tools.py` |
+| `x-ag-type-ref` schema expansion | `sdks/python/agenta/sdk/agents/platform/_schema.py` |
 | Service entrypoints (shims + MCP gate) | `services/oss/src/agent/tools/resolver.py`, `__init__.py` |
 | Gateway resolver (calls `/tools/resolve`) | `sdks/python/agenta/sdk/agents/platform/gateway.py` (shim: `services/oss/src/agent/tools/gateway.py`) |
 | Named-secret resolution (`/secrets/resolve`) | `sdks/python/agenta/sdk/agents/platform/secrets.py` (shim: `services/oss/src/agent/tools/secrets.py`) |
 | API resolve + execute | `api/oss/src/core/tools/service.py`, `api/oss/src/apis/fastapi/tools/router.py` |
+| Tool discovery (search + Composio→Agenta translation) | `api/oss/src/core/tools/discovery.py`, `service.py` (`discover_capabilities`) |
+| Discovery endpoint + reserved-tool route | `api/oss/src/apis/fastapi/tools/router.py` (`/tools/discover`, `_call_agenta_tool`) |
 | Wire contract | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py` |
 | Tool-delivery fork (branch on `mcpTools`) | `services/agent/src/engines/sandbox_agent/mcp.ts` |
 | Runtime dispatch (branch on `kind`) | `services/agent/src/tools/dispatch.ts` |
@@ -353,6 +467,15 @@ declarative UI spec (`RenderHint` in `protocol.ts`).
 - **Code tools are standard-library-only.** The image ships `python3` and `node`, but the
   child env has no package install and no module path to the runner's dependencies, so a tool
   cannot import third-party packages.
+- **Tool discovery is now agent-usable** as the `find_capabilities` platform tool: an agent config
+  declares `{type:"platform", op:"find_capabilities"}` and the model calls
+  `POST /api/tools/discover` directly. The old server-side `/tools/call` `tools.agenta.*` dispatch
+  is left in place during the migration and removed in a later phase. v1 discovery covers action
+  tools, not triggers.
+- **Platform tools are SDK-resolved; the first set is small** (`find_capabilities`,
+  `query_workflows`, `commit_revision`). More ops are a data add to the catalog. The reference
+  tool still executes through the `/tools/call` `workflow.*` route; moving it to a direct `call`
+  and removing that route is a later phase.
 - **Harness capabilities are probed but not consumed.** The runner probes `HarnessCapabilities`
   per run (`engines/sandbox_agent/capabilities.ts`), uses them only for the internal `mcpTools`
   delivery branch, and returns them on the `/run` result. The result field is parsed into
@@ -360,5 +483,3 @@ declarative UI spec (`RenderHint` in `protocol.ts`).
   no service check. `/health` advertises `engines` and `harnesses` but no capabilities. The
   [harness-capabilities proposal](../../projects/harness-capabilities/proposal.md) is the plan
   to make this a real, consumed contract.
-</content>
-</invoke>

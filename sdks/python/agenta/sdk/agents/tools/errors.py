@@ -80,3 +80,16 @@ class DuplicateToolNameError(ToolResolutionError):
     def __init__(self, name: str) -> None:
         super().__init__(f"Duplicate tool name: {name}")
         self.name = name
+
+
+class UnknownPlatformOpError(ToolResolutionError):
+    """Raised when a ``type:"platform"`` tool names an op absent from the platform-op catalog."""
+
+    def __init__(self, *, op: str, available: Sequence[str]) -> None:
+        names = ", ".join(available)
+        super().__init__(
+            f"Unknown platform op: '{op}'. Available ops: {names}",
+            reference=op,
+        )
+        self.op = op
+        self.available = tuple(available)

@@ -1,14 +1,18 @@
 """Skill workflow-family flag derivation.
 
-A skill is a URI-less, non-runnable workflow. A URI-less workflow otherwise defaults to
-``is_evaluator=True`` in :func:`infer_flags_from_data`, so a skill must be committed with an
-explicit flags object that sets ``is_skill=True`` and ``is_evaluator=False``. These tests pin
-that the explicit flags survive derivation and that ``is_skill`` is exposed on the SDK flag
-models.
+A skill is a non-runnable snippet identified by the builtin uri ``agenta:builtin:skill:v0``.
+``is_skill`` is uri-derived (``key == "skill"``), not caller-settable, and a skill carries no
+execution surface (url / script / handler are stripped); it keeps only its ``parameters`` and that
+parameters schema. These tests pin that derivation and that ``is_skill`` is on the SDK flag models.
 """
 
-from agenta.sdk.engines.running.utils import infer_flags_from_data
+from agenta.sdk.engines.running.utils import (
+    AGENTA_BUILTIN_SKILL_URI,
+    infer_flags_from_data,
+    normalize_snippet_data,
+)
 from agenta.sdk.models.workflows import (
+    JsonSchemas,
     WorkflowFlags,
     WorkflowQueryFlags,
     WorkflowRevisionData,
@@ -17,13 +21,14 @@ from agenta.sdk.models.workflows import (
 
 def _skill_data() -> WorkflowRevisionData:
     return WorkflowRevisionData(
+        uri=AGENTA_BUILTIN_SKILL_URI,
         parameters={
             "skill": {
                 "name": "agenta-getting-started",
                 "description": "A starter skill.",
                 "body": "Do the thing.",
             }
-        }
+        },
     )
 
 
@@ -35,22 +40,55 @@ def test_workflow_flags_expose_is_skill():
     assert query_flags.is_skill is None
 
 
-def test_infer_flags_keeps_explicit_skill_flags_for_uri_less_workflow():
-    flags = infer_flags_from_data(
-        flags=WorkflowFlags(is_skill=True, is_evaluator=False),
-        data=_skill_data(),
-    )
+def test_infer_flags_derives_is_skill_from_uri():
+    flags = infer_flags_from_data(flags=None, data=_skill_data())
 
+    # is_skill is uri-derived; the skill role table marks it a non-runnable snippet.
     assert flags.is_skill is True
-    # The URI-less default is is_evaluator=True; the explicit flags object must override it.
+    assert flags.is_snippet is True
     assert flags.is_evaluator is False
+    assert flags.is_application is False
+    # A skill has no execution surface.
     assert flags.has_url is False
     assert flags.has_script is False
     assert flags.has_handler is False
 
 
-def test_infer_flags_uri_less_default_without_flags_is_evaluator_not_skill():
-    flags = infer_flags_from_data(flags=None, data=_skill_data())
+def test_normalize_snippet_data_keeps_uri_parameters_and_parameters_schema():
+    params_schema = {"type": "object", "properties": {"skill": {"type": "object"}}}
+    data = WorkflowRevisionData(
+        uri=AGENTA_BUILTIN_SKILL_URI,
+        url="https://example.com/skill",
+        script="print('x')",
+        parameters={"skill": {"name": "s", "description": "d", "body": "b"}},
+        schemas=JsonSchemas(
+            parameters=params_schema,
+            inputs={"type": "object"},
+            outputs={"type": "object"},
+        ),
+    )
 
-    assert flags.is_skill is False
-    assert flags.is_evaluator is True
+    normalized = normalize_snippet_data(data)
+
+    assert normalized.uri == AGENTA_BUILTIN_SKILL_URI
+    assert normalized.parameters == {
+        "skill": {"name": "s", "description": "d", "body": "b"}
+    }
+    assert normalized.url is None
+    assert normalized.script is None
+    # A snippet is non-runnable: it keeps the parameters schema but no inputs/outputs.
+    assert normalized.schemas is not None
+    assert normalized.schemas.parameters == params_schema
+    assert normalized.schemas.inputs is None
+    assert normalized.schemas.outputs is None
+
+
+def test_normalize_snippet_data_without_schemas_stays_none():
+    data = WorkflowRevisionData(
+        uri=AGENTA_BUILTIN_SKILL_URI,
+        parameters={"skill": {"name": "s", "description": "d", "body": "b"}},
+    )
+
+    normalized = normalize_snippet_data(data)
+
+    assert normalized.schemas is None

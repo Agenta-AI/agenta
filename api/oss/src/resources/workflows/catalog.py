@@ -4,10 +4,12 @@ from typing import Any, Optional
 from oss.src.resources.evaluators.evaluators import evaluators as evaluator_catalog
 from oss.src.core.workflows.dtos import (
     WorkflowCatalogType,
+    WorkflowCatalogHarness,
     WorkflowCatalogTemplate,
     WorkflowCatalogPreset,
 )
 from agenta.sdk.utils.types import CATALOG_TYPES
+from agenta.sdk.agents.capabilities import harness_catalog_document
 from agenta.sdk.engines.running.catalog import (
     get_all_catalog_templates,
     get_catalog_template,
@@ -238,6 +240,30 @@ def get_workflow_catalog_type(*, ag_type: str) -> Optional[WorkflowCatalogType]:
         key=ag_type,
         json_schema=_clone(json_schema),
     )
+
+
+def _harness_record(key: str, record: dict) -> WorkflowCatalogHarness:
+    return WorkflowCatalogHarness(
+        key=key,
+        capabilities=_clone(record.get("capabilities")),
+    )
+
+
+def get_workflow_catalog_harnesses() -> list[WorkflowCatalogHarness]:
+    return [
+        _harness_record(key, record)
+        for key, record in harness_catalog_document().items()
+    ]
+
+
+def get_workflow_catalog_harness(
+    *, ag_harness: str
+) -> Optional[WorkflowCatalogHarness]:
+    record = harness_catalog_document().get(ag_harness)
+    if record is None:
+        return None
+
+    return _harness_record(ag_harness, record)
 
 
 _catalog: Optional[list[dict[str, Any]]] = None

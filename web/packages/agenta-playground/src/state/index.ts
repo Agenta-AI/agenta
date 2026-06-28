@@ -178,6 +178,7 @@ export {isAgentModeAtomFamily} from "./execution"
 export {buildAgentRequest, buildAgentReferences, type AgentRequest} from "./execution"
 export {agentChannelModeAtom, type AgentChannelMode} from "./execution"
 export {agentShouldResumeAfterApproval} from "./execution"
+export {canReleaseQueuedMessage, isHitlPending} from "./execution"
 
 export {filterUnreferencedColumnsForSource} from "./execution"
 

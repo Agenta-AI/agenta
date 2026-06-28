@@ -1248,50 +1248,12 @@ export const isChatModeAtom = atom<boolean | undefined>((get) => get(playgroundI
  * AgentChatPanel; chat-type → ChatMode); agent mode is NOT a replacement for
  * classic chat mode.
  *
- * Primary signal: `workflowType === "agent"` (WP-6 `is_agent` flag / agent URI).
- * Heuristic fallback until WP-6 lands: the stored config carries a
- * `harness`/`sandbox` marker so the panel is testable. The atom is the seam —
- * delete the heuristic the moment the backend flag ships.
+ * Signal: `workflowType === "agent"`, which derives from the backend `is_agent` flag.
  */
-/**
- * Detect the `agent_config` schema marker the same way the left-panel
- * AgentConfigControl does — SchemaPropertyRenderer dispatches on
- * `x-ag-type-ref` / `x-ag-type` === "agent_config". This is the robust,
- * WP-6-independent signal: it holds whenever the config schema carries an
- * agent_config block, so the right-hand generations panel agrees with the
- * config schema the left panel already renders. Checked at the schema root
- * and one level into `properties` (the agent_config block is a property).
- */
-const schemaMarksAgentConfig = (schema: unknown): boolean => {
-    const marks = (node: unknown): boolean => {
-        if (!node || typeof node !== "object") return false
-        const n = node as Record<string, unknown>
-        return n["x-ag-type-ref"] === "agent_config" || n["x-ag-type"] === "agent_config"
-    }
-    if (marks(schema)) return true
-    const properties = (schema as Record<string, unknown> | null)?.properties
-    if (!properties || typeof properties !== "object") return false
-    return Object.values(properties as Record<string, unknown>).some(marks)
-}
-
 export const isAgentModeAtomFamily = atomFamily((entityId: string) =>
     atom<boolean>((get) => {
-        // Primary signal (WP-6): the backend marks the workflow as an agent.
-        if (get(workflowMolecule.selectors.workflowType(entityId)) === "agent") return true
-        // Schema-marker detection — matches the left-panel agent config control,
-        // so the generations panel agrees with the rendered config schema even
-        // before WP-6 sets is_agent. (The harness/sandbox heuristic below missed
-        // because those values live nested inside the agent_config block, not at
-        // the top level of `configuration`.)
-        if (schemaMarksAgentConfig(get(workflowMolecule.selectors.parametersSchema(entityId))))
-            return true
-        // Legacy heuristic — a stored config carrying top-level harness/sandbox.
-        // Kept as a last resort; delete once WP-6 is the sole source of truth.
-        const config = get(workflowMolecule.selectors.configuration(entityId)) as
-            | Record<string, unknown>
-            | null
-            | undefined
-        return Boolean(config?.harness || config?.sandbox)
+        // The backend marks the workflow as an agent (is_agent, surfaced via workflowType).
+        return get(workflowMolecule.selectors.workflowType(entityId)) === "agent"
     }),
 )
 

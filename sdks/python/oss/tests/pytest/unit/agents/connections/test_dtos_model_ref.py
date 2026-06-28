@@ -9,27 +9,27 @@ only for a structured ref.
 from __future__ import annotations
 
 from agenta.sdk.agents import (
-    AgentConfig,
+    AgentTemplate,
     Connection,
     HarnessType,
     Message,
     ModelRef,
-    PiAgentConfig,
+    PiAgentTemplate,
 )
 from agenta.sdk.agents.utils.wire import request_to_wire
 
 
-# --------------------------------------------------------------- AgentConfig.model_ref
+# --------------------------------------------------------------- AgentTemplate.model_ref
 
 
 def test_plain_string_model_leaves_model_ref_unset():
-    config = AgentConfig(model="openai-codex/gpt-5.5")
+    config = AgentTemplate(model="openai-codex/gpt-5.5")
     assert config.model == "openai-codex/gpt-5.5"
     assert config.model_ref is None
 
 
 def test_dict_model_populates_model_ref_and_projects_string():
-    config = AgentConfig(
+    config = AgentTemplate(
         model={
             "provider": "openai",
             "model": "gpt-5.5",
@@ -44,13 +44,13 @@ def test_dict_model_populates_model_ref_and_projects_string():
 
 def test_model_ref_instance_populates_and_projects():
     ref = ModelRef(provider="anthropic", model="claude-opus-4-8")
-    config = AgentConfig(model=ref)
+    config = AgentTemplate(model=ref)
     assert config.model == "anthropic/claude-opus-4-8"
     assert config.model_ref is ref or config.model_ref == ref
 
 
 def test_explicit_model_ref_is_respected():
-    config = AgentConfig(
+    config = AgentTemplate(
         model="gpt-5.5",
         model_ref=ModelRef(provider="openai", model="gpt-5.5"),
     )
@@ -62,12 +62,12 @@ def test_explicit_model_ref_is_respected():
 
 
 def test_wire_model_ref_empty_for_string_only_config():
-    config = PiAgentConfig(model="openai-codex/gpt-5.5")
+    config = PiAgentTemplate(model="openai-codex/gpt-5.5")
     assert config.wire_model_ref() == {}
 
 
 def test_wire_model_ref_emits_provider_and_connection_for_structured():
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         model={
             "provider": "openai",
             "model": "gpt-5.5",
@@ -81,7 +81,7 @@ def test_wire_model_ref_emits_provider_and_connection_for_structured():
 
 
 def test_wire_model_ref_omits_default_connection():
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         model={"provider": "openai", "model": "gpt-5.5"},
     )
     # Default connection carries no non-default info, so only the provider rides the wire.
@@ -89,7 +89,7 @@ def test_wire_model_ref_omits_default_connection():
 
 
 def test_wire_model_ref_emits_self_managed_connection_without_slug():
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         model={
             "provider": "openai",
             "model": "gpt-5.5",
@@ -107,7 +107,7 @@ def test_string_only_config_wire_has_no_new_keys():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(model="openai-codex/gpt-5.5"),
+        config=PiAgentTemplate(model="openai-codex/gpt-5.5"),
         messages=[Message(role="user", content="hi")],
     )
     assert "provider" not in payload
@@ -119,7 +119,7 @@ def test_structured_config_wire_carries_provider_and_connection():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(
+        config=PiAgentTemplate(
             model={
                 "provider": "openai",
                 "model": "gpt-5.5",

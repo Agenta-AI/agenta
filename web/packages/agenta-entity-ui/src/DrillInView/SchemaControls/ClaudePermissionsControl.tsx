@@ -8,7 +8,7 @@
  *   { default_mode?: "default"|"acceptEdits"|"plan"|"bypassPermissions",
  *     allow: string[], deny: string[], ask: string[] }
  *
- * It is rendered as a collapsed "advanced" section by AgentConfigControl and is hidden when the
+ * It is rendered as a collapsed "advanced" section by AgentTemplateControl and is hidden when the
  * harness is not Claude (nothing here applies to Pi, which never gates tool use). Non-destructive:
  * an author who touches nothing leaves `harness_kwargs` untouched.
  */

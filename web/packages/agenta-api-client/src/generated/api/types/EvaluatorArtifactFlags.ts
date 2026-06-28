@@ -4,6 +4,4 @@ export interface EvaluatorArtifactFlags {
     is_application?: boolean | undefined;
     is_evaluator?: boolean | undefined;
     is_snippet?: boolean | undefined;
-    is_skill?: boolean | undefined;
-    is_platform?: boolean | undefined;
 }

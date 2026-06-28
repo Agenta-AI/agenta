@@ -6,6 +6,7 @@ from agenta.sdk.agents.tools import (
     BuiltinToolConfig,
     ClientToolConfig,
     GatewayToolConfig,
+    PlatformToolConfig,
     ReferenceToolConfig,
     ToolConfigurationError,
     coerce_tool_config,
@@ -246,3 +247,28 @@ def test_typed_reference_carries_tool_axes():
 def test_typed_reference_without_slug_raises():
     with pytest.raises(ToolConfigurationError):
         coerce_tool_config({"type": "reference"})
+
+
+# --- type:"platform" tool ----------------------------------------------------
+
+
+def test_typed_platform_config_round_trips():
+    tool = parse_tool_config({"type": "platform", "op": "find_capabilities"})
+    assert isinstance(tool, PlatformToolConfig)
+    assert tool.op == "find_capabilities"
+    # needs_approval is optional (None = use the catalog default).
+    assert tool.needs_approval is None
+
+
+def test_compat_parser_accepts_platform_type():
+    tool = coerce_tool_config(
+        {"type": "platform", "op": "commit_revision", "needs_approval": False}
+    )
+    assert isinstance(tool, PlatformToolConfig)
+    assert tool.op == "commit_revision"
+    assert tool.needs_approval is False
+
+
+def test_typed_platform_without_op_raises():
+    with pytest.raises(ToolConfigurationError):
+        coerce_tool_config({"type": "platform"})

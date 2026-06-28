@@ -24,14 +24,15 @@ from typing import ClassVar, FrozenSet, Mapping, Optional, Sequence
 from .dtos import (
     AgentResult,
     EventSink,
-    HarnessAgentConfig,
+    HarnessAgentTemplate,
     HarnessType,
     Message,
+    RunContext,
     SessionConfig,
     TraceContext,
 )
 from .errors import UnsupportedHarnessError
-from .streaming import AgentRun
+from .streaming import AgentStream
 
 
 # ---------------------------------------------------------------------------
@@ -74,11 +75,11 @@ class Session(ABC):
         """Run one turn and return the structured result (the one-shot path)."""
 
     @abstractmethod
-    def stream(self, messages: Sequence[Message]) -> AgentRun:
+    def stream(self, messages: Sequence[Message]) -> AgentStream:
         """Run one turn, yielding events live across the boundary.
 
-        Returns an :class:`~agenta.sdk.agents.streaming.AgentRun`: an async-iterable of
-        ``AgentEvent`` that also carries the terminal ``AgentResult`` once consumed. This is
+        Returns an :class:`~agenta.sdk.agents.streaming.AgentStream`: an async-iterable of
+        ``Event`` that also carries the terminal ``AgentResult`` once consumed. This is
         the live counterpart of :meth:`prompt`.
         """
 
@@ -121,11 +122,12 @@ class Backend(ABC):
     async def create_session(
         self,
         sandbox: Sandbox,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
+        run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
     ) -> Session:
         """Open a session in ``sandbox`` for an already-harness-shaped ``config``."""
@@ -174,7 +176,7 @@ class Environment:
 
     async def create_session(
         self,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         session_config: SessionConfig,
@@ -190,6 +192,7 @@ class Environment:
             harness=harness,
             secrets=session_config.secrets,
             trace=session_config.trace,
+            run_context=session_config.run_context,
             session_id=session_config.session_id,
         )
 
@@ -226,7 +229,7 @@ class Harness(ABC):
         await self._env.shutdown()
 
     @abstractmethod
-    def _to_harness_config(self, config: SessionConfig) -> HarnessAgentConfig:
+    def _to_harness_config(self, config: SessionConfig) -> HarnessAgentTemplate:
         """Map the neutral config into this harness's own config (the mapping logic)."""
 
     def _provisioning(self, config: SessionConfig) -> Mapping[str, bytes]:
@@ -266,7 +269,7 @@ class Harness(ABC):
         self,
         config: SessionConfig,
         messages: Sequence[Message],
-    ) -> AgentRun:
+    ) -> AgentStream:
         """Convenience: open a cold session and stream one turn (the live counterpart of
         :meth:`prompt`).
 

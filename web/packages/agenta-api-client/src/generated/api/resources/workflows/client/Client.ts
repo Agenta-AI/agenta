@@ -174,6 +174,153 @@ export class WorkflowsClient {
     }
 
     /**
+     * List the agent harness records shipped with the product.
+     *
+     * Each record carries the harness `capabilities` (providers, deployments, connection
+     * modes, model selection, models). A workflow's harness field references one via
+     * `x-ag-harness-ref`, resolved against `/catalog/harnesses/{ag_harness}`.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
+     * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.workflows.listWorkflowCatalogHarnesses()
+     */
+    public listWorkflowCatalogHarnesses(
+        requestOptions?: WorkflowsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.WorkflowCatalogHarnessesResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__listWorkflowCatalogHarnesses(requestOptions));
+    }
+
+    private async __listWorkflowCatalogHarnesses(
+        requestOptions?: WorkflowsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.WorkflowCatalogHarnessesResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "workflows/catalog/harnesses/",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.WorkflowCatalogHarnessesResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/workflows/catalog/harnesses/");
+    }
+
+    /**
+     * Return a single harness record (with its `capabilities`).
+     *
+     * Returns 404 when the `ag_harness` is not part of the shipped catalog.
+     *
+     * See: [Workflows](/reference/api-guide/workflows).
+     *
+     * @param {AgentaApi.FetchWorkflowCatalogHarnessRequest} request
+     * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.workflows.fetchWorkflowCatalogHarness({
+     *         ag_harness: "ag_harness"
+     *     })
+     */
+    public fetchWorkflowCatalogHarness(
+        request: AgentaApi.FetchWorkflowCatalogHarnessRequest,
+        requestOptions?: WorkflowsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.WorkflowCatalogHarnessResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchWorkflowCatalogHarness(request, requestOptions));
+    }
+
+    private async __fetchWorkflowCatalogHarness(
+        request: AgentaApi.FetchWorkflowCatalogHarnessRequest,
+        requestOptions?: WorkflowsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.WorkflowCatalogHarnessResponse>> {
+        const { ag_harness: agHarness } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `workflows/catalog/harnesses/${core.url.encodePathParam(agHarness)}`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.WorkflowCatalogHarnessResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/workflows/catalog/harnesses/{ag_harness}",
+        );
+    }
+
+    /**
      * List workflow blueprints shipped with the product.
      *
      * Filter by domain with `is_application`, `is_evaluator`, or
