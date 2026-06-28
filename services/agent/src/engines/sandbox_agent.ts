@@ -133,6 +133,16 @@ function applyClaudeConnectionEnv(
 ): boolean {
   if (acpAgent !== "claude") return false;
 
+  // Disable the Claude Agent SDK's Tool-Search feature for every Claude run. The bundled
+  // SDK defaults Tool-Search ON, which makes Claude DEFER the `agenta-tools` MCP tools and
+  // call them before their `inputSchema` is loaded — so it emits an empty `input: {}` and
+  // tools-with-args (reference workflows, commit_revision) never receive their arguments.
+  // Our tool count is small, so deferral buys nothing and only strips the schema. The SDK
+  // treats only `false`/`0`/`no`/`off` as off, so the string must be "false" (not "0"/"100").
+  // This is applied after `buildDaemonEnv`'s clear and is not in `KNOWN_PROVIDER_ENV_VARS`,
+  // so it is never stripped, and it reaches the Daytona sandbox like `ANTHROPIC_BASE_URL`.
+  env.ENABLE_TOOL_SEARCH = "false";
+
   const deployment = request.deployment;
   const selectedModel = request.model;
   const baseUrl = request.endpoint?.baseUrl;
