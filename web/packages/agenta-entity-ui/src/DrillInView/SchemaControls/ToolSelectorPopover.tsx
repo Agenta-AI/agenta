@@ -22,7 +22,15 @@ import {
 import type {GatewayToolsBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
-import {CaretRight, Check, Code, MagnifyingGlass, Plus, Sparkle} from "@phosphor-icons/react"
+import {
+    CaretRight,
+    Check,
+    Code,
+    GraphIcon,
+    MagnifyingGlass,
+    Plus,
+    Sparkle,
+} from "@phosphor-icons/react"
 import {Button, Dropdown, Empty, Input, Spin, Typography} from "antd"
 import clsx from "clsx"
 
@@ -83,6 +91,9 @@ export interface ToolSelectorPopoverProps {
     /** Custom trigger element. Defaults to an outlined "Tool" button (e.g. a compact icon button
      * when hosted in a section header). */
     trigger?: ReactNode
+    /** When provided, the "Reference a workflow" section shows and its `+` calls this (the host opens
+     * a workflow-selector drawer). Without it the section is hidden. */
+    onReferenceWorkflow?: () => void
 }
 
 // ============================================================================
@@ -727,8 +738,9 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     existingToolCount = 0,
     gatewayTools: gatewayToolsProp,
     trigger,
+    onReferenceWorkflow,
 }: ToolSelectorPopoverProps) {
-    const {showMessage, gatewayTools: gatewayToolsFromContext} = useDrillInUI()
+    const {showMessage, gatewayTools: gatewayToolsFromContext, workflowReference} = useDrillInUI()
 
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
     const gatewayTools = gatewayToolsProp ?? gatewayToolsFromContext
@@ -805,6 +817,13 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
         resetAndClose()
         gatewayTools?.onOpenCatalog()
     }, [gatewayTools, resetAndClose])
+
+    // The "Reference a workflow" section closes the popover and hands off to the host's
+    // workflow-selector drawer (which lists/searches workflows and adds the reference).
+    const handleOpenReferenceSelector = useCallback(() => {
+        resetAndClose()
+        onReferenceWorkflow?.()
+    }, [resetAndClose, onReferenceWorkflow])
 
     const content = (
         <div className="flex h-[360px] min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
@@ -951,6 +970,27 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                             Create in-line function tool
                         </div>
                     </div>
+
+                    {workflowReference?.enabled && onReferenceWorkflow && (
+                        <div>
+                            <SectionHeader
+                                icon={<GraphIcon size={12} />}
+                                title="Reference a workflow"
+                                right={
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<Plus size={12} />}
+                                        onClick={handleOpenReferenceSelector}
+                                        className="!h-5 !px-1"
+                                    />
+                                }
+                            />
+                            <div className="px-2 pb-1 text-[11px] text-zinc-400">
+                                Run a workflow as a tool
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -28,7 +28,7 @@ import {
     type MessageUsageMetrics,
 } from "../assets/trace"
 
-import ToolPart from "./ToolPart"
+import ToolActivity from "./ToolActivity"
 
 const {Text} = Typography
 
@@ -233,68 +233,92 @@ const AgentMessage = ({
         )
     }
 
+    // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts
+    // into one ToolActivity group (a run of calls reads as a single "Used N tools" line).
+    type RenderItem =
+        | {kind: "part"; part: UIMessage["parts"][number]; index: number}
+        | {kind: "tools"; parts: ToolUIPart[]; index: number}
+    const renderItems: RenderItem[] = []
+    message.parts.forEach((part, i) => {
+        if (isToolPart(part.type)) {
+            const last = renderItems[renderItems.length - 1]
+            if (last && last.kind === "tools") last.parts.push(part as ToolUIPart)
+            else renderItems.push({kind: "tools", parts: [part as ToolUIPart], index: i})
+            return
+        }
+        renderItems.push({kind: "part", part, index: i})
+    })
+    // The tool group's "View full trace" opens the same per-turn trace the action row does.
+    const onViewTrace = traceId ? () => openTraceDrawer({traceId}) : undefined
+
+    const renderLeafPart = (part: UIMessage["parts"][number], i: number) => {
+        // Stable, globally-unique key per rendered part. The part index alone collides
+        // across messages that React reconciles together (duplicate-key warnings); the
+        // message id scopes it so each part is unique across the whole conversation.
+        const partKey = `${message.id}-${i}`
+        if (part.type === "text") {
+            const text = (part as {text: string}).text
+            if (!text) return null
+            // Render markdown for both roles so typed markdown displays properly.
+            return <Markdown key={partKey} content={text} />
+        }
+        if (part.type === "reasoning") {
+            const reasoning = part as ReasoningUIPart
+            if (!reasoning.text) return null
+            return (
+                <ReasoningPart
+                    key={partKey}
+                    text={reasoning.text}
+                    streaming={reasoning.state === "streaming"}
+                />
+            )
+        }
+        // Multi-modality: render attachments (sent by the user or returned by the
+        // agent) as X `FileCard`s — images preview inline, other kinds show a typed
+        // file chip with a download link.
+        if (part.type === "file") {
+            const file = part as FileUIPart
+            const kind = fileKind(file.mediaType)
+            return (
+                <FileCard
+                    key={partKey}
+                    name={filePartName(file)}
+                    type={kind}
+                    src={file.url}
+                    size="small"
+                    className="max-w-full"
+                    description={
+                        kind === "file" ? (
+                            <a
+                                href={file.url}
+                                download={filePartName(file)}
+                                className="text-xs text-colorPrimary"
+                            >
+                                {file.mediaType}
+                            </a>
+                        ) : undefined
+                    }
+                />
+            )
+        }
+        return null
+    }
+
     const defaultBody = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
-            {message.parts.map((part, i) => {
-                // Stable, globally-unique key per rendered part. The part index alone collides
-                // across messages that React reconciles together (duplicate-key warnings); the
-                // message id scopes it so each part is unique across the whole conversation.
-                const partKey = `${message.id}-${i}`
-                if (part.type === "text") {
-                    const text = (part as {text: string}).text
-                    if (!text) return null
-                    // Render markdown for both roles so typed markdown displays properly.
-                    return <Markdown key={partKey} content={text} />
-                }
-                if (part.type === "reasoning") {
-                    const reasoning = part as ReasoningUIPart
-                    if (!reasoning.text) return null
+            {renderItems.map((item) => {
+                if (item.kind === "tools") {
                     return (
-                        <ReasoningPart
-                            key={partKey}
-                            text={reasoning.text}
-                            streaming={reasoning.state === "streaming"}
-                        />
-                    )
-                }
-                if (isToolPart(part.type)) {
-                    return (
-                        <ToolPart
-                            key={partKey}
-                            part={part as ToolUIPart}
+                        <ToolActivity
+                            key={`${message.id}-tools-${item.index}`}
+                            parts={item.parts}
+                            isStreaming={isStreaming}
                             onApprovalResponse={onApprovalResponse}
+                            onViewTrace={onViewTrace}
                         />
                     )
                 }
-                // Multi-modality: render attachments (sent by the user or returned by the
-                // agent) as X `FileCard`s — images preview inline, other kinds show a typed
-                // file chip with a download link.
-                if (part.type === "file") {
-                    const file = part as FileUIPart
-                    const kind = fileKind(file.mediaType)
-                    return (
-                        <FileCard
-                            key={partKey}
-                            name={filePartName(file)}
-                            type={kind}
-                            src={file.url}
-                            size="small"
-                            className="max-w-full"
-                            description={
-                                kind === "file" ? (
-                                    <a
-                                        href={file.url}
-                                        download={filePartName(file)}
-                                        className="text-xs text-colorPrimary"
-                                    >
-                                        {file.mediaType}
-                                    </a>
-                                ) : undefined
-                            }
-                        />
-                    )
-                }
-                return null
+                return renderLeafPart(item.part, item.index)
             })}
 
             {sources.length > 0 && (

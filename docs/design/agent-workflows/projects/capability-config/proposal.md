@@ -114,7 +114,20 @@ are two cases.
 
 Resolved tools (gateway, code) run in the runner, through the relay. The runner is the choke
 point, so it applies the permission directly: allow runs the call, ask parks it, deny
-refuses it. This works the same on `pi` and `claude`.
+refuses it.
+
+This is true on `pi`, but it was NOT true on `claude` until F-046 was fixed — and the fix
+shows why the relay alone is not enough on Claude. A resolved executable tool is delivered to
+Claude as a tool of the internal `agenta-tools` MCP server (`mcp__agenta-tools__<name>`), and
+**Claude Code raises its own permission gate before the tool ever reaches the runner relay**.
+The runner parks every undecided gate when a human surface exists, so the per-tool `allow` the
+relay would have honored is never consulted — an `allow` tool always parked. The fix renders the
+per-resolved-tool permission as a Layer-1 `.claude/settings.json` rule too
+(`adapters/claude_settings.py` `_rules_from_tool_specs`): `allow` -> a `permissions.allow` rule
+(Claude runs it, no park), `ask`/unset -> no allow rule (the gate stays raised, HITL park
+preserved; `client` tools excluded because they are not delivered over the internal MCP server),
+`deny` -> a deny rule. So on Claude the permission is enforced at the settings layer
+(before the gate) AND at the relay; on `pi` the relay is the sole choke point.
 
 Harness builtins (Claude `Bash`/`Edit`/`Read`, Pi `bash`/`read`) run inside the harness, where
 the runner cannot intercept them. For Claude, the settings.json `allow`/`deny`/`ask` rules set

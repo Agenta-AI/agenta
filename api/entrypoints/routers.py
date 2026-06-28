@@ -826,6 +826,7 @@ simple_queues = SimpleQueuesRouter(
 
 tools = ToolsRouter(
     tools_service=tools_service,
+    workflows_service=workflows_service,
 )
 
 triggers = TriggersRouter(

@@ -16,13 +16,15 @@ Usage (host):
 
 In docker-compose it runs as the `triggers-bridge` service (profile
 `with-tunnel`, on by default; disable with `run.sh --no-tunnel`) and forwards to
-http://api:8000/triggers/composio/events/.
+http://api:8000/triggers/composio/events/. When ``COMPOSIO_API_KEY`` is unset it
+idles instead of exiting, so it never starts working until a key is provided.
 """
 
 import hashlib
 import hmac
 import json
 import os
+import signal
 import sys
 import time
 import uuid
@@ -63,7 +65,13 @@ def _sign(secret: str, webhook_id: str, timestamp: str, body: bytes) -> str:
 def main() -> int:
     api_key = os.getenv("COMPOSIO_API_KEY")
     if not api_key:
-        sys.exit("COMPOSIO_API_KEY not set.")
+        # Idle instead of exiting: the `triggers-bridge` service runs with
+        # `restart: always`, so a `sys.exit` here would crash-loop the container
+        # (start → pip install → exit → restart …) whenever COMPOSIO_API_KEY is
+        # unset or empty. Block forever so a keyless deployment stays harmlessly idle.
+        print("[bridge] COMPOSIO_API_KEY not set — idling (Composio tunnel disabled).")
+        signal.pause()
+        return 0
 
     secret = _webhook_secret(api_key)
     composio = Composio(api_key=api_key)

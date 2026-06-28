@@ -109,6 +109,11 @@ export type {
     DrillInUIComponents,
     DrillInUIProviderProps,
     GatewayToolsBridge,
+    WorkflowReferenceBridge,
+    WorkflowReferenceUI,
+    WorkflowRevisionUI,
+    WorkflowEnvironmentUI,
+    WorkflowReferencePayload,
 } from "@agenta/ui/drill-in"
 
 // Core Types
