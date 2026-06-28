@@ -1,79 +1,99 @@
 # Tasks — Detached invoke
 
 > Ordered, design-first. Built on `feat/add-sessions`. `[ ]` = not started.
-> Keep both workers (removal deferred); add the detached path + recommend.
+> ALL missing demo behavior for detach lands in THIS branch.
 
-## 0. Decided / constraints
-- [x] Both triggers (subscription + schedule) and interactions respond go **detached**.
-- [x] **Keep** the triggers worker and the interactions worker in this PR; only stop *awaiting*
-      the run and add the detached path. Removal = deferred follow-up with a written recommendation.
-- [x] No new permissions (RUN_SESSIONS already covers respond; triggers are system-authored).
-- [x] Non-detached callers (playground steer, direct API invoke) keep the blocking path.
+## 0. Decided (settled — do not re-litigate)
 
-## 1. Investigate the handoff transport (BLOCKING design decision — do first)
-- [ ] Determine how `workflows_service.invoke_workflow` executes today (in-process sync? does it
-      already hand to the runner?). Read `core/workflows/service.py` `invoke_workflow` + the
-      runner invoke path.
-- [ ] Choose the detach mechanism (spec options A/B/C): async-task vs runner
-      `/sessions/streams/invoke` vs durable queue. Document the choice + why in the design.
-- [ ] Confirm whether detach can reuse `streams.service._start_run`'s `detached` flag end-to-end
-      (it's currently inert) or needs a new path. Wire `detached` so it actually means
-      fire-and-forget.
+- [x] **Transport = runner keeps the session alive** (PoC model), NOT backgrounding the blocking
+      `invoke_workflow`. Run lives on the runner; caller detaches after a started guarantee.
+- [x] **"Started" signal = the alive-lock-acquisition handshake**, not a new event. Return
+      `run_id`+accepted once `alive` is held and the run is owned by a heartbeating runner.
+- [x] **Both triggers (subscription + schedule) and interactions respond go detached.**
+- [x] **Interactions worker → DELETE** (no broker/retry/dedup; respond fires detached inline).
+- [x] **Triggers worker → KEEP** — the durable Redis-Stream between the `202`-acked
+      `/composio/events/` ingress and dispatch is load-bearing (Composio won't re-deliver);
+      detach removes the *await*, not the *queue*. Both workers also keep the seconds-long,
+      network-bound detach handshake off the API process.
+- [x] **Triggers delivery** = write `dispatched`/accepted at fire time (record run_id); terminal
+      outcome observable via trace/transcript. No awaiting.
+- [x] No new permissions (RUN_SESSIONS covers respond; triggers system-authored).
 
-## 2. Make streams' detached invoke real
-- [ ] In `core/sessions/streams/service.py`, branch `_start_run` (or `invoke`) on `detached`:
-      start the run via the chosen transport and return `run_id` + accepted status WITHOUT
-      awaiting completion. Non-detached path unchanged.
-- [ ] Ensure the runner drives the run + heartbeats the stream + persists the transcript with no
-      caller connection held (verify against the streams Redis coordination plane + heartbeat).
-- [ ] Acceptance: a detached invoke returns immediately with run_id; the stream row goes
-      running→ended via heartbeat; transcript captures events — all without the caller awaiting.
+## 1. Runner-side: own the coordination plane (MISSING from integration — port from demo)
 
-## 3. Interactions respond → detached
-- [ ] `core/sessions/interactions/service.py` (or the respond endpoint): build the
-      `WorkflowServiceRequest` from stored `references`/`selector` + answer (as today) but invoke
-      **detached** — fire and return. Do NOT await the run.
-- [ ] The interaction is marked `resolved` by the runner (single state-machine writer) when it
-      consumes the answer — confirm this still holds on the detached path (no await needed here).
-- [ ] Re-authorize stored refs at respond time (existing rule) before firing.
-- [ ] Keep `InteractionsWorker` in place (do not delete) — it may collapse later; note the
-      recommendation.
+- [ ] Runner acquires + self-refreshes the `alive` lock for the run's lifetime (port the PoC
+      sidecar watchdog, `poc-persistent-sessions/.../sidecar/run-lock.js`). Survives the caller
+      disconnecting.
+- [ ] Runner heartbeats the stream/owner: wire the unused `HEARTBEAT_INTERVAL_SECONDS`
+      (`services/agent/src/sessions/contract.ts`) to actually call the admin heartbeat
+      (`/admin/sessions/streams/heartbeat`) + `refresh_owner`. Drives `session_streams`
+      running→ended + orphan sweep.
+- [ ] Acceptance: kill the caller connection mid-run → `alive` stays held, heartbeat continues,
+      stream row stays `running` then transitions `ended` at completion.
 
-## 4. Triggers (subscription + schedule) → detached
-- [ ] `tasks/asyncio/triggers/dispatcher.py` `_run`: replace the awaited
-      `invoke_workflow(...)` with the detached invoke. Preserve the `is_test` (no invoke) and
-      `is_valid`/no-refs (failed delivery) branches exactly.
-- [ ] **Delivery record**: write it as `dispatched`/accepted at fire time (record run_id); do
-      NOT block on terminal status. Decide + implement how terminal status is reconciled
-      out-of-band (runner reports vs trace-observed) — document it. This is the main triggers
-      wrinkle; get it right.
-- [ ] Keep the triggers taskiq worker in place (it owns inbound dedup + delivery + queue, not
-      just the invoke) — note in the recommendation that detach removes the *await*, likely not
-      the worker.
+## 2. Runner-side: producer-driven persistence (MISSING — the biggest gap)
 
-## 5. Worker-fate recommendation (the answer to the open question)
-- [ ] Write `docs/designs/sessions/detached-invoke/worker-recommendation.md` (or a section in
-      specs): with evidence from the investigation, state whether each worker can be retired:
-      - triggers worker: likely KEEP (owns dedup/delivery/queue) — detach removes the await only.
-      - interactions worker: likely RETIRE (collapses into respond→detached-invoke inline) — but
-        deferred.
-- [ ] Add the deferred removals to a deferred-work note.
+- [ ] Runner persists every event to the transcript ingest **independently of any client
+      connection** (port the PoC sidecar's retrying, per-session-ordered `/events` chain →
+      the transcripts Redis-Stream ingest). Today persistence is consumer-driven over the held
+      `/run` connection and is lost on disconnect.
+- [ ] Keep `stripReplay` + coalescing already specced in transcripts; ensure they apply on the
+      producer path.
+- [ ] Acceptance: a detached run with NO client connected still produces a complete transcript.
 
-## 6. Tests
-- [ ] Unit: detached invoke returns immediately (does not await run completion); non-detached
-      still blocks/returns outputs.
-- [ ] Integration: interaction respond fires detached → run proceeds → interaction resolved by
-      runner (not by the respond caller).
-- [ ] Integration: trigger subscription/schedule fires detached → delivery written as
-      dispatched → terminal status reconciled out-of-band. `is_test`/invalid paths unchanged.
-- [ ] Regression: the existing trigger + interaction tests on the integration branch still pass.
+## 3. Make `_start_run` actually dispatch (MISSING — it's a hollow stub today)
 
-## 7. Merge back
-- [ ] When green, merge `feat/add-detached-invoke` back into `feat/add-sessions` (clean branch
-      merge, not a GitHub PR). Re-verify the integration branch's session test suite.
+- [ ] `core/sessions/streams/service.py` `_start_run`: after `acquire_alive` + writing the row,
+      **hand the run to the runner** (dispatch bound refs via the runner start path). Today it
+      returns `run_id` having executed nothing — fix for BOTH detached and non-detached.
+- [ ] Branch on `detached`: detached → return `run_id`+accepted on the alive-held handshake (do
+      not drain the stream); non-detached → existing attached/streaming behavior.
+- [ ] Runner needs a start path that acquires alive, hands off, and confirms started without
+      holding the caller's connection (fire-and-forget start, or "start → confirm alive → run in
+      background" on `/run`).
 
-## Cross-references
-- streams invoke / DATA-FORCE matrix: `docs/designs/sessions/streams/specs.md`
-- interactions respond pattern: `docs/designs/sessions/interactions/specs.md` +
-  `cross-cutting-review.md` (interactions = first detached-invoke consumer; triggers follow)
-- trigger dispatcher: `api/oss/src/tasks/asyncio/triggers/dispatcher.py`
+## 4. Consumers → detached
+
+- [ ] **Interactions respond**: build `WorkflowServiceRequest` from stored refs+answer, invoke
+      **detached**, return. Re-authorize refs at fire time. Interaction marked `resolved` by the
+      runner (single writer). **Delete `InteractionsWorker`**; respond fires from the endpoint
+      (on its worker path, not the API request thread — see §6).
+- [ ] **Triggers dispatch** (`tasks/asyncio/triggers/dispatcher.py` `_run`): replace the awaited
+      `invoke_workflow` with detached invoke. Write delivery = `dispatched` at fire time. Preserve
+      `is_test` (no invoke) and `is_valid`/no-refs (failed delivery) branches unchanged.
+
+## 5. Triggers delivery reconciliation
+
+- [ ] Write the delivery `dispatched`/accepted with run_id at fire time. Terminal status is NOT
+      awaited — observable via trace/transcript/stream row. Document this is the intended contract
+      for triggers ("accepted" is the meaningful outcome).
+
+## 6. Worker shape
+
+- [ ] **Delete** `tasks/asyncio/sessions/interactions_worker.py` + its wiring; respond path calls
+      detached invoke directly.
+- [ ] **Keep** the triggers worker (consume side) — it still drains the durable queue and now
+      fires detached (fast, non-blocking) instead of awaiting. The seconds-long network-bound
+      detach handshake runs here, off the API + off the provider ack path.
+
+## 7. Tests
+
+- [ ] Detached invoke returns immediately on the alive-held handshake (does not await the run);
+      non-detached still streams/returns outputs.
+- [ ] Detached run persists a full transcript with no client connected (producer-driven).
+- [ ] Caller disconnect mid-run → run continues, alive held, heartbeats, ends normally.
+- [ ] Interaction respond → detached → run proceeds → resolved by runner (not by caller).
+- [ ] Trigger sub/schedule → detached → delivery `dispatched`; `is_test`/invalid unchanged.
+- [ ] Regression: existing trigger + interaction + streams tests on integration still pass.
+
+## 8. Merge back
+
+- [ ] When green, merge `feat/add-detached-invoke` into `feat/add-sessions` (clean branch merge,
+      not a GitHub PR). Re-verify the integration session test suite.
+
+## Dependency / scope note
+
+- §1–§3 are runner-side wiring the demo has but the integration branch does NOT (verified). They
+  overlap the runner-scalability surface but were left runner-side-unwired — they are part of THIS
+  work. Detached-invoke is not safe/complete without them.
+- Big-agents audit (external): `../../../../big-agents-audit/big-agents-assessment.md`.

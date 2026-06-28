@@ -36,6 +36,34 @@ awaiting completion. Detached invoke is a stub.
    worker** are still needed once everything is detached. (Decision for this PR: **keep both
    workers**; removal is a follow-up — see "Worker fate".)
 
+## What the integration branch already has vs what's MISSING (verified)
+
+The integration branch (`feat/add-sessions`) has the **API-side coordination scaffolding**, but
+the **runner-side behavior that makes detach actually work is missing**. Verified against the code:
+
+**Present (API side):** Redis locks (`acquire_alive`, `force_cancel_alive`, `get_session_liveness`,
+`refresh_owner`, `steal_attached`, `release_attached`); the DATA/FORCE matrix + `detach()` in
+`SessionStreamsService`; `session_streams` table + status; the cross-language Redis contract
+(`contract.ts` + golden fixture); the transcripts ingest table/worker; the `WorkflowServiceRequest`
+bound-refs invoke pattern; the `detached` flag plumbed end-to-end (but inert).
+
+**MISSING — the real body of work for this worktree (port from the demo `poc-persistent-sessions`):**
+
+1. **`_start_run` dispatches no run.** It acquires `alive`, writes the row, and returns a `run_id`
+   — but never hands a run to the runner. send/steer execute nothing today. (`streams/service.py`
+   ~260–305.)
+2. **The runner is not wired into the coordination plane.** It never acquires/refreshes `alive`
+   and never heartbeats the owner — `HEARTBEAT_INTERVAL_SECONDS` is defined in `contract.ts` with
+   **zero callers**. (PoC: the sidecar owns `alive` + a refresh watchdog.)
+3. **Persistence is consumer-driven, not producer-driven.** The runner streams events over the
+   held `/run` connection and the Python service drains them; there is no independent POST to the
+   transcript ingest. A detached run would persist nothing once the connection drops. (PoC: the
+   sidecar's retrying `/events` chain persists every event regardless of any client — port this.)
+
+These three are prerequisites for detach to be safe and are part of THIS work (they overlap the
+runner-scalability surface but were left runner-side-unwired). See the big-agents audit at
+`../../../../big-agents-audit/big-agents-assessment.md` (outside the repo, sibling of `vibes/`).
+
 ## What "detached" must mean (the mechanism)
 
 Synchronous `invoke_workflow` (today): caller → `workflows_service.invoke_workflow` → blocks →
@@ -54,26 +82,38 @@ accepted status) immediately. The run executes on the runner; its outcome is obs
 The detach handoff reuses the existing bound-refs → invoke pattern
 (`WorkflowServiceRequest(references, selector, data)`), just on a non-blocking path.
 
-### Open question — the handoff transport (resolve during design)
+### DECIDED — the handoff transport + the "started" signal
 
-`invoke_workflow` today runs the workflow in-process/synchronously. "Detached" needs a way to
-start the run **without awaiting** it. Candidate mechanisms (pick one, document why):
+**Transport = the runner keeps the session alive (PoC model).** NOT "background the blocking
+`invoke_workflow` on the API process" — there is no long-running work in the API to background;
+the run lives on the runner, which owns `alive` and heartbeats. The caller starts the run, gets a
+**started guarantee**, then drops its connection; the runner carries it.
 
-- **A — async task on the same process**: schedule `invoke_workflow` as a fire-and-forget
-  asyncio task / background task and return immediately. Simplest, but the run's lifetime is
-  still tied to *this* process (dies if the process restarts mid-run) — acceptable only if the
-  runner itself owns the long-running execution and `invoke_workflow` just kicks it off.
-- **B — runner streams invoke**: POST to `/sessions/streams/invoke` with `detached=True` against
-  the runner replica that owns (or will own) the session; the runner executes and heartbeats.
-  This is the design intent ("detached = the runner keeps going"). Requires the runner endpoint
-  to actually start a run from bound refs, not just a prompt.
-- **C — durable queue**: enqueue the invoke onto a Redis stream / taskiq broker the runner (or a
-  shed worker) consumes. Survives process restarts. This is essentially what the triggers worker
-  does today via taskiq.
+**The "started" signal = the alive-lock-acquisition handshake, NOT a new event.** Verified against
+the PoC: there is no explicit `run_started` event — the runner emits content events
+(`message_start`, `tool_call`, …) and a terminal `done`, but nothing that means "the run is now
+live" distinct from the first content (which races model latency / sandbox cold-start). The PoC's
+started guarantee is **synchronous and implicit**: the sidecar acquires `alive` *before* opening
+the stream, so "acquired (non-409)" *is* "the run started and is owned." We adopt the same: on the
+detached path, return `run_id` + accepted the moment **`alive` is held and the run is handed to a
+runner that owns + heartbeats it** — not when the first event arrives. A dedicated `run_started`
+event is explicitly rejected (weaker: ties "started" to holding the stream, races cold-start).
 
-The investigation must determine whether `invoke_workflow` can be made non-blocking cleanly, or
-whether detach genuinely requires routing through the runner's `/sessions/streams/invoke`. The
-answer drives the worker-fate decision below.
+The flow:
+
+```text
+caller (interactions respond / triggers dispatch)
+  → streams invoke (detached=True)
+  → _start_run (detached branch): acquire_alive → write session_streams row=running →
+    hand the run to the runner (the MISSING dispatch) → runner owns+refreshes alive + heartbeats
+  → return run_id + accepted  ← "started" = alive held + run owned   (the handshake)
+  → caller disconnects (never awaits)
+  → runner continues; persists transcript producer-side; heartbeats running→ended
+  → outcome observable via trace / transcript / stream row
+```
+
+This is why detach is **seconds-long and network-bound** (spin-up + alive handshake + possible
+drain-before-attach on a steer) — and therefore stays on the workers, off the API (see Worker fate).
 
 ## Consumers
 
@@ -97,26 +137,41 @@ trace/transcript. **This is a required design decision** — do not silently dro
 terminal-status semantics. Preserve `is_test` (no invoke) and `is_valid`/no-refs (failed
 delivery, no invoke) paths unchanged — only the actual-invoke branch goes detached.
 
-## Worker fate (the open question this work answers)
+## Worker fate — DECIDED: keep BOTH workers (the reason matters)
 
-Once **both** consumers are always-detached, the dedicated workers may be redundant:
+Both workers stay. The deciding reason is **NOT** any of the ones first floated, which were
+wrong or misattributed:
 
-- **Triggers worker** (`tasks/taskiq/triggers/worker.py`) — a long-lived taskiq consumer.
-- **Interactions worker** (`tasks/asyncio/sessions/interactions_worker.py`) — currently a thin
-  respond-via-invoke wrapper (no broker wired; called directly).
+- ~~"workers exist to await the long run"~~ — false; detached invoke removes all awaiting.
+- ~~"triggers worker = durable inbox for un-re-fetchable webhooks"~~ — that was conflating the
+  **separate, untouched outbound `webhooks` worker** (`tasks/taskiq/webhooks/`) with the
+  **triggers** worker. Different subsystem; not relevant here.
 
-If detach = "hand to the runner and return," then neither needs a held-open worker to await a
-run. The spec must **analyze and recommend**:
-- Does the triggers taskiq worker still serve a purpose (durable retry/queue for inbound events)
-  beyond awaiting the run? (Likely yes — it owns dedup + delivery + the inbound queue, not just
-  the invoke.) So "detached invoke" may remove the *awaiting*, not the *worker*.
-- Does the interactions worker have any reason to exist once respond fires detached directly from
-  the request path? (Likely no — it can collapse into the respond endpoint calling detached
-  invoke inline.)
+The real reason: **detached invoke is not instantaneous — it is seconds-long and network-bound,
+and that work must stay off the API process and off the provider's inbound request.**
 
-**Decision for THIS work: keep both workers in place.** Add the detached path alongside; do not
-delete either worker. The recommendation (with evidence) goes in the design + a deferred-work
-note, so removal is a separate, deliberate change once detach is proven in practice.
+Even detached, the dispatch path must:
+
+1. start the run on the runner (spin-up latency),
+2. **wait for the "session started" signal** before it can safely detach (signal latency), and
+3. if the invoke is a steer/displacement that **takes the session over from another driver**,
+   perform **drain-before-attach** first — inherently several seconds.
+
+So the dispatch is a **seconds-long, network-bound** operation. The API process is
+request/CPU-bound and must stay responsive; the Composio inbound endpoint (`/composio/events/`)
+must **ack-fast**. Keeping the dispatch on **dedicated workers** isolates that network-bound wait
+from the API — different resource profile, scaled independently. This applies to **both**:
+
+- **Triggers worker** (`tasks/taskiq/triggers/worker.py`) — KEEP. The inbound `/composio/events/`
+  endpoint verifies + ack-fast + enqueues; the worker drains and runs the (now seconds-long,
+  detached) dispatch off the request path.
+- **Interactions worker** (`tasks/asyncio/sessions/interactions_worker.py`) — KEEP. Respond also
+  incurs the start-signal + possible drain-before-attach wait; keep that network-bound work off
+  the API request thread on the worker.
+
+This is a **standing decision, not deferred**: detached invoke removes the *await*, but the
+seconds-long network-bound detach handshake is exactly the kind of work that belongs on a
+separate, network-bound worker — not inline on the API or the provider ack path.
 
 ## Cross-cutting
 
