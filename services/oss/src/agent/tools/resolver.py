@@ -2,8 +2,9 @@
 
 The three resolution entrypoints now live in the SDK (``agenta.sdk.agents.platform``) so the
 service and a standalone SDK user share them. ``resolve_tools`` is re-exported as-is; the
-service only adds the MCP deployment gate (``AGENTA_AGENT_MCP_SERVERS_ENABLED``, off by
-default) on top of the SDK's ``resolve_mcp``.
+service only adds the MCP deployment gate (``AGENTA_AGENT_MCP_SERVERS_ENABLED``, on by
+default) on top of the SDK's ``resolve_mcp``. A deployer disables user MCP servers by
+setting the flag to a falsy value.
 """
 
 from __future__ import annotations
@@ -21,7 +22,12 @@ __all__ = ["resolve_tools", "resolve_mcp_servers"]
 
 
 def _mcp_enabled() -> bool:
-    return os.getenv("AGENTA_AGENT_MCP_SERVERS_ENABLED", "").strip().lower() in TRUTHY
+    # On by default: an unset flag enables user MCP servers. http servers run behind the
+    # runner's https + SSRF guards; stdio servers still fail loud (disabled by design). Set
+    # the flag to a falsy value to turn user MCP servers off entirely.
+    return (
+        os.getenv("AGENTA_AGENT_MCP_SERVERS_ENABLED", "true").strip().lower() in TRUTHY
+    )
 
 
 async def resolve_mcp_servers(
@@ -29,7 +35,7 @@ async def resolve_mcp_servers(
     *,
     secret_provider: Optional[ToolSecretProvider] = None,
 ) -> List[ResolvedMCPServer]:
-    """Resolve MCP servers, gated by ``AGENTA_AGENT_MCP_SERVERS_ENABLED`` (off by default).
+    """Resolve MCP servers, gated by ``AGENTA_AGENT_MCP_SERVERS_ENABLED`` (on by default).
 
     When MCP is enabled, returns the resolved servers. When it is disabled and the request
     declared NO servers, returns an empty list (the common case, unchanged). When it is disabled

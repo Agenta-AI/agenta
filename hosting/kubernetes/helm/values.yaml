@@ -113,7 +113,7 @@ agentRunner:
   enabled: true
   port: 8765
   provider: "local"
-  enableMcp: false
+  enableMcp: true
   # daytona — only used when provider is "daytona". All optional.
   # daytona:
   #   apiKey: ""

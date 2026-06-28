@@ -465,7 +465,7 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             AGENTA_AGENT_RUNNER_URL: ${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
-            AGENTA_AGENT_MCP_SERVERS_ENABLED: ${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
+            AGENTA_AGENT_MCP_SERVERS_ENABLED: ${AGENTA_AGENT_MCP_SERVERS_ENABLED:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
