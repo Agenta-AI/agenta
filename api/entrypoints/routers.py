@@ -157,6 +157,10 @@ from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from taskiq_redis import RedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
+from oss.src.dbs.postgres.interactions.dbes import InteractionDBE  # noqa: F401
+from oss.src.dbs.postgres.interactions.dao import InteractionsDAO
+from oss.src.core.interactions.service import InteractionsService
+from oss.src.apis.fastapi.interactions.router import InteractionsRouter
 
 
 from oss.src.routers import (
@@ -341,6 +345,11 @@ _OPENAPI_TAGS = [
     {
         "name": "Triggers",
         "description": "Inbound provider event triggers and their watchable event catalog.",
+    },
+    # --
+    {
+        "name": "Interactions",
+        "description": "Human-in-the-loop interaction requests raised by running agents — approvals, inputs, and tool confirmations.",
     },
     # --
     {
@@ -683,6 +692,12 @@ triggers_adapter_registry = TriggersGatewayRegistry(
 
 triggers_dao = TriggersDAO(engine=_transactions_engine)
 
+interactions_dao = InteractionsDAO(engine=_transactions_engine)
+
+interactions_service = InteractionsService(
+    interactions_dao=interactions_dao,
+)
+
 triggers_service = TriggersService(
     adapter_registry=triggers_adapter_registry,
     catalog_service=catalog_service,
@@ -832,6 +847,11 @@ tools = ToolsRouter(
 triggers = TriggersRouter(
     triggers_service=triggers_service,
     dispatch_task=_triggers_worker.dispatch_trigger,
+)
+
+interactions = InteractionsRouter(
+    interactions_service=interactions_service,
+    workflows_service=workflows_service,
 )
 
 simple_traces = SimpleTracesRouter(
@@ -1218,6 +1238,19 @@ app.include_router(
     router=triggers.admin_router,
     prefix="/admin/triggers",
     tags=["Triggers", "Admin"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=interactions.router,
+    prefix="/sessions/interactions",
+    tags=["Interactions"],
+)
+
+app.include_router(
+    router=interactions.admin_router,
+    prefix="/admin/sessions/interactions",
+    tags=["Interactions", "Admin"],
     include_in_schema=False,
 )
 
