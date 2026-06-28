@@ -23,15 +23,12 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {HeightCollapse, MarkdownPreview} from "@agenta/ui"
 import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI, type WorkflowReferencePayload} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {
-    CaretDown,
     CaretRight,
-    CaretUp,
     Check,
     Cpu,
     Cube,
@@ -476,9 +473,9 @@ function ItemRow({
 }
 
 /**
- * An instructions markdown file row. Clicking the row opens the editor drawer; the caret toggles an
- * inline, read-only render of the FULL markdown so the content can be reviewed without leaving the
- * panel (the row preview alone is truncated).
+ * An instructions markdown file row. Avatar + filename + a 2-line preview of the (markdown-stripped)
+ * content, clamped with an ellipsis. The whole row opens the editor drawer for the full content —
+ * there is no inline expand, so it reads the same as the tool / MCP rows.
  */
 function InstructionsFileRow({
     filename,
@@ -489,9 +486,7 @@ function InstructionsFileRow({
     content: string
     onOpen: () => void
 }) {
-    const [expanded, setExpanded] = useState(false)
     const descriptor = describeInstruction(filename, content)
-    const hasContent = content.trim().length > 0
     return (
         <div
             role="button"
@@ -508,39 +503,16 @@ function InstructionsFileRow({
             <ItemAvatar descriptor={descriptor} />
             <div className="min-w-0 flex-1">
                 <div className="truncate font-mono text-xs font-medium">{filename}</div>
-                {hasContent ? (
-                    // Rendered Markdown preview: clamped to a few lines, animating to its full
-                    // height on expand (CSS interpolate-size, via the shared HeightCollapse).
-                    <HeightCollapse open={expanded} collapsedHeight={58} className="mt-1">
-                        <MarkdownPreview
-                            content={content}
-                            className="text-[var(--ag-c-97A4B0,#97a4b0)]"
-                        />
-                    </HeightCollapse>
-                ) : (
-                    <Typography.Text type="secondary" className="text-xs">
-                        Empty file
-                    </Typography.Text>
-                )}
+                {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
+                    clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}
+                <Typography.Text
+                    type="secondary"
+                    className="mt-0.5 line-clamp-2 text-xs leading-snug"
+                >
+                    {descriptor.description}
+                </Typography.Text>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-                {hasContent ? (
-                    <Tooltip title={expanded ? "Show less" : "Show full content"}>
-                        <button
-                            type="button"
-                            aria-label={expanded ? "Show less" : "Show full content"}
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setExpanded((v) => !v)
-                            }}
-                            className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] hover:text-[var(--ag-c-586673,#586673)]"
-                        >
-                            {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
-                        </button>
-                    </Tooltip>
-                ) : null}
-                <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
-            </div>
+            <CaretRight size={14} className="mt-0.5 shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
         </div>
     )
 }
