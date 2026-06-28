@@ -136,6 +136,11 @@ from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
+from oss.src.dbs.postgres.session_states.dbes import SessionStateDBE  # noqa: F401
+from oss.src.dbs.postgres.session_states.dao import SessionStatesDAO
+from oss.src.core.sessions.service import SessionStatesService
+from oss.src.apis.fastapi.session_states.router import SessionStatesRouter
+
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
 from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
@@ -379,6 +384,11 @@ _OPENAPI_TAGS = [
     },
     # --
     # Billing inserted here by EE (extend_app_schema)
+    # --
+    {
+        "name": "Sessions",
+        "description": "Session state persistence — durable SDK record and sandbox resume pointer.",
+    },
     # --
     {
         "name": "Admin",
@@ -905,6 +915,18 @@ ai_services = AIServicesRouter(
     ai_services_service=ai_services_service,
 )
 
+# SESSION STATES ---------------------------------------------------------------
+
+session_states_dao = SessionStatesDAO(engine=_transactions_engine)
+
+session_states_service = SessionStatesService(
+    session_states_dao=session_states_dao,
+)
+
+session_states = SessionStatesRouter(
+    session_states_service=session_states_service,
+)
+
 # PLATFORM ADMIN ---------------------------------------------------------------
 
 platform_admin_accounts_service = PlatformAdminAccountsService()
@@ -1331,6 +1353,12 @@ app.include_router(
     router=platform_admin_accounts.router,
     prefix="/admin",
     tags=["Admin"],
+)
+
+app.include_router(
+    router=session_states.router,
+    prefix="/sessions",
+    tags=["Sessions"],
 )
 
 
