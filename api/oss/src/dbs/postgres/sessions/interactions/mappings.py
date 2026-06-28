@@ -2,14 +2,14 @@ from uuid import UUID
 from typing import Optional
 
 from oss.src.core.sessions.interactions.dtos import (
-    Interaction,
-    InteractionCreate,
-    InteractionData,
-    InteractionFlags,
-    InteractionKind,
+    SessionInteraction,
+    SessionInteractionCreate,
+    SessionInteractionData,
+    SessionInteractionFlags,
+    SessionInteractionKind,
 )
 from oss.src.core.shared.dtos import Status
-from oss.src.dbs.postgres.sessions.interactions.dbes import InteractionDBE
+from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE
 
 
 def map_interaction_dto_to_dbe_create(
@@ -17,9 +17,9 @@ def map_interaction_dto_to_dbe_create(
     project_id: UUID,
     user_id: Optional[UUID],
     #
-    interaction: InteractionCreate,
-) -> InteractionDBE:
-    return InteractionDBE(
+    interaction: SessionInteractionCreate,
+) -> SessionInteractionDBE:
+    return SessionInteractionDBE(
         project_id=project_id,
         #
         created_by_id=user_id,
@@ -40,9 +40,9 @@ def map_interaction_dto_to_dbe_create(
 
 
 def map_interaction_dbe_to_dto(
-    dbe: InteractionDBE,
-) -> Interaction:
-    return Interaction(
+    dbe: SessionInteractionDBE,
+) -> SessionInteraction:
+    return SessionInteraction(
         id=dbe.id,
         #
         created_at=dbe.created_at,
@@ -56,11 +56,11 @@ def map_interaction_dbe_to_dto(
         session_id=dbe.session_id,
         run_id=dbe.run_id,
         token=dbe.token,
-        kind=InteractionKind(dbe.kind),
+        kind=SessionInteractionKind(dbe.kind),
         #
         status=Status.model_validate(dbe.status) if dbe.status else Status(),
         #
-        data=InteractionData.model_validate(dbe.data) if dbe.data else None,
+        data=SessionInteractionData.model_validate(dbe.data) if dbe.data else None,
         #
-        flags=InteractionFlags(**(dbe.flags or {})),
+        flags=SessionInteractionFlags(**(dbe.flags or {})),
     )

@@ -3,15 +3,15 @@ from typing import List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.interactions.dtos import (
-    Interaction,
-    InteractionCreate,
-    InteractionQuery,
-    InteractionTransition,
+    SessionInteraction,
+    SessionInteractionCreate,
+    SessionInteractionQuery,
+    SessionInteractionTransition,
 )
 from oss.src.core.shared.dtos import Windowing
 
 
-class InteractionsDAOInterface(ABC):
+class SessionInteractionsDAOInterface(ABC):
     @abstractmethod
     async def create_interaction(
         self,
@@ -19,8 +19,8 @@ class InteractionsDAOInterface(ABC):
         project_id: UUID,
         user_id: Optional[UUID],
         #
-        interaction: InteractionCreate,
-    ) -> Interaction: ...
+        interaction: SessionInteractionCreate,
+    ) -> SessionInteraction: ...
 
     @abstractmethod
     async def fetch_interaction(
@@ -29,14 +29,14 @@ class InteractionsDAOInterface(ABC):
         project_id: UUID,
         #
         interaction_id: UUID,
-    ) -> Optional[Interaction]: ...
+    ) -> Optional[SessionInteraction]: ...
 
     @abstractmethod
     async def transition_interaction(
         self,
         *,
-        transition: InteractionTransition,
-    ) -> Optional[Interaction]: ...
+        transition: SessionInteractionTransition,
+    ) -> Optional[SessionInteraction]: ...
 
     @abstractmethod
     async def query_interactions(
@@ -44,6 +44,6 @@ class InteractionsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        query: Optional[InteractionQuery] = None,
+        query: Optional[SessionInteractionQuery] = None,
         windowing: Optional[Windowing] = None,
-    ) -> List[Interaction]: ...
+    ) -> List[SessionInteraction]: ...

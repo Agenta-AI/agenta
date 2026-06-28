@@ -1,10 +1,13 @@
-from oss.src.core.sessions.transcripts.dtos import Transcript, TranscriptEvent
+from oss.src.core.sessions.transcripts.dtos import (
+    SessionTranscript,
+    SessionTranscriptEvent,
+)
 from oss.src.dbs.postgres.sessions.transcripts.dbes import TranscriptDBE
 
 
 def map_transcript_event_to_dbe(
     *,
-    event: TranscriptEvent,
+    event: SessionTranscriptEvent,
 ) -> TranscriptDBE:
     return TranscriptDBE(
         project_id=event.project_id,
@@ -16,8 +19,8 @@ def map_transcript_event_to_dbe(
     )
 
 
-def map_transcript_dbe_to_dto(*, dbe: TranscriptDBE) -> Transcript:
-    return Transcript(
+def map_transcript_dbe_to_dto(*, dbe: TranscriptDBE) -> SessionTranscript:
+    return SessionTranscript(
         id=dbe.id,
         session_id=dbe.session_id,
         project_id=dbe.project_id,

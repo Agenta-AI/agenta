@@ -5,14 +5,16 @@ from uuid import UUID
 from sqlalchemy import select, update as sa_update
 
 from oss.src.core.sessions.interactions.dtos import (
-    Interaction,
-    InteractionCreate,
-    InteractionQuery,
-    InteractionTransition,
+    SessionInteraction,
+    SessionInteractionCreate,
+    SessionInteractionQuery,
+    SessionInteractionTransition,
 )
-from oss.src.core.sessions.interactions.interfaces import InteractionsDAOInterface
+from oss.src.core.sessions.interactions.interfaces import (
+    SessionInteractionsDAOInterface,
+)
 from oss.src.core.shared.dtos import Windowing
-from oss.src.dbs.postgres.sessions.interactions.dbes import InteractionDBE
+from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE
 from oss.src.dbs.postgres.sessions.interactions.mappings import (
     map_interaction_dbe_to_dto,
     map_interaction_dto_to_dbe_create,
@@ -27,7 +29,7 @@ from oss.src.dbs.postgres.shared.utils import apply_windowing
 PENDING_INTERACTION_TTL = "7 days"
 
 
-class InteractionsDAO(InteractionsDAOInterface):
+class SessionInteractionsDAO(SessionInteractionsDAOInterface):
     def __init__(self, engine: TransactionsEngine = None):
         if engine is None:
             engine = get_transactions_engine()
@@ -39,8 +41,8 @@ class InteractionsDAO(InteractionsDAOInterface):
         project_id: UUID,
         user_id: Optional[UUID],
         #
-        interaction: InteractionCreate,
-    ) -> Interaction:
+        interaction: SessionInteractionCreate,
+    ) -> SessionInteraction:
         dbe = map_interaction_dto_to_dbe_create(
             project_id=project_id,
             user_id=user_id,
@@ -60,11 +62,11 @@ class InteractionsDAO(InteractionsDAOInterface):
         project_id: UUID,
         #
         interaction_id: UUID,
-    ) -> Optional[Interaction]:
+    ) -> Optional[SessionInteraction]:
         async with self.engine.session() as session:
-            stmt = select(InteractionDBE).where(
-                InteractionDBE.project_id == project_id,
-                InteractionDBE.id == interaction_id,
+            stmt = select(SessionInteractionDBE).where(
+                SessionInteractionDBE.project_id == project_id,
+                SessionInteractionDBE.id == interaction_id,
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
@@ -75,22 +77,22 @@ class InteractionsDAO(InteractionsDAOInterface):
     async def transition_interaction(
         self,
         *,
-        transition: InteractionTransition,
-    ) -> Optional[Interaction]:
+        transition: SessionInteractionTransition,
+    ) -> Optional[SessionInteraction]:
         async with self.engine.session() as session:
             stmt = (
-                sa_update(InteractionDBE)
+                sa_update(SessionInteractionDBE)
                 .where(
-                    InteractionDBE.project_id == transition.project_id,
-                    InteractionDBE.session_id == transition.session_id,
-                    InteractionDBE.token == transition.token,
-                    InteractionDBE.status["code"].astext == "pending",
+                    SessionInteractionDBE.project_id == transition.project_id,
+                    SessionInteractionDBE.session_id == transition.session_id,
+                    SessionInteractionDBE.token == transition.token,
+                    SessionInteractionDBE.status["code"].astext == "pending",
                 )
                 .values(
                     status={"code": transition.status.value},
                     updated_at=datetime.now(timezone.utc),
                 )
-                .returning(InteractionDBE)
+                .returning(SessionInteractionDBE)
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
@@ -104,30 +106,31 @@ class InteractionsDAO(InteractionsDAOInterface):
         *,
         project_id: UUID,
         #
-        query: Optional[InteractionQuery] = None,
+        query: Optional[SessionInteractionQuery] = None,
         windowing: Optional[Windowing] = None,
-    ) -> List[Interaction]:
+    ) -> List[SessionInteraction]:
         async with self.engine.session() as session:
-            stmt = select(InteractionDBE).where(
-                InteractionDBE.project_id == project_id,
+            stmt = select(SessionInteractionDBE).where(
+                SessionInteractionDBE.project_id == project_id,
             )
 
             if query:
                 if query.session_id is not None:
                     stmt = stmt.where(
-                        InteractionDBE.session_id == query.session_id,
+                        SessionInteractionDBE.session_id == query.session_id,
                     )
                 if query.run_id is not None:
                     stmt = stmt.where(
-                        InteractionDBE.run_id == query.run_id,
+                        SessionInteractionDBE.run_id == query.run_id,
                     )
                 if query.kind is not None:
                     stmt = stmt.where(
-                        InteractionDBE.kind == query.kind.value,
+                        SessionInteractionDBE.kind == query.kind.value,
                     )
                 if query.status is not None:
                     stmt = stmt.where(
-                        InteractionDBE.status["code"].astext == query.status.value,
+                        SessionInteractionDBE.status["code"].astext
+                        == query.status.value,
                     )
                 if query.actionable_only:
                     from sqlalchemy import text  # noqa: PLC0415
@@ -141,7 +144,7 @@ class InteractionsDAO(InteractionsDAOInterface):
             if windowing:
                 stmt = apply_windowing(
                     stmt=stmt,
-                    DBE=InteractionDBE,
+                    DBE=SessionInteractionDBE,
                     attribute="id",
                     order="descending",
                     windowing=windowing,

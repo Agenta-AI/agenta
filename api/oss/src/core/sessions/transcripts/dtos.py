@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
-class TranscriptEvent(BaseModel):
+class SessionTranscriptEvent(BaseModel):
     session_id: UUID
     project_id: UUID
 
@@ -15,7 +15,7 @@ class TranscriptEvent(BaseModel):
     payload: Optional[Dict[str, Any]] = None
 
 
-class Transcript(BaseModel):
+class SessionTranscript(BaseModel):
     id: UUID
 
     session_id: UUID
@@ -29,5 +29,5 @@ class Transcript(BaseModel):
     created_at: Optional[datetime] = None
 
 
-class TranscriptQuery(BaseModel):
+class SessionTranscriptQuery(BaseModel):
     session_id: UUID

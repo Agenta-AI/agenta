@@ -39,22 +39,17 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.states.service import SessionStatesService
 from oss.src.core.sessions.states.dtos import SessionStateUpsert
 from oss.src.core.sessions.transcripts.service import TranscriptsService
-from oss.src.core.sessions.transcripts.dtos import TranscriptEvent
+from oss.src.core.sessions.transcripts.dtos import SessionTranscriptEvent
 from oss.src.core.sessions.transcripts.streaming import publish_transcript
-from oss.src.core.sessions.interactions.service import InteractionsService
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.mounts.service import SessionMountsService
+from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
 )
 from oss.src.core.workflows.service import WorkflowsService
-
-from oss.src.apis.fastapi.mounts.models import (
-    MountQueryRequest,
-    MountsResponse,
-)
-from oss.src.apis.fastapi.mounts.utils import merge_mount_query
 
 from oss.src.apis.fastapi.sessions.models import (
     # streams
@@ -71,17 +66,21 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionStateSandboxIdUpsertRequest,
     SessionStateUpsertRequest,
     # transcripts
-    TranscriptIngestRequest,
-    TranscriptQueryRequest,
-    TranscriptResponse,
-    TranscriptsQueryResponse,
+    SessionTranscriptIngestRequest,
+    SessionTranscriptQueryRequest,
+    SessionTranscriptResponse,
+    SessionTranscriptsQueryResponse,
     # interactions
-    InteractionCreateRequest,
-    InteractionQueryRequest,
-    InteractionRespondRequest,
-    InteractionResponse,
-    InteractionsResponse,
-    InteractionTransitionRequest,
+    SessionInteractionCreateRequest,
+    SessionInteractionQueryRequest,
+    SessionInteractionRespondRequest,
+    SessionInteractionResponse,
+    SessionInteractionsResponse,
+    SessionInteractionTransitionRequest,
+    # mounts
+    SessionMountQueryRequest,
+    SessionMountResponse,  # noqa: F401  (exported for OpenAPI/single-mount future use)
+    SessionMountsResponse,
 )
 
 log = get_module_logger(__name__)
@@ -155,21 +154,21 @@ class SessionStreamsRouter:
             "/sessions/streams/invoke",
             self.invoke,
             methods=["POST"],
-            operation_id="sessions_streams_invoke",
+            operation_id="invoke_stream",
             tags=["Sessions"],
         )
         self.router.add_api_route(
             "/sessions/streams/query",
             self.query_streams,
             methods=["POST"],
-            operation_id="sessions_streams_query",
+            operation_id="query_streams",
             tags=["Sessions"],
         )
         self.router.add_api_route(
             "/sessions/streams/liveness",
             self.get_liveness,
             methods=["GET"],
-            operation_id="sessions_streams_liveness",
+            operation_id="get_liveness",
             tags=["Sessions"],
         )
 
@@ -177,14 +176,14 @@ class SessionStreamsRouter:
             "/heartbeat",
             self.heartbeat,
             methods=["POST"],
-            operation_id="admin_sessions_streams_heartbeat",
+            operation_id="heartbeat_stream",
             tags=["Sessions", "Admin"],
         )
         self.admin_router.add_api_route(
             "/detach",
             self.detach,
             methods=["POST"],
-            operation_id="admin_sessions_streams_detach",
+            operation_id="detach_stream",
             tags=["Sessions", "Admin"],
         )
 
@@ -328,7 +327,7 @@ class SessionStatesRouter:
             "/states/{session_id}",
             self.get_session_state,
             methods=["GET"],
-            operation_id="get_session_state",
+            operation_id="get_state",
             status_code=status.HTTP_200_OK,
             response_model=SessionStateResponse,
             response_model_exclude_none=True,
@@ -337,7 +336,7 @@ class SessionStatesRouter:
             "/states/{session_id}",
             self.set_session_state,
             methods=["PUT"],
-            operation_id="set_session_state",
+            operation_id="set_state",
             status_code=status.HTTP_200_OK,
             response_model=SessionStateResponse,
             response_model_exclude_none=True,
@@ -346,7 +345,7 @@ class SessionStatesRouter:
             "/states/{session_id}/sandbox-id",
             self.set_sandbox_id,
             methods=["PUT"],
-            operation_id="set_session_state_sandbox_id",
+            operation_id="set_state_sandbox_id",
             status_code=status.HTTP_200_OK,
             response_model=SessionStateResponse,
             response_model_exclude_none=True,
@@ -449,9 +448,9 @@ class TranscriptsRouter:
             "/query",
             self.query_transcripts,
             methods=["POST"],
-            operation_id="query_transcripts_rpc",
+            operation_id="query_transcripts",
             status_code=status.HTTP_200_OK,
-            response_model=TranscriptsQueryResponse,
+            response_model=SessionTranscriptsQueryResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -460,7 +459,7 @@ class TranscriptsRouter:
             methods=["GET"],
             operation_id="get_transcript_event",
             status_code=status.HTTP_200_OK,
-            response_model=TranscriptResponse,
+            response_model=SessionTranscriptResponse,
             response_model_exclude_none=True,
         )
 
@@ -468,7 +467,7 @@ class TranscriptsRouter:
             "/ingest",
             self.ingest_transcript_event,
             methods=["POST"],
-            operation_id="admin_sessions_transcripts_ingest",
+            operation_id="ingest_transcript",
             tags=["Sessions", "Admin"],
         )
 
@@ -477,8 +476,8 @@ class TranscriptsRouter:
         self,
         request: Request,
         *,
-        query_request: TranscriptQueryRequest,
-    ) -> Union[TranscriptsQueryResponse, JSONResponse]:
+        query_request: SessionTranscriptQueryRequest,
+    ) -> Union[SessionTranscriptsQueryResponse, JSONResponse]:
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -490,7 +489,7 @@ class TranscriptsRouter:
             project_id=UUID(request.state.project_id),
             session_id=query_request.session_id,
         )
-        return TranscriptsQueryResponse(
+        return SessionTranscriptsQueryResponse(
             count=len(transcripts),
             transcripts=transcripts,
         )
@@ -500,7 +499,7 @@ class TranscriptsRouter:
         self,
         request: Request,
         event_id: UUID,
-    ) -> Union[TranscriptResponse, JSONResponse]:
+    ) -> Union[SessionTranscriptResponse, JSONResponse]:
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -512,20 +511,20 @@ class TranscriptsRouter:
             project_id=UUID(request.state.project_id),
             event_id=event_id,
         )
-        return TranscriptResponse(transcript=transcript)
+        return SessionTranscriptResponse(transcript=transcript)
 
     @intercept_exceptions()
     async def ingest_transcript_event(
         self,
         request: Request,
-        body: TranscriptIngestRequest,
+        body: SessionTranscriptIngestRequest,
     ) -> dict:
         if not getattr(request.state, "admin", False):
             raise FORBIDDEN_EXCEPTION
 
         await publish_transcript(
             project_id=body.project_id,
-            transcript_event=TranscriptEvent(
+            transcript_event=SessionTranscriptEvent(
                 session_id=body.session_id,
                 project_id=body.project_id,
                 event_index=body.event_index,
@@ -543,7 +542,7 @@ class InteractionsRouter:
     def __init__(
         self,
         *,
-        interactions_service: InteractionsService,
+        interactions_service: SessionInteractionsService,
         workflows_service: WorkflowsService,
         respond_task: Optional[Any] = None,
     ) -> None:
@@ -577,21 +576,21 @@ class InteractionsRouter:
             "/",
             self.create_interaction,
             methods=["POST"],
-            operation_id="admin_create_interaction",
+            operation_id="create_interaction",
         )
         self.admin_router.add_api_route(
             "/transition",
             self.transition_interaction,
             methods=["POST"],
-            operation_id="admin_transition_interaction",
+            operation_id="transition_interaction",
         )
 
     @intercept_exceptions()
     async def create_interaction(
         self,
         request: Request,
-        body: InteractionCreateRequest,
-    ) -> InteractionResponse:
+        body: SessionInteractionCreateRequest,
+    ) -> SessionInteractionResponse:
         if not getattr(request.state, "admin", False):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
@@ -599,14 +598,14 @@ class InteractionsRouter:
             project_id=body.interaction.project_id,
             interaction=body.interaction,
         )
-        return InteractionResponse(count=1, interaction=interaction)
+        return SessionInteractionResponse(count=1, interaction=interaction)
 
     @intercept_exceptions()
     async def transition_interaction(
         self,
         request: Request,
-        body: InteractionTransitionRequest,
-    ) -> InteractionResponse:
+        body: SessionInteractionTransitionRequest,
+    ) -> SessionInteractionResponse:
         if not getattr(request.state, "admin", False):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
@@ -619,14 +618,14 @@ class InteractionsRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Interaction not found or already terminal",
             )
-        return InteractionResponse(count=1, interaction=interaction)
+        return SessionInteractionResponse(count=1, interaction=interaction)
 
     @intercept_exceptions()
     async def query_interactions(
         self,
         request: Request,
-        body: InteractionQueryRequest,
-    ) -> InteractionsResponse:
+        body: SessionInteractionQueryRequest,
+    ) -> SessionInteractionsResponse:
         project_id: UUID = request.state.project_id
 
         authorized = await check_action_access(
@@ -642,14 +641,16 @@ class InteractionsRouter:
             query=body.query,
             windowing=body.windowing,
         )
-        return InteractionsResponse(count=len(interactions), interactions=interactions)
+        return SessionInteractionsResponse(
+            count=len(interactions), interactions=interactions
+        )
 
     @intercept_exceptions()
     async def fetch_interaction(
         self,
         request: Request,
         interaction_id: UUID,
-    ) -> InteractionResponse:
+    ) -> SessionInteractionResponse:
         project_id: UUID = request.state.project_id
 
         authorized = await check_action_access(
@@ -670,15 +671,15 @@ class InteractionsRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Interaction not found",
             )
-        return InteractionResponse(count=1, interaction=interaction)
+        return SessionInteractionResponse(count=1, interaction=interaction)
 
     @intercept_exceptions()
     async def respond_interaction(
         self,
         request: Request,
         interaction_id: UUID,
-        body: InteractionRespondRequest,
-    ) -> InteractionResponse:
+        body: SessionInteractionRespondRequest,
+    ) -> SessionInteractionResponse:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
@@ -720,7 +721,7 @@ class InteractionsRouter:
                 interaction_id=str(interaction_id),
                 answer=answer,
             )
-            return InteractionResponse(count=1, interaction=interaction)
+            return SessionInteractionResponse(count=1, interaction=interaction)
 
         references = (
             {
@@ -748,7 +749,7 @@ class InteractionsRouter:
             request=invoke_request,
         )
 
-        return InteractionResponse(count=1, interaction=interaction)
+        return SessionInteractionResponse(count=1, interaction=interaction)
 
 
 class SessionMountsRouter:
@@ -767,7 +768,7 @@ class SessionMountsRouter:
             self.query_session_mounts,
             methods=["POST"],
             operation_id="query_session_mounts",
-            response_model=MountsResponse,
+            response_model=SessionMountsResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
@@ -777,10 +778,10 @@ class SessionMountsRouter:
         self,
         request: Request,
         *,
-        body: MountQueryRequest,
+        body: SessionMountQueryRequest,
         session_id: Optional[str] = Query(default=None),
         include_archived: bool = Query(default=False),
-    ) -> MountsResponse:
+    ) -> SessionMountsResponse:
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -788,10 +789,22 @@ class SessionMountsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        mount_query = merge_mount_query(
-            session_id=session_id,
-            include_archived=include_archived,
-            body_query=body.mount,
+        # session_id is required for the session-scoped view; query param wins, then body.
+        resolved_session_id = session_id or (
+            body.mount.session_id if body.mount else None
+        )
+        if not resolved_session_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="session_id is required for a session-scoped mounts query.",
+            )
+
+        mount_query = SessionMountQuery(
+            session_id=resolved_session_id,
+            include_archived=(
+                include_archived
+                or (body.mount.include_archived if body.mount else False)
+            ),
         )
 
         mounts = await self.session_mounts_service.query_mounts(
@@ -800,7 +813,7 @@ class SessionMountsRouter:
             windowing=body.windowing,
         )
 
-        return MountsResponse(count=len(mounts), mounts=mounts)
+        return SessionMountsResponse(count=len(mounts), mounts=mounts)
 
 
 # ---------------------------------------------------------------------------
@@ -828,7 +841,7 @@ class SessionsRouter:
         streams_service: SessionStreamsService,
         states_service: SessionStatesService,
         transcripts_service: TranscriptsService,
-        interactions_service: InteractionsService,
+        interactions_service: SessionInteractionsService,
         workflows_service: WorkflowsService,
         session_mounts_service: SessionMountsService,
         respond_task: Optional[Any] = None,

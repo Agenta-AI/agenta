@@ -1,15 +1,18 @@
 from typing import List, Optional
 from uuid import UUID
 
-from oss.src.core.sessions.transcripts.dtos import Transcript, TranscriptEvent
+from oss.src.core.sessions.transcripts.dtos import (
+    SessionTranscript,
+    SessionTranscriptEvent,
+)
 
 
 class TranscriptsDAOInterface:
     async def append(
         self,
         *,
-        event: TranscriptEvent,
-    ) -> Optional[Transcript]:
+        event: SessionTranscriptEvent,
+    ) -> Optional[SessionTranscript]:
         raise NotImplementedError
 
     async def get_transcript(
@@ -17,7 +20,7 @@ class TranscriptsDAOInterface:
         *,
         project_id: UUID,
         session_id: UUID,
-    ) -> List[Transcript]:
+    ) -> List[SessionTranscript]:
         raise NotImplementedError
 
     async def get_event(
@@ -25,5 +28,5 @@ class TranscriptsDAOInterface:
         *,
         project_id: UUID,
         event_id: UUID,
-    ) -> Optional[Transcript]:
+    ) -> Optional[SessionTranscript]:
         raise NotImplementedError

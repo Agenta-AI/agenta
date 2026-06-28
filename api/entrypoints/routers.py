@@ -178,9 +178,9 @@ from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 
 # Interactions
-from oss.src.dbs.postgres.sessions.interactions.dbes import InteractionDBE  # noqa: F401
-from oss.src.dbs.postgres.sessions.interactions.dao import InteractionsDAO
-from oss.src.core.sessions.interactions.service import InteractionsService
+from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
@@ -747,9 +747,9 @@ triggers_adapter_registry = TriggersGatewayRegistry(
 
 triggers_dao = TriggersDAO(engine=_transactions_engine)
 
-interactions_dao = InteractionsDAO(engine=_transactions_engine)
+interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
 
-interactions_service = InteractionsService(
+interactions_service = SessionInteractionsService(
     interactions_dao=interactions_dao,
 )
 

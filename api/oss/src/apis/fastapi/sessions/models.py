@@ -10,13 +10,14 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamStatus,
 )
 from oss.src.core.sessions.states.dtos import SessionState
-from oss.src.core.sessions.transcripts.dtos import Transcript
+from oss.src.core.sessions.transcripts.dtos import SessionTranscript
 from oss.src.core.sessions.interactions.dtos import (
-    Interaction,
-    InteractionCreate,
-    InteractionQuery,
-    InteractionTransition,
+    SessionInteraction,
+    SessionInteractionCreate,
+    SessionInteractionQuery,
+    SessionInteractionTransition,
 )
+from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.shared.dtos import Windowing
 
 
@@ -103,17 +104,17 @@ class SessionStateSandboxIdUpsertRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class TranscriptQueryRequest(BaseModel):
+class SessionTranscriptQueryRequest(BaseModel):
     session_id: UUID
 
 
-class TranscriptsQueryResponse(BaseModel):
+class SessionTranscriptsQueryResponse(BaseModel):
     count: int
-    transcripts: List[Transcript]
+    transcripts: List[SessionTranscript]
 
 
-class TranscriptResponse(BaseModel):
-    transcript: Optional[Transcript] = None
+class SessionTranscriptResponse(BaseModel):
+    transcript: Optional[SessionTranscript] = None
 
 
 # ---------------------------------------------------------------------------
@@ -121,31 +122,51 @@ class TranscriptResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class InteractionCreateRequest(BaseModel):
-    interaction: InteractionCreate
+class SessionInteractionCreateRequest(BaseModel):
+    interaction: SessionInteractionCreate
 
 
-class InteractionTransitionRequest(BaseModel):
-    transition: InteractionTransition
+class SessionInteractionTransitionRequest(BaseModel):
+    transition: SessionInteractionTransition
 
 
-class InteractionQueryRequest(BaseModel):
-    query: Optional[InteractionQuery] = None
+class SessionInteractionQueryRequest(BaseModel):
+    query: Optional[SessionInteractionQuery] = None
     windowing: Optional[Windowing] = None
 
 
-class InteractionResponse(BaseModel):
+class SessionInteractionResponse(BaseModel):
     count: int = 0
-    interaction: Optional[Interaction] = None
+    interaction: Optional[SessionInteraction] = None
 
 
-class InteractionsResponse(BaseModel):
+class SessionInteractionsResponse(BaseModel):
     count: int = 0
-    interactions: List[Interaction] = Field(default_factory=list)
+    interactions: List[SessionInteraction] = Field(default_factory=list)
 
 
-class InteractionRespondRequest(BaseModel):
+class SessionInteractionRespondRequest(BaseModel):
     answer: Optional[Dict[str, Any]] = None
+
+
+# ---------------------------------------------------------------------------
+# Mounts request/response models (session-scoped view; from SessionMount DTO)
+# ---------------------------------------------------------------------------
+
+
+class SessionMountQueryRequest(BaseModel):
+    mount: Optional[SessionMountQuery] = None
+    windowing: Optional[Windowing] = None
+
+
+class SessionMountResponse(BaseModel):
+    count: int = 0
+    mount: Optional[SessionMount] = None
+
+
+class SessionMountsResponse(BaseModel):
+    count: int = 0
+    mounts: List[SessionMount] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +174,7 @@ class InteractionRespondRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class TranscriptIngestRequest(BaseModel):
+class SessionTranscriptIngestRequest(BaseModel):
     project_id: UUID
     session_id: UUID
     event_index: Optional[int] = None

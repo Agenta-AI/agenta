@@ -4,7 +4,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from oss.src.core.sessions.transcripts.dtos import Transcript, TranscriptEvent
+from oss.src.core.sessions.transcripts.dtos import (
+    SessionTranscript,
+    SessionTranscriptEvent,
+)
 from oss.src.core.sessions.transcripts.interfaces import TranscriptsDAOInterface
 from oss.src.dbs.postgres.sessions.transcripts.dbes import TranscriptDBE
 from oss.src.dbs.postgres.sessions.transcripts.mappings import (
@@ -23,8 +26,8 @@ class TranscriptsDAO(TranscriptsDAOInterface):
     async def append(
         self,
         *,
-        event: TranscriptEvent,
-    ) -> Optional[Transcript]:
+        event: SessionTranscriptEvent,
+    ) -> Optional[SessionTranscript]:
         async with self.engine.session() as session:
             dbe = map_transcript_event_to_dbe(event=event)
 
@@ -48,7 +51,7 @@ class TranscriptsDAO(TranscriptsDAOInterface):
         *,
         project_id: UUID,
         session_id: UUID,
-    ) -> List[Transcript]:
+    ) -> List[SessionTranscript]:
         async with self.engine.session() as session:
             stmt = (
                 select(TranscriptDBE)
@@ -67,7 +70,7 @@ class TranscriptsDAO(TranscriptsDAOInterface):
         *,
         project_id: UUID,
         event_id: UUID,
-    ) -> Optional[Transcript]:
+    ) -> Optional[SessionTranscript]:
         async with self.engine.session() as session:
             stmt = select(TranscriptDBE).where(
                 TranscriptDBE.project_id == project_id,

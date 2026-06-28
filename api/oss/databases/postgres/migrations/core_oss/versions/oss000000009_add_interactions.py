@@ -1,4 +1,4 @@
-"""add interactions table
+"""add session_interactions table
 
 Revision ID: oss000000009
 Revises: oss000000008
@@ -19,7 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.create_table(
-        "interactions",
+        "session_interactions",
         sa.Column("project_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("session_id", sa.String(), nullable=False),
@@ -46,27 +46,27 @@ def upgrade() -> None:
             "project_id",
             "session_id",
             "token",
-            name="uq_interactions_project_session_token",
+            name="uq_session_interactions_project_session_token",
         ),
     )
     op.create_index(
-        "ix_interactions_project_id_created_at",
-        "interactions",
+        "ix_session_interactions_project_id_created_at",
+        "session_interactions",
         ["project_id", "created_at"],
     )
     op.create_index(
-        "ix_interactions_project_id_session_id",
-        "interactions",
+        "ix_session_interactions_project_id_session_id",
+        "session_interactions",
         ["project_id", "session_id"],
     )
     op.create_index(
-        "ix_interactions_token",
-        "interactions",
+        "ix_session_interactions_token",
+        "session_interactions",
         ["project_id", "session_id", "token"],
     )
     op.create_index(
-        "ix_interactions_pending",
-        "interactions",
+        "ix_session_interactions_pending",
+        "session_interactions",
         ["project_id"],
         postgresql_where=sa.text(
             "(status->>'code') = 'pending' AND deleted_at IS NULL"
@@ -75,8 +75,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_interactions_pending", table_name="interactions")
-    op.drop_index("ix_interactions_token", table_name="interactions")
-    op.drop_index("ix_interactions_project_id_session_id", table_name="interactions")
-    op.drop_index("ix_interactions_project_id_created_at", table_name="interactions")
-    op.drop_table("interactions")
+    op.drop_index("ix_session_interactions_pending", table_name="session_interactions")
+    op.drop_index("ix_session_interactions_token", table_name="session_interactions")
+    op.drop_index(
+        "ix_session_interactions_project_id_session_id",
+        table_name="session_interactions",
+    )
+    op.drop_index(
+        "ix_session_interactions_project_id_created_at",
+        table_name="session_interactions",
+    )
+    op.drop_table("session_interactions")

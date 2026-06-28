@@ -42,10 +42,19 @@ class TestMountsReads:
         assert response.status_code == 404, response.text
 
     def test_query_sessions_mounts_returns_200_empty(self, authed_api):
-        response = authed_api("POST", "/sessions/mounts/query", json={})
+        session_id = f"session-{uuid4().hex[:8]}"
+        response = authed_api(
+            "POST",
+            "/sessions/mounts/query",
+            json={"mount": {"session_id": session_id}},
+        )
         assert response.status_code == 200, response.text
         body = response.json()
         assert "mounts" in body
+
+    def test_query_sessions_mounts_without_session_id_returns_422(self, authed_api):
+        response = authed_api("POST", "/sessions/mounts/query", json={})
+        assert response.status_code == 422, response.text
 
 
 # ---------------------------------------------------------------------------

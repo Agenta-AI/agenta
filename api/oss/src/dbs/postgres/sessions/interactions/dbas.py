@@ -10,7 +10,7 @@ from oss.src.dbs.postgres.shared.dbas import (
 )
 
 
-class InteractionDBA(
+class SessionInteractionDBA(
     ProjectScopeDBA,
     LifecycleDBA,
     IdentifierDBA,

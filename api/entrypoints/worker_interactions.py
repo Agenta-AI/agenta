@@ -11,7 +11,7 @@ from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.git.dao import GitDAO
-from oss.src.dbs.postgres.sessions.interactions.dao import InteractionsDAO
+from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowArtifactDBE,
     WorkflowVariantDBE,
@@ -25,7 +25,7 @@ from oss.src.dbs.postgres.environments.dbes import (
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.environments.service import EnvironmentsService
 from oss.src.core.embeds.service import EmbedsService
-from oss.src.core.sessions.interactions.service import InteractionsService
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
@@ -61,7 +61,7 @@ broker = RedisStreamBroker(
 # WORKERS ------------------------------------------------------------------
 _transactions_engine = get_transactions_engine()
 
-interactions_dao = InteractionsDAO(engine=_transactions_engine)
+interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
 
 workflows_dao = GitDAO(
     ArtifactDBE=WorkflowArtifactDBE,
@@ -92,7 +92,7 @@ workflows_service.environments_service = environments_service
 workflows_service.embeds_service = embeds_service
 environments_service.embeds_service = embeds_service
 
-interactions_service = InteractionsService(
+interactions_service = SessionInteractionsService(
     interactions_dao=interactions_dao,
 )
 

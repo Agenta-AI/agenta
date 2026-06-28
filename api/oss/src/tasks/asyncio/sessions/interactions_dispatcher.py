@@ -1,8 +1,8 @@
 from typing import Any, Callable, Optional
 from uuid import UUID
 
-from oss.src.core.sessions.interactions.dtos import InteractionData
-from oss.src.core.sessions.interactions.service import InteractionsService
+from oss.src.core.sessions.interactions.dtos import SessionInteractionData
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -21,7 +21,7 @@ class InteractionsDispatcher:
         self,
         *,
         workflows_service: WorkflowsService,
-        interactions_service: InteractionsService,
+        interactions_service: SessionInteractionsService,
         dispatch_fn: Optional[Callable] = None,
     ) -> None:
         self.workflows_service = workflows_service
@@ -42,7 +42,7 @@ class InteractionsDispatcher:
             interaction_id=interaction_id,
         )
 
-        data: Optional[InteractionData] = interaction.data
+        data: Optional[SessionInteractionData] = interaction.data
         references = (
             {k: v.model_dump(mode="json") for k, v in data.references.items()}
             if data and data.references

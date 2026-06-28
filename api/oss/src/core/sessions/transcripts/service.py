@@ -1,7 +1,10 @@
 from typing import List, Optional
 from uuid import UUID
 
-from oss.src.core.sessions.transcripts.dtos import Transcript, TranscriptEvent
+from oss.src.core.sessions.transcripts.dtos import (
+    SessionTranscript,
+    SessionTranscriptEvent,
+)
 from oss.src.core.sessions.transcripts.interfaces import TranscriptsDAOInterface
 
 
@@ -12,8 +15,8 @@ class TranscriptsService:
     async def append(
         self,
         *,
-        event: TranscriptEvent,
-    ) -> Optional[Transcript]:
+        event: SessionTranscriptEvent,
+    ) -> Optional[SessionTranscript]:
         return await self.transcripts_dao.append(event=event)
 
     async def get_transcript(
@@ -21,7 +24,7 @@ class TranscriptsService:
         *,
         project_id: UUID,
         session_id: UUID,
-    ) -> List[Transcript]:
+    ) -> List[SessionTranscript]:
         return await self.transcripts_dao.get_transcript(
             project_id=project_id,
             session_id=session_id,
@@ -32,7 +35,7 @@ class TranscriptsService:
         *,
         project_id: UUID,
         event_id: UUID,
-    ) -> Optional[Transcript]:
+    ) -> Optional[SessionTranscript]:
         return await self.transcripts_dao.get_event(
             project_id=project_id,
             event_id=event_id,

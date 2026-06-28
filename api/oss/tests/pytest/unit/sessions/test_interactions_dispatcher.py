@@ -12,21 +12,21 @@ from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
 
 def _make_interaction(*, with_refs=True):
     from oss.src.core.sessions.interactions.dtos import (
-        Interaction,
-        InteractionData,
-        InteractionKind,
+        SessionInteraction,
+        SessionInteractionData,
+        SessionInteractionKind,
     )
     from oss.src.core.shared.dtos import Reference, Status
 
     refs = {"workflow": Reference(slug="wf-1")} if with_refs else None
-    return Interaction(
+    return SessionInteraction(
         id=uuid4(),
         project_id=uuid4(),
         session_id="sess-test-1",
         token="tok-abc",
-        kind=InteractionKind.user_input,
+        kind=SessionInteractionKind.user_input,
         status=Status(code="pending", message="pending"),
-        data=InteractionData(references=refs, selector=None),
+        data=SessionInteractionData(references=refs, selector=None),
     )
 
 

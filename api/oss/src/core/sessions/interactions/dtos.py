@@ -7,32 +7,32 @@ from pydantic import BaseModel
 from oss.src.core.shared.dtos import Reference, Selector, Status
 
 
-class InteractionKind(str, Enum):
+class SessionInteractionKind(str, Enum):
     user_approval = "user_approval"
     user_input = "user_input"
     tool_call = "tool_call"
 
 
-class InteractionStatus(str, Enum):
+class SessionInteractionStatus(str, Enum):
     pending = "pending"
     resolved = "resolved"
     denied = "denied"
     cancelled = "cancelled"
 
 
-class InteractionData(BaseModel):
+class SessionInteractionData(BaseModel):
     request: Optional[Dict[str, Any]] = None
     references: Optional[Dict[str, Reference]] = None
     selector: Optional[Selector] = None
     resolution: Optional[Dict[str, Any]] = None
 
 
-class InteractionFlags(BaseModel):
+class SessionInteractionFlags(BaseModel):
     delivered_in_band: bool = False
     delivered_webhook: bool = False
 
 
-class Interaction(BaseModel):
+class SessionInteraction(BaseModel):
     id: Optional[UUID] = None
     #
     created_at: Optional[Any] = None
@@ -46,32 +46,32 @@ class Interaction(BaseModel):
     session_id: str
     run_id: Optional[str] = None
     token: str
-    kind: InteractionKind
+    kind: SessionInteractionKind
     status: Optional[Status] = None
-    data: Optional[InteractionData] = None
-    flags: InteractionFlags = InteractionFlags()
+    data: Optional[SessionInteractionData] = None
+    flags: SessionInteractionFlags = SessionInteractionFlags()
 
 
-class InteractionCreate(BaseModel):
+class SessionInteractionCreate(BaseModel):
     project_id: UUID
     session_id: str
     run_id: Optional[str] = None
     token: str
-    kind: InteractionKind
-    data: Optional[InteractionData] = None
-    flags: InteractionFlags = InteractionFlags()
+    kind: SessionInteractionKind
+    data: Optional[SessionInteractionData] = None
+    flags: SessionInteractionFlags = SessionInteractionFlags()
 
 
-class InteractionTransition(BaseModel):
+class SessionInteractionTransition(BaseModel):
     project_id: UUID
     session_id: str
     token: str
-    status: InteractionStatus
+    status: SessionInteractionStatus
 
 
-class InteractionQuery(BaseModel):
+class SessionInteractionQuery(BaseModel):
     session_id: Optional[str] = None
     run_id: Optional[str] = None
-    kind: Optional[InteractionKind] = None
-    status: Optional[InteractionStatus] = None
+    kind: Optional[SessionInteractionKind] = None
+    status: Optional[SessionInteractionStatus] = None
     actionable_only: bool = False

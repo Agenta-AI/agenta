@@ -7,7 +7,7 @@ import pytest
 from fastapi import FastAPI, Request
 
 from oss.src.apis.fastapi.sessions.router import TranscriptsRouter
-from oss.src.apis.fastapi.sessions.models import TranscriptIngestRequest
+from oss.src.apis.fastapi.sessions.models import SessionTranscriptIngestRequest
 
 
 def _make_admin_request(app: FastAPI) -> Request:
@@ -31,7 +31,7 @@ async def test_transcript_ingest_writes_to_stream():
     project_id = uuid4()
     session_id = uuid4()
 
-    body = TranscriptIngestRequest(
+    body = SessionTranscriptIngestRequest(
         project_id=project_id,
         session_id=session_id,
         event_index=0,
@@ -69,7 +69,7 @@ async def test_transcript_ingest_rejects_non_admin():
 
     project_id = uuid4()
     session_id = uuid4()
-    body = TranscriptIngestRequest(project_id=project_id, session_id=session_id)
+    body = SessionTranscriptIngestRequest(project_id=project_id, session_id=session_id)
 
     app = FastAPI()
     scope = {

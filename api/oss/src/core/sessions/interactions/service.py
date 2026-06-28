@@ -2,18 +2,20 @@ from typing import List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.interactions.dtos import (
-    Interaction,
-    InteractionCreate,
-    InteractionQuery,
-    InteractionTransition,
+    SessionInteraction,
+    SessionInteractionCreate,
+    SessionInteractionQuery,
+    SessionInteractionTransition,
 )
-from oss.src.core.sessions.interactions.interfaces import InteractionsDAOInterface
+from oss.src.core.sessions.interactions.interfaces import (
+    SessionInteractionsDAOInterface,
+)
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.shared.dtos import Windowing
 
 
-class InteractionsService:
-    def __init__(self, *, interactions_dao: InteractionsDAOInterface) -> None:
+class SessionInteractionsService:
+    def __init__(self, *, interactions_dao: SessionInteractionsDAOInterface) -> None:
         self.interactions_dao = interactions_dao
 
     async def create_interaction(
@@ -22,8 +24,8 @@ class InteractionsService:
         project_id: UUID,
         user_id: Optional[UUID] = None,
         #
-        interaction: InteractionCreate,
-    ) -> Interaction:
+        interaction: SessionInteractionCreate,
+    ) -> SessionInteraction:
         return await self.interactions_dao.create_interaction(
             project_id=project_id,
             user_id=user_id,
@@ -36,7 +38,7 @@ class InteractionsService:
         project_id: UUID,
         #
         interaction_id: UUID,
-    ) -> Interaction:
+    ) -> SessionInteraction:
         result = await self.interactions_dao.fetch_interaction(
             project_id=project_id,
             interaction_id=interaction_id,
@@ -48,8 +50,8 @@ class InteractionsService:
     async def transition_interaction(
         self,
         *,
-        transition: InteractionTransition,
-    ) -> Optional[Interaction]:
+        transition: SessionInteractionTransition,
+    ) -> Optional[SessionInteraction]:
         result = await self.interactions_dao.transition_interaction(
             transition=transition,
         )
@@ -64,9 +66,9 @@ class InteractionsService:
         *,
         project_id: UUID,
         #
-        query: Optional[InteractionQuery] = None,
+        query: Optional[SessionInteractionQuery] = None,
         windowing: Optional[Windowing] = None,
-    ) -> List[Interaction]:
+    ) -> List[SessionInteraction]:
         return await self.interactions_dao.query_interactions(
             project_id=project_id,
             query=query,

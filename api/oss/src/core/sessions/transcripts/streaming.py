@@ -10,7 +10,7 @@ try:
 except ImportError:
     AsyncpgUUID = None
 
-from oss.src.core.sessions.transcripts.dtos import TranscriptEvent
+from oss.src.core.sessions.transcripts.dtos import SessionTranscriptEvent
 from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.utils.logging import get_module_logger
 
@@ -39,7 +39,7 @@ class TranscriptMessage(BaseModel):
     organization_id: Optional[UUID] = None
     project_id: UUID
     #
-    transcript_event: TranscriptEvent
+    transcript_event: SessionTranscriptEvent
 
 
 def deserialize_transcript(*, payload: bytes) -> TranscriptMessage:
@@ -53,7 +53,7 @@ async def publish_transcript(
     organization_id: Optional[UUID] = None,
     project_id: UUID,
     #
-    transcript_event: TranscriptEvent,
+    transcript_event: SessionTranscriptEvent,
 ) -> bool:
     redis = _get_redis()
     if redis is None:
