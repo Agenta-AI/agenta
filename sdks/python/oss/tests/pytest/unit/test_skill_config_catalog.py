@@ -143,6 +143,24 @@ def test_agent_config_tools_accepts_embed_and_reference_arms():
     assert has_reference, 'tools union must include a type:"reference" arm'
 
 
+def test_agent_config_tools_accepts_platform_arm():
+    """The tools union includes a type:"platform" arm (an existing Agenta endpoint exposed)."""
+    agent_config = CATALOG_TYPES["agent_config"]
+    tools_item = agent_config["properties"]["tools"]["items"]
+    variants = list(_flatten_union(tools_item["anyOf"]))
+    has_platform = any(_type_const(v) == "platform" for v in variants)
+    assert has_platform, 'tools union must include a type:"platform" arm'
+
+
+def test_agent_config_with_platform_tool_validates():
+    agent_config = CATALOG_TYPES["agent_config"]
+
+    config = _base_agent_config()
+    config["tools"] = [{"type": "platform", "op": "find_capabilities"}]
+
+    jsonschema.validate(config, agent_config)
+
+
 def test_agent_config_with_reference_tool_validates():
     agent_config = CATALOG_TYPES["agent_config"]
 

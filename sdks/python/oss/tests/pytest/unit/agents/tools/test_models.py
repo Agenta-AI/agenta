@@ -7,6 +7,7 @@ from agenta.sdk.agents.tools import (
     CallbackToolSpec,
     CodeToolConfig,
     CodeToolSpec,
+    PlatformToolConfig,
     ReferenceToolConfig,
 )
 from agenta.sdk.agents.tools.models import coerce_tool_spec
@@ -54,6 +55,22 @@ def test_reference_tool_variant_forbids_environment_slug():
 def test_reference_tool_discriminator_is_reference():
     config = ReferenceToolConfig(slug="wf")
     assert config.type == "reference"
+
+
+def test_platform_tool_discriminator_and_optional_approval():
+    # type:"platform" is its own arm of the ToolConfig union. needs_approval is optional (None =
+    # use the catalog's per-op default), unlike the base where it defaults to False.
+    config = PlatformToolConfig(op="find_capabilities")
+    assert config.type == "platform"
+    assert config.op == "find_capabilities"
+    assert config.needs_approval is None
+    # An explicit override is preserved.
+    assert PlatformToolConfig(op="x", needs_approval=True).needs_approval is True
+
+
+def test_platform_tool_requires_op():
+    with pytest.raises(ValidationError):
+        PlatformToolConfig()  # type: ignore[call-arg]
 
 
 def test_canonical_config_forbids_unexpected_fields():

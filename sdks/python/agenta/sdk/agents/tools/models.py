@@ -174,6 +174,34 @@ class ReferenceToolConfig(ToolConfigBase):
         return f"workflow.variant.{self.slug}"
 
 
+class PlatformToolConfig(ToolConfigBase):
+    """An existing Agenta endpoint exposed to the agent as a tool (the ``type:"platform"`` config).
+
+    A platform tool is a thin wrapper over an EXISTING Agenta endpoint — no new endpoint, no hidden
+    logic. The author names which endpoint to expose via ``op`` (a key in the platform-op catalog,
+    ``agenta.sdk.agents.platform.op_catalog``); the catalog owns everything else: the model-facing
+    description, the endpoint (method + relative path), the request input schema, any self-targeting
+    fields bound from run context (``bind``), and the default permission/approval.
+
+    ``resolve_tools`` turns it into a ``CallbackToolSpec`` carrying a direct ``call`` descriptor
+    (not a ``call_ref``): the runner calls the existing endpoint directly with the run's caller
+    credential, no ``/tools/call`` hop.
+
+    ``needs_approval`` / ``permission`` are optional here (unlike the base, where ``needs_approval``
+    defaults to ``False``): unset means "use the catalog's per-op default", so a mutating op like
+    ``commit_revision`` defaults to approval while a read like ``find_capabilities`` defaults to
+    auto-allow. An author value overrides the default."""
+
+    type: Literal["platform"] = "platform"
+    op: str = Field(
+        min_length=1,
+        description="Which catalog op (existing endpoint) to expose, e.g. 'find_capabilities'.",
+    )
+    # Override the base ``needs_approval: bool = False`` to optional so an unset value falls back to
+    # the catalog's per-op default rather than silently forcing "no approval" on a mutating op.
+    needs_approval: Optional[bool] = None
+
+
 ToolConfig = Annotated[
     Union[
         BuiltinToolConfig,
@@ -181,6 +209,7 @@ ToolConfig = Annotated[
         CodeToolConfig,
         ClientToolConfig,
         ReferenceToolConfig,
+        PlatformToolConfig,
     ],
     Field(discriminator="type"),
 ]

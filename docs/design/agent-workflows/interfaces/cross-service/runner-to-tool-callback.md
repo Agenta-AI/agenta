@@ -59,10 +59,12 @@ The same `POST /tools/call` serves three kinds of callback tool, routed by the `
 - **`tools.agenta.{op}`** — a reserved Agenta platform tool (out of the Composio 5-segment
   namespace). v1 op: `tools.agenta.find_capabilities`, routed by `_call_agenta_tool` to
   `ToolsService.discover_capabilities` (same logic as the `POST /tools/discover` endpoint). The
-  `CapabilitiesResult` is serialized into `call.data.content`. **Status:** the server-side route
-  is wired; the SDK-side declaration/resolution that puts this `call_ref` on a `CallbackToolSpec`
-  is pending (it rides the direct-call-tools platform-op seam), so no agent can declare the tool
-  yet. The runner needs no change — it forwards the `call_ref` opaquely, as for the other two.
+  `CapabilitiesResult` is serialized into `call.data.content`. **Status:** this server-side
+  `/tools/call` route still exists, but agents no longer reach it through this `call_ref` —
+  `find_capabilities` is now a [platform tool](../in-service/tool-models-and-resolution.md) whose
+  SDK resolution emits a direct `call` to `POST /api/tools/discover` (the `call` descriptor below),
+  bypassing `/tools/call`. The `tools.agenta.*` route is retained during migration and removed in a
+  later phase once nothing routes through it.
 
 The runner is unchanged for all three: it relays a `callback` spec with whatever `call_ref` the
 resolver put on it. Only the router's prefix dispatch is aware of the grammars.
