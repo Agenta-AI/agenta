@@ -36,11 +36,11 @@ def test_skill_config_schema_shape():
     assert set(file_item["properties"]) == {"path", "content", "executable"}
 
 
-def test_agent_config_catalog_exposes_skills_as_inline_or_embed_union():
-    agent_config = CATALOG_TYPES["agent_config"]
+def test_agent_template_catalog_exposes_skills_as_inline_or_embed_union():
+    agent_template = CATALOG_TYPES["agent-template"]
 
-    assert "skills" in agent_config["properties"]
-    skills_item = agent_config["properties"]["skills"]["items"]
+    assert "skills" in agent_template["properties"]
+    skills_item = agent_template["properties"]["skills"]["items"]
 
     # Each entry is a union: an inline skill_config package, or an @ag.embed reference.
     variants = skills_item["anyOf"]
@@ -53,8 +53,8 @@ def test_agent_config_catalog_exposes_skills_as_inline_or_embed_union():
     assert embed["required"] == ["@ag.embed"]
 
 
-def _base_agent_config() -> dict:
-    """The shape ``services/oss/src/agent/schemas.py::_DEFAULT_AGENT_CONFIG`` seeds, minus skills."""
+def _base_agent_template() -> dict:
+    """The shape ``services/oss/src/agent/schemas.py::_DEFAULT_AGENT_TEMPLATE`` seeds, minus skills."""
     return {
         "agents_md": "hi",
         "model": "gpt-4o",
@@ -70,11 +70,11 @@ def _base_agent_config() -> dict:
     }
 
 
-def test_platform_default_agent_config_with_embed_skill_validates():
+def test_platform_default_agent_template_with_embed_skill_validates():
     """The platform default ships an @ag.embed skill entry; the catalog schema must accept it."""
-    agent_config = CATALOG_TYPES["agent_config"]
+    agent_template = CATALOG_TYPES["agent-template"]
 
-    config = _base_agent_config()
+    config = _base_agent_template()
     config["skills"] = [
         {
             "@ag.embed": {
@@ -86,13 +86,13 @@ def test_platform_default_agent_config_with_embed_skill_validates():
         }
     ]
 
-    jsonschema.validate(config, agent_config)
+    jsonschema.validate(config, agent_template)
 
 
 def test_inline_skill_entry_validates():
-    agent_config = CATALOG_TYPES["agent_config"]
+    agent_template = CATALOG_TYPES["agent-template"]
 
-    config = _base_agent_config()
+    config = _base_agent_template()
     config["skills"] = [
         {
             "name": "release-notes",
@@ -101,7 +101,7 @@ def test_inline_skill_entry_validates():
         }
     ]
 
-    jsonschema.validate(config, agent_config)
+    jsonschema.validate(config, agent_template)
 
 
 # --- tools: @ag.embed (inline) + type:"reference" arms -----------------------
@@ -129,11 +129,11 @@ def _type_const(variant):
     return None
 
 
-def test_agent_config_tools_accepts_embed_and_reference_arms():
+def test_agent_template_tools_accepts_embed_and_reference_arms():
     """The tools field is a union: a concrete tool variant (incl. type:"reference", a workflow
     run server-side), or an @ag.embed (inline a client tool value)."""
-    agent_config = CATALOG_TYPES["agent_config"]
-    tools_item = agent_config["properties"]["tools"]["items"]
+    agent_template = CATALOG_TYPES["agent-template"]
+    tools_item = agent_template["properties"]["tools"]["items"]
     variants = list(_flatten_union(tools_item["anyOf"]))
 
     # The embed arm and the type:"reference" arm are present alongside the concrete tool variants.
@@ -143,28 +143,28 @@ def test_agent_config_tools_accepts_embed_and_reference_arms():
     assert has_reference, 'tools union must include a type:"reference" arm'
 
 
-def test_agent_config_tools_accepts_platform_arm():
+def test_agent_template_tools_accepts_platform_arm():
     """The tools union includes a type:"platform" arm (an existing Agenta endpoint exposed)."""
-    agent_config = CATALOG_TYPES["agent_config"]
-    tools_item = agent_config["properties"]["tools"]["items"]
+    agent_template = CATALOG_TYPES["agent-template"]
+    tools_item = agent_template["properties"]["tools"]["items"]
     variants = list(_flatten_union(tools_item["anyOf"]))
     has_platform = any(_type_const(v) == "platform" for v in variants)
     assert has_platform, 'tools union must include a type:"platform" arm'
 
 
-def test_agent_config_with_platform_tool_validates():
-    agent_config = CATALOG_TYPES["agent_config"]
+def test_agent_template_with_platform_tool_validates():
+    agent_template = CATALOG_TYPES["agent-template"]
 
-    config = _base_agent_config()
+    config = _base_agent_template()
     config["tools"] = [{"type": "platform", "op": "find_capabilities"}]
 
-    jsonschema.validate(config, agent_config)
+    jsonschema.validate(config, agent_template)
 
 
-def test_agent_config_with_reference_tool_validates():
-    agent_config = CATALOG_TYPES["agent_config"]
+def test_agent_template_with_reference_tool_validates():
+    agent_template = CATALOG_TYPES["agent-template"]
 
-    config = _base_agent_config()
+    config = _base_agent_template()
     config["tools"] = [
         {
             "type": "reference",
@@ -176,13 +176,13 @@ def test_agent_config_with_reference_tool_validates():
         }
     ]
 
-    jsonschema.validate(config, agent_config)
+    jsonschema.validate(config, agent_template)
 
 
-def test_agent_config_with_embed_tool_validates():
-    agent_config = CATALOG_TYPES["agent_config"]
+def test_agent_template_with_embed_tool_validates():
+    agent_template = CATALOG_TYPES["agent-template"]
 
-    config = _base_agent_config()
+    config = _base_agent_template()
     config["tools"] = [
         {
             "@ag.embed": {
@@ -192,4 +192,4 @@ def test_agent_config_with_embed_tool_validates():
         }
     ]
 
-    jsonschema.validate(config, agent_config)
+    jsonschema.validate(config, agent_template)

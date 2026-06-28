@@ -24,10 +24,10 @@ from typing import Any, Dict, List, Type
 from agenta.sdk.utils.logging import get_module_logger
 
 from ..dtos import (
-    AgentaAgentConfig,
-    ClaudeAgentConfig,
+    AgentaAgentTemplate,
+    ClaudeAgentTemplate,
     HarnessType,
-    PiAgentConfig,
+    PiAgentTemplate,
     SessionConfig,
 )
 from ..interfaces import Environment, Harness
@@ -58,14 +58,14 @@ def _normalize_tool_specs(specs: List[Dict[str, Any]]) -> List[ToolSpec]:
 class PiHarness(Harness):
     harness_type = HarnessType.PI
 
-    def _to_harness_config(self, config: SessionConfig) -> PiAgentConfig:
+    def _to_harness_config(self, config: SessionConfig) -> PiAgentTemplate:
         # Pi delivers tools natively: built-in names plus resolved specs registered through
         # the Pi extension. Pi does not gate tool use, so the permission policy is dropped.
         # Pi reads its own slice of the neutral harness_kwargs bag (the `pi_core` key, shared
         # by both Pi-family harnesses): `system` replaces Pi's base prompt, `append_system`
         # extends it (both leave AGENTS.md untouched).
         pi_options = config.agent.harness_kwargs.get(HarnessType.PI.value, {})
-        return PiAgentConfig(
+        return PiAgentTemplate(
             agents_md=config.agent.instructions,
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -84,7 +84,7 @@ class PiHarness(Harness):
 class ClaudeHarness(Harness):
     harness_type = HarnessType.CLAUDE
 
-    def _to_harness_config(self, config: SessionConfig) -> ClaudeAgentConfig:
+    def _to_harness_config(self, config: SessionConfig) -> ClaudeAgentTemplate:
         # Claude has no Pi built-in tools; drop them rather than ship a name Claude cannot
         # honor. Tools go over MCP, and Claude gates tool use, so the permission policy is
         # carried through.
@@ -96,11 +96,11 @@ class ClaudeHarness(Harness):
         # Skills stay on the harness config; the runner materializes them under `.claude/skills`
         # in the session cwd so Claude ACP can load the same resolved inline packages.
         # The whole neutral harness_kwargs bag (plus sandbox_permission + mcp_servers) is threaded
-        # onto the ClaudeAgentConfig; the config's `wire_harness_files` (the Python claude adapter)
+        # onto the ClaudeAgentTemplate; the config's `wire_harness_files` (the Python claude adapter)
         # parses the `claude.permissions` slice and renders `.claude/settings.json` as a generic
         # `harnessFiles` entry. No claude-specific parsing happens here; the runner just writes the
         # files into the cwd.
-        return ClaudeAgentConfig(
+        return ClaudeAgentTemplate(
             agents_md=config.agent.instructions,
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -125,11 +125,11 @@ class AgentaHarness(Harness):
 
     harness_type = HarnessType.AGENTA
 
-    def _to_harness_config(self, config: SessionConfig) -> AgentaAgentConfig:
+    def _to_harness_config(self, config: SessionConfig) -> AgentaAgentTemplate:
         # The author's Pi options still apply; the pi_agenta harness reads the same `pi_core`
         # slice as PiHarness (it drives Pi) and layers its forced extras on top.
         pi_options = config.agent.harness_kwargs.get(HarnessType.PI.value, {})
-        return AgentaAgentConfig(
+        return AgentaAgentTemplate(
             agents_md=compose_instructions(config.agent.instructions),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,

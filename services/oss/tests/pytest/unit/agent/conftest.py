@@ -70,7 +70,7 @@ class FakeBackend(Backend):
     """Echoes a fixed result, regardless of harness. Records lifecycle for assertions.
 
     Crucially it also records the *harness-shaped* config each ``create_session`` receives
-    (the ``PiAgentConfig`` / ``ClaudeAgentConfig`` / ``AgentaAgentConfig`` the harness
+    (the ``PiAgentTemplate`` / ``ClaudeAgentTemplate`` / ``AgentaAgentTemplate`` the harness
     produced). This is the backend boundary where per-harness translation surfaces, so a
     handler test can assert the response body is identical across harnesses *and* that the
     translated configs diverge as designed (Pi keeps built-ins and forces auto; Claude drops

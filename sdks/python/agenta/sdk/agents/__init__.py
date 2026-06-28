@@ -2,7 +2,7 @@
 
 Layers (Agenta's hexagonal vocabulary):
 
-- ``dtos.py`` — data contracts (``AgentConfig``, ``SessionConfig``, ``Message``, ...).
+- ``dtos.py`` — data contracts (``AgentTemplate``, ``SessionConfig``, ``Message``, ...).
 - ``interfaces.py`` — the ports (ABCs): ``Backend``, ``Environment``, ``Sandbox``,
   ``Session``, ``Harness``.
 - ``adapters/`` — implementations: ``SandboxAgentBackend`` / ``LocalBackend``
@@ -15,7 +15,7 @@ Standalone usage::
     from agenta.sdk.agents import Message
 
     cfg = ag.ConfigManager.get_from_registry(app_slug="my-agent")
-    agent = ag.AgentConfig.from_params(cfg)
+    agent = ag.AgentTemplate.from_params(cfg)
     harness = ag.PiHarness(ag.Environment(ag.SandboxAgentBackend()))
     result = await harness.prompt(ag.SessionConfig(agent=agent), [Message(role="user", content="hi")])
 """
@@ -53,21 +53,21 @@ from .connections import (
     UnsupportedProviderError,
 )
 from .dtos import (
-    AgentaAgentConfig,
-    AgentConfig,
+    AgentaAgentTemplate,
+    AgentTemplate,
     Event,
     AgentResult,
-    ClaudeAgentConfig,
+    ClaudeAgentTemplate,
     ContentBlock,
     HARNESS_IDENTITIES,
-    HarnessAgentConfig,
+    HarnessAgentTemplate,
     HarnessCapabilities,
     HarnessIdentity,
     HarnessType,
     Message,
     NetworkEgress,
     PermissionPolicy,
-    PiAgentConfig,
+    PiAgentTemplate,
     RunContext,
     RunContextReference,
     RunContextTrace,
@@ -150,12 +150,12 @@ from .adapters.vercel import (
 
 __all__ = [
     # DTOs
-    "AgentConfig",
+    "AgentTemplate",
     "SessionConfig",
-    "HarnessAgentConfig",
-    "PiAgentConfig",
-    "ClaudeAgentConfig",
-    "AgentaAgentConfig",
+    "HarnessAgentTemplate",
+    "PiAgentTemplate",
+    "ClaudeAgentTemplate",
+    "AgentaAgentTemplate",
     "HarnessType",
     "HarnessIdentity",
     "HARNESS_IDENTITIES",

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Mapping, Optional
 
-from ..dtos import HarnessAgentConfig, HarnessType, RunContext, TraceContext
+from ..dtos import HarnessAgentTemplate, HarnessType, RunContext, TraceContext
 from ..interfaces import Backend, Sandbox, Session
 
 
@@ -40,7 +40,7 @@ class LocalBackend(Backend):
     async def create_session(
         self,
         sandbox: Sandbox,
-        config: HarnessAgentConfig,
+        config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,

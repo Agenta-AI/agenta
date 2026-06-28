@@ -25,7 +25,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from ..dtos import (
     Event,
     AgentResult,
-    HarnessAgentConfig,
+    HarnessAgentTemplate,
     HarnessCapabilities,
     HarnessType,
     Message,
@@ -70,7 +70,7 @@ def request_to_wire(
     *,
     harness: HarnessType,
     sandbox: str,
-    config: HarnessAgentConfig,
+    config: HarnessAgentTemplate,
     messages: Sequence[Message],
     secrets: Optional[Dict[str, str]] = None,
     trace: Optional[TraceContext] = None,

@@ -1,4 +1,4 @@
-"""The `agent_config` default has ONE source: `build_agent_v0_default` in the SDK.
+"""The `agent-template` default has ONE source: `build_agent_v0_default` in the SDK.
 
 Before this, the default was hand-maintained in three places (the SDK builtin interface, the
 service `/inspect` schema, and the catalog field defaults), so a new default field had to be
@@ -8,20 +8,20 @@ and that the `/inspect` default the playground pre-fills is the same value the r
 
 from __future__ import annotations
 
-from agenta.sdk.agents import AgentConfig
+from agenta.sdk.agents import AgentTemplate
 from agenta.sdk.engines.running.interfaces import agent_v0_interface
-from agenta.sdk.utils.types import AgentConfigSchema, build_agent_v0_default
+from agenta.sdk.utils.types import AgentTemplateSchema, build_agent_v0_default
 
 from oss.src.agent.schemas import AGENT_SCHEMAS, _DEFAULT_SKILL_SLUG
 
 
 def _inspect_agent_default() -> dict:
-    """The `agent_config` default the service advertises on `/inspect`."""
+    """The `agent-template` default the service advertises on `/inspect`."""
     return AGENT_SCHEMAS["parameters"]["properties"]["agent"]["default"]
 
 
 def _builtin_agent_default() -> dict:
-    """The `agent_config` default the SDK builtin interface (`agenta:builtin:agent:v0`) carries."""
+    """The `agent-template` default the SDK builtin interface (`agenta:builtin:agent:v0`) carries."""
     return agent_v0_interface.schemas.parameters["properties"]["agent"]["default"]
 
 
@@ -41,14 +41,14 @@ def test_service_default_is_the_builder_plus_service_only_choices():
 
 def test_inspect_default_parses_into_the_runtime_selection():
     # The default the playground pre-fills on `/inspect` must parse cleanly into the same runtime
-    # values `AgentConfig.from_params` produces, so what the user sees is what the agent runs. The
+    # values `AgentTemplate.from_params` produces, so what the user sees is what the agent runs. The
     # `@ag.embed` skill resolves server-side before this parse, so the config-level round-trip is
-    # asserted on the non-skill fields plus the run-selection fields (now on `AgentConfig`).
+    # asserted on the non-skill fields plus the run-selection fields (now on `AgentTemplate`).
     inspect_default = _inspect_agent_default()
     no_skill = {k: v for k, v in inspect_default.items() if k != "skills"}
     params = {"agent": no_skill}
 
-    config = AgentConfig.from_params(params)
+    config = AgentTemplate.from_params(params)
 
     assert config.model == inspect_default["model"]
     assert config.instructions == inspect_default["agents_md"]
@@ -84,4 +84,4 @@ def test_harness_default_is_pi_core_in_every_source():
     assert build_agent_v0_default()["harness"] == "pi_core"
     assert _builtin_agent_default()["harness"] == "pi_core"
     assert _inspect_agent_default()["harness"] == "pi_core"
-    assert AgentConfigSchema.model_fields["harness"].default == "pi_core"
+    assert AgentTemplateSchema.model_fields["harness"].default == "pi_core"

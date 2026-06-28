@@ -1,17 +1,17 @@
 /**
- * AgentConfigControl
+ * AgentTemplateControl
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
  * of collapsible accordion sections (Model & harness, Instructions, Tools, MCP servers,
  * Advanced), built on the reusable {@link ConfigAccordionSection} primitive so the same
  * pattern can roll out to other config surfaces.
  *
- * Dispatched from `x-ag-type: "agent_config"` / `x-ag-type-ref: "agent_config"` (see
+ * Dispatched from `x-ag-type: "agent-template"` / `x-ag-type-ref: "agent-template"` (see
  * SchemaPropertyRenderer). It reuses the existing schema controls rather than inventing
  * new ones: the model selector (GroupedChoiceControl), the tool picker (ToolSelectorPopover
  * + ToolItemControl), the MCP server editor (McpServerItemControl), enum selects (harness,
  * sandbox, permission policy), and a textarea (agents_md). The field shape is the
- * `agent_config` catalog type generated from the SDK model (AgentConfigSchema in
+ * `agent-template` catalog type generated from the SDK model (AgentTemplateSchema in
  * agenta.sdk.utils.types); the agent service ships a thin `x-ag-type-ref` the playground
  * resolves and reads back (services/oss/src/agent).
  *
@@ -44,7 +44,7 @@ import {useAtomValue} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
-import {agentConfigLayoutAtom} from "./agentConfigLayout"
+import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ClaudePermissionsControl} from "./ClaudePermissionsControl"
 import {CodeEditor} from "./CodeEditor"
 import {ConfigItemDrawer, type ConfigItemView} from "./ConfigItemDrawer"
@@ -73,7 +73,7 @@ import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover
 import {parseGatewayFunctionName, type ToolObj} from "./toolUtils"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
-export interface AgentConfigControlProps {
+export interface AgentTemplateControlProps {
     schema?: SchemaProperty | null
     label?: string
     value?: Record<string, unknown> | null
@@ -439,14 +439,14 @@ function ItemRow({
     )
 }
 
-export function AgentConfigControl({
+export function AgentTemplateControl({
     schema,
     value,
     onChange,
     withTooltip,
     disabled,
     className,
-}: AgentConfigControlProps) {
+}: AgentTemplateControlProps) {
     const {gatewayTools, workflowReference} = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
 
@@ -487,8 +487,8 @@ export function AgentConfigControl({
 
     // How the config sections are laid out: stacked accordion (default), tabs, or cards.
     // Layout is a global, persisted preference set from the variant header menu (see
-    // agentConfigLayout); the panel only reads it.
-    const layout = useAtomValue(agentConfigLayoutAtom)
+    // agentTemplateLayout); the panel only reads it.
+    const layout = useAtomValue(agentTemplateLayoutAtom)
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
 
     // Update a single field of the agent config, leaving the rest intact.

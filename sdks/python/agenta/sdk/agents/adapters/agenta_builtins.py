@@ -17,7 +17,7 @@ what the author's config carries. The canonical skill content lives here (in the
 layer); the server-side ``StaticWorkflowCatalog`` imports the same constant so the embed path
 and the forced path stay one source of truth.
 
-Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAgentConfig`):
+Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAgentTemplate`):
 the *persona* is an ``append_system`` (changes Pi's base prompt), while *project conventions*
 belong in ``AGENTS.md``. ``AGENTA_PREAMBLE`` is the AGENTS.md layer; ``AGENTA_FORCED_APPEND_SYSTEM``
 is the persona layer.

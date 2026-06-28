@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from agenta.sdk.agents import (
-    AgentConfig,
+    AgentTemplate,
     AgentResult,
     ConnectionNotFoundError,
     ConnectionResolutionError,
@@ -74,7 +74,9 @@ def _patch_handler(monkeypatch, backend, *, builtins=(), tool_callback=None):
     )
     monkeypatch.setattr(app, "select_backend", lambda selection: backend)
     monkeypatch.setattr(
-        app, "_default_agent_config", lambda: AgentConfig(instructions="x", model="m")
+        app,
+        "_default_agent_template",
+        lambda: AgentTemplate(instructions="x", model="m"),
     )
     return recorded
 
@@ -224,8 +226,8 @@ async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
     monkeypatch.setattr(app, "resolve_tools", _failure)
     monkeypatch.setattr(
         app,
-        "_default_agent_config",
-        lambda: AgentConfig(
+        "_default_agent_template",
+        lambda: AgentTemplate(
             tools=[
                 {
                     "type": "gateway",
@@ -291,7 +293,9 @@ def _patch_resolution(monkeypatch, backend, *, resolve):
     monkeypatch.setattr(app, "record_usage", lambda usage: None)
     monkeypatch.setattr(app, "select_backend", lambda selection: backend)
     monkeypatch.setattr(
-        app, "_default_agent_config", lambda: AgentConfig(instructions="x", model="m")
+        app,
+        "_default_agent_template",
+        lambda: AgentTemplate(instructions="x", model="m"),
     )
     return built
 

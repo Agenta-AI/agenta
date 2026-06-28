@@ -1,13 +1,13 @@
-"""End-to-end SDK skill coverage: an `AgentConfig`'s skills land on the `/run` wire as
+"""End-to-end SDK skill coverage: an `AgentTemplate`'s skills land on the `/run` wire as
 concrete inline packages, whether they were authored inline or pulled in via an `@ag.embed`.
 
 These lock the two author shapes the skills feature ships:
 
-1. **Inline skill -> wire.** An `AgentConfig` carrying an inline `SkillConfig` produces a runner
+1. **Inline skill -> wire.** An `AgentTemplate` carrying an inline `SkillConfig` produces a runner
    request whose `skills[0]` is the materialized inline package (name/description/body/files +
    camelCase flags), via the `wire_skills()` seam that `request_to_wire` spreads.
 
-2. **Embed skill -> resolve -> wire.** An `AgentConfig` whose `skills` list holds an `@ag.embed`
+2. **Embed skill -> resolve -> wire.** An `AgentTemplate` whose `skills` list holds an `@ag.embed`
    entry, run through the resolution middleware against a MOCKED resolve endpoint that returns a
    `SkillConfig`-shaped `parameters.skill`, ends up on the wire as a concrete inline package (the
    embed is gone). This mirrors how the resolver tests mock `/workflows/revisions/resolve`, then
@@ -24,7 +24,7 @@ import pytest
 
 import agenta as ag
 from agenta.sdk.agents import (
-    AgentConfig,
+    AgentTemplate,
     Environment,
     HarnessType,
     Message,
@@ -50,8 +50,8 @@ _INLINE_SKILL = {
 }
 
 
-def _pi_wire(env: Environment, agent: AgentConfig) -> dict:
-    """Translate an `AgentConfig` through the Pi harness and serialize one turn to the wire."""
+def _pi_wire(env: Environment, agent: AgentTemplate) -> dict:
+    """Translate an `AgentTemplate` through the Pi harness and serialize one turn to the wire."""
     harness = PiHarness(env)
     pi_config = harness._to_harness_config(SessionConfig(agent=agent))
     return request_to_wire(
@@ -67,7 +67,7 @@ def _pi_wire(env: Environment, agent: AgentConfig) -> dict:
 
 def test_inline_skill_materializes_on_the_wire(make_env):
     env = make_env(supported=[HarnessType.PI])
-    agent = AgentConfig(instructions="hi", model="gpt-5.5", skills=[_INLINE_SKILL])
+    agent = AgentTemplate(instructions="hi", model="gpt-5.5", skills=[_INLINE_SKILL])
 
     wire = _pi_wire(env, agent)
 
@@ -93,7 +93,7 @@ def test_inline_skill_materializes_on_the_wire(make_env):
 
 def test_minimal_inline_skill_omits_optional_flags_on_the_wire(make_env):
     env = make_env(supported=[HarnessType.PI])
-    agent = AgentConfig(
+    agent = AgentTemplate(
         instructions="hi",
         model="gpt-5.5",
         skills=[SkillConfig(name="a", description="d", body="b")],
@@ -115,7 +115,7 @@ def test_minimal_inline_skill_omits_optional_flags_on_the_wire(make_env):
 @pytest.mark.asyncio
 async def test_embed_skill_resolves_to_a_concrete_package_on_the_wire(make_env):
     # The author config references a skill by an `@ag.embed` inside the skills list (the platform default-config shape). The resolver inlines the stored `SkillConfig` BEFORE the handler
-    # builds the AgentConfig, so the runner must never see the embed -- only a concrete package.
+    # builds the AgentTemplate, so the runner must never see the embed -- only a concrete package.
     params_with_embed = {
         "skills": [
             {
@@ -188,9 +188,9 @@ async def test_embed_skill_resolves_to_a_concrete_package_on_the_wire(make_env):
     assert request.data.parameters == resolved_params
 
     # Now carry the resolved params the rest of the way, exactly as the handler does: build the
-    # AgentConfig from them, translate through the harness, and serialize the wire.
+    # AgentTemplate from them, translate through the harness, and serialize the wire.
     env = make_env(supported=[HarnessType.PI])
-    agent = AgentConfig.from_params(request.data.parameters)
+    agent = AgentTemplate.from_params(request.data.parameters)
     wire = _pi_wire(env, agent)
 
     # The embed is gone; a concrete inline package rides the wire.

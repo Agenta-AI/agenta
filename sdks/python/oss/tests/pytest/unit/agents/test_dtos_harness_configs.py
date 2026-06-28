@@ -10,10 +10,10 @@ from __future__ import annotations
 import pytest
 
 from agenta.sdk.agents import (
-    ClaudeAgentConfig,
+    ClaudeAgentTemplate,
     ClientToolSpec,
-    HarnessAgentConfig,
-    PiAgentConfig,
+    HarnessAgentTemplate,
+    PiAgentTemplate,
     ToolCallback,
 )
 
@@ -21,7 +21,7 @@ _CALLBACK = ToolCallback(endpoint="https://api.example/tools/call", authorizatio
 
 
 def test_pi_wire_tools_is_native_and_never_gates():
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         builtin_tools=["read"],
         tool_specs=[
             ClientToolSpec(
@@ -50,21 +50,23 @@ def test_pi_wire_tools_is_native_and_never_gates():
 
 
 def test_pi_wire_tools_without_callback():
-    assert PiAgentConfig().wire_tools()["toolCallback"] is None
+    assert PiAgentTemplate().wire_tools()["toolCallback"] is None
 
 
 def test_pi_wire_prompt_emits_only_set_overrides():
-    assert PiAgentConfig().wire_prompt() == {}
-    assert PiAgentConfig(system="s").wire_prompt() == {"systemPrompt": "s"}
-    assert PiAgentConfig(append_system="a").wire_prompt() == {"appendSystemPrompt": "a"}
-    assert PiAgentConfig(system="", append_system="a").wire_prompt() == {
+    assert PiAgentTemplate().wire_prompt() == {}
+    assert PiAgentTemplate(system="s").wire_prompt() == {"systemPrompt": "s"}
+    assert PiAgentTemplate(append_system="a").wire_prompt() == {
+        "appendSystemPrompt": "a"
+    }
+    assert PiAgentTemplate(system="", append_system="a").wire_prompt() == {
         "systemPrompt": "",  # an explicit empty string is still an override here
         "appendSystemPrompt": "a",
     }
 
 
 def test_claude_wire_tools_has_no_builtins_and_carries_policy():
-    config = ClaudeAgentConfig(
+    config = ClaudeAgentTemplate(
         tool_specs=[
             ClientToolSpec(
                 name="t",
@@ -88,12 +90,14 @@ def test_claude_wire_tools_has_no_builtins_and_carries_policy():
 
 
 def test_claude_defaults_to_auto_policy_and_empty_prompt():
-    assert ClaudeAgentConfig().wire_tools()["permissionPolicy"] == "auto"
-    assert ClaudeAgentConfig().wire_prompt() == {}  # Claude exposes no prompt overrides
+    assert ClaudeAgentTemplate().wire_tools()["permissionPolicy"] == "auto"
+    assert (
+        ClaudeAgentTemplate().wire_prompt() == {}
+    )  # Claude exposes no prompt overrides
 
 
 def test_base_config_wire_tools_is_abstract():
     # The base class does not know any engine's tool shape.
     with pytest.raises(NotImplementedError):
-        HarnessAgentConfig().wire_tools()
-    assert HarnessAgentConfig().wire_prompt() == {}
+        HarnessAgentTemplate().wire_tools()
+    assert HarnessAgentTemplate().wire_prompt() == {}

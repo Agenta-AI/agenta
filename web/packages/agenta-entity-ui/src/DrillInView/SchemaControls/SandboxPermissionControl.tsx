@@ -8,7 +8,7 @@
  *     filesystem?: "on" | "readonly" | "off",
  *     enforcement: "strict" | "best_effort" }
  *
- * The emitted `agent_config` schema exposes `sandbox_permission` as a nullable object, so the
+ * The emitted `agent-template` schema exposes `sandbox_permission` as a nullable object, so the
  * generic renderer can only offer a drill-in. This renders the four knobs as a real form: a
  * network-mode selector, a CIDR allowlist (only when mode = allowlist), an optional filesystem
  * selector, and an enforcement selector. Non-destructive: an unset value stays `null` (no declared

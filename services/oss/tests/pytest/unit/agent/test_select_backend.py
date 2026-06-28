@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from agenta.sdk.agents import (
-    AgentConfig,
+    AgentTemplate,
     AgentRunnerConfigurationError,
     SandboxAgentBackend,
 )
@@ -31,7 +31,7 @@ def _clean_env(monkeypatch, runner_wrapper: Path):
 
 
 def _sel(harness="pi_core", sandbox="local"):
-    return AgentConfig(harness=harness, sandbox=sandbox)
+    return AgentTemplate(harness=harness, sandbox=sandbox)
 
 
 @pytest.mark.parametrize("harness", ["pi_core", "pi_agenta", "claude"])

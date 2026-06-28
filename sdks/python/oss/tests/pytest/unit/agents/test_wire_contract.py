@@ -20,12 +20,12 @@ import json
 import pytest
 
 from agenta.sdk.agents import (
-    AgentaAgentConfig,
-    ClaudeAgentConfig,
+    AgentaAgentTemplate,
+    ClaudeAgentTemplate,
     Endpoint,
     HarnessType,
     Message,
-    PiAgentConfig,
+    PiAgentTemplate,
     ResolvedConnection,
     RunContext,
     RunContextReference,
@@ -113,7 +113,7 @@ _SKILL = {
 
 
 def _pi_payload():
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="openai-codex/gpt-5.5",
         builtin_tools=["read", "write"],
@@ -158,7 +158,7 @@ def _pi_payload():
 
 
 def _claude_payload():
-    config = ClaudeAgentConfig(
+    config = ClaudeAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="claude-sonnet-4-6",
         custom_tools=[dict(_CUSTOM_TOOL)],
@@ -187,7 +187,7 @@ def _claude_payload():
 
 
 def _agenta_payload():
-    config = AgentaAgentConfig(
+    config = AgentaAgentTemplate(
         agents_md="Agenta preamble + project rules.",
         model="gpt-5.5",
         builtin_tools=["read", "bash"],
@@ -218,7 +218,7 @@ def test_request_to_wire_agenta_carries_skills_and_pi_shape():
 
 def test_request_to_wire_skills_ride_their_own_seam_not_tools():
     # Skills are emitted by `wire_skills`, not folded into the tool wire.
-    config = PiAgentConfig(skills=[dict(_SKILL)])
+    config = PiAgentTemplate(skills=[dict(_SKILL)])
     assert "skills" not in config.wire_tools()
     assert config.wire_skills() == {"skills": [SkillConfig(**_SKILL).to_wire()]}
 
@@ -228,7 +228,7 @@ def test_request_to_wire_omits_skills_when_none():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "skills" not in payload
@@ -287,7 +287,7 @@ def test_request_to_wire_omits_run_context_when_none():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "runContext" not in payload
@@ -299,7 +299,7 @@ def test_request_to_wire_omits_run_context_when_empty():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
         run_context=RunContext(),
     )
@@ -358,7 +358,7 @@ def test_request_to_wire_has_no_prompt_key():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "prompt" not in payload
@@ -379,7 +379,7 @@ def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
     # resolved `model` overrides the config-build `model`, `provider`/`deployment`/
     # `credentialMode`/`endpoint.baseUrl` ride the wire, and the secret `key` NEVER does (it
     # rides `secrets`; `env` is masked from the wire by `ResolvedConnection.to_wire`).
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         model="openai/gpt-5.5",  # the config-build model
         resolved_connection=ResolvedConnection(
             provider="openai",
@@ -415,7 +415,7 @@ def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
 def test_request_to_wire_omits_resolved_connection_when_none():
     # No resolved connection -> no resolved-connection keys, so a config without one is
     # byte-identical to before (the golden contract; the golden fixtures set none).
-    config = PiAgentConfig(model="gpt-5.5")
+    config = PiAgentTemplate(model="gpt-5.5")
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
@@ -435,7 +435,7 @@ def test_pi_permission_policy_is_always_auto():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert payload["permissionPolicy"] == "auto"
@@ -526,7 +526,7 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
     # The three-axes surface reaches the wire intact: a code spec keeps its executor fields
     # (kind/runtime/code/env) and the orthogonal axes (needsApproval/render); a client spec
     # has no callRef; user MCP servers ride `mcpServers`.
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         custom_tools=[
             {
                 "name": "calc",
@@ -589,7 +589,7 @@ def test_request_to_wire_omits_mcp_servers_when_none():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "mcpServers" not in payload
@@ -601,7 +601,7 @@ def test_request_to_wire_omits_sandbox_permission_when_none():
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
-        config=PiAgentConfig(),
+        config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "sandboxPermission" not in payload
@@ -613,7 +613,7 @@ def test_request_to_wire_omits_harness_files_when_none():
     payload = request_to_wire(
         harness=HarnessType.CLAUDE,
         sandbox="local",
-        config=ClaudeAgentConfig(),
+        config=ClaudeAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
     assert "harnessFiles" not in payload
@@ -623,7 +623,7 @@ def test_request_to_wire_pi_renders_no_harness_files_from_its_options():
     # The per-harness translation is now in Python and only the claude config renders files; a Pi
     # config carrying options (even a `claude` slice that is never its concern) emits no
     # `harnessFiles`. The raw options map no longer rides the wire.
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         harness_kwargs={
             "pi": {"system": "You are Pi."},
             "claude": {"permissions": {"default_mode": "plan"}},
@@ -645,7 +645,7 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
     # permissions slice with the Layer-2 sandbox derivation and Layer-3 MCP permissions into one
     # `.claude/settings.json` file. network:off -> WebFetch/WebSearch deny; an `ask` MCP server ->
     # `mcp__<server>` ask. The author's deny keeps its position; derived rules append (deduped).
-    config = ClaudeAgentConfig(
+    config = ClaudeAgentTemplate(
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
         harness_kwargs={"claude": {"permissions": {"default_mode": "plan"}}},
         mcp_servers=[
@@ -677,7 +677,7 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
 
 def test_request_to_wire_carries_sandbox_permission_allowlist():
     # The allowlist mode rides the wire with its CIDR ranges and the default enforcement.
-    config = PiAgentConfig(
+    config = PiAgentTemplate(
         sandbox_permission=SandboxPermission(
             network={"mode": "allowlist", "allowlist": ["10.0.0.0/8"]},
         )

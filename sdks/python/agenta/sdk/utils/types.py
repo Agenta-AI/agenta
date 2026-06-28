@@ -1065,8 +1065,8 @@ _DEFAULT_AGENTS_MD = (
 
 # The single source of the run-selection defaults. The SDK builtin interface
 # (`agenta:builtin:agent:v0`) and the agent service (`AGENT_SCHEMAS` / the value
-# `AgentConfig.from_params` falls back to) both consume these via `build_agent_v0_default`, so a new
-# default changes one place. The harness default also seeds `AgentConfigSchema.harness`.
+# `AgentTemplate.from_params` falls back to) both consume these via `build_agent_v0_default`, so a new
+# default changes one place. The harness default also seeds `AgentTemplateSchema.harness`.
 _DEFAULT_HARNESS = "pi_core"
 _DEFAULT_SANDBOX = "local"
 _DEFAULT_PERMISSION_POLICY = "auto"
@@ -1103,21 +1103,21 @@ def _harness_field_schema_extra() -> Dict[str, Any]:
     }
 
 
-class AgentConfigSchema(AgSchemaMixin):
+class AgentTemplateSchema(AgSchemaMixin):
     """The playground's editable agent config (the ``agent`` element), as one semantic type.
 
-    This is the schema-generation counterpart to the runtime :class:`agenta.sdk.agents.AgentConfig`
-    parser: it exists only to emit a rich JSON Schema for the ``agent_config`` control, so the
+    This is the schema-generation counterpart to the runtime :class:`agenta.sdk.agents.AgentTemplate`
+    parser: it exists only to emit a rich JSON Schema for the ``agent-template`` control, so the
     field shapes live in Pydantic (single source of truth) instead of a hand-written literal.
     It composes every editable field the control surfaces — the definition
     (``agents_md``/``model``/``tools``/``mcp_servers``) and the run-selection fields
     (``harness``/``sandbox``/``permission_policy``), all one config — and types
     ``tools``/``mcp_servers`` with the real tool-def models so the playground gets typed editors.
-    The runtime ``AgentConfig`` stays permissive (``List[Any]``) because its job is to coerce the
+    The runtime ``AgentTemplate`` stays permissive (``List[Any]``) because its job is to coerce the
     loose shapes the playground emits; this model is strict because its job is to describe them.
     """
 
-    __ag_type__ = "agent_config"
+    __ag_type__ = "agent-template"
 
     agents_md: str = Field(
         default=_DEFAULT_AGENTS_MD,
@@ -1200,7 +1200,7 @@ def build_agent_v0_default(
     skill_slug: Optional[str] = None,
     include_sandbox_permission: bool = False,
 ) -> Dict[str, Any]:
-    """The default `agent_config` value, shared by the builtin interface and the service.
+    """The default `agent-template` value, shared by the builtin interface and the service.
 
     Base shape (always): instructions, model, empty tools/MCP, the run selection
     (harness/sandbox/permission policy). ``include_sandbox_permission`` adds the declared
@@ -1367,9 +1367,9 @@ class _ToolEmbedRefSchema(BaseModel):
     )
 
 
-# Resolve the forward references on AgentConfigSchema.skills + tools (inline / embed).
+# Resolve the forward references on AgentTemplateSchema.skills + tools (inline / embed).
 # A workflow referenced as a tool is the ``type:"reference"`` arm of ``ToolConfig`` itself.
-AgentConfigSchema.model_rebuild()
+AgentTemplateSchema.model_rebuild()
 
 
 CATALOG_TYPES = {
@@ -1385,8 +1385,8 @@ CATALOG_TYPES = {
     AgPermissions.ag_type(): _dereference_schema(AgPermissions.model_json_schema()),
     AgResponse.ag_type(): _dereference_schema(AgResponse.model_json_schema()),
     PromptTemplate.ag_type(): _dereference_schema(PromptTemplate.model_json_schema()),
-    AgentConfigSchema.ag_type(): _dereference_schema(
-        AgentConfigSchema.model_json_schema()
+    AgentTemplateSchema.ag_type(): _dereference_schema(
+        AgentTemplateSchema.model_json_schema()
     ),
     SkillConfigSchema.ag_type(): _dereference_schema(
         SkillConfigSchema.model_json_schema()
