@@ -79,8 +79,17 @@ secret; their provider key stays server-side and the call routes back through `/
 - `sdks/python/agenta/sdk/agents/platform/workflow.py`: `type: "reference"` workflow resolution to
   a `workflow.{axis}.*` callback spec.
 - `api/oss/src/apis/fastapi/tools/router.py`: `/tools/call` routes a `workflow.*` call_ref to
-  `WorkflowsService.invoke_workflow` (the server-side execute path).
+  `WorkflowsService.invoke_workflow`, and a `tools.agenta.*` call_ref (the reserved
+  `find_capabilities` discovery tool) to `ToolsService.discover_capabilities` (server-side execute
+  paths).
 - `services/oss/src/agent/tools/resolver.py`: the service entrypoint (re-exports the SDK).
+
+The reserved `tools.agenta.find_capabilities` tool's **resolution is not yet wired**: the SDK
+resolver does not yet emit a `CallbackToolSpec` for a `tools.agenta.*` op, so no agent config can
+declare it. The server-side `/tools/call` route and the `/tools/discover` endpoint exist; the SDK
+declaration/resolution is a follow-up that rides the direct-call-tools platform-op seam. The
+canonical reserved-tool spec (call_ref, input_schema, description) lives in
+`api/oss/src/core/tools/discovery.py`.
 
 ## Watch for when changing
 
@@ -95,3 +104,7 @@ secret; their provider key stays server-side and the call routes back through `/
   server-side `/tools/call` routes by the `tools.*` vs `workflow.*` prefix; keep the SDK
   (`platform/workflow.py`) and the API parser (`_call_workflow_tool`) in agreement on the axis
   grammar.
+- **Reserved platform call references.** `tools.agenta.{op}` is reserved for Agenta platform
+  tools (v1: `find_capabilities`), routed server-side by `_call_agenta_tool`. When the SDK
+  resolution lands, keep the emitted `call_ref` and the router parser in agreement, and keep the
+  reserved prefix out of the Composio 5-segment namespace.

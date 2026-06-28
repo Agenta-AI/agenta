@@ -302,6 +302,38 @@ spec onto the `tool_call` and `tool_result` events so the egress can project it 
 without a spec lookup. The hint can name a prebuilt component, ship rendered source, or carry a
 declarative UI spec (`RenderHint` in `protocol.ts`).
 
+## Tool discovery: `find_capabilities`
+
+Before an agent can attach a tool it has to find the right one. `find_capabilities` turns a set
+of plain-language use cases into Agenta-shaped tools, each integration's connection state, and
+operating guidance — in one call, so a builder agent never guesses slugs or learns Composio.
+
+- **Endpoint:** `POST /tools/discover` (project-scoped via caller auth, `VIEW_TOOLS`). Request:
+  `{use_cases: string[], provider?: "composio", limit_alternatives?: 3}`. Response: the
+  `CapabilitiesResult` contract (`capabilities[]`, `connections[]`, `guidance`, `ready`,
+  `notes`).
+- **What it does:** wraps Composio's `COMPOSIO_SEARCH_TOOLS` and translates the result to Agenta
+  concepts (`integration` + `action`, connection slugs, our `POST /tools/connections/`
+  affordance). The raw Composio slug rides along only as an opaque `provider_action`. It reports
+  each integration's connection state (`ready` / `needs_auth` / `needs_input`) read fresh from
+  the project's `gateway_connections`; the tool/schema half is cached (the search runs an LLM
+  internally, so it is a few seconds).
+- **Scope (v1):** action tools only. A use case that reads like a trigger ("listen for…") is
+  flagged in `notes` and on the capability; event listening is a separate trigger subscription
+  (a follow-up). Composio has no semantic trigger search.
+- **Agent-facing tool:** the reserved `tools.agenta.find_capabilities` tool (out of the Composio
+  5-segment namespace). When the model calls it, the runner posts the call back to `/tools/call`,
+  which routes the `tools.agenta.` prefix to discovery. **Status:** the server side is wired
+  (`POST /tools/discover` plus the `/tools/call` route); the SDK-side declaration/resolution (how
+  an agent config surfaces the tool and how `platform.resolve_tools` emits its `CallbackToolSpec`)
+  is not yet wired — it rides the direct-call-tools platform-op seam. The runner needs no change
+  (it forwards the `call_ref` opaquely).
+
+The contract and the field-by-field Composio→Agenta mapping live in the
+[tool-discovery design](../../projects/tool-discovery/design.md). The setup-agent loop
+(discover → resolve connections → create → test) is the
+[discover-and-wire-tools skill](../../projects/tool-discovery/skills/discover-and-wire-tools/SKILL.md).
+
 ## The whole picture
 
 | Tool type | Resolves to | Who executes | Where | Secret handling |
@@ -325,6 +357,8 @@ declarative UI spec (`RenderHint` in `protocol.ts`).
 | Gateway resolver (calls `/tools/resolve`) | `sdks/python/agenta/sdk/agents/platform/gateway.py` (shim: `services/oss/src/agent/tools/gateway.py`) |
 | Named-secret resolution (`/secrets/resolve`) | `sdks/python/agenta/sdk/agents/platform/secrets.py` (shim: `services/oss/src/agent/tools/secrets.py`) |
 | API resolve + execute | `api/oss/src/core/tools/service.py`, `api/oss/src/apis/fastapi/tools/router.py` |
+| Tool discovery (search + Composio→Agenta translation) | `api/oss/src/core/tools/discovery.py`, `service.py` (`discover_capabilities`) |
+| Discovery endpoint + reserved-tool route | `api/oss/src/apis/fastapi/tools/router.py` (`/tools/discover`, `_call_agenta_tool`) |
 | Wire contract | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py` |
 | Tool-delivery fork (branch on `mcpTools`) | `services/agent/src/engines/sandbox_agent/mcp.ts` |
 | Runtime dispatch (branch on `kind`) | `services/agent/src/tools/dispatch.ts` |
@@ -353,6 +387,10 @@ declarative UI spec (`RenderHint` in `protocol.ts`).
 - **Code tools are standard-library-only.** The image ships `python3` and `node`, but the
   child env has no package install and no module path to the runner's dependencies, so a tool
   cannot import third-party packages.
+- **Tool discovery is server-side only so far.** `POST /tools/discover` and the
+  `tools.agenta.find_capabilities` `/tools/call` route are wired, but no agent config can yet
+  declare the reserved tool — the SDK-side resolution is pending (it rides the direct-call-tools
+  platform-op seam). v1 discovery covers action tools, not triggers.
 - **Harness capabilities are probed but not consumed.** The runner probes `HarnessCapabilities`
   per run (`engines/sandbox_agent/capabilities.ts`), uses them only for the internal `mcpTools`
   delivery branch, and returns them on the `/run` result. The result field is parsed into

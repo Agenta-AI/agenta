@@ -9,8 +9,12 @@ from oss.src.core.gateway.connections.service import ConnectionsService
 
 from oss.src.core.tools.dtos import (
     BuiltinTool,
+    CapabilitiesResult,
     ComposioTool,
+    ConnectAffordance,
+    ConnectionRequirement,
     ResolvedTool,
+    ToolAuthScheme,
     ToolCatalogActionDetails,
     ToolCatalogActionsPage,
     ToolCatalogIntegration,
@@ -18,25 +22,40 @@ from oss.src.core.tools.dtos import (
     ToolCatalogProvider,
     ToolConnection,
     ToolConnectionCreate,
+    ToolConnectionState,
     ToolExecutionRequest,
     ToolExecutionResponse,
     ToolProviderKind,
     ToolReference,
     ToolsResolution,
 )
+from oss.src.core.tools.discovery import (
+    looks_like_trigger,
+    referenced_integrations,
+    translate_search_result,
+)
 from oss.src.core.tools.exceptions import (
     ActionNotFoundError,
     ConnectionInactiveError,
     ConnectionInvalidError,
     ConnectionNotFoundError,
+    DiscoveryUnsupportedError,
     ToolSlugInvalidError,
 )
+from oss.src.core.tools.providers.composio.dtos import ComposioSearchResult
 from oss.src.core.tools.registry import ToolsGatewayRegistry
+from oss.src.utils.caching import get_cache, set_cache
 
 
 log = get_module_logger(__name__)
 
 _SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9-]+(?:_[a-zA-Z0-9-]+)*$")
+
+# Discovery (find_capabilities): cache the tool/schema half, recompute connection
+# state fresh (D6). Project-agnostic key — the search is global, only the
+# connection-state join is project-scoped.
+_DISCOVERY_CACHE_NAMESPACE = "tools:discover"
+_DEFAULT_LIMIT_ALTERNATIVES = 3
 
 
 class ToolsService:
@@ -447,3 +466,171 @@ class ToolsService:
             call_ref=call_ref,
             read_only=action.read_only,
         )
+
+    # -----------------------------------------------------------------------
+    # Tool discovery (find_capabilities)
+    # -----------------------------------------------------------------------
+
+    async def discover_capabilities(
+        self,
+        *,
+        project_id: UUID,
+        use_cases: List[str],
+        provider_key: str = ToolProviderKind.COMPOSIO.value,
+        limit_alternatives: int = _DEFAULT_LIMIT_ALTERNATIVES,
+    ) -> CapabilitiesResult:
+        """Discover tools for a set of use_cases, translated to Agenta concepts.
+
+        Splits the work per D6: the expensive tool/schema half (the provider's
+        semantic search) is cached project-agnostically; connection state is
+        recomputed fresh from the project's ``gateway_connections`` rows every call,
+        so it never goes stale when a user finishes connecting.
+        """
+        search = await self._cached_search(
+            provider_key=provider_key,
+            project_id=project_id,
+            use_cases=use_cases,
+        )
+
+        states: Dict[str, ConnectionRequirement] = {}
+        for integration in referenced_integrations(
+            search, limit_alternatives=limit_alternatives
+        ):
+            states[integration] = await self._discovery_connection_state(
+                project_id=project_id,
+                provider_key=provider_key,
+                integration_key=integration,
+            )
+
+        trigger_use_cases = {u for u in use_cases if looks_like_trigger(u)}
+
+        return translate_search_result(
+            search,
+            states,
+            limit_alternatives=limit_alternatives,
+            trigger_use_cases=trigger_use_cases,
+        )
+
+    async def _cached_search(
+        self,
+        *,
+        provider_key: str,
+        project_id: UUID,
+        use_cases: List[str],
+    ) -> ComposioSearchResult:
+        cache_key = {
+            "provider": provider_key,
+            "use_cases": "\x1f".join(use_cases),
+        }
+        cached = await get_cache(
+            namespace=_DISCOVERY_CACHE_NAMESPACE,
+            key=cache_key,
+            model=ComposioSearchResult,
+        )
+        if cached is not None:
+            return cached
+
+        adapter = self.adapter_registry.get(provider_key)
+        search_fn = getattr(adapter, "search_capabilities", None)
+        if search_fn is None:
+            raise DiscoveryUnsupportedError(provider_key)
+
+        search = await search_fn(use_cases=use_cases, user_id=str(project_id))
+
+        # Cache only the tool/schema half (D6): drop the per-project connection
+        # state so the cached blob is project-agnostic and never makes a later
+        # call's connection state stale. State is recomputed fresh below.
+        cacheable = search.model_copy(update={"toolkit_connection_statuses": []})
+        await set_cache(
+            namespace=_DISCOVERY_CACHE_NAMESPACE,
+            key=cache_key,
+            value=cacheable,
+        )
+        return cacheable
+
+    async def _discovery_connection_state(
+        self,
+        *,
+        project_id: UUID,
+        provider_key: str,
+        integration_key: str,
+    ) -> ConnectionRequirement:
+        """Resolve one integration's connection state from the project's rows.
+
+        ``ready`` mirrors what ``resolve_connection_by_slug`` accepts at invoke time
+        (active + valid + a usable provider connection), so a ``ready`` here means
+        the tool will actually resolve. Otherwise the state is ``needs_auth`` /
+        ``needs_input`` from the integration's auth scheme, with the create
+        affordance attached.
+        """
+        connections = await self.query_connections(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=integration_key,
+            is_active=None,
+        )
+        ready = next(
+            (
+                c
+                for c in connections
+                if c.is_active
+                and c.is_valid
+                and (c.provider_connection_id or not c.has_auth)
+            ),
+            None,
+        )
+        if ready is not None:
+            return ConnectionRequirement(
+                integration=integration_key,
+                state=ToolConnectionState.READY,
+                slug=ready.slug,
+            )
+
+        state = await self._connection_auth_state(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        # Suggest a free slug: an inactive/invalid row may already hold
+        # ``<integration>-main``, and resolve_connection_by_slug can't disambiguate
+        # duplicate slugs, so don't propose one that already exists.
+        existing_slugs = {c.slug for c in connections if c.slug}
+        connect_slug = f"{integration_key}-main"
+        suffix = 2
+        while connect_slug in existing_slugs:
+            connect_slug = f"{integration_key}-main-{suffix}"
+            suffix += 1
+        return ConnectionRequirement(
+            integration=integration_key,
+            state=state,
+            connect=ConnectAffordance(
+                body={
+                    "connection": {
+                        "provider_key": provider_key,
+                        "integration_key": integration_key,
+                        "slug": connect_slug,
+                    }
+                }
+            ),
+        )
+
+    async def _connection_auth_state(
+        self,
+        *,
+        provider_key: str,
+        integration_key: str,
+    ) -> ToolConnectionState:
+        """needs_auth (OAuth) vs needs_input (API key) from the catalog auth scheme."""
+        integration = await self.get_integration(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        schemes = integration.auth_schemes if integration else None
+        if (
+            schemes
+            and ToolAuthScheme.API_KEY in schemes
+            and ToolAuthScheme.OAUTH not in schemes
+        ):
+            return ToolConnectionState.NEEDS_INPUT
+        # Default to OAuth: most Composio integrations are OAuth, and an unknown
+        # scheme is safest surfaced as an OAuth-style "authorize" affordance.
+        return ToolConnectionState.NEEDS_AUTH
