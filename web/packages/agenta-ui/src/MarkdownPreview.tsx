@@ -15,17 +15,27 @@ export interface MarkdownPreviewProps {
     className?: string
 }
 
-// Compact prose styling for rendered Markdown elements.
+// "Option B — comfortable" prose styling for rendered Markdown, kept in sync with the document
+// editor's `.md-prose` rules in editor-theme.css. Uses antd semantic tokens so it adapts to dark
+// mode. (This renderer is for inline summaries/previews; the drawer's edit + preview panes render
+// through the Lexical editor and pick up the `.md-prose` CSS instead.)
 const MD_CLASS = [
-    "text-xs leading-relaxed",
+    "text-[13px] leading-[1.6] text-[var(--ant-color-text)]",
     "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-    "[&_h1]:text-sm [&_h1]:font-medium [&_h2]:text-xs [&_h2]:font-medium [&_h3]:text-xs [&_h3]:font-medium",
-    "[&_p]:my-1",
-    "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5",
-    "[&_a]:text-[var(--ag-c-1677FF)] [&_a]:underline",
-    "[&_code]:font-mono [&_code]:text-[0.9em]",
-    "[&_blockquote]:border-l-2 [&_blockquote]:border-solid [&_blockquote]:border-[var(--ag-c-EAEFF5)] [&_blockquote]:pl-2 [&_blockquote]:text-[var(--ag-c-97A4B0)]",
-    "[&_pre]:overflow-x-auto",
+    "[&_h1]:text-[17px] [&_h1]:font-medium [&_h1]:mt-[18px] [&_h1]:mb-2 [&_h1]:leading-tight",
+    "[&_h2]:text-[14px] [&_h2]:font-medium [&_h2]:mt-4 [&_h2]:mb-1.5",
+    "[&_h3]:text-[13px] [&_h3]:font-medium [&_h3]:mt-3.5 [&_h3]:mb-1 [&_h3]:text-[var(--ant-color-text-secondary)]",
+    "[&_h4]:text-[13px] [&_h4]:font-medium [&_h4]:text-[var(--ant-color-text-secondary)]",
+    "[&_p]:my-2",
+    "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1",
+    "[&_a]:text-[var(--ant-color-primary)] [&_a]:underline",
+    "[&_code]:font-mono [&_code]:text-[0.86em] [&_code]:bg-[var(--ant-color-fill-tertiary)] [&_code]:border [&_code]:border-solid [&_code]:border-[var(--ant-color-border-secondary)] [&_code]:rounded [&_code]:px-1.5 [&_code]:py-px",
+    "[&_pre]:my-2.5 [&_pre]:bg-[var(--ant-color-fill-quaternary)] [&_pre]:border [&_pre]:border-solid [&_pre]:border-[var(--ant-color-border-secondary)] [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto",
+    "[&_pre_code]:border-0 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[12px]",
+    "[&_blockquote]:my-2.5 [&_blockquote]:border-0 [&_blockquote]:border-l-[3px] [&_blockquote]:border-solid [&_blockquote]:border-[var(--ant-color-border)] [&_blockquote]:pl-3.5 [&_blockquote]:italic [&_blockquote]:text-[var(--ant-color-text-secondary)]",
+    "[&_table]:my-2.5 [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs",
+    "[&_th]:border-0 [&_th]:border-b [&_th]:border-solid [&_th]:border-[var(--ant-color-border)] [&_th]:bg-[var(--ant-color-fill-tertiary)] [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium",
+    "[&_td]:border-0 [&_td]:border-b [&_td]:border-solid [&_td]:border-[var(--ant-color-border-secondary)] [&_td]:px-2.5 [&_td]:py-1.5",
 ].join(" ")
 
 export function MarkdownPreview({content, className}: MarkdownPreviewProps) {

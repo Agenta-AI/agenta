@@ -776,3 +776,74 @@ pre::-webkit-scrollbar-thumb {
 .dark .editor-tokenAttr {
     color: #79c0ff;
 }
+
+/* ------------------------------------------------------------------------- *
+ * Document prose ("Option B — comfortable")
+ *
+ * Scoped to the Markdown document editors (Instructions / Skill) via the
+ * `md-prose` wrapper, so the shared editor theme used by the prompt and chat
+ * editors stays as-is. Uses antd semantic tokens (`--ant-color-*`) so it adapts
+ * to dark mode automatically; placed last so equal-specificity rules win over
+ * the `.dark` overrides above. Covers both the edit and read-only preview panes
+ * (both render through this Lexical editor).
+ * ------------------------------------------------------------------------- */
+.md-prose .editor-paragraph {
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+.md-prose .editor-heading-h1,
+.md-prose .editor-heading-h2,
+.md-prose .editor-heading-h3,
+.md-prose .editor-heading-h4,
+.md-prose .editor-heading-h5,
+.md-prose .editor-heading-h6 {
+    color: var(--ant-color-text);
+    font-weight: 500;
+    line-height: 1.3;
+    margin-top: 18px;
+    margin-bottom: 8px;
+}
+.md-prose .editor-heading-h1 {
+    font-size: 17px;
+}
+.md-prose .editor-heading-h2 {
+    font-size: 14px;
+}
+.md-prose .editor-heading-h3,
+.md-prose .editor-heading-h4,
+.md-prose .editor-heading-h5,
+.md-prose .editor-heading-h6 {
+    font-size: 13px;
+    color: var(--ant-color-text-secondary);
+}
+.md-prose .editor-quote {
+    font-size: 13px;
+    font-style: italic;
+    color: var(--ant-color-text-secondary);
+    border-left: 3px solid var(--ant-color-border);
+    margin-left: 2px;
+    padding-left: 14px;
+}
+.md-prose .editor-text-code {
+    background-color: var(--ant-color-fill-tertiary);
+    border: 0.5px solid var(--ant-color-border-secondary);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 86%;
+}
+.md-prose .editor-code {
+    display: block;
+    background-color: var(--ant-color-fill-quaternary);
+    border: 0.5px solid var(--ant-color-border-secondary);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 10px 0;
+    font-family: Menlo, Consolas, Monaco, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+}
+.md-prose .editor-link {
+    color: var(--ant-color-primary);
+    text-decoration: underline;
+}

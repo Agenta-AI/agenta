@@ -255,6 +255,8 @@ export function MarkdownEditor({
         />
     )
 
+    // `md-prose` scopes the document prose styles (Option B) defined in editor-theme.css to these
+    // Markdown editors only, so the shared prompt/chat editor theme is untouched.
     const body = showToolbar ? (
         <div
             className={cn(
@@ -264,14 +266,14 @@ export function MarkdownEditor({
             style={boundStyle}
         >
             {toolbar}
-            <div className="min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
+            <div className="md-prose min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
         </div>
     ) : boundStyle ? (
-        <div className="overflow-y-auto" style={boundStyle}>
+        <div className="md-prose overflow-y-auto" style={boundStyle}>
             {editorEl}
         </div>
     ) : (
-        editorEl
+        <div className="md-prose">{editorEl}</div>
     )
 
     return (
