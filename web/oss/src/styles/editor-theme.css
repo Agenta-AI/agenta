@@ -853,10 +853,12 @@ pre::-webkit-scrollbar-thumb {
    rendered input (`:not(.markdown-view)`, so source view is untouched) to reach 0-4-0 and win. */
 .md-prose .editor-input:not(.markdown-view) .editor-code {
     display: block;
+    position: relative;
     background-color: var(--ant-color-fill-quaternary);
     border: 0.5px solid var(--ant-color-border-secondary);
     border-radius: 8px;
-    padding: 12px 14px;
+    /* Extra top padding leaves room for the floating language picker pinned to the block's top. */
+    padding: 40px 14px 12px;
     margin: 10px 0;
     font-family: Menlo, Consolas, Monaco, monospace;
     font-size: 12px;

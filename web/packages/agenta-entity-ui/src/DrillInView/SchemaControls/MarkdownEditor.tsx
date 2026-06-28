@@ -40,6 +40,8 @@ import {cn} from "@agenta/ui/styles"
 import {registerCodeHighlighting} from "@lexical/code"
 import {Tag} from "antd"
 
+import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
+
 type MarkdownView = "source" | "rendered"
 
 export interface MarkdownEditorProps {
@@ -317,6 +319,7 @@ export function MarkdownEditor({
             )}
             <MarkdownViewSync enabled={markdownView} />
             <CodeHighlightSync />
+            {!editorDisabled ? <CodeBlockLanguageMenu /> : null}
         </EditorProvider>
     )
 }
