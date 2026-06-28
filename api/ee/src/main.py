@@ -9,23 +9,28 @@ from oss.src.dbs.postgres.shared.engine import (
     get_analytics_engine,
 )
 from oss.src.dbs.postgres.events.dao import EventsDAO
+from oss.src.dbs.postgres.transcripts.dao import TranscriptsDAO
 from oss.src.core.events.service import EventsService
+from oss.src.core.transcripts.service import TranscriptsService
 
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.tracing.dao import TracingRetentionDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.dbs.postgres.events.dao import EventsRetentionDAO
+from ee.src.dbs.postgres.transcripts.dao import TranscriptsRetentionDAO
 
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingRetentionService
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.events.service import EventsRetentionService
+from ee.src.core.transcripts.service import TranscriptsRetentionService
 
 from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
 from ee.src.apis.fastapi.spans.router import SpansRetentionRouter
 from ee.src.apis.fastapi.events.router import EventsRouter, EventsRetentionRouter
+from ee.src.apis.fastapi.transcripts.router import TranscriptsRetentionRouter
 from ee.src.apis.fastapi.organizations.router import router as organization_router
 from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
@@ -52,6 +57,12 @@ events_retention_dao = EventsRetentionDAO(
     analytics_engine=_analytics_engine,
 )
 
+transcripts_dao = TranscriptsDAO(engine=_analytics_engine)
+transcripts_retention_dao = TranscriptsRetentionDAO(
+    transactions_engine=_transactions_engine,
+    analytics_engine=_analytics_engine,
+)
+
 # CORE -------------------------------------------------------------------------
 
 meters_service = MetersService(
@@ -68,6 +79,14 @@ events_service = EventsService(
 
 events_retention_service = EventsRetentionService(
     events_retention_dao=events_retention_dao,
+)
+
+transcripts_service = TranscriptsService(
+    transcripts_dao=transcripts_dao,
+)
+
+transcripts_retention_service = TranscriptsRetentionService(
+    transcripts_retention_dao=transcripts_retention_dao,
 )
 
 subscription_service = SubscriptionsService(
@@ -100,6 +119,10 @@ events_router = EventsRouter(
 
 events_retention_router = EventsRetentionRouter(
     events_retention_service=events_retention_service,
+)
+
+transcripts_retention_router = TranscriptsRetentionRouter(
+    transcripts_retention_service=transcripts_retention_service,
 )
 
 
@@ -138,6 +161,13 @@ def extend_main(app: FastAPI):
     app.include_router(
         router=events_retention_router.admin_router,
         prefix="/admin/events",
+        tags=["Admin"],
+        include_in_schema=False,
+    )
+
+    app.include_router(
+        router=transcripts_retention_router.admin_router,
+        prefix="/admin/transcripts",
         tags=["Admin"],
         include_in_schema=False,
     )

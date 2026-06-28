@@ -67,6 +67,7 @@ from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.events.dao import EventsDAO
+from oss.src.dbs.postgres.transcripts.dao import TranscriptsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
@@ -77,6 +78,7 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.events.service import EventsService
+from oss.src.core.transcripts.service import TranscriptsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
@@ -125,6 +127,7 @@ from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
+from oss.src.apis.fastapi.transcripts.router import TranscriptsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.core.annotations.service import AnnotationsService
@@ -347,6 +350,10 @@ _OPENAPI_TAGS = [
         "name": "Folders",
         "description": "Organize applications and other resources into folder hierarchies.",
     },
+    {
+        "name": "Sessions",
+        "description": "Agent session data — transcripts and other per-session streams.",
+    },
     # --
     # {
     #     "name": "Events",
@@ -443,6 +450,7 @@ webhooks_dao = WebhooksDAO(engine=_transactions_engine)
 
 tracing_dao = TracingDAO(engine=_analytics_engine)
 events_dao = EventsDAO(engine=_analytics_engine)
+transcripts_dao = TranscriptsDAO(engine=_analytics_engine)
 
 testcases_dao = BlobsDAO(
     engine=_transactions_engine,
@@ -505,6 +513,10 @@ tracing_service = TracingService(
 
 events_service = EventsService(
     events_dao=events_dao,
+)
+
+transcripts_service = TranscriptsService(
+    transcripts_dao=transcripts_dao,
 )
 
 
@@ -836,6 +848,10 @@ triggers = TriggersRouter(
 
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
+)
+
+transcripts = TranscriptsRouter(
+    transcripts_service=transcripts_service,
 )
 
 annotations_service = AnnotationsService(
@@ -1265,6 +1281,12 @@ app.include_router(
     prefix="/preview/simple/queues",
     tags=["Evaluations"],
     include_in_schema=False,
+)
+
+app.include_router(
+    router=transcripts.router,
+    prefix="/sessions/transcripts",
+    tags=["Sessions"],
 )
 
 app.include_router(
