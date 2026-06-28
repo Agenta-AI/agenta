@@ -24,7 +24,12 @@
  *  - `project_id` / `application_id` ride the URL QUERY (never the body), and
  *    `project_id` only travels alongside auth — mirroring `executionItems.ts`.
  */
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    workflowMolecule,
+    type AgentTemplate,
+} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
@@ -39,6 +44,133 @@ export interface AgentRequest {
 
 /** Minimal store surface — the default Jotai store, or a test store. */
 type StoreLike = Pick<ReturnType<typeof getDefaultStore>, "get">
+
+type AgentTemplateListKey = "tools" | "skills" | "mcps"
+type AgentTemplateObjectKey = "sandbox" | "runner" | "harness" | "llm" | "instructions"
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    Boolean(value && typeof value === "object" && !Array.isArray(value))
+
+const embedWorkflowSlug = (entry: unknown): string | undefined => {
+    if (!isRecord(entry)) return undefined
+    const embed = entry["@ag.embed"]
+    if (!isRecord(embed)) return undefined
+    const refs = embed["@ag.references"]
+    if (!isRecord(refs)) return undefined
+    const workflow = refs.workflow
+    if (isRecord(workflow) && typeof workflow.slug === "string") return workflow.slug
+    const revision = refs.workflow_revision
+    if (isRecord(revision) && typeof revision.slug === "string") return revision.slug
+    return undefined
+}
+
+const deepMerge = (
+    base: Record<string, unknown>,
+    overlay: Record<string, unknown>,
+): Record<string, unknown> => {
+    const result: Record<string, unknown> = {...base}
+    for (const [key, value] of Object.entries(overlay)) {
+        const existing = result[key]
+        result[key] = isRecord(existing) && isRecord(value) ? deepMerge(existing, value) : value
+    }
+    return result
+}
+
+const getToolIdentity = (entry: unknown): string | undefined => {
+    if (!isRecord(entry)) return undefined
+    if (entry.type === "platform" && typeof entry.op === "string") return `platform:${entry.op}`
+    const slug = embedWorkflowSlug(entry)
+    if (slug) return `workflow:${slug}`
+    return typeof entry.name === "string" ? `name:${entry.name}` : undefined
+}
+
+const getSkillIdentity = (entry: unknown): string | undefined => {
+    const slug = embedWorkflowSlug(entry)
+    return slug ? `workflow:${slug}` : undefined
+}
+
+const getMcpIdentity = (entry: unknown): string | undefined => {
+    if (!isRecord(entry)) return undefined
+    return typeof entry.name === "string" ? entry.name : undefined
+}
+
+const identityMerge = (
+    base: unknown[],
+    overlay: unknown[],
+    getIdentity: (entry: unknown) => string | undefined,
+): unknown[] => {
+    const result = [...base]
+    const indexByIdentity = new Map<string, number>()
+    result.forEach((entry, index) => {
+        const identity = getIdentity(entry)
+        if (identity) indexByIdentity.set(identity, index)
+    })
+    overlay.forEach((entry) => {
+        const identity = getIdentity(entry)
+        const index = identity ? indexByIdentity.get(identity) : undefined
+        if (index !== undefined) {
+            result[index] = entry
+            return
+        }
+        if (identity) indexByIdentity.set(identity, result.length)
+        result.push(entry)
+    })
+    return result
+}
+
+export function applyBuildKitOverlay(
+    base: AgentTemplate,
+    overlay: Partial<AgentTemplate>,
+): AgentTemplate {
+    const result: AgentTemplate = {...base}
+
+    for (const key of [
+        "sandbox",
+        "runner",
+        "harness",
+        "llm",
+        "instructions",
+    ] as const satisfies readonly AgentTemplateObjectKey[]) {
+        const overlayValue = overlay[key]
+        if (overlayValue !== undefined) {
+            result[key] = deepMerge(
+                isRecord(base[key]) ? (base[key] as Record<string, unknown>) : {},
+                isRecord(overlayValue) ? overlayValue : {},
+            )
+        }
+    }
+
+    const listMergers: Record<AgentTemplateListKey, (entry: unknown) => string | undefined> = {
+        tools: getToolIdentity,
+        skills: getSkillIdentity,
+        mcps: getMcpIdentity,
+    }
+
+    for (const key of Object.keys(listMergers) as AgentTemplateListKey[]) {
+        const overlayValue = overlay[key]
+        if (Array.isArray(overlayValue)) {
+            result[key] = identityMerge(
+                Array.isArray(base[key]) ? (base[key] as unknown[]) : [],
+                overlayValue,
+                listMergers[key],
+            )
+        }
+    }
+
+    return result
+}
+
+const withBuildKitOverlay = (
+    parameters: Record<string, unknown>,
+    overlay: AgentTemplate | null,
+    enabled: boolean,
+): Record<string, unknown> => {
+    if (!enabled || !overlay || !isRecord(parameters.agent)) return parameters
+    return {
+        ...parameters,
+        agent: applyBuildKitOverlay(parameters.agent as AgentTemplate, overlay),
+    }
+}
 
 // Backend rejects local-draft ids; only forward real UUIDs in `references`.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -306,10 +438,17 @@ export async function buildAgentRequest(
         | undefined
     // The execution sections (`harness`/`runner`/`sandbox`) are nested in the template at
     // `parameters.agent`. Default them, never overriding values the resolved config carries.
-    const parameters = pruneBlankEntries(withAgentRunDefaults(config ?? {})) as Record<
-        string,
-        unknown
-    >
+    const buildKitEnabled = store.get(workflowBuildKitEnabledAtomFamily(entityId)) as boolean
+    const agentTemplateOverlay = store.get(
+        workflowAgentTemplateOverlayAtomFamily(entityId),
+    ) as AgentTemplate | null
+    const parameters = pruneBlankEntries(
+        withBuildKitOverlay(
+            withAgentRunDefaults(config ?? {}) as Record<string, unknown>,
+            agentTemplateOverlay,
+            buildKitEnabled,
+        ),
+    ) as Record<string, unknown>
 
     const entity = store.get(workflowMolecule.selectors.data(entityId)) as
         | RevisionLike

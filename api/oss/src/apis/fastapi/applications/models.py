@@ -599,6 +599,24 @@ class SimpleApplicationQueryRequest(BaseModel):
     )
 
 
+class PlaygroundBuildKitContext(BaseModel):
+    """Read-only playground build-kit context for one inspect/fetch response."""
+
+    agent_template_overlay: Optional[dict] = Field(
+        default=None,
+        description="Partial `parameters.agent` overlay applied by the playground only.",
+    )
+
+
+class SimpleApplicationAdditionalContext(BaseModel):
+    """Platform-supplied read-only context for a simple-application response."""
+
+    playground_build_kit: Optional[PlaygroundBuildKitContext] = Field(
+        default=None,
+        description="Playground-only build kit data that is never persisted on the app.",
+    )
+
+
 class SimpleApplicationResponse(BaseModel):
     """Simple-application single-row response envelope."""
 
@@ -612,6 +630,10 @@ class SimpleApplicationResponse(BaseModel):
             "The application with `variant_id`, `revision_id`, and the "
             "revision's `data` merged. `data.url` is the invocation URL."
         ),
+    )
+    additional_context: Optional[SimpleApplicationAdditionalContext] = Field(
+        default=None,
+        description="Read-only platform context derived for this response.",
     )
 
 

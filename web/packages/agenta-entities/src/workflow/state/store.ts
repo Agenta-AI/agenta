@@ -1098,6 +1098,27 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // ============================================================================
+// PLAYGROUND BUILD KIT SESSION STATE
+// ============================================================================
+
+export type AgentTemplate = Record<string, unknown>
+
+export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: string) =>
+    atom<AgentTemplate | null>((get) => {
+        const inspectData = get(workflowInspectAtomFamily(revisionId)).data ?? null
+        const overlay =
+            inspectData?.additional_context?.playground_build_kit?.agent_template_overlay ?? null
+        return overlay && typeof overlay === "object" && !Array.isArray(overlay)
+            ? (overlay as AgentTemplate)
+            : null
+    }),
+)
+
+export const workflowBuildKitEnabledAtomFamily = atomFamily((_revisionId: string) =>
+    atom<boolean>(true),
+)
+
+// ============================================================================
 // AG-TYPE SCHEMA QUERY (resolves x-ag-type-ref targets into full schemas)
 // ============================================================================
 
