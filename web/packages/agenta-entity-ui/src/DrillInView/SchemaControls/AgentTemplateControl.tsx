@@ -25,7 +25,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {useDrillInUI, type WorkflowReferencePayload} from "@agenta/ui/drill-in"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
     Cpu,
@@ -45,9 +45,9 @@ import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 import {AddTextLink} from "./AddTextLink"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
-import {isBuiltinPayloadMatch, toolName, toolReferenceSlug} from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow} from "./agentTemplate/ItemRow"
+import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
 import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
@@ -55,7 +55,7 @@ import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
-import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
+import {ToolSelectorPopover} from "./ToolSelectorPopover"
 import {type ToolObj} from "./toolUtils"
 import {
     AddTriggerDropdown,
@@ -170,100 +170,18 @@ export function AgentTemplateControl({
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
     const mh = useModelHarness({schema, config, onChange, revisionId, disabled, withTooltip})
 
-    // Tools live as a flat array on the agent definition (the same tool-object shape the
-    // prompt control uses, so the backend resolver parses them identically).
-    const tools = useMemo(
-        () => (Array.isArray(config.tools) ? (config.tools as unknown[]) : []),
-        [config.tools],
-    )
-    const setTools = useCallback((next: unknown[]) => setAgentField("tools", next), [setAgentField])
-
-    const handleAddTool = useCallback(
-        (tool: ToolObj, meta?: ToolSelectionMeta) => {
-            const next =
-                meta && tool && typeof tool === "object" && !Array.isArray(tool)
-                    ? {
-                          ...(tool as Record<string, unknown>),
-                          agenta_metadata: {
-                              ...(((tool as Record<string, unknown>).agenta_metadata as
-                                  | Record<string, unknown>
-                                  | undefined) ?? {}),
-                              ...meta,
-                          },
-                      }
-                    : tool
-            // A custom (inline function) tool starts blank — edit it in a create drawer and only
-            // append on Save, so a half-filled tool never lands in the config. Builtin/gateway
-            // tools arrive complete (and gateway is multi-select), so add those straight away.
-            if (meta?.source === "custom") {
-                openCreate("tool", next as Record<string, unknown>, "form")
-                return
-            }
-            setTools([...tools, next])
-        },
-        [tools, setTools, openCreate],
-    )
-
-    // Append a `type:"reference"` tool for a workflow chosen in the reference drawer (#4860),
-    // auto-deriving its model-facing input schema from the workflow's latest revision. The axis
-    // (variant/environment), pinned version, and environment come from the drawer's payload.
-    const handleAddWorkflowReference = useCallback(
-        async (payload: WorkflowReferencePayload) => {
-            const wf = workflowReference?.workflows.find((w) => w.slug === payload.slug)
-            let inputSchema: Record<string, unknown> | null = null
-            try {
-                inputSchema = wf
-                    ? ((await workflowReference?.resolveInputSchema(wf)) ?? null)
-                    : null
-            } catch {
-                inputSchema = null
-            }
-            // Read the freshest tools after the async lookup so a concurrent add/remove isn't clobbered.
-            const latest = configRef.current
-            const latestTools = Array.isArray(latest.tools) ? (latest.tools as unknown[]) : []
-            if (latestTools.some((t) => toolReferenceSlug(t) === payload.slug)) return
-            const referenceTool: Record<string, unknown> = {
-                type: "reference",
-                ref_by: payload.refBy,
-                slug: payload.slug,
-                ...(payload.refBy === "variant" && payload.version
-                    ? {version: payload.version}
-                    : {}),
-                ...(payload.refBy === "environment" && payload.environment
-                    ? {environment: payload.environment}
-                    : {}),
-                name: wf?.name || payload.slug,
-                description: wf?.description ?? wf?.name ?? "",
-                input_schema: inputSchema ?? {type: "object", properties: {}},
-            }
-            onChange({...latest, tools: [...latestTools, referenceTool]})
-        },
-        [workflowReference, onChange],
-    )
-
-    const handleRemoveToolByName = useCallback(
-        (name: string) => setTools(tools.filter((tool) => toolName(tool) !== name)),
-        [tools, setTools],
-    )
-
-    const handleRemoveBuiltinTool = useCallback(
-        (toolToRemove: ToolObj) => {
-            let removed = false
-            const updated = tools.filter((tool) => {
-                if (removed) return true
-                if (!isBuiltinPayloadMatch(tool, toolToRemove)) return true
-                removed = true
-                return false
-            })
-            if (removed) setTools(updated)
-        },
-        [tools, setTools],
-    )
-
-    const selectedToolNames = useMemo(
-        () => new Set(tools.map(toolName).filter((n): n is string => Boolean(n))),
-        [tools],
-    )
+    // Tools live as a flat array on the agent definition (the same tool-object shape the prompt
+    // control uses). The add/remove flows differ per kind (inline function, builtin, gateway,
+    // workflow reference), so that logic lives in its own hook; the orchestrator just wires it in.
+    const {
+        tools,
+        handleAddTool,
+        handleAddWorkflowReference,
+        handleRemoveToolByName,
+        handleRemoveBuiltinTool,
+        selectedToolNames,
+        referenceableWorkflows,
+    } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
 
     // MCP servers are a sibling of tools: a flat array on the agent config. Each entry is the
     // open McpServer shape (name + stdio command/args/env or remote url, secret names), edited
@@ -315,14 +233,6 @@ export function AgentTemplateControl({
             ? () => setReferenceSelectorOpen(true)
             : undefined,
     }
-
-    // Workflows not yet referenced as a tool — the pool the selector drawer offers.
-    const referenceableWorkflows = useMemo(() => {
-        const referenced = new Set(
-            tools.map((t) => toolReferenceSlug(t)).filter((s): s is string => Boolean(s)),
-        )
-        return (workflowReference?.workflows ?? []).filter((w) => !referenced.has(w.slug))
-    }, [tools, workflowReference])
 
     // A compact "+" affordance for a section header, so an item can be added without first
     // expanding the section. Rendered in the header's `extra` slot (which stops propagation, so it
