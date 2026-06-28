@@ -32,8 +32,8 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
     // Agent config panels get a layout selector (accordion/tabs/cards) in this menu; the panel
-    // reads the same persisted atom. Detect agent mode by the agent_config schema marker (the same
-    // robust signal the left panel uses), not the backend is_agent flag. Non-agent variants hide it.
+    // reads the same persisted atom. Agent mode derives from the backend is_agent flag
+    // (via workflowType). Non-agent variants hide it.
     const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
     const layout = useAtomValue(agentConfigLayoutAtom)
     const setLayout = useSetAtom(agentConfigLayoutAtom)

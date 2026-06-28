@@ -1313,6 +1313,9 @@ export interface WorkflowCatalogFlags {
 
 export interface WorkflowCatalogTemplate {
     key: string
+    // present only for static entries (a reserved `__ag__*` slug); its presence is the
+    // catalog-layer staticness signal.
+    slug?: string | null
     name?: string | null
     description?: string | null
     categories?: string[] | null
