@@ -6,14 +6,14 @@
  * `ModelRef` object — `{provider, model, params?, connection?: {mode, slug?}}` — never a free-text
  * string. The harness-filtered unified picker (provider + model + authentication + connection) is
  * the only way to set it, and it always produces a ModelRef. These helpers translate between the
- * form fields the AgentConfigControl renders and that on-the-wire object.
+ * form fields the AgentTemplateControl renders and that on-the-wire object.
  *
  * The per-harness capability surface (which providers/models/connection-modes a harness can reach)
  * is published on the `/inspect` response `meta.harness_capabilities`; the frontend renders from it
  * via the passed-in `HarnessCapabilitiesMap` rather than a static FE copy. When the map is absent
  * (older agents, a standalone control) the helpers fall back permissively.
  *
- * They live in their own module (not inline in AgentConfigControl) so the package unit tests can
+ * They live in their own module (not inline in AgentTemplateControl) so the package unit tests can
  * import and exercise them without a React harness.
  *
  * Design: docs/design/agent-workflows/projects/agent-model-picker/ (the picker UX + inspect model

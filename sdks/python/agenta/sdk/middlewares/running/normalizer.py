@@ -14,7 +14,7 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
-    WorkflowRequestFlags,
+    WorkflowInvokeRequestFlags,
 )
 from agenta.sdk.models.shared import resolve_session_id
 from agenta.sdk.engines.running.errors import ErrorStatus
@@ -141,12 +141,12 @@ class NormalizerMiddleware:
     async def _normalize_response(
         self,
         result: Any,
-        flags: Optional[WorkflowRequestFlags] = None,
+        flags: Optional[WorkflowInvokeRequestFlags] = None,
     ) -> Union[
         WorkflowServiceBatchResponse,
         WorkflowServiceStreamResponse,
     ]:
-        flags = flags or WorkflowRequestFlags()
+        flags = flags or WorkflowInvokeRequestFlags()
 
         if isawaitable(result):
             result = await result
@@ -185,8 +185,19 @@ class NormalizerMiddleware:
                 session_id=session_id,
             )
 
+        # Direct (non-generator) return. Full-vs-last is a property of a `messages` list, so
+        # apply it when the handler returned the `{messages: [...]}` envelope (agent v0's
+        # `outputs.messages`) — the same `history` trim the generator-drain path does above.
+        # A single message / string / scalar (chat, completion, evaluators) has no `messages`
+        # field and passes through untouched. The handler owns its output shape; the normalizer
+        # only honors history once it sees a `messages` list.
+        outputs = result
+        if isinstance(result, dict) and isinstance(result.get("messages"), list):
+            msgs = result["messages"]
+            outputs = {**result, "messages": msgs if flags.history else msgs[-1:]}
+
         return WorkflowServiceBatchResponse(
-            data=WorkflowServiceResponseData(outputs=result),
+            data=WorkflowServiceResponseData(outputs=outputs),
             trace_id=trace_id,
             span_id=span_id,
             session_id=session_id,
@@ -308,7 +319,7 @@ class NormalizerMiddleware:
 
             kwargs = await self._normalize_request(request, handler)
 
-            flags = WorkflowRequestFlags(**(request.flags or {}))
+            flags = WorkflowInvokeRequestFlags(**(request.flags or {}))
 
             try:
                 response = handler(**kwargs)

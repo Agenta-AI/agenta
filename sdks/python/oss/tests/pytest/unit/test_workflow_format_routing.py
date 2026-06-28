@@ -77,9 +77,11 @@ def _streaming_client() -> TestClient:
         return await call_next(request)
 
     async def wf(value: str = "x"):
-        # canonical agenta assistant messages
-        yield {"role": "assistant", "content": f"a:{value}"}
-        yield {"role": "assistant", "content": f"b:{value}"}
+        # The agenta STREAMING wire is the event vocabulary (born in the runner): a streaming
+        # handler yields agenta events `{type, data}`, NOT whole messages. Routing projects
+        # these to vercel parts when `x-ag-messages-format: vercel`.
+        yield {"type": "message", "data": {"text": f"a:{value}"}}
+        yield {"type": "message", "data": {"text": f"b:{value}"}}
 
     route("/", app=app)(_unique(wf))
     return TestClient(app)
@@ -103,6 +105,15 @@ def test_vercel_format_stream_projects_parts_and_headers():
     assert "text/event-stream" in resp.headers["content-type"]
     # the vercel protocol identity is stamped on the response
     assert resp.headers.get("x-ag-messages-format") == "vercel"
+    # the agenta events were actually projected to vercel parts (not passed through raw):
+    # a vercel UI message stream opens with `start` and frames text deltas, ending in [DONE].
+    body = resp.text
+    assert '"type": "start"' in body
+    assert '"type": "text-delta"' in body
+    assert "a:x" in body and "b:x" in body
+    assert "[DONE]" in body
+    # the raw agenta event type never leaks to the vercel wire
+    assert '"type": "message"' not in body
 
 
 def test_default_format_is_agenta_no_vercel_headers():

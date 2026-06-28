@@ -19,7 +19,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
-import type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
+import { assembleBody, callDirect, directCallUrl } from "./direct.ts";
+import type {
+  ResolvedToolSpec,
+  RunContext,
+  ToolCallbackContext,
+} from "../protocol.ts";
 import type { PermissionPolicy } from "../responder.ts";
 
 export const RELAY_REQ_SUFFIX = ".req.json";
@@ -120,6 +125,7 @@ async function executeRelayedTool(
   req: RelayRequest,
   callback: ToolCallbackContext | undefined,
   policy: PermissionPolicy,
+  runContext: RunContext | undefined,
 ): Promise<string> {
   // Layer 3 enforcement (S3b): gate the call on the spec's permission before it runs.
   // `deny` returns a refusal string (not a throw) so the harness folds it into the tool
@@ -141,6 +147,17 @@ async function executeRelayedTool(
   if (!callback?.endpoint) {
     throw new Error(`missing toolCallback endpoint for '${spec.name}'`);
   }
+  // Direct-call tools (reference / platform): the host makes the call directly so the sandbox
+  // child still sends only name + args. The origin is bound to the run's own callback endpoint
+  // and the run's authorization is reused (see tools/direct.ts). A spec carries `call` XOR
+  // `callRef`, so this is checked before the gateway fallback. `runContext` fills the
+  // `call.context` bindings server-side (direct-call tools, Phase 3a), hidden from the model.
+  if (spec.call) {
+    const url = directCallUrl(callback.endpoint, spec.call);
+    const body = assembleBody(spec.call, req.args, runContext);
+    return callDirect(spec.call.method, url, callback.authorization, body);
+  }
+  // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.
   return callAgentaTool(
     callback.endpoint,
     callback.authorization,
@@ -162,6 +179,7 @@ export function startToolRelay(
   specs: ResolvedToolSpec[],
   callback: ToolCallbackContext | undefined,
   policy: PermissionPolicy,
+  runContext?: RunContext,
 ): { stop: () => Promise<void> } {
   let active = true;
   const seen = new Set<string>();
@@ -181,6 +199,7 @@ export function startToolRelay(
         { ...req, toolCallId: req.toolCallId ?? id },
         callback,
         policy,
+        runContext,
       );
       res = { ok: true, text };
     } catch (err) {

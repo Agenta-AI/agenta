@@ -92,6 +92,13 @@ class SpanID(BaseModel):
     span_id: Optional[str] = None
 
 
+class SessionID(BaseModel):
+    # The session this turn belongs to (opaque, project-scoped). Sits at the same
+    # level as trace_id / span_id; minted or echoed by the running normalizer via
+    # resolve_session_id. None when no session is in play.
+    session_id: Optional[str] = None
+
+
 class Link(TraceID, SpanID):
     pass
 

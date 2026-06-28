@@ -59,17 +59,18 @@ async def test_create_workflow_persists_only_artifact_flags():
 
     artifact_create = workflows_dao.create_artifact.await_args.kwargs["artifact_create"]
     assert artifact_create.flags is not None
-    # is_platform is server-owned and scrubbed from every DB write, so it never appears here.
+    # Only the role flags land on the artifact; is_chat / is_custom are revision-level facts.
     assert artifact_create.flags == {
         "is_application": True,
         "is_evaluator": False,
         "is_snippet": False,
-        "is_skill": False,
     }
 
 
 @pytest.mark.asyncio
-async def test_create_workflow_persists_is_skill_artifact_flag():
+async def test_create_workflow_does_not_persist_revision_flags_on_artifact():
+    """is_skill and is_custom are revision-level (uri-derived) facts; neither lands on the artifact,
+    only the role flags do."""
     workflows_dao = AsyncMock()
     service = WorkflowsService(workflows_dao=workflows_dao)
 
@@ -77,7 +78,7 @@ async def test_create_workflow_persists_is_skill_artifact_flag():
     workflows_dao.create_artifact.return_value = Workflow(
         id=workflow_id,
         slug="skill-wf",
-        flags=WorkflowArtifactFlags(is_skill=True),
+        flags=WorkflowArtifactFlags(is_snippet=True),
     )
 
     await service.create_workflow(
@@ -91,9 +92,9 @@ async def test_create_workflow_persists_is_skill_artifact_flag():
 
     artifact_create = workflows_dao.create_artifact.await_args.kwargs["artifact_create"]
     assert artifact_create.flags is not None
-    assert artifact_create.flags["is_skill"] is True
     assert artifact_create.flags["is_evaluator"] is False
-    # is_custom is a revision-level (uri-derived) flag and must not land on the artifact.
+    # is_skill and is_custom are revision-level (uri-derived) flags; neither lands on the artifact.
+    assert "is_skill" not in artifact_create.flags
     assert "is_custom" not in artifact_create.flags
 
 
@@ -283,10 +284,14 @@ async def test_create_workflow_revision_v0_persists_explicit_revision_flags():
         "is_code": False,
         "is_match": False,
         "is_feedback": False,
+        "is_agent": False,
+        "is_skill": False,
         "is_chat": True,
         "has_url": False,
         "has_script": False,
         "has_handler": False,
+        # is_static is server-owned (slug-derived); hard-coded false on write.
+        "is_static": False,
     }
     assert workflow_revision is not None
     assert workflow_revision.flags == WorkflowRevisionFlags(is_application=True)

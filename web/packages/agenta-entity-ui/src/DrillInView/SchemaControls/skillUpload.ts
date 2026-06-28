@@ -2,7 +2,7 @@
  * skillUpload
  *
  * Turns an uploaded skill — a folder, a set of loose files, or a `.zip` / `.skill` archive —
- * into the inline `SkillConfigSchema` shape: `name` + `description` (parsed from the SKILL.md
+ * into the inline `SkillTemplateSchema` shape: `name` + `description` (parsed from the SKILL.md
  * YAML frontmatter), `body` (the Markdown after the frontmatter), and `files[]` (the supporting
  * files laid beside SKILL.md, by relative path). Pure helpers, unit-testable without the DOM,
  * plus a small DataTransfer reader for drag-and-dropped folders.

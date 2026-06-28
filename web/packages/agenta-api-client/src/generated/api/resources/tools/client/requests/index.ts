@@ -1,4 +1,5 @@
 export type { CallbackToolConnectionRequest } from "./CallbackToolConnectionRequest.js";
+export type { CapabilitiesQuery } from "./CapabilitiesQuery.js";
 export type { DeleteToolConnectionRequest } from "./DeleteToolConnectionRequest.js";
 export type { FetchToolActionRequest } from "./FetchToolActionRequest.js";
 export type { FetchToolConnectionRequest } from "./FetchToolConnectionRequest.js";
