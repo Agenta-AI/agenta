@@ -192,7 +192,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval).
-    const {queued, enqueue, removeQueued, hitlPending} = useAgentChatQueue({
+    const {queued, enqueue, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
         status,
         messages,
         sendQueued,
@@ -423,8 +423,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 )}
             </div>
 
-            <QueuedMessages queued={queued} onRemove={removeQueued} />
-
             <Sender
                 ref={senderRef}
                 value={input}
@@ -434,20 +432,37 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 // (see `handleSubmit`); stopping the stream lives in the footer below instead.
                 onSubmit={handleSubmit}
                 footer={
-                    busy ? (
+                    busy || queued.length > 0 ? (
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-colorTextSecondary">
-                                {queued.length > 0
-                                    ? `Streaming — ${queued.length} queued`
-                                    : "Streaming…"}
-                            </span>
-                            <Button
-                                size="small"
-                                icon={<Stop size={14} weight="fill" />}
-                                onClick={handleStop}
-                            >
-                                Stop
-                            </Button>
+                            {/* Left: collapsed queue pill → popover (fixed footprint at any size). */}
+                            {queued.length > 0 ? (
+                                <QueuedMessages
+                                    queued={queued}
+                                    onRemove={removeQueued}
+                                    onClear={clearQueue}
+                                />
+                            ) : (
+                                <span />
+                            )}
+                            {/* Right: why nothing is sending — streaming (stoppable) vs HITL-held. */}
+                            {busy ? (
+                                <span className="inline-flex items-center gap-2">
+                                    <span className="text-xs text-colorTextTertiary">
+                                        Streaming…
+                                    </span>
+                                    <Button
+                                        size="small"
+                                        icon={<Stop size={14} weight="fill" />}
+                                        onClick={handleStop}
+                                    >
+                                        Stop
+                                    </Button>
+                                </span>
+                            ) : hitlPending ? (
+                                <span className="text-xs text-colorTextTertiary">
+                                    Waiting for approval
+                                </span>
+                            ) : null}
                         </div>
                     ) : null
                 }
