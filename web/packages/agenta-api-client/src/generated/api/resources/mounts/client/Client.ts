@@ -102,28 +102,26 @@ export class MountsClient {
     }
 
     /**
-     * @param {AgentaApi.QueryMountsRequest} request
+     * @param {AgentaApi.MountQueryRequest} request
      * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.mounts.queryMounts({
-     *         body: {}
-     *     })
+     *     await client.mounts.queryMounts()
      */
     public queryMounts(
-        request: AgentaApi.QueryMountsRequest,
+        request: AgentaApi.MountQueryRequest = {},
         requestOptions?: MountsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.MountsResponse> {
         return core.HttpResponsePromise.fromPromise(this.__queryMounts(request, requestOptions));
     }
 
     private async __queryMounts(
-        request: AgentaApi.QueryMountsRequest,
+        request: AgentaApi.MountQueryRequest = {},
         requestOptions?: MountsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.MountsResponse>> {
-        const { session_id: sessionId, include_archived: includeArchived, body: _body } = request;
+        const { session_id: sessionId, include_archived: includeArchived, ..._body } = request;
         const _queryParams: Record<string, unknown> = {
             session_id: sessionId,
             include_archived: includeArchived,

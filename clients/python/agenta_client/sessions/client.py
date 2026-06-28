@@ -4,17 +4,17 @@ import typing
 
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
-from ..types.interaction_query import InteractionQuery
-from ..types.interaction_response import InteractionResponse
-from ..types.interactions_response import InteractionsResponse
-from ..types.mount_query import MountQuery
-from ..types.mounts_response import MountsResponse
+from ..types.session_interaction_query import SessionInteractionQuery
+from ..types.session_interaction_response import SessionInteractionResponse
+from ..types.session_interactions_response import SessionInteractionsResponse
 from ..types.session_invoke_response_model import SessionInvokeResponseModel
 from ..types.session_liveness_response_model import SessionLivenessResponseModel
+from ..types.session_mount_query import SessionMountQuery
+from ..types.session_mounts_response import SessionMountsResponse
 from ..types.session_state_response import SessionStateResponse
 from ..types.session_streams_response_model import SessionStreamsResponseModel
-from ..types.transcript_response import TranscriptResponse
-from ..types.transcripts_query_response import TranscriptsQueryResponse
+from ..types.session_transcript_response import SessionTranscriptResponse
+from ..types.session_transcripts_query_response import SessionTranscriptsQueryResponse
 from ..types.windowing import Windowing
 from .raw_client import AsyncRawSessionsClient, RawSessionsClient
 
@@ -35,7 +35,7 @@ class SessionsClient:
         """
         return self._raw_client
     
-    def streams_invoke(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInvokeResponseModel:
+    def invoke_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInvokeResponseModel:
         """
         Parameters
         ----------
@@ -62,14 +62,14 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.streams_invoke(
+        client.sessions.invoke_stream(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.streams_invoke(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
+        _response = self._raw_client.invoke_stream(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
         return _response.data
     
-    def streams_query(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
+    def query_streams(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
         """
         Parameters
         ----------
@@ -92,12 +92,12 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.streams_query()
+        client.sessions.query_streams()
         """
-        _response = self._raw_client.streams_query(session_id=session_id, sandbox_live=sandbox_live, request_options=request_options)
+        _response = self._raw_client.query_streams(session_id=session_id, sandbox_live=sandbox_live, request_options=request_options)
         return _response.data
     
-    def streams_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionLivenessResponseModel:
+    def get_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionLivenessResponseModel:
         """
         Parameters
         ----------
@@ -118,18 +118,18 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.streams_liveness(
+        client.sessions.get_liveness(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.streams_liveness(session_id=session_id, request_options=request_options)
+        _response = self._raw_client.get_liveness(session_id=session_id, request_options=request_options)
         return _response.data
     
-    def query_interactions(self, *, query: typing.Optional[InteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> InteractionsResponse:
+    def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionsResponse:
         """
         Parameters
         ----------
-        query : typing.Optional[InteractionQuery]
+        query : typing.Optional[SessionInteractionQuery]
         
         windowing : typing.Optional[Windowing]
         
@@ -138,7 +138,7 @@ class SessionsClient:
         
         Returns
         -------
-        InteractionsResponse
+        SessionInteractionsResponse
             Successful Response
         
         Examples
@@ -153,7 +153,7 @@ class SessionsClient:
         _response = self._raw_client.query_interactions(query=query, windowing=windowing, request_options=request_options)
         return _response.data
     
-    def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> InteractionResponse:
+    def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
         """
         Parameters
         ----------
@@ -164,7 +164,7 @@ class SessionsClient:
         
         Returns
         -------
-        InteractionResponse
+        SessionInteractionResponse
             Successful Response
         
         Examples
@@ -181,7 +181,7 @@ class SessionsClient:
         _response = self._raw_client.fetch_interaction(interaction_id, request_options=request_options)
         return _response.data
     
-    def respond_interaction(self, interaction_id: str, *, answer: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> InteractionResponse:
+    def respond_interaction(self, interaction_id: str, *, answer: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
         """
         Parameters
         ----------
@@ -194,7 +194,7 @@ class SessionsClient:
         
         Returns
         -------
-        InteractionResponse
+        SessionInteractionResponse
             Successful Response
         
         Examples
@@ -211,7 +211,7 @@ class SessionsClient:
         _response = self._raw_client.respond_interaction(interaction_id, answer=answer, request_options=request_options)
         return _response.data
     
-    def query_session_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> MountsResponse:
+    def query_session_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[SessionMountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionMountsResponse:
         """
         Parameters
         ----------
@@ -219,7 +219,7 @@ class SessionsClient:
         
         include_archived : typing.Optional[bool]
         
-        mount : typing.Optional[MountQuery]
+        mount : typing.Optional[SessionMountQuery]
         
         windowing : typing.Optional[Windowing]
         
@@ -228,7 +228,7 @@ class SessionsClient:
         
         Returns
         -------
-        MountsResponse
+        SessionMountsResponse
             Successful Response
         
         Examples
@@ -243,7 +243,7 @@ class SessionsClient:
         _response = self._raw_client.query_session_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
         return _response.data
     
-    def query_transcripts_rpc(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> TranscriptsQueryResponse:
+    def query_transcripts(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionTranscriptsQueryResponse:
         """
         Parameters
         ----------
@@ -254,7 +254,7 @@ class SessionsClient:
         
         Returns
         -------
-        TranscriptsQueryResponse
+        SessionTranscriptsQueryResponse
             Successful Response
         
         Examples
@@ -264,14 +264,14 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.query_transcripts_rpc(
+        client.sessions.query_transcripts(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.query_transcripts_rpc(session_id=session_id, request_options=request_options)
+        _response = self._raw_client.query_transcripts(session_id=session_id, request_options=request_options)
         return _response.data
     
-    def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TranscriptResponse:
+    def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionTranscriptResponse:
         """
         Parameters
         ----------
@@ -282,7 +282,7 @@ class SessionsClient:
         
         Returns
         -------
-        TranscriptResponse
+        SessionTranscriptResponse
             Successful Response
         
         Examples
@@ -299,7 +299,7 @@ class SessionsClient:
         _response = self._raw_client.get_transcript_event(event_id, request_options=request_options)
         return _response.data
     
-    def get_session_state(self, session_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    def get_state(self, session_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
@@ -320,14 +320,14 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.get_session_state(
+        client.sessions.get_state(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.get_session_state(session_id, request_options=request_options)
+        _response = self._raw_client.get_state(session_id, request_options=request_options)
         return _response.data
     
-    def set_session_state(self, session_id: str, *, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    def set_state(self, session_id: str, *, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
@@ -354,14 +354,14 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.set_session_state(
+        client.sessions.set_state(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.set_session_state(session_id, data=data, sandbox_id=sandbox_id, request_options=request_options)
+        _response = self._raw_client.set_state(session_id, data=data, sandbox_id=sandbox_id, request_options=request_options)
         return _response.data
     
-    def set_session_state_sandbox_id(self, session_id: str, *, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    def set_state_sandbox_id(self, session_id: str, *, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
@@ -385,11 +385,11 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.set_session_state_sandbox_id(
+        client.sessions.set_state_sandbox_id(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.set_session_state_sandbox_id(session_id, sandbox_id=sandbox_id, request_options=request_options)
+        _response = self._raw_client.set_state_sandbox_id(session_id, sandbox_id=sandbox_id, request_options=request_options)
         return _response.data
 class AsyncSessionsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
@@ -406,7 +406,7 @@ class AsyncSessionsClient:
         """
         return self._raw_client
     
-    async def streams_invoke(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInvokeResponseModel:
+    async def invoke_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInvokeResponseModel:
         """
         Parameters
         ----------
@@ -438,17 +438,17 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.streams_invoke(
+            await client.sessions.invoke_stream(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.streams_invoke(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
+        _response = await self._raw_client.invoke_stream(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
         return _response.data
     
-    async def streams_query(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
+    async def query_streams(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
         """
         Parameters
         ----------
@@ -476,15 +476,15 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.streams_query()
+            await client.sessions.query_streams()
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.streams_query(session_id=session_id, sandbox_live=sandbox_live, request_options=request_options)
+        _response = await self._raw_client.query_streams(session_id=session_id, sandbox_live=sandbox_live, request_options=request_options)
         return _response.data
     
-    async def streams_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionLivenessResponseModel:
+    async def get_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionLivenessResponseModel:
         """
         Parameters
         ----------
@@ -510,21 +510,21 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.streams_liveness(
+            await client.sessions.get_liveness(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.streams_liveness(session_id=session_id, request_options=request_options)
+        _response = await self._raw_client.get_liveness(session_id=session_id, request_options=request_options)
         return _response.data
     
-    async def query_interactions(self, *, query: typing.Optional[InteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> InteractionsResponse:
+    async def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionsResponse:
         """
         Parameters
         ----------
-        query : typing.Optional[InteractionQuery]
+        query : typing.Optional[SessionInteractionQuery]
         
         windowing : typing.Optional[Windowing]
         
@@ -533,7 +533,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        InteractionsResponse
+        SessionInteractionsResponse
             Successful Response
         
         Examples
@@ -556,7 +556,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.query_interactions(query=query, windowing=windowing, request_options=request_options)
         return _response.data
     
-    async def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> InteractionResponse:
+    async def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
         """
         Parameters
         ----------
@@ -567,7 +567,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        InteractionResponse
+        SessionInteractionResponse
             Successful Response
         
         Examples
@@ -592,7 +592,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.fetch_interaction(interaction_id, request_options=request_options)
         return _response.data
     
-    async def respond_interaction(self, interaction_id: str, *, answer: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> InteractionResponse:
+    async def respond_interaction(self, interaction_id: str, *, answer: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
         """
         Parameters
         ----------
@@ -605,7 +605,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        InteractionResponse
+        SessionInteractionResponse
             Successful Response
         
         Examples
@@ -630,7 +630,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.respond_interaction(interaction_id, answer=answer, request_options=request_options)
         return _response.data
     
-    async def query_session_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> MountsResponse:
+    async def query_session_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[SessionMountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionMountsResponse:
         """
         Parameters
         ----------
@@ -638,7 +638,7 @@ class AsyncSessionsClient:
         
         include_archived : typing.Optional[bool]
         
-        mount : typing.Optional[MountQuery]
+        mount : typing.Optional[SessionMountQuery]
         
         windowing : typing.Optional[Windowing]
         
@@ -647,7 +647,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        MountsResponse
+        SessionMountsResponse
             Successful Response
         
         Examples
@@ -670,7 +670,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.query_session_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
         return _response.data
     
-    async def query_transcripts_rpc(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> TranscriptsQueryResponse:
+    async def query_transcripts(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionTranscriptsQueryResponse:
         """
         Parameters
         ----------
@@ -681,7 +681,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        TranscriptsQueryResponse
+        SessionTranscriptsQueryResponse
             Successful Response
         
         Examples
@@ -696,17 +696,17 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.query_transcripts_rpc(
+            await client.sessions.query_transcripts(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.query_transcripts_rpc(session_id=session_id, request_options=request_options)
+        _response = await self._raw_client.query_transcripts(session_id=session_id, request_options=request_options)
         return _response.data
     
-    async def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> TranscriptResponse:
+    async def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionTranscriptResponse:
         """
         Parameters
         ----------
@@ -717,7 +717,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        TranscriptResponse
+        SessionTranscriptResponse
             Successful Response
         
         Examples
@@ -742,7 +742,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.get_transcript_event(event_id, request_options=request_options)
         return _response.data
     
-    async def get_session_state(self, session_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    async def get_state(self, session_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
@@ -768,17 +768,17 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.get_session_state(
+            await client.sessions.get_state(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_session_state(session_id, request_options=request_options)
+        _response = await self._raw_client.get_state(session_id, request_options=request_options)
         return _response.data
     
-    async def set_session_state(self, session_id: str, *, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    async def set_state(self, session_id: str, *, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
@@ -810,17 +810,17 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.set_session_state(
+            await client.sessions.set_state(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.set_session_state(session_id, data=data, sandbox_id=sandbox_id, request_options=request_options)
+        _response = await self._raw_client.set_state(session_id, data=data, sandbox_id=sandbox_id, request_options=request_options)
         return _response.data
     
-    async def set_session_state_sandbox_id(self, session_id: str, *, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    async def set_state_sandbox_id(self, session_id: str, *, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
@@ -849,12 +849,12 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.set_session_state_sandbox_id(
+            await client.sessions.set_state_sandbox_id(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.set_session_state_sandbox_id(session_id, sandbox_id=sandbox_id, request_options=request_options)
+        _response = await self._raw_client.set_state_sandbox_id(session_id, sandbox_id=sandbox_id, request_options=request_options)
         return _response.data

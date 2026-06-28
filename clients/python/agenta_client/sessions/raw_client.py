@@ -12,17 +12,17 @@ from ..core.request_options import RequestOptions
 from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
-from ..types.interaction_query import InteractionQuery
-from ..types.interaction_response import InteractionResponse
-from ..types.interactions_response import InteractionsResponse
-from ..types.mount_query import MountQuery
-from ..types.mounts_response import MountsResponse
+from ..types.session_interaction_query import SessionInteractionQuery
+from ..types.session_interaction_response import SessionInteractionResponse
+from ..types.session_interactions_response import SessionInteractionsResponse
 from ..types.session_invoke_response_model import SessionInvokeResponseModel
 from ..types.session_liveness_response_model import SessionLivenessResponseModel
+from ..types.session_mount_query import SessionMountQuery
+from ..types.session_mounts_response import SessionMountsResponse
 from ..types.session_state_response import SessionStateResponse
 from ..types.session_streams_response_model import SessionStreamsResponseModel
-from ..types.transcript_response import TranscriptResponse
-from ..types.transcripts_query_response import TranscriptsQueryResponse
+from ..types.session_transcript_response import SessionTranscriptResponse
+from ..types.session_transcripts_query_response import SessionTranscriptsQueryResponse
 from ..types.windowing import Windowing
 
 # this is used as the default value for optional parameters
@@ -31,7 +31,7 @@ class RawSessionsClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._client_wrapper = client_wrapper
     
-    def streams_invoke(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionInvokeResponseModel]:
+    def invoke_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionInvokeResponseModel]:
         """
         Parameters
         ----------
@@ -87,7 +87,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def streams_query(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStreamsResponseModel]:
+    def query_streams(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStreamsResponseModel]:
         """
         Parameters
         ----------
@@ -137,7 +137,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def streams_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionLivenessResponseModel]:
+    def get_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionLivenessResponseModel]:
         """
         Parameters
         ----------
@@ -179,11 +179,11 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def query_interactions(self, *, query: typing.Optional[InteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[InteractionsResponse]:
+    def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionInteractionsResponse]:
         """
         Parameters
         ----------
-        query : typing.Optional[InteractionQuery]
+        query : typing.Optional[SessionInteractionQuery]
         
         windowing : typing.Optional[Windowing]
         
@@ -192,13 +192,13 @@ class RawSessionsClient:
         
         Returns
         -------
-        HttpResponse[InteractionsResponse]
+        HttpResponse[SessionInteractionsResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
             "sessions/interactions/query",method="POST",
             json={
-                "query": convert_and_respect_annotation_metadata(object_=query, annotation=typing.Optional[InteractionQuery], direction="write"),
+                "query": convert_and_respect_annotation_metadata(object_=query, annotation=typing.Optional[SessionInteractionQuery], direction="write"),
                 "windowing": convert_and_respect_annotation_metadata(object_=windowing, annotation=typing.Optional[Windowing], direction="write"),
             }
             ,
@@ -209,9 +209,9 @@ class RawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    InteractionsResponse,
+                    SessionInteractionsResponse,
                     parse_obj_as(
-                        type_ =InteractionsResponse,  # type: ignore
+                        type_ =SessionInteractionsResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -229,7 +229,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[InteractionResponse]:
+    def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionInteractionResponse]:
         """
         Parameters
         ----------
@@ -240,7 +240,7 @@ class RawSessionsClient:
         
         Returns
         -------
-        HttpResponse[InteractionResponse]
+        HttpResponse[SessionInteractionResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -249,9 +249,9 @@ class RawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    InteractionResponse,
+                    SessionInteractionResponse,
                     parse_obj_as(
-                        type_ =InteractionResponse,  # type: ignore
+                        type_ =SessionInteractionResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -269,7 +269,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def respond_interaction(self, interaction_id: str, *, answer: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[InteractionResponse]:
+    def respond_interaction(self, interaction_id: str, *, answer: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionInteractionResponse]:
         """
         Parameters
         ----------
@@ -282,7 +282,7 @@ class RawSessionsClient:
         
         Returns
         -------
-        HttpResponse[InteractionResponse]
+        HttpResponse[SessionInteractionResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -298,9 +298,9 @@ class RawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    InteractionResponse,
+                    SessionInteractionResponse,
                     parse_obj_as(
-                        type_ =InteractionResponse,  # type: ignore
+                        type_ =SessionInteractionResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -318,7 +318,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def query_session_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountsResponse]:
+    def query_session_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[SessionMountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionMountsResponse]:
         """
         Parameters
         ----------
@@ -326,7 +326,7 @@ class RawSessionsClient:
         
         include_archived : typing.Optional[bool]
         
-        mount : typing.Optional[MountQuery]
+        mount : typing.Optional[SessionMountQuery]
         
         windowing : typing.Optional[Windowing]
         
@@ -335,7 +335,7 @@ class RawSessionsClient:
         
         Returns
         -------
-        HttpResponse[MountsResponse]
+        HttpResponse[SessionMountsResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -343,7 +343,7 @@ class RawSessionsClient:
             params={"session_id": session_id, "include_archived": include_archived, }
             ,
             json={
-                "mount": convert_and_respect_annotation_metadata(object_=mount, annotation=typing.Optional[MountQuery], direction="write"),
+                "mount": convert_and_respect_annotation_metadata(object_=mount, annotation=typing.Optional[SessionMountQuery], direction="write"),
                 "windowing": convert_and_respect_annotation_metadata(object_=windowing, annotation=typing.Optional[Windowing], direction="write"),
             }
             ,
@@ -354,9 +354,9 @@ class RawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    MountsResponse,
+                    SessionMountsResponse,
                     parse_obj_as(
-                        type_ =MountsResponse,  # type: ignore
+                        type_ =SessionMountsResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -374,7 +374,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def query_transcripts_rpc(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TranscriptsQueryResponse]:
+    def query_transcripts(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionTranscriptsQueryResponse]:
         """
         Parameters
         ----------
@@ -385,7 +385,7 @@ class RawSessionsClient:
         
         Returns
         -------
-        HttpResponse[TranscriptsQueryResponse]
+        HttpResponse[SessionTranscriptsQueryResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -401,9 +401,9 @@ class RawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TranscriptsQueryResponse,
+                    SessionTranscriptsQueryResponse,
                     parse_obj_as(
-                        type_ =TranscriptsQueryResponse,  # type: ignore
+                        type_ =SessionTranscriptsQueryResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -421,7 +421,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TranscriptResponse]:
+    def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionTranscriptResponse]:
         """
         Parameters
         ----------
@@ -432,7 +432,7 @@ class RawSessionsClient:
         
         Returns
         -------
-        HttpResponse[TranscriptResponse]
+        HttpResponse[SessionTranscriptResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -441,9 +441,9 @@ class RawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TranscriptResponse,
+                    SessionTranscriptResponse,
                     parse_obj_as(
-                        type_ =TranscriptResponse,  # type: ignore
+                        type_ =SessionTranscriptResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -461,7 +461,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def get_session_state(self, session_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
+    def get_state(self, session_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
@@ -501,7 +501,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def set_session_state(self, session_id: str, *, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
+    def set_state(self, session_id: str, *, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
@@ -555,7 +555,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def set_session_state_sandbox_id(self, session_id: str, *, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
+    def set_state_sandbox_id(self, session_id: str, *, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
@@ -608,7 +608,7 @@ class AsyncRawSessionsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
     
-    async def streams_invoke(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionInvokeResponseModel]:
+    async def invoke_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionInvokeResponseModel]:
         """
         Parameters
         ----------
@@ -664,7 +664,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def streams_query(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStreamsResponseModel]:
+    async def query_streams(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStreamsResponseModel]:
         """
         Parameters
         ----------
@@ -714,7 +714,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def streams_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionLivenessResponseModel]:
+    async def get_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionLivenessResponseModel]:
         """
         Parameters
         ----------
@@ -756,11 +756,11 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def query_interactions(self, *, query: typing.Optional[InteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[InteractionsResponse]:
+    async def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionInteractionsResponse]:
         """
         Parameters
         ----------
-        query : typing.Optional[InteractionQuery]
+        query : typing.Optional[SessionInteractionQuery]
         
         windowing : typing.Optional[Windowing]
         
@@ -769,13 +769,13 @@ class AsyncRawSessionsClient:
         
         Returns
         -------
-        AsyncHttpResponse[InteractionsResponse]
+        AsyncHttpResponse[SessionInteractionsResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
             "sessions/interactions/query",method="POST",
             json={
-                "query": convert_and_respect_annotation_metadata(object_=query, annotation=typing.Optional[InteractionQuery], direction="write"),
+                "query": convert_and_respect_annotation_metadata(object_=query, annotation=typing.Optional[SessionInteractionQuery], direction="write"),
                 "windowing": convert_and_respect_annotation_metadata(object_=windowing, annotation=typing.Optional[Windowing], direction="write"),
             }
             ,
@@ -786,9 +786,9 @@ class AsyncRawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    InteractionsResponse,
+                    SessionInteractionsResponse,
                     parse_obj_as(
-                        type_ =InteractionsResponse,  # type: ignore
+                        type_ =SessionInteractionsResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -806,7 +806,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[InteractionResponse]:
+    async def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionInteractionResponse]:
         """
         Parameters
         ----------
@@ -817,7 +817,7 @@ class AsyncRawSessionsClient:
         
         Returns
         -------
-        AsyncHttpResponse[InteractionResponse]
+        AsyncHttpResponse[SessionInteractionResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -826,9 +826,9 @@ class AsyncRawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    InteractionResponse,
+                    SessionInteractionResponse,
                     parse_obj_as(
-                        type_ =InteractionResponse,  # type: ignore
+                        type_ =SessionInteractionResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -846,7 +846,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def respond_interaction(self, interaction_id: str, *, answer: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[InteractionResponse]:
+    async def respond_interaction(self, interaction_id: str, *, answer: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionInteractionResponse]:
         """
         Parameters
         ----------
@@ -859,7 +859,7 @@ class AsyncRawSessionsClient:
         
         Returns
         -------
-        AsyncHttpResponse[InteractionResponse]
+        AsyncHttpResponse[SessionInteractionResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -875,9 +875,9 @@ class AsyncRawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    InteractionResponse,
+                    SessionInteractionResponse,
                     parse_obj_as(
-                        type_ =InteractionResponse,  # type: ignore
+                        type_ =SessionInteractionResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -895,7 +895,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def query_session_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[MountsResponse]:
+    async def query_session_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[SessionMountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionMountsResponse]:
         """
         Parameters
         ----------
@@ -903,7 +903,7 @@ class AsyncRawSessionsClient:
         
         include_archived : typing.Optional[bool]
         
-        mount : typing.Optional[MountQuery]
+        mount : typing.Optional[SessionMountQuery]
         
         windowing : typing.Optional[Windowing]
         
@@ -912,7 +912,7 @@ class AsyncRawSessionsClient:
         
         Returns
         -------
-        AsyncHttpResponse[MountsResponse]
+        AsyncHttpResponse[SessionMountsResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -920,7 +920,7 @@ class AsyncRawSessionsClient:
             params={"session_id": session_id, "include_archived": include_archived, }
             ,
             json={
-                "mount": convert_and_respect_annotation_metadata(object_=mount, annotation=typing.Optional[MountQuery], direction="write"),
+                "mount": convert_and_respect_annotation_metadata(object_=mount, annotation=typing.Optional[SessionMountQuery], direction="write"),
                 "windowing": convert_and_respect_annotation_metadata(object_=windowing, annotation=typing.Optional[Windowing], direction="write"),
             }
             ,
@@ -931,9 +931,9 @@ class AsyncRawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    MountsResponse,
+                    SessionMountsResponse,
                     parse_obj_as(
-                        type_ =MountsResponse,  # type: ignore
+                        type_ =SessionMountsResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -951,7 +951,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def query_transcripts_rpc(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TranscriptsQueryResponse]:
+    async def query_transcripts(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionTranscriptsQueryResponse]:
         """
         Parameters
         ----------
@@ -962,7 +962,7 @@ class AsyncRawSessionsClient:
         
         Returns
         -------
-        AsyncHttpResponse[TranscriptsQueryResponse]
+        AsyncHttpResponse[SessionTranscriptsQueryResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -978,9 +978,9 @@ class AsyncRawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TranscriptsQueryResponse,
+                    SessionTranscriptsQueryResponse,
                     parse_obj_as(
-                        type_ =TranscriptsQueryResponse,  # type: ignore
+                        type_ =SessionTranscriptsQueryResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -998,7 +998,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TranscriptResponse]:
+    async def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionTranscriptResponse]:
         """
         Parameters
         ----------
@@ -1009,7 +1009,7 @@ class AsyncRawSessionsClient:
         
         Returns
         -------
-        AsyncHttpResponse[TranscriptResponse]
+        AsyncHttpResponse[SessionTranscriptResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1018,9 +1018,9 @@ class AsyncRawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TranscriptResponse,
+                    SessionTranscriptResponse,
                     parse_obj_as(
-                        type_ =TranscriptResponse,  # type: ignore
+                        type_ =SessionTranscriptResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1038,7 +1038,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def get_session_state(self, session_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
+    async def get_state(self, session_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
@@ -1078,7 +1078,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def set_session_state(self, session_id: str, *, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
+    async def set_state(self, session_id: str, *, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
@@ -1132,7 +1132,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def set_session_state_sandbox_id(self, session_id: str, *, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
+    async def set_state_sandbox_id(self, session_id: str, *, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
