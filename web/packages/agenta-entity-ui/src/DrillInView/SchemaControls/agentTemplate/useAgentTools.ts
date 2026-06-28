@@ -1,10 +1,7 @@
 /**
- * Tool-list management for the agent-template Tools section. The `tools` array mixes four kinds that
- * each add differently: inline function tools (edited in a create drawer before they land), builtin
- * and gateway tools (arrive complete, added straight away), and `type:"reference"` workflow tools
- * (#4860, whose input schema is derived asynchronously from the workflow's latest revision). This
- * hook owns that logic plus the derived sets the Tools section needs, so the orchestrator only wires
- * the handlers into the picker and renders.
+ * Tool-list management for the Tools section. The `tools` array mixes inline function, builtin,
+ * gateway, and `type:"reference"` workflow tools (#4860; the last derives its input schema async).
+ * This hook owns those add/remove flows plus the derived sets the section needs.
  */
 import {useCallback, useMemo, type MutableRefObject} from "react"
 

@@ -1,9 +1,6 @@
 /**
- * The shared draft-then-save state machine for the agent-template list sections (tools / MCP /
- * skills). Edits happen on a local `draft`; they only apply to the config on Save, so creating an
- * item never pollutes the config until confirmed and editing can be cancelled cleanly. Which config
- * array a kind writes to, and what counts as a valid draft, come from {@link ITEM_KINDS} — so all
- * three kinds run through one path instead of three copies.
+ * Shared draft-then-save state machine for the tool / MCP / skill sections. Edits live on a local
+ * `draft` and apply only on Save; the target array and draft validity come from {@link ITEM_KINDS}.
  */
 import {useCallback, useEffect, useMemo, useState} from "react"
 

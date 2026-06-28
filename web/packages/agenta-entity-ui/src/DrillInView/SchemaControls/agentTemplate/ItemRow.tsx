@@ -12,8 +12,8 @@ import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
     return (
         <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-white"
-            style={{background: descriptor.color, fontSize: 10, fontWeight: 600, lineHeight: 1}}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[10px] font-semibold leading-none text-white"
+            style={{background: descriptor.color}}
         >
             {descriptor.icon ?? descriptor.mono}
         </span>

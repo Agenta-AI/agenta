@@ -1,13 +1,6 @@
 /**
- * useModelHarness
- *
- * Owns the agent template's Model & harness + Advanced concern — the most stateful part of the
- * config panel — and returns the section summaries and (drawer + tabs-inline) bodies the orchestrator
- * places. It lives together because the model/connection state feeds BOTH sections: the harness cards
- * + model picker + compatibility panel on one side, and the Advanced "Authentication" controls on the
- * other (auth mode, the connection picker, and the raw-JSON escape hatch all edit `agent.llm`).
- *
- * Pulled out of AgentTemplateControl verbatim — same hooks, same render order, same dependencies.
+ * useModelHarness — the Model & harness + Advanced sections (the panel's most stateful part). One
+ * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
 import {useCallback, useEffect, useMemo, useState} from "react"
 
@@ -175,15 +168,12 @@ export function useModelHarness({
         [setAgentField, modelId, connection, llm, capabilities, harnessValue],
     )
 
-    // NB: we deliberately do NOT clear the model when switching to a harness that can't reach it
-    // (Arda's call). The model is kept and the compatibility panel flags it as not reachable so the
-    // user can pick a new one — keeping their choice over silently wiping it. (Save can persist an
-    // unreachable model that errors at run time; that's the accepted trade-off.)
+    // Model is deliberately NOT cleared on a harness switch that can't reach it: the compatibility
+    // panel flags it instead, so the user's choice survives (Arda's call; may error at run time).
 
-    // Reset a connection mode the new harness no longer allows. Guarded on a non-empty
-    // option set so a harness that publishes no modes stays permissive (and we never loop).
-    // Slug validity is intentionally NOT normalized here: connectionOptions is vault-secret
-    // async, so an empty set during load would wrongly clear a valid slug.
+    // Reset a connection mode the new harness disallows; guarded on a non-empty option set so a
+    // harness publishing no modes stays permissive. Slug is NOT normalized here (connectionOptions
+    // is vault-async; an empty set mid-load would wrongly clear a valid slug).
     useEffect(() => {
         if (modeOptions.length > 0 && !modeOptions.includes(connection.mode)) {
             writeModel({mode: modeOptions[0], slug: null})
@@ -320,16 +310,10 @@ export function useModelHarness({
         </div>
     )
 
-    // Harness list + per-harness detail come from the inspect capabilities map. Compatibility is
-    // real (provider/model reachability + connection mode), all derived from that same data.
-    //
-    // GAP (intentional, tracked): `harness_capabilities` only covers providers / connection modes /
-    // models / hosting — NOT which tools, skills, or MCP servers a harness supports. So the
-    // compatibility panel and the per-card keeps/clears status reason only about the MODEL + auth,
-    // never about tools/skills/MCP. Switching harness can silently leave unsupported tools, and we
-    // don't warn/gate them. When the backend extends harness_capabilities with tool/skill/MCP
-    // support, extend the compatibility panel to warn (and optionally lock those sections), mirroring
-    // the model warning. See docs/design/agent-config-section-drawers/design.md ("Known gap").
+    // Harness list + compatibility (provider/model reachability + connection mode) derive from the
+    // inspect capabilities map. GAP (tracked): harness_capabilities covers model/provider/mode/hosting
+    // only — NOT tools/skills/MCP — so switching harness can silently leave unsupported tools
+    // unwarned. Extend the panel when the backend adds that. See design.md ("Known gap").
     const harnessList = capabilities ? Object.keys(capabilities) : []
     const modelReachable =
         !modelId ||
@@ -647,8 +631,7 @@ export function useModelHarness({
                 </LabeledField>
             )}
 
-            {/* Raw-JSON escape hatch for the whole `agent.llm` value (model + connection),
-                collapsed by default. */}
+            {/* Raw-JSON escape hatch for the whole `agent.llm` value, collapsed by default. */}
             <div className="flex items-center gap-2">
                 <Switch
                     checked={showModelJson}
@@ -677,12 +660,10 @@ export function useModelHarness({
             .filter(Boolean)
             .join(" · ") || undefined
 
-    // Advanced drawer body — two panels (consistent with Model & harness): grouped, explained
-    // settings on the left; version history on the right. Authentication moved here.
+    // Advanced drawer body: two panels like Model & harness (settings left, version history right).
     const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
     const hasPermissionsGroup = Boolean(headlessSchema || hasClaudePermissions)
-    // Shared Advanced controls (Authentication / Execution / Permissions groups), rendered by
-    // both the wide drawer body (with the version-history side panel) and the tabs-inline body.
+    // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     const advancedControls = (
         <>
             {authControls ? (

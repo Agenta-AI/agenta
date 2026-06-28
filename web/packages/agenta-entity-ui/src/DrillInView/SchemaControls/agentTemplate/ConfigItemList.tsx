@@ -1,8 +1,6 @@
 /**
- * The list body for a tool / MCP / skill config section: a column of {@link ItemRow}s, or a muted
- * empty-state line whose action is the caller-supplied add trigger. All per-kind behavior (how an
- * item is classified, its default edit view, whether it's read-only) comes from {@link ITEM_KINDS},
- * so the three sections share one render instead of three copies.
+ * List body for a tool / MCP / skill section: a column of {@link ItemRow}s or a muted empty state.
+ * Per-kind behavior comes from {@link ITEM_KINDS}, so the three sections share one render.
  */
 import type {ReactNode} from "react"
 

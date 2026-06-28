@@ -93,10 +93,7 @@ export function AgentTemplateControl({
     }, [config])
 
     const [referenceSelectorOpen, setReferenceSelectorOpen] = useState(false)
-    // The item-config drawer (tools / MCP servers / skills). Edits happen on a local `draft`; they
-    // only apply to the config on Save, so creating an item never pollutes the config until
-    // confirmed, and editing an existing item can be cancelled cleanly (Cancel/X discards the
-    // draft). The shared machine writes to each kind's array via the ITEM_KINDS registry.
+    // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     const {
         editing,
         draft,
@@ -113,8 +110,7 @@ export function AgentTemplateControl({
         draftInvalid,
     } = useConfigItemDrawer({config, onChange})
 
-    // Instructions file editor. The section is modelled as a file list (one AGENTS.md today, more
-    // soon), so each file opens here. Draft + Save mirrors the item drawer: edits apply on Save.
+    // Instructions file editor (a file list — one AGENTS.md today). Draft + Save like the item drawer.
     const [editingInstruction, setEditingInstruction] = useState<{filename: string} | null>(null)
     const [instructionDraft, setInstructionDraft] = useState("")
     const openInstruction = useCallback((filename: string, content: string) => {
@@ -122,9 +118,8 @@ export function AgentTemplateControl({
         setEditingInstruction({filename})
     }, [])
 
-    // Section drawers (Model & harness, Advanced): the accordion header opens these instead of
-    // expanding inline. Edits apply live through the existing handlers; a full-config snapshot taken
-    // on open is restored on Cancel, giving the same draft-then-save feel as the item drawers.
+    // Section drawers (Model & harness, Advanced). Edits apply live; a config snapshot taken on open
+    // is restored on Cancel, giving the same draft-then-save feel as the item drawers.
     const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
     const sectionSnapshot = useRef<Record<string, unknown> | null>(null)
     const openSectionDrawer = useCallback(
@@ -140,16 +135,12 @@ export function AgentTemplateControl({
     }, [onChange])
     const saveSection = useCallback(() => setOpenSection(null), [])
 
-    // How the config sections are laid out: stacked accordion (default), tabs, or cards.
-    // Layout is a global, persisted preference set from the variant header menu (see
-    // agentTemplateLayout); the panel only reads it.
+    // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
     const layout = useAtomValue(agentTemplateLayoutAtom)
 
-    // `config` IS the agent template (the `parameters.agent` value), exactly as the prompt control's
-    // value is the prompt template. `schema` is the `agent-template` catalog type and decides which
-    // sections exist: the portable definition's fields (instructions / llm / tools / mcps / skills)
-    // are FLAT on it; the execution parts (harness / runner / sandbox) are nested sub-objects, read
-    // by the Model & harness + Advanced sections (see useModelHarness).
+    // `config` IS the agent template (`parameters.agent`); `schema` is the `agent-template` type and
+    // decides which sections exist. Portable fields (instructions / llm / tools / mcps / skills) are
+    // FLAT; execution parts (harness / runner / sandbox) are nested sub-objects (see useModelHarness).
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
 
     // Set one flat field of the agent definition (instructions / tools / mcps / skills).
@@ -170,9 +161,7 @@ export function AgentTemplateControl({
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
     const mh = useModelHarness({schema, config, onChange, revisionId, disabled, withTooltip})
 
-    // Tools live as a flat array on the agent definition (the same tool-object shape the prompt
-    // control uses). The add/remove flows differ per kind (inline function, builtin, gateway,
-    // workflow reference), so that logic lives in its own hook; the orchestrator just wires it in.
+    // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
         tools,
         handleAddTool,
@@ -183,9 +172,7 @@ export function AgentTemplateControl({
         referenceableWorkflows,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
 
-    // MCP servers are a sibling of tools: a flat array on the agent config. Each entry is the
-    // open McpServer shape (name + stdio command/args/env or remote url, secret names), edited
-    // as JSON the backend resolver parses identically to `tools`.
+    // MCP servers: a flat array of McpServer shapes (stdio command/args/env or remote url + secrets).
     const mcpServers = useMemo(
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
@@ -195,9 +182,7 @@ export function AgentTemplateControl({
         [openCreate],
     )
 
-    // Skills are a sibling of tools/MCP: a flat array on the agent config. Each entry is an inline
-    // SKILL.md package (name + description + body + files + flags) or an `@ag.embed` reference the
-    // backend inlines — the `skill-template` catalog type (SkillTemplateSchema in the SDK).
+    // Skills: a flat array of inline SKILL.md packages or `@ag.embed` references the backend inlines.
     const skills = useMemo(
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
@@ -234,9 +219,7 @@ export function AgentTemplateControl({
             : undefined,
     }
 
-    // A compact "+" affordance for a section header, so an item can be added without first
-    // expanding the section. Rendered in the header's `extra` slot (which stops propagation, so it
-    // never toggles the section).
+    // Compact "+" for a section header's `extra` slot (stops propagation, so it never toggles open).
     const headerAddButton = (label: string, onClick: () => void) => (
         <Tooltip title={label}>
             <Button type="text" icon={<Plus size={16} />} onClick={onClick} aria-label={label} />
@@ -412,11 +395,8 @@ export function AgentTemplateControl({
                     No agent configuration fields are available for this schema.
                 </Typography.Text>
             ) : layout === "tabs" ? (
-                // Tabs is the non-default "see-everything" layout: it renders each section's body
-                // inline (no `onOpen` drawer), so edits are live (edit → dirty → commit) like the
-                // rest of the playground. The drawer sections (Model & harness, Advanced) supply a
-                // trimmed `inlineContent` here so the tab shows just their controls — not the wide
-                // two-panel drawer body, whose side panel reads as out-of-place chrome inline.
+                // Tabs renders each section's body inline (no drawer), so edits are live. Drawer
+                // sections supply a trimmed `inlineContent` so the tab shows just their controls.
                 <Tabs
                     items={sections.map((s) => ({
                         key: s.key,
@@ -427,10 +407,8 @@ export function AgentTemplateControl({
                             </span>
                         ),
                         children: (
-                            // Render the section's `extra` (the add-action, e.g. Add trigger)
-                            // here too — the accordion/cards layouts surface it via `extra`, and
-                            // dropping it leaves tab-layout users unable to add items. The body is
-                            // the trimmed `inlineContent` (drawer sections) or `content` otherwise.
+                            // Render `extra` (the add-action) here too, else tab users can't add
+                            // items. Body is the trimmed `inlineContent` or `content`.
                             <div className="flex flex-col gap-3 pt-1">
                                 {s.extra ? <div className="flex justify-end">{s.extra}</div> : null}
                                 {s.inlineContent ?? s.content}

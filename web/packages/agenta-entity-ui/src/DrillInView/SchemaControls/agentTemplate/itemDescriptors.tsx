@@ -1,10 +1,7 @@
 /**
- * Per-item presentation classifiers for the agent-template config sections.
- *
- * Each `describe*` maps a raw config item (a tool / MCP server / skill / instructions file) to an
- * {@link ItemDescriptor} — the avatar, name, description, and type tags a row and its drawer header
- * render. Kept beside the small classifier predicates they rely on (e.g. `isFunctionTool`,
- * `isStaticSkill`) so the registry, the rows, and the drawers all share one source of truth.
+ * Per-item presentation classifiers: each `describe*` maps a raw config item (tool / MCP / skill /
+ * instructions file) to an {@link ItemDescriptor} (avatar, name, description, tags). Kept beside the
+ * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
 import {FileText, GraphIcon, Plugs} from "@phosphor-icons/react"
 

@@ -1,12 +1,7 @@
 /**
- * The per-kind registry for the agent-template list sections (tools / MCP servers / skills).
- *
- * Tools, MCP servers and skills are edited through the same machinery — a list of {@link ItemRow}s
- * plus a draft-then-save {@link ConfigItemDrawer} — and differ only in this data: which config array
- * they live on, how an item is classified, which form view edits it, and the small per-kind rules
- * (default Form/JSON view, JSON-only, read-only, create seed, draft validity). Centralizing those
- * lets `useConfigItemDrawer`, the section bodies, and the single drawer render share one code path
- * instead of three near-identical copies.
+ * Per-kind registry for the tool / MCP / skill list sections. They share one machinery (an
+ * {@link ItemRow} list + a draft-then-save {@link ConfigItemDrawer}) and differ only in this data —
+ * config array, classifier, form view, per-kind rules — so all three run through one code path.
  */
 import type {ComponentType, ReactNode} from "react"
 
