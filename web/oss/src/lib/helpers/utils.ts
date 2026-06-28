@@ -7,7 +7,6 @@ import {
     safeJson5Parse,
 } from "@agenta/shared/utils"
 import {notification} from "antd"
-import yaml from "js-yaml"
 import JSON5 from "json5"
 import Router from "next/router"
 import {v4 as uuidv4} from "uuid"
@@ -206,14 +205,6 @@ export const getInitials = (str: string, limit = 2) => {
 
 export const getStringOrJson = (value: any) => {
     return typeof value === "string" ? value : JSON.stringify(value, null, 2)
-}
-
-export const getYamlOrJson = (format: "JSON" | "YAML", data: any) => {
-    try {
-        return format === "YAML" ? yaml.dump(data) : getStringOrJson(data)
-    } catch (error) {
-        return getStringOrJson(data)
-    }
 }
 
 export const formatVariantIdWithHash = (variantId: string) => {

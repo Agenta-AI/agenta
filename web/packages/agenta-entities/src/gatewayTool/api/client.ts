@@ -1,4 +1,4 @@
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {getToolsClient as getSdkToolsClient} from "@agenta/sdk/resources"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
@@ -11,7 +11,7 @@ import {getDefaultStore} from "jotai"
  * `getAgentaSdkClient()`.
  */
 export function getToolsClient() {
-    return getAgentaSdkClient().tools
+    return getSdkToolsClient()
 }
 
 /**
