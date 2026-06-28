@@ -473,6 +473,22 @@ function ItemRow({
 }
 
 /**
+ * A text-only "add" link for a section's empty state — no border/background/padding, just inline
+ * link text inside a muted sentence (the section header keeps the compact `+` for quick-add).
+ */
+function AddTextLink({label, onClick}: {label: string; onClick?: () => void}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-c-1677FF,#1677ff)] hover:underline"
+        >
+            {label}
+        </button>
+    )
+}
+
+/**
  * An instructions markdown file row. Avatar + filename + a 2-line preview of the (markdown-stripped)
  * content, clamped with an ellipsis. The whole row opens the editor drawer for the full content —
  * there is no inline expand, so it reads the same as the tool / MCP rows.
@@ -1531,38 +1547,40 @@ export function AgentTemplateControl({
                 />
             ) : undefined,
             defaultOpen: true,
-            content: (
-                <>
-                    {tools.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            {tools.map((tool, index) => (
-                                <ItemRow
-                                    key={`tool-${index}`}
-                                    descriptor={describeTool(tool)}
-                                    onEdit={() =>
-                                        openEdit(
-                                            "tool",
-                                            index,
-                                            tool,
-                                            isFunctionTool(tool) ? "form" : "json",
-                                        )
-                                    }
-                                    onRemove={() => {
-                                        handleToolDelete(index)
-                                        closeEditor()
-                                    }}
-                                    disabled={disabled}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    {!disabled && (
-                        <div>
-                            <ToolSelectorPopover {...toolSelectorProps} />
-                        </div>
-                    )}
-                </>
-            ),
+            content:
+                tools.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                        {tools.map((tool, index) => (
+                            <ItemRow
+                                key={`tool-${index}`}
+                                descriptor={describeTool(tool)}
+                                onEdit={() =>
+                                    openEdit(
+                                        "tool",
+                                        index,
+                                        tool,
+                                        isFunctionTool(tool) ? "form" : "json",
+                                    )
+                                }
+                                onRemove={() => {
+                                    handleToolDelete(index)
+                                    closeEditor()
+                                }}
+                                disabled={disabled}
+                            />
+                        ))}
+                    </div>
+                ) : !disabled ? (
+                    // Empty: a muted line whose action is a borderless text link (the header + adds
+                    // once there are items). The link is the ToolSelectorPopover trigger.
+                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        No tools yet —{" "}
+                        <ToolSelectorPopover
+                            {...toolSelectorProps}
+                            trigger={<AddTextLink label="add a tool" />}
+                        />
+                    </span>
+                ) : null,
         },
         hasMcp && {
             key: "mcp",
@@ -1571,33 +1589,28 @@ export function AgentTemplateControl({
             summary: countSummary(mcpServers.length, "server"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
-            content: (
-                <>
-                    {mcpServers.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            {mcpServers.map((server, index) => (
-                                <ItemRow
-                                    key={`mcp-${index}`}
-                                    descriptor={describeMcp(server)}
-                                    onEdit={() => openEdit("mcp", index, server, "form")}
-                                    onRemove={() => {
-                                        handleMcpServerDelete(index)
-                                        closeEditor()
-                                    }}
-                                    disabled={disabled}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    {!disabled && (
-                        <div>
-                            <Button icon={<Plus size={14} />} onClick={handleAddMcpServer}>
-                                Add MCP server
-                            </Button>
-                        </div>
-                    )}
-                </>
-            ),
+            content:
+                mcpServers.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                        {mcpServers.map((server, index) => (
+                            <ItemRow
+                                key={`mcp-${index}`}
+                                descriptor={describeMcp(server)}
+                                onEdit={() => openEdit("mcp", index, server, "form")}
+                                onRemove={() => {
+                                    handleMcpServerDelete(index)
+                                    closeEditor()
+                                }}
+                                disabled={disabled}
+                            />
+                        ))}
+                    </div>
+                ) : !disabled ? (
+                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        No MCP servers yet —{" "}
+                        <AddTextLink label="add a server" onClick={handleAddMcpServer} />
+                    </span>
+                ) : null,
         },
         hasSkills && {
             key: "skills",
@@ -1606,42 +1619,36 @@ export function AgentTemplateControl({
             summary: countSummary(skills.length, "skill"),
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
-            content: (
-                <>
-                    {skills.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            {skills.map((skill, index) => (
-                                <ItemRow
-                                    key={`skill-${index}`}
-                                    descriptor={describeSkill(skill)}
-                                    onEdit={() =>
-                                        openEdit(
-                                            "skill",
-                                            index,
-                                            skill,
-                                            isEmbedRefSkill(skill) ? "json" : "form",
-                                        )
-                                    }
-                                    onRemove={() => {
-                                        handleSkillDelete(index)
-                                        closeEditor()
-                                    }}
-                                    // Static skills (`__ag__*`) are read-only: no remove, and
-                                    // the drawer opens disabled (see the skill drawer below).
-                                    disabled={disabled || isStaticSkill(skill)}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    {!disabled && (
-                        <div>
-                            <Button icon={<Plus size={14} />} onClick={handleAddSkill}>
-                                Add skill
-                            </Button>
-                        </div>
-                    )}
-                </>
-            ),
+            content:
+                skills.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                        {skills.map((skill, index) => (
+                            <ItemRow
+                                key={`skill-${index}`}
+                                descriptor={describeSkill(skill)}
+                                onEdit={() =>
+                                    openEdit(
+                                        "skill",
+                                        index,
+                                        skill,
+                                        isEmbedRefSkill(skill) ? "json" : "form",
+                                    )
+                                }
+                                onRemove={() => {
+                                    handleSkillDelete(index)
+                                    closeEditor()
+                                }}
+                                // Static skills (`__ag__*`) are read-only: no remove, and
+                                // the drawer opens disabled (see the skill drawer below).
+                                disabled={disabled || isStaticSkill(skill)}
+                            />
+                        ))}
+                    </div>
+                ) : !disabled ? (
+                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        No skills yet — <AddTextLink label="add a skill" onClick={handleAddSkill} />
+                    </span>
+                ) : null,
         },
         hasAdvanced && {
             key: "advanced",
