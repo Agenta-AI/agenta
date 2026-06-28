@@ -1,4 +1,4 @@
-"""``skills_to_wire``: resolved ``SkillConfig`` list -> the ``WireSkill[]`` runner contract.
+"""``skills_to_wire``: resolved ``SkillTemplate`` list -> the ``WireSkill[]`` runner contract.
 
 The wire is camelCase to match ``services/agent/src/protocol.ts``; optional flags and ``files``
 are omitted when unset so a minimal skill stays minimal.
@@ -6,7 +6,7 @@ are omitted when unset so a minimal skill stays minimal.
 
 from __future__ import annotations
 
-from agenta.sdk.agents import SkillConfig, skills_to_wire
+from agenta.sdk.agents import SkillTemplate, skills_to_wire
 
 
 def test_skills_to_wire_empty():
@@ -15,8 +15,8 @@ def test_skills_to_wire_empty():
 
 def test_skills_to_wire_minimal():
     skills = [
-        SkillConfig(name="a", description="d", body="b"),
-        SkillConfig(name="c", description="e", body="f"),
+        SkillTemplate(name="a", description="d", body="b"),
+        SkillTemplate(name="c", description="e", body="f"),
     ]
     assert skills_to_wire(skills) == [
         {"name": "a", "description": "d", "body": "b"},
@@ -25,7 +25,7 @@ def test_skills_to_wire_minimal():
 
 
 def test_skills_to_wire_full_shape():
-    skill = SkillConfig(
+    skill = SkillTemplate(
         name="release-notes",
         description="Draft release notes.",
         body="Read the changelog.",

@@ -12,7 +12,7 @@ import {
 } from "@agenta/entities/workflow"
 import type {EvaluatorCatalogTemplate, Workflow, WorkflowTypeColor} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
-import {agentConfigLayoutAtom, AGENT_CONFIG_LAYOUTS} from "@agenta/entity-ui/drill-in"
+import {agentTemplateLayoutAtom, AGENT_TEMPLATE_LAYOUTS} from "@agenta/entity-ui/drill-in"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
 import {
@@ -216,8 +216,8 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
     // Agent playground settings (page-level): config-panel layout + stream/batch response channel.
     // These were previously buried in a config item's kebab; they're global, so they live here.
-    const layout = useAtomValue(agentConfigLayoutAtom)
-    const setLayout = useSetAtom(agentConfigLayoutAtom)
+    const layout = useAtomValue(agentTemplateLayoutAtom)
+    const setLayout = useSetAtom(agentTemplateLayoutAtom)
     const channelMode = useAtomValue(agentChannelModeAtom)
     const setChannelMode = useSetAtom(agentChannelModeAtom)
 
@@ -227,7 +227,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                 key: "view",
                 type: "group" as const,
                 label: "View",
-                children: AGENT_CONFIG_LAYOUTS.map((option) => ({
+                children: AGENT_TEMPLATE_LAYOUTS.map((option) => ({
                     key: `view-${option.value}`,
                     label: option.label,
                     icon:

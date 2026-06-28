@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import {memo, type ReactNode} from "react"
 
 import {XMarkdown} from "@ant-design/x-markdown"
 import Latex from "@ant-design/x-markdown/plugins/Latex"
@@ -95,7 +95,12 @@ const PreUnwrap = ({children}: {children?: ReactNode}) => <>{children}</>
 
 /** Shared markdown renderer for the slice — used by message bubbles and the composer live
  * preview, so both render identically. `className` appends to `MD_CLASS` so callers can tweak
- * size/color (e.g. the muted reasoning block) without forking the renderer. */
+ * size/color (e.g. the muted reasoning block) without forking the renderer.
+ *
+ * Memoized on `content`/`className`: within the one message that re-renders per streamed token
+ * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —
+ * keep the same `content` string, so this skips re-parsing + re-running Prism on them each token.
+ * (Settled messages don't re-render at all; the stable-`onRewind` fix handles those.) */
 const Markdown = ({content, className}: {content: string; className?: string}) => (
     <XMarkdown
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
@@ -105,4 +110,4 @@ const Markdown = ({content, className}: {content: string; className?: string}) =
     />
 )
 
-export default Markdown
+export default memo(Markdown)

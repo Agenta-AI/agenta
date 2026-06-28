@@ -14,6 +14,7 @@ from agenta.sdk.agents.tools import (
     GatewayToolResolution,
     MissingSecretPolicy,
     MissingToolSecretError,
+    PlatformToolConfig,
     ReferenceToolConfig,
     ToolCallback,
     ToolResolver,
@@ -73,6 +74,30 @@ class FakeWorkflowResolver:
                     needs_approval=tool.needs_approval,
                     render=tool.render,
                     permission=tool.permission,
+                )
+                for tool in tools
+            ],
+            tool_callback=ToolCallback(endpoint=self.endpoint),
+        )
+
+
+class FakePlatformResolver:
+    """Mirrors :class:`AgentaPlatformToolResolver`: build a callback spec carrying a direct `call`
+    per platform config + the single shared callback to `{api}/tools/call`."""
+
+    def __init__(self, endpoint: str = "https://example/tools/call"):
+        self.endpoint = endpoint
+
+    async def resolve(
+        self,
+        tools: Sequence[PlatformToolConfig],
+    ) -> GatewayToolResolution:
+        return GatewayToolResolution(
+            tool_specs=[
+                CallbackToolSpec(
+                    name=tool.op,
+                    description=tool.op,
+                    call={"method": "POST", "path": f"/api/{tool.op}"},
                 )
                 for tool in tools
             ],
@@ -237,6 +262,28 @@ async def test_reference_tool_axes_survive_resolution():
     spec = resolved.tool_specs[0]
     assert spec.needs_approval is True
     assert spec.permission == "ask"
+
+
+# --- type:"platform" tool resolution -----------------------------------------
+
+
+async def test_platform_tool_resolves_to_callback_spec_with_direct_call():
+    # A type:"platform" tool becomes a callback spec carrying a direct `call` (no call_ref), plus
+    # the shared ToolCallback that gives the runner the origin to resolve the relative path against.
+    resolved = await ToolResolver(platform_resolver=FakePlatformResolver()).resolve(
+        [PlatformToolConfig(op="find_capabilities")]
+    )
+    assert len(resolved.tool_specs) == 1
+    spec = resolved.tool_specs[0]
+    assert isinstance(spec, CallbackToolSpec)
+    assert spec.call_ref is None
+    assert spec.call.path == "/api/find_capabilities"
+    assert resolved.tool_callback.endpoint == "https://example/tools/call"
+
+
+async def test_platform_tool_requires_injected_resolver():
+    with pytest.raises(UnsupportedToolProviderError):
+        await ToolResolver().resolve([PlatformToolConfig(op="find_capabilities")])
 
 
 async def test_reference_and_gateway_share_one_callback():

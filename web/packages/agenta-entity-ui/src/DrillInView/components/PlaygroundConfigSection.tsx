@@ -1560,7 +1560,7 @@ function PlaygroundConfigSection({
 
             // Agent workflows render the whole agent_config block as the panel body (its own sections
             // each have headers and drawers), so the redundant top-level "Agent" collapse header is
-            // suppressed. Detected via the same `agent_config` schema marker AgentConfigControl uses.
+            // suppressed. Detected via the same `agent_config` schema marker AgentTemplateControl uses.
             if (
                 fieldSchema?.["x-ag-type-ref"] === "agent_config" ||
                 fieldSchema?.["x-ag-type"] === "agent_config"

@@ -60,7 +60,7 @@ async def _collect(stream_response) -> list:
 
 def _request(*, stream, history=None):
     # The per-call command directives. The request boundary is a loose dict;
-    # WorkflowRequestFlags is the typed accessor the running layer parses it with.
+    # WorkflowInvokeRequestFlags is the typed accessor the running layer parses it with.
     flags = {"stream": stream}
     if history is not None:
         flags["history"] = history

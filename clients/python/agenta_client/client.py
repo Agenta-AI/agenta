@@ -83,7 +83,6 @@ class AgentaApi:
         self._billing: typing.Optional[BillingClient] = None
         self._events: typing.Optional[EventsClient] = None
         self._organizations: typing.Optional[OrganizationsClient] = None
-        self._workspaces: typing.Optional[WorkspacesClient] = None
         self._secrets: typing.Optional[SecretsClient] = None
         self._webhooks: typing.Optional[WebhooksClient] = None
         self._legacy: typing.Optional[LegacyClient] = None
@@ -105,6 +104,7 @@ class AgentaApi:
         self._projects: typing.Optional[ProjectsClient] = None
         self._users: typing.Optional[UsersClient] = None
         self._keys: typing.Optional[KeysClient] = None
+        self._workspaces: typing.Optional[WorkspacesClient] = None
     
     @property
     def access(self):
@@ -133,13 +133,6 @@ class AgentaApi:
             from .organizations.client import OrganizationsClient  # noqa: E402
             self._organizations = OrganizationsClient(client_wrapper=self._client_wrapper)
         return self._organizations
-    
-    @property
-    def workspaces(self):
-        if self._workspaces is None:
-            from .workspaces.client import WorkspacesClient  # noqa: E402
-            self._workspaces = WorkspacesClient(client_wrapper=self._client_wrapper)
-        return self._workspaces
     
     @property
     def secrets(self):
@@ -287,6 +280,13 @@ class AgentaApi:
             from .keys.client import KeysClient  # noqa: E402
             self._keys = KeysClient(client_wrapper=self._client_wrapper)
         return self._keys
+    
+    @property
+    def workspaces(self):
+        if self._workspaces is None:
+            from .workspaces.client import WorkspacesClient  # noqa: E402
+            self._workspaces = WorkspacesClient(client_wrapper=self._client_wrapper)
+        return self._workspaces
 class AsyncAgentaApi:
     """
     Use this class to access the different functions within the SDK. You can instantiate any number of clients with different configuration that will propagate to these functions.
@@ -335,7 +335,6 @@ class AsyncAgentaApi:
         self._billing: typing.Optional[AsyncBillingClient] = None
         self._events: typing.Optional[AsyncEventsClient] = None
         self._organizations: typing.Optional[AsyncOrganizationsClient] = None
-        self._workspaces: typing.Optional[AsyncWorkspacesClient] = None
         self._secrets: typing.Optional[AsyncSecretsClient] = None
         self._webhooks: typing.Optional[AsyncWebhooksClient] = None
         self._legacy: typing.Optional[AsyncLegacyClient] = None
@@ -357,6 +356,7 @@ class AsyncAgentaApi:
         self._projects: typing.Optional[AsyncProjectsClient] = None
         self._users: typing.Optional[AsyncUsersClient] = None
         self._keys: typing.Optional[AsyncKeysClient] = None
+        self._workspaces: typing.Optional[AsyncWorkspacesClient] = None
     
     @property
     def access(self):
@@ -385,13 +385,6 @@ class AsyncAgentaApi:
             from .organizations.client import AsyncOrganizationsClient  # noqa: E402
             self._organizations = AsyncOrganizationsClient(client_wrapper=self._client_wrapper)
         return self._organizations
-    
-    @property
-    def workspaces(self):
-        if self._workspaces is None:
-            from .workspaces.client import AsyncWorkspacesClient  # noqa: E402
-            self._workspaces = AsyncWorkspacesClient(client_wrapper=self._client_wrapper)
-        return self._workspaces
     
     @property
     def secrets(self):
@@ -539,6 +532,13 @@ class AsyncAgentaApi:
             from .keys.client import AsyncKeysClient  # noqa: E402
             self._keys = AsyncKeysClient(client_wrapper=self._client_wrapper)
         return self._keys
+    
+    @property
+    def workspaces(self):
+        if self._workspaces is None:
+            from .workspaces.client import AsyncWorkspacesClient  # noqa: E402
+            self._workspaces = AsyncWorkspacesClient(client_wrapper=self._client_wrapper)
+        return self._workspaces
 def _get_base_url(*, base_url: typing.Optional[str] = None, environment: AgentaApiEnvironment) -> str:
     if base_url is not None:
         return base_url

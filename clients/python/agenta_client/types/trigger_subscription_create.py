@@ -7,10 +7,11 @@ import typing
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
 from .trigger_subscription_data import TriggerSubscriptionData
+from .trigger_subscription_flags import TriggerSubscriptionFlags
 
 
 class TriggerSubscriptionCreate(UniversalBaseModel):
-    flags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    flags: typing.Optional[TriggerSubscriptionFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     name: typing.Optional[str] = None

@@ -4,8 +4,6 @@ export interface SimpleApplicationQueryFlags {
     is_application?: (boolean | null) | undefined;
     is_evaluator?: (boolean | null) | undefined;
     is_snippet?: (boolean | null) | undefined;
-    is_skill?: (boolean | null) | undefined;
-    is_platform?: (boolean | null) | undefined;
     is_managed?: (boolean | null) | undefined;
     is_custom?: (boolean | null) | undefined;
     is_llm?: (boolean | null) | undefined;
@@ -13,8 +11,11 @@ export interface SimpleApplicationQueryFlags {
     is_code?: (boolean | null) | undefined;
     is_match?: (boolean | null) | undefined;
     is_feedback?: (boolean | null) | undefined;
+    is_agent?: (boolean | null) | undefined;
+    is_skill?: (boolean | null) | undefined;
     is_chat?: (boolean | null) | undefined;
     has_url?: (boolean | null) | undefined;
     has_script?: (boolean | null) | undefined;
     has_handler?: (boolean | null) | undefined;
+    is_static?: (boolean | null) | undefined;
 }

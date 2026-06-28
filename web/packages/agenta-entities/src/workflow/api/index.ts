@@ -49,6 +49,8 @@ export {
     fetchWorkflowRevisionsByIdsBatch,
     // Schema
     fetchAgTypeSchema,
+    // Harness capabilities catalog
+    fetchHarnessCapabilities,
     // Catalog
     fetchWorkflowCatalogTemplates,
     type WorkflowCatalogTemplate,

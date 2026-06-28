@@ -3,7 +3,7 @@
 These models describe the EXACT camelCase JSON the Python producer emits and parses in
 ``utils/wire.py`` (``request_to_wire`` / ``result_from_wire``) and the TS runner mirrors in
 ``services/agent/src/protocol.ts``. They are deliberately a SEPARATE set from the semantic
-DTOs in ``dtos.py``: the DTOs are snake_case and intentionally loose (``AgentEvent`` is a free
+DTOs in ``dtos.py``: the DTOs are snake_case and intentionally loose (``Event`` is a free
 ``type: str`` + ``data`` bag), while the real wire is camelCase with a discriminated event
 union. Exporting ``model_json_schema()`` off the DTOs would produce the wrong schema, so the
 contract lives here.
@@ -11,7 +11,7 @@ contract lives here.
 What these models are for in this phase (a pre-production POC):
 
 - They are the schema authority: ``run_contract_schemas()`` exports their JSON Schema, which
-  ships in the SDK through ``CATALOG_TYPES`` (the same mechanism ``AgentConfigSchema`` uses to
+  ships in the SDK through ``CATALOG_TYPES`` (the same mechanism ``AgentTemplateSchema`` uses to
   reach the SDK / clients / ``/inspect``). A test asserts the committed catalog entry matches a
   fresh export, so the schema cannot drift from these models.
 - They validate the golden fixtures and ``request_to_wire`` output in tests, proving the schema
@@ -122,6 +122,50 @@ class WireToolCallback(_WireModel):
     authorization: Optional[str] = None
 
 
+class WireRunContextReference(_WireModel):
+    """One workflow entity (artifact / variant / revision) inside ``runContext.workflow``
+    (mirrors ``RunContextReference``), the platform's ``{id, slug, version}`` reference shape.
+    The keys stay snake_case on purpose — see ``WireRunContext``."""
+
+    id: Optional[str] = None
+    slug: Optional[str] = None
+    version: Optional[str] = None
+
+
+class WireRunContextWorkflow(_WireModel):
+    """The running workflow identity inside ``runContext`` (mirrors ``RunContextWorkflow``),
+    grouped into the platform's three workflow entities. The keys stay snake_case on purpose —
+    see ``WireRunContext``."""
+
+    artifact: Optional[WireRunContextReference] = None
+    variant: Optional[WireRunContextReference] = None
+    revision: Optional[WireRunContextReference] = None
+    is_draft: Optional[bool] = None
+
+
+class WireRunContextTrace(_WireModel):
+    """The run's own trace identity inside ``runContext`` (mirrors ``RunContextTrace``)."""
+
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
+
+
+class WireRunContext(_WireModel):
+    """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
+    Phase 3a; mirrors ``RunContext.to_wire``).
+
+    Consumed only by a tool's ``call.context`` binding at dispatch, server-side and hidden from
+    the model. Unlike the rest of the wire, the INNER keys are snake_case
+    (``workflow.variant.id`` / ``trace.trace_id``): they are the binding NAMESPACE a catalog
+    entry's ``$ctx.<dotted.path>`` token addresses, so they must match those tokens exactly rather
+    than follow the camelCase wire convention. The conversation id is NOT carried here — it rides
+    the top-level camelCase ``sessionId`` field. The top-level field is still the camelCase
+    ``runContext`` on the request."""
+
+    workflow: Optional[WireRunContextWorkflow] = None
+    trace: Optional[WireRunContextTrace] = None
+
+
 class WireRenderHint(_WireModel):
     """How a tool's result should be rendered by a client."""
 
@@ -129,13 +173,33 @@ class WireRenderHint(_WireModel):
     component: Optional[str] = None
 
 
+class WireToolCall(_WireModel):
+    """The direct-call descriptor on a resolved tool (direct-call tools, Phase 1).
+
+    Present on a callback tool instead of ``callRef`` when the runner should call an Agenta
+    endpoint DIRECTLY (``call`` XOR ``callRef``). ``path`` is an absolute path from the Agenta
+    origin; ``body`` are static server-fixed fields; ``context`` maps a dotted body path to a
+    ``"$ctx.<key>"`` token the runner fills from the run context; ``args_into`` is the dotted path
+    where the model's arguments are placed. All fields optional on the wire, matching the
+    contract's implicitly-all-optional convention. Plumbing only in this phase: it rides the wire
+    but nothing emits or dispatches it yet.
+    """
+
+    method: Optional[str] = None
+    path: Optional[str] = None
+    body: Optional[Dict[str, Any]] = None
+    context: Optional[Dict[str, str]] = None
+    args_into: Optional[str] = None
+
+
 class WireResolvedToolSpec(_WireModel):
     """A resolved tool the runner delivers to the harness (the three-axis tool surface).
 
     ``kind`` is the executor axis (``callback`` / ``code`` / ``client`` / ``builtin``);
     ``needsApproval`` / ``render`` are the orthogonal axes; ``callRef`` / ``runtime`` / ``code``
-    / ``env`` are executor-specific. Extra fields are allowed so an executor variant the schema
-    has not enumerated still validates.
+    / ``env`` are executor-specific. ``call`` is the direct-call descriptor a callback tool carries
+    instead of ``callRef`` (direct-call tools, Phase 1). Extra fields are allowed so an executor
+    variant the schema has not enumerated still validates.
     """
 
     name: str
@@ -143,6 +207,7 @@ class WireResolvedToolSpec(_WireModel):
     input_schema: Optional[Dict[str, Any]] = Field(default=None, alias="inputSchema")
     kind: Optional[str] = None
     call_ref: Optional[str] = Field(default=None, alias="callRef")
+    call: Optional[WireToolCall] = None
     runtime: Optional[str] = None
     code: Optional[str] = None
     env: Optional[Dict[str, str]] = None
@@ -241,10 +306,10 @@ class WireAgentUsage(_WireModel):
 # ---------------------------------------------------------------------------
 
 
-class WireAgentEvent(_WireModel):
+class WireEvent(_WireModel):
     """One structured event from a run, keyed by ``type``.
 
-    The Python parser (``AgentEvent.from_wire``) keeps the whole event verbatim and drops a
+    The Python parser (``Event.from_wire``) keeps the whole event verbatim and drops a
     typeless event, so the wire event is intentionally OPEN: ``type`` is the discriminator and
     ``extra="allow"`` carries the rest. ``type`` is OPTIONAL on the model on purpose — a
     typeless event is dropped, not rejected (a golden pins exactly that), and the schema must
@@ -291,6 +356,9 @@ class WireRunRequest(_WireModel):
     # Secrets injected as harness env (provider keys); never written to the agent filesystem.
     secrets: Optional[Dict[str, str]] = None
     trace: Optional[WireTraceContext] = None
+    # The run's own context (trace + variant identity), refreshed per turn; consumed only by a
+    # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted when unset.
+    run_context: Optional[WireRunContext] = Field(default=None, alias="runContext")
     # Tools + skills.
     tools: Optional[List[str]] = None
     custom_tools: Optional[List[WireResolvedToolSpec]] = Field(
@@ -334,7 +402,7 @@ class WireRunResult(_WireModel):
     ok: bool
     output: Optional[str] = None
     messages: Optional[List[WireChatMessage]] = None
-    events: Optional[List[WireAgentEvent]] = None
+    events: Optional[List[WireEvent]] = None
     usage: Optional[WireAgentUsage] = None
     stop_reason: Optional[str] = Field(default=None, alias="stopReason")
     capabilities: Optional[WireHarnessCapabilities] = None
@@ -349,7 +417,7 @@ class WireRunResult(_WireModel):
 # ---------------------------------------------------------------------------
 
 # The top-level wire models whose JSON Schema ships in the SDK. Each is keyed by its
-# ``x-ag-type`` so ``CATALOG_TYPES`` can carry it the same way it carries ``agent_config``.
+# ``x-ag-type`` so ``CATALOG_TYPES`` can carry it the same way it carries ``agent-template``.
 WIRE_CONTRACT_MODELS = (WireRunRequest, WireRunResult)
 
 

@@ -48,7 +48,9 @@ interface AgentMessageProps {
     /** This is the last message AND the conversation is streaming — i.e. the one being
      * generated right now. Only it shows the loading state; settled turns never do. */
     isStreaming?: boolean
-    onRewind: () => void
+    /** Stable across renders (parent passes a `useCallback`'d handler) so the `memo()` below
+     * isn't defeated — the message to rewind to is passed in, not closed over per render. */
+    onRewind: (message: UIMessage) => void
     onApprovalResponse: (args: {id: string; approved: boolean}) => void
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
      * run of "no response" bubbles down to the first one. */
@@ -383,7 +385,7 @@ const AgentMessage = ({
             ? "Rewind here — edit and re-run the conversation from this message"
             : "Rewind here — re-run this turn",
         icon: <ArrowUUpLeft size={14} />,
-        onItemClick: () => onRewind(),
+        onItemClick: () => onRewind(message),
     }
 
     const toolbar = isUser ? (

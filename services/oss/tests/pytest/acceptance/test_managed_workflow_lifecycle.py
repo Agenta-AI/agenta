@@ -841,7 +841,7 @@ def test_inspect_direct_returns_canonical_revision(case, mod_api, mod_services_a
     )
     assert resp.status_code == 200, resp.text
     payload = resp.json()
-    assert payload["data"]["revision"]["data"]["uri"] == ctx["uri"]
+    assert payload["revision"]["data"]["uri"] == ctx["uri"]
 
 
 # ---------------------------------------------------------------------------

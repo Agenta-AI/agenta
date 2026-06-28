@@ -21,7 +21,7 @@ The fields and the full schema follow.
 |---|---|---|---|
 | `agents_md` | string (textarea) | hello-world prompt | The agent's system prompt, its AGENTS.md. |
 | `model` | string (`grouped_choice`) | `"gpt-5.5"` | Model the agent runs on. A plain id (`"gpt-5.5"`) or a structured `{provider, connection}` ref. See [Model connection resolution](../in-service/model-connection-resolution.md). |
-| `tools` | `(ToolConfig \| EmbedRef)[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, `client`, or `reference` (a workflow referenced as a tool — `type: "reference"` — the service runs server-side as a callback tool). A workflow value can also be inlined via `@ag.embed`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
+| `tools` | `(ToolConfig \| EmbedRef)[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, `client`, `reference` (a workflow referenced as a tool — `type: "reference"` — the service runs server-side as a callback tool), or `platform` (an existing Agenta endpoint exposed to the agent — `type: "platform"` — the runner calls it directly). A workflow value can also be inlined via `@ag.embed`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
 | `mcp_servers` | `MCPServerConfig[]` | `[]` | Declared MCP servers; secret env resolved from the vault at run time. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
 | `harness` | `"pi_core" \| "claude" \| "pi_agenta"` (see slug+name note) | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
@@ -150,6 +150,11 @@ Either form is valid:
 { "type": "reference", "ref_by": "environment", "environment": "production", "slug": "summarize",
   "name": "summarize", "needs_approval": false, "permission": null, "render": null }
 
+// platform: an existing Agenta endpoint exposed to the agent. `op` names a platform-op catalog
+// entry (the catalog owns description/endpoint/schema/bind/gate defaults). `needs_approval` is
+// optional (null = the catalog default — e.g. commit_revision defaults to approval).
+{ "type": "platform", "op": "find_capabilities", "needs_approval": null, "permission": null }
+
 // @ag.embed (a different feature, not in the tool-authoring UI): inline the referenced value into
 // a concrete `client` tool config before the runner sees it (the backend's embed resolver does
 // the inlining; rides the `client` path).
@@ -158,9 +163,11 @@ Either form is valid:
 ```
 
 A `type: "reference"` tool resolves to a server-side `callback` tool (`call_ref =
-workflow.variant.{slug}[.{version}]` or `workflow.environment.{environment}.{slug}`); `@ag.embed`
-inlines to a `client` tool. A reference tool is plain config, not a marker — the generic resolver
-only inlines `@ag.embed`, and `resolve_tools` owns the tool-specific mapping. See [Tool models and
+workflow.variant.{slug}[.{version}]` or `workflow.environment.{environment}.{slug}`); a
+`type: "platform"` tool resolves to a `callback` tool carrying a direct `call` to the exposed
+endpoint (no `call_ref`); `@ag.embed` inlines to a `client` tool. Reference and platform tools are
+plain config, not markers — the generic resolver only inlines `@ag.embed`, and `resolve_tools` owns
+the tool-specific mapping. See [Tool models and
 resolution](../in-service/tool-models-and-resolution.md).
 
 `permission` is `"allow" | "ask" | "deny"`. When unset, it is derived: explicit value wins,
@@ -264,9 +271,10 @@ not `SKILL.md` itself.
 - **Nested shapes.** `tools`, `mcp_servers`, `skills`, and `sandbox_permission` each have
   their own page and their own wire fields. A change here usually means a change there and a
   golden fixture.
-- **Reference tools and embeds.** A workflow referenced as a tool is the `type: "reference"` arm
-  of the `ToolConfig` union (plain config, no marker). Skills can also arrive as `@ag.embed`, and
-  tools as `@ag.embed`. The schema must keep accepting these forms (the `tools` field is a union of
-  the concrete `ToolConfig` variants — including `reference` — plus an `@ag.embed` arm), or a
-  valid config fails validation. `@ag.embed` is a separate feature the generic resolver inlines;
-  it is not surfaced in the tool-authoring UI.
+- **Reference and platform tools, and embeds.** A workflow referenced as a tool is the
+  `type: "reference"` arm of the `ToolConfig` union; an existing endpoint exposed to the agent is
+  the `type: "platform"` arm (both plain config, no marker). Skills can also arrive as `@ag.embed`,
+  and tools as `@ag.embed`. The schema must keep accepting these forms (the `tools` field is a union
+  of the concrete `ToolConfig` variants — including `reference` and `platform` — plus an `@ag.embed`
+  arm), or a valid config fails validation. `@ag.embed` is a separate feature the generic resolver
+  inlines; it is not surfaced in the tool-authoring UI.

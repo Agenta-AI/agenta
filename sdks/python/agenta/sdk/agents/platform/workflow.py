@@ -29,6 +29,7 @@ from agenta.sdk.agents.tools import (
 )
 from agenta.sdk.utils.logging import get_module_logger
 
+from ._schema import expand_type_refs
 from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
@@ -73,7 +74,12 @@ class AgentaWorkflowToolResolver:
                 CallbackToolSpec(
                     name=tool_config.tool_name,
                     description=tool_config.description or tool_config.tool_name,
-                    input_schema=tool_config.input_schema,
+                    # Expand Agenta catalog pointers (``x-ag-type-ref``, e.g. ``messages``) into
+                    # concrete JSON Schema so the harness sees a real shape (an array WITH items,
+                    # not a bare ``x-ag-type-ref``) and can construct the call. Reference tools are
+                    # the only tool kind whose schema comes from a workflow's inputs and so can
+                    # carry these pointers; code/client tools author plain JSON Schema.
+                    input_schema=expand_type_refs(tool_config.input_schema),
                     call_ref=call_ref,
                     needs_approval=tool_config.needs_approval,
                     render=tool_config.render,

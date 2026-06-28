@@ -42,7 +42,7 @@ from .test_wire_contract import (
 
 def test_run_contract_ships_in_the_sdk_catalog():
     # The exported JSON interface lives in the SDK alongside the other catalog types, so a
-    # client / the playground / `/inspect` can resolve it the same way as `agent_config`.
+    # client / the playground / `/inspect` can resolve it the same way as `agent-template`.
     assert "run_request" in CATALOG_TYPES
     assert "run_result" in CATALOG_TYPES
     assert CATALOG_TYPES["run_request"]["x-ag-type"] == "run_request"
@@ -87,7 +87,7 @@ def test_request_schema_properties_equal_known_request_keys():
 def test_goldens_parse_into_the_wire_models(golden, golden_name, model):
     # Every golden parses cleanly into its wire model (by camelCase alias), proving the models
     # accept the real wire. The ok-result golden includes a deliberately typeless event; the
-    # open `WireAgentEvent` (type optional) tolerates it, mirroring the parser's drop behavior.
+    # open `WireEvent` (type optional) tolerates it, mirroring the parser's drop behavior.
     model.model_validate(golden(golden_name))
 
 

@@ -54,39 +54,6 @@ class AccessClient:
         _response = self._raw_client.fetch_access_plans(request_options=request_options)
         return _response.data
     
-    def fetch_access_roles(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]]:
-        """
-        Return the effective role catalog per scope.
-        
-        Scopes are `organization`, `workspace`, `project`. Each entry has
-        `role`, `description`, and `permissions`. Permissions are returned
-        verbatim from access-controls, including the `"*"` wildcard for
-        `owner` — callers that need to render the full permission list
-        should expand the wildcard themselves (see
-        `ee.src.services.db_manager_ee._expand_permissions`).
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]]
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.access.fetch_access_roles()
-        """
-        _response = self._raw_client.fetch_access_roles(request_options=request_options)
-        return _response.data
-    
     def discover_access(self, *, email: str, request_options: typing.Optional[RequestOptions] = None) -> DiscoverResponse:
         """
         Discover authentication methods available for a given email.
@@ -262,6 +229,34 @@ class AccessClient:
         """
         _response = self._raw_client.check_permissions(action=action, scope_type=scope_type, scope_id=scope_id, resource_type=resource_type, resource_id=resource_id, request_options=request_options)
         return _response.data
+    
+    def fetch_access_roles(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]]:
+        """
+        Return the effective role catalog per scope (organization,
+        workspace, project). RBAC is an OSS feature, so this is served in both
+        editions; the frontend reads the `workspace` scope for the members UI.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]]
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.access.fetch_access_roles()
+        """
+        _response = self._raw_client.fetch_access_roles(request_options=request_options)
+        return _response.data
 class AsyncAccessClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._raw_client = AsyncRawAccessClient(client_wrapper=client_wrapper)
@@ -313,47 +308,6 @@ class AsyncAccessClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_access_plans(request_options=request_options)
-        return _response.data
-    
-    async def fetch_access_roles(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]]:
-        """
-        Return the effective role catalog per scope.
-        
-        Scopes are `organization`, `workspace`, `project`. Each entry has
-        `role`, `description`, and `permissions`. Permissions are returned
-        verbatim from access-controls, including the `"*"` wildcard for
-        `owner` — callers that need to render the full permission list
-        should expand the wildcard themselves (see
-        `ee.src.services.db_manager_ee._expand_permissions`).
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]]
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.access.fetch_access_roles()
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.fetch_access_roles(request_options=request_options)
         return _response.data
     
     async def discover_access(self, *, email: str, request_options: typing.Optional[RequestOptions] = None) -> DiscoverResponse:
@@ -570,4 +524,40 @@ class AsyncAccessClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.check_permissions(action=action, scope_type=scope_type, scope_id=scope_id, resource_type=resource_type, resource_id=resource_id, request_options=request_options)
+        return _response.data
+    
+    async def fetch_access_roles(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]]:
+        """
+        Return the effective role catalog per scope (organization,
+        workspace, project). RBAC is an OSS feature, so this is served in both
+        editions; the frontend reads the `workspace` scope for the members UI.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]]
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.access.fetch_access_roles()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_access_roles(request_options=request_options)
         return _response.data
