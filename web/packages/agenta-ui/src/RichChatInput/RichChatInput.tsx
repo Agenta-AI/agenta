@@ -30,7 +30,7 @@ export interface RichChatInputHandle {
 }
 
 export interface RichChatInputProps {
-    /** Called with the message serialized to markdown on send (Cmd/Ctrl+Enter or the send button). */
+    /** Called with the message serialized to markdown on send (plain Enter or the send button). */
     onSubmit: (markdown: string) => void
     placeholder?: string
     /** Disables editing entirely. For streaming chats prefer leaving editable + routing to a queue. */
@@ -140,7 +140,12 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     )}
                     onPaste={(e) => {
                         const files = e.clipboardData?.files
-                        if (files && files.length > 0) onPasteFile?.(files)
+                        // Take over the paste when it carries files so the editor doesn't also
+                        // insert a sibling text/html payload from the same clipboard.
+                        if (files && files.length > 0) {
+                            e.preventDefault()
+                            onPasteFile?.(files)
+                        }
                     }}
                 >
                     {header}

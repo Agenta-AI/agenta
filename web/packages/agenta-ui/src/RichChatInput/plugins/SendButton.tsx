@@ -3,9 +3,8 @@ import {useEffect, useState} from "react"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {ArrowUp, Stop} from "@phosphor-icons/react"
 import {Button} from "antd"
-import {$getRoot} from "lexical"
 
-import {submitEditorAsMarkdown} from "../assets/submit"
+import {$isBlankMessage, submitEditorAsMarkdown} from "../assets/submit"
 
 interface SendButtonProps {
     onSubmit: (markdown: string) => void
@@ -27,7 +26,7 @@ export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}
 
     useEffect(() => {
         return editor.registerUpdateListener(({editorState}) => {
-            editorState.read(() => setEmpty($getRoot().getTextContentSize() === 0))
+            editorState.read(() => setEmpty($isBlankMessage()))
         })
     }, [editor])
 

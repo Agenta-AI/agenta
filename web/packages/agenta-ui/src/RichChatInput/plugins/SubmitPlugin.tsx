@@ -23,7 +23,9 @@ export function SubmitPlugin({onSubmit}: SubmitPluginProps) {
         return editor.registerCommand(
             KEY_ENTER_COMMAND,
             (event) => {
-                if (!event || !editor.isEditable()) return false
+                // Let the IME keep the Enter that confirms a composition candidate (CJK, etc.) —
+                // intercepting it would break text entry for IME users.
+                if (!event || !editor.isEditable() || event.isComposing) return false
 
                 // Shift+Enter / Cmd/Ctrl+Enter → native paragraph insert (list-item, exit,
                 // code line, or paragraph depending on context).
