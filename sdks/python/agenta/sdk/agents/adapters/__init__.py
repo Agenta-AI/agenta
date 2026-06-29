@@ -8,7 +8,13 @@
 Shared plumbing for the runner-backed adapters lives in ``agents/utils``.
 """
 
-from .harnesses import AgentaHarness, ClaudeHarness, PiHarness, make_harness
+from .harnesses import (
+    AgentaHarness,
+    ClaudeHarness,
+    OpencodeHarness,
+    PiHarness,
+    make_harness,
+)
 from .local import LocalBackend
 from .sandbox_agent import SandboxAgentBackend
 
@@ -18,5 +24,6 @@ __all__ = [
     "PiHarness",
     "ClaudeHarness",
     "AgentaHarness",
+    "OpencodeHarness",
     "make_harness",
 ]

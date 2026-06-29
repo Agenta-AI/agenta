@@ -43,12 +43,14 @@ class HarnessType(str, Enum):
     """The coding agent program a run drives. A backend declares which it supports.
 
     ``pi_core`` is plain Pi; ``pi_agenta`` is Pi with Agenta's forced skills, prompt, and
-    policy. Both drive the same ``pi`` ACP agent in the runner; ``claude`` drives Claude Code.
+    policy. Both drive the same ``pi`` ACP agent in the runner; ``claude`` drives Claude Code;
+    ``opencode`` drives OpenCode via its native ACP-over-SSE compat layer.
     """
 
     PI = "pi_core"
     CLAUDE = "claude"
     AGENTA = "pi_agenta"
+    OPENCODE = "opencode"
 
     @classmethod
     def coerce(cls, value: "HarnessType | str") -> "HarnessType":
@@ -101,6 +103,11 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         value=HarnessType.CLAUDE.value,
         slug=f"agenta:harness:{HarnessType.CLAUDE.value}:v0",
         name="Claude Code",
+    ),
+    HarnessIdentity(
+        value=HarnessType.OPENCODE.value,
+        slug=f"agenta:harness:{HarnessType.OPENCODE.value}:v0",
+        name="OpenCode",
     ),
 ]
 
@@ -904,6 +911,38 @@ class AgentaAgentTemplate(PiAgentTemplate):
     inline packages, not through ``wire_tools`` (skills are not tools)."""
 
     harness: ClassVar[HarnessType] = HarnessType.AGENTA
+
+
+class OpencodeAgentTemplate(HarnessAgentTemplate):
+    """OpenCode's config. No Pi built-ins; tools are delivered over MCP (same as Claude).
+    planMode is off (the daemon skips ``session/set_mode`` for opencode)."""
+
+    harness: ClassVar[HarnessType] = HarnessType.OPENCODE
+
+    tool_specs: List[ToolSpec] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("tool_specs", "custom_tools"),
+    )
+    permission_policy: PermissionPolicy = "auto"
+
+    @field_validator("tool_specs", mode="before")
+    @classmethod
+    def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
+        return [coerce_tool_spec(item) for item in value or []]
+
+    @property
+    def custom_tools(self) -> List[Dict[str, Any]]:
+        return [tool_spec.to_wire() for tool_spec in self.tool_specs]
+
+    def wire_tools(self) -> Dict[str, Any]:
+        return {
+            "tools": [],
+            "customTools": [tool_spec.to_wire() for tool_spec in self.tool_specs],
+            "toolCallback": self.tool_callback.to_wire()
+            if self.tool_callback
+            else None,
+            "permissionPolicy": self.permission_policy,
+        }
 
 
 # ---------------------------------------------------------------------------

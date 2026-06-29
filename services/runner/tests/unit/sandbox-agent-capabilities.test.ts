@@ -58,6 +58,13 @@ describe("mapCapabilities", () => {
     assert.equal(claude.capabilities.mcpTools, true);
   });
 
+  it("opencode static fallback: mcpTools true, planMode false (daemon skips set_mode for it)", () => {
+    const opencode = mapCapabilities("opencode", undefined);
+    assert.equal(opencode.source, "static");
+    assert.equal(opencode.capabilities.mcpTools, true);
+    assert.equal(opencode.capabilities.planMode, false);
+  });
+
   it("invariant: rejects an empty harness id", () => {
     assert.throws(() => mapCapabilities("", undefined), /non-empty harness id/);
   });

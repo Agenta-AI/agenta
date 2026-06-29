@@ -604,6 +604,47 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.hasSystemPrompt, false);
     assert.deepEqual(result.plan.skillDirs, []);
   });
+
+  it("normalizes a local opencode run: acpAgent=opencode, isPi=false, no usage path", () => {
+    const result = buildRunPlan(
+      {
+        harness: "opencode",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        secrets: { ANTHROPIC_API_KEY: "sk-ant" },
+        credentialMode: "env",
+      },
+      { createLocalCwd: () => "/tmp/opencode-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.harness, "opencode");
+    assert.equal(result.plan.acpAgent, "opencode");
+    assert.equal(result.plan.isPi, false);
+    assert.equal(result.plan.isDaytona, false);
+    assert.equal(result.plan.cwd, "/tmp/opencode-cwd");
+    assert.equal(result.plan.usageOutPath, undefined);
+    assert.equal(result.plan.credentialMode, "env");
+    assert.equal(result.plan.systemPrompt, undefined);
+    assert.equal(result.plan.hasSystemPrompt, false);
+  });
+
+  it("opencode run with OPENAI_API_KEY falls back to legacyHarnessApiKeyVar OPENAI_API_KEY", () => {
+    const result = buildRunPlan(
+      {
+        harness: "opencode",
+        messages: [{ role: "user", content: "hi" }],
+        secrets: { OPENAI_API_KEY: "sk-oai" },
+      },
+      { createLocalCwd: () => "/tmp/opencode-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.legacyHarnessApiKeyVar, "OPENAI_API_KEY");
+    assert.equal(result.plan.hasApiKey, true);
+  });
 });
 
 describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {

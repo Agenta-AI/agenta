@@ -68,7 +68,11 @@ const _requestKeysExistOnType: readonly (keyof AgentRunRequest)[] =
 void _requestKeysExistOnType;
 
 describe("wire contract: requests (vs Python golden)", () => {
-  for (const name of ["run_request.pi_core.json", "run_request.claude.json"]) {
+  for (const name of [
+    "run_request.pi_core.json",
+    "run_request.claude.json",
+    "run_request.opencode.json",
+  ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
       for (const key of Object.keys(req)) {
@@ -211,6 +215,20 @@ describe("wire contract: requests (vs Python golden)", () => {
       resolveRunSessionId(req, "runner-ephemeral"),
       "runner-ephemeral",
     );
+  });
+
+  it("opencode request: no built-ins, auto policy, no plan mode, no harness files", () => {
+    const req = loadGolden("run_request.opencode.json") as AgentRunRequest;
+    assert.equal(req.harness, "opencode");
+    assert.deepEqual(req.tools, []); // opencode has no Pi built-ins
+    assert.equal(req.permissionPolicy, "auto");
+    assert.equal(req.systemPrompt, undefined); // no prompt overrides
+    assert.equal(req.appendSystemPrompt, undefined);
+    assert.equal(req.harnessFiles, undefined); // no settings file
+    assert.equal(req.sandboxPermission, undefined);
+    // model is a provider/model-prefixed id
+    assert.ok(req.model!.includes("/"), "opencode model id must be provider/model-prefixed");
+    assert.equal(resolveRunSessionId(req, "runner-ephemeral"), "runner-ephemeral");
   });
 });
 

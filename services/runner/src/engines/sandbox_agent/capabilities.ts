@@ -96,8 +96,10 @@ export function mapCapabilities(
       },
     };
   }
-  // Static fallback by harness id: pi-acp does not forward MCP, Claude/Codex do.
+  // Static fallback by harness id: pi-acp does not forward MCP, Claude/opencode do.
+  // opencode is excluded from plan-mode (the daemon skips session/set_mode for it).
   const isPiHarness = harness === "pi";
+  const isOpencode = harness === "opencode";
   return {
     source: "static",
     capabilities: {
@@ -107,7 +109,7 @@ export function mapCapabilities(
       mcpTools: !isPiHarness,
       toolCalls: true,
       reasoning: true,
-      planMode: !isPiHarness,
+      planMode: !isPiHarness && !isOpencode,
       permissions: !isPiHarness,
       streamingDeltas: true,
       sessionLifecycle: true,
