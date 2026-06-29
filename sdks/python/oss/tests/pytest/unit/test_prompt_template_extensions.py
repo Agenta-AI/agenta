@@ -1,6 +1,7 @@
 from contextlib import nullcontext
 
 import pytest
+from pydantic import ValidationError
 
 from agenta.sdk.engines.running.handlers import (
     _coerce_fallback_policy,
@@ -180,6 +181,99 @@ def test_null_chat_template_kwargs_is_omitted_from_provider_kwargs():
     prompt = PromptTemplate(llm_config=ModelConfig(model="gpt-4o-mini"))
 
     assert "chat_template_kwargs" not in prompt.to_openai_kwargs()
+
+
+def test_tool_choice_required_is_passed_through_with_tools():
+    tool = {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get weather for a city.",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+        },
+    }
+    prompt = PromptTemplate(
+        llm_config=ModelConfig(
+            model="gpt-4o-mini",
+            tools=[tool],
+            tool_choice="required",
+        )
+    )
+
+    kwargs = prompt.to_openai_kwargs()
+
+    assert kwargs["tools"] == [tool]
+    assert kwargs["tool_choice"] == "required"
+
+
+def test_tool_choice_named_function_is_passed_through_with_tools():
+    tool = {
+        "type": "function",
+        "function": {"name": "get_weather", "parameters": {"type": "object"}},
+    }
+    prompt = PromptTemplate(
+        llm_config=ModelConfig(
+            model="gpt-4o-mini",
+            tools=[tool],
+            tool_choice={
+                "type": "function",
+                "function": {"name": "get_weather"},
+            },
+        )
+    )
+
+    assert prompt.to_openai_kwargs()["tool_choice"] == {
+        "type": "function",
+        "function": {"name": "get_weather"},
+    }
+
+
+def test_tool_choice_allowed_tools_is_passed_through_with_tools():
+    allowed_tool = {
+        "type": "function",
+        "function": {"name": "get_weather"},
+    }
+    prompt = PromptTemplate(
+        llm_config=ModelConfig(
+            model="gpt-4o-mini",
+            tools=[allowed_tool],
+            tool_choice={
+                "type": "allowed_tools",
+                "allowed_tools": {
+                    "mode": "required",
+                    "tools": [allowed_tool],
+                },
+            },
+        )
+    )
+
+    assert prompt.to_openai_kwargs()["tool_choice"] == {
+        "type": "allowed_tools",
+        "allowed_tools": {
+            "mode": "required",
+            "tools": [allowed_tool],
+        },
+    }
+
+
+def test_tool_choice_is_omitted_when_tools_are_absent():
+    prompt = PromptTemplate(
+        llm_config=ModelConfig(
+            model="gpt-4o-mini",
+            tool_choice="required",
+        )
+    )
+
+    assert "tool_choice" not in prompt.to_openai_kwargs()
+
+
+def test_tool_choice_rejects_invalid_string_values():
+    with pytest.raises(ValidationError):
+        ModelConfig(model="gpt-4o-mini", tool_choice="always")
 
 
 def test_fallback_config_uses_model_config_defaults():
