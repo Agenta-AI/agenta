@@ -150,7 +150,10 @@ export function useBuildKit({
         () => (Array.isArray(agentTemplateOverlay?.skills) ? agentTemplateOverlay.skills : []),
         [agentTemplateOverlay],
     )
-    const overlaySandbox = useMemo(() => asObj(agentTemplateOverlay?.sandbox), [agentTemplateOverlay])
+    const overlaySandbox = useMemo(
+        () => asObj(agentTemplateOverlay?.sandbox),
+        [agentTemplateOverlay],
+    )
     const overlayPermissions = useMemo(() => asObj(overlaySandbox?.permissions), [overlaySandbox])
     const platformOverlayTools = useMemo(
         () =>
@@ -166,16 +169,14 @@ export function useBuildKit({
     )
     const hasBuildKitOverlay = Boolean(
         agentTemplateOverlay &&
-            (platformOverlayTools.length > 0 ||
-                embeddedOverlayTools.length > 0 ||
-                embeddedOverlaySkills.length > 0 ||
-                Object.keys(overlayPermissions ?? {}).length > 0),
+        (platformOverlayTools.length > 0 ||
+            embeddedOverlayTools.length > 0 ||
+            embeddedOverlaySkills.length > 0 ||
+            Object.keys(overlayPermissions ?? {}).length > 0),
     )
     const sandboxPermissionOverrideKeys = useMemo(
         () =>
-            buildKitEnabled
-                ? overriddenPermissionKeys(sandboxPermissions, overlayPermissions)
-                : [],
+            buildKitEnabled ? overriddenPermissionKeys(sandboxPermissions, overlayPermissions) : [],
         [buildKitEnabled, sandboxPermissions, overlayPermissions],
     )
 
@@ -211,8 +212,8 @@ export function useBuildKit({
             {buildKitExpanded ? (
                 <div className="flex flex-col gap-3 border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 pb-3 pt-2.5">
                     <p className="m-0 text-[11.5px] leading-snug text-[var(--ag-c-586673,#586673)]">
-                        These playground-only tools, skills, and permissions help the assistant build
-                        and revise this agent. None of this is part of the published agent.
+                        These playground-only tools, skills, and permissions help the assistant
+                        build and revise this agent. None of this is part of the published agent.
                     </p>
                     {!buildKitEnabled ? (
                         <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-[11.5px] leading-snug text-[var(--ant-color-info-text)]">

@@ -445,11 +445,6 @@ export interface InspectWorkflowResponse {
     }
     request?: Record<string, unknown>
     meta?: Record<string, unknown>
-    additional_context?: {
-        playground_build_kit?: {
-            agent_template_overlay?: Record<string, unknown> | null
-        } | null
-    } | null
 }
 
 /**
@@ -489,6 +484,56 @@ export async function inspectWorkflow(
     )
 
     return response.data ?? {}
+}
+
+// ============================================================================
+// SIMPLE APPLICATION FETCH (carries the read-only playground build-kit overlay)
+// ============================================================================
+
+/**
+ * Response shape from `GET /simple/applications/{application_id}`.
+ *
+ * The playground build kit's `agent_template_overlay` rides here, on
+ * `additional_context` — the backend's read-only, platform-derived container on
+ * `SimpleApplicationResponse`. The agent-service `/inspect` response carries no
+ * behavior-changing meta, so the overlay is read from this app fetch instead.
+ */
+export interface SimpleApplicationFetchResponse {
+    count?: number
+    application?: Record<string, unknown> | null
+    additional_context?: {
+        playground_build_kit?: {
+            agent_template_overlay?: Record<string, unknown> | null
+        } | null
+    } | null
+}
+
+/**
+ * Fetch a single simple application by id.
+ *
+ * Endpoint: `GET /simple/applications/{application_id}`. Returns the app with
+ * its current variant/revision `data` merged, plus `additional_context` holding
+ * the playground-only build-kit overlay.
+ *
+ * @param applicationId - The application (workflow artifact) id
+ * @param projectId - Project ID
+ */
+export async function fetchSimpleApplication(
+    applicationId: string,
+    projectId: string,
+): Promise<SimpleApplicationFetchResponse | null> {
+    if (!projectId || !applicationId) return null
+
+    // Fern-generated client (single source of truth for the request/response
+    // shape). Its types under-declare the backend's `extra="allow"`
+    // `additional_context`, so it is read defensively below.
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    const data = await client.applications.fetchSimpleApplication(
+        {application_id: applicationId},
+        {queryParams: {project_id: projectId}},
+    )
+
+    return (data ?? null) as SimpleApplicationFetchResponse | null
 }
 
 // ============================================================================
