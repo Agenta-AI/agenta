@@ -1,0 +1,19 @@
+{
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "claude",
+  "model": "haiku",
+  "auth": "subscription-sidecar (OAuth)",
+  "commit": "a496504afb (gitbutler/workspace)",
+  "ts": "2026-06-28T03:21:50.360306+00:00",
+  "capability": "smoke: find_capabilities platform tool (default allow)",
+  "tool": {
+    "type": "platform",
+    "op": "find_capabilities"
+  },
+  "reply": "best-match CREATE_AN_ISSUE (GitHub/Composio) + schema",
+  "status_message": "Success",
+  "sidecar": "stopReason=end_turn",
+  "passed": true,
+  "expect": "platform tool runs unattended; /api/tools/discover healthy"
+}

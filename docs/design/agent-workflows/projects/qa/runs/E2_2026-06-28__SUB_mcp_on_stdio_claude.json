@@ -1,0 +1,24 @@
+{
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "claude",
+  "model": "haiku",
+  "auth": "subscription-sidecar (OAuth)",
+  "commit": "a496504afb (gitbutler/workspace)",
+  "ts": "2026-06-28T03:21:50.360306+00:00",
+  "capability": "MCP stdio, flag ON",
+  "mcp_flag": "true",
+  "request_mcp": [
+    {
+      "name": "qa",
+      "transport": "stdio",
+      "command": "node",
+      "args": [
+        "/tmp/mcp_qa_server.mjs"
+      ]
+    }
+  ],
+  "status_message": "Agent run failed: MCP servers are not supported by the sidecar.",
+  "passed": true,
+  "expect": "stdio user MCP disabled (fail-loud) for Claude \u2014 intended"
+}

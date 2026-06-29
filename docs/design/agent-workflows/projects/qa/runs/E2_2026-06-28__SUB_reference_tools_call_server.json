@@ -1,0 +1,16 @@
+{
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "claude",
+  "model": "haiku",
+  "auth": "subscription-sidecar (OAuth)",
+  "commit": "a496504afb (gitbutler/workspace)",
+  "ts": "2026-06-28T03:21:50.360306+00:00",
+  "capability": "smoke: reference tool server-side exec",
+  "endpoint": "POST /api/tools/call",
+  "function": "workflow.variant.completion-0o1r {country:France}",
+  "reply": "\"The capital of France is Paris.\"",
+  "status_code": "STATUS_CODE_OK",
+  "passed": true,
+  "expect": "reference resolves + executes server-side"
+}

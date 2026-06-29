@@ -1,0 +1,21 @@
+{
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "claude",
+  "model": "haiku",
+  "auth": "subscription-sidecar (OAuth)",
+  "commit": "a496504afb (gitbutler/workspace)",
+  "ts": "2026-06-28T03:21:50.360306+00:00",
+  "capability": "MCP http plain http://, flag ON",
+  "mcp_flag": "true",
+  "request_mcp": [
+    {
+      "name": "qa",
+      "transport": "http",
+      "url": "http://example.com/mcp"
+    }
+  ],
+  "status_message": "Agent run failed: http MCP server url must use https (got http): http://example.com/mcp",
+  "passed": true,
+  "expect": "SSRF guard: https required"
+}

@@ -1,0 +1,25 @@
+{
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "claude",
+  "model": "haiku",
+  "auth": "subscription-sidecar (OAuth)",
+  "commit": "a496504afb (gitbutler/workspace)",
+  "ts": "2026-06-28T03:21:50.360306+00:00",
+  "capability": "MCP stdio, service flag OFF (default)",
+  "mcp_flag": "AGENTA_AGENT_MCP_SERVERS_ENABLED=false",
+  "request_mcp": [
+    {
+      "name": "qa",
+      "transport": "stdio",
+      "command": "node",
+      "args": [
+        "/tmp/mcp_qa_server.mjs"
+      ]
+    }
+  ],
+  "http_status": 500,
+  "status_message": "MCP servers are disabled on this deployment (set AGENTA_AGENT_MCP_SERVERS_ENABLED to enable them), but the request declared 1 MCP server(s): qa. Remove them or enable MCP.",
+  "passed": true,
+  "expect": "fail-loud MCPDisabledError (F-039 fixed; F-047 env-var name corrected this sweep)"
+}

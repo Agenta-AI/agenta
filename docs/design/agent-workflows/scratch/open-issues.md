@@ -5,6 +5,32 @@ context and provenance to act on cold. See the `defer-todo` skill for the format
 
 ## Open issues
 
+### Add test coverage for agent tool schema delivery (reference + platform tools)
+
+**Status:** open
+**Added:** 2026-06-28
+**Source:** #4890 review (reference-tool schema expansion)
+**Project:** direct-call-tools (owns the reference/platform tool schema and the call descriptor)
+
+**The problem.** There are no automated assertions covering what the schema looks like once a
+reference or platform tool is wired into an agent. Two shapes need to be locked down:
+
+1. **`/inspect` output for an agent with reference/platform tools.** Assert the
+   `harness_capabilities` block and the tool definitions it contains — field names, required
+   fields, and the `x-ag-type-ref` expansion state (should it be expanded or raw at this point?).
+2. **The resolved tool shape after `x-ag-type-ref` expansion.** Once a tool is ADDED to an
+   agent config, assert: the `input_schema` is the concrete expanded schema (no `x-ag-type-ref`
+   left); the `call` descriptor has the expected shape; a reference tool carries `ref_by` /
+   `slug` / `version` at the expected keys; a platform tool carries `op` at the expected key.
+
+Without these tests, future changes to schema expansion or the call descriptor silently drift.
+
+**What to do.** Add unit/contract tests that:
+- Fixture an agent config with at least one reference tool and one platform tool.
+- Call `/inspect` (or the underlying catalog resolution) and assert the exact returned shape.
+- Call the add-tool path and assert the resolved spec fields above, locked by snapshot or
+  explicit field assertions.
+
 ### The `install_http` integration fixture patches removed `agenta_api_base`/`request_authorization` seams
 
 **Status:** open

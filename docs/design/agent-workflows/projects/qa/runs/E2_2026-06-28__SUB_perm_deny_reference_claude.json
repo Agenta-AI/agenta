@@ -1,0 +1,22 @@
+{
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "claude",
+  "model": "haiku",
+  "auth": "subscription-sidecar (OAuth)",
+  "commit": "a496504afb (gitbutler/workspace)",
+  "ts": "2026-06-28T03:21:50.360306+00:00",
+  "capability": "permission ladder: deny (reference tool)",
+  "tool": {
+    "type": "reference",
+    "ref_by": "variant",
+    "slug": "completion-0o1r",
+    "name": "capital_lookup",
+    "permission": "deny"
+  },
+  "reply": "DENIED",
+  "status_message": "Success",
+  "sidecar": "tool never executed",
+  "passed": true,
+  "expect": "deny blocks gracefully"
+}
