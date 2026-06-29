@@ -69,3 +69,34 @@ container extensible.)
 
 - Per-item edit or delete of kit items (the kit is whole-toggle, read-only in v1).
 - A picker to add platform tools to the published agent.
+
+## Resolved issues
+
+### Build-kit `@ag.embed` tools and skills failed to parse (HTTP 500)
+
+- **Symptom.** With the build kit on, a playground agent run returned HTTP 500
+  `Unsupported tool configuration shape`. The agent service raised it in
+  `AgentTemplate.from_params` while coercing `parameters.agent.tools`. Skills were affected the same
+  way; the tools field is validated first, so the tool error masked the skill error.
+- **Root cause.** Two bugs in the build-kit embed shapes.
+  1. The overlay builder emitted each `@ag.embed` reference without an `@ag.selector`. The canonical
+     embed shape carries `@ag.selector` with `parameters.skill` (skills) or `parameters.tool`
+     (tools). Without it the server-side resolver inlined the whole `revision.data`
+     (`{uri, parameters: {skill|tool: ...}}`), which neither the SDK skill parser nor the tool
+     coercer accepts.
+  2. The reserved `__ag__request_connection` static workflow stored its inline tool as a resolved
+     *spec* (`kind: "client"`) rather than a tool *config* (`type: "client"`). The `tools` field
+     holds configs discriminated by `type`, so even after selector extraction the value coerced to a
+     builtin tool named `request_connection` instead of a client tool.
+- **Fix.**
+  1. `api/oss/src/apis/fastapi/applications/overlay.py`: `_workflow_embed` now adds
+     `@ag.selector` (`parameters.skill` for the skill, `parameters.tool` for each reserved static
+     tool). Lane `feat/build-kit-4917-v2` (#4929).
+  2. `api/oss/src/core/workflows/static_catalog.py`: `_client_tool_revision` stores
+     `type: "client"`. The embed now resolves to a `ClientToolConfig`, which `resolve_tools` builds
+     into a `ClientToolSpec` carrying `render: {kind: "connect"}`. Lane
+     `feat/client-tool-roundtrip-4920` (#4925).
+- **Tests.** `test_build_kit_overlay.py` asserts the canonical selector; `test_static_catalog.py`
+  asserts the request_connection embed coerces to a `ClientToolConfig`;
+  `test_build_kit_resolve_parses.py` exercises overlay -> embed resolution (static catalogue, no DB)
+  -> `AgentTemplate.from_params` end to end.
