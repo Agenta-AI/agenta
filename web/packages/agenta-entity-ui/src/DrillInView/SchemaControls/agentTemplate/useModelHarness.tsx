@@ -707,6 +707,7 @@ export function useModelHarness({
                 >
                     <button
                         type="button"
+                        aria-expanded={authExpanded}
                         onClick={() => setAuthExpanded((open) => !open)}
                         className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
                     >
@@ -746,6 +747,7 @@ export function useModelHarness({
                 <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
                     <button
                         type="button"
+                        aria-expanded={execExpanded}
                         onClick={() => setExecExpanded((open) => !open)}
                         className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
                     >
@@ -815,6 +817,7 @@ export function useModelHarness({
                 <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
                     <button
                         type="button"
+                        aria-expanded={permsExpanded}
                         onClick={() => setPermsExpanded((open) => !open)}
                         className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
                     >
