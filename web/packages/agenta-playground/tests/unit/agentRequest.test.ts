@@ -37,13 +37,23 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
                 isDirty: mk<boolean>(false),
             },
         },
+        workflowAgentTemplateOverlayAtomFamily: mk<Record<string, unknown> | null>(null),
+        workflowBuildKitEnabledAtomFamily: mk<boolean>(true),
     }
 })
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 
-import {buildAgentRequest, buildAgentReferences} from "../../src/state/execution/agentRequest"
+import {
+    applyBuildKitOverlay,
+    buildAgentRequest,
+    buildAgentReferences,
+} from "../../src/state/execution/agentRequest"
 import {agentChannelModeAtom} from "../../src/state/execution/channelMode"
 import {executionHeadersAtom} from "../../src/state/execution/webWorkerIntegration"
 
@@ -62,6 +72,8 @@ function seed(
         config?: Record<string, unknown> | null
         data?: any
         isDirty?: boolean
+        overlay?: Record<string, unknown> | null
+        buildKitEnabled?: boolean
     },
 ) {
     set(
@@ -73,6 +85,22 @@ function seed(
     set(store, workflowMolecule.selectors.configuration, id, over.config ?? {temperature: 0.7})
     set(store, workflowMolecule.selectors.data, id, over.data ?? null)
     set(store, workflowMolecule.selectors.isDirty, id, over.isDirty ?? false)
+    store.set(
+        workflowAgentTemplateOverlayAtomFamily(id) as PrimitiveAtom<unknown>,
+        over.overlay ?? null,
+    )
+    store.set(
+        workflowBuildKitEnabledAtomFamily(id) as PrimitiveAtom<unknown>,
+        over.buildKitEnabled ?? true,
+    )
+}
+
+const authoringSkill = {
+    "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__getting_started_with_agenta"}}},
+}
+
+const requestConnectionTool = {
+    "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__request_connection"}}},
 }
 
 describe("buildAgentReferences (draft-id stripping)", () => {
@@ -186,6 +214,116 @@ describe("buildAgentRequest", () => {
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
         const template = (req!.requestBody.data as any).parameters.agent
         expect(template.runner.interactions.headless).toBe("deny")
+    })
+
+    it("applies the build-kit overlay to a kit-on run with deep and identity merges", async () => {
+        const config = {
+            agent: {
+                sandbox: {kind: "local", permissions: {execute_code: "deny", network: "on"}},
+                tools: [
+                    {type: "platform", op: "find_capabilities", permission: "ask"},
+                    {type: "client", name: "weather"},
+                    requestConnectionTool,
+                ],
+                skills: [authoringSkill],
+            },
+        }
+        const overlay = {
+            sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
+            tools: [
+                {type: "platform", op: "find_capabilities", permission: "allow"},
+                {type: "platform", op: "commit_revision"},
+                requestConnectionTool,
+            ],
+            skills: [authoringSkill],
+        }
+        const before = JSON.parse(JSON.stringify(config))
+        seed(store, "e", {config, overlay, buildKitEnabled: true})
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+
+        expect(template.sandbox).toEqual({
+            kind: "local",
+            permissions: {execute_code: "allow", network: "on", write_files: "allow"},
+        })
+        expect(template.tools).toEqual([
+            {type: "platform", op: "find_capabilities", permission: "allow"},
+            {type: "client", name: "weather"},
+            requestConnectionTool,
+            {type: "platform", op: "commit_revision"},
+        ])
+        expect(template.skills).toEqual([authoringSkill])
+        expect(config).toEqual(before)
+    })
+
+    it("sends the bare agent config unchanged when the build kit is off", async () => {
+        const config = {
+            agent: {
+                sandbox: {kind: "local", permissions: {execute_code: "deny"}},
+                tools: [{type: "client", name: "weather"}],
+            },
+        }
+        seed(store, "e", {
+            config,
+            overlay: {
+                sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
+                tools: [{type: "platform", op: "commit_revision"}],
+                skills: [authoringSkill],
+            },
+            buildKitEnabled: false,
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+
+        expect(template.sandbox.permissions).toEqual({execute_code: "deny"})
+        expect(template.tools).toEqual([{type: "client", name: "weather"}])
+        expect(template.skills).toBeUndefined()
+    })
+
+    it("leaves entity parameters bare so commit reads never include the kit", async () => {
+        const config = {
+            agent: {
+                sandbox: {kind: "local"},
+                tools: [{type: "client", name: "weather"}],
+            },
+        }
+        seed(store, "e", {
+            config,
+            overlay: {
+                sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
+                tools: [{type: "platform", op: "commit_revision"}],
+            },
+        })
+
+        await buildAgentRequest("e", [], {sessionId: "s1", store})
+
+        expect(store.get(workflowMolecule.selectors.configuration("e"))).toEqual(config)
+        expect(JSON.stringify(config)).not.toContain("commit_revision")
+        expect(JSON.stringify(config)).not.toContain("write_files")
+    })
+
+    it("applyBuildKitOverlay never mutates its input template", () => {
+        const base = {
+            sandbox: {kind: "local", permissions: {execute_code: "deny"}},
+            tools: [{type: "platform", op: "find_capabilities", permission: "ask"}],
+            skills: [],
+        }
+        const snapshot = JSON.parse(JSON.stringify(base))
+
+        const result = applyBuildKitOverlay(base, {
+            sandbox: {permissions: {execute_code: "allow"}},
+            tools: [{type: "platform", op: "find_capabilities", permission: "allow"}],
+            skills: [authoringSkill],
+        })
+
+        expect(base).toEqual(snapshot)
+        expect(result).not.toBe(base)
+        expect(result.sandbox).toEqual({
+            kind: "local",
+            permissions: {execute_code: "allow"},
+        })
     })
 
     it("INCLUDES references for a CLEAN committed revision run (marks it non-draft)", async () => {

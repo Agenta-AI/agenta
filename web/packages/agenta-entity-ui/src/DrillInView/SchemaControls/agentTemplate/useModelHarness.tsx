@@ -34,6 +34,7 @@ import {HarnessSelectControl} from "../HarnessSelectControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {enumLabel} from "./agentTemplateUtils"
+import {useBuildKit} from "./useBuildKit"
 
 export function useModelHarness({
     schema,
@@ -247,12 +248,22 @@ export function useModelHarness({
 
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     const hasClaudePermissions = harnessValue === "claude"
+
+    // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
+    // sandbox-permission keys the overlay overrides for the user's own permission control below.
+    const {hasBuildKitOverlay, buildKitSection, permissionOverrideHint} = useBuildKit({
+        revisionId,
+        sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
+        disabled,
+    })
+
     const hasAdvanced = Boolean(
         props.llm || // Authentication lives in Advanced now
         sandboxProps.kind ||
         sandboxProps.permissions ||
         runnerProps.interactions ||
-        hasClaudePermissions,
+        hasClaudePermissions ||
+        hasBuildKitOverlay,
     )
 
     // The Model picker (inspect-filtered when available, else the schema catalog).
@@ -671,8 +682,15 @@ export function useModelHarness({
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     const advancedControls = (
         <>
+            {buildKitSection}
+
             {authControls ? (
-                <div>
+                <div
+                    className={cn(
+                        hasBuildKitOverlay &&
+                            "border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-4",
+                    )}
+                >
                     <div className="mb-0.5 flex items-center gap-1.5">
                         <Key size={15} className="text-[var(--ag-c-586673,#586673)]" />
                         <span className="text-[13px] font-medium">Authentication</span>
@@ -705,15 +723,19 @@ export function useModelHarness({
                             />
                         )}
                         {sandboxProps.permissions ? (
-                            <SandboxPermissionControl
-                                value={
-                                    (sandbox.permissions as Record<string, unknown> | null) ?? null
-                                }
-                                onChange={(v) =>
-                                    setSection("sandbox", {...sandbox, permissions: v})
-                                }
-                                disabled={disabled}
-                            />
+                            <div className="flex flex-col gap-1.5">
+                                {permissionOverrideHint}
+                                <SandboxPermissionControl
+                                    value={
+                                        (sandbox.permissions as Record<string, unknown> | null) ??
+                                        null
+                                    }
+                                    onChange={(v) =>
+                                        setSection("sandbox", {...sandbox, permissions: v})
+                                    }
+                                    disabled={disabled}
+                                />
+                            </div>
                         ) : null}
                     </div>
                 </div>

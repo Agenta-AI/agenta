@@ -66,9 +66,12 @@ from oss.src.apis.fastapi.applications.models import (
     SimpleApplicationCreateRequest,
     SimpleApplicationEditRequest,
     SimpleApplicationQueryRequest,
+    SimpleApplicationAdditionalContext,
     SimpleApplicationResponse,
     SimpleApplicationsResponse,
+    PlaygroundBuildKitContext,
 )
+from oss.src.apis.fastapi.applications.overlay import build_agent_template_overlay
 from oss.src.apis.fastapi.applications.utils import (
     parse_application_variant_query_request_from_params,
     parse_application_variant_query_request_from_body,
@@ -1905,6 +1908,13 @@ class SimpleApplicationsRouter:
         simple_application_response = SimpleApplicationResponse(
             count=1 if simple_application else 0,
             application=simple_application,
+            additional_context=SimpleApplicationAdditionalContext(
+                playground_build_kit=PlaygroundBuildKitContext(
+                    agent_template_overlay=build_agent_template_overlay(),
+                ),
+            )
+            if simple_application
+            else None,
         )
 
         return simple_application_response

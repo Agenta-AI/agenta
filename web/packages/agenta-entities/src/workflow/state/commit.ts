@@ -69,6 +69,8 @@ function prepareCommitParameters(
     entity: Workflow,
     flatParams: Record<string, unknown> | null,
 ): Record<string, unknown> | undefined {
+    // The playground build-kit overlay lives in read-only additional_context/session atoms. Commit
+    // reads only the user-owned revision config here, so platform ops and sandbox elevation stay out.
     const rawParams = stripAgentaMetadataDeep(entity.data?.parameters) as
         | Record<string, unknown>
         | undefined

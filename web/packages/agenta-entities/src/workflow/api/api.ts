@@ -445,6 +445,11 @@ export interface InspectWorkflowResponse {
     }
     request?: Record<string, unknown>
     meta?: Record<string, unknown>
+    additional_context?: {
+        playground_build_kit?: {
+            agent_template_overlay?: Record<string, unknown> | null
+        } | null
+    } | null
 }
 
 /**
