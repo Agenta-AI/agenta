@@ -75,13 +75,38 @@ self-contained edit that keeps the tree green (ruff + the streams unit/contract 
 - [ ] `cd api && py-run-tests` — streams unit + `test_redis_contract` green.
 - [ ] `cd services/agent && pnpm test && pnpm run typecheck` — TS contract + server seams green.
 
-## Phase 2 — web demonstrator (scope; built after Phase 1 lands)
+## Phase 2 — web demonstrator
 
-- [ ] Session icon in the playground header → opens the inspector drawer.
-- [ ] One tab per element: mounts / transcripts / states / streams / interactions, each on its
-      productized endpoint.
-- [ ] Streams tab: alive/running/attached badges (from `fetch_session_stream`), attach /
-      detach / kill controls, interactions respond.
+### 1. Per-panel `session_id` (read-back, runner-minted)
+
+- [ ] `executeViaFetch` (and the agent-lane normalizer): extract `session_id` from the run
+      response alongside the existing `trace_id`/`span_id`; add it to `ExecutionResult`.
+- [ ] Playground execution state: persist a `session_id` per panel (a map keyed off the
+      panel's `ExecutionSession.id`), written from the first run's `ExecutionResult.session_id`.
+      Never send `session_id` on invoke; `"sess:<runnableId>"` must never cross to the API.
+- [ ] An atom/selector exposing a panel's backend `session_id` (null until first run returns).
+
+### 2. Session icon in the playground header
+
+- [ ] Per-panel session icon button in the playground header; disabled until that panel has a
+      `session_id`. Click opens the inspector drawer keyed off that id.
+
+### 3. Inspector drawer + tabs
+
+- [ ] `SessionInspectorDrawer` (app layer, `web/oss/src/components/...`) on `EnhancedDrawer`
+      (`@agenta/ui/drawer`) + antd `Tabs`; opens/closes via a small drawer store; keyed off
+      `session_id`.
+- [ ] streams tab: `fetchSessionStream` → nest badges (`is_alive`/`is_running`/`is_attached`;
+      `resumable`/`reattachable` derived client-side) + attach (`setSessionStream`) / detach
+      (`detachSessionStream`) / kill (`deleteSessionStream`).
+- [ ] transcripts tab: `queryTranscripts` (+ `getTranscriptEvent` on expand).
+- [ ] states tab: `getState`.
+- [ ] mounts tab: `querySessionMounts`.
+- [ ] interactions tab: `queryInteractions` + respond (`respondInteraction`).
 - [ ] Send/steer/cancel stay the playground chat's job — the drawer does not add a send path.
-- [ ] Fern client regen for the renamed operation ids (`fetch/set/delete/query/detach/
-      heartbeat_session_stream`).
+
+### 4. Tests + checks
+
+- [ ] Unit test the `session_id` capture/persist logic (mock `@agenta/sdk`).
+- [ ] `pnpm lint-fix` in `web`; typecheck the touched packages/app.
+- [x] Fern client regen for the renamed operation ids (done in Phase 1).

@@ -80,6 +80,7 @@ import {
     executionModeAtomFamily,
     sessionsAtomFamily,
     activeSessionsAtomFamily,
+    backendSessionIdAtomFamily,
     stepsAtomFamily,
     resultsForStepAtomFamily,
     resultAtomFamily,
@@ -335,6 +336,17 @@ export const executionController = {
          */
         resultForStepSession: (loadableId: string, stepId: string, sessionId: string) =>
             resultAtomFamily({loadableId, stepId, sessionId}),
+
+        /**
+         * Get a panel's runner-minted backend session_id (read back from the first run).
+         * The `sessionId` arg is the playground UI column key; the returned value is the
+         * distinct backend conversation correlator the sessions API keys off, or null.
+         * @param loadableId - The loadable instance ID
+         * @param sessionId - The panel (UI column) session id
+         * @returns Atom for the backend session_id, or null until the first run returns it
+         */
+        backendSessionId: (loadableId: string, sessionId: string) =>
+            backendSessionIdAtomFamily({loadableId, sessionId}),
 
         /**
          * Check if a step is currently running (any session)
