@@ -159,7 +159,7 @@ export function AgentTemplateControl({
 
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
-    const mh = useModelHarness({schema, config, onChange, revisionId, disabled, withTooltip})
+    const mh = useModelHarness({schema, config, onChange, disabled, withTooltip})
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
@@ -204,6 +204,18 @@ export function AgentTemplateControl({
     const hasMcp = Boolean(props.mcps)
     const hasSkills = Boolean(props.skills)
 
+    // Per-field section headers read their label from the template schema (`props.<field>.title`),
+    // so a field rename propagates without editing this file; the literal is a fallback. Composite
+    // sections (Model & harness, Advanced) and Triggers keep their FE labels, and icons aren't in
+    // the schema.
+    const fieldTitle = useCallback(
+        (field: string, fallback: string): string => {
+            const t = (props[field] as {title?: unknown} | undefined)?.title
+            return typeof t === "string" && t.trim() ? t : fallback
+        },
+        [props],
+    )
+
     // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
     // drive the same add flow.
     const toolSelectorProps = {
@@ -242,7 +254,7 @@ export function AgentTemplateControl({
         hasInstructions && {
             key: "instructions",
             icon: <FileText size={16} />,
-            title: "Instructions",
+            title: fieldTitle("instructions", "Instructions"),
             summary: countSummary(1, "file"),
             // The + is inert until the backend stores multiple instruction files; the section is
             // already a list so it lights up with no rework when that lands.
@@ -272,7 +284,7 @@ export function AgentTemplateControl({
         hasTools && {
             key: "tools",
             icon: <Wrench size={16} />,
-            title: "Tools",
+            title: fieldTitle("tools", "Tools"),
             summary: countSummary(tools.length, "tool"),
             extra: !disabled ? (
                 <ToolSelectorPopover
@@ -311,7 +323,7 @@ export function AgentTemplateControl({
         hasMcp && {
             key: "mcp",
             icon: <Plugs size={16} />,
-            title: "MCP servers",
+            title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
@@ -330,7 +342,7 @@ export function AgentTemplateControl({
         hasSkills && {
             key: "skills",
             icon: <GraduationCap size={16} />,
-            title: "Skills",
+            title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
