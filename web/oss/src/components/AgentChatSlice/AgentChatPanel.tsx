@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
+import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
 import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
@@ -21,6 +22,7 @@ import {
 import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import AgentMessage from "./components/AgentMessage"
+import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import QueuedMessages from "./components/QueuedMessages"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
@@ -244,6 +246,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         regenerate,
         setMessages,
         addToolApprovalResponse,
+        addToolOutput,
         error,
     } = useChat({
         id: sessionId,
@@ -260,6 +263,30 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
+    // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
+    // last turn and the resume predicate auto-resends. `tool` is only the typed-tools key — matching
+    // is by id — so a cast onto the untyped UIMessage tool map is safe.
+    const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
+        ({toolName, toolCallId, output, errorText}) => {
+            if (errorText !== undefined) {
+                addToolOutput({
+                    state: "output-error",
+                    tool: toolName as never,
+                    toolCallId,
+                    errorText,
+                }).catch(ignoreStreamRejection)
+            } else {
+                addToolOutput({
+                    tool: toolName as never,
+                    toolCallId,
+                    output: (output ?? {}) as never,
+                }).catch(ignoreStreamRejection)
+            }
+        },
+        [addToolOutput],
+    )
 
     // ── "Run in playground" seam (producer: a trigger drawer's Run-in-playground) ──
     // A trigger fires server-side and never reaches the playground; this lets a user
@@ -359,6 +386,27 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         if (status === "streaming") return
         persistMessages({id: sessionId, messages})
     }, [messages, status, sessionId, persistMessages])
+
+    // ── #4920 Application 1: refresh the config on a committed revision ──
+    // When the agent commits a new revision of itself, the backend emits a one-way
+    // `data-committed-revision` part (same channel as `data-trace`), in BOTH the gated approval path
+    // and the direct `needs_approval=false` path. On receipt we invalidate the latest-revision and
+    // inspect caches so the config panel, section drawers, and build-kit view all re-read the new
+    // config. Deduped by revision id so a re-render (token stream) doesn't re-invalidate.
+    const committedRevisionsSeenRef = useRef<Set<string>>(new Set())
+    useEffect(() => {
+        for (const message of messages) {
+            for (const part of message.parts) {
+                if ((part as {type?: string}).type !== "data-committed-revision") continue
+                const data = (part as {data?: {revisionId?: string; version?: string}}).data
+                // A stable key per commit: prefer the revision id, fall back to the whole payload.
+                const key = data?.revisionId ?? JSON.stringify(data ?? {}) ?? "committed"
+                if (committedRevisionsSeenRef.current.has(key)) continue
+                committedRevisionsSeenRef.current.add(key)
+                invalidateAgentCommittedRevisionCache()
+            }
+        }
+    }, [messages])
 
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const markStopped = useCallback(() => {
@@ -734,8 +782,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 <AgentMessage
                     message={message}
                     isStreaming={busy && isLast}
+                    isLastMessage={isLast}
                     onRewind={() => handleRewind(message)}
                     onApprovalResponse={addToolApprovalResponse}
+                    onClientToolOutput={handleClientToolOutput}
                     precededByEmptyAssistant={
                         index > 0 && isEmptyAssistantTurn(messages[index - 1])
                     }

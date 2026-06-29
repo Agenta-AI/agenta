@@ -28,6 +28,7 @@ import {
     type MessageUsageMetrics,
 } from "../assets/trace"
 
+import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
 
 const {Text} = Typography
@@ -48,10 +49,15 @@ interface AgentMessageProps {
     /** This is the last message AND the conversation is streaming — i.e. the one being
      * generated right now. Only it shows the loading state; settled turns never do. */
     isStreaming?: boolean
+    /** This is the last message in the conversation. A parked client tool only lands on the last
+     * turn, so the unknown-client-tool fallback only arms there (see `isClientToolPart`). */
+    isLastMessage?: boolean
     /** Stable across renders (parent passes a `useCallback`'d handler) so the `memo()` below
      * isn't defeated — the message to rewind to is passed in, not closed over per render. */
     onRewind: (message: UIMessage) => void
     onApprovalResponse: (args: {id: string; approved: boolean}) => void
+    /** Settle a parked client tool (#4920) — the dispatcher calls this from a widget. */
+    onClientToolOutput: ClientToolOutputHandler
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
      * run of "no response" bubbles down to the first one. */
     precededByEmptyAssistant?: boolean
@@ -164,8 +170,10 @@ const avatarFor = (isUser: boolean) => (
 const AgentMessage = ({
     message,
     isStreaming = false,
+    isLastMessage = false,
     onRewind,
     onApprovalResponse,
+    onClientToolOutput,
     precededByEmptyAssistant = false,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -240,9 +248,16 @@ const AgentMessage = ({
     type RenderItem =
         | {kind: "part"; part: UIMessage["parts"][number]; index: number}
         | {kind: "tools"; parts: ToolUIPart[]; index: number}
+        | {kind: "clientTool"; part: ToolUIPart; index: number}
     const renderItems: RenderItem[] = []
     message.parts.forEach((part, i) => {
         if (isToolPart(part.type)) {
+            // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
+            // into the "Used N tools" group — so it breaks any current tool run.
+            if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage})) {
+                renderItems.push({kind: "clientTool", part: part as ToolUIPart, index: i})
+                return
+            }
             const last = renderItems[renderItems.length - 1]
             if (last && last.kind === "tools") last.parts.push(part as ToolUIPart)
             else renderItems.push({kind: "tools", parts: [part as ToolUIPart], index: i})
@@ -317,6 +332,15 @@ const AgentMessage = ({
                             isStreaming={isStreaming}
                             onApprovalResponse={onApprovalResponse}
                             onViewTrace={onViewTrace}
+                        />
+                    )
+                }
+                if (item.kind === "clientTool") {
+                    return (
+                        <ClientToolPart
+                            key={`${message.id}-clienttool-${item.part.toolCallId || item.index}`}
+                            part={item.part}
+                            onOutput={onClientToolOutput}
                         />
                     )
                 }
