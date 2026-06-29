@@ -560,10 +560,15 @@ services:
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
             AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
             PI_CODING_AGENT_DIR: /pi-agent
-            # Tracing export fallback (used when a request carries no usable OTLP
-            # credential). Must be reachable from this container.
-            AGENTA_API_URL: ${AGENTA_API_URL:-}
+            # The API as reached FROM this container — by its compose service name, over the
+            # network (the same `http://api:8000` the workers use), NOT the public
+            # `http://localhost/api` (which doesn't resolve inside a container). Used by the
+            # OTLP tracing-export fallback AND the session heartbeat/transcript-persist calls.
+            AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
+            # The session heartbeat/persist calls hit /admin/* endpoints, which the API
+            # gates on this key. The sandbox-agent has no env_file, so pass it explicitly.
+            AGENTA_AUTH_KEY: ${AGENTA_AUTH_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
             DAYTONA_API_URL: ${DAYTONA_API_URL:-}
