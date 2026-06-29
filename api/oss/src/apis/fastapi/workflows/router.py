@@ -1527,6 +1527,11 @@ class WorkflowsRouter:
         # Invalidate legacy caches so the registry page reflects the new revision
         await invalidate_cache(project_id=request.state.project_id)
 
+        await _emit_committed_revision_data_event(
+            request=request,
+            workflow_revision=workflow_revision,
+        )
+
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
