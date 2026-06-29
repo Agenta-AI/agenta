@@ -1118,7 +1118,7 @@ def _harness_field_schema_extra() -> Dict[str, Any]:
 class _ConnectionSchema(BaseModel):
     """The model credential connection (the existing ``ModelRef.connection``)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Connection")
 
     mode: Literal["agenta", "self_managed"] = Field(
         default="agenta",
@@ -1139,7 +1139,7 @@ class _LlmSchema(BaseModel):
     carry the structured intent when authored; ``extras`` is the neutral knobs bag (was
     ``ModelRef.params``)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Model")
 
     model: str = Field(
         default=_DEFAULT_AGENT_MODEL,
@@ -1169,7 +1169,7 @@ class _InstructionsSchema(BaseModel):
     file (becomes the harness ``AGENTS.md``); the object wraps it so later instruction kinds
     have a home."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Instructions")
 
     agents_md: str = Field(
         default=_DEFAULT_AGENTS_MD,
@@ -1259,7 +1259,7 @@ class _HarnessPermissionsSchema(BaseModel):
     permission mode; ``allow`` / ``ask`` / ``deny`` are per-tool rule strings. A non-gating
     harness (Pi) leaves this empty."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Permissions")
 
     default_mode: Optional[
         Literal["default", "acceptEdits", "plan", "bypassPermissions"]
@@ -1293,7 +1293,7 @@ class _HarnessSchema(BaseModel):
     ``permissions`` is the gating posture for harnesses that gate tool use (Claude). ``extras``
     is the per-harness escape hatch (Pi's ``system`` / ``append_system`` prompt overrides)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Harness")
 
     kind: str = Field(
         default=_DEFAULT_HARNESS,
@@ -1327,7 +1327,7 @@ class _InteractionsSchema(BaseModel):
     The runner enforces it (``services/agent/src/responder.ts``). ``input`` and ``client_tool``
     interaction kinds extend this section in a later step."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Interactions")
 
     headless: Literal["auto", "deny"] = Field(
         default=_DEFAULT_PERMISSION_POLICY,
@@ -1347,7 +1347,7 @@ class _RunnerSchema(BaseModel):
     hatch. The rest of the runner surface (per-kind interaction handling, delivery channel,
     hooks, loop controls) is a later step."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Runner")
 
     kind: Literal["sidecar"] = Field(
         default="sidecar",
@@ -1373,7 +1373,7 @@ class _SandboxSchema(BaseModel):
     ``kind`` is the sandbox provider; ``permissions`` is the security boundary folded in
     first-class (was ``sandbox_permission``). ``extras`` is the per-sandbox escape hatch."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Sandbox")
 
     kind: Literal["local", "daytona"] = Field(
         default=_DEFAULT_SANDBOX,

@@ -1,19 +1,20 @@
-import {agentChannelModeAtom} from "@agenta/playground"
+import {createNegotiatingFetch, type NegotiatingFetch} from "@agenta/playground"
 import {DefaultChatTransport, type UIMessage, type UIMessageChunk} from "ai"
-import {getDefaultStore} from "jotai"
 
 /**
  * Agent chat transport.
  *
- * `useChat` only renders a stream of `UIMessageChunk`s — it has no "batch" mode. So when the
- * playground's channel mode is `batch`, the backend returns a single `WorkflowBatchResponse`
- * (JSON, because `buildAgentRequest` sent `Accept: application/json`) and this transport replays
+ * `useChat` only renders a stream of `UIMessageChunk`s — it has no "batch" mode. So when the run
+ * resolves to a batch (the toggle forced it, or the backend fell back because the handler can't
+ * stream), the backend returns a single `WorkflowBatchResponse` (JSON) and this transport replays
  * it as a ONE-SHOT UIMessage stream — the same chunk sequence the SSE path emits — so the reply
- * lands in a single frame. Stream mode delegates to the default SSE parser unchanged.
+ * lands in a single frame. A real stream delegates to the default SSE parser unchanged.
  *
- * The mode is read from the shared `agentChannelModeAtom` (the same atom that set the request's
- * Accept header), so the request channel and the response handling always agree. The main
- * playground uses the default Jotai store, which is what `buildAgentRequest` reads too.
+ * Which channel resolved is decided by the `createNegotiatingFetch` middleware, NOT a fixed
+ * toggle: it requests the stream, falls back to a batch re-request on a 406 (handler can't
+ * stream), and passes any other error through so `useChat` surfaces it inline. The transport
+ * parses the body according to the channel that fetch actually resolved (`resolvedMode`), so the
+ * request and the response handling can never disagree.
  */
 type AnyChunk = UIMessageChunk
 
@@ -190,9 +191,22 @@ function batchJsonToUiMessageStream(
 }
 
 export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
+    private readonly negotiator: NegotiatingFetch
+
+    constructor(options: ConstructorParameters<typeof DefaultChatTransport<UIMessage>>[0] = {}) {
+        // Own the transport's `fetch` so every request goes through stream→batch negotiation;
+        // any caller-supplied fetch becomes the negotiator's base (tests inject one here).
+        super({...options, fetch: undefined})
+        this.negotiator = createNegotiatingFetch(options.fetch)
+        this.fetch = this.negotiator.fetch
+    }
+
     protected processResponseStream(stream: ReadableStream<Uint8Array>): ReadableStream<AnyChunk> {
-        const mode = getDefaultStore().get(agentChannelModeAtom)
-        if (mode === "batch") return batchJsonToUiMessageStream(stream)
+        // Parse by the channel the request actually resolved to, not the requested one — a stream
+        // request can come back as a batch via the 406 fallback. The mode is keyed off this exact
+        // body stream (`resolvedMode(stream)`), so request and parse stay in lockstep.
+        if (this.negotiator.resolvedMode(stream) === "batch")
+            return batchJsonToUiMessageStream(stream)
         return super.processResponseStream(stream)
     }
 }
