@@ -1,10 +1,6 @@
-"""Domain-level exceptions for organizations."""
+"""Domain-level exceptions for organizations (EE-specific)."""
 
-
-class OrganizationError(Exception):
-    """Base exception for organization-related errors."""
-
-    pass
+from oss.src.core.organizations.exceptions import OrganizationError
 
 
 class OrganizationSlugConflictError(OrganizationError):
@@ -13,36 +9,4 @@ class OrganizationSlugConflictError(OrganizationError):
     def __init__(self, slug: str, message: str = None):
         self.slug = slug
         self.message = message or f"Organization slug '{slug}' is already in use."
-        super().__init__(self.message)
-
-
-class OrganizationNotFoundError(OrganizationError):
-    """Raised when an organization is not found."""
-
-    def __init__(self, organization_id: str, message: str = None):
-        self.organization_id = organization_id
-        self.message = message or f"Organization with id '{organization_id}' not found."
-        super().__init__(self.message)
-
-
-class LastOrganizationError(OrganizationError):
-    """Raised when attempting to delete the user's last organization."""
-
-    def __init__(self, message: str = None):
-        self.message = (
-            message
-            or "Cannot delete your last organization. You must have at least one organization."
-        )
-        super().__init__(self.message)
-
-
-class OrganizationCreationNotAllowedError(OrganizationError):
-    """Raised when a user is not in the org creation allowlist."""
-
-    def __init__(self, email: str, message: str = None):
-        self.email = email
-        self.message = (
-            message
-            or "You are not allowed to create organizations. Please ask your administrator for an invitation."
-        )
         super().__init__(self.message)

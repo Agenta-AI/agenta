@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import delete, Connection, insert, func
 
 from oss.src.models.db_models import UserDB, InvitationDB, ProjectDB
-from ee.src.models.extended.deprecated_models import OldInvitationDB
+from ee.databases.postgres.migrations.core.deprecated_models import OldInvitationDB
 
 
 BATCH_SIZE = 200

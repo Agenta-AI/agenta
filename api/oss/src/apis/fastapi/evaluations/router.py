@@ -114,12 +114,11 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioNotFound,
 )
 
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+
 if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
 
 
@@ -580,14 +579,14 @@ class EvaluationsRouter:
         *,
         runs_create_request: EvaluationRunsCreateRequest,
     ) -> EvaluationRunsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if is_ee():
             delta = len(runs_create_request.runs)
             if delta:
                 allowed, _, _ = await check_entitlements(  # type: ignore
@@ -643,13 +642,12 @@ class EvaluationsRouter:
         *,
         runs_edit_request: EvaluationRunsEditRequest,
     ) -> EvaluationRunsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         runs = await self.evaluations_service.edit_runs(
             project_id=UUID(request.state.project_id),
@@ -673,13 +671,12 @@ class EvaluationsRouter:
         *,
         run_ids_request: EvaluationRunIdsRequest,
     ) -> EvaluationRunIdsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         run_ids = await self.evaluations_service.delete_runs(
             project_id=UUID(request.state.project_id),
@@ -703,13 +700,12 @@ class EvaluationsRouter:
         *,
         run_query_request: EvaluationRunQueryRequest,
     ) -> EvaluationRunsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         runs = await self.evaluations_service.query_runs(
             project_id=UUID(request.state.project_id),
@@ -741,13 +737,12 @@ class EvaluationsRouter:
         *,
         run_ids_request: EvaluationRunIdsRequest,
     ) -> EvaluationRunsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         runs = await self.evaluations_service.close_runs(
             project_id=UUID(request.state.project_id),
@@ -771,13 +766,12 @@ class EvaluationsRouter:
         *,
         run_ids_request: EvaluationRunIdsRequest,
     ) -> EvaluationRunsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         runs = await self.evaluations_service.open_runs(
             project_id=UUID(request.state.project_id),
@@ -802,13 +796,12 @@ class EvaluationsRouter:
         *,
         run_id: UUID,
     ) -> EvaluationRunResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         run = await self.evaluations_service.fetch_run(
             project_id=UUID(request.state.project_id),
@@ -832,13 +825,12 @@ class EvaluationsRouter:
         *,
         run_id: UUID,
     ) -> EvaluationQueueResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queue = await self.evaluations_service.fetch_default_queue(
             project_id=UUID(request.state.project_id),
@@ -857,13 +849,12 @@ class EvaluationsRouter:
         #
         run_edit_request: EvaluationRunEditRequest,
     ) -> EvaluationRunResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(run_id) != str(run_edit_request.run.id):
             return EvaluationRunResponse()
@@ -890,13 +881,12 @@ class EvaluationsRouter:
         *,
         run_id: UUID,
     ) -> EvaluationRunIdResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         _run_id = await self.evaluations_service.delete_run(
             project_id=UUID(request.state.project_id),
@@ -922,13 +912,12 @@ class EvaluationsRouter:
         #
         status: Optional[EvaluationStatus] = Query(None),
     ) -> EvaluationRunResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         run = await self.evaluations_service.close_run(
             project_id=UUID(request.state.project_id),
@@ -954,13 +943,12 @@ class EvaluationsRouter:
         *,
         run_id: UUID,
     ) -> EvaluationRunResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         run = await self.evaluations_service.open_run(
             project_id=UUID(request.state.project_id),
@@ -987,13 +975,12 @@ class EvaluationsRouter:
         *,
         scenarios_create_request: EvaluationScenariosCreateRequest,
     ) -> EvaluationScenariosResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         scenarios = await self.evaluations_service.create_scenarios(
             project_id=UUID(request.state.project_id),
@@ -1018,13 +1005,12 @@ class EvaluationsRouter:
         *,
         scenarios_edit_request: EvaluationScenariosEditRequest,
     ) -> EvaluationScenariosResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         scenarios = await self.evaluations_service.edit_scenarios(
             project_id=UUID(request.state.project_id),
@@ -1049,13 +1035,12 @@ class EvaluationsRouter:
         *,
         scenario_ids_request: EvaluationScenarioIdsRequest,
     ) -> EvaluationScenarioIdsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         scenario_ids = await self.evaluations_service.delete_scenarios(
             project_id=UUID(request.state.project_id),
@@ -1079,13 +1064,12 @@ class EvaluationsRouter:
         *,
         scenario_query_request: EvaluationScenarioQueryRequest,
     ) -> EvaluationScenariosResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_SCENARIOS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         scenarios = await self.evaluations_service.query_scenarios(
             project_id=UUID(request.state.project_id),
@@ -1111,13 +1095,12 @@ class EvaluationsRouter:
         *,
         scenario_id: UUID,
     ) -> EvaluationScenarioResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_SCENARIOS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         scenario = await self.evaluations_service.fetch_scenario(
             project_id=UUID(request.state.project_id),
@@ -1143,13 +1126,12 @@ class EvaluationsRouter:
         #
         scenario_edit_request: EvaluationScenarioEditRequest,
     ) -> EvaluationScenarioResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(scenario_id) != str(scenario_edit_request.scenario.id):
             return EvaluationScenarioResponse()
@@ -1176,13 +1158,12 @@ class EvaluationsRouter:
         *,
         scenario_id: UUID,
     ) -> EvaluationScenarioIdResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         _scenario_id = await self.evaluations_service.delete_scenario(
             project_id=UUID(request.state.project_id),
@@ -1208,13 +1189,12 @@ class EvaluationsRouter:
         *,
         results_set_request: EvaluationResultsSetRequest,
     ) -> EvaluationResultsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         results = await self.evaluations_service.set_results(
             project_id=UUID(request.state.project_id),
@@ -1239,13 +1219,12 @@ class EvaluationsRouter:
         *,
         result_ids_request: EvaluationResultIdsRequest,
     ) -> EvaluationResultIdsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         result_ids = await self.evaluations_service.delete_results(
             project_id=UUID(request.state.project_id),
@@ -1269,13 +1248,12 @@ class EvaluationsRouter:
         *,
         result_query_request: EvaluationResultQueryRequest,
     ) -> EvaluationResultsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_RESULTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         results = await self.evaluations_service.query_results(
             project_id=UUID(request.state.project_id),
@@ -1301,13 +1279,12 @@ class EvaluationsRouter:
         *,
         result_id: UUID,
     ) -> EvaluationResultResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_RESULTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         result = await self.evaluations_service.fetch_result(
             project_id=UUID(request.state.project_id),
@@ -1331,13 +1308,12 @@ class EvaluationsRouter:
         *,
         result_id: UUID,
     ) -> EvaluationResultIdResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         _result_id = await self.evaluations_service.delete_result(
             project_id=UUID(request.state.project_id),
@@ -1363,13 +1339,12 @@ class EvaluationsRouter:
         *,
         metrics_refresh_request: EvaluationMetricsRefreshRequest,
     ) -> EvaluationMetricsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         metrics = await self.evaluations_service.refresh_metrics(
             project_id=UUID(request.state.project_id),
@@ -1394,13 +1369,12 @@ class EvaluationsRouter:
         *,
         metrics_set_request: EvaluationMetricsSetRequest,
     ) -> EvaluationMetricsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         metrics = await self.evaluations_service.set_metrics(
             project_id=UUID(request.state.project_id),
@@ -1425,13 +1399,12 @@ class EvaluationsRouter:
         *,
         metrics_ids_request: EvaluationMetricsIdsRequest,
     ) -> EvaluationMetricsIdsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         metrics_ids = await self.evaluations_service.delete_metrics(
             project_id=UUID(request.state.project_id),
@@ -1455,13 +1428,12 @@ class EvaluationsRouter:
         *,
         metric_query_request: EvaluationMetricsQueryRequest,
     ) -> EvaluationMetricsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_METRICS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         metrics = await self.evaluations_service.query_metrics(
             project_id=UUID(request.state.project_id),
@@ -1487,13 +1459,12 @@ class EvaluationsRouter:
         *,
         metrics_id: UUID,
     ) -> EvaluationMetricsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_METRICS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         metrics = await self.evaluations_service.fetch_metrics(
             project_id=UUID(request.state.project_id),
@@ -1517,13 +1488,12 @@ class EvaluationsRouter:
         *,
         metrics_id: UUID,
     ) -> EvaluationMetricsIdsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         metrics_ids = await self.evaluations_service.delete_metrics(
             project_id=UUID(request.state.project_id),
@@ -1549,13 +1519,12 @@ class EvaluationsRouter:
         *,
         queues_create_request: EvaluationQueuesCreateRequest,
     ) -> EvaluationQueuesResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queues = await self.evaluations_service.create_queues(
             project_id=UUID(request.state.project_id),
@@ -1580,13 +1549,12 @@ class EvaluationsRouter:
         *,
         queues_edit_request: EvaluationQueuesEditRequest,
     ) -> EvaluationQueuesResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queues = await self.evaluations_service.edit_queues(
             project_id=UUID(request.state.project_id),
@@ -1611,13 +1579,12 @@ class EvaluationsRouter:
         *,
         queue_ids_request: EvaluationQueueIdsRequest,
     ) -> EvaluationQueueIdsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queue_ids = await self.evaluations_service.delete_queues(
             project_id=UUID(request.state.project_id),
@@ -1641,13 +1608,12 @@ class EvaluationsRouter:
         *,
         queue_query_request: EvaluationQueueQueryRequest,
     ) -> EvaluationQueuesResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queues = await self.evaluations_service.query_queues(
             project_id=UUID(request.state.project_id),
@@ -1673,13 +1639,12 @@ class EvaluationsRouter:
         *,
         queue_id: UUID,
     ) -> EvaluationQueueResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queue = await self.evaluations_service.fetch_queue(
             project_id=UUID(request.state.project_id),
@@ -1705,13 +1670,12 @@ class EvaluationsRouter:
         #
         queue_edit_request: EvaluationQueueEditRequest,
     ) -> EvaluationQueueResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(queue_id) != str(queue_edit_request.queue.id):
             return EvaluationQueueResponse()
@@ -1739,13 +1703,12 @@ class EvaluationsRouter:
         *,
         queue_id: UUID,
     ) -> EvaluationQueueIdResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         _queue_id = await self.evaluations_service.delete_queue(
             project_id=UUID(request.state.project_id),
@@ -1771,13 +1734,12 @@ class EvaluationsRouter:
         #
         queue_scenarios_query_request: EvaluationQueueScenariosQueryRequest,
     ) -> EvaluationScenariosResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queue_scenarios_query = (
             queue_scenarios_query_request.queue
@@ -2021,14 +1983,14 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_create_request: SimpleEvaluationCreateRequest,
     ) -> SimpleEvaluationResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if is_ee():
             allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.EVALUATIONS_RUN,  # type: ignore
                 delta=1,
@@ -2082,13 +2044,12 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_id: UUID,
     ) -> SimpleEvaluationResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluation = await self.simple_evaluations_service.fetch(
             project_id=UUID(request.state.project_id),
@@ -2113,13 +2074,12 @@ class SimpleEvaluationsRouter:
         #
         evaluation_edit_request: SimpleEvaluationEditRequest,
     ) -> SimpleEvaluationResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(evaluation_id) != str(evaluation_edit_request.evaluation.id):
             return SimpleEvaluationResponse()
@@ -2148,13 +2108,12 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_id: UUID,
     ) -> SimpleEvaluationIdResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         deleted_evaluation_id = await self.simple_evaluations_service.delete(
             project_id=UUID(request.state.project_id),
@@ -2178,13 +2137,12 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_query_request: SimpleEvaluationQueryRequest,
     ) -> SimpleEvaluationsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluations = await self.simple_evaluations_service.query(
             project_id=UUID(request.state.project_id),
@@ -2207,13 +2165,12 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_id: UUID,
     ) -> SimpleEvaluationResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluation = await self.simple_evaluations_service.start(
             project_id=UUID(request.state.project_id),
@@ -2237,13 +2194,12 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_id: UUID,
     ) -> SimpleEvaluationResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluation = await self.simple_evaluations_service.stop(
             project_id=UUID(request.state.project_id),
@@ -2267,13 +2223,12 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_id: UUID,
     ) -> SimpleEvaluationResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluation = await self.simple_evaluations_service.close(
             project_id=UUID(request.state.project_id),
@@ -2297,13 +2252,12 @@ class SimpleEvaluationsRouter:
         *,
         evaluation_id: UUID,
     ) -> SimpleEvaluationResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluation = await self.simple_evaluations_service.open(
             project_id=UUID(request.state.project_id),
@@ -2331,13 +2285,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         populate_slice_request: PopulateSliceRequest,
     ) -> EvaluationResultsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # The path addresses ONE run; each result carries its own run_id. Reject
         # any result whose run_id does not match the path so a caller cannot
@@ -2388,13 +2341,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         process_slice_request: ProcessSliceRequest,
     ) -> None:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # Async dispatch via taskiq — the 202 acknowledges acceptance; the work
         # finishes on the worker. No body to return. `overwrite=True` re-runs
@@ -2419,13 +2371,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         probe_slice_request: ProbeSliceRequest,
     ) -> EvaluationResultsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         results = await self.simple_evaluations_service.probe_slice(
             project_id=UUID(request.state.project_id),
@@ -2451,13 +2402,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         prune_slice_request: PruneSliceRequest,
     ) -> None:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # Removes the addressed result cells (and refreshes metrics over the
         # scope). 204 — no body.
@@ -2481,13 +2431,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         refresh_slice_request: RefreshSliceRequest,
     ) -> None:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # Recomputes the metric rows (variational + aggregate) over the addressed
         # scope without writing or executing cells. Used by callers that populated
@@ -2512,13 +2461,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         add_request: AddScenariosRequest,
     ) -> EvaluationScenariosResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         scenarios = await self.simple_evaluations_service.add_scenarios(
             project_id=UUID(request.state.project_id),
@@ -2544,13 +2492,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         remove_request: RemoveScenariosRequest,
     ) -> None:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # Scope to the run in the path: only delete scenarios that actually
         # belong to `evaluation_id`, so a caller cannot delete another run's
@@ -2592,13 +2539,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         add_request: AddStepsRequest,
     ) -> EvaluationRunResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         run = await self.simple_evaluations_service.add_steps(
             project_id=UUID(request.state.project_id),
@@ -2623,13 +2569,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         remove_request: RemoveStepsRequest,
     ) -> EvaluationRunResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         run = await self.simple_evaluations_service.remove_steps(
             project_id=UUID(request.state.project_id),
@@ -2654,13 +2599,12 @@ class SimpleEvaluationsRouter:
         evaluation_id: UUID,
         repeats_request: SetRepeatsRequest,
     ) -> EvaluationRunResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         run = await self.simple_evaluations_service.set_repeats(
             project_id=UUID(request.state.project_id),
@@ -2769,14 +2713,14 @@ class SimpleQueuesRouter:
         *,
         queue_create_request: SimpleQueueCreateRequest,
     ) -> SimpleQueueResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if is_ee():
             allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.EVALUATIONS_RUN,  # type: ignore
                 delta=1,
@@ -2824,13 +2768,12 @@ class SimpleQueuesRouter:
         *,
         queue_query_request: SimpleQueueQueryRequest,
     ) -> SimpleQueuesResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queues = await self.simple_queues_service.query(
             project_id=UUID(request.state.project_id),
@@ -2860,13 +2803,12 @@ class SimpleQueuesRouter:
         *,
         queue_id: UUID,
     ) -> SimpleQueueResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queue = await self.simple_queues_service.fetch(
             project_id=UUID(request.state.project_id),
@@ -2887,13 +2829,12 @@ class SimpleQueuesRouter:
         *,
         queue_id: UUID,
     ) -> SimpleQueueIdResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         deleted_id = await self.simple_queues_service.delete(
             project_id=UUID(request.state.project_id),
@@ -2914,13 +2855,12 @@ class SimpleQueuesRouter:
         *,
         queue_ids_request: SimpleQueueIdsRequest,
     ) -> SimpleQueueIdsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         deleted_ids = await self.simple_queues_service.delete_many(
             project_id=UUID(request.state.project_id),
@@ -2945,13 +2885,12 @@ class SimpleQueuesRouter:
         #
         queue_scenarios_query_request: SimpleQueueScenariosQueryRequest,
     ) -> SimpleQueueScenariosResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queue_scenarios_query = (
             queue_scenarios_query_request.queue
@@ -2992,13 +2931,12 @@ class SimpleQueuesRouter:
         #
         queue_traces_create_request: SimpleQueueTracesCreateRequest,
     ) -> SimpleQueueIdResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queue = await self.simple_queues_service.fetch(
             project_id=UUID(request.state.project_id),
@@ -3035,13 +2973,12 @@ class SimpleQueuesRouter:
         #
         queue_testcases_create_request: SimpleQueueTestcasesCreateRequest,
     ) -> SimpleQueueIdResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         queue = await self.simple_queues_service.fetch(
             project_id=UUID(request.state.project_id),

@@ -1,6 +1,6 @@
 [project]
 name = "services"
-version = "0.103.5"
+version = "0.104.3"
 description = "Agenta Services (Chat & Completion)"
 requires-python = ">=3.11,<3.14"
 authors = [

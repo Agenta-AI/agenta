@@ -30,7 +30,7 @@ pnpm -C web/tests test:acceptance -- \
 Auth behavior in global setup:
 
 - The runner follows the auth flow rendered by the frontend.
-- If the frontend renders password auth, OSS owner email/password must be available.
+- If the frontend renders password auth, a password must be available (see below).
 - If the frontend renders OTP auth, Testmail envs must be available.
 
 Teardown cleans up the ephemeral project and model hub secrets created by the run.
@@ -44,6 +44,7 @@ Teardown cleans up the ephemeral project and model hub secrets created by the ru
 - `oss` – OSS cloud (license always `oss`)
 
 **License logic:**
+
 - For `staging`, `beta`, `prod`, `demo`: license is always `ee` (enforced by runner)
 - For `oss`: license is always `oss` (enforced by runner)
 - For `local`: must specify `--license oss` or `--license ee`
@@ -55,7 +56,7 @@ Teardown cleans up the ephemeral project and model hub secrets created by the ru
 - `TESTMAIL_API_KEY` – Required only for OTP auth mode
 - `TESTMAIL_NAMESPACE` – Required only for OTP auth mode
 - `AGENTA_TEST_OSS_OWNER_PASSWORD` – Required only for OSS runs (preset/license = `oss`)
-- `AGENTA_TEST_OSS_OWNER_EMAIL` – Optional for OSS runs. If provided, it is always used as the owner login email. If not provided, a runtime email is generated and will use Testmail when `TESTMAIL_NAMESPACE` is configured.
+- `AGENTA_TEST_OSS_OWNER_EMAIL` – Optional. If provided, it is used as the login email (for persistent deployments with a fixed account). If not provided, a runtime email is generated and signs up directly; it uses Testmail when `TESTMAIL_NAMESPACE` is configured. OSS and EE share the same flow.
 - `AGENTA_API_URL` – Set automatically in CI workflows for teardown and API flows.
 
 All required secrets are injected automatically in CI via the reusable workflow.
@@ -135,6 +136,7 @@ pnpm tsx playwright/scripts/run-tests.ts --preset oss --env-file ./my.env
 ## Annotation Flags
 
 You can filter tests using these flags:
+
 - `--scope <auth|apps|playground|datasets|evaluations>`
 - `--coverage <smoke|sanity|light|full>`
 - `--path <happy|grumpy>`
@@ -147,11 +149,11 @@ You can filter tests using these flags:
 - `--speed <fast|slow>`
 
 **Notes:**
+
 - If you use `--license oss`, you **must** set `AGENTA_TEST_OSS_OWNER_PASSWORD`.
-- `AGENTA_TEST_OSS_OWNER_EMAIL` is optional for OSS. If provided, it is used as-is for the owner login flow.
+- `AGENTA_TEST_OSS_OWNER_EMAIL` is optional. If provided, it is used as-is for the login flow (OSS and EE behave the same).
 - `--feature` can only be used with license `ee`.
 - All other Playwright CLI options (e.g. `--ui`, `--workers`, etc.) are supported.
-
 
 ---
 
@@ -184,13 +186,12 @@ Tests can be filtered using the following tags:
 - `@speed:` - Test speed type (fast, slow)
 
 Tags affect user authentication requirements. For example:
+
 - Tests with `@feature-scope:ee` always require authentication
 - Cloud environments always require authentication
 - Tests with `@scope:auth` require authentication in any environment
 
-
 End-to-end tests for Agenta web application.
-
 
 3. Configure test environment:
 
@@ -198,6 +199,7 @@ End-to-end tests for Agenta web application.
 - Staging/Beta: Ensure you have access to the cloud environments
 
 **Note:**
+
 - If you use `--license oss`, you **must** set the `AGENTA_TEST_OSS_OWNER_PASSWORD` environment variable (either in your shell or in a `.env` file in the tests directory). The runner will exit with an error if this is missing.
 - `--feature` can only be used if the license is `ee`. If you provide `--feature` with any other license, the script will exit with an error.
 - `--entitlement` and `--permission` are always optional and can be combined with other filters.
@@ -205,7 +207,7 @@ End-to-end tests for Agenta web application.
 - You no longer need to use `--project` or `--grep` directly; the script handles project selection and annotation mapping for you.
 - All other Playwright CLI options (e.g. `--ui`, `--workers`, etc.) are supported.
 
-```
+````
 
 ## Available Projects
 
@@ -278,40 +280,41 @@ test.describe('Feature Tests', () => {
     console.log(`Testing with user: ${user.email}`);
   });
 });
-```
+````
 
 ## Authentication Flow
 
 The framework handles authentication automatically with several improvements:
 
 1. Email Generation
-   - One email per worker process
-   - Format: `namespace.identifier.test.agenta@inbox.testmail.app`
-   - Tag includes environment, worker ID, and timestamp
+    - One email per worker process
+    - Format: `namespace.identifier.test.agenta@inbox.testmail.app`
+    - Tag includes environment, worker ID, and timestamp
 
 2. Login Process
-   - Automatic OTP retrieval and input
-   - Detection of new vs existing users
-   - Automatic post-signup flow for new users
+    - Automatic OTP retrieval and input
+    - Detection of new vs existing users
+    - Automatic post-signup flow for new users
 
 3. Post-Signup Flow
-   - Handles new user onboarding automatically
-   - Completes user survey questions
-   - Ensures proper navigation to apps dashboard
+    - Handles new user onboarding automatically
+    - Completes user survey questions
+    - Ensures proper navigation to apps dashboard
 
 Example usage remains the same, but with enhanced capabilities:
-```typescript
-import { test } from '../fixtures/user.fixture';
 
-test('my test', async ({ page, user }) => {
-  // Framework automatically:
-  // 1. Detects if authentication is needed
-  // 2. Creates unique test email
-  // 3. Handles OTP verification
-  // 4. Completes post-signup if needed
-  // 5. Ensures user ends up in correct location
-  await page.goto('/apps');
-});
+```typescript
+import {test} from "../fixtures/user.fixture"
+
+test("my test", async ({page, user}) => {
+    // Framework automatically:
+    // 1. Detects if authentication is needed
+    // 2. Creates unique test email
+    // 3. Handles OTP verification
+    // 4. Completes post-signup if needed
+    // 5. Ensures user ends up in correct location
+    await page.goto("/apps")
+})
 ```
 
 ## Authentication Testing
@@ -321,9 +324,9 @@ Tests use testmail.app for email-based authentication, managed by the user fixtu
 1. One email account is created per worker process
 2. Authentication state is maintained across tests in the same group
 3. Authentication is automatic based on:
-   - Environment type (cloud vs OSS)
-   - Test tags (ee features)
-   - Explicit auth requirements
+    - Environment type (cloud vs OSS)
+    - Test tags (ee features)
+    - Explicit auth requirements
 
 Configure environment variables:
 
@@ -338,8 +341,8 @@ TESTMAIL_NAMESPACE=your_namespace
 Tests are now organized by domain and feature:
 
 - `cloud/` - Cloud-specific features
-  - `app/` - App-related features
-    - `create.spec.ts` - App creation flows
-    - `helpers/` - Reusable app test utilities
+    - `app/` - App-related features
+        - `create.spec.ts` - App creation flows
+        - `helpers/` - Reusable app test utilities
 
 Each test domain can have its own helpers and utilities for better maintainability and reuse.

@@ -224,7 +224,7 @@ export const rolesQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: isEE() && sessionExists,
+        enabled: sessionExists,
         retry: (failureCount, error) => {
             if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
                 return false

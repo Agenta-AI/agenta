@@ -167,7 +167,7 @@ export const workflowDataSchema = z.object({
     /** Script content for custom code workflows */
     script: z.string().nullable().optional(),
     /** Runtime identifier for code-backed evaluators */
-    runtime: z.string().nullable().optional(),
+    runtime: z.enum(["python", "typescript", "javascript"]).nullable().optional(),
 })
 
 export type WorkflowData = z.infer<typeof workflowDataSchema>
@@ -690,8 +690,8 @@ const WORKFLOW_TYPE_LABEL_MAP: Record<keyof typeof WORKFLOW_TYPE_PRESET_MAP, str
     match: "Matchers",
     similarity: "Similarity",
     functional: "Functional",
-    hook: "Webhook",
-    code: "Custom Code",
+    hook: "Hook",
+    code: "Code",
     human: "Human",
     feedback: "Human",
     rag: "RAG",

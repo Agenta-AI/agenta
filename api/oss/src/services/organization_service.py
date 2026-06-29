@@ -1,14 +1,28 @@
 import secrets
+from typing import List
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from fastapi import HTTPException
 
 from oss.src.utils.env import env
-from oss.src.models.db_models import UserDB
+from oss.src.utils.common import is_ee
+from oss.src.utils.caching import invalidate_cache
+from oss.src.utils.logging import get_module_logger
+from oss.src.models.db_models import UserDB, WorkspaceDB
 from oss.src.services import db_manager
 from oss.src.utils import emailing
-from oss.src.models.api.workspace_models import InviteRequest, ResendInviteRequest
+from oss.src.models.api.workspace_models import (
+    InviteRequest,
+    ResendInviteRequest,
+    CreateWorkspace,
+    UpdateWorkspace,
+    WorkspaceResponse,
+)
+from oss.src.core.access.controls import get_role
+from oss.src.core.access.permissions.types import DefaultRole, Permission
+
+log = get_module_logger(__name__)
 
 
 class InviteNotFoundError(Exception):
@@ -151,6 +165,27 @@ async def send_invitation_email(
     return True
 
 
+def resolve_workspace_invite_role(payload: InviteRequest) -> str:
+    """Resolve the workspace role for an invite, defaulting to the catalog floor.
+
+    Shared by OSS and EE invite paths. Validates against the effective workspace
+    catalog (env-overridable via AGENTA_ACCESS_ROLES in EE) since the API model
+    accepts any string for forward-compatibility with custom roles.
+    """
+
+    raw = payload.roles[0] if payload.roles else None
+    role = getattr(raw, "value", None) or (str(raw) if raw is not None else None)
+    role = role or DefaultRole.VIEWER.value
+
+    if get_role("workspace", role) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Workspace role '{role}' is invalid.",
+        )
+
+    return role
+
+
 async def create_invitation(role: str, project_id: str, email: str):
     """
     Creates a new invitation for a user to join an organization.
@@ -223,8 +258,26 @@ async def invite_user_to_organization(
             detail="User is already a member of the workspace",
         )
 
+    if organization_id and is_ee():
+        from ee.src.core.organizations.service import (  # noqa: PLC0415
+            assert_invite_domain_allowed,
+        )
+
+        await assert_invite_domain_allowed(organization_id, payload.email)
+
+    role = resolve_workspace_invite_role(payload)
+
+    log.info(
+        "[invite] creating invitation",
+        email=payload.email,
+        requested_roles=payload.roles,
+        resolved_role=role,
+        project_id=project_id,
+        organization_id=organization_id,
+    )
+
     # Create a new invitation since user hasn't been invited
-    invitation = await create_invitation("admin", project_id, payload.email)
+    invitation = await create_invitation(role, project_id, payload.email)
 
     # Get project by id
     project_db = await db_manager.get_project_by_id(project_id=project_id)
@@ -339,13 +392,17 @@ async def accept_organization_invitation(
         HTTPException: If there is an error retrieving the workspace.
     """
 
-    user_exists = await db_manager.get_user_with_email(email=email)
+    user_exists = await db_manager.get_user_with_email(
+        email=email,
+    )
     if user_exists is None:
         raise HTTPException(status_code=400, detail="User does not exist")
 
     invitation = (
         await db_manager.get_project_invitation_by_organization_token_and_email(
-            organization_id=organization_id, email=email, token=token
+            organization_id=organization_id,
+            email=email,
+            token=token,
         )
     )
 
@@ -356,7 +413,17 @@ async def accept_organization_invitation(
     # different logged-in user (e.g. the org owner) can't consume someone else's
     # invite or get a misleading "already joined".
     if (invitation.email or "").lower() != (session_email or "").lower():
-        raise InviteEmailMismatchError(invited_email=invitation.email)
+        raise InviteEmailMismatchError(
+            invited_email=invitation.email,
+        )
+
+    project_pre = await db_manager.get_project_by_id(
+        project_id=str(invitation.project_id),
+    )
+    if project_pre and await db_manager.check_user_in_workspace_with_email(
+        email, str(project_pre.workspace_id)
+    ):
+        raise InviteAlreadyAcceptedError()
 
     # OSS consumes the invitation at signup, so the most common "failure" here is
     # an invitation this same user already accepted. Treat that as idempotent.
@@ -366,7 +433,118 @@ async def accept_organization_invitation(
     if invitation.expiration_date <= datetime.now(timezone.utc):
         raise InviteExpiredError()
 
-    await db_manager.update_invitation(
-        str(invitation.id), values_to_update={"used": True}
+    project = await db_manager.get_project_by_id(
+        project_id=str(invitation.project_id),
     )
+    if project is None:
+        raise HTTPException(status_code=400, detail="Invited project no longer exists")
+
+    organization = await db_manager.get_organization_by_id(
+        organization_id=str(project.organization_id)
+    )
+    workspace = await db_manager.get_workspace(
+        workspace_id=str(project.workspace_id),
+    )
+
+    log.info(
+        "[invite] accepting invitation",
+        email=email,
+        invitation_role=invitation.role,
+        project_id=str(project.id),
+        organization_id=str(project.organization_id),
+    )
+
+    await db_manager.add_user_to_workspace_and_org(
+        organization=organization,
+        workspace=workspace,
+        user=user_exists,
+        project_id=str(project.id),
+        role=invitation.role,
+    )
+
+    await db_manager.update_invitation(
+        str(invitation.id),
+        values_to_update={
+            "user_id": str(user_exists.id),
+            "used": True,
+        },
+    )
+
+    # Invalidate any cached auth deny so the user can access the project
+    # immediately after accepting.
+    await invalidate_cache(
+        namespace="verify_bearer_token",
+        user_id=str(user_exists.id),
+    )
+
+    await notify_org_admin_invitation(workspace, user_exists)
+
     return True
+
+
+async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> bool:
+    """Email the workspace admins when a new member joins."""
+
+    organization = await db_manager.get_organization(str(workspace.organization_id))
+    project = await db_manager.get_project_by_workspace(str(workspace.id))
+
+    workspace_admins = await db_manager.get_workspace_administrators(workspace)
+
+    for workspace_admin in workspace_admins:
+        await emailing.send_email(
+            from_email="account@hello.agenta.ai",
+            to_email=workspace_admin.email,
+            subject=f"New Member Joined {organization.name}",
+            username=user.username,
+            action="joined your Workspace",
+            workspace=f'"{organization.name}"',
+            call_to_action=(
+                "Click the link below to view your Organization:</p><br>"
+                f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
+            ),
+        )
+
+    return True
+
+
+async def get_workspace(workspace_id: str) -> WorkspaceDB:
+    """Get a workspace by ID, raising 404 when absent."""
+
+    workspace = await db_manager.get_workspace(workspace_id)
+    if workspace is not None:
+        return workspace
+    raise HTTPException(
+        status_code=404, detail=f"Workspace by id {workspace_id} not found"
+    )
+
+
+async def create_new_workspace(
+    payload: CreateWorkspace, organization_id: str, user_uid: str
+) -> WorkspaceResponse:
+    """Create a new workspace (with owner membership, default project, seeds)."""
+
+    return await db_manager.create_workspace_with_defaults(
+        payload, organization_id, user_uid
+    )
+
+
+async def update_workspace(
+    payload: UpdateWorkspace, workspace_id: str
+) -> WorkspaceResponse:
+    """Update a workspace's details."""
+
+    workspace = await get_workspace(workspace_id)
+
+    return await db_manager.update_workspace(payload, workspace)
+
+
+async def get_all_workspace_permissions() -> List[Permission]:
+    """Return the full permission catalog."""
+
+    return list(Permission)
+
+
+async def remove_user_from_workspace(workspace_id: str, email: str) -> bool:
+    """Remove a user (or pending invite) from a workspace."""
+
+    return await db_manager.remove_user_from_workspace(workspace_id, email)

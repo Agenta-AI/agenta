@@ -389,6 +389,13 @@ const items = useMemo(() => [
 <AccordionTreePanel items={items} />
 ```
 
+### Keep in-code comments terse
+
+**Hard rule.** At most ONE short line per comment. No multi-line blocks narrating *why*
+in prose, no restating what the code shows. Before writing any comment, ask "can this be
+one line?" — if not, cut it. Longer comments only for a genuinely surprising constraint
+(documented bug, race, ordering requirement), and even then a sentence or two max.
+
 ## Packages, entities, and code placement
 
 The `@agenta/*` workspace packages share UI, state, and utilities across OSS and EE. The

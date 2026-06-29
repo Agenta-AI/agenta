@@ -1,19 +1,22 @@
-"""Unit tests for the access-controls parsers in
-``ee.src.core.access.controls``.
+"""Unit tests for the EE access-controls parsers.
 
-These exercise the pure parser functions (`_parse_plans_override`,
-`_parse_roles_override`) so we don't have to manipulate process env vars at
-test time — the parsers take already-decoded payloads.
+Plan parsers live in ``ee.src.core.access.entitlements.controls``; role-override
+parsers (custom roles are an EE feature) live in
+``ee.src.core.access.permissions.role_overrides``. These exercise the pure parser
+functions (`_parse_plans_override`, `_parse_roles_override`) so we don't have to
+manipulate process env vars at test time — the parsers take already-decoded
+payloads.
 
 The module-level accessors (`get_plans`, `get_roles`, etc.) are also covered
-in the no-env-override case, which exercises the code-default builders.
+in the no-env-override case, which exercises the code-default builders (the role
+defaults now live in OSS; EE re-exports the `get_role*` accessors).
 """
 
 import pytest
 
 from ee.src.core.access import controls
 from ee.src.core.access.entitlements import controls as entitlement_controls
-from ee.src.core.access.permissions import controls as permission_controls
+from ee.src.core.access.permissions import role_overrides as permission_controls
 from ee.src.core.access.entitlements.types import DefaultPlan, Tracker
 from ee.src.core.access.permissions.types import Permission, DefaultRole, RequiredRole
 
@@ -200,7 +203,7 @@ class TestParseRolesOverride:
         # membership. A project-only override therefore intentionally replaces
         # workspace extras too, instead of leaving workspace defaults intact.
         result = permission_controls._parse_roles_override(
-            {"project": [_custom_role("reviewer", ["read_system"])]}
+            {"project": [_custom_role("reviewer", ["view_workflows"])]}
         )
         prj_sclugs = [r["role"] for r in result["project"]]
         wrk_sclugs = [r["role"] for r in result["workspace"]]
@@ -220,7 +223,7 @@ class TestParseRolesOverride:
     def test_unknown_scope_rejected(self):
         with pytest.raises(ValueError, match="Unknown role scope"):
             permission_controls._parse_roles_override(
-                {"galaxy": [_custom_role("ranger", ["read_system"])]}
+                {"galaxy": [_custom_role("ranger", ["view_workflows"])]}
             )
 
     def test_empty_scope_list_rejected(self):
@@ -236,7 +239,7 @@ class TestParseRolesOverride:
     def test_viewer_reserved_cannot_be_redefined(self):
         with pytest.raises(ValueError, match="cannot redefine reserved role 'viewer'"):
             permission_controls._parse_roles_override(
-                {"project": [_custom_role("viewer", ["read_system"])]}
+                {"project": [_custom_role("viewer", ["view_workflows"])]}
             )
 
     def test_duplicate_custom_role_slug_rejected(self):
@@ -244,8 +247,8 @@ class TestParseRolesOverride:
             permission_controls._parse_roles_override(
                 {
                     "project": [
-                        _custom_role("reviewer", ["read_system"]),
-                        _custom_role("reviewer", ["read_system"]),
+                        _custom_role("reviewer", ["view_workflows"]),
+                        _custom_role("reviewer", ["view_workflows"]),
                     ]
                 }
             )
@@ -273,7 +276,7 @@ class TestParseRolesOverride:
 
     def test_minima_always_present_after_override(self):
         result = permission_controls._parse_roles_override(
-            {"organization": [_custom_role("auditor", ["read_system"])]}
+            {"organization": [_custom_role("auditor", ["view_workflows"])]}
         )
         slugs = [r["role"] for r in result["organization"]]
         # Minima are always re-applied at the front of each scope, in order.
@@ -450,14 +453,14 @@ class TestRolesOverlayParse:
     def test_non_project_scope_rejected(self):
         with pytest.raises(ValueError, match="only supports the 'project' scope"):
             permission_controls._parse_roles_overlay(
-                {"workspace": {"editor": {"permissions": ["read_system"]}}}
+                {"workspace": {"editor": {"permissions": ["view_workflows"]}}}
             )
 
     def test_multiple_scopes_rejected_lists_offenders(self):
         with pytest.raises(ValueError, match="organization"):
             permission_controls._parse_roles_overlay(
                 {
-                    "project": {"editor": {"permissions": ["read_system"]}},
+                    "project": {"editor": {"permissions": ["view_workflows"]}},
                     "organization": {"foo": {"permissions": []}},
                 }
             )
@@ -469,13 +472,13 @@ class TestRolesOverlayParse:
     def test_reserved_role_patch_rejected(self):
         with pytest.raises(ValueError, match="cannot patch reserved role 'owner'"):
             permission_controls._parse_roles_overlay(
-                {"project": {"owner": {"permissions": ["read_system"]}}}
+                {"project": {"owner": {"permissions": ["view_workflows"]}}}
             )
 
     def test_reserved_viewer_patch_rejected(self):
         with pytest.raises(ValueError, match="cannot patch reserved role 'viewer'"):
             permission_controls._parse_roles_overlay(
-                {"project": {"viewer": {"permissions": ["read_system"]}}}
+                {"project": {"viewer": {"permissions": ["view_workflows"]}}}
             )
 
     def test_unknown_permission_rejected(self):
@@ -493,35 +496,35 @@ class TestRolesOverlayParse:
     def test_project_focused_shortcut_accepted(self):
         # Top-level keys are role slugs (no scope wrapper).
         overlay = permission_controls._parse_roles_overlay(
-            {"editor": {"permissions": ["read_system"]}}
+            {"editor": {"permissions": ["view_workflows"]}}
         )
         assert set(overlay.keys()) == {"editor"}
-        assert overlay["editor"].permissions == ["read_system"]
+        assert overlay["editor"].permissions == ["view_workflows"]
 
     def test_project_focused_shortcut_rejects_reserved_role(self):
         with pytest.raises(ValueError, match="cannot patch reserved role 'owner'"):
             permission_controls._parse_roles_overlay(
-                {"owner": {"permissions": ["read_system"]}}
+                {"owner": {"permissions": ["view_workflows"]}}
             )
 
     def test_full_form_with_organization_scope_rejected(self):
         with pytest.raises(ValueError, match="only supports the 'project' scope"):
             permission_controls._parse_roles_overlay(
-                {"organization": {"editor": {"permissions": ["read_system"]}}}
+                {"organization": {"editor": {"permissions": ["view_workflows"]}}}
             )
 
     def test_full_form_with_workspace_scope_rejected(self):
         with pytest.raises(ValueError, match="only supports the 'project' scope"):
             permission_controls._parse_roles_overlay(
-                {"workspace": {"editor": {"permissions": ["read_system"]}}}
+                {"workspace": {"editor": {"permissions": ["view_workflows"]}}}
             )
 
     def test_mixing_scope_and_role_keys_rejected(self):
         with pytest.raises(ValueError, match="mixes scope keys with non-scope"):
             permission_controls._parse_roles_overlay(
                 {
-                    "project": {"editor": {"permissions": ["read_system"]}},
-                    "auditor": {"permissions": ["read_system"]},
+                    "project": {"editor": {"permissions": ["view_workflows"]}},
+                    "auditor": {"permissions": ["view_workflows"]},
                 }
             )
 
@@ -535,13 +538,13 @@ class TestRolesOverlayApply:
     def test_patch_existing_role_replaces_permissions_in_both_scopes(self):
         roles = self._base_roles()
         overlay = permission_controls._parse_roles_overlay(
-            {"project": {"editor": {"permissions": ["read_system"]}}}
+            {"project": {"editor": {"permissions": ["view_workflows"]}}}
         )
         result = permission_controls._apply_roles_overlay(roles, overlay)
 
         for scope in ("workspace", "project"):
             editor = next(r for r in result[scope] if r["role"] == "editor")
-            assert editor["permissions"] == ["read_system"]
+            assert editor["permissions"] == ["view_workflows"]
 
     def test_patch_existing_role_preserves_description_when_not_set(self):
         roles = self._base_roles()
@@ -549,7 +552,7 @@ class TestRolesOverlayApply:
             r for r in roles["project"] if r["role"] == "editor"
         )["description"]
         overlay = permission_controls._parse_roles_overlay(
-            {"project": {"editor": {"permissions": ["read_system"]}}}
+            {"project": {"editor": {"permissions": ["view_workflows"]}}}
         )
         result = permission_controls._apply_roles_overlay(roles, overlay)
 
@@ -579,7 +582,7 @@ class TestRolesOverlayApply:
                 "project": {
                     "auditor": {
                         "description": "Audit-only.",
-                        "permissions": ["read_system"],
+                        "permissions": ["view_workflows"],
                     }
                 }
             }
@@ -595,7 +598,15 @@ class TestRolesOverlayApply:
         overlay = permission_controls._parse_roles_overlay(
             {"project": {"auditor": {"description": "Only description"}}}
         )
-        with pytest.raises(ValueError, match="new role requires 'permissions'"):
+        with pytest.raises(ValueError, match="new role requires"):
+            permission_controls._apply_roles_overlay(roles, overlay)
+
+    def test_new_role_without_description_rejected(self):
+        roles = self._base_roles()
+        overlay = permission_controls._parse_roles_overlay(
+            {"project": {"auditor": {"permissions": ["view_workflows"]}}}
+        )
+        with pytest.raises(ValueError, match="new role requires"):
             permission_controls._apply_roles_overlay(roles, overlay)
 
     def test_organization_scope_untouched(self):
@@ -606,7 +617,7 @@ class TestRolesOverlayApply:
                 "project": {
                     "auditor": {
                         "description": "Audit-only.",
-                        "permissions": ["read_system"],
+                        "permissions": ["view_workflows"],
                     }
                 }
             }
