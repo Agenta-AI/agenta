@@ -1905,16 +1905,28 @@ class SimpleApplicationsRouter:
             application_id=application_id,
         )
 
+        # Build the read-only playground overlay defensively: this handler returns a controlled
+        # default on error (``@suppress_exceptions``), so letting overlay synthesis raise would
+        # blank the whole fetched application instead of just dropping the optional context.
+        additional_context = None
+        if simple_application:
+            try:
+                additional_context = SimpleApplicationAdditionalContext(
+                    playground_build_kit=PlaygroundBuildKitContext(
+                        agent_template_overlay=build_agent_template_overlay(),
+                    ),
+                )
+            except Exception:  # noqa: BLE001 - overlay is best-effort; never blank the response
+                log.warning(
+                    "Failed to build playground build-kit overlay for application %s",
+                    application_id,
+                    exc_info=True,
+                )
+
         simple_application_response = SimpleApplicationResponse(
             count=1 if simple_application else 0,
             application=simple_application,
-            additional_context=SimpleApplicationAdditionalContext(
-                playground_build_kit=PlaygroundBuildKitContext(
-                    agent_template_overlay=build_agent_template_overlay(),
-                ),
-            )
-            if simple_application
-            else None,
+            additional_context=additional_context,
         )
 
         return simple_application_response

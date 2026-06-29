@@ -257,6 +257,39 @@ describe("buildAgentRequest", () => {
         expect(config).toEqual(before)
     })
 
+    it("applies the build-kit overlay to a BARE template (no agent wrapper)", async () => {
+        // `withAgentRunDefaults` leaves a config with no `agent` key as a bare template, so the
+        // overlay must merge at the top level — not no-op (the bare published default case).
+        const config = {
+            sandbox: {kind: "local", permissions: {execute_code: "deny"}},
+            tools: [{type: "client", name: "weather"}],
+        }
+        seed(store, "e", {
+            config,
+            overlay: {
+                sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
+                tools: [{type: "platform", op: "commit_revision"}],
+                skills: [authoringSkill],
+            },
+            buildKitEnabled: true,
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const params = (req!.requestBody.data as any).parameters
+
+        // Bare template → overlay applied at the top level, never wrapped under `agent`.
+        expect(params.agent).toBeUndefined()
+        expect(params.sandbox.permissions).toEqual({
+            execute_code: "allow",
+            write_files: "allow",
+        })
+        expect(params.tools).toEqual([
+            {type: "client", name: "weather"},
+            {type: "platform", op: "commit_revision"},
+        ])
+        expect(params.skills).toEqual([authoringSkill])
+    })
+
     it("sends the bare agent config unchanged when the build kit is off", async () => {
         const config = {
             agent: {
@@ -282,7 +315,11 @@ describe("buildAgentRequest", () => {
         expect(template.skills).toBeUndefined()
     })
 
-    it("leaves entity parameters bare so commit reads never include the kit", async () => {
+    it("applies the kit only to the run copy, leaving entity parameters bare for commit", async () => {
+        // The commit path (web/packages/agenta-entities/src/workflow/state/commit.ts
+        // `prepareCommitParameters`) serializes `entity.data.parameters`, which the run never
+        // writes. This proves the two stay separate: the throwaway run copy carries the kit while
+        // the persisted config the commit reads is untouched.
         const config = {
             agent: {
                 sandbox: {kind: "local"},
@@ -297,8 +334,14 @@ describe("buildAgentRequest", () => {
             },
         })
 
-        await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
 
+        // The run copy carries the kit (overlay applied)...
+        const runTemplate = (req!.requestBody.data as any).parameters.agent
+        expect(runTemplate.tools).toContainEqual({type: "platform", op: "commit_revision"})
+        expect(runTemplate.sandbox.permissions).toMatchObject({write_files: "allow"})
+
+        // ...but the persisted config the commit serializer reads is unmutated.
         expect(store.get(workflowMolecule.selectors.configuration("e"))).toEqual(config)
         expect(JSON.stringify(config)).not.toContain("commit_revision")
         expect(JSON.stringify(config)).not.toContain("write_files")

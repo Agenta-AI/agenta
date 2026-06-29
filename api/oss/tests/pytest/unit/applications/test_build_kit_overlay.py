@@ -41,14 +41,18 @@ def test_agent_template_overlay_contains_platform_ops_authoring_skill_and_permis
         {"type": "platform", "op": op_name} for op_name in PLATFORM_OPS
     ]
 
+    authoring_skill = StaticWorkflowCatalog().retrieve_revision(
+        slug=GETTING_STARTED_WITH_AGENTA_SLUG
+    )
     assert overlay["skills"] == [
         {
+            "name": authoring_skill.name,
             "@ag.embed": {
                 "@ag.references": {
                     "workflow": {"slug": GETTING_STARTED_WITH_AGENTA_SLUG}
                 },
                 "@ag.selector": {"path": "parameters.skill"},
-            }
+            },
         }
     ]
     assert overlay["sandbox"] == {
@@ -72,6 +76,12 @@ def test_agent_template_overlay_includes_reserved_static_workflow_tool_embeds():
         for tool in tool_embeds
     )
     catalog = StaticWorkflowCatalog()
+
+    # Each tool embed carries the workflow's display name so the playground renders that instead of
+    # the raw ``__ag__*`` slug.
+    for tool in tool_embeds:
+        revision = catalog.retrieve_revision(slug=_embed_slug(tool))
+        assert tool.get("name") == revision.name
 
     expected_slugs = set()
     for slug in _STATIC_WORKFLOWS:
@@ -127,7 +137,10 @@ async def test_fetch_simple_application_includes_build_kit_context(monkeypatch):
         else None
     )
     assert response.application is not None
-    assert overlay == build_agent_template_overlay()
+    # The overlay is now a typed `AgentTemplateOverlay`; its JSON projection is the wire payload and
+    # must match the platform-built overlay dict byte for byte.
+    assert overlay is not None
+    assert overlay.model_dump(mode="json") == build_agent_template_overlay()
 
 
 @pytest.mark.asyncio

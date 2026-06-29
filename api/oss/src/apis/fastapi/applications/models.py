@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Any, Dict, Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -599,10 +599,35 @@ class SimpleApplicationQueryRequest(BaseModel):
     )
 
 
+class AgentTemplateOverlay(BaseModel):
+    """A documented subset of the `parameters.agent` authoring shape.
+
+    Carries the platform-owned tools, authoring skills, and sandbox elevation the playground
+    layers on top of the draft for the build kit. Entries are intentionally open (platform-op
+    configs and `@ag.embed` references), so they are typed loosely: the full `parameters.agent`
+    authoring template has no shared Pydantic model today (it rides as free-form
+    `data.parameters`), and the SDK's runtime `AgentTemplate` is the flattened parse with
+    different field names, so neither can be reused 1:1 to type this overlay.
+    """
+
+    tools: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Platform tool configs and `@ag.embed` tool references.",
+    )
+    skills: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="`@ag.embed` references to authoring skills.",
+    )
+    sandbox: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Sandbox section overlay, e.g. `{permissions: {...}}`.",
+    )
+
+
 class PlaygroundBuildKitContext(BaseModel):
     """Read-only playground build-kit context for one inspect/fetch response."""
 
-    agent_template_overlay: Optional[dict] = Field(
+    agent_template_overlay: Optional[AgentTemplateOverlay] = Field(
         default=None,
         description="Partial `parameters.agent` overlay applied by the playground only.",
     )

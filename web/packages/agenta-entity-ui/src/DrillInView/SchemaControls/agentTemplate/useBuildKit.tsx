@@ -28,6 +28,15 @@ import {useAtom, useAtomValue} from "jotai"
 import {asObj, staticEmbedSlug, type ItemDescriptor} from "./itemDescriptors"
 import {ItemAvatar} from "./ItemRow"
 
+/** Display name for an `@ag.embed` row: the overlay's sibling `name`, else the referenced
+ * workflow's `name`, else undefined (callers fall back to the slug). */
+function embedDisplayName(entry: Record<string, unknown>): string | undefined {
+    if (typeof entry.name === "string" && entry.name) return entry.name
+    const refs = asObj(asObj(entry["@ag.embed"])?.["@ag.references"])
+    const wfName = asObj(refs?.workflow)?.name ?? asObj(refs?.workflow_revision)?.name
+    return typeof wfName === "string" && wfName ? wfName : undefined
+}
+
 function ReadOnlyItemRow({descriptor}: {descriptor: ItemDescriptor}) {
     return (
         <div className="flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 opacity-70">
@@ -82,7 +91,7 @@ function describeBuildKitEmbed(
 ): ItemDescriptor {
     const slug = staticEmbedSlug(entry)
     return {
-        name: slug ?? `${kind} reference`,
+        name: embedDisplayName(entry) ?? slug ?? `${kind} reference`,
         description: "Provided by Agenta. This item cannot be edited or removed.",
         mono: kind === "tool" ? "wf" : "sk",
         color: kind === "tool" ? "#0d9488" : "#6b7280",

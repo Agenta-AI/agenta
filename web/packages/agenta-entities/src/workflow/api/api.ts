@@ -17,6 +17,7 @@
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
+import {z} from "zod"
 
 import {parseRevisionUri, safeParseWithLogging} from "../../shared"
 import {extractAllEndpointSchemas, type OpenAPISpec} from "../../shared/openapi"
@@ -508,6 +509,25 @@ export interface SimpleApplicationFetchResponse {
     } | null
 }
 
+// Boundary validation for the inspect/fetch overlay. Kept permissive — the overlay is a free-form
+// `parameters.agent` subset (platform ops + `@ag.embed` refs) — but it gates the shape that reaches
+// `workflowAgentTemplateOverlayAtomFamily`, so a non-object overlay is rejected here, not downstream.
+const simpleApplicationFetchResponseSchema = z.object({
+    count: z.number().optional(),
+    application: z.record(z.string(), z.unknown()).nullable().optional(),
+    additional_context: z
+        .object({
+            playground_build_kit: z
+                .object({
+                    agent_template_overlay: z.record(z.string(), z.unknown()).nullable().optional(),
+                })
+                .nullable()
+                .optional(),
+        })
+        .nullable()
+        .optional(),
+})
+
 /**
  * Fetch a single simple application by id.
  *
@@ -533,7 +553,14 @@ export async function fetchSimpleApplication(
         {queryParams: {project_id: projectId}},
     )
 
-    return (data ?? null) as SimpleApplicationFetchResponse | null
+    // Validate at the boundary before the overlay reaches the atom family. Fern under-declares the
+    // backend's `extra="allow"` `additional_context`, so the local schema is the drift check.
+    const validated = safeParseWithLogging(
+        simpleApplicationFetchResponseSchema,
+        data,
+        "[fetchSimpleApplication]",
+    )
+    return (validated ?? null) as SimpleApplicationFetchResponse | null
 }
 
 // ============================================================================
