@@ -29,7 +29,7 @@ const SessionInspectorDrawer = () => {
             title={
                 <div className="flex flex-col">
                     <span>Session inspector</span>
-                    <Text type="secondary" className="text-xs font-normal">
+                    <Text type="secondary" className="text-xs font-normal font-mono">
                         {sessionId ?? "—"}
                     </Text>
                 </div>

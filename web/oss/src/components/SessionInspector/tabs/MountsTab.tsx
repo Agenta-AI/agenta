@@ -32,7 +32,7 @@ const MountsTab = ({sessionId}: {sessionId: string}) => {
                     <List.Item.Meta
                         title={mount.name ?? mount.slug ?? mount.id}
                         description={
-                            <Text type="secondary" className="text-xs">
+                            <Text type="secondary" className="text-xs font-mono">
                                 {mount.id}
                             </Text>
                         }

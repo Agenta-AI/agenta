@@ -5,6 +5,7 @@ import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Alert, Button, Descriptions, Popconfirm, Skeleton, Space, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {isSessionStreamingAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {attachStream, detachStream, fetchStream, killStream} from "../api"
@@ -22,6 +23,9 @@ const NestBadge = ({on, label}: {on: boolean; label: string}) => (
 const StreamsTab = ({sessionId}: {sessionId: string}) => {
     const projectId = useAtomValue(projectIdAtom)
     const watcherId = useAtomValue(sessionInspectorWatcherIdAtom)
+    // This browser tab is itself streaming the session — it IS the live connection, even though
+    // an inline chat run never calls the coordination-plane attach. Treat it as attached.
+    const localStreaming = useAtomValue(isSessionStreamingAtomFamily(sessionId))
     const setWatcherId = useSetAtom(setSessionInspectorWatcherIdAtom)
     const closeInspector = useSetAtom(closeSessionInspectorAtom)
     const queryClient = useQueryClient()
@@ -52,7 +56,16 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
     }
 
     const onDetach = async () => {
-        if (!watcherId) return
+        // The local chat tab IS the connection but never held a coordination-plane watcher_id;
+        // detaching it is the chat's job (stop/cancel), not the inspector's, so guide instead.
+        if (!watcherId) {
+            if (localStreaming) {
+                message.info(
+                    "This tab is the live connection — stop the run from the chat to detach",
+                )
+            }
+            return
+        }
         setBusy(true)
         try {
             await detachStream(sessionId, watcherId, projectId)
@@ -89,25 +102,31 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
             <Space wrap>
                 <NestBadge on={nest.isAlive} label="alive" />
                 <NestBadge on={nest.isRunning} label="running" />
-                <NestBadge on={nest.isAttached} label="attached" />
-                {nest.resumable ? <Tag color="blue">resumable</Tag> : null}
-                {nest.reattachable ? <Tag color="orange">reattachable</Tag> : null}
+                <NestBadge on={nest.isAttached || localStreaming} label="attached" />
             </Space>
 
             <Descriptions column={1} size="small" bordered>
-                <Descriptions.Item label="stream_id">{data?.id ?? "—"}</Descriptions.Item>
-                <Descriptions.Item label="turn_id">{data?.turn_id ?? "—"}</Descriptions.Item>
+                <Descriptions.Item label="stream_id">
+                    <span className="font-mono text-xs">{data?.id ?? "—"}</span>
+                </Descriptions.Item>
+                <Descriptions.Item label="turn_id">
+                    <span className="font-mono text-xs">{data?.turn_id ?? "—"}</span>
+                </Descriptions.Item>
                 <Descriptions.Item label="status">{data?.status?.code ?? "—"}</Descriptions.Item>
                 <Descriptions.Item label="watcher_id (this client)">
-                    {watcherId ?? "—"}
+                    <span className="font-mono text-xs">{watcherId ?? "—"}</span>
                 </Descriptions.Item>
             </Descriptions>
 
             <Space wrap>
-                <Button onClick={onAttach} loading={busy} disabled={!nest.isRunning}>
+                <Button
+                    onClick={onAttach}
+                    loading={busy}
+                    disabled={!nest.isRunning || localStreaming || Boolean(watcherId)}
+                >
                     Attach
                 </Button>
-                <Button onClick={onDetach} loading={busy} disabled={!watcherId}>
+                <Button onClick={onDetach} loading={busy} disabled={!watcherId && !localStreaming}>
                     Detach
                 </Button>
                 <Popconfirm

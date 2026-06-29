@@ -75,14 +75,18 @@ class SessionStatesDAO(SessionStatesDAOInterface):
         }
 
         stmt = insert(SessionStateDBE).values(**values)
+        update_values = {
+            "updated_at": now,
+            "updated_by_id": user_id,
+        }
+        if "data" in upsert.model_fields_set:
+            update_values["data"] = stmt.excluded.data
+        if "sandbox_id" in upsert.model_fields_set:
+            update_values["sandbox_id"] = stmt.excluded.sandbox_id
+
         stmt = stmt.on_conflict_do_update(
-            index_elements=["project_id", "session_id"],
-            set_={
-                "data": stmt.excluded.data,
-                "sandbox_id": stmt.excluded.sandbox_id,
-                "updated_at": now,
-                "updated_by_id": user_id,
-            },
+            constraint="uq_session_states_project_session_id",
+            set_=update_values,
         )
         stmt = stmt.returning(SessionStateDBE)
 
@@ -92,35 +96,4 @@ class SessionStatesDAO(SessionStatesDAOInterface):
             dbe = result.scalars().first()
             if dbe is None:
                 return None
-            return dbe_to_dto(dbe)
-
-    @suppress_exceptions()
-    async def set_sandbox_id(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        session_id: str,
-        sandbox_id: Optional[str],
-    ) -> Optional[SessionState]:
-        now = datetime.now(timezone.utc)
-
-        async with self.engine.session() as db_session:
-            stmt = (
-                select(SessionStateDBE)
-                .filter(SessionStateDBE.project_id == project_id)
-                .filter(SessionStateDBE.session_id == session_id)
-                .limit(1)
-            )
-            result = await db_session.execute(stmt)
-            dbe = result.scalars().first()
-            if dbe is None:
-                return None
-
-            dbe.sandbox_id = sandbox_id
-            dbe.updated_at = now
-            dbe.updated_by_id = user_id
-
-            await db_session.commit()
-            await db_session.refresh(dbe)
             return dbe_to_dto(dbe)

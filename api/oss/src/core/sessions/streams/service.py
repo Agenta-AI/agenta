@@ -33,6 +33,7 @@ from oss.src.dbs.redis.sessions.locks import (
     refresh_owner,
     refresh_running,
     release_attached,
+    set_owner,
     steal_attached,
 )
 
@@ -223,22 +224,45 @@ class SessionStreamsService:
 
         # replica_id refreshes affinity (which container owns the session);
         # turn_id refreshes the alive/running TTLs (proving this turn still owns the lock).
-        await refresh_owner(
+        if not await refresh_owner(
             self._lock,
             session_id=request.session_id,
             replica_id=request.replica_id,
-        )
+        ):
+            await set_owner(
+                self._lock,
+                session_id=request.session_id,
+                replica_id=request.replica_id,
+            )
         if request.turn_id and request.is_running:
-            await refresh_alive(
+            # Acquire-then-refresh: the runner heartbeats directly and never calls
+            # _start_turn, so the FIRST heartbeat must establish the nest locks itself.
+            # acquire_* is nx=True — a no-op if _start_turn already holds them.
+            if not await refresh_alive(
                 self._lock,
                 session_id=request.session_id,
                 turn_id=request.turn_id,
-            )
-            await refresh_running(
+            ):
+                await acquire_alive(
+                    self._lock,
+                    session_id=request.session_id,
+                    turn_id=request.turn_id,
+                )
+            if not await refresh_running(
                 self._lock,
                 session_id=request.session_id,
                 turn_id=request.turn_id,
-            )
+            ):
+                await acquire_running(
+                    self._lock,
+                    session_id=request.session_id,
+                    turn_id=request.turn_id,
+                )
+        elif not request.is_running:
+            # The release beat (turn finished): drop ONLY running. The sandbox is not
+            # killed when a turn ends, so `alive` stays (it has its own TTL and is cleared
+            # only by kill). This is what makes the session reattachable across turns.
+            await clear_running(self._lock, session_id=request.session_id)
 
         liveness = await get_session_liveness(self._lock, session_id=request.session_id)
         flags = SessionStreamFlags(

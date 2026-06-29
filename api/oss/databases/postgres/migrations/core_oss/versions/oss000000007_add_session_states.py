@@ -44,7 +44,6 @@ def upgrade() -> None:
         sa.Column("deleted_by_id", sa.UUID(), nullable=True),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("project_id", "id"),
-        sa.UniqueConstraint("session_id", name="uq_session_states_session_id"),
         sa.UniqueConstraint(
             "project_id",
             "session_id",

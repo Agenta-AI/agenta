@@ -357,6 +357,50 @@ services:
             retries: 3
             start_period: 20s
 
+    worker-transcripts:
+        # === IMAGE ================================================ #
+        image: agenta-oss-dev-api:latest
+        # === EXECUTION ============================================ #
+        command: >
+            watchmedo auto-restart --directory=/app/oss/src --directory=/app/oss/databases --directory=/app/entrypoints
+            --directory=/sdks/python/agenta --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            python -m entrypoints.worker_transcripts
+        # === STORAGE ============================================== #
+        volumes:
+            #
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_transcripts' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
     worker-events:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-api:latest
@@ -544,8 +588,6 @@ services:
             # fallback AND the session heartbeat/transcript-persist calls.
             AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
-            # /admin/* session calls are gated on this key; sandbox-agent has no env_file.
-            AGENTA_AUTH_KEY: ${AGENTA_AUTH_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
             DAYTONA_API_URL: ${DAYTONA_API_URL:-}

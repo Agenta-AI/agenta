@@ -266,6 +266,45 @@ services:
             retries: 3
             start_period: 20s
 
+    worker-transcripts:
+        # === IMAGE ================================================ #
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "python",
+                "-m",
+                "entrypoints.worker_transcripts",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_transcripts' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
     worker-events:
         # === IMAGE ================================================ #
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
@@ -408,8 +447,6 @@ services:
             # fallback AND the session heartbeat/transcript-persist calls.
             AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
-            # /admin/* session calls are gated on this key; sandbox-agent has no env_file.
-            AGENTA_AUTH_KEY: ${AGENTA_AUTH_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
             DAYTONA_API_URL: ${DAYTONA_API_URL:-}

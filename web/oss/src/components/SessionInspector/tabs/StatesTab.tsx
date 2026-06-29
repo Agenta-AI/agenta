@@ -23,8 +23,12 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
 
     return (
         <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label="state_id">{data.id ?? "—"}</Descriptions.Item>
-            <Descriptions.Item label="sandbox_id">{data.sandbox_id ?? "—"}</Descriptions.Item>
+            <Descriptions.Item label="state_id">
+                <span className="font-mono text-xs">{data.id ?? "—"}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label="sandbox_id">
+                <span className="font-mono text-xs">{data.sandbox_id ?? "—"}</span>
+            </Descriptions.Item>
             <Descriptions.Item label="updated_at">{data.updated_at ?? "—"}</Descriptions.Item>
             <Descriptions.Item label="data">
                 <pre className="m-0 max-h-[40vh] overflow-auto text-xs">

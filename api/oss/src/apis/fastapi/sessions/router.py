@@ -2,7 +2,7 @@
 
 Composes four sub-domain routers:
   - SessionStreamsRouter  — /sessions/streams/* and /admin/sessions/streams/*
-  - SessionStatesRouter  — /sessions/states/*
+  - SessionStatesRouter  — /sessions/states/
   - TranscriptsRouter    — /sessions/transcripts/*
   - InteractionsRouter   — /sessions/interactions/* and /admin/sessions/interactions/*
 """
@@ -62,7 +62,6 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionStreamsResponseModel,
     # states
     SessionStateResponse,
-    SessionStateSandboxIdUpsertRequest,
     SessionStateUpsertRequest,
     # transcripts
     SessionTranscriptIngestRequest,
@@ -149,23 +148,23 @@ class SessionStreamsRouter:
         self.router = APIRouter()
         self.admin_router = APIRouter()
 
-        # Unified surface on /sessions/streams, keyed by ?session_id=.
+        # Unified collection surface on /sessions/streams/, keyed by ?session_id=.
         self.router.add_api_route(
-            "/sessions/streams",
+            "/sessions/streams/",
             self.fetch_session_stream,
             methods=["GET"],
             operation_id="fetch_session_stream",
             tags=["Sessions"],
         )
         self.router.add_api_route(
-            "/sessions/streams",
+            "/sessions/streams/",
             self.set_session_stream,
             methods=["POST"],
             operation_id="set_session_stream",
             tags=["Sessions"],
         )
         self.router.add_api_route(
-            "/sessions/streams",
+            "/sessions/streams/",
             self.delete_session_stream,
             methods=["DELETE"],
             operation_id="delete_session_stream",
@@ -186,12 +185,12 @@ class SessionStreamsRouter:
             tags=["Sessions"],
         )
 
-        self.admin_router.add_api_route(
-            "/heartbeat",
+        self.router.add_api_route(
+            "/sessions/streams/heartbeat",
             self.heartbeat_session_stream,
             methods=["POST"],
             operation_id="heartbeat_session_stream",
-            tags=["Sessions", "Admin"],
+            tags=["Sessions"],
         )
 
     @intercept_exceptions()
@@ -314,11 +313,21 @@ class SessionStreamsRouter:
         request: Request,
         payload: SessionHeartbeatRequestModel,
     ) -> SessionStreamResponseModel:
-        if not getattr(request.state, "admin", False):
+        # The runner authenticates AS the invoke caller; project scope comes from the
+        # credential, never the body.
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        )
+        if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
         stream = await self._service.heartbeat(
-            project_id=payload.project_id,
+            project_id=project_id,
             request=SessionHeartbeatRequest(
                 session_id=payload.session_id,
                 replica_id=payload.replica_id,
@@ -359,7 +368,7 @@ class SessionStreamsRouter:
 
 
 class SessionStatesRouter:
-    """States sub-router — /sessions/states/*"""
+    """States sub-router — /sessions/states/?session_id=..."""
 
     __test__ = False
 
@@ -368,7 +377,7 @@ class SessionStatesRouter:
         self.router = APIRouter()
 
         self.router.add_api_route(
-            "/states/{session_id}",
+            "/states/",
             self.get_session_state,
             methods=["GET"],
             operation_id="get_state",
@@ -377,19 +386,10 @@ class SessionStatesRouter:
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
-            "/states/{session_id}",
+            "/states/",
             self.set_session_state,
-            methods=["PUT"],
+            methods=["PUT", "POST"],
             operation_id="set_state",
-            status_code=status.HTTP_200_OK,
-            response_model=SessionStateResponse,
-            response_model_exclude_none=True,
-        )
-        self.router.add_api_route(
-            "/states/{session_id}/sandbox-id",
-            self.set_sandbox_id,
-            methods=["PUT"],
-            operation_id="set_state_sandbox_id",
             status_code=status.HTTP_200_OK,
             response_model=SessionStateResponse,
             response_model_exclude_none=True,
@@ -400,7 +400,7 @@ class SessionStatesRouter:
         self,
         request: Request,
         *,
-        session_id: str,
+        session_id: str = Query(...),
     ) -> SessionStateResponse:
         _validate_session_id_http(session_id)
 
@@ -425,8 +425,8 @@ class SessionStatesRouter:
         self,
         request: Request,
         *,
-        session_id: str,
         session_state_upsert_request: SessionStateUpsertRequest,
+        session_id: str = Query(...),
     ) -> SessionStateResponse:
         _validate_session_id_http(session_id)
 
@@ -442,37 +442,8 @@ class SessionStatesRouter:
             user_id=UUID(request.state.user_id),
             session_id=session_id,
             upsert=SessionStateUpsert(
-                data=session_state_upsert_request.data,
-                sandbox_id=session_state_upsert_request.sandbox_id,
+                **session_state_upsert_request.model_dump(exclude_unset=True)
             ),
-        )
-        return SessionStateResponse(
-            count=1 if session_state else 0,
-            session_state=session_state,
-        )
-
-    @intercept_exceptions()
-    async def set_sandbox_id(
-        self,
-        request: Request,
-        *,
-        session_id: str,
-        session_state_sandbox_id_upsert_request: SessionStateSandboxIdUpsertRequest,
-    ) -> SessionStateResponse:
-        _validate_session_id_http(session_id)
-
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
-
-        session_state = await self.session_states_service.set_sandbox_id(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            session_id=session_id,
-            sandbox_id=session_state_sandbox_id_upsert_request.sandbox_id,
         )
         return SessionStateResponse(
             count=1 if session_state else 0,
@@ -507,12 +478,12 @@ class TranscriptsRouter:
             response_model_exclude_none=True,
         )
 
-        self.admin_router.add_api_route(
+        self.router.add_api_route(
             "/ingest",
             self.ingest_transcript_event,
             methods=["POST"],
             operation_id="ingest_transcript",
-            tags=["Sessions", "Admin"],
+            tags=["Sessions"],
         )
 
     @intercept_exceptions()
@@ -563,14 +534,22 @@ class TranscriptsRouter:
         request: Request,
         body: SessionTranscriptIngestRequest,
     ) -> dict:
-        if not getattr(request.state, "admin", False):
+        # The runner authenticates AS the invoke caller; project scope comes from the
+        # credential, never the body.
+        project_id = request.state.project_id
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=project_id,
+            permission=Permission.RUN_SESSIONS,
+        ):
             raise FORBIDDEN_EXCEPTION
 
         await publish_transcript(
-            project_id=body.project_id,
+            organization_id=UUID(request.state.organization_id),
+            project_id=UUID(project_id),
             transcript_event=SessionTranscriptEvent(
-                session_id=body.session_id,
-                project_id=body.project_id,
+                session_id=UUID(body.session_id),
+                project_id=UUID(project_id),
                 event_index=body.event_index,
                 sender=body.sender,
                 session_update=body.session_update,
@@ -808,6 +787,15 @@ class SessionMountsRouter:
         self.router = APIRouter()
 
         self.router.add_api_route(
+            "/mounts/",
+            self.fetch_session_mounts,
+            methods=["GET"],
+            operation_id="fetch_session_mounts",
+            response_model=SessionMountsResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
             "/mounts/query",
             self.query_session_mounts,
             methods=["POST"],
@@ -816,6 +804,32 @@ class SessionMountsRouter:
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
+
+    @intercept_exceptions()
+    async def fetch_session_mounts(
+        self,
+        request: Request,
+        *,
+        session_id: str = Query(...),
+        include_archived: bool = Query(default=False),
+    ) -> SessionMountsResponse:
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        mounts = await self.session_mounts_service.query_mounts(
+            project_id=UUID(request.state.project_id),
+            mount_query=SessionMountQuery(
+                session_id=session_id,
+                include_archived=include_archived,
+            ),
+            windowing=None,
+        )
+
+        return SessionMountsResponse(count=len(mounts), mounts=mounts)
 
     @intercept_exceptions()
     async def query_session_mounts(

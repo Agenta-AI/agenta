@@ -6,8 +6,7 @@
  *         session_id: "session_id"
  *     }
  */
-export interface SessionStateSandboxIdUpsertRequest {
+export interface FetchSessionMountsRequest {
     session_id: string;
-    /** Remote sandbox id. Pass null to clear. */
-    sandbox_id?: string | null;
+    include_archived?: boolean;
 }

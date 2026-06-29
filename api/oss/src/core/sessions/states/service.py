@@ -34,18 +34,3 @@ class SessionStatesService:
             session_id=session_id,
             upsert=upsert,
         )
-
-    async def set_sandbox_id(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        session_id: str,
-        sandbox_id: Optional[str],
-    ) -> Optional[SessionState]:
-        return await self.session_states_dao.set_sandbox_id(
-            project_id=project_id,
-            user_id=user_id,
-            session_id=session_id,
-            sandbox_id=sandbox_id,
-        )

@@ -33,7 +33,7 @@ class SessionStreamCommandRequestModel(BaseModel):
 
 
 class SessionHeartbeatRequestModel(BaseModel):
-    project_id: UUID
+    # project scope comes from the caller's credential, never the body
     session_id: str
     replica_id: str
     turn_id: Optional[str] = None
@@ -87,13 +87,6 @@ class SessionStateUpsertRequest(BaseModel):
     sandbox_id: Optional[str] = Field(
         default=None,
         description="Remote sandbox id to record alongside the SDK record.",
-    )
-
-
-class SessionStateSandboxIdUpsertRequest(BaseModel):
-    sandbox_id: Optional[str] = Field(
-        default=None,
-        description="Remote sandbox id. Pass null to clear.",
     )
 
 
@@ -173,8 +166,8 @@ class SessionMountsResponse(BaseModel):
 
 
 class SessionTranscriptIngestRequest(BaseModel):
-    project_id: UUID
-    session_id: UUID
+    # project scope comes from the caller's credential, never the body
+    session_id: str
     event_index: Optional[int] = None
     sender: Optional[str] = None
     session_update: Optional[str] = None

@@ -1,3 +1,5 @@
+import uuid_utils.compat as uuid
+
 from oss.src.core.sessions.transcripts.dtos import (
     SessionTranscript,
     SessionTranscriptEvent,
@@ -9,7 +11,10 @@ def map_transcript_event_to_dbe(
     *,
     event: SessionTranscriptEvent,
 ) -> TranscriptDBE:
+    # The DAO inserts via an explicit insert().values(...), which bypasses the column's
+    # ORM-side default=uuid7; mint the pk here so it is never null at insert.
     return TranscriptDBE(
+        id=uuid.uuid7(),
         project_id=event.project_id,
         session_id=event.session_id,
         event_index=event.event_index,

@@ -29,10 +29,3 @@ class SessionStateUpsert(BaseModel):
         default=None,
         description="Remote sandbox id to record alongside the SDK record.",
     )
-
-
-class SessionStateSandboxIdUpsert(BaseModel):
-    sandbox_id: Optional[str] = Field(
-        default=None,
-        description="Remote sandbox id. Pass null to clear.",
-    )

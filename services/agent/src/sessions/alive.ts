@@ -31,17 +31,18 @@ const REFRESH_INTERVAL_MS = HEARTBEAT_INTERVAL_SECONDS * 1000;
 const REPLICA_ID =
   process.env.AGENTA_AGENT_RUNNER_REPLICA_ID?.trim() || randomUUID();
 
-/** Where the Agenta API lives. Required for admin heartbeat calls. */
+import { refreshCredential } from "./auth.ts";
+
+/** Where the Agenta API lives. */
 function apiBase(): string {
   return process.env.AGENTA_API_URL ?? "http://localhost:8000";
 }
 
-/** Admin auth header for internal runner → API calls. */
-function adminAuth(): string {
-  return process.env.AGENTA_AUTH_KEY
-    ? `Access ${process.env.AGENTA_AUTH_KEY}`
-    : process.env.AGENTA_ADMIN_AUTH ?? "";
-}
+/** Refresh the run credential every Nth heartbeat (well inside the ~15-min token TTL). */
+const REFRESH_EVERY_N_HEARTBEATS = Math.max(
+  1,
+  Math.floor((5 * 60) / HEARTBEAT_INTERVAL_SECONDS),
+);
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/alive] ${msg}\n`);
@@ -50,30 +51,37 @@ function log(msg: string): void {
 /**
  * Send one heartbeat to keep the `alive` lock and the `session_streams` row live. Carries the
  * container `replica_id` (refreshes `owner` affinity) and the `turn_id` (proves alive ownership).
+ * Authenticates AS the invoke caller (the run credential) — project scope is resolved server-side
+ * from that credential, so no `project_id` rides the request.
  */
 async function sendHeartbeat(
   sessionId: string,
   turnId: string,
-  projectId: string,
+  authorization: string,
+  isRunning = true,
 ): Promise<void> {
   try {
-    const url = `${apiBase()}/admin/sessions/streams/heartbeat`;
+    const url = `${apiBase()}/sessions/streams/heartbeat`;
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: adminAuth(),
+        authorization,
       },
       body: JSON.stringify({
-        project_id: projectId,
         session_id: sessionId,
         replica_id: REPLICA_ID,
         turn_id: turnId,
-        is_running: true,
+        is_running: isRunning,
+        ...(isRunning ? {} : { status: { code: "ended" } }),
       }),
     });
     if (!res.ok) {
       log(`heartbeat HTTP ${res.status} session=${sessionId} turn=${turnId}`);
+    } else {
+      log(
+        `heartbeat OK session=${sessionId} turn=${turnId} running=${isRunning}`,
+      );
     }
   } catch (err) {
     log(
@@ -95,13 +103,24 @@ async function sendHeartbeat(
 export function startAliveWatchdog(
   sessionId: string,
   turnId: string,
-  projectId: string,
-): { release: () => Promise<void> } {
-  // Send an immediate heartbeat to confirm the turn started, then schedule regular ones.
-  void sendHeartbeat(sessionId, turnId, projectId);
+  authorization: string,
+): { release: () => Promise<void>; credential: () => string } {
+  // The run credential is an ephemeral Secret (~15-min TTL). Hold it mutably and refresh it
+  // every Nth heartbeat (re-/check mints a fresh-expiry token) so a long turn never 401s.
+  let credential = authorization;
+  let beats = 0;
+
+  void sendHeartbeat(sessionId, turnId, credential);
 
   const interval = setInterval(() => {
-    void sendHeartbeat(sessionId, turnId, projectId);
+    void (async () => {
+      beats += 1;
+      if (beats % REFRESH_EVERY_N_HEARTBEATS === 0) {
+        const fresh = await refreshCredential(apiBase(), credential);
+        if (fresh) credential = fresh;
+      }
+      void sendHeartbeat(sessionId, turnId, credential);
+    })();
   }, REFRESH_INTERVAL_MS);
 
   // Allow the Node process to exit even if the interval is still running.
@@ -112,27 +131,9 @@ export function startAliveWatchdog(
   return {
     async release() {
       clearInterval(interval);
-      // Mark the stream row ended.
-      try {
-        const url = `${apiBase()}/admin/sessions/streams/heartbeat`;
-        await fetch(url, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: adminAuth(),
-          },
-          body: JSON.stringify({
-            project_id: projectId,
-            session_id: sessionId,
-            replica_id: REPLICA_ID,
-            turn_id: turnId,
-            is_running: false,
-            status: { code: "ended" },
-          }),
-        });
-      } catch {
-        // Best-effort: the orphan sweep will catch a missed ended transition.
-      }
+      // Mark the stream row ended (best-effort; the orphan sweep catches a miss).
+      await sendHeartbeat(sessionId, turnId, credential, false);
     },
+    credential: () => credential,
   };
 }

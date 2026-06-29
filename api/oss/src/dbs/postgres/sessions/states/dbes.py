@@ -32,7 +32,6 @@ class SessionStateDBE(
             ["projects.id"],
             ondelete="CASCADE",
         ),
-        UniqueConstraint("session_id", name="uq_session_states_session_id"),
         UniqueConstraint(
             "project_id",
             "session_id",

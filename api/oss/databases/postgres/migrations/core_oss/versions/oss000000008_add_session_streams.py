@@ -52,7 +52,11 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("project_id", "id"),
-        sa.UniqueConstraint("session_id", name="uq_session_streams_session_id"),
+        sa.UniqueConstraint(
+            "project_id",
+            "session_id",
+            name="uq_session_streams_project_session_id",
+        ),
     )
     op.create_index(
         "ix_session_streams_project_id_created_at",
@@ -60,15 +64,15 @@ def upgrade() -> None:
         ["project_id", "created_at"],
     )
     op.create_index(
-        "ix_session_streams_session_id",
+        "ix_session_streams_project_id_session_id",
         "session_streams",
-        ["session_id"],
+        ["project_id", "session_id"],
     )
 
 
 def downgrade() -> None:
     op.drop_index(
-        "ix_session_streams_session_id",
+        "ix_session_streams_project_id_session_id",
         table_name="session_streams",
     )
     op.drop_index(
