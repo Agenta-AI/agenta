@@ -157,6 +157,21 @@ function readParam(source: Record<string, unknown>, path: string): unknown {
   return cursor;
 }
 
+/**
+ * The `{name}` path-parameter tokens declared in a direct-call path (names may be dotted, e.g.
+ * `{a.b}`). Callers strip these from the POST body after they have been substituted into the URL,
+ * so an endpoint whose request model expects the identifier only in the route does not reject the
+ * leftover key (e.g. `/api/triggers/schedules/{id}/stop` must not also send `id` in the body).
+ */
+export function pathParamNames(path: unknown): string[] {
+  if (typeof path !== "string") return [];
+  const names: string[] = [];
+  for (const match of path.matchAll(/\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g)) {
+    names.push(match[1]);
+  }
+  return names;
+}
+
 function substitutePathParams(path: unknown, params: Record<string, unknown>): string {
   if (typeof path !== "string") return String(path);
   return path.replace(/\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g, (_match, name: string) => {

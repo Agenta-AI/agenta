@@ -68,6 +68,11 @@ _TEST_TIMEOUT_SECONDS = 300
 
 _DISCOVERY_INTEGRATION_LIMIT = 10
 _DISCOVERY_EVENT_LIMIT = 8
+# Minimum distinct use-case terms a candidate must match before it can be promoted to the
+# primary (capabilities[0]) result. The candidate loaders fall back to broad, unfiltered
+# catalog pages, so a single shared generic term ("issue", "email") is not strong enough
+# evidence to surface an integration as the best match; an exact phrase hit also clears this.
+_DISCOVERY_MIN_PRIMARY_TERMS = 2
 _DISCOVERY_STOPWORDS = {
     "a",
     "an",
@@ -116,12 +121,19 @@ def _discovery_terms(value: str) -> List[str]:
     return deduped
 
 
-def _score_trigger_match(
+def _match_signal(
     *,
     use_case: str,
     event: TriggerCatalogEvent,
     integration: TriggerCatalogIntegration,
-) -> int:
+) -> Tuple[int, int, bool]:
+    """Score a candidate plus the evidence behind it.
+
+    Returns ``(score, matched_terms, exact_phrase)`` where ``matched_terms`` is the count of
+    distinct use-case terms that hit anywhere in the candidate and ``exact_phrase`` is whether
+    the whole use case appears verbatim. Callers gate the primary match on the evidence, not the
+    raw score, since one strongly-weighted term can score as high as two weak ones.
+    """
     haystack = " ".join(
         str(part or "")
         for part in (
@@ -134,17 +146,58 @@ def _score_trigger_match(
         )
     ).lower()
     needle = (use_case or "").strip().lower()
-    score = 0
-    if needle and needle in haystack:
-        score += 50
+    exact_phrase = bool(needle and needle in haystack)
+    score = 50 if exact_phrase else 0
+    matched_terms = 0
+    event_key = str(event.key or "").lower()
+    integration_key = str(integration.key or "").lower()
     for term in _discovery_terms(use_case):
+        hit = False
         if term in haystack:
             score += 5
-        if term in str(event.key or "").lower():
+            hit = True
+        if term in event_key:
             score += 3
-        if term in str(integration.key or "").lower():
+            hit = True
+        if term in integration_key:
             score += 2
-    return score
+            hit = True
+        if hit:
+            matched_terms += 1
+    return score, matched_terms, exact_phrase
+
+
+def _score_trigger_match(
+    *,
+    use_case: str,
+    event: TriggerCatalogEvent,
+    integration: TriggerCatalogIntegration,
+) -> int:
+    return _match_signal(
+        use_case=use_case,
+        event=event,
+        integration=integration,
+    )[0]
+
+
+def _has_primary_evidence(
+    *,
+    use_case: str,
+    event: TriggerCatalogEvent,
+    integration: TriggerCatalogIntegration,
+) -> bool:
+    """Whether a candidate is strong enough to surface as the primary match.
+
+    Requires an exact-phrase hit or at least ``_DISCOVERY_MIN_PRIMARY_TERMS`` distinct matched
+    terms, so a single generic term shared with a broad catalog page falls to the no-match path
+    instead of promoting an arbitrary integration.
+    """
+    _score, matched_terms, exact_phrase = _match_signal(
+        use_case=use_case,
+        event=event,
+        integration=integration,
+    )
+    return exact_phrase or matched_terms >= _DISCOVERY_MIN_PRIMARY_TERMS
 
 
 class TriggersService:
@@ -295,6 +348,16 @@ class TriggersService:
             )
             surfaced = matches[: 1 + max(limit_alternatives, 0)]
 
+            # Require stronger evidence before promoting a candidate to the primary match:
+            # if the top candidate is only a weak/ambiguous hit, fall to the no-match path
+            # instead of surfacing an arbitrary integration as the best match.
+            if surfaced and not _has_primary_evidence(
+                use_case=use_case,
+                event=surfaced[0][1],
+                integration=surfaced[0][2],
+            ):
+                surfaced = []
+
             for _score, event, integration in surfaced:
                 key = event.integration or integration.key
                 if key not in states:
@@ -424,17 +487,17 @@ class TriggersService:
                 if key in seen:
                     continue
                 seen.add(key)
-                matches.append(
-                    (
-                        _score_trigger_match(
-                            use_case=use_case,
-                            event=event,
-                            integration=integration,
-                        ),
-                        event,
-                        integration,
-                    )
+                score = _score_trigger_match(
+                    use_case=use_case,
+                    event=event,
+                    integration=integration,
                 )
+                # The candidate loaders fall back to unfiltered catalog pages, so drop
+                # score-0 events here rather than letting discover_triggers surface an
+                # arbitrary, unrelated event.
+                if score <= 0:
+                    continue
+                matches.append((score, event, integration))
 
         return sorted(matches, key=lambda item: item[0], reverse=True)
 

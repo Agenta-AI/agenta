@@ -326,11 +326,15 @@ _CREATE_SCHEDULE_DESCRIPTION = (
 )
 _CREATE_SCHEDULE_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
+    # Closed so the model cannot smuggle `references` / `selector` past the self-target
+    # binding ($ctx.workflow.variant.id); only the cataloged fields are accepted.
+    "additionalProperties": False,
     "properties": {
         "name": {"type": "string", "description": "Human label for the schedule."},
         "description": {"type": "string"},
         "data": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
                 "event_key": {
                     "type": "string",
@@ -364,6 +368,9 @@ _CREATE_SUBSCRIPTION_DESCRIPTION = (
 )
 _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
+    # Closed so the model cannot smuggle `references` / `selector` past the self-target
+    # binding ($ctx.workflow.variant.id); only the cataloged fields are accepted.
+    "additionalProperties": False,
     "properties": {
         "name": {"type": "string", "description": "Human label for the subscription."},
         "description": {"type": "string"},
@@ -373,6 +380,7 @@ _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
         },
         "data": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
                 "event_key": {
                     "type": "string",

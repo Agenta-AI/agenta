@@ -27,6 +27,7 @@ import {
   deepMerge,
   deepSet,
   directCallUrl,
+  pathParamNames,
   resolveCtxToken,
   type DirectCall,
 } from "../../src/tools/direct.ts";
@@ -481,6 +482,18 @@ describe("directCallUrl", () => {
   });
 });
 
+describe("pathParamNames", () => {
+  it("extracts the {name} tokens from a path", () => {
+    assert.deepEqual(pathParamNames("/api/triggers/schedules/{id}/stop"), ["id"]);
+    assert.deepEqual(pathParamNames("/api/x/{a}/y/{b.c}"), ["a", "b.c"]);
+  });
+
+  it("returns an empty list for a path with no params or a non-string", () => {
+    assert.deepEqual(pathParamNames("/api/workflows/invoke"), []);
+    assert.deepEqual(pathParamNames(undefined), []);
+  });
+});
+
 // The reference-tool spec reused by the live dispatch tests below: a stored workflow invoked as
 // a tool (args at data.inputs, the resolved revision baked into the fixed body).
 const refSpec: ResolvedToolSpec = {
@@ -588,6 +601,28 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
       workflow_variant_id: "own-variant", // bound to the run's own variant, not the model's
       parameters: { temperature: 0.2 },
     });
+  });
+
+  it("strips substituted path params out of the POST body", async () => {
+    const calls = stubFetch("paused");
+    // A lifecycle op like pause_schedule: `id` names a path param AND is the only model arg.
+    // After substitution into the URL, it must not also be sent in the JSON body, or a handler
+    // whose request model expects the id only in the route would reject the extra key.
+    const pauseSpec: ResolvedToolSpec = {
+      name: "pause_schedule",
+      kind: "callback",
+      call: { method: "POST", path: "/api/triggers/schedules/{id}/stop" },
+    };
+    const res = await relayOnce(
+      pauseSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { id: "sched_1" },
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://agenta.example/api/triggers/schedules/sched_1/stop");
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {});
   });
 
   it("surfaces the SSRF-guard rejection as a relay error", async () => {
