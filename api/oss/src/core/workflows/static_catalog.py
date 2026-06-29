@@ -89,8 +89,11 @@ def _client_tool_revision() -> WorkflowRevision:
         data=WorkflowRevisionData(
             uri="client:tool:request_connection:v0",
             parameters={
+                # A tool config (the ``tools`` field holds configs, discriminated by ``type``),
+                # not a resolved spec (``kind``): the embed inlines this at ``parameters.tool`` and
+                # the SDK coerces it to a ``ClientToolConfig`` -> ``ClientToolSpec``.
                 "tool": {
-                    "kind": "client",
+                    "type": "client",
                     "name": REQUEST_CONNECTION_TOOL_NAME,
                     "description": "Request a connection from the user.",
                     "input_schema": {
