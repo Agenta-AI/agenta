@@ -1,15 +1,18 @@
 /**
- * Unit tests for direct-call tools (tools/direct.ts) and the two dispatch branches that use it
- * (tools/dispatch.ts `runResolvedTool`, tools/relay.ts `startToolRelay` -> `executeRelayedTool`).
+ * Unit tests for direct-call tools (tools/direct.ts) and the live dispatch branch that uses it
+ * (tools/relay.ts `startToolRelay` -> `executeRelayedTool`). The symmetric `tools/dispatch.ts`
+ * `runResolvedTool` host-direct branch is deferred (see direct.ts), so it is not exercised here.
  *
  * A resolved callback tool can carry a `call` descriptor; when it does the runner calls the
  * Agenta endpoint directly instead of routing through /tools/call. These tests cover:
- *  - assembleBody: args_into deep-set, the fixed-wins overlay, the root merge, and
- *    prototype-pollution-safe assignment.
- *  - directCallUrl (the SSRF guard): method allowlist, the /api-relative path rule, traversal /
- *    protocol-relative / absolute-URL rejection, and origin binding to the run's callback endpoint.
- *  - the dispatch branch (runResolvedTool, host-direct) and the relay branch (startToolRelay,
- *    Daytona host) with FAKE `call` specs and a mocked global fetch.
+ *  - assembleBody: args_into deep-set, the fixed-wins overlay, the root merge, the run-context
+ *    binding, and prototype-pollution-safe assignment (including nested unsafe keys).
+ *  - directCallUrl (the SSRF guard): method allowlist, the mount-agnostic absolute-path rule,
+ *    traversal / protocol-relative / absolute-URL rejection, origin binding (host-lock) to the
+ *    run's callback endpoint, and failing closed when the callback mount cannot be derived.
+ *  - callDirect: the redirect:manual round-trip and the GET-with-body fail-fast guard.
+ *  - the relay branch (startToolRelay -> executeRelayedTool) with FAKE `call` specs and a mocked
+ *    global fetch.
  *
  * No network and no harness: `globalThis.fetch` is stubbed per test and restored after.
  *
@@ -23,6 +26,7 @@ import { join } from "node:path";
 
 import {
   assembleBody,
+  callDirect,
   deepDelete,
   deepMerge,
   deepSet,
@@ -159,6 +163,28 @@ describe("assembleBody", () => {
     };
     const body = assembleBody(call, { a: 1 });
     assert.equal((body as any).polluted, undefined);
+    assert.equal(({} as any).polluted, undefined);
+  });
+
+  it("strips a nested unsafe key from the model args at the root", () => {
+    // Untrusted model args with a NESTED "__proto__" must be sanitized at every level, not just
+    // the top. JSON.parse makes the "__proto__" an own key (an object literal would set the proto).
+    const call: DirectCall = { method: "POST", path: "/api/x" };
+    const args = JSON.parse('{"nested": {"__proto__": {"polluted": true}, "ok": 1}}');
+    const body = assembleBody(call, args);
+    assert.deepEqual(body, { nested: { ok: 1 } });
+    assert.equal(({} as any).polluted, undefined);
+  });
+
+  it("strips a nested unsafe key from the model args at args_into", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/x",
+      args_into: "data.inputs",
+    };
+    const args = JSON.parse('{"__proto__": {"polluted": true}, "city": "Paris"}');
+    const body = assembleBody(call, args);
+    assert.deepEqual(body, { data: { inputs: { city: "Paris" } } });
     assert.equal(({} as any).polluted, undefined);
   });
 });
@@ -337,6 +363,15 @@ describe("deepSet / deepMerge", () => {
     assert.deepEqual(base, { a: { x: 1 }, keep: 1 }, "base is untouched");
   });
 
+  it("deepMerge strips a nested unsafe key even when the base side is not an object", () => {
+    // The overlay subtree lands on a non-object base key, so it cannot merge onto an existing
+    // subtree — it must still be sanitized through deepMerge rather than assigned wholesale.
+    const overlay = JSON.parse('{"a": {"__proto__": {"polluted": true}, "ok": 1}}');
+    const out = deepMerge({ a: 5 }, overlay);
+    assert.deepEqual(out, { a: { ok: 1 } });
+    assert.equal(({} as any).polluted, undefined);
+  });
+
   it("deepDelete removes a nested leaf and no-ops a missing parent, proto-safely", () => {
     const target: Record<string, unknown> = { a: { b: 1, c: 2 }, keep: 3 };
     deepDelete(target, "a.b");
@@ -396,6 +431,27 @@ describe("directCallUrl", () => {
     assert.equal(url, "http://host:8000/workflows/invoke");
   });
 
+  it("normalizes a trailing slash on the callback endpoint before deriving the mount", () => {
+    const url = directCallUrl("https://agenta.example/api/tools/call/", {
+      method: "POST",
+      path: "/api/workflows/invoke",
+    });
+    assert.equal(url, "https://agenta.example/api/workflows/invoke");
+  });
+
+  it("fails closed when the callback path does not end with /tools/call", () => {
+    // An unexpected callback shape would derive an empty mount and silently widen the guard to any
+    // same-origin path; reject it instead.
+    assert.throws(
+      () =>
+        directCallUrl("https://agenta.example/api/health", {
+          method: "POST",
+          path: "/api/workflows/invoke",
+        }),
+      /cannot derive Agenta API mount from callback endpoint/,
+    );
+  });
+
   it("rejects a same-origin path outside the callback's mount", () => {
     assert.throws(
       () => directCallUrl(ENDPOINT, { method: "POST", path: "/secrets" }),
@@ -442,6 +498,31 @@ describe("directCallUrl", () => {
       () => directCallUrl("not a url", { method: "POST", path: "/api/x" }),
       /cannot derive Agenta origin/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// callDirect (HTTP round-trip)
+// ---------------------------------------------------------------------------
+
+describe("callDirect", () => {
+  it("fails fast on a GET with a non-empty body (inputs would be silently dropped)", async () => {
+    // fetch forbids a GET body, so a GET descriptor with assembled inputs must not run — it would
+    // execute without them. The guard throws before fetch is ever called.
+    const calls = stubFetch("never");
+    await assert.rejects(
+      callDirect("GET", "https://agenta.example/api/x", undefined, { city: "Paris" }),
+      /GET cannot carry a request body/,
+    );
+    assert.equal(calls.length, 0, "fetch is never called");
+  });
+
+  it("allows a GET with an empty body", async () => {
+    const calls = stubFetch("ok");
+    const out = await callDirect("GET", "https://agenta.example/api/x", undefined, {});
+    assert.equal(out, "ok");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init.body, undefined, "no GET body is sent");
   });
 });
 
