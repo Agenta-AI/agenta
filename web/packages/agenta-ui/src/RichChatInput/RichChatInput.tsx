@@ -133,8 +133,12 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             <LexicalExtensionComposer extension={chatInputExtension} contentEditable={null}>
                 <div
                     className={clsx(
-                        "relative flex flex-col rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] transition-colors",
-                        "border-[var(--ag-colorBorder)] focus-within:border-[var(--ag-colorPrimary)]",
+                        // overflow-hidden so the footer row + its top border clip to the rounded
+                        // corners (otherwise the bottom corners read as squared-off cut-offs).
+                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] transition-colors",
+                        // Neutral, low-key focus emphasis — a soft border darkening rather than the
+                        // full brand-primary ring, which was too loud for a chat composer.
+                        "border-[var(--ag-colorBorder)] focus-within:border-[var(--ag-colorTextTertiary)]",
                         disabled && "opacity-60",
                         className,
                     )}
