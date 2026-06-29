@@ -48,6 +48,7 @@ class HarnessType(str, Enum):
 
     PI = "pi_core"
     CLAUDE = "claude"
+    CODEX = "codex"
     AGENTA = "pi_agenta"
 
     @classmethod
@@ -101,6 +102,11 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         value=HarnessType.CLAUDE.value,
         slug=f"agenta:harness:{HarnessType.CLAUDE.value}:v0",
         name="Claude Code",
+    ),
+    HarnessIdentity(
+        value=HarnessType.CODEX.value,
+        slug=f"agenta:harness:{HarnessType.CODEX.value}:v0",
+        name="Codex",
     ),
 ]
 
@@ -896,6 +902,38 @@ class ClaudeAgentTemplate(HarnessAgentTemplate):
         if not files:
             return {}
         return {"harnessFiles": files}
+
+
+class CodexAgentTemplate(HarnessAgentTemplate):
+    """Codex's config. No Pi built-ins; tools are delivered over MCP, and
+    ``permission_policy`` answers Codex's tool-use prompts in a headless run."""
+
+    harness: ClassVar[HarnessType] = HarnessType.CODEX
+
+    tool_specs: List[ToolSpec] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("tool_specs", "custom_tools"),
+    )
+    permission_policy: PermissionPolicy = "auto"
+
+    @field_validator("tool_specs", mode="before")
+    @classmethod
+    def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
+        return [coerce_tool_spec(item) for item in value or []]
+
+    @property
+    def custom_tools(self) -> List[Dict[str, Any]]:
+        return [tool_spec.to_wire() for tool_spec in self.tool_specs]
+
+    def wire_tools(self) -> Dict[str, Any]:
+        return {
+            "tools": [],  # Codex has no Pi built-in tools
+            "customTools": [tool_spec.to_wire() for tool_spec in self.tool_specs],
+            "toolCallback": self.tool_callback.to_wire()
+            if self.tool_callback
+            else None,
+            "permissionPolicy": self.permission_policy,
+        }
 
 
 class AgentaAgentTemplate(PiAgentTemplate):

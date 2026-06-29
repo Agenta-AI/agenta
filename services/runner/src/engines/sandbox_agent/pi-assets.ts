@@ -9,7 +9,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
@@ -262,6 +262,21 @@ export async function uploadSkillsToSandbox(
     } catch (err) {
       log(`skill upload skipped for ${skill.name}: ${(err as Error).message}`);
     }
+  }
+}
+
+/**
+ * Write `~/.codex/auth.json` for a managed codex run so the codex CLI can read its key
+ * as a file (env alone is insufficient). Both credential modes call this; self-managed runs
+ * whose key is already on disk are updated so the managed key wins.
+ */
+export function writeCodexAuthFile(apiKey: string, log: Log = () => {}): void {
+  try {
+    const dir = join(homedir(), ".codex");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "auth.json"), JSON.stringify({ OPENAI_API_KEY: apiKey }), "utf-8");
+  } catch (err) {
+    log(`codex auth.json write skipped: ${(err as Error).message}`);
   }
 }
 

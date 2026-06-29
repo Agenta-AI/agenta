@@ -19,6 +19,8 @@ from agenta.sdk.agents import (
     ClaudeAgentTemplate,
     ClaudeHarness,
     ClientToolSpec,
+    CodexAgentTemplate,
+    CodexHarness,
     HarnessType,
     PiAgentTemplate,
     PiHarness,
@@ -365,7 +367,14 @@ def test_opt_str_keeps_only_nonempty_strings():
 
 
 def test_make_harness_maps_string_to_class(make_env):
-    env = make_env(supported=[HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA])
+    env = make_env(
+        supported=[
+            HarnessType.PI,
+            HarnessType.CLAUDE,
+            HarnessType.AGENTA,
+            HarnessType.CODEX,
+        ]
+    )
     assert isinstance(make_harness("pi_core", env), PiHarness)
     assert isinstance(
         make_harness("PI_CORE", env), PiHarness
@@ -374,6 +383,8 @@ def test_make_harness_maps_string_to_class(make_env):
     assert isinstance(make_harness(HarnessType.CLAUDE, env), ClaudeHarness)
     assert isinstance(make_harness("pi_agenta", env), AgentaHarness)
     assert isinstance(make_harness(HarnessType.AGENTA, env), AgentaHarness)
+    assert isinstance(make_harness("codex", env), CodexHarness)
+    assert isinstance(make_harness(HarnessType.CODEX, env), CodexHarness)
 
 
 def test_make_harness_unsupported_backend_raises(make_env):
@@ -386,3 +397,51 @@ def test_make_harness_unknown_name_raises(make_env):
     env = make_env(supported=[HarnessType.PI])
     with pytest.raises(ValueError):
         make_harness("bogus", env)
+
+
+# -------------------------------------------------------------------- Codex harness
+
+
+def test_codex_drops_builtins_and_warns(make_env, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        harnesses,
+        "log",
+        type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
+    )
+    harness = CodexHarness(make_env(supported=[HarnessType.CODEX]))
+    config = _session_config(
+        builtin_tools=["read"],
+        custom_tools=[{"name": "t", "callRef": "ref"}],
+        permission_policy="deny",
+    )
+
+    result = harness._to_harness_config(config)
+
+    assert isinstance(result, CodexAgentTemplate)
+    assert not hasattr(result, "builtin_tools")
+    assert result.custom_tools[0]["name"] == "t"
+    assert result.permission_policy == "deny"
+    assert recorded, "expected a warning when built-ins are dropped"
+
+
+def test_codex_no_warning_without_builtins(make_env, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        harnesses,
+        "log",
+        type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
+    )
+    harness = CodexHarness(make_env(supported=[HarnessType.CODEX]))
+
+    harness._to_harness_config(_session_config(permission_policy="auto"))
+
+    assert recorded == []
+
+
+def test_codex_renders_no_harness_files(make_env):
+    harness = CodexHarness(make_env(supported=[HarnessType.CODEX]))
+
+    result = harness._to_harness_config(_session_config())
+
+    assert result.wire_harness_files() == {}

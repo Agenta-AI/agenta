@@ -1,0 +1,30 @@
+{
+  "harness": "codex",
+  "sandbox": "local",
+  "sessionId": null,
+  "agentsMd": "You are a helpful assistant.",
+  "model": "gpt-5.5",
+  "messages": [
+    {"role": "user", "content": "hi"}
+  ],
+  "secrets": {"OPENAI_API_KEY": "sk-test"},
+  "context": null,
+  "telemetry": null,
+  "tools": [],
+  "customTools": [
+    {
+      "name": "get_user",
+      "description": "Get a user",
+      "inputSchema": {"type": "object", "properties": {}},
+      "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
+      "kind": "callback",
+      "readOnly": true,
+      "permission": "allow"
+    }
+  ],
+  "toolCallback": {
+    "endpoint": "https://api.example/tools/call",
+    "authorization": "Access tok-123"
+  },
+  "permissionPolicy": "deny"
+}

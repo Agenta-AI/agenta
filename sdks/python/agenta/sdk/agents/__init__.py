@@ -23,6 +23,7 @@ Standalone usage::
 from .adapters import (
     AgentaHarness,
     ClaudeHarness,
+    CodexHarness,
     LocalBackend,
     PiHarness,
     SandboxAgentBackend,
@@ -58,6 +59,7 @@ from .dtos import (
     Event,
     AgentResult,
     ClaudeAgentTemplate,
+    CodexAgentTemplate,
     ContentBlock,
     HARNESS_IDENTITIES,
     HarnessAgentTemplate,
@@ -155,6 +157,7 @@ __all__ = [
     "HarnessAgentTemplate",
     "PiAgentTemplate",
     "ClaudeAgentTemplate",
+    "CodexAgentTemplate",
     "AgentaAgentTemplate",
     "HarnessType",
     "HarnessIdentity",
@@ -264,6 +267,7 @@ __all__ = [
     "LocalBackend",
     "PiHarness",
     "ClaudeHarness",
+    "CodexHarness",
     "AgentaHarness",
     "make_harness",
 ]

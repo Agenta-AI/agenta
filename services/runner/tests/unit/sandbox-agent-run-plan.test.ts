@@ -604,6 +604,43 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.hasSystemPrompt, false);
     assert.deepEqual(result.plan.skillDirs, []);
   });
+
+  it("maps harness=codex to acpAgent=codex and uses OPENAI_API_KEY", () => {
+    const result = buildRunPlan(
+      {
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        secrets: { OPENAI_API_KEY: "sk-test" },
+        credentialMode: "env",
+      },
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.acpAgent, "codex");
+    assert.equal(result.plan.harness, "codex");
+    assert.equal(result.plan.isPi, false);
+    assert.equal(result.plan.isDaytona, false);
+    assert.equal(result.plan.usageOutPath, undefined);
+    assert.equal(result.plan.legacyHarnessApiKeyVar, "OPENAI_API_KEY");
+    assert.equal(result.plan.hasApiKey, true);
+    assert.equal(result.plan.systemPrompt, undefined);
+    assert.equal(result.plan.hasSystemPrompt, false);
+  });
+
+  it("pi identity assertion still fires for pi_* harnesses (codex is not pi)", () => {
+    // Codex must NOT trip the pi identity assertion.
+    const result = buildRunPlan(
+      { harness: "codex", messages: [{ role: "user", content: "hello" }] },
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.isPi, false);
+    assert.equal(result.plan.acpAgent, "codex");
+  });
 });
 
 describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
