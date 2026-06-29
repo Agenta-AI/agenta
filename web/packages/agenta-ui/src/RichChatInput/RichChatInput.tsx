@@ -51,6 +51,10 @@ export interface RichChatInputProps {
     sendForceEnabled?: boolean
     /** Hide the built-in send button (keyboard-only). */
     hideSendButton?: boolean
+    /** A stream is in flight — the send button becomes a Stop button. */
+    streaming?: boolean
+    /** Abort the in-flight stream (used while `streaming`). */
+    onStop?: () => void
 }
 
 // Static: RichText gives Cmd+B/I + block behavior, History gives undo/redo, list
@@ -89,6 +93,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             onPasteFile,
             sendForceEnabled,
             hideSendButton,
+            streaming,
+            onStop,
         },
         ref,
     ) {
@@ -175,6 +181,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 onSubmit={onSubmit}
                                 forceEnabled={sendForceEnabled}
                                 disabled={disabled}
+                                streaming={streaming}
+                                onStop={onStop}
                             />
                         )}
                     </div>

@@ -7,7 +7,7 @@ import {HeightCollapse} from "@agenta/ui"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
-import {ArrowDown, Paperclip, Stop, UploadSimple} from "@phosphor-icons/react"
+import {ArrowDown, Paperclip, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
@@ -863,12 +863,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         <span />
                     )}
                     {busy ? (
-                        <span className="inline-flex items-center gap-2">
-                            <span className="text-xs text-colorTextTertiary">Streaming…</span>
-                            <Button icon={<Stop size={14} weight="fill" />} onClick={handleStop}>
-                                Stop
-                            </Button>
-                        </span>
+                        <span className="text-xs text-colorTextTertiary">Streaming…</span>
                     ) : hitlPending ? (
                         <span className="text-xs text-colorTextTertiary">Waiting for approval</span>
                     ) : null}
@@ -882,6 +877,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                 onPasteFile={(pasted) => addFiles(Array.from(pasted))}
                 sendForceEnabled={files.length > 0}
+                streaming={busy}
+                onStop={handleStop}
                 prefix={
                     <Tooltip title={atMax ? `Up to ${limits.maxCount} files` : "Attach files"}>
                         <Button
