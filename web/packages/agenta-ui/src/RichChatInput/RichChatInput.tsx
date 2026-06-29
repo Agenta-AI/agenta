@@ -9,6 +9,7 @@ import {ContentEditable} from "@lexical/react/LexicalContentEditable"
 import {LexicalExtensionComposer} from "@lexical/react/LexicalExtensionComposer"
 import {ListPlugin} from "@lexical/react/LexicalListPlugin"
 import {MarkdownShortcutPlugin} from "@lexical/react/LexicalMarkdownShortcutPlugin"
+import {TabIndentationPlugin} from "@lexical/react/LexicalTabIndentationPlugin"
 import {RichTextExtension} from "@lexical/rich-text"
 import clsx from "clsx"
 import {$createParagraphNode, $getRoot, defineExtension, type LexicalEditor} from "lexical"
@@ -184,6 +185,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     <EditorRefBridge editorRef={editorRef} />
                     <EditableSyncPlugin editable={!disabled} />
                     <ListPlugin />
+                    {/* Tab / Shift+Tab indents + outdents list items (nesting). */}
+                    <TabIndentationPlugin />
                     <MarkdownShortcutPlugin transformers={CHAT_TRANSFORMERS} />
                     <SubmitPlugin onSubmit={onSubmit} />
                     <CharacterCountPlugin onCountChange={setCount} />

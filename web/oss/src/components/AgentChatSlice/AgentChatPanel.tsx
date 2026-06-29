@@ -151,16 +151,19 @@ const MessageRow = ({
     children: React.ReactNode
 }) => {
     const [shown, setShown] = useState(!enter)
+    // Reveal one frame after mount so the opacity transition plays. Deps are [] (NOT
+    // [enter]) on purpose: an `enter` flip when a sibling turn arrives must not cancel
+    // this rAF, or a just-sent message strands at opacity-0 for the whole agent run.
     useEffect(() => {
-        if (!enter) return
         const raf = requestAnimationFrame(() => setShown(true))
         return () => cancelAnimationFrame(raf)
-    }, [enter])
+    }, [])
+    // `shown || !enter` is a belt-and-suspenders: a settled row (id seen) is always visible.
     return (
         <div
             data-mid={mid}
             className={`flex flex-col gap-1 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out ${
-                shown ? "opacity-100" : "motion-safe:opacity-0"
+                shown || !enter ? "opacity-100" : "motion-safe:opacity-0"
             }`}
         >
             {children}
