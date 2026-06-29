@@ -14,13 +14,17 @@ cron job, and commits the result. The agent becomes the app. The user never writ
 hand. They have a conversation.
 
 The kit is a build aid, not part of the shipped agent. It is an **agent-template overlay** the
-backend serves read-only on the inspect response. The frontend applies the overlay for a
-playground run, excludes it on commit, and shows it in a read-only drawer. So the platform tools
-and the authoring skill are present while the user builds, and absent the moment the agent ships.
-This is the pivot the rest of this page reflects: **a read-only overlay the frontend applies,
-never committed.** An earlier version of this initiative baked the defaults into the committed
-config. Mahmoud rejected that. The defaults are now a read-only overlay that is never persisted,
-and the agent service never sees it.
+backend serves read-only on the simple-applications response (`GET /api/simple/applications/{id}`).
+The frontend reads the overlay from that response, applies it for a playground run, excludes it on
+commit, and shows it in a read-only drawer. So the platform tools and the authoring skill are
+present while the user builds, and absent the moment the agent ships. This is the pivot the rest of
+this page reflects: **a read-only overlay the frontend applies, never committed.** An earlier
+version of this initiative baked the defaults into the committed config. Mahmoud rejected that. The
+defaults are now a read-only overlay that is never persisted, and the agent service never sees it.
+
+This initiative has shipped. The four sub-projects landed (PRs #4917, #4918, #4919, #4925/#4934),
+the authoring skill and builder tools landed (#4930, #4931), and the collapsible advanced drawer
+landed (#4935). The status notes below mark each piece done.
 
 ## The four sub-projects
 
@@ -32,13 +36,14 @@ This project owns the build-kit overlay and now the drawer UI that renders it. T
 agent-template overlay, a partial `parameters.agent` with three kinds of entry: the platform tools
 (from `PLATFORM_OPS`) and the client tools as `@ag.embed` references, the authoring skill as an
 `@ag.embed` reference, and the build permissions (write files, execute code). The backend serves it
-read-only at `additional_context.playground_build_kit.agent_template_overlay` on the inspect
-response. The frontend applies it on a kit-on playground run (deep-merge object fields,
-identity-merge list fields) and excludes it on commit. The agent service stays dumb: no run flag
+read-only at `additional_context.playground_build_kit.agent_template_overlay` on the
+simple-applications response (`GET /api/simple/applications/{id}` -> `SimpleApplicationResponse`).
+The frontend reads it from there and applies it on a kit-on playground run (deep-merge object
+fields, identity-merge list fields), then excludes it on commit. The agent service stays dumb: no run flag
 and no service-side merge. The published default goes back to bare, so a production run never gets
 self-commit or execute-code by accident.
 
-### 2. The frontend round-trip — [#4920](https://github.com/Agenta-AI/agenta/pull/4920) (Part 2, Arda)
+### 2. The frontend round-trip — backend [#4925](https://github.com/Agenta-AI/agenta/pull/4925), frontend [#4934](https://github.com/Agenta-AI/agenta/pull/4934) (designed as #4920, Part 2, Arda)
 
 Folder: [`../agent-fe-roundtrip/`](../agent-fe-roundtrip/design.md)
 
@@ -48,9 +53,16 @@ user something, the user acts, and the run resumes with the result. This doc des
 once, as a generic client-tool round-trip, then points it at two jobs. It reuses the
 human-in-the-loop approval transport that already ships, widened so any client tool can
 round-trip. The first client tool is `request_connection`, a non-runnable reference tool the
-overlay embeds via `@ag.embed`. On a commit, the runner emits a `data-committed-revision` signal
-so the playground refreshes the config panel. This project owns the client-tool primitive and the
-connection flow, so it is upstream of the rest.
+overlay embeds via `@ag.embed`; the embed resolves to a `ClientToolConfig` with
+`render.kind:"connect"`. On a commit, the platform `commit_revision` tool emits a one-way
+`data-committed-revision` event, which the playground listens for to refresh the config panel and
+the build-kit view. This project owns the client-tool primitive and the connection flow, so it is
+upstream of the rest.
+
+Known gap: the `data-committed-revision` event fires only on the create/initial commit path
+(`create_workflow_revision`) and the platform-tool `/tools/call` path. The regular
+`commit_workflow_revision` endpoint (`api/oss/src/apis/fastapi/workflows/router.py`) does not emit
+it yet, so a normal frontend-driven commit of an existing variant does not auto-refresh. Follow-up.
 
 ### 3. Builder capabilities — [#4919](https://github.com/Agenta-AI/agenta/pull/4919)
 
@@ -64,7 +76,8 @@ agent-facing tool layer over it, plus one search endpoint. This project adds pla
 `find_triggers`, a keyword search over the event catalog and the one new backend piece, at
 `POST /api/triggers/discover`. A schedule or subscription targets the agent itself, bound
 server-side from run context the way `commit_revision` binds the variant id, so the agent never
-names a destination. The mutating tools default to approval.
+names a destination. The mutating tools default to approval. Trigger hardening (#4931) locked the
+create-trigger schemas with `additionalProperties:false` to protect the self-target guarantee.
 
 ### 4. Agent skills — [#4918](https://github.com/Agenta-AI/agenta/pull/4918)
 
@@ -76,15 +89,17 @@ skills fall out of the flow: `agenta-getting-started` (baseline behavior), `buil
 (the orchestrator that names the steps and the stop points), `discover-and-wire-tools` (find
 action tools and get them connected), and `set-up-triggers` (cron and event triggers). The
 skills ride the build-kit overlay as `@ag.embed` references the frontend applies for a run, never
-an `@ag.embed` in the committed config. The bodies are placeholders that capture the flow; the
-final prose lands later.
+an `@ag.embed` in the committed config. The authoring skill lives in the code-defined static
+catalog (#4930). The frontend shows each embedded skill and tool by its resolved workflow `name`,
+not the raw `__ag__*` slug.
 
 ## The drawer folded into the default config
 
 The advanced build-kit drawer is no longer a separate sub-project. Its design is folded into #4917,
 which now owns both the overlay and the drawer that renders it read-only. One related cleanup, making
-the advanced drawer sections collapsible, is independent of the build kit and ships on its own as a
-small drawer change.
+the advanced drawer sections collapsible, is independent of the build kit and shipped on its own as a
+small drawer change (#4935): the three advanced config groups (Authentication, Execution environment,
+Permissions) are collapsible accordions, collapsed by default.
 
 ## Cross-cutting locked decisions
 
@@ -93,7 +108,8 @@ These hold across the docs. They are settled.
 - **The agent becomes the app.** Self-modification only. The agent edits and commits itself. It
   does not build other workflows in this round.
 - **A read-only overlay the frontend applies, never committed.** The build kit is an agent-template
-  overlay the backend serves read-only on the inspect response at
+  overlay the backend serves read-only on the simple-applications response
+  (`GET /api/simple/applications/{id}`) at
   `additional_context.playground_build_kit.agent_template_overlay`. The frontend applies it for a
   run (deep-merge object fields, identity-merge list fields) and excludes it on commit. The agent
   service stays dumb: no run flag, no service-side merge. It is whole-kit on or off, never edited
@@ -111,9 +127,11 @@ These hold across the docs. They are settled.
   never the secret. The runner re-resolves the credential from the project vault on resume.
 - **Client tools and skills are reference-tool embeds.** The authoring skill and the client tool
   `request_connection` are non-runnable reference tools the overlay embeds via
-  `{ "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__..." } } } }`, the same shape
-  for both, only the slug differs. `request_connection` is not a platform op; the embed resolver
-  inlines it into a `client` tool the frontend handles.
+  `{ "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__..." } }, "@ag.selector": { "path": "parameters.tool" } }, "name": "..." }`,
+  the same shape for both. The slug and the selector path differ: `parameters.skill` for a skill,
+  `parameters.tool` for a tool. The `@ag.selector` is required; without it the resolver inlines the
+  whole revision and the SDK rejects it. `request_connection` is not a platform op; the embed
+  resolves to a `ClientToolConfig` (`render.kind:"connect"`) the frontend handles.
 - **No forced skills.** The published default is bare. A skill reaches a run only because the
   overlay carries its `@ag.embed`, not by force-injection. There is no forced-skill coupling.
 
@@ -136,25 +154,24 @@ The docs are not independent. Build in this order.
 These finer points are settled, so they are recorded here, not relitigated.
 
 - **The drawer folds into #4917,** which owns both the overlay and the drawer. The
-  collapsible-sections change ships separately as a small drawer cleanup.
+  collapsible-sections change shipped separately as a small drawer cleanup (#4935).
 - **The toggle is ephemeral** per playground session, resetting to on. Not a stored preference in v1.
 - **The kit's permissions render read-only,** a reflection of what the overlay grants.
 - **Builder testing:** dry test is same-session for v1, `test_subscription` permission is `ask`, and
   the public invoke wrapper is deferred.
 
-## Open items (non-blocking for this review)
+## Open items (settled during implementation)
 
-None of these block the design review. Each settles during implementation. They are gathered from
-the four docs.
+These were the design-review open items. The initiative shipped, so each settled during
+implementation. They are kept here as a record, not as live questions.
 
 **Cross-project**
 
-- **Does the overlay carry the full build set?** `default-agent-config` describes one authoring
-  skill; `agent-skills` needs all four build skills present, because the orchestrator references the
-  focused ones. The overlay's `skills` list is an array, so it can carry the set. Confirm it does.
+- **Does the overlay carry the full build set?** Settled: the overlay's `skills` list is an array
+  and carries the build skills the orchestrator references.
 - **Confirm the published default goes fully bare,** dropping the skill embed and the sandbox
-  boundary from the inspect schema default and moving both into the overlay. This touches the skills
-  surface, so it needs their nod.
+  boundary from the config-schema default and moving both into the overlay. Settled: the published
+  default ships bare.
 
 **Builder capabilities**
 

@@ -18,8 +18,9 @@ commit.
 ## The model: a build-kit overlay
 
 The build kit is an **agent-template overlay**: a partial agent template, the same shape as
-`parameters.agent`. The platform owns it. The backend serves it read-only on the inspect
-response. The frontend applies it to a playground run and leaves it out of a commit.
+`parameters.agent`. The platform owns it. The backend serves it read-only on the
+simple-applications response (`GET /api/simple/applications/{id}` -> `SimpleApplicationResponse`).
+The frontend applies it to a playground run and leaves it out of a commit.
 
 Three actors, three jobs:
 
@@ -29,16 +30,16 @@ Three actors, three jobs:
   are already inside the `parameters.agent` the service was handed, and the service resolves
   them the way it resolves any tool, skill, or sandbox setting.
 - **The backend serves the overlay.** It assembles the overlay once and attaches it to the
-  inspect response. It never applies the overlay and never acts on it.
-- **The frontend applies the overlay.** It reads the overlay from the inspect response and
-  renders it read-only in the drawer. On a kit-on run, it merges the overlay onto the current
+  simple-applications response. It never applies the overlay and never acts on it.
+- **The frontend applies the overlay.** It reads the overlay from the simple-applications
+  response and renders it read-only in the drawer. On a kit-on run, it merges the overlay onto the current
   `parameters.agent` and sends the result. On commit, it does not merge, so the committed
   config holds only the user's own template.
 
 "Shown but not committed" follows from where the overlay lives and when the frontend applies it.
 The overlay never enters `parameters.agent`, the tree the playground edits and commits. It lives
-in the read-only inspect response and, on a kit-on run, in a throwaway merged copy that feeds the
-run payload. A deployed agent runs its stored config, which has no overlay, so authoring power
+in the read-only simple-applications response and, on a kit-on run, in a throwaway merged copy
+that feeds the run payload. A deployed agent runs its stored config, which has no overlay, so authoring power
 cannot reach a published run.
 
 ## The overlay shape
@@ -52,7 +53,9 @@ already defines and the playground already renders.
 Skills in the overlay are ordinary `@ag.embed` references, full stop. An embed reference (the
 slug, plus a version when pinned) is the platform's existing mechanism for embedding a variant,
 and it already identifies the skill, which carries its own name and description. The overlay adds
-no parallel `key`, `name`, or `description` for a skill. The authoring skill is the reserved
+a sibling `name` for display only (the resolved workflow name the playground shows), discarded
+before the skill parser runs, and no other parallel descriptor like `key` or `description`. The
+authoring skill is the reserved
 static skill `__ag__getting_started_with_agenta`
 (`/home/mahmoud/code/agenta/sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py`), served
 read-only under the reserved `__ag__*` namespace.
@@ -67,10 +70,23 @@ Today's overlay:
       { "type": "platform", "op": "query_workflows" },
       { "type": "platform", "op": "commit_revision" },
       // a client tool the embed resolver inlines: an @ag.embed of a reserved-slug workflow, the same shape as a skill embed (#4920)
-      { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__request_connection" } } } }
+      // the @ag.selector is required: without it the resolver inlines the whole revision.data and the SDK rejects it (HTTP 500)
+      {
+        "@ag.embed": {
+          "@ag.references": { "workflow": { "slug": "__ag__request_connection" } },
+          "@ag.selector": { "path": "parameters.tool" }
+        },
+        "name": "request_connection"
+      }
     ],
     "skills": [
-      { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__getting_started_with_agenta" } } } }
+      {
+        "@ag.embed": {
+          "@ag.references": { "workflow": { "slug": "__ag__getting_started_with_agenta" } },
+          "@ag.selector": { "path": "parameters.skill" }
+        },
+        "name": "agenta-getting-started"
+      }
     ],
     "sandbox": {
       "permissions": { "write_files": "allow", "execute_code": "allow" }
@@ -91,16 +107,21 @@ workflows are the same `__ag__*` family as the platform skills, so a client tool
 `__ag__request_connection` (a non-runnable tool the embed resolver inlines into a `client` tool the
 frontend handles, owned by `#4920`) rides the kit beside the platform ops with no bespoke path. The
 two iterations are symmetric: one walks the op catalog, the other walks the static
-workflow catalog. `skills` is the `@ag.embed` reference to the authoring skill's reserved slug;
+workflow catalog. Each embed carries an `@ag.selector` (`path: parameters.tool` for a tool,
+`path: parameters.skill` for a skill) so the resolver extracts the flat inline value instead of
+inlining the whole `revision.data`, which the SDK would reject (HTTP 500). Each embed also carries
+the resolved workflow `name` as a sibling, so the playground shows the display name, not the
+`__ag__*` slug. `skills` is the `@ag.embed` reference to the authoring skill's reserved slug;
 `sandbox` is the build-permission elevation. Each entry is an ordinary agent-template fragment, so
 the dumb service resolves it the way it resolves any tool, skill, or sandbox setting, and a kit-on
 run is indistinguishable on the wire from a config the user authored by hand with the same items.
 
-## Where the overlay lives in the inspect response
+## Where the overlay lives in the simple-applications response
 
 The overlay is platform-owned, read-only, and derived per response. It is not user config and
 not user metadata, so it does not belong in either of those contracts. It rides a dedicated
-read-only container on the inspect response envelope.
+read-only container on the `SimpleApplicationResponse` envelope that
+`GET /api/simple/applications/{id}` returns.
 
 ```jsonc
 {
@@ -128,8 +149,8 @@ This placement is the load-bearing decision, and it follows ownership and lifecy
 - User config that the revision persists and the deployment runs lives in
   `application.data.parameters`.
 - User metadata that round-trips through create, edit, and commit lives in `application.meta`.
-- Platform information that the backend derives read-only for one inspect response lives in
-  `additional_context`.
+- Platform information that the backend derives read-only for one simple-applications response
+  lives in `additional_context`.
 
 The overlay must not sit in `revision.data`. That object is the user's schema-constrained config,
 it is `extra="forbid"`
@@ -168,8 +189,8 @@ path.
 The frontend owns three behaviors. All read the same overlay; none change the run wire.
 
 1. **Read.** On loading the workflow, the frontend reads
-   `additional_context.playground_build_kit.agent_template_overlay` from the inspect response and keeps it in
-   session-scoped state, keyed like the existing inspect cache (per service), separate from the
+   `additional_context.playground_build_kit.agent_template_overlay` from the simple-applications
+   response and keeps it in session-scoped state, keyed per service, separate from the
    persisted `data`. It renders the overlay in the drawer. It hardcodes no item list and no
    labels.
 
@@ -188,15 +209,16 @@ The frontend owns three behaviors. All read the same overlay; none change the ru
    `entity.data.parameters` through `prepareCommitParameters`
    (`/home/mahmoud/code/agenta/web/packages/agenta-entities/src/workflow/state/commit.ts`). The
    overlay was never written into `entity.data.parameters`, so the commit excludes it with no
-   strip step. The inspect response and the kit-on run payload are the only places the overlay
-   ever appears.
+   strip step. The simple-applications response and the kit-on run payload are the only places
+   the overlay ever appears.
 
 The run wire stays byte-compatible. The backend cannot tell a kit-on run from a hand-authored
 config with the same items, and it does not need to.
 
 ## The drawer UI
 
-This design covers both the inspect contract and the advanced-drawer UI, in one document. The UI
+This design covers both the simple-applications response contract and the advanced-drawer UI, in
+one document. The UI
 recomposes existing drawer parts. The designer handoff
 (`/home/mahmoud/code/agenta/design_handoff_advanced_build_kit/README.md`) is the high-fidelity
 spec; the `.dc.html` is a visual reference, not code, and `support.js` is mock runtime to ignore.
@@ -312,8 +334,8 @@ State the negatives so no implementer re-adds them.
   as received.
 - **No run flag.** There is no inject flag on the run request and none on
   `WorkflowInvokeRequestFlags`. The toggle is client session state. The run wire gains no field.
-- **The service does not read the overlay.** The overlay is assembled by the inspect layer and
-  consumed by the frontend. The service's run path never references it.
+- **The service does not read the overlay.** The simple-applications read path assembles the
+  overlay and the frontend consumes it. The service's run path never references it.
 - **No backend strip on commit.** The backend does not remove kit items from a committed config,
   because the kit never enters the committed config.
 
@@ -330,7 +352,9 @@ The model rests on role splits, not feature splits.
   of each item (tool, skill, permission) is implicit in where it sits in the template, not in a
   bespoke descriptor field.
 - **A skill is its embed reference.** An `@ag.embed` reference already identifies a skill and
-  carries its name and description. The overlay adds no parallel display fields for it.
+  carries its name and description. The overlay adds a sibling `name` for display only, the
+  resolved workflow name, and resolution discards it before the skill parser runs. It adds no
+  other parallel descriptor fields.
 - **A permission's status is its value.** A sandbox permission set to `allow` in the overlay is
   the status the drawer renders. No separate status field.
 - **Session preference versus persisted config.** The toggle is a playground preference in client
@@ -364,8 +388,9 @@ The model rests on role splits, not feature splits.
    into `entity.data.parameters`, so `prepareCommitParameters` excludes it for free.
 
 7. **Tests.** Backend: the builder lists the platform ops, the authoring skill, and the build
-   permissions as one overlay; the inspect response carries `additional_context.playground_build_kit`; the
-   published default is bare across the builtin, the inspect schema, and the catalog (update
+   permissions as one overlay; the simple-applications response carries
+   `additional_context.playground_build_kit`; the published default is bare across the builtin,
+   the inspect schema, and the catalog (update
    `/home/mahmoud/code/agenta/services/oss/tests/pytest/unit/agent/test_default_agent_template.py`).
    Frontend: a kit-on run merges the overlay into `parameters.agent` (deep-merge and identity-merge
    verified); a kit-off run sends the bare config; a commit excludes the kit either way; the

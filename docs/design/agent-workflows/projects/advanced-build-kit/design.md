@@ -1,25 +1,41 @@
 # Design: the advanced build kit (presentation layer)
 
-Status: draft for Mahmoud's review. Grounded in code on `gitbutler/edit` over `big-agents`,
-2026-06-28. Paths are absolute.
+> **Status: superseded by what shipped. Read this as history, not as the contract.**
+>
+> This doc described an "inject" model with two seams that did NOT ship: a `revision.data.build_kit`
+> descriptor on the `/inspect` response and a per-run `flags.inject_build_kit` run flag. The
+> shipped model is different. The backend serves the build kit as a read-only agent-template
+> OVERLAY on the simple-applications response (`GET /api/simple/applications/{id}`) at
+> `additional_context.playground_build_kit.agent_template_overlay`. The frontend reads the overlay
+> from there, applies it onto `parameters.agent` for a kit-on run, and excludes it on commit. There
+> is no run flag and no service-side inject. The drawer that renders the overlay folded into #4917;
+> its authoritative design lives in
+> [`../default-agent-config/design.md`](../default-agent-config/design.md).
+>
+> One piece of this doc did ship as designed: Change 1, the collapsible advanced sections (#4935).
+> The three advanced config groups (Authentication, Execution environment, Permissions) are now
+> collapsible accordions, collapsed by default. The rest of the contract below is stale; the new
+> model is the one in the default-agent-config doc.
+
+Grounded in code on `gitbutler/edit` over `big-agents`, 2026-06-28. Paths are absolute.
 
 This is the Phase 2 presentation layer. It designs how the playground's advanced drawer shows
-the build kit that `default-agent-config` injects. It consumes the inject-not-commit model; it
-does not redesign it.
+the build kit. The contract names below (`revision.data.build_kit`, `flags.inject_build_kit`) are
+the superseded inject model; see the banner above for what shipped.
 
 ## Scope and the seam to default-config
 
 Two projects share one seam.
 
-- `default-agent-config` owns the business logic: WHAT goes in the build kit, that the run
-  injects it, and that the commit never writes it. That design is final.
-- This project owns the presentation: HOW the drawer shows the injected kit. It renders the kit
+- `default-agent-config` owns the business logic: WHAT goes in the build kit, how the overlay
+  reaches a run, and that the commit never writes it.
+- This project owned the presentation: HOW the drawer shows the kit. It renders the kit
   read-only, in its own section, marked as removed on commit.
 
-This layer consumes exactly two things from `default-agent-config`, both final: a read-only
-descriptor of the kit (`revision.data.build_kit` in the `/inspect` response) and a per-run flag
-(`flags.inject_build_kit`) that the drawer's toggle sets. Section 3 covers the contract. The
-rest of this document is the drawer.
+(Superseded contract, kept for history.) This layer was specified to consume two things from
+`default-agent-config`: a read-only descriptor (`revision.data.build_kit` on `/inspect`) and a
+per-run flag (`flags.inject_build_kit`). Neither shipped; the overlay model in the banner replaced
+both. Section 3 covers the old contract. The rest of this document is the drawer.
 
 ## 1. The problem
 

@@ -2,10 +2,10 @@
 
 ## Where we are
 
-The design is in `design.md`. The build kit is an agent-template overlay: a partial agent template
-the platform serves read-only on the inspect response, the frontend merges onto `parameters.agent`
-on a playground run, and excludes on commit. The agent service stays dumb. The advanced-drawer UI
-is folded into this design. One open question remains for Mahmoud.
+Shipped (#4917). The build kit is an agent-template overlay: a partial agent template the platform
+serves read-only on the simple-applications response (`GET /api/simple/applications/{id}`), the
+frontend merges onto `parameters.agent` on a playground run, and excludes on commit. The agent
+service stays dumb. The advanced-drawer UI folded into this design. Design detail is in `design.md`.
 
 ## The model
 
@@ -18,7 +18,8 @@ is folded into this design. One open question remains for Mahmoud.
 
 ## The contract for the frontend
 
-- The overlay rides a new read-only container on the inspect response:
+- The overlay rides a new read-only container on the simple-applications response
+  (`GET /api/simple/applications/{id}`):
   `additional_context.playground_build_kit.agent_template_overlay`, a sibling of `application` on
   `SimpleApplicationResponse`. It is not in `revision.data` (user config, `extra="forbid"`, flows
   into commit) and not in `application.meta` (user metadata, persisted). It is platform-owned,
@@ -33,9 +34,9 @@ is folded into this design. One open question remains for Mahmoud.
 - No run flag. The toggle is client session state, default on. A kit-on run is just a run whose
   `parameters.agent` already carries the merged items. The run wire is unchanged.
 
-(The naming and placement of `additional_context` follow a Codex review of the whole inspect response
-schema, chosen over `meta` to avoid the user-owned artifact `meta` and to keep the platform-derived
-container extensible.)
+(The naming and placement of `additional_context` follow a Codex review of the whole
+simple-applications response schema, chosen over `meta` to avoid the user-owned artifact `meta` and
+to keep the platform-derived container extensible.)
 
 ## Decided
 
@@ -48,8 +49,8 @@ container extensible.)
 
 ## Open questions for Mahmoud
 
-1. Confirm the published default goes bare (drop the authoring skill and the sandbox boundary from
-   the schema default into the overlay). Touches the skills project.
+1. Resolved. The published default ships bare: the authoring skill and the sandbox boundary moved
+   from the schema default into the overlay.
 
 ## Coordination
 

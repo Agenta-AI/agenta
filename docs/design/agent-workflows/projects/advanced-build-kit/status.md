@@ -1,5 +1,14 @@
 # Status: advanced build kit (presentation layer)
 
+> **Superseded.** The "inject" contract this project planned (`revision.data.build_kit` on
+> `/inspect` plus a `flags.inject_build_kit` run flag) did not ship. The shipped model serves the
+> build kit as a read-only overlay on the simple-applications response
+> (`additional_context.playground_build_kit.agent_template_overlay`); the frontend applies it and
+> excludes it on commit, with no run flag. The drawer folded into #4917
+> ([`../default-agent-config/design.md`](../default-agent-config/design.md)). Change 1 (collapsible
+> advanced sections) shipped as #4935: Authentication, Execution environment, and Permissions are
+> collapsible accordions, collapsed by default.
+
 ## What this project is
 
 The presentation layer for the platform tools, skills, and permissions Agenta injects so the
@@ -52,9 +61,11 @@ See `design.md` section 3 for the contract and section 5 for how the drawer cons
 - design-interfaces applied to the displayed-versus-committed model and the consumed contract.
 - Four open questions for Mahmoud are in `design.md` section 8, each with a recommendation.
 
-## Not yet
+## What shipped
 
-- This is a design doc, not a PR. No code is written.
-- Open questions 1-4 await Mahmoud's call.
-- The design review of the two permission ideas (`design.md` section 6) is pending with the
-  designer.
+- Change 1 (collapsible advanced sections) shipped as #4935. The three advanced groups
+  (Authentication, Execution environment, Permissions) are collapsible accordions, collapsed by
+  default.
+- The build-kit drawer folded into #4917 and renders the overlay read-only. The planned inject
+  contract (`revision.data.build_kit` on `/inspect`, `flags.inject_build_kit`) was superseded by the
+  overlay model in `default-agent-config`; see the banner above.

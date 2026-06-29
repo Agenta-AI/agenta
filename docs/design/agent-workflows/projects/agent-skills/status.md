@@ -13,16 +13,16 @@ connection round-trip. Those belong to sibling projects (see Coordination).
 The design is [`design.md`](./design.md). It is split into Part A (which skills the build flow
 needs, reviewable on its own) and Part B (how a skill reaches the agent, named, and contracted).
 
-## Current state — 2026-06-28
+## Current state — shipped (#4918, authoring skill catalog #4930)
 
-Research done. Design rewritten after Mahmoud judged the first draft unreviewable. Nothing built.
-This is docs-first. The placeholder skill bodies live inside `design.md` as artifacts, not as real
-skill files yet.
+The authoring skill ships in the code-defined static catalog. The build skills ride the build-kit
+overlay as `@ag.embed` entries the frontend applies for a run and never commits. Each embed carries
+the required `@ag.selector` (`path: parameters.skill`) and the resolved display `name`; the
+frontend shows that name, not the raw `__ag__*` slug.
 
-The rewrite did three things the first draft did not. It separated the product question from the
-implementation question. It aligned the delivery model with the build-kit overlay, so the build
-skills ride the overlay as `@ag.embed` entries the frontend applies and never commits. It cut the
-settled decisions out of the open-questions list.
+The design rewrite (in `design.md`) did three things the first draft did not. It separated the
+product question from the implementation question. It aligned the delivery model with the build-kit
+overlay. It cut the settled decisions out of the open-questions list.
 
 ## Decisions carried from sibling projects (not relitigated here)
 

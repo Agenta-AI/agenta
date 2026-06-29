@@ -1,8 +1,10 @@
 # Status: agent-builder-capabilities
 
-Design only. No code. Grounded in code on `gitbutler/edit` over `big-agents`, 2026-06-28. Paths
-are absolute. Part of the `agent-builds-an-app` initiative; read `agent-builds-an-app/README.md`
-first.
+Shipped (#4919, trigger hardening #4931). Part of the `agent-builds-an-app` initiative; read
+`agent-builds-an-app/README.md` first. The builder tools ride the build-kit overlay, `find_triggers`
+discovery lives at `POST /api/triggers/discover`, and the create-trigger schemas lock with
+`additionalProperties:false` so the model cannot reintroduce a destination (the self-target
+guarantee). Paths are absolute.
 
 ## What this project owns
 
@@ -67,5 +69,4 @@ See `README.md` section 9: test order in the skill (sample-first).
   pause, and resume undo tools.
 - [x] The agent-driven build flow walked end to end, with the dry-vs-live test finding.
 - [x] Build-kit overlay alignment with `default-agent-config`.
-- [ ] Orchestrator folds this into the consolidated review.
-- [ ] Convert the tool set into per-tool implementation slices.
+- [x] Tool set implemented and shipped (#4919), with create-trigger schemas locked (#4931).

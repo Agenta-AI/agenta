@@ -5,6 +5,12 @@ the harness calls such a tool, the runner posts the call back to Agenta's tool e
 Agenta executes it with the provider key it holds, and the result comes back. This is how
 provider keys and connection auth stay server-side: the sandbox never sees them.
 
+For a reference (workflow) tool, `/tools/call` is not a second workflow-execution path. The router
+(`_call_workflow_tool`) calls the same `WorkflowsService.invoke_workflow` in-process. The endpoint
+is a thin tool-call adapter so every tool kind, gateway, reserved, and workflow-reference, shares
+one uniform callback: one endpoint, one auth, secrets server-side. This came from the merged
+reference-tool work (#4860).
+
 ## The contract
 
 The runner posts an OpenAI-style function-call envelope to `POST /tools/call`:

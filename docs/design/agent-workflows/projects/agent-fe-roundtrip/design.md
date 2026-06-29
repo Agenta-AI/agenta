@@ -1,6 +1,6 @@
 # Frontend round-trip: client tools that ask the human
 
-Status: design, ready for review. Date: 2026-06-28. Owner: agent-workflows.
+Status: shipped (backend #4925, frontend #4934). Date: 2026-06-28. Owner: agent-workflows.
 Audience: Arda (most of the frontend), us (SDK, runner, API).
 
 An agent sometimes needs the human in the middle of a run. This doc owns one primitive that
@@ -254,7 +254,8 @@ Three points fall out of this model:
 This section references the default-agent-config project (`#4917`) and does not redesign it.
 
 The default platform tools and the authoring skill are an agent-template **overlay** the backend
-serves read-only. The backend attaches it to the inspect response at
+serves read-only. The backend attaches it to the simple-applications response
+(`GET /api/simple/applications/{id}`) at
 `additional_context.playground_build_kit.agent_template_overlay`, a partial `parameters.agent`. The frontend
 merges the overlay onto the current `parameters.agent` on a playground run and excludes it on
 commit. There is no run flag and no service-side injection; the agent service runs the
@@ -302,6 +303,14 @@ Locked: on a successful `commit_revision`, the runner or SDK emits a one-way `da
 invalidates `workflowLatestRevisionQueryAtomFamily`, which refreshes the config panel, the section
 drawers, and the build-kit view. The signal is metadata ("the config changed, here is the new
 reference"), so it rides the one-way `data-<name>` channel, not a tool result.
+
+Known gap (follow-up). As shipped, two paths emit `data-committed-revision`: the create path
+(`create_workflow_revision`, `api/oss/src/apis/fastapi/workflows/router.py:1251`) and the
+platform-tool call path (`_emit_committed_revision_data_event_from_outputs`,
+`api/oss/src/apis/fastapi/tools/router.py`). The regular `commit_workflow_revision` endpoint
+(`api/oss/src/apis/fastapi/workflows/router.py:1500`) does not emit it yet, so a normal
+frontend-driven commit of an existing variant does not fire the refresh. Wiring the event into that
+endpoint is the open follow-up.
 
 ## Application 2: the agent needs a connection
 

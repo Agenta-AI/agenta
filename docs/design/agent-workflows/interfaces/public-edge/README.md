@@ -16,3 +16,5 @@ a reason not to.
   config form.
 - [Agent config schema](agent-config-schema.md): the full editable config that ships out on
   inspect and comes back in on every run.
+- [Build-kit overlay](build-kit-overlay.md): the read-only agent-template the backend attaches
+  to a fetched application so the playground can hand a new agent its build kit.

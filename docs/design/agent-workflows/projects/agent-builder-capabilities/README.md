@@ -13,6 +13,11 @@ all four is `agent-builds-an-app`.
 
 Grounded in code on `gitbutler/edit` over `big-agents`, 2026-06-28. Paths are absolute.
 
+Status: shipped. The builder tools landed in #4919, with the create-trigger schema hardening in
+#4931. The `find_triggers` discovery endpoint shipped at `POST /api/triggers/discover`. Sections
+below keep the design-era present tense ("today", "missing", "new backend"); read them as the
+problem statement that this work has since resolved.
+
 ## 1. The goal and the gap
 
 The user wants the agent to run on a schedule or react to an outside event. "Triage every new
@@ -75,12 +80,15 @@ These are settled across the initiative (`agent-builds-an-app`). The design assu
   running agent itself. No tool creates another workflow in this round.
 - **Triggers self-target by context binding.** The destination is bound server-side from run
   context and stripped from the model-visible schema, the same way `commit_revision` binds the
-  variant id. The model never names a destination, so it can only schedule or subscribe itself.
+  variant id. The model never names a destination, so it can only schedule or subscribe itself. The
+  create-trigger schemas lock this down with `additionalProperties: false` (shipped in #4931), so
+  the model cannot smuggle a destination back in.
 - **The agent cannot create connections or set secrets.** When a connection is missing, the agent
   requests one through the frontend round-trip and waits. It holds only a connection reference, never
   the secret. The request itself rides `request_connection`, a non-runnable reference tool the
   overlay embeds via `@ag.embed`, not one of the platform ops in this set. The round-trip is owned
-  by `agent-fe-roundtrip` (#4920); this design consumes it.
+  by `agent-fe-roundtrip` (designed as #4920; shipped as backend #4925 and frontend #4934); this
+  design consumes it.
 - **Builder tools ride the build-kit overlay, not the committed config.** They are platform
   operations, a build-time aid. They reach a playground run through the build-kit overlay the
   frontend applies, and never enter the user's stored config (section 6). The overlay model is
@@ -302,7 +310,8 @@ itself, but they never enter the stored config.
 The mechanics are already in place. The backend assembles the overlay by iterating `PLATFORM_OPS`,
 adding each op to the overlay's `tools` list as a `{ "type": "platform", "op": ... }` entry. Adding
 the builder tools to `PLATFORM_OPS` is therefore the whole integration: the new tools join the
-overlay with no extra wiring. The backend serves the overlay read-only on the inspect response at
+overlay with no extra wiring. The backend serves the overlay read-only on the simple-applications response
+(`GET /api/simple/applications/{id}`) at
 `additional_context.playground_build_kit.agent_template_overlay`; the frontend applies it on a
 kit-on playground run and excludes it on commit. There is no backend injection and no run flag. The
 Advanced drawer shows the tools as a read-only group; the user toggles the whole kit on or off but

@@ -16,13 +16,21 @@ waits for the user to act, and resumes the agent with the result.
 
 The design doc is [`design.md`](./design.md).
 
-## Current state, 2026-06-28
+## Current state — shipped (backend #4925, frontend #4934)
 
-Design ready for review. Nothing built yet. Docs-first.
+The client-tool round-trip is live. `request_connection` parks via the runner and resumes from the
+browser's connect flow; the runner re-resolves the credential from the project vault on resume,
+carrying a reference, never the secret. `commit_revision` emits a one-way `data-committed-revision`
+event the playground listens for to refresh the config panel and build-kit view.
 
-The headline finding: the HITL approval flow we already ship is a client round-trip, and the Vercel
-AI SDK ships the sibling half. The runner's "forbid client tools" becomes "emit the call and park."
-No new transport.
+Known gap (follow-up): `data-committed-revision` fires on the create/initial commit path
+(`create_workflow_revision`) and the platform-tool `/tools/call` path, but the regular
+`commit_workflow_revision` endpoint (`api/oss/src/apis/fastapi/workflows/router.py:1500`) does not
+emit it yet, so a normal frontend-driven commit of an existing variant does not auto-refresh.
+
+The headline finding held: the HITL approval flow we already ship is a client round-trip, and the
+Vercel AI SDK ships the sibling half. The runner's "forbid client tools" became "emit the call and
+park." No new transport.
 
 ## Decisions (locked 2026-06-28)
 

@@ -315,7 +315,8 @@ This is the part that changed most since the first draft, and the part to coordi
 in the committed default config. That is no longer how it works.
 
 The current model is a build-kit overlay. The build kit is an agent-template overlay, a partial
-`parameters.agent` the backend serves read-only on the inspect response at
+`parameters.agent` the backend serves read-only on the simple-applications response
+(`GET /api/simple/applications/{id}` -> `SimpleApplicationResponse`) at
 `additional_context.playground_build_kit.agent_template_overlay`. The platform tools and the build
 skills are a build aid, not part of the user's shipped agent. The frontend applies the overlay for
 a playground run and excludes it on commit. `default-agent-config` owns the overlay.
@@ -324,8 +325,11 @@ a playground run and excludes it on commit. `default-agent-config` owns the over
   permissions. The overlay is a backend-defined set with one source of truth.
   See [`../default-agent-config/design.md`](../default-agent-config/design.md).
 - Each build skill is an ordinary `@ag.embed` reference in that list, of the shape
-  `{ "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__..." } } } }`. The reference
-  identifies the skill, which carries its own name and description.
+  `{ "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__..." } }, "@ag.selector": { "path": "parameters.skill" } }, "name": "<display name>" }`.
+  The `@ag.selector` is load-bearing: without it the resolver inlines the whole `revision.data`
+  and the SDK rejects it (HTTP 500). The reference identifies the skill, which carries its own
+  name and description, and the sibling `name` is the display name the playground shows instead of
+  the slug.
 - On a kit-on run, the frontend applies the overlay onto a throwaway copy of `parameters.agent`:
   object fields deep-merge, list fields identity-merge. The build skills join whatever the user
   authored. The agent service stays dumb: there is no run flag and no service-side merge.
@@ -335,9 +339,10 @@ a playground run and excludes it on commit. `default-agent-config` owns the over
   commit. That drawer is folded into [`../default-agent-config/design.md`](../default-agent-config/design.md).
 
 The overlay references each build skill by its stable slug, through the `@ag.embed` shape above.
-The reference carries no parallel `key`, `name`, or `description`; the skill carries those itself.
-This project supplies the slugs and registers each skill in the static catalog; the overlay
-embeds them.
+The embed carries a sibling `name`, the resolved display name the playground shows, but no
+parallel `key` or `description`; the skill carries those itself, and resolution discards the
+sibling before the skill parser sees it. This project supplies the slugs and registers each skill
+in the static catalog; the overlay embeds them.
 
 A user-added skill is different. A user can still add their own skill the normal way: an inline
 `SkillTemplate`, or an `@ag.embed` reference, in the committed `skills` list. Those are committed
@@ -442,7 +447,7 @@ How does a skill declare which tools it teaches? It does not, and it should not.
 - Single-source the `agenta-getting-started` body (section 3.1).
 - Supply each build skill's reserved slug, registered in the static catalog, so the overlay can
   embed it by `@ag.embed` reference. The skill carries its own name and description; the overlay
-  adds none.
+  adds only a sibling `name` for display, which resolution discards before the skill parser runs.
 
 **Frontend (Arda):**
 
