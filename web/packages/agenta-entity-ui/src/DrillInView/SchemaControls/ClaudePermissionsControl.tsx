@@ -39,9 +39,10 @@ export interface ClaudePermissionsControlProps {
     /**
      * The `default_mode` field schema (its `enum` + `title`/`description`). When provided, the mode
      * option set and the field label/description follow the template schema instead of the
-     * hardcoded fallback, so a backend mode change propagates without editing this control.
+     * hardcoded fallback, so a backend mode change propagates without editing this control. The enum
+     * may sit directly on the node or, for an `Optional[Literal]`, inside `anyOf`.
      */
-    modeSchema?: {enum?: unknown; title?: unknown; description?: unknown} | null
+    modeSchema?: {enum?: unknown; anyOf?: unknown; title?: unknown; description?: unknown} | null
 }
 
 // FE display copy per mode value. The set of values is the schema's `default_mode` enum (passed via
@@ -90,7 +91,13 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
     // value, falling back to the raw value); otherwise the hardcoded MODE_OPTIONS. The field
     // label/description likewise prefer the schema's title/description.
     const modeOptions = useMemo(() => {
-        const en = modeSchema?.enum
+        // The enum is on the node for a bare Literal, or inside `anyOf` for an `Optional[Literal]`
+        // (`anyOf: [{enum:[...]}, {type:"null"}]`).
+        const direct = Array.isArray(modeSchema?.enum) ? (modeSchema!.enum as unknown[]) : null
+        const fromAnyOf = Array.isArray(modeSchema?.anyOf)
+            ? (modeSchema!.anyOf as {enum?: unknown}[]).find((a) => Array.isArray(a?.enum))?.enum
+            : null
+        const en = (direct ?? fromAnyOf) as unknown[] | null | undefined
         if (Array.isArray(en) && en.length) {
             const labelOf = (v: string) => MODE_OPTIONS.find((o) => o.value === v)?.label ?? v
             return en

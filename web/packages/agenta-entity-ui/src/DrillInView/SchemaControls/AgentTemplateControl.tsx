@@ -208,10 +208,14 @@ export function AgentTemplateControl({
     // so a field rename propagates without editing this file; the literal is a fallback. Composite
     // sections (Model & harness, Advanced) and Triggers keep their FE labels, and icons aren't in
     // the schema.
+    //
+    // Guard: schema-gen emits the wrapper class name as `title` for single nested-model fields
+    // (e.g. `instructions` -> "_InstructionsSchema"), so reject leading-underscore titles and fall
+    // back to the literal. List fields (tools/mcps/skills) carry real titles and pass through.
     const fieldTitle = useCallback(
         (field: string, fallback: string): string => {
             const t = (props[field] as {title?: unknown} | undefined)?.title
-            return typeof t === "string" && t.trim() ? t : fallback
+            return typeof t === "string" && t.trim() && !t.startsWith("_") ? t : fallback
         },
         [props],
     )
