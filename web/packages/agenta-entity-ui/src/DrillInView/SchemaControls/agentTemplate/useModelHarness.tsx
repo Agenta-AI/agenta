@@ -39,14 +39,12 @@ export function useModelHarness({
     schema,
     config,
     onChange,
-    revisionId,
     disabled,
     withTooltip,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
-    revisionId: string | null
     disabled?: boolean
     withTooltip?: boolean
 }) {
@@ -105,12 +103,19 @@ export function useModelHarness({
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
     const connection = useMemo(() => connectionFromConfig(llm), [llm])
 
-    // Per-harness capability map from the `/inspect` response meta, keyed by the open revision.
-    // Null when inspect hasn't resolved or the agent didn't publish it (older agents / standalone),
-    // in which case the connectionUtils helpers fall back permissively.
-    const capabilities = useAtomValue(
-        useMemo(() => harnessCapabilitiesAtomFamily(revisionId ?? ""), [revisionId]),
+    // Harness capability map, resolved from the schema's declared `x-ag-harness-ref` on the harness
+    // `kind` field (its target is the `harnesses` catalog). The ref is what opts this field into
+    // catalog-driven capabilities: we only apply the map when the schema declares it, otherwise the
+    // connectionUtils helpers fall back to a permissive, unfiltered picker. The catalog itself is
+    // global, so the ref string also keys the atom.
+    const harnessRef = (harnessProps.kind as Record<string, unknown> | undefined)?.[
+        "x-ag-harness-ref"
+    ]
+    const harnessRefKey = typeof harnessRef === "string" && harnessRef ? harnessRef : null
+    const capabilitiesFromCatalog = useAtomValue(
+        useMemo(() => harnessCapabilitiesAtomFamily(harnessRefKey ?? ""), [harnessRefKey]),
     )
+    const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
 
     // The project's stored connections (read-only) for the connection picker. The transformed vault
     // list surfaces custom-provider connections as {type, name, provider}; the resolver matches a
@@ -760,6 +765,15 @@ export function useModelHarness({
                                     value={claudePermissions}
                                     onChange={setClaudePermissions}
                                     disabled={disabled}
+                                    // Mode options + labels come from the harness `permissions`
+                                    // sub-schema (`default_mode` enum) so they follow the template.
+                                    modeSchema={
+                                        (
+                                            harnessProps.permissions?.properties as
+                                                | Record<string, SchemaProperty>
+                                                | undefined
+                                        )?.default_mode
+                                    }
                                 />
                             </div>
                         ) : null}
