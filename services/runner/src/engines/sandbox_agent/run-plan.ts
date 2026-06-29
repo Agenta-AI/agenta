@@ -37,6 +37,11 @@ export const LOCAL_NETWORK_UNSUPPORTED_MESSAGE =
   "Network sandbox policy is not enforceable on the local sandbox (the sidecar runs on this " +
   "host with no egress control); run on daytona, or remove sandbox_permission.network.";
 
+/** A restricted `network` policy on E2B is not enforceable (the e2b provider exposes no egress control). */
+export const E2B_NETWORK_UNSUPPORTED_MESSAGE =
+  "Network sandbox policy is not enforceable on the e2b sandbox (the sandbox-agent/e2b " +
+  "provider exposes no egress control); run on daytona, or remove sandbox_permission.network.";
+
 /** `filesystem` confinement is declared on the wire but applied by no backend. */
 export const FILESYSTEM_UNSUPPORTED_MESSAGE =
   "Filesystem sandbox policy is not implemented (no backend applies a filesystem jail); " +
@@ -48,6 +53,7 @@ export interface RunPlan {
   sandboxId: string;
   isPi: boolean;
   isDaytona: boolean;
+  isE2b: boolean;
   prompt: string;
   turnText: string;
   agentsMd?: string;
@@ -104,6 +110,7 @@ export interface BuildRunPlanDeps {
   sandboxProvider?: string;
   createLocalCwd?: (durableCwd?: string) => string;
   createDaytonaCwd?: (durableCwd?: string) => string;
+  createE2bCwd?: () => string;
   /** Pre-computed durable cwd derived from the sign prefix; when set, skips the ephemeral helpers. */
   durableCwd?: string;
   resolveSkillDirs?: typeof defaultResolveSkillDirs;
@@ -149,12 +156,17 @@ function defaultDaytonaCwd(durableCwd?: string): string {
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
+function defaultE2bCwd(): string {
+  return `/root/work/agenta-${randomBytes(6).toString("hex")}`;
+}
+
 export function buildRunPlan(
   request: AgentRunRequest,
   {
     sandboxProvider = process.env.SANDBOX_AGENT_PROVIDER,
     createLocalCwd = defaultLocalCwd,
     createDaytonaCwd = defaultDaytonaCwd,
+    createE2bCwd = defaultE2bCwd,
     durableCwd,
     resolveSkillDirs = defaultResolveSkillDirs,
     log = () => {},
@@ -188,6 +200,7 @@ export function buildRunPlan(
 
   const isPi = acpAgent === "pi";
   const isDaytona = sandboxId === "daytona";
+  const isE2b = sandboxId === "e2b";
 
   const secrets = request.secrets ?? {};
   const legacyHarnessApiKeyVar =
@@ -209,10 +222,14 @@ export function buildRunPlan(
 
   // A restricted `network` policy on the LOCAL sandbox cannot be enforced (the sidecar runs on
   // this host with no per-run egress control), so it errors regardless of `enforcement`. On
-  // Daytona the policy IS applied (`provider.ts` `daytonaNetworkFields`).
+  // Daytona the policy IS applied (`provider.ts` `daytonaNetworkFields`). E2B exposes no egress
+  // control in the sandbox-agent/e2b wrapper, so it is refused like local.
   const network = request.sandboxPermission?.network;
   const networkRestricted = !!network && (network.mode ?? "on") !== "on";
-  if (networkRestricted && !isDaytona) {
+  if (networkRestricted && isE2b) {
+    return { ok: false, error: E2B_NETWORK_UNSUPPORTED_MESSAGE };
+  }
+  if (networkRestricted && !isDaytona && !isE2b) {
     return { ok: false, error: LOCAL_NETWORK_UNSUPPORTED_MESSAGE };
   }
 
@@ -266,13 +283,21 @@ export function buildRunPlan(
     }
   }
 
-  const cwd = isDaytona ? createDaytonaCwd(durableCwd) : createLocalCwd(durableCwd);
+  const cwd = isDaytona
+    ? createDaytonaCwd(durableCwd)
+    : isE2b
+      ? createE2bCwd()
+      : createLocalCwd(durableCwd);
   // The tool-relay scratch (req/res JSON) is ephemeral runner<->child IPC, NOT durable session
   // data — keep it OFF the geesefs-mounted cwd. A relay dir inside the mount routes every tool
   // call through FUSE/S3, so a flaky mount surfaces as ENOTCONN on the relay file. Use an
   // ephemeral sibling: a plain host tmp dir (local) or an in-VM dir (daytona), never the mount.
+  // E2B: the relay is polled through the sandbox FS API, so the dir must live IN the sandbox;
+  // the E2B cwd is never geesefs-mounted, so nesting under it is safe.
   const relayBase = isDaytona ? "/home/sandbox/agenta/relay" : join(tmpdir(), "agenta", "relay");
-  const relayDir = join(relayBase, basename(cwd));
+  const relayDir = isE2b
+    ? `${cwd}/.agenta-tools`
+    : join(relayBase, basename(cwd));
 
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
   // through Pi's agent-dir user scope; Claude consumes the same packages from the project-local
@@ -312,6 +337,7 @@ export function buildRunPlan(
       sandboxId,
       isPi,
       isDaytona,
+      isE2b,
       prompt,
       turnText: buildTurnText(request),
       agentsMd: request.agentsMd?.trim() || undefined,

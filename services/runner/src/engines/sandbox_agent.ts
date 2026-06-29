@@ -57,6 +57,7 @@ import {
   createCookieFetch,
   prepareDaytonaPiAssets,
 } from "./sandbox_agent/daytona.ts";
+import { prepareE2bPiAssets } from "./sandbox_agent/e2b.ts";
 import { conciseError } from "./sandbox_agent/errors.ts";
 import { buildSessionMcpServers } from "./sandbox_agent/mcp.ts";
 import { applyModel } from "./sandbox_agent/model.ts";
@@ -222,6 +223,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   unmountStorage?: typeof unmountStorage;
   discoverTunnelEndpoint?: typeof discoverTunnelEndpoint;
   responderFactory?: (permissionPolicy: string | undefined) => Responder;
+  prepareE2bPiAssets?: typeof prepareE2bPiAssets;
   log?: Log;
 }
 
@@ -311,6 +313,7 @@ export async function runSandboxAgent(
     sandboxProvider: deps.sandboxProvider,
     createLocalCwd: deps.createLocalCwd,
     createDaytonaCwd: deps.createDaytonaCwd,
+    createE2bCwd: deps.createE2bCwd,
     durableCwd,
     resolveSkillDirs: deps.resolveSkillDirs,
     log: logger,
@@ -337,7 +340,7 @@ export async function runSandboxAgent(
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
   const piExtEnv = plan.isPi
-    ? buildPiExtensionEnv(request, !plan.isDaytona, {
+    ? buildPiExtensionEnv(request, !plan.isDaytona && !plan.isE2b, {
         relayDir: plan.relayDir,
         usageOutPath: plan.usageOutPath,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
@@ -370,9 +373,11 @@ export async function runSandboxAgent(
   let closeToolMcp: (() => Promise<void>) | undefined;
   // Durable cwd: set to the host mountpoint once a session-owned local run geesefs-mounts its
   // store prefix, so the `finally` can unmount it. Undefined for non-session/remote/unmounted runs.
+  // Remote sandboxes (Daytona, E2B) are excluded: the local-mount machinery below only applies
+  // to a host-side mount for the local provider.
   let mountedCwd: string | undefined;
   const mountLocalDurableCwd = async (reason: string): Promise<boolean> => {
-    if (!mountCreds || plan.isDaytona) return false;
+    if (!mountCreds || plan.isDaytona || plan.isE2b) return false;
     logger(
       `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
     );
@@ -384,7 +389,7 @@ export async function runSandboxAgent(
   };
   let localDurableCwdEnotconnRemounts = 0;
   const reSignAndRemountLocalCwd = async (): Promise<boolean> => {
-    if (!sessionForMount || !runCred || plan.isDaytona) return false;
+    if (!sessionForMount || !runCred || plan.isDaytona || plan.isE2b) return false;
     if (
       localDurableCwdEnotconnRemounts >=
       LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT
@@ -412,7 +417,7 @@ export async function runSandboxAgent(
   };
   let runtimeRemount: Promise<boolean> | undefined;
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown): void => {
-    if (plan.isDaytona || !mountCreds || !mountedCwd) return;
+    if (plan.isDaytona || plan.isE2b || !mountCreds || !mountedCwd) return;
     if (runtimeRemount || !containsTransportEndpointDisconnected(event)) return;
     logger(
       `local durable cwd ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
@@ -424,11 +429,12 @@ export async function runSandboxAgent(
       return false;
     });
   };
-  let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
-    ? undefined
-    : {
-        cleanup: async () => rmSync(plan.cwd, { recursive: true, force: true }),
-      };
+  let workspace: { cleanup: () => Promise<void> } | undefined =
+    plan.isDaytona || plan.isE2b
+      ? undefined
+      : {
+          cleanup: async () => rmSync(plan.cwd, { recursive: true, force: true }),
+        };
 
   try {
     // Persist events in-process so a follow-up turn can resume by session id.
@@ -465,18 +471,23 @@ export async function runSandboxAgent(
     // normal exit so it is never double-deleted.
     if (sandbox) inFlightSandboxes.add(sandbox);
 
-    // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
-    // sandbox via the filesystem API (nothing secret is baked into the image). Locally
-    // these use the host filesystem and the harness's own login (PI_CODING_AGENT_DIR).
+    // On Daytona/E2B, push the harness login, the extension, and AGENTS.md into the remote
+    // sandbox via the filesystem API. Locally these use the host filesystem.
     if (plan.isDaytona) {
       await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
+    } else if (plan.isE2b) {
+      await (deps.prepareE2bPiAssets ?? prepareE2bPiAssets)({
+        sandbox,
+        plan,
+        log: logger,
+      });
     }
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
     // cwd derivation). The mount lands BEFORE createSession so the session opens inside it.
     // Local: on-host geesefs; scoped creds never enter agent space.
     // Remote (Daytona): geesefs inside the sandbox over the ngrok tunnel.
-    if (mountCreds && !plan.isDaytona) {
+    if (mountCreds && !plan.isDaytona && !plan.isE2b) {
       // Mount before local workspace materialization so AGENTS.md, harness files, and skills
       // land in the durable prefix instead of being hidden under the later FUSE mount.
       await mountLocalDurableCwd("initial");
@@ -491,6 +502,7 @@ export async function runSandboxAgent(
     } catch (err) {
       if (
         !plan.isDaytona &&
+        !plan.isE2b &&
         mountCreds &&
         isTransportEndpointDisconnected(err) &&
         (await reSignAndRemountLocalCwd())
@@ -558,9 +570,10 @@ export async function runSandboxAgent(
       isPi: plan.isPi,
       capabilities,
       harness: plan.harness,
-      // Daytona: skip the internal loopback HTTP MCP channel (unreachable from the in-sandbox
-      // harness); gateway tools are delivered through the Daytona file relay started below.
+      // Daytona/E2B: skip the internal loopback HTTP MCP channel (unreachable from the in-sandbox
+      // harness); gateway tools are delivered through the file relay started below.
       isDaytona: plan.isDaytona,
+      isE2b: plan.isE2b,
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
@@ -597,7 +610,7 @@ export async function runSandboxAgent(
       endpoint: request.telemetry?.exporters?.otlp?.endpoint,
       authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
-      emitSpans: !plan.isPi || plan.isDaytona,
+      emitSpans: !plan.isPi || plan.isDaytona || plan.isE2b,
       emit,
     });
     otel = run;
@@ -696,7 +709,7 @@ export async function runSandboxAgent(
       // permission degrades to the run's headless permission policy (the same policy the
       // PolicyResponder uses for Claude builtins above).
       toolRelay = (deps.startToolRelay ?? startToolRelay)(
-        plan.isDaytona
+        plan.isDaytona || plan.isE2b
           ? (deps.sandboxRelayHost ?? sandboxRelayHost)(sandbox)
           : (deps.localRelayHost ?? localRelayHost)(),
         plan.relayDir,
@@ -776,6 +789,7 @@ export async function runSandboxAgent(
       sandbox,
       usageOutPath: plan.usageOutPath,
       isDaytona: plan.isDaytona,
+      isE2b: plan.isE2b,
       promptResult: result,
       streamUsage: run.usage(),
     });
@@ -793,6 +807,7 @@ export async function runSandboxAgent(
     const swallowedPiError =
       plan.isPi &&
       !plan.isDaytona &&
+      !plan.isE2b &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
         ? findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd)

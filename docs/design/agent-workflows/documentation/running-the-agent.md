@@ -166,7 +166,7 @@ These are the agent-relevant variables. The example file lists them commented ou
   `http://sandbox-agent:8765`. When unset, the Python service spawns the runner CLI locally
   instead (see `runner_url` and `select_backend` in `services/oss/src/agent/`).
 - `AGENTA_AGENT_ENABLE_MCP`. Gates MCP server resolution. Default `false`.
-- `SANDBOX_AGENT_PROVIDER`. `local` or `daytona`. Default `local`.
+- `SANDBOX_AGENT_PROVIDER`. `local`, `daytona`, or `e2b`. Default `local`.
 - `SANDBOX_AGENT_DAYTONA_API_KEY`, `_API_URL`, `_TARGET`, `_SNAPSHOT`, `_IMAGE`,
   `_INSTALL_PI`. Daytona credentials the runner reads for the `daytona` sandbox provider.
 - `SANDBOX_AGENT_DAYTONA_AUTOSTOP_MINUTES`. Idle minutes before Daytona auto-stops a sandbox.
@@ -174,6 +174,13 @@ These are the agent-relevant variables. The example file lists them commented ou
   this non-zero auto-stop so a sandbox the runner leaks (a process KILL skips the per-run
   teardown) self-reaps instead of burning credit. Values below `1` fall back to the default
   (a `0` would re-disable auto-stop and reintroduce the leak).
+- `E2B_API_KEY`. E2B API key (required for `sandbox="e2b"`). Also exposed as `env.e2b.api_key`.
+- `E2B_TEMPLATE`. E2B template name. Default `agenta-sandbox-agent`. Build with
+  `npx @e2b/cli template create agenta-sandbox-agent -d sandbox-images/e2b/e2b.Dockerfile`.
+- `E2B_TIMEOUT_MS`. E2B sandbox timeout in milliseconds. Default `1800000` (30 min). Leak
+  backstop: E2B auto-kills a sandbox at its timeout so a process-KILL-leaked sandbox self-reaps.
+  A restricted `network` policy on E2B is refused (the `sandbox-agent/e2b` provider exposes no
+  egress control); use `daytona` for enforced network boundaries.
 
 The `sandbox-agent` container deliberately has no `env_file`. The harness sandbox must not
 inherit the stack's secrets. The compose block comments explain this

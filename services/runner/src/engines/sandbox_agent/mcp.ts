@@ -162,12 +162,13 @@ export interface BuildSessionMcpServersInput {
    * True when the run executes in a REMOTE Daytona sandbox (the harness runs IN the sandbox,
    * not on the runner host). Gates the internal gateway-tool channel: the channel's loopback
    * (`127.0.0.1`) HTTP MCP URL resolves to the SANDBOX's loopback there, not the runner's, so
-   * advertising it would hand the in-sandbox harness an unreachable URL. On Daytona the channel
-   * is skipped and gateway tools are delivered through the file relay instead (the relay loop
-   * already polls the sandbox filesystem on Daytona — see `engines/sandbox_agent.ts`). See the
+   * advertising it would hand the in-sandbox harness an unreachable URL. On Daytona/E2B the
+   * channel is skipped and gateway tools are delivered through the file relay instead (the relay
+   * loop already polls the sandbox filesystem — see `engines/sandbox_agent.ts`). See the
    * Daytona guard in `buildSessionMcpServers`.
    */
   isDaytona: boolean;
+  isE2b?: boolean;
   toolSpecs: ResolvedToolSpec[];
   userMcpServers?: McpServerConfig[];
   relayDir: string;
@@ -206,6 +207,7 @@ export async function buildSessionMcpServers({
   capabilities,
   harness,
   isDaytona,
+  isE2b = false,
   toolSpecs,
   userMcpServers,
   relayDir,
@@ -227,12 +229,13 @@ export async function buildSessionMcpServers({
   // sandbox where the harness runs. On Daytona, skip the loopback HTTP advertisement and let the
   // file relay deliver the tools (the relay loop polls the sandbox filesystem; see the Daytona
   // tool relay in `engines/sandbox_agent.ts`).
-  const internal = isDaytona
+  const isRemote = isDaytona || isE2b;
+  const internal = isRemote
     ? { servers: [], close: async () => {} }
     : await buildToolMcpServers(toolSpecs, relayDir, log);
-  if (isDaytona && toolSpecs.length > 0) {
+  if (isRemote && toolSpecs.length > 0) {
     log(
-      `daytona: ${toolSpecs.length} gateway tool(s) delivered via the file relay, not a ` +
+      `${isDaytona ? "daytona" : "e2b"}: ${toolSpecs.length} gateway tool(s) delivered via the file relay, not a ` +
         `loopback MCP URL (unreachable from the sandbox)`,
     );
   }

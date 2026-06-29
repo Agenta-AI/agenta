@@ -199,6 +199,7 @@ export interface PrepareLocalPiAssetsInput {
     RunPlan,
     | "isPi"
     | "isDaytona"
+    | "isE2b"
     | "skillDirs"
     | "hasSystemPrompt"
     | "systemPrompt"
@@ -219,7 +220,7 @@ export function prepareLocalPiAssets({
   env,
   log = () => {},
 }: PrepareLocalPiAssetsInput): string | undefined {
-  if (!plan.isPi || plan.isDaytona) return undefined;
+  if (!plan.isPi || plan.isDaytona || plan.isE2b) return undefined;
 
   if (plan.skillDirs.length > 0 || plan.hasSystemPrompt) {
     const runAgentDir = prepareLocalAgentDir(
