@@ -5,12 +5,17 @@ from uuid import uuid4
 import pytest
 
 from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
+from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+from agenta.sdk.agents.tools.models import ClientToolConfig, PlatformToolConfig
 
 from oss.src.apis.fastapi.applications import router as applications_router_module
 from oss.src.apis.fastapi.applications.overlay import build_agent_template_overlay
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.core.applications.dtos import SimpleApplication
+from oss.src.core.embeds.service import EmbedsService
+from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
+from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import (
     STATIC_SLUG_PREFIX,
     StaticWorkflowCatalog,
@@ -41,7 +46,8 @@ def test_agent_template_overlay_contains_platform_ops_authoring_skill_and_permis
             "@ag.embed": {
                 "@ag.references": {
                     "workflow": {"slug": GETTING_STARTED_WITH_AGENTA_SLUG}
-                }
+                },
+                "@ag.selector": {"path": "parameters.skill"},
             }
         }
     ]
@@ -52,11 +58,19 @@ def test_agent_template_overlay_contains_platform_ops_authoring_skill_and_permis
 
 def test_agent_template_overlay_includes_reserved_static_workflow_tool_embeds():
     overlay = build_agent_template_overlay()
-    tool_embed_slugs = {
-        _embed_slug(tool)
+    tool_embeds = [
+        tool
         for tool in overlay["tools"]
         if isinstance(tool, dict) and "@ag.embed" in tool
-    }
+    ]
+    tool_embed_slugs = {_embed_slug(tool) for tool in tool_embeds}
+    # Each tool embed must carry the canonical ``parameters.tool`` selector so it resolves to the
+    # flat inline tool config the SDK coercer accepts (regression: missing selector -> HTTP 500
+    # "Unsupported tool configuration shape").
+    assert all(
+        tool["@ag.embed"].get("@ag.selector") == {"path": "parameters.tool"}
+        for tool in tool_embeds
+    )
     catalog = StaticWorkflowCatalog()
 
     expected_slugs = set()
@@ -114,3 +128,52 @@ async def test_fetch_simple_application_includes_build_kit_context(monkeypatch):
     )
     assert response.application is not None
     assert overlay == build_agent_template_overlay()
+
+
+@pytest.mark.asyncio
+async def test_resolved_build_kit_overlay_parses_through_from_params():
+    """The overlay must survive embed resolution and parse with no error.
+
+    Regression: each ``@ag.embed`` reference dropped its ``@ag.selector``, so the resolver inlined
+    the whole ``revision.data`` and ``AgentTemplate.from_params`` raised HTTP 500
+    ``Unsupported tool configuration shape``. Exercises overlay -> embed resolution (static
+    catalogue, no DB) -> ``from_params`` end to end.
+    """
+    workflows_dao = AsyncMock()
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
+    workflows_service.embeds_service = EmbedsService(
+        workflows_service=workflows_service
+    )
+
+    revision = WorkflowRevision(
+        id=uuid4(),
+        workflow_id=uuid4(),
+        workflow_variant_id=uuid4(),
+        slug="agent-default-config",
+        data=WorkflowRevisionData(parameters={"agent": build_agent_template_overlay()}),
+    )
+
+    resolved, _ = await workflows_service.resolve_workflow_revision(
+        project_id=uuid4(),
+        workflow_revision=revision,
+    )
+    # No reserved embed may touch Postgres.
+    workflows_dao.fetch_revision.assert_not_awaited()
+    workflows_dao.fetch_artifact.assert_not_awaited()
+
+    template = AgentTemplate.from_params({"agent": resolved.data.parameters["agent"]})
+
+    platform_ops = [
+        tool for tool in template.tools if isinstance(tool, PlatformToolConfig)
+    ]
+    client_tools = [
+        tool for tool in template.tools if isinstance(tool, ClientToolConfig)
+    ]
+    assert any(tool.op == "find_capabilities" for tool in platform_ops)
+    # The request_connection embed must coerce to a client tool, not a builtin.
+    assert [tool.name for tool in client_tools] == ["request_connection"]
+    assert client_tools[0].render == {"kind": "connect"}
+    assert [skill.name for skill in template.skills] == ["agenta-getting-started"]

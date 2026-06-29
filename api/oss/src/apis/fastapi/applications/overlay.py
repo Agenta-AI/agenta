@@ -12,8 +12,17 @@ from oss.src.core.workflows.static_catalog import (
 )
 
 
-def _workflow_embed(slug: str) -> Dict[str, Any]:
-    return {"@ag.embed": {"@ag.references": {"workflow": {"slug": slug}}}}
+def _workflow_embed(slug: str, *, selector_path: str) -> Dict[str, Any]:
+    # The selector is load-bearing: without it the embed resolves to the whole revision.data
+    # (``{uri, parameters: {skill|tool: ...}}``), which neither the SDK skill parser nor the tool
+    # coercer accepts. ``parameters.skill`` / ``parameters.tool`` extracts the flat inline value
+    # the agent template expects (see test_skill_template_catalog canonical embed shape).
+    return {
+        "@ag.embed": {
+            "@ag.references": {"workflow": {"slug": slug}},
+            "@ag.selector": {"path": selector_path},
+        }
+    }
 
 
 def _reserved_static_tool_slugs() -> List[str]:
@@ -35,9 +44,16 @@ def build_agent_template_overlay() -> Dict[str, Any]:
     return {
         "tools": [
             *[{"type": "platform", "op": op_name} for op_name in PLATFORM_OPS],
-            *[_workflow_embed(slug) for slug in _reserved_static_tool_slugs()],
+            *[
+                _workflow_embed(slug, selector_path="parameters.tool")
+                for slug in _reserved_static_tool_slugs()
+            ],
         ],
-        "skills": [_workflow_embed(GETTING_STARTED_WITH_AGENTA_SLUG)],
+        "skills": [
+            _workflow_embed(
+                GETTING_STARTED_WITH_AGENTA_SLUG, selector_path="parameters.skill"
+            )
+        ],
         "sandbox": {
             "permissions": {
                 "write_files": "allow",
