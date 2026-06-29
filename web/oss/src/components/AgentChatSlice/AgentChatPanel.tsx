@@ -849,9 +849,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 )}
             </div>
 
-            {/* Queue / streaming / approval status sits BETWEEN the messages and the composer,
-                so showing it never shifts the composer (and the editor) upward. */}
-            {(busy || hitlPending || queued.length > 0) && (
+            {/* Queue / approval status sits BETWEEN the messages and the composer, so showing it
+                never shifts the composer (and the editor) upward. Streaming itself is signalled by
+                the composer's send button (it becomes a spinning Stop button), so there's no
+                separate "Streaming…" row. */}
+            {(hitlPending || queued.length > 0) && (
                 <div className="flex items-center justify-between gap-2 px-3 pb-2">
                     {queued.length > 0 ? (
                         <QueuedMessages
@@ -862,9 +864,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     ) : (
                         <span />
                     )}
-                    {busy ? (
-                        <span className="text-xs text-colorTextTertiary">Streaming…</span>
-                    ) : hitlPending ? (
+                    {hitlPending ? (
                         <span className="text-xs text-colorTextTertiary">Waiting for approval</span>
                     ) : null}
                 </div>

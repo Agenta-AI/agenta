@@ -40,14 +40,24 @@ export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}
     }
 
     if (streaming) {
+        // A spinning ring (stream in progress) around a Stop square — one affordance that both
+        // signals progress and stops the run on click.
         return (
-            <Button
-                type="primary"
-                shape="circle"
-                aria-label="Stop"
-                icon={<Stop size={14} weight="fill" />}
-                onClick={onStop}
-            />
+            <span className="relative inline-flex">
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 animate-spin rounded-full border-2 border-solid border-[var(--ag-colorPrimary)] border-t-transparent"
+                />
+                <Button
+                    type="text"
+                    shape="circle"
+                    aria-label="Stop"
+                    icon={
+                        <Stop size={14} weight="fill" className="text-[var(--ag-colorPrimary)]" />
+                    }
+                    onClick={onStop}
+                />
+            </span>
         )
     }
 
