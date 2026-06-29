@@ -16,6 +16,7 @@ import {createAgentChatTransport} from "../assets/transport"
 import {persistSessionMessagesAtom, sessionMessagesAtom} from "../state/sessions"
 
 import AgentMessage from "./AgentMessage"
+import type {ClientToolOutputHandler} from "./clientTools"
 
 const {Text} = Typography
 
@@ -84,6 +85,7 @@ const AgentChatConversation = ({
         regenerate,
         setMessages,
         addToolApprovalResponse,
+        addToolOutput,
         error,
     } = useChat({
         id: sessionId,
@@ -100,6 +102,29 @@ const AgentChatConversation = ({
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // Settle a parked client tool (#4920) — same wrapper as AgentChatPanel. `addToolOutput` matches
+    // the part by `toolCallId` on the last turn; `tool` is only the typed-tools key, so a cast onto
+    // the untyped UIMessage tool map is safe.
+    const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
+        ({toolName, toolCallId, output, errorText}) => {
+            if (errorText !== undefined) {
+                addToolOutput({
+                    state: "output-error",
+                    tool: toolName as never,
+                    toolCallId,
+                    errorText,
+                }).catch(ignoreStreamRejection)
+            } else {
+                addToolOutput({
+                    tool: toolName as never,
+                    toolCallId,
+                    output: (output ?? {}) as never,
+                }).catch(ignoreStreamRejection)
+            }
+        },
+        [addToolOutput],
+    )
 
     // `handleRewind` must stay referentially stable (it's passed to every memo'd `AgentMessage`)
     // so a streamed token doesn't recreate it and re-render the whole list. `messages`/`busy`
@@ -239,8 +264,10 @@ const AgentChatConversation = ({
                         key={message.id}
                         message={message}
                         isStreaming={busy && index === messages.length - 1}
+                        isLastMessage={index === messages.length - 1}
                         onRewind={handleRewind}
                         onApprovalResponse={addToolApprovalResponse}
+                        onClientToolOutput={handleClientToolOutput}
                     />
                 ))}
                 {status === "submitted" && messages[messages.length - 1]?.role !== "assistant" && (
