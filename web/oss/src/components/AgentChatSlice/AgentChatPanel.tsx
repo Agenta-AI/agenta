@@ -12,6 +12,8 @@ import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
+import {SessionInspectorButton} from "@/oss/components/SessionInspector"
+
 import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
     type AttachmentRejection,
@@ -1000,7 +1002,14 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                     if (action === "add") addSession()
                     else if (typeof targetKey === "string") closeSession(targetKey)
                 }}
-                tabBarExtraContent={{right: <SessionHistoryMenu />}}
+                tabBarExtraContent={{
+                    right: (
+                        <div className="flex items-center gap-1">
+                            <SessionInspectorButton sessionId={activeId ?? null} />
+                            <SessionHistoryMenu />
+                        </div>
+                    ),
+                }}
                 items={sessions.map((session, index) => ({
                     key: session.id,
                     closable: sessions.length > 1,

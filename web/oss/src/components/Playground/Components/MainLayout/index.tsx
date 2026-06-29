@@ -21,7 +21,7 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {SessionInspectorButton} from "@/oss/components/SessionInspector"
+import {PanelSessionInspectorButton} from "@/oss/components/SessionInspector"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
@@ -317,7 +317,7 @@ const PlaygroundMainView = ({
                                                 className="w-full"
                                             />
                                             <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[6]">
-                                                <SessionInspectorButton entityId={variantId} />
+                                                <PanelSessionInspectorButton entityId={variantId} />
                                             </div>
                                         </div>
                                     ))}

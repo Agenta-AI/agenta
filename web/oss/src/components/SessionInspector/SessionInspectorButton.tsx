@@ -1,22 +1,14 @@
-import {executionController} from "@agenta/playground"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {openSessionInspectorAtom} from "./store"
 
-/** Per-panel session-inspector trigger; disabled until the panel has a backend session_id. */
-const SessionInspectorButton = ({entityId}: {entityId: string}) => {
-    const loadableId = useAtomValue(executionController.selectors.derivedLoadableId)
-    const panelSessionId = `sess:${entityId}`
-    const backendSessionId = useAtomValue(
-        executionController.selectors.backendSessionId(loadableId ?? "", panelSessionId),
-    )
+/** Session-inspector trigger; disabled until a backend session_id exists. */
+const SessionInspectorButton = ({sessionId}: {sessionId: string | null}) => {
     const open = useSetAtom(openSessionInspectorAtom)
 
-    const tooltip = backendSessionId
-        ? "Inspect session"
-        : "Run once to start a session before inspecting"
+    const tooltip = sessionId ? "Inspect session" : "Run once to start a session before inspecting"
 
     return (
         <Tooltip title={tooltip}>
@@ -25,8 +17,8 @@ const SessionInspectorButton = ({entityId}: {entityId: string}) => {
                 size="small"
                 icon={<MagnifyingGlass size={16} />}
                 aria-label="Inspect session"
-                disabled={!backendSessionId}
-                onClick={() => backendSessionId && open(backendSessionId)}
+                disabled={!sessionId}
+                onClick={() => sessionId && open(sessionId)}
             />
         </Tooltip>
     )
