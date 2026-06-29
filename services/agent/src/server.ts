@@ -13,7 +13,7 @@
  * `createAgentServer(run)` is the testable seam: it builds the server around an injectable
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -95,16 +95,61 @@ export type RunAgent = (
 ) => Promise<AgentRunResult>;
 
 /**
- * Whether this request is session-owned (detached run that the runner coordinates).
- * Both `sessionId` and `turnId` must be present; an empty string counts as absent.
+ * Whether this request is session-owned (a run the runner coordinates + persists).
+ * A `sessionId` is sufficient — it names the conversation. The `turnId` is the runner's
+ * to mint per execution (the client never composes one), so it is NOT part of the gate.
  */
 function isSessionOwned(request: AgentRunRequest): boolean {
-  return !!(request.sessionId?.trim() && request.turnId?.trim());
+  return !!request.sessionId?.trim();
 }
 
-/** Resolve the project_id for session coordination calls. Falls back to "" gracefully. */
-function resolveProjectId(request: AgentRunRequest): string {
-  return request.projectId?.trim() ?? "";
+/**
+ * The turn correlator: identifies the currently-running stream. The runner owns running,
+ * so it mints the turn when it starts a session-owned run (the coordination plane mints its
+ * own in `_start_turn` for send/steer). A turn_id is a lock value, not a pk — uuid4 is fine.
+ */
+function resolveTurnId(request: AgentRunRequest): string {
+  return request.turnId?.trim() || randomUUID();
+}
+
+/**
+ * The invoke caller's Agenta credential, used to authenticate session coordination calls AS
+ * the caller. It rides the telemetry exporter headers (where the run's Agenta secret already
+ * lives, kept verbatim). Empty string if absent.
+ */
+function runCredential(request: AgentRunRequest): string {
+  const headers = request.telemetry?.exporters?.otlp?.headers ?? {};
+  return (headers.authorization ?? headers.Authorization ?? "").trim();
+}
+
+/**
+ * Persist the session's sandbox id to the durable session-state row (best-effort), so the
+ * inspector's States tab shows which sandbox backs the session. Authenticated AS the invoke
+ * caller; project scope is resolved server-side. Defaults to "local" when no provider is set.
+ */
+async function persistSandboxId(
+  sessionId: string,
+  sandboxId: string,
+  authorization: string,
+): Promise<void> {
+  const base = process.env.AGENTA_API_URL ?? "http://localhost:8000";
+  try {
+    const res = await fetch(
+      `${base}/sessions/states/?session_id=${encodeURIComponent(sessionId)}`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json", authorization },
+        body: JSON.stringify({ sandbox_id: sandboxId }),
+      },
+    );
+    process.stderr.write(
+      `[sessions/states] sandbox-id ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} sandbox=${sandboxId}\n`,
+    );
+  } catch (err) {
+    process.stderr.write(
+      `[sessions/states] sandbox-id failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}\n`,
+    );
+  }
 }
 
 // One engine: `sandbox-agent` drives a harness (Pi or Claude) over ACP. The harness is
@@ -117,7 +162,7 @@ const runAgent: RunAgent = (request, emit, signal) =>
  * exactly one terminal `{kind:"result"}` line (success or failure). Selected by the caller
  * with `Accept: application/x-ndjson`; the one-shot `/run` path is left untouched.
  *
- * For session-owned runs (sessionId + turnId present):
+ * For session-owned runs (a sessionId is present; the turnId is runner-minted):
  *  - the run survives client disconnect (abort is NOT wired to the response close event);
  *  - every event is persisted producer-side via the transcript ingest endpoint;
  *  - an alive-lock watchdog heartbeats the coordination plane for the run's lifetime.
@@ -137,8 +182,13 @@ async function runAndStream(
 
   const sessionOwned = isSessionOwned(request);
   const sessionId = request.sessionId!;
-  const turnId = request.turnId!;
-  const projectId = resolveProjectId(request);
+  const turnId = resolveTurnId(request);
+
+  // Diagnostic: surface whether the session-owned persist/alive path is entered and
+  // whether the invoke credential arrived. Empty cred => heartbeat/persist would 401.
+  process.stderr.write(
+    `[sessions] stream sessionOwned=${sessionOwned} sessionId=${sessionId ?? "-"} turnId=${turnId ?? "-"} cred=${runCredential(request) ? "present" : "MISSING"}\n`,
+  );
 
   // Session-owned runs survive client disconnect — the runner owns the run. Non-session
   // runs abort on disconnect (original behavior: caller drives, disconnect = cancel).
@@ -164,14 +214,24 @@ async function runAndStream(
   let aliveWatchdog: { release: () => Promise<void> } | undefined;
 
   if (sessionOwned) {
+    // The runner authenticates session calls AS the invoke caller (the run credential),
+    // refreshing it for the turn's lifetime — never the admin key. Project scope is
+    // resolved server-side from the credential, so no project_id rides the request.
+    const watchdog = startAliveWatchdog(sessionId, turnId, runCredential(request));
+    aliveWatchdog = watchdog;
+    // Record which sandbox backs this session (best-effort) so the States tab is populated.
+    void persistSandboxId(
+      sessionId,
+      request.sandbox?.trim() || "local",
+      watchdog.credential(),
+    );
     const { emit: persistingEmit, flush } = buildPersistingEmitter(
       sessionId,
-      projectId,
+      watchdog.credential,
       liveEmit,
     );
     emitFn = persistingEmit;
     flushPersist = flush;
-    aliveWatchdog = startAliveWatchdog(sessionId, turnId, projectId);
   }
 
   let result: AgentRunResult;

@@ -23,7 +23,7 @@ class SessionStreamDBE(
     """Ephemeral run/liveness facet for a session — the durable mirror of the
     Redis nest (alive ⊇ running ⊇ attached).
 
-    1:1 with session_id (unique). Redis is authoritative for the nest bools;
+    1:1 with session_id per project. Redis is authoritative for the nest bools;
     this row mirrors them in ``flags`` for durability / orphan sweep / observability.
     ``updated_at`` (LifecycleDBA) is the heartbeat timestamp — no separate column.
     sandbox_id is NOT stored here (it lives in session_states).
@@ -34,6 +34,10 @@ class SessionStreamDBE(
     # Bare string correlator — NOT an FK (sessions may be external).
     session_id = Column(String, nullable=False)
 
+    # Current turn (uuid7 minted by the service); the Postgres mirror of the Redis
+    # alive/running lock value. Null when idle/ended. Not a pk — a token-like correlator.
+    turn_id = Column(String, nullable=True)
+
     __table_args__ = (
         ForeignKeyConstraint(
             ["project_id"],
@@ -42,8 +46,9 @@ class SessionStreamDBE(
         ),
         PrimaryKeyConstraint("project_id", "id"),
         UniqueConstraint(
+            "project_id",
             "session_id",
-            name="uq_session_streams_session_id",
+            name="uq_session_streams_project_session_id",
         ),
         Index(
             "ix_session_streams_project_id_created_at",
@@ -51,7 +56,8 @@ class SessionStreamDBE(
             "created_at",
         ),
         Index(
-            "ix_session_streams_session_id",
+            "ix_session_streams_project_id_session_id",
+            "project_id",
             "session_id",
         ),
     )

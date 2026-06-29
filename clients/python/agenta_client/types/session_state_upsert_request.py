@@ -6,13 +6,17 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
-class SessionTranscriptIngestRequest(UniversalBaseModel):
-    project_id: str
-    session_id: str
-    event_index: typing.Optional[int] = None
-    sender: typing.Optional[str] = None
-    session_update: typing.Optional[str] = None
-    payload: typing.Optional[typing.Dict[str, typing.Any]] = None
+class SessionStateUpsertRequest(UniversalBaseModel):
+    data: typing.Optional[typing.Dict[str, typing.Any]] = pydantic.Field(default=None)
+    """
+    Opaque SDK SessionRecord to persist.
+    """
+    
+    sandbox_id: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    Remote sandbox id to record alongside the SDK record.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -94,10 +94,13 @@ read reconciles by reading Redis for the bools and the row for `status`/`updated
 ## Row shape (`session_streams`)
 
 Drop `attached` (bool col), `sandbox_live`, `last_seen_at`. Add a `flags` JSONB
-(`FlagsDBA`-style) carrying `is_alive`/`is_running`/`is_attached`. Liveness/heartbeat writes
-update `flags` + `status` + `updated_at` (no dedicated heartbeat timestamp column — the
-shared `updated_at` is the heartbeat). Keep `IdentifierDBA` (the row `id` = `stream_id`),
-`ProjectScopeDBA`, `LifecycleDBA`, `StatusDBA`, the unique `session_id`.
+(`FlagsDBA`-style) carrying `is_alive`/`is_running`/`is_attached`, and a nullable `turn_id`
+column — the Postgres mirror of the Redis alive/running lock value, so an attaching/fetching
+client reads the **current** turn off the row (a `stream_id` outlives a succession of
+`turn_id`s). Liveness/heartbeat writes update `flags` + `turn_id` + `status` + `updated_at`
+(no dedicated heartbeat timestamp column — the shared `updated_at` is the heartbeat). Keep
+`IdentifierDBA` (the row `id` = `stream_id`), `ProjectScopeDBA`, `LifecycleDBA`, `StatusDBA`,
+the unique `session_id`.
 
 ## Naming (the run → turn rename)
 
@@ -131,13 +134,63 @@ process via `AGENTA_AGENT_RUNNER_REPLICA_ID` or a uuid — refreshes `owner` aff
 control signals to the box running the session while each box proves its own turn ownership.
 This is wired now, not deferred.
 
-## Phase 2 (web demonstrator) — scope only, not built in Phase 1
+## Phase 2 (web demonstrator)
 
 A "sessions inspector" drawer behind a session icon in the playground header. One tab per
 session element (mounts / transcripts / states / streams / interactions), each exercising the
 real productized endpoint. The streams tab shows the nest (alive/running/attached badges) and
 drives lifecycle (attach / detach / kill / respond). **Send/steer/cancel stay the playground
 chat's job** — the drawer inspects and drives lifecycle; it is not a second send path.
+
+### The session_id the inspector keys off — read-back, runner-minted
+
+The inspector needs a real backend `session_id` (the conversation correlator the five facets
+key off). The playground does not have one today, so Phase 2 adds it — by **read-back**, never
+by client minting:
+
+- The playground **sends no `session_id`** on invoke. The runner mints one
+  (`resolveRunSessionId` returns its fallback when the request omits it), persists the
+  transcript and holds the alive lock under it, and **echoes it back** on the result
+  (`AgentRunResult.sessionId`).
+- The playground **captures `session_id` from the first run's response** at the same point
+  it already extracts `trace_id`/`span_id` (the `executeViaFetch` normalizer), threads it onto
+  the `ExecutionResult`, and **persists it per panel** in playground execution state.
+- `session_id` stays **null until the first invoke returns it**. Pre-minting a client-side id
+  was rejected: its only benefit was opening the inspector before the first run, but there is
+  no nest / transcript / state to inspect before the first run anyway.
+
+**Two unrelated "session" concepts — do not conflate (they are different axes):**
+
+| concept | what it is | scope | crosses to API? |
+|---|---|---|---|
+| `"sess:<runnableId>"` (`ExecutionSession.id`) | a playground **UI column key** — which compare-column a streamed message renders in | per **revision** (same every open of that revision) | **never** |
+| backend `session_id` | the durable **conversation correlator** (alive lock, transcript, state, mounts, interactions) | per **conversation thread** (a new chat is a new id) | yes — this is what the inspector uses |
+
+One revision column hosts **many** backend sessions over its life. `"sess:<runnableId>"` must
+**never** be sent as the invoke `session_id` — it would collapse every conversation on that
+revision onto one lock/transcript/state. The panel simply *holds* a runner-minted `session_id`
+alongside its column key once the first run returns one.
+
+### Inspector surface
+
+The session icon lives in the **playground header, per panel**, disabled until that panel has
+a `session_id`. Clicking it opens the drawer keyed off that id. The drawer is an
+`EnhancedDrawer` (`@agenta/ui/drawer`) with antd `Tabs`, one tab per facet, each calling
+`getAgentaSdkClient().sessions.*`:
+
+| tab | endpoint(s) | shows / does |
+|---|---|---|
+| streams | `fetchSessionStream`; `setSessionStream` (attach); `detachSessionStream`; `deleteSessionStream` (kill) | nest badges (`is_alive`/`is_running`/`is_attached`; `resumable`/`reattachable` derived client-side) + attach / detach / kill controls |
+| transcripts | `queryTranscripts` (+ `getTranscriptEvent` on expand) | the persisted event log |
+| states | `getState` | the durable record (incl. `sandbox_id`) |
+| mounts | `querySessionMounts` | bound durable directories |
+| interactions | `queryInteractions`; `respondInteraction` | pending interactions + respond |
+
+Placement: the drawer is one feature's UI keyed off a `session_id`, used only here for now →
+**app layer** (`web/oss/src/components/...`), not a package (per the package-practices 2+-features
+heuristic). It mirrors the existing `SharedDrawers/SessionDrawer` *pattern* but is its own
+session-scoped component — distinct from that drawer, which is trace/turn-scoped (reads
+`ag.session.id` off span attributes, opened from the observability SessionsTable).
 
 ## Decided
 

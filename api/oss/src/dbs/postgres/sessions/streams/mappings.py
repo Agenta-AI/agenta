@@ -22,6 +22,7 @@ def map_stream_dto_to_dbe_create(
         created_by_id=user_id,
         session_id=stream.session_id,
         flags=stream.flags.model_dump(mode="json") if stream.flags else None,
+        turn_id=stream.turn_id,
         status=stream.status.model_dump(mode="json") if stream.status else None,
     )
 
@@ -40,6 +41,7 @@ def map_stream_dbe_to_dto(
         deleted_by_id=stream_dbe.deleted_by_id,
         project_id=stream_dbe.project_id,
         session_id=stream_dbe.session_id,
+        turn_id=stream_dbe.turn_id,
         flags=SessionStreamFlags.model_validate(stream_dbe.flags)
         if stream_dbe.flags
         else SessionStreamFlags(),
@@ -58,5 +60,7 @@ def map_stream_dto_to_dbe_edit(
     stream_dbe.updated_by_id = user_id
     if stream.flags is not None:
         stream_dbe.flags = stream.flags.model_dump(mode="json")
+    if stream.turn_id is not None:
+        stream_dbe.turn_id = stream.turn_id
     if stream.status is not None:
         stream_dbe.status = stream.status.model_dump(mode="json")

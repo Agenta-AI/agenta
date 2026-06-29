@@ -367,6 +367,51 @@ services:
             retries: 3
             start_period: 20s
 
+    worker-transcripts:
+        # === IMAGE ================================================ #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ============================================ #
+        command: >
+            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            python -m entrypoints.worker_transcripts
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_transcripts' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
     worker-events:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
@@ -560,9 +605,11 @@ services:
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
             AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
             PI_CODING_AGENT_DIR: /pi-agent
-            # Tracing export fallback (used when a request carries no usable OTLP
-            # credential). Must be reachable from this container.
-            AGENTA_API_URL: ${AGENTA_API_URL:-}
+            # The API as reached FROM this container — by its compose service name, over the
+            # network (the same `http://api:8000` the workers use), NOT the public
+            # `http://localhost/api` (which doesn't resolve inside a container). Used by the
+            # OTLP tracing-export fallback AND the session heartbeat/transcript-persist calls.
+            AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}

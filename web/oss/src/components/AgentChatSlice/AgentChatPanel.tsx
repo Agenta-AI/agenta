@@ -12,6 +12,8 @@ import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
+import {SessionInspectorButton} from "@/oss/components/SessionInspector"
+
 import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
     type AttachmentRejection,
@@ -38,6 +40,7 @@ import {
     sessionMessagesAtom,
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
+    setSessionStreamingAtom,
 } from "./state/sessions"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
@@ -260,6 +263,17 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // Publish this client's live streaming state for the session so the Session inspector knows
+    // THIS tab is the active watcher (inline chat streams over the runner NDJSON, not the
+    // coordination-plane attach). Clear on unmount so a closed/navigated-away tab stops claiming it.
+    const setSessionStreaming = useSetAtom(setSessionStreamingAtom)
+    useEffect(() => {
+        setSessionStreaming({id: sessionId, streaming: busy})
+    }, [sessionId, busy, setSessionStreaming])
+    useEffect(() => {
+        return () => setSessionStreaming({id: sessionId, streaming: false})
+    }, [sessionId, setSessionStreaming])
 
     // ── "Run in playground" seam (producer: a trigger drawer's Run-in-playground) ──
     // A trigger fires server-side and never reaches the playground; this lets a user
@@ -1000,7 +1014,14 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                     if (action === "add") addSession()
                     else if (typeof targetKey === "string") closeSession(targetKey)
                 }}
-                tabBarExtraContent={{right: <SessionHistoryMenu />}}
+                tabBarExtraContent={{
+                    right: (
+                        <div className="flex items-center gap-1">
+                            <SessionInspectorButton sessionId={activeId ?? null} />
+                            <SessionHistoryMenu />
+                        </div>
+                    ),
+                }}
                 items={sessions.map((session, index) => ({
                     key: session.id,
                     closable: sessions.length > 1,

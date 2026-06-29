@@ -50,11 +50,13 @@ class SessionStream(BaseModel):
 class SessionStreamCreate(BaseModel):
     session_id: str
     flags: Optional[SessionStreamFlags] = None
+    turn_id: Optional[str] = None
     status: Optional[SessionStreamStatus] = None
 
 
 class SessionStreamEdit(BaseModel):
     flags: Optional[SessionStreamFlags] = None
+    turn_id: Optional[str] = None
     status: Optional[SessionStreamStatus] = None
 
 
