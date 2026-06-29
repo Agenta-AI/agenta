@@ -131,8 +131,8 @@ schema; `harness.permissions` / `sandbox.permissions` are fully typed sub-schema
   assumption; behavior is identical today (one catalog) but the dependency is now declared, not
   assumed.
 - [ ] **G4 — Schema-sourced permission editor.** Source the harness-permissions editor's option set
-  (`default_mode` enum) and field labels/tooltips from the typed `_HarnessPermissionsSchema` instead
-  of hardcoded literals, keeping the rich control. *Gated tail:* per-harness show/hide still keys off
+  (`default_mode` enum) and field labels/tooltips from the typed `harness.permissions` sub-schema
+  instead of hardcoded literals, keeping the rich control. *Gated tail:* per-harness show/hide still keys off
   the harness value (`=== "claude"`) because neither the schema nor the harness catalog yet carries a
   per-harness "is-gating" capability flag; make it schema-driven when that flag exists.
 
