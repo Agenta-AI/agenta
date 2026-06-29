@@ -1,7 +1,7 @@
 import {useEffect} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
-import {$getSelection, $isRangeSelection, COMMAND_PRIORITY_HIGH, KEY_ENTER_COMMAND} from "lexical"
+import {COMMAND_PRIORITY_HIGH, INSERT_PARAGRAPH_COMMAND, KEY_ENTER_COMMAND} from "lexical"
 
 import {submitEditorAsMarkdown} from "../assets/submit"
 
@@ -11,10 +11,10 @@ interface SubmitPluginProps {
 
 /**
  * Plain Enter always sends the message as markdown + clear — even inside a list or code
- * block. Shift+Enter (and Cmd/Ctrl+Enter) is the newline: it splits the current block via
- * insertParagraph, which is context-aware — a new list item inside a list, a new line in
- * code, a new paragraph in plain text — and lands the caret at a block start so block
- * markdown shortcuts ("- ", "1. ", "> ", "```") fire on it.
+ * block. Shift+Enter (and Cmd/Ctrl+Enter) is the newline: it dispatches the native
+ * INSERT_PARAGRAPH_COMMAND so it stays fully context-aware — a new list item in a list,
+ * an exit-to-paragraph from an empty list item, a new line in code, a new paragraph in
+ * text — and the caret lands at a block start so markdown shortcuts fire on it.
  */
 export function SubmitPlugin({onSubmit}: SubmitPluginProps) {
     const [editor] = useLexicalComposerContext()
@@ -25,13 +25,11 @@ export function SubmitPlugin({onSubmit}: SubmitPluginProps) {
             (event) => {
                 if (!event || !editor.isEditable()) return false
 
-                // Shift+Enter / Cmd/Ctrl+Enter → newline (context-aware block split).
+                // Shift+Enter / Cmd/Ctrl+Enter → native paragraph insert (list-item, exit,
+                // code line, or paragraph depending on context).
                 if (event.shiftKey || event.metaKey || event.ctrlKey) {
                     event.preventDefault()
-                    editor.update(() => {
-                        const selection = $getSelection()
-                        if ($isRangeSelection(selection)) selection.insertParagraph()
-                    })
+                    editor.dispatchCommand(INSERT_PARAGRAPH_COMMAND, undefined)
                     return true
                 }
 
