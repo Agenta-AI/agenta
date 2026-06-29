@@ -284,3 +284,34 @@ async def test_workflow_non_200_writes_failed_delivery():
     dao.write_delivery.assert_awaited_once()
     delivery = dao.write_delivery.await_args.kwargs["delivery"]
     assert delivery.status.code == "500"
+
+
+async def test_detached_dispatch_writes_dispatched_delivery():
+    project_id = uuid4()
+    reference = Reference(slug="wf-1")
+    subscription = _make_subscription(
+        references={"workflow": reference},
+        inputs_fields={"number": "$.event.attributes.issue.number"},
+    )
+    dao = _make_dao()
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock()
+
+    run_id = "run-abc-123"
+    dispatch_fn = AsyncMock(return_value=run_id)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, workflows_service=workflows, dispatch_fn=dispatch_fn
+    )
+
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
+    )
+
+    # dispatch_fn called instead of invoke_workflow
+    dispatch_fn.assert_awaited_once()
+    workflows.invoke_workflow.assert_not_awaited()
+
+    dao.write_delivery.assert_awaited_once()
+    delivery = dao.write_delivery.await_args.kwargs["delivery"]
+    assert delivery.status.code == "202"
+    assert delivery.data.result == {"run_id": run_id}

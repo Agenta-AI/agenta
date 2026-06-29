@@ -12,10 +12,12 @@ import { FoldersClient } from "./api/resources/folders/client/Client.js";
 import { InvocationsClient } from "./api/resources/invocations/client/Client.js";
 import { KeysClient } from "./api/resources/keys/client/Client.js";
 import { LegacyClient } from "./api/resources/legacy/client/Client.js";
+import { MountsClient } from "./api/resources/mounts/client/Client.js";
 import { OrganizationsClient } from "./api/resources/organizations/client/Client.js";
 import { ProjectsClient } from "./api/resources/projects/client/Client.js";
 import { QueriesClient } from "./api/resources/queries/client/Client.js";
 import { SecretsClient } from "./api/resources/secrets/client/Client.js";
+import { SessionsClient } from "./api/resources/sessions/client/Client.js";
 import { StatusClient } from "./api/resources/status/client/Client.js";
 import { TestcasesClient } from "./api/resources/testcases/client/Client.js";
 import { TestsetsClient } from "./api/resources/testsets/client/Client.js";
@@ -52,6 +54,7 @@ export class AgentaApiClient {
     protected _testsets: TestsetsClient | undefined;
     protected _queries: QueriesClient | undefined;
     protected _folders: FoldersClient | undefined;
+    protected _sessions: SessionsClient | undefined;
     protected _applications: ApplicationsClient | undefined;
     protected _workflows: WorkflowsClient | undefined;
     protected _evaluators: EvaluatorsClient | undefined;
@@ -59,6 +62,7 @@ export class AgentaApiClient {
     protected _tools: ToolsClient | undefined;
     protected _triggers: TriggersClient | undefined;
     protected _evaluations: EvaluationsClient | undefined;
+    protected _mounts: MountsClient | undefined;
     protected _status: StatusClient | undefined;
     protected _projects: ProjectsClient | undefined;
     protected _users: UsersClient | undefined;
@@ -125,6 +129,10 @@ export class AgentaApiClient {
         return (this._folders ??= new FoldersClient(this._options));
     }
 
+    public get sessions(): SessionsClient {
+        return (this._sessions ??= new SessionsClient(this._options));
+    }
+
     public get applications(): ApplicationsClient {
         return (this._applications ??= new ApplicationsClient(this._options));
     }
@@ -151,6 +159,10 @@ export class AgentaApiClient {
 
     public get evaluations(): EvaluationsClient {
         return (this._evaluations ??= new EvaluationsClient(this._options));
+    }
+
+    public get mounts(): MountsClient {
+        return (this._mounts ??= new MountsClient(this._options));
     }
 
     public get status(): StatusClient {

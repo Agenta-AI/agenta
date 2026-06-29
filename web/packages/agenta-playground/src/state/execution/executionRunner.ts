@@ -29,9 +29,14 @@ import {
     cleanupAbortController,
     buildResultKey,
     resultsByKeyAtomFamily,
+    setBackendSessionIdAtomFamily,
 } from "./atoms"
 import {createExecutionItemHandle} from "./executionItems"
-import {extractSpanIdFromPayload, extractTraceIdFromPayload} from "./trace"
+import {
+    extractSessionIdFromPayload,
+    extractSpanIdFromPayload,
+    extractTraceIdFromPayload,
+} from "./trace"
 import type {ExecutionSession, RunResult, SessionExecutionOptions} from "./types"
 
 interface RunnableNode {
@@ -440,7 +445,7 @@ export async function executeStepForSessionWithExecutionItems(
 ): Promise<void> {
     const {
         get,
-        set: _set,
+        set,
         loadableId,
         stepId,
         session,
@@ -800,6 +805,14 @@ export async function executeStepForSessionWithExecutionItems(
         }
 
         const primaryResult = nodeResults[rootNode.id]
+
+        if (primaryResult?.sessionId) {
+            set(setBackendSessionIdAtomFamily(loadableId), {
+                sessionId: session.id,
+                backendSessionId: primaryResult.sessionId,
+            })
+        }
+
         const repetitions: {
             output?: unknown
             structuredOutput?: unknown
@@ -993,6 +1006,8 @@ async function executeViaFetch(params: {
                   }
                 : undefined
 
+        const sessionId = extractSessionIdFromPayload(responseData) ?? undefined
+
         return {
             executionId,
             status: "success",
@@ -1001,6 +1016,7 @@ async function executeViaFetch(params: {
             output: normalized.output,
             structuredOutput: responseData,
             trace,
+            ...(sessionId ? {sessionId} : {}),
         }
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {

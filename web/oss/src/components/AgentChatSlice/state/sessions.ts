@@ -238,6 +238,31 @@ export const setActiveSessionAtomFamily = atomFamily((key: string) =>
     }),
 )
 
+/**
+ * Live streaming status per session id, keyed by the globally-unique session id (no scope
+ * dimension). The chat panel writes `true` while its turn is submitted/streaming and `false`
+ * when it settles. The session inspector reads it to know THIS client is the live watcher of a
+ * session — that's what drives the inspector's Attach/Detach enablement and the `attached`
+ * indicator, since an inline chat run streams over the runner NDJSON, not the coordination-plane
+ * attach. In-memory only (not persisted): it describes the current browser tab, not history.
+ */
+export const sessionStreamingAtom = atom<Record<string, boolean>>({})
+
+/** Is THIS browser currently streaming the given session? */
+export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
+    atom((get) => Boolean(get(sessionStreamingAtom)[id])),
+)
+
+/** Set/clear the live-streaming flag for a session id. */
+export const setSessionStreamingAtom = atom(
+    null,
+    (get, set, {id, streaming}: {id: string; streaming: boolean}) => {
+        const cur = get(sessionStreamingAtom)
+        if (Boolean(cur[id]) === streaming) return
+        set(sessionStreamingAtom, {...cur, [id]: streaming})
+    },
+)
+
 /** Write a session's messages to the persisted store (called when its stream settles). */
 export const persistSessionMessagesAtom = atom(
     null,

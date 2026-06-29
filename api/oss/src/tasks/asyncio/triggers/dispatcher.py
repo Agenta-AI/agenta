@@ -10,7 +10,7 @@ Self-contained so it can run inside its own TaskIQ worker process.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 from uuid import UUID
 
 import uuid_utils.compat as uuid_compat
@@ -43,9 +43,11 @@ class TriggersDispatcher:
         *,
         triggers_dao: TriggersDAOInterface,
         workflows_service: WorkflowsService,
+        dispatch_fn: Optional[Callable] = None,
     ):
         self.triggers_dao = triggers_dao
         self.workflows_service = workflows_service
+        self._dispatch_fn = dispatch_fn
 
     def _build_context(
         self,
@@ -257,15 +259,40 @@ class TriggersDispatcher:
             )
             return
 
-        try:
-            request = WorkflowServiceRequest(
-                references=references,
-                selector=selector,
-                data=WorkflowRequestData(
-                    inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
-                ),
-            )
+        request = WorkflowServiceRequest(
+            references=references,
+            selector=selector,
+            data=WorkflowRequestData(
+                inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
+            ),
+        )
 
+        if self._dispatch_fn is not None:
+            # Detached path: hand off to the runner, write dispatched delivery.
+            run_id = await self._dispatch_fn(
+                project_id=project_id,
+                user_id=user_id,
+                request=request,
+            )
+            await self._write_delivery(
+                project_id=project_id,
+                user_id=user_id,
+                delivery_id=delivery_id,
+                subscription_id=subscription_id,
+                schedule_id=schedule_id,
+                event_id=event_id,
+                status=Status(code="202", message="dispatched"),
+                data=delivery_data.model_copy(update={"result": {"run_id": run_id}}),
+            )
+            log.info(
+                "[TRIGGERS DISPATCHER] detached dispatch entity=%s event=%s run_id=%s",
+                entity.id,
+                event_id,
+                run_id,
+            )
+            return
+
+        try:
             response = await self.workflows_service.invoke_workflow(
                 project_id=project_id,
                 user_id=user_id,

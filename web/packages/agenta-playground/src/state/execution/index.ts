@@ -120,6 +120,7 @@ export {
     sessionsAtomFamily,
     activeSessionsAtomFamily,
     sessionAtomFamily,
+    backendSessionIdAtomFamily,
     // Step atoms
     stepsByIdAtomFamily,
     stepIdsAtomFamily,

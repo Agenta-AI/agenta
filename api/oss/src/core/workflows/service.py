@@ -1,3 +1,4 @@
+import json
 from typing import Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -93,8 +94,11 @@ from oss.src.core.git.types import (
     validate_retrieve_refs_consistent,
 )
 from oss.src.core.workflows.interfaces import StaticWorkflowProvider
+from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
     StaticWorkflowSlug,
+    WorkflowServiceUrlMissing,
+    WorkflowDetachedStartFailed,
     is_static_workflow_slug,
 )
 
@@ -573,6 +577,80 @@ class WorkflowsService:
             body = None
 
         return response, body
+
+    @staticmethod
+    async def _stream_service_started(
+        *,
+        url: str,
+        credentials: str,
+        payload: dict,
+        run_id: str,
+    ) -> WorkflowServiceDetachedResponse:
+        """Stream the service ``/invoke`` and return on the FIRST record (the started handshake).
+
+        The runner emits NDJSON ``{"kind": "event"|"result", ...}`` records the moment each is
+        built; the first one means the run is accepted and owned (the alive-held handshake). We
+        return then and close the connection — the runner owns the run (alive watchdog) and
+        persists independently (producer-driven ingest), so draining to completion is unnecessary.
+        The read timeout is generous (sandbox cold-start can take seconds); we are NOT awaiting
+        the whole run, so it is not the batch 60s-whole-run budget.
+        """
+        headers = inject(
+            {
+                "Authorization": credentials,
+                "Content-Type": "application/json",
+                "Accept": "application/x-ndjson",
+            }
+        )
+
+        # connect/write/pool bounded; read=None so we can wait for the first frame across a
+        # cold-start without ever budgeting the whole run.
+        timeout = httpx.Timeout(connect=30.0, read=None, write=30.0, pool=30.0)
+
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            follow_redirects=True,
+        ) as client:
+            async with client.stream(
+                "POST",
+                url,
+                json=payload,
+                headers=headers,
+            ) as response:
+                if response.status_code < 200 or response.status_code >= 300:
+                    raw = await response.aread()
+                    raise WorkflowDetachedStartFailed(
+                        f"Workflow service returned HTTP {response.status_code} on detached start: "
+                        f"{raw[:500]!r}"
+                    )
+
+                trace_id = response.headers.get("x-ag-trace-id")
+                span_id = response.headers.get("x-ag-span-id")
+
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # First meaningful record = started/accepted. Return WITHOUT draining;
+                    # exiting the context closes the connection (run keeps going on the runner).
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        record = None
+                    record_run_id = (
+                        record.get("run_id") if isinstance(record, dict) else None
+                    )
+                    return WorkflowServiceDetachedResponse(
+                        run_id=record_run_id or run_id,
+                        accepted=True,
+                        trace_id=trace_id,
+                        span_id=span_id,
+                    )
+
+        # The stream closed before any record arrived: the run never started.
+        raise WorkflowDetachedStartFailed(
+            "Workflow service closed the stream before emitting a started record."
+        )
 
     @staticmethod
     def _coerce_invoke_response(
@@ -1914,19 +1992,21 @@ class WorkflowsService:
 
     # workflow services --------------------------------------------------------
 
-    async def invoke_workflow(
+    async def _prepare_invoke(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
         request: WorkflowServiceRequest,
-        #
-        **kwargs,
-    ) -> Union[
-        WorkflowServiceBatchResponse,
-        WorkflowServiceStreamResponse,
-    ]:
+    ) -> tuple[str, Optional[str]]:
+        """Shared invoke prelude for batch + detached: auth + ref-resolution + service URL.
+
+        Centralizes the security-sensitive steps (project lookup, secret-token signing,
+        ref→revision resolution, service_url derivation) so the batch and detached paths can
+        never drift on auth or resolution. Returns ``(credentials, service_url)``; the missing
+        service_url case is left to the caller (batch returns a 400 body; detached raises).
+        """
         project = await get_project_by_id(
             project_id=str(project_id),
         )
@@ -1947,6 +2027,27 @@ class WorkflowsService:
 
         revision_data = self._get_revision_data(request=request)
         service_url = self._get_service_url(revision_data=revision_data)
+
+        return credentials, service_url
+
+    async def invoke_workflow(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        request: WorkflowServiceRequest,
+        #
+        **kwargs,
+    ) -> Union[
+        WorkflowServiceBatchResponse,
+        WorkflowServiceStreamResponse,
+    ]:
+        credentials, service_url = await self._prepare_invoke(
+            project_id=project_id,
+            user_id=user_id,
+            request=request,
+        )
 
         if not service_url:
             return WorkflowServiceBatchResponse(
@@ -1969,6 +2070,53 @@ class WorkflowsService:
         return self._coerce_invoke_response(
             response=_response,
             body=_body,
+        )
+
+    async def invoke_workflow_detached(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        request: WorkflowServiceRequest,
+        #
+        run_id: Optional[str] = None,
+    ) -> WorkflowServiceDetachedResponse:
+        """Fire-and-forget invoke: stream the service and return on the started handshake.
+
+        Shares the batch path's prelude (``_prepare_invoke``) so auth + ref-resolution are
+        identical, then streams ``/invoke`` and returns on the FIRST NDJSON record without
+        draining (``_stream_service_started``). The runner owns the run thereafter (alive
+        watchdog + producer-driven transcript ingest). ``run_id``/``project_id`` ride the
+        request ``meta`` so the deployed workflow service threads them onto the runner wire
+        (Foundation B) and the runner can prove alive-lock ownership on heartbeat.
+        """
+        run_id = run_id or str(uuid4())
+
+        # Thread the coordination ids through `meta` so the workflow service forwards them onto
+        # the runner wire (`runId`/`projectId`); merged, not overwritten.
+        meta = dict(request.meta or {})
+        meta["run_id"] = run_id
+        meta["project_id"] = str(project_id)
+        request.meta = meta
+
+        credentials, service_url = await self._prepare_invoke(
+            project_id=project_id,
+            user_id=user_id,
+            request=request,
+        )
+
+        if not service_url:
+            raise WorkflowServiceUrlMissing()
+
+        return await self._stream_service_started(
+            url=f"{service_url}/invoke",
+            credentials=credentials,
+            payload=request.model_dump(
+                mode="json",
+                exclude_none=True,
+            ),
+            run_id=run_id,
         )
 
     async def inspect_workflow(

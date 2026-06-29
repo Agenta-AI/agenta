@@ -388,6 +388,10 @@ class WireRunRequest(_WireModel):
     harness: Optional[str] = None
     sandbox: Optional[str] = None
     session_id: Optional[str] = Field(default=None, alias="sessionId")
+    # Session-owned (detached) turn identity: the runner uses these to own the alive lock and
+    # persist the transcript independently of any client connection. Omitted on ad-hoc runs.
+    turn_id: Optional[str] = Field(default=None, alias="turnId")
+    project_id: Optional[str] = Field(default=None, alias="projectId")
     agents_md: Optional[str] = Field(default=None, alias="agentsMd")
     # Model + connection. ``model`` stays a plain string; the structured provider/connection
     # fields ride alongside only when a resolved connection / model ref is present.

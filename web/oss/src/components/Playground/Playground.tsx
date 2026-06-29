@@ -11,6 +11,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
+import {SessionInspectorDrawer} from "@/oss/components/SessionInspector"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
@@ -93,6 +94,7 @@ const Playground: FC = () => {
                 <PlaygroundHeader key={`${uri}-header`} />
                 <PlaygroundMainView key={`${uri}-main`} />
                 <CatalogDrawer />
+                <SessionInspectorDrawer />
             </div>
         </OSSPlaygroundShell>
     )
