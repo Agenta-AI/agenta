@@ -92,6 +92,49 @@ switch, mirroring the model warning. Tracked as the harness-gating follow-up.
 - Reference (`@ag.reference`) chips in the editor — they live on the embedref branch (#4877) and
   light up here when that merges.
 - Optional: model remap (instead of clear) when switching harness.
+- Tool draft validation depth — the per-kind `draftInvalid` only checks an inline function's name
+  today. Under the incoming `kind`-discriminated tool schema (`schema-driven-config-proposal.md`,
+  CHANGE-3) every entry must validate against its per-kind sub-schema. Tighten when that lands; the
+  registry's per-kind `draftInvalid`/`createSeed` get replaced wholesale (the current `tool.createSeed`
+  is an unused stub — creation seeds from the picker). Raised from PR #4923 review.
+- Named-connection slug on a provider change — intentionally kept today (the option list is
+  vault-secret async, so an eager clear would wipe a valid slug mid-load). When provider becomes
+  first-class via `ModelSpec` (`../agent-workflows/scratch/notes-model-auth.md`, R2), re-bind or clear the slug when the
+  derived provider changes. Raised from PR #4923 review.
+
+## Schema-driven section work package
+
+After #4913 landed the nested `agent-template` catalog type, the panel can read more from the
+template shape instead of hardcoding it. The control is schema-*gated* (which sections/options
+exist) but not yet schema-*driven* (identity, structure, controls, discrimination). This package
+closes that to the extent #4913's schema supports; the gated tail waits on later schema steps.
+
+What #4913 makes available: every field has a `title`/`description`; `harness.kind` carries
+`x-ag-harness-ref: "harness"` plus a `oneOf` of `{const, title}`; `ToolConfig` is a real
+`discriminator: "type"` union (builtin/gateway/code/client/reference/platform) exposed in the JSON
+schema; `harness.permissions` / `sandbox.permissions` are fully typed sub-schemas; `instructions`
+→ `x-ag-type: "textarea"`, `llm.model` → `x-parameter: "grouped_choice"`.
+
+- [ ] **G1 — Section identity from schema.** Derive each per-field section's title + description
+  (tooltip) from `props.<field>.title` / `.description` instead of literals; order the list sections
+  by schema property order. Composite sections (Model & harness = `llm`+`harness`, Advanced =
+  `runner`+`sandbox`+`harness.extras`/`permissions`) keep their FE labels, and Triggers (non-schema)
+  stays FE. Icons stay FE (not in schema).
+- [ ] **G2 — Discriminator-aware item classification.** Read the declared discriminator (`ToolConfig`
+  `discriminator: "type"`) from the schema where present, falling back to today's sniffing. MCP
+  (`transport` presence) and embed/skill refs (`@ag.embed`, `x-ag-type-ref: "skill-template"`) have
+  no discriminator declared, so they stay sniffed. *Gated tail:* fully adopting the six-kind tool
+  union (the FE's inline `type:"function"` shape is not in `ToolConfig`) belongs with the
+  schema-driven-config redesign (CHANGE-3).
+- [ ] **G3 — Follow `x-ag-harness-ref`.** Resolve the harness capability catalog from the schema's
+  `harness.kind["x-ag-harness-ref"]` declaration rather than the hardcoded `/catalog/harnesses/`
+  assumption; behavior is identical today (one catalog) but the dependency is now declared, not
+  assumed.
+- [ ] **G4 — Schema-sourced permission editor.** Source the harness-permissions editor's option set
+  (`default_mode` enum) and field labels/tooltips from the typed `harness.permissions` sub-schema
+  instead of hardcoded literals, keeping the rich control. *Gated tail:* per-harness show/hide still keys off
+  the harness value (`=== "claude"`) because neither the schema nor the harness catalog yet carries a
+  per-harness "is-gating" capability flag; make it schema-driven when that flag exists.
 
 ## Verification
 
