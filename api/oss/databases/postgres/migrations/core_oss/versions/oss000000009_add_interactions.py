@@ -23,7 +23,7 @@ def upgrade() -> None:
         sa.Column("project_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("run_id", sa.String(), nullable=True),
+        sa.Column("turn_id", sa.String(), nullable=True),
         sa.Column("token", sa.String(), nullable=False),
         sa.Column("kind", sa.String(), nullable=False),
         sa.Column("status", postgresql.JSONB(none_as_null=True), nullable=True),

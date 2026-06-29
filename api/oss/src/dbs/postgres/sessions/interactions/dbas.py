@@ -21,6 +21,6 @@ class SessionInteractionDBA(
     __abstract__ = True
 
     session_id = Column(String, nullable=False)
-    run_id = Column(String, nullable=True)
+    turn_id = Column(String, nullable=True)
     token = Column(String, nullable=False)
     kind = Column(String, nullable=False)

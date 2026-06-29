@@ -4,12 +4,15 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .command_mode import CommandMode
 
 
-class SessionLivenessResponseModel(UniversalBaseModel):
-    alive: bool
-    attached: bool
-    reattachable: bool
+class SessionStreamCommandResponseModel(UniversalBaseModel):
+    mode: CommandMode
+    session_id: str
+    turn_id: typing.Optional[str] = None
+    watcher_id: typing.Optional[str] = None
+    detached: typing.Optional[bool] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

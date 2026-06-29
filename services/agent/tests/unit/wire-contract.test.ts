@@ -57,7 +57,7 @@ const KNOWN_REQUEST_KEYS = [
   "skills",
   "sandboxPermission",
   "harnessFiles",
-  "runId",
+  "turnId",
   "projectId",
 ] as const;
 
@@ -120,9 +120,15 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.runContext!.workflow!.variant!.slug, "weather-agent");
     assert.equal(req.runContext!.workflow!.revision!.id, "rev_abc123");
     assert.equal(req.runContext!.workflow!.is_draft, false);
-    assert.equal(req.runContext!.trace!.trace_id, "0af7651916cd43dd8448eb211c80319c");
+    assert.equal(
+      req.runContext!.trace!.trace_id,
+      "0af7651916cd43dd8448eb211c80319c",
+    );
     // The conversation id is NOT duplicated in run context; it rides the top-level `sessionId`.
-    assert.equal((req.runContext as Record<string, unknown>).session_id, undefined);
+    assert.equal(
+      (req.runContext as Record<string, unknown>).session_id,
+      undefined,
+    );
     assert.equal(req.sessionId, "sess-1");
     // The run's tracing inputs reach the runner grouped by role (trace/telemetry restructure): the
     // per-call W3C propagation under `context.propagation`, and the operator-owned exporter config +

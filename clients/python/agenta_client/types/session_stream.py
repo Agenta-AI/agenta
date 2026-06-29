@@ -5,6 +5,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .session_stream_flags import SessionStreamFlags
 from .session_stream_status import SessionStreamStatus
 
 
@@ -18,9 +19,8 @@ class SessionStream(UniversalBaseModel):
     deleted_by_id: typing.Optional[str] = None
     project_id: str
     session_id: str
-    attached: typing.Optional[bool] = None
-    sandbox_live: typing.Optional[bool] = None
-    last_seen_at: typing.Optional[dt.datetime] = None
+    flags: typing.Optional[SessionStreamFlags] = None
+    turn_id: typing.Optional[str] = None
     status: typing.Optional[SessionStreamStatus] = None
     
     if IS_PYDANTIC_V2:

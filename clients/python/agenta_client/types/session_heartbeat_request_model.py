@@ -11,7 +11,8 @@ class SessionHeartbeatRequestModel(UniversalBaseModel):
     project_id: str
     session_id: str
     replica_id: str
-    sandbox_live: typing.Optional[bool] = None
+    turn_id: typing.Optional[str] = None
+    is_running: typing.Optional[bool] = None
     status: typing.Optional[SessionStreamStatus] = None
     
     if IS_PYDANTIC_V2:

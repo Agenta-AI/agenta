@@ -5,7 +5,8 @@
  * container (a sidecar) that the Python service calls in-network:
  *
  *   GET  /health -> runner identity ({ status, runner, protocol, engines, harnesses })
- *   POST /run    -> body is an AgentRunRequest, response is an AgentRunResult
+ *   POST /stream -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
+ *   POST /kill   -> best-effort, idempotent teardown of in-flight sandboxes
  *
  * Uses Node's built-in http server (no framework dependency).
  *
@@ -95,13 +96,10 @@ export type RunAgent = (
 
 /**
  * Whether this request is session-owned (detached run that the runner coordinates).
- * Both `sessionId` and `runId` must be present; an empty string counts as absent.
+ * Both `sessionId` and `turnId` must be present; an empty string counts as absent.
  */
 function isSessionOwned(request: AgentRunRequest): boolean {
-  return !!(
-    request.sessionId?.trim() &&
-    request.runId?.trim()
-  );
+  return !!(request.sessionId?.trim() && request.turnId?.trim());
 }
 
 /** Resolve the project_id for session coordination calls. Falls back to "" gracefully. */
@@ -119,7 +117,7 @@ const runAgent: RunAgent = (request, emit, signal) =>
  * exactly one terminal `{kind:"result"}` line (success or failure). Selected by the caller
  * with `Accept: application/x-ndjson`; the one-shot `/run` path is left untouched.
  *
- * For session-owned runs (sessionId + runId present):
+ * For session-owned runs (sessionId + turnId present):
  *  - the run survives client disconnect (abort is NOT wired to the response close event);
  *  - every event is persisted producer-side via the transcript ingest endpoint;
  *  - an alive-lock watchdog heartbeats the coordination plane for the run's lifetime.
@@ -139,7 +137,7 @@ async function runAndStream(
 
   const sessionOwned = isSessionOwned(request);
   const sessionId = request.sessionId!;
-  const runId = request.runId!;
+  const turnId = request.turnId!;
   const projectId = resolveProjectId(request);
 
   // Session-owned runs survive client disconnect — the runner owns the run. Non-session
@@ -173,7 +171,7 @@ async function runAndStream(
     );
     emitFn = persistingEmit;
     flushPersist = flush;
-    aliveWatchdog = startAliveWatchdog(sessionId, runId, projectId);
+    aliveWatchdog = startAliveWatchdog(sessionId, turnId, projectId);
   }
 
   let result: AgentRunResult;
@@ -184,7 +182,7 @@ async function runAndStream(
   } catch (err) {
     if (flushPersist) await flushPersist().catch(() => {});
     const message =
-      err instanceof Error ? (err.stack ?? err.message) : String(err);
+      err instanceof Error ? err.stack ?? err.message : String(err);
     result = { ok: false, error: message };
   } finally {
     // Release the alive lock and mark the stream row ended.
@@ -223,7 +221,23 @@ export function createRequestListener(
         return send(res, 200, runnerInfo());
       }
 
-      if (req.method === "POST" && req.url === "/run") {
+      if (req.method === "POST" && req.url === "/kill") {
+        if (!isAuthorized(req)) {
+          return send(res, 401, { ok: false, error: "Unauthorized" });
+        }
+        // Idempotent, best-effort: the API collapses the alive lock (the runner's
+        // per-run finally then destroys its own sandbox); this endpoint lets the
+        // orphan sweeper force a process-wide teardown out-of-band. Always ok.
+        await destroyInFlightSandboxes();
+        return send(res, 200, { ok: true });
+      }
+
+      // POST /stream is the productized name; /run is kept as a back-compat alias
+      // for one release (the SDK still posts /run). Both share the handler.
+      if (
+        req.method === "POST" &&
+        (req.url === "/stream" || req.url === "/run")
+      ) {
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
@@ -257,7 +271,7 @@ export function createRequestListener(
       return send(res, 404, { ok: false, error: "Not found" });
     } catch (err) {
       const message =
-        err instanceof Error ? (err.stack ?? err.message) : String(err);
+        err instanceof Error ? err.stack ?? err.message : String(err);
       return send(res, 500, { ok: false, error: message });
     }
   };
@@ -315,7 +329,7 @@ if (isEntrypoint(import.meta.url)) {
   // run still returns its own error to its caller.
   process.on("unhandledRejection", (reason) => {
     process.stderr.write(
-      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
+      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}\n`,
     );
   });
   process.on("uncaughtException", (err) => {

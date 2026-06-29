@@ -7,11 +7,11 @@ from ..core.request_options import RequestOptions
 from ..types.session_interaction_query import SessionInteractionQuery
 from ..types.session_interaction_response import SessionInteractionResponse
 from ..types.session_interactions_response import SessionInteractionsResponse
-from ..types.session_invoke_response_model import SessionInvokeResponseModel
-from ..types.session_liveness_response_model import SessionLivenessResponseModel
 from ..types.session_mount_query import SessionMountQuery
 from ..types.session_mounts_response import SessionMountsResponse
 from ..types.session_state_response import SessionStateResponse
+from ..types.session_stream_command_response_model import SessionStreamCommandResponseModel
+from ..types.session_stream_response_model import SessionStreamResponseModel
 from ..types.session_streams_response_model import SessionStreamsResponseModel
 from ..types.session_transcript_response import SessionTranscriptResponse
 from ..types.session_transcripts_query_response import SessionTranscriptsQueryResponse
@@ -35,7 +35,35 @@ class SessionsClient:
         """
         return self._raw_client
     
-    def invoke_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInvokeResponseModel:
+    def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponseModel:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionStreamResponseModel
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.fetch_session_stream(
+            session_id="session_id",
+        )
+        """
+        _response = self._raw_client.fetch_session_stream(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    def set_session_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponseModel:
         """
         Parameters
         ----------
@@ -52,7 +80,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionInvokeResponseModel
+        SessionStreamCommandResponseModel
             Successful Response
         
         Examples
@@ -62,20 +90,50 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.invoke_stream(
+        client.sessions.set_session_stream(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.invoke_stream(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
+        _response = self._raw_client.set_session_stream(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
         return _response.data
     
-    def query_streams(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
+    def delete_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.Any]
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.delete_session_stream(
+            session_id="session_id",
+        )
+        """
+        _response = self._raw_client.delete_session_stream(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
         """
         Parameters
         ----------
         session_id : typing.Optional[str]
         
-        sandbox_live : typing.Optional[bool]
+        is_alive : typing.Optional[bool]
+        
+        is_running : typing.Optional[bool]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -92,23 +150,25 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.query_streams()
+        client.sessions.query_session_streams()
         """
-        _response = self._raw_client.query_streams(session_id=session_id, sandbox_live=sandbox_live, request_options=request_options)
+        _response = self._raw_client.query_session_streams(session_id=session_id, is_alive=is_alive, is_running=is_running, request_options=request_options)
         return _response.data
     
-    def get_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionLivenessResponseModel:
+    def detach_session_stream(self, *, session_id: str, watcher_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
         session_id : str
+        
+        watcher_id : str
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
         
         Returns
         -------
-        SessionLivenessResponseModel
+        typing.Dict[str, typing.Any]
             Successful Response
         
         Examples
@@ -118,11 +178,12 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.get_liveness(
+        client.sessions.detach_session_stream(
             session_id="session_id",
+            watcher_id="watcher_id",
         )
         """
-        _response = self._raw_client.get_liveness(session_id=session_id, request_options=request_options)
+        _response = self._raw_client.detach_session_stream(session_id=session_id, watcher_id=watcher_id, request_options=request_options)
         return _response.data
     
     def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionsResponse:
@@ -406,7 +467,43 @@ class AsyncSessionsClient:
         """
         return self._raw_client
     
-    async def invoke_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInvokeResponseModel:
+    async def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponseModel:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionStreamResponseModel
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.fetch_session_stream(
+                session_id="session_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_session_stream(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    async def set_session_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponseModel:
         """
         Parameters
         ----------
@@ -423,7 +520,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionInvokeResponseModel
+        SessionStreamCommandResponseModel
             Successful Response
         
         Examples
@@ -438,23 +535,61 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.invoke_stream(
+            await client.sessions.set_session_stream(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.invoke_stream(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
+        _response = await self._raw_client.set_session_stream(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
         return _response.data
     
-    async def query_streams(self, *, session_id: typing.Optional[str] = OMIT, sandbox_live: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
+    async def delete_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.Any]
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.delete_session_stream(
+                session_id="session_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.delete_session_stream(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    async def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
         """
         Parameters
         ----------
         session_id : typing.Optional[str]
         
-        sandbox_live : typing.Optional[bool]
+        is_alive : typing.Optional[bool]
+        
+        is_running : typing.Optional[bool]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -476,26 +611,28 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.query_streams()
+            await client.sessions.query_session_streams()
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.query_streams(session_id=session_id, sandbox_live=sandbox_live, request_options=request_options)
+        _response = await self._raw_client.query_session_streams(session_id=session_id, is_alive=is_alive, is_running=is_running, request_options=request_options)
         return _response.data
     
-    async def get_liveness(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionLivenessResponseModel:
+    async def detach_session_stream(self, *, session_id: str, watcher_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
         session_id : str
+        
+        watcher_id : str
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
         
         Returns
         -------
-        SessionLivenessResponseModel
+        typing.Dict[str, typing.Any]
             Successful Response
         
         Examples
@@ -510,14 +647,15 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.get_liveness(
+            await client.sessions.detach_session_stream(
                 session_id="session_id",
+                watcher_id="watcher_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_liveness(session_id=session_id, request_options=request_options)
+        _response = await self._raw_client.detach_session_stream(session_id=session_id, watcher_id=watcher_id, request_options=request_options)
         return _response.data
     
     async def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionsResponse:

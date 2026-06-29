@@ -4,14 +4,18 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .invoke_mode import InvokeMode
 
 
-class SessionInvokeResponseModel(UniversalBaseModel):
-    mode: InvokeMode
-    session_id: str
-    run_id: typing.Optional[str] = None
-    detached: typing.Optional[bool] = None
+class SessionStreamFlags(UniversalBaseModel):
+    """
+    The nest as primitive bools (alive ⊇ running ⊇ attached).
+    
+    resumable (alive & !running) and reattachable (running & !attached) are
+    derived client-side, never stored.
+    """
+    is_alive: typing.Optional[bool] = None
+    is_running: typing.Optional[bool] = None
+    is_attached: typing.Optional[bool] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

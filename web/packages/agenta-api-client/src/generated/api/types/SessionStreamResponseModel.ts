@@ -3,5 +3,5 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SessionStreamResponseModel {
-    stream: AgentaApi.SessionStream;
+    stream?: (AgentaApi.SessionStream | null) | undefined;
 }

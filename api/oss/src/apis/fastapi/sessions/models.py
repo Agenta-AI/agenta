@@ -4,8 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from oss.src.core.sessions.streams.dtos import (
-    InvokeMode,
-    SessionLiveness,
+    CommandMode,
     SessionStream,
     SessionStreamStatus,
 )
@@ -26,7 +25,7 @@ from oss.src.core.shared.dtos import Windowing
 # ---------------------------------------------------------------------------
 
 
-class SessionInvokeRequestModel(BaseModel):
+class SessionStreamCommandRequestModel(BaseModel):
     session_id: str
     prompt: Optional[str] = None
     force: bool = False
@@ -37,7 +36,8 @@ class SessionHeartbeatRequestModel(BaseModel):
     project_id: UUID
     session_id: str
     replica_id: str
-    sandbox_live: bool = True
+    turn_id: Optional[str] = None
+    is_running: bool = True
     status: Optional[SessionStreamStatus] = None
 
 
@@ -48,22 +48,20 @@ class SessionDetachRequestModel(BaseModel):
 
 class SessionStreamQueryRequestModel(BaseModel):
     session_id: Optional[str] = None
-    sandbox_live: Optional[bool] = None
+    is_alive: Optional[bool] = None
+    is_running: Optional[bool] = None
 
 
-class SessionInvokeResponseModel(BaseModel):
-    mode: InvokeMode
+class SessionStreamCommandResponseModel(BaseModel):
+    mode: CommandMode
     session_id: str
-    run_id: Optional[str] = None
+    turn_id: Optional[str] = None
+    watcher_id: Optional[str] = None
     detached: bool = False
 
 
-class SessionLivenessResponseModel(SessionLiveness):
-    pass
-
-
 class SessionStreamResponseModel(BaseModel):
-    stream: SessionStream
+    stream: Optional[SessionStream] = None
 
 
 class SessionStreamsResponseModel(BaseModel):

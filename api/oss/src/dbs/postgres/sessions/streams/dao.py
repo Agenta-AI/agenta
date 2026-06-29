@@ -98,8 +98,16 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             )
             if filter.session_id is not None:
                 stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
-            if filter.sandbox_live is not None:
-                stmt = stmt.where(SessionStreamDBE.sandbox_live == filter.sandbox_live)
+            if filter.is_alive is not None:
+                stmt = stmt.where(
+                    SessionStreamDBE.flags["is_alive"].astext
+                    == ("true" if filter.is_alive else "false")
+                )
+            if filter.is_running is not None:
+                stmt = stmt.where(
+                    SessionStreamDBE.flags["is_running"].astext
+                    == ("true" if filter.is_running else "false")
+                )
             stmt = stmt.order_by(SessionStreamDBE.created_at.desc())
             result = await session.execute(stmt)
             dbes = result.scalars().all()

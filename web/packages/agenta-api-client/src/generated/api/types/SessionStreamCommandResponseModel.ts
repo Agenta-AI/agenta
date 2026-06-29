@@ -2,9 +2,10 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface SessionInvokeResponseModel {
-    mode: AgentaApi.InvokeMode;
+export interface SessionStreamCommandResponseModel {
+    mode: AgentaApi.CommandMode;
     session_id: string;
-    run_id?: (string | null) | undefined;
+    turn_id?: (string | null) | undefined;
+    watcher_id?: (string | null) | undefined;
     detached?: boolean | undefined;
 }

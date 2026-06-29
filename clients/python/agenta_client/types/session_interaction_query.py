@@ -10,7 +10,7 @@ from .session_interaction_status import SessionInteractionStatus
 
 class SessionInteractionQuery(UniversalBaseModel):
     session_id: typing.Optional[str] = None
-    run_id: typing.Optional[str] = None
+    turn_id: typing.Optional[str] = None
     kind: typing.Optional[SessionInteractionKind] = None
     status: typing.Optional[SessionInteractionStatus] = None
     actionable_only: typing.Optional[bool] = None

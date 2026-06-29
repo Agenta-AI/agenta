@@ -14,11 +14,13 @@ from oss.src.dbs.redis.sessions.contract import (
     ATTACHED_TTL_SECONDS,
     OWNER_TTL_SECONDS,
     RELEASE_IF_OWNER_LUA,
+    RUNNING_TTL_SECONDS,
     alive_key,
     attached_key,
     displaced_channel,
     make_displacement_payload,
     owner_key,
+    running_key,
     validate_session_id,  # noqa: F401 — re-exported for callers that import from locks
 )
 
@@ -32,16 +34,16 @@ async def acquire_alive(
     engine: LockEngine,
     *,
     session_id: str,
-    run_id: str,
+    turn_id: str,
 ) -> bool:
-    """Attempt to acquire the alive lock for session_id, owned by run_id.
+    """Attempt to acquire the alive lock for session_id, owned by turn_id.
 
     Returns True on success, False if already held.
     """
     key = alive_key(session_id)
     result = await engine.set(
         key,
-        run_id.encode(),
+        turn_id.encode(),
         nx=True,
         ex=ALIVE_TTL_SECONDS,
     )
@@ -52,12 +54,12 @@ async def refresh_alive(
     engine: LockEngine,
     *,
     session_id: str,
-    run_id: str,
+    turn_id: str,
 ) -> bool:
-    """Refresh the alive TTL only if run_id still owns it."""
+    """Refresh the alive TTL only if turn_id still owns it."""
     key = alive_key(session_id)
     current = await engine.get(key)
-    if current and current.decode() == run_id:
+    if current and current.decode() == turn_id:
         await engine.expire(key, ALIVE_TTL_SECONDS)
         return True
     return False
@@ -67,15 +69,15 @@ async def release_alive(
     engine: LockEngine,
     *,
     session_id: str,
-    run_id: str,
+    turn_id: str,
 ) -> bool:
-    """Release the alive lock if run_id is still the owner."""
+    """Release the alive lock if turn_id is still the owner."""
     key = alive_key(session_id)
     result = await engine.eval(
         RELEASE_IF_OWNER_LUA,
         1,
         key.encode(),
-        run_id.encode(),
+        turn_id.encode(),
     )
     return result == 1
 
@@ -97,8 +99,63 @@ async def get_alive_owner(
     *,
     session_id: str,
 ) -> Optional[str]:
-    """Return the current alive lock owner (run_id), or None."""
+    """Return the current alive lock owner (turn_id), or None."""
     key = alive_key(session_id)
+    current = await engine.get(key)
+    return current.decode() if current else None
+
+
+# ---------------------------------------------------------------------------
+# Running lock — "a turn is actively executing right now"
+# Nested under alive: a session can be alive-but-idle (running absent) between turns.
+# ---------------------------------------------------------------------------
+
+
+async def acquire_running(
+    engine: LockEngine,
+    *,
+    session_id: str,
+    turn_id: str,
+) -> None:
+    """Mark the session as running this turn (overwrites — steer/send own the turn)."""
+    key = running_key(session_id)
+    await engine.set(key, turn_id.encode(), ex=RUNNING_TTL_SECONDS)
+
+
+async def refresh_running(
+    engine: LockEngine,
+    *,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """Refresh the running TTL only if turn_id still owns it."""
+    key = running_key(session_id)
+    current = await engine.get(key)
+    if current and current.decode() == turn_id:
+        await engine.expire(key, RUNNING_TTL_SECONDS)
+        return True
+    return False
+
+
+async def clear_running(
+    engine: LockEngine,
+    *,
+    session_id: str,
+) -> Optional[str]:
+    """Unconditionally clear the running lock (turn ended/cancelled). Returns prior turn."""
+    key = running_key(session_id)
+    current = await engine.get(key)
+    await engine.delete(key)
+    return current.decode() if current else None
+
+
+async def get_running_owner(
+    engine: LockEngine,
+    *,
+    session_id: str,
+) -> Optional[str]:
+    """Return the current running lock owner (turn_id), or None."""
+    key = running_key(session_id)
     current = await engine.get(key)
     return current.decode() if current else None
 
@@ -240,11 +297,15 @@ async def get_session_liveness(
     *,
     session_id: str,
 ) -> dict:
-    """Return {alive, attached, reattachable} snapshot for 409 responses."""
+    """Return the {alive, running, attached} nest snapshot.
+
+    The three primitive bools; resumable/reattachable are derived client-side.
+    """
     alive = await get_alive_owner(engine, session_id=session_id)
+    running = await get_running_owner(engine, session_id=session_id)
     attached = await get_attached_owner(engine, session_id=session_id)
     return {
         "alive": alive is not None,
+        "running": running is not None,
         "attached": attached is not None,
-        "reattachable": alive is not None,
     }

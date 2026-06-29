@@ -25,13 +25,13 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
     SessionHeartbeatRequest,
-    SessionInvokeRequest,
+    SessionStreamCommandRequest,
     SessionStreamQuery,
 )
 from oss.src.core.sessions.streams.types import (
     ConcurrencyCapExceeded,
     SessionIdInvalid,
-    SessionRunInUse,
+    SessionTurnInUse,
     SessionStreamAlreadyExists,
     SessionStreamNotFound,
 )
@@ -55,9 +55,8 @@ from oss.src.apis.fastapi.sessions.models import (
     # streams
     SessionDetachRequestModel,
     SessionHeartbeatRequestModel,
-    SessionInvokeRequestModel,
-    SessionInvokeResponseModel,
-    SessionLivenessResponseModel,
+    SessionStreamCommandRequestModel,
+    SessionStreamCommandResponseModel,
     SessionStreamQueryRequestModel,
     SessionStreamResponseModel,
     SessionStreamsResponseModel,
@@ -108,7 +107,7 @@ def _handle_session_exceptions():
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=e.message,
                 ) from e
-            except SessionRunInUse as e:
+            except SessionTurnInUse as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail={
@@ -150,50 +149,58 @@ class SessionStreamsRouter:
         self.router = APIRouter()
         self.admin_router = APIRouter()
 
+        # Unified surface on /sessions/streams, keyed by ?session_id=.
         self.router.add_api_route(
-            "/sessions/streams/invoke",
-            self.invoke,
+            "/sessions/streams",
+            self.fetch_session_stream,
+            methods=["GET"],
+            operation_id="fetch_session_stream",
+            tags=["Sessions"],
+        )
+        self.router.add_api_route(
+            "/sessions/streams",
+            self.set_session_stream,
             methods=["POST"],
-            operation_id="invoke_stream",
+            operation_id="set_session_stream",
+            tags=["Sessions"],
+        )
+        self.router.add_api_route(
+            "/sessions/streams",
+            self.delete_session_stream,
+            methods=["DELETE"],
+            operation_id="delete_session_stream",
             tags=["Sessions"],
         )
         self.router.add_api_route(
             "/sessions/streams/query",
-            self.query_streams,
+            self.query_session_streams,
             methods=["POST"],
-            operation_id="query_streams",
+            operation_id="query_session_streams",
             tags=["Sessions"],
         )
         self.router.add_api_route(
-            "/sessions/streams/liveness",
-            self.get_liveness,
-            methods=["GET"],
-            operation_id="get_liveness",
+            "/sessions/streams/detach",
+            self.detach_session_stream,
+            methods=["POST"],
+            operation_id="detach_session_stream",
             tags=["Sessions"],
         )
 
         self.admin_router.add_api_route(
             "/heartbeat",
-            self.heartbeat,
+            self.heartbeat_session_stream,
             methods=["POST"],
-            operation_id="heartbeat_stream",
-            tags=["Sessions", "Admin"],
-        )
-        self.admin_router.add_api_route(
-            "/detach",
-            self.detach,
-            methods=["POST"],
-            operation_id="detach_stream",
+            operation_id="heartbeat_session_stream",
             tags=["Sessions", "Admin"],
         )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
-    async def invoke(
+    async def set_session_stream(
         self,
         request: Request,
-        payload: SessionInvokeRequestModel,
-    ) -> SessionInvokeResponseModel:
+        payload: SessionStreamCommandRequestModel,
+    ) -> SessionStreamCommandResponseModel:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -207,34 +214,94 @@ class SessionStreamsRouter:
 
         await self._service.check_concurrency_cap(project_id=project_id)
 
-        result = await self._service.invoke(
+        result = await self._service.command(
             project_id=project_id,
             user_id=user_id,
-            request=SessionInvokeRequest(
+            request=SessionStreamCommandRequest(
                 session_id=payload.session_id,
                 prompt=payload.prompt,
                 force=payload.force,
                 detached=payload.detached,
             ),
         )
-        return SessionInvokeResponseModel(
+        return SessionStreamCommandResponseModel(
             mode=result.mode,
             session_id=result.session_id,
-            run_id=result.run_id,
+            turn_id=result.turn_id,
+            watcher_id=result.watcher_id,
             detached=result.detached,
         )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
-    async def detach(
+    async def fetch_session_stream(
+        self,
+        request: Request,
+        session_id: str = Query(...),
+    ) -> SessionStreamResponseModel:
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        stream = await self._service.fetch(
+            project_id=UUID(str(project_id)),
+            session_id=session_id,
+        )
+        return SessionStreamResponseModel(stream=stream)
+
+    @intercept_exceptions()
+    @_handle_session_exceptions()
+    async def delete_session_stream(
+        self,
+        request: Request,
+        session_id: str = Query(...),
+    ) -> dict:
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        await self._service.kill(
+            project_id=UUID(str(project_id)),
+            user_id=UUID(str(user_id)),
+            session_id=session_id,
+        )
+        return {"ok": True}
+
+    @intercept_exceptions()
+    @_handle_session_exceptions()
+    async def detach_session_stream(
         self,
         request: Request,
         payload: SessionDetachRequestModel,
     ) -> dict:
-        if not getattr(request.state, "admin", False):
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        )
+        if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
         await self._service.detach(
+            project_id=UUID(str(project_id)),
+            user_id=UUID(str(user_id)),
             session_id=payload.session_id,
             watcher_id=payload.watcher_id,
         )
@@ -242,7 +309,7 @@ class SessionStreamsRouter:
 
     @intercept_exceptions()
     @_handle_session_exceptions()
-    async def heartbeat(
+    async def heartbeat_session_stream(
         self,
         request: Request,
         payload: SessionHeartbeatRequestModel,
@@ -255,7 +322,8 @@ class SessionStreamsRouter:
             request=SessionHeartbeatRequest(
                 session_id=payload.session_id,
                 replica_id=payload.replica_id,
-                sandbox_live=payload.sandbox_live,
+                turn_id=payload.turn_id,
+                is_running=payload.is_running,
                 status=payload.status,
             ),
         )
@@ -263,7 +331,7 @@ class SessionStreamsRouter:
 
     @intercept_exceptions()
     @_handle_session_exceptions()
-    async def query_streams(
+    async def query_session_streams(
         self,
         request: Request,
         payload: SessionStreamQueryRequestModel,
@@ -283,35 +351,11 @@ class SessionStreamsRouter:
             project_id=project_id,
             filter=SessionStreamQuery(
                 session_id=payload.session_id,
-                sandbox_live=payload.sandbox_live,
+                is_alive=payload.is_alive,
+                is_running=payload.is_running,
             ),
         )
         return SessionStreamsResponseModel(count=len(streams), streams=streams)
-
-    @intercept_exceptions()
-    @_handle_session_exceptions()
-    async def get_liveness(
-        self,
-        request: Request,
-        session_id: str,
-    ) -> SessionLivenessResponseModel:
-        project_id = request.state.project_id
-        user_id = request.state.user_id
-
-        has_permission = await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.VIEW_SESSIONS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
-
-        liveness = await self._service.get_liveness(session_id=session_id)
-        return SessionLivenessResponseModel(
-            alive=liveness.alive,
-            attached=liveness.attached,
-            reattachable=liveness.reattachable,
-        )
 
 
 class SessionStatesRouter:

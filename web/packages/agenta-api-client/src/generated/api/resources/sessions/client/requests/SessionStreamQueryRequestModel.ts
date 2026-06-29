@@ -6,5 +6,6 @@
  */
 export interface SessionStreamQueryRequestModel {
     session_id?: string | null;
-    sandbox_live?: boolean | null;
+    is_alive?: boolean | null;
+    is_running?: boolean | null;
 }

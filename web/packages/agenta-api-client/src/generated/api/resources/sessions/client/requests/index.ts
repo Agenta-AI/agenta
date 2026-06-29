@@ -1,12 +1,14 @@
+export type { DeleteSessionStreamRequest } from "./DeleteSessionStreamRequest.js";
 export type { FetchInteractionRequest } from "./FetchInteractionRequest.js";
-export type { GetLivenessRequest } from "./GetLivenessRequest.js";
+export type { FetchSessionStreamRequest } from "./FetchSessionStreamRequest.js";
 export type { GetStateRequest } from "./GetStateRequest.js";
 export type { GetTranscriptEventRequest } from "./GetTranscriptEventRequest.js";
+export type { SessionDetachRequestModel } from "./SessionDetachRequestModel.js";
 export type { SessionInteractionQueryRequest } from "./SessionInteractionQueryRequest.js";
 export type { SessionInteractionRespondRequest } from "./SessionInteractionRespondRequest.js";
-export type { SessionInvokeRequestModel } from "./SessionInvokeRequestModel.js";
 export type { SessionMountQueryRequest } from "./SessionMountQueryRequest.js";
 export type { SessionStateSandboxIdUpsertRequest } from "./SessionStateSandboxIdUpsertRequest.js";
 export type { SessionStateUpsertRequest } from "./SessionStateUpsertRequest.js";
+export type { SessionStreamCommandRequestModel } from "./SessionStreamCommandRequestModel.js";
 export type { SessionStreamQueryRequestModel } from "./SessionStreamQueryRequestModel.js";
 export type { SessionTranscriptQueryRequest } from "./SessionTranscriptQueryRequest.js";

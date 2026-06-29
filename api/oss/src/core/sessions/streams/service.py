@@ -1,16 +1,18 @@
-"""Session streams service — orchestrates the Redis coordination plane and the
-durable session_streams table.
+"""Session streams service — coordination plane.
 
-DATA/FORCE control matrix:
-  prompt + no force  → SEND   (409 if a run is alive)
-  prompt + force     → STEER  (cancel holder, run new prompt)
+Edits the Redis nest (alive ⊇ running ⊇ attached) and mirrors it to the durable
+session_streams row. Runs nothing itself: the runner (execution plane) is the only
+component that runs an agent.
+
+Command matrix (prompt × force):
+  prompt + no force  → SEND   (409 if alive)
+  prompt + force     → STEER  (cancel holder, start a new turn)
   no prompt + no f.  → CANCEL (cancel holder, run nothing)
-  no prompt + force  → ATTACH (steal attached, watch live run)
-  conn closes        → DETACH (drop attached; run keeps going)
+  no prompt + force  → ATTACH (steal attached, watch the live turn)
+  detach / kill      → explicit lifecycle edits (see methods)
 """
 
 import uuid_utils.compat as uuid
-from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -23,22 +25,26 @@ from oss.src.dbs.redis.sessions.contract import (
 )
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
+    acquire_running,
+    clear_running,
     force_cancel_alive,
     get_session_liveness,
+    refresh_alive,
     refresh_owner,
+    refresh_running,
     release_attached,
     steal_attached,
 )
 
 from oss.src.core.sessions.streams.dtos import (
-    InvokeMode,
+    CommandMode,
     SessionHeartbeatRequest,
-    SessionInvokeRequest,
-    SessionInvokeResponse,
-    SessionLiveness,
     SessionStream,
+    SessionStreamCommandRequest,
+    SessionStreamCommandResponse,
     SessionStreamCreate,
     SessionStreamEdit,
+    SessionStreamFlags,
     SessionStreamQuery,
     SessionStreamStatus,
     StreamStatusCode,
@@ -46,7 +52,7 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.types import (
     ConcurrencyCapExceeded,
     SessionIdInvalid,
-    SessionRunInUse,
+    SessionTurnInUse,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 
@@ -68,70 +74,68 @@ class SessionStreamsService:
         self._dao = streams_dao
         self._lock = lock_engine
 
-    async def invoke(
+    async def command(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
-        request: SessionInvokeRequest,
-    ) -> SessionInvokeResponse:
+        request: SessionStreamCommandRequest,
+    ) -> SessionStreamCommandResponse:
         _validate_session_id(request.session_id)
 
         has_prompt = bool(request.prompt and request.prompt.strip())
 
         if has_prompt and not request.force:
-            mode = InvokeMode.send
+            mode = CommandMode.send
         elif has_prompt and request.force:
-            mode = InvokeMode.steer
+            mode = CommandMode.steer
         elif not has_prompt and not request.force:
-            mode = InvokeMode.cancel
+            mode = CommandMode.cancel
         else:
-            mode = InvokeMode.attach
+            mode = CommandMode.attach
 
         session_id = request.session_id
 
-        if mode == InvokeMode.send:
+        if mode == CommandMode.send:
             liveness = await get_session_liveness(self._lock, session_id=session_id)
             if liveness["alive"]:
-                raise SessionRunInUse(session_id=session_id, liveness=liveness)
-            run_id = await self._start_run(
+                raise SessionTurnInUse(session_id=session_id, liveness=liveness)
+            turn_id = await self._start_turn(
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
-                prompt=request.prompt,
-                detached=request.detached,
             )
-            return SessionInvokeResponse(
+            return SessionStreamCommandResponse(
                 mode=mode,
                 session_id=session_id,
-                run_id=run_id,
+                turn_id=turn_id,
                 detached=request.detached,
             )
 
-        elif mode == InvokeMode.steer:
+        elif mode == CommandMode.steer:
             await force_cancel_alive(self._lock, session_id=session_id)
-            run_id = await self._start_run(
+            await clear_running(self._lock, session_id=session_id)
+            turn_id = await self._start_turn(
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
-                prompt=request.prompt,
-                detached=request.detached,
             )
-            return SessionInvokeResponse(
+            return SessionStreamCommandResponse(
                 mode=mode,
                 session_id=session_id,
-                run_id=run_id,
+                turn_id=turn_id,
                 detached=request.detached,
             )
 
-        elif mode == InvokeMode.cancel:
+        elif mode == CommandMode.cancel:
             await force_cancel_alive(self._lock, session_id=session_id)
+            await clear_running(self._lock, session_id=session_id)
             await self._mark_stream_ended(
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
             )
-            return SessionInvokeResponse(
+            return SessionStreamCommandResponse(
                 mode=mode,
                 session_id=session_id,
                 detached=True,
@@ -144,25 +148,69 @@ class SessionStreamsService:
                 session_id=session_id,
                 watcher_id=watcher_id,
             )
-            return SessionInvokeResponse(
+            await self._mirror_flags(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                is_attached=True,
+            )
+            return SessionStreamCommandResponse(
                 mode=mode,
                 session_id=session_id,
-                run_id=watcher_id,
+                watcher_id=watcher_id,
                 detached=False,
             )
 
     async def detach(
         self,
         *,
+        project_id: UUID,
+        user_id: Optional[UUID],
         session_id: str,
         watcher_id: str,
     ) -> None:
-        """DETACH: drop attached lock only; run keeps going."""
+        """DETACH: drop the attached lock only; the turn keeps running."""
         _validate_session_id(session_id)
         await release_attached(
             self._lock,
             session_id=session_id,
             watcher_id=watcher_id,
+        )
+        await self._mirror_flags(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+            is_attached=False,
+        )
+
+    async def kill(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+    ) -> bool:
+        """KILL: collapse the whole nest and end the stream.
+
+        Force-clears alive + running + attached in Redis (losing the alive lock is the
+        runner's existing teardown signal), marks the row ended, and soft-deletes it.
+        Idempotent: a kill on an already-dead session is a no-op success.
+        """
+        _validate_session_id(session_id)
+        await force_cancel_alive(self._lock, session_id=session_id)
+        await clear_running(self._lock, session_id=session_id)
+        # Displace any watcher by stealing then releasing a throwaway attach token.
+        throwaway = str(uuid.uuid7())
+        await steal_attached(self._lock, session_id=session_id, watcher_id=throwaway)
+        await release_attached(self._lock, session_id=session_id, watcher_id=throwaway)
+        await self._mark_stream_ended(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        return await self._dao.delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
         )
 
     async def heartbeat(
@@ -173,10 +221,30 @@ class SessionStreamsService:
     ) -> SessionStream:
         _validate_session_id(request.session_id)
 
+        # replica_id refreshes affinity (which container owns the session);
+        # turn_id refreshes the alive/running TTLs (proving this turn still owns the lock).
         await refresh_owner(
             self._lock,
             session_id=request.session_id,
             replica_id=request.replica_id,
+        )
+        if request.turn_id and request.is_running:
+            await refresh_alive(
+                self._lock,
+                session_id=request.session_id,
+                turn_id=request.turn_id,
+            )
+            await refresh_running(
+                self._lock,
+                session_id=request.session_id,
+                turn_id=request.turn_id,
+            )
+
+        liveness = await get_session_liveness(self._lock, session_id=request.session_id)
+        flags = SessionStreamFlags(
+            is_alive=liveness["alive"],
+            is_running=liveness["running"],
+            is_attached=liveness["attached"],
         )
 
         stream = await self._dao.get_by_session_id(
@@ -184,50 +252,54 @@ class SessionStreamsService:
             session_id=request.session_id,
         )
 
-        now = datetime.now(timezone.utc)
+        status = request.status or SessionStreamStatus(
+            code=StreamStatusCode.running
+            if request.is_running
+            else StreamStatusCode.idle
+        )
+
         if stream is None:
             stream = await self._dao.create(
                 project_id=project_id,
                 user_id=None,
                 stream=SessionStreamCreate(
                     session_id=request.session_id,
-                    sandbox_live=request.sandbox_live,
-                    status=request.status
-                    or SessionStreamStatus(code=StreamStatusCode.running),
+                    flags=flags,
+                    status=status,
                 ),
             )
         else:
-            from oss.src.dbs.redis.sessions.contract import (
-                HEARTBEAT_WRITE_THRESHOLD_SECONDS,
+            stream = await self._dao.update(
+                project_id=project_id,
+                user_id=None,
+                session_id=request.session_id,
+                stream=SessionStreamEdit(flags=flags, status=status),
             )
-
-            needs_write = (
-                stream.sandbox_live != request.sandbox_live
-                or stream.last_seen_at is None
-                or (now - stream.last_seen_at).total_seconds()
-                >= HEARTBEAT_WRITE_THRESHOLD_SECONDS
-            )
-            if needs_write:
-                stream = await self._dao.update(
-                    project_id=project_id,
-                    user_id=None,
-                    session_id=request.session_id,
-                    stream=SessionStreamEdit(
-                        sandbox_live=request.sandbox_live,
-                        last_seen_at=now,
-                        status=request.status,
-                    ),
-                )
         return stream
 
-    async def get_liveness(
+    async def fetch(
         self,
         *,
+        project_id: UUID,
         session_id: str,
-    ) -> SessionLiveness:
+    ) -> Optional[SessionStream]:
+        """Single source-of-truth read: reconcile the Redis nest into the row's flags."""
         _validate_session_id(session_id)
         snap = await get_session_liveness(self._lock, session_id=session_id)
-        return SessionLiveness(**snap)
+        flags = SessionStreamFlags(
+            is_alive=snap["alive"],
+            is_running=snap["running"],
+            is_attached=snap["attached"],
+        )
+        stream = await self._dao.get_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        if stream is None:
+            return None
+        # Redis is authoritative for the nest bools; overlay them on the durable row.
+        stream.flags = flags
+        return stream
 
     async def query_streams(
         self,
@@ -239,55 +311,44 @@ class SessionStreamsService:
             _validate_session_id(filter.session_id)
         return await self._dao.query(project_id=project_id, filter=filter)
 
-    async def get_stream_by_session(
-        self,
-        *,
-        project_id: UUID,
-        session_id: str,
-    ) -> Optional[SessionStream]:
-        _validate_session_id(session_id)
-        return await self._dao.get_by_session_id(
-            project_id=project_id,
-            session_id=session_id,
-        )
-
     async def check_concurrency_cap(self, *, project_id: UUID) -> None:
         """Raise ConcurrencyCapExceeded if the per-replica cap is reached."""
         count = await self._dao.count_active(project_id=None)
         if count >= CONCURRENCY_CAP:
             raise ConcurrencyCapExceeded(cap=CONCURRENCY_CAP)
 
-    async def _start_run(
+    async def _start_turn(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         session_id: str,
-        prompt: Optional[str],
-        detached: bool,
     ) -> str:
-        run_id = str(uuid.uuid7())
+        turn_id = str(uuid.uuid7())
         acquired = await acquire_alive(
             self._lock,
             session_id=session_id,
-            run_id=run_id,
+            turn_id=turn_id,
         )
         if not acquired:
             liveness = await get_session_liveness(self._lock, session_id=session_id)
-            raise SessionRunInUse(session_id=session_id, liveness=liveness)
+            raise SessionTurnInUse(session_id=session_id, liveness=liveness)
 
+        await acquire_running(self._lock, session_id=session_id, turn_id=turn_id)
+
+        flags = SessionStreamFlags(is_alive=True, is_running=True, is_attached=False)
+        status = SessionStreamStatus(code=StreamStatusCode.running)
         stream = await self._dao.get_by_session_id(
             project_id=project_id,
             session_id=session_id,
         )
-        status = SessionStreamStatus(code=StreamStatusCode.running)
         if stream is None:
             await self._dao.create(
                 project_id=project_id,
                 user_id=user_id,
                 stream=SessionStreamCreate(
                     session_id=session_id,
-                    sandbox_live=True,
+                    flags=flags,
                     status=status,
                 ),
             )
@@ -296,19 +357,37 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
-                stream=SessionStreamEdit(
-                    sandbox_live=True,
-                    last_seen_at=datetime.now(timezone.utc),
-                    status=status,
-                ),
+                stream=SessionStreamEdit(flags=flags, status=status),
             )
-        return run_id
+        return turn_id
+
+    async def _mirror_flags(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        is_attached: Optional[bool] = None,
+    ) -> None:
+        """Re-read the Redis nest and mirror it (optionally overriding is_attached)."""
+        snap = await get_session_liveness(self._lock, session_id=session_id)
+        flags = SessionStreamFlags(
+            is_alive=snap["alive"],
+            is_running=snap["running"],
+            is_attached=snap["attached"] if is_attached is None else is_attached,
+        )
+        await self._dao.update(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+            stream=SessionStreamEdit(flags=flags),
+        )
 
     async def _mark_stream_ended(
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
+        user_id: Optional[UUID],
         session_id: str,
     ) -> None:
         await self._dao.update(
@@ -316,7 +395,9 @@ class SessionStreamsService:
             user_id=user_id,
             session_id=session_id,
             stream=SessionStreamEdit(
-                sandbox_live=False,
+                flags=SessionStreamFlags(
+                    is_alive=False, is_running=False, is_attached=False
+                ),
                 status=SessionStreamStatus(code=StreamStatusCode.ended),
             ),
         )

@@ -6,6 +6,7 @@ export interface SessionHeartbeatRequestModel {
     project_id: string;
     session_id: string;
     replica_id: string;
-    sandbox_live?: boolean | undefined;
+    turn_id?: (string | null) | undefined;
+    is_running?: boolean | undefined;
     status?: (AgentaApi.SessionStreamStatus | null) | undefined;
 }

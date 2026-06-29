@@ -25,7 +25,7 @@ def map_interaction_dto_to_dbe_create(
         created_by_id=user_id,
         #
         session_id=interaction.session_id,
-        run_id=interaction.run_id,
+        turn_id=interaction.turn_id,
         token=interaction.token,
         kind=interaction.kind.value,
         #
@@ -54,7 +54,7 @@ def map_interaction_dbe_to_dto(
         #
         project_id=dbe.project_id,
         session_id=dbe.session_id,
-        run_id=dbe.run_id,
+        turn_id=dbe.turn_id,
         token=dbe.token,
         kind=SessionInteractionKind(dbe.kind),
         #

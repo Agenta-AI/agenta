@@ -119,9 +119,9 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                     stmt = stmt.where(
                         SessionInteractionDBE.session_id == query.session_id,
                     )
-                if query.run_id is not None:
+                if query.turn_id is not None:
                     stmt = stmt.where(
-                        SessionInteractionDBE.run_id == query.run_id,
+                        SessionInteractionDBE.turn_id == query.turn_id,
                     )
                 if query.kind is not None:
                     stmt = stmt.where(

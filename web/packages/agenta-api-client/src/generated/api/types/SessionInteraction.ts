@@ -12,7 +12,7 @@ export interface SessionInteraction {
     deleted_by_id?: (string | null) | undefined;
     project_id?: (string | null) | undefined;
     session_id: string;
-    run_id?: (string | null) | undefined;
+    turn_id?: (string | null) | undefined;
     token: string;
     kind: AgentaApi.SessionInteractionKind;
     status?: (AgentaApi.Status | null) | undefined;

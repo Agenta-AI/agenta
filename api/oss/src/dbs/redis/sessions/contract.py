@@ -5,10 +5,13 @@ The TypeScript runner implementation must mirror every constant here exactly.
 The golden-fixture contract test asserts both sides agree on wire shapes.
 
 Key namespace:
-  alive:session:<session_id>      — global run lock (at most one in-flight run)
+  alive:session:<session_id>      — session claimed; runner owns it (survives disconnect)
+  running:session:<session_id>    — a turn is actively executing right now
   attached:session:<session_id>   — attach lock (client watching live view)
   owner:session:<session_id>      — which replica currently owns this session
   displaced:session:<session_id>  — pub/sub channel for attach-steal notifications
+
+The nest: alive ⊇ running ⊇ attached. attached ⟹ running ⟹ alive.
 """
 
 # ---------------------------------------------------------------------------
@@ -16,6 +19,7 @@ Key namespace:
 # ---------------------------------------------------------------------------
 
 ALIVE_TTL_SECONDS: int = 3600  # 1h — long-running agents; refreshed by heartbeat
+RUNNING_TTL_SECONDS: int = 3600  # = alive; set on turn start, cleared on turn end
 ATTACHED_TTL_SECONDS: int = 60  # 1min — client must refresh while watching
 OWNER_TTL_SECONDS: int = 120  # 2min — affinity; refreshed by heartbeat
 HEARTBEAT_INTERVAL_SECONDS: int = 30  # how often the runner sends a heartbeat
@@ -30,6 +34,10 @@ HEARTBEAT_WRITE_THRESHOLD_SECONDS: int = (
 
 def alive_key(session_id: str) -> str:
     return f"alive:session:{session_id}"
+
+
+def running_key(session_id: str) -> str:
+    return f"running:session:{session_id}"
 
 
 def attached_key(session_id: str) -> str:

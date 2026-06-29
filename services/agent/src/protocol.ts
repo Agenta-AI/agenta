@@ -460,12 +460,13 @@ export interface AgentRunRequest {
    */
   runContext?: RunContext;
   /**
-   * The run's coordination plane id. Set on session-owned detached runs so the runner
-   * can prove alive-lock ownership on heartbeat. Absent for non-session runs.
+   * The turn's coordination plane id (one execution of the agent loop). Set on session-owned
+   * detached runs so the runner can prove alive-lock ownership on heartbeat. Absent for
+   * non-session runs. A session sees a sequence of turnIds (send/steer each start a new one).
    */
-  runId?: string;
+  turnId?: string;
   /**
-   * The Agenta project id for this run. Set alongside `runId` on session-owned runs so
+   * The Agenta project id for this run. Set alongside `turnId` on session-owned runs so
    * the runner can include it in heartbeat and transcript-ingest calls. Absent otherwise.
    */
   projectId?: string;

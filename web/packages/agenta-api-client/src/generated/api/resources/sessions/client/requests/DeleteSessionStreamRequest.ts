@@ -6,9 +6,6 @@
  *         session_id: "session_id"
  *     }
  */
-export interface SessionInvokeRequestModel {
+export interface DeleteSessionStreamRequest {
     session_id: string;
-    prompt?: string | null;
-    force?: boolean;
-    detached?: boolean;
 }

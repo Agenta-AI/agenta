@@ -6,6 +6,6 @@
  *         session_id: "session_id"
  *     }
  */
-export interface GetLivenessRequest {
+export interface FetchSessionStreamRequest {
     session_id: string;
 }
