@@ -15,8 +15,8 @@ export async function fetchStream(sessionId: string, projectId?: string | null) 
     return res.stream ?? null
 }
 
-export async function fetchTranscripts(sessionId: string, projectId?: string | null) {
-    return client().sessions.queryTranscripts({session_id: sessionId}, scope(projectId))
+export async function fetchRecords(sessionId: string, projectId?: string | null) {
+    return client().sessions.queryRecords({session_id: sessionId}, scope(projectId))
 }
 
 export async function fetchState(sessionId: string, projectId?: string | null) {

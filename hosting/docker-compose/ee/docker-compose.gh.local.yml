@@ -273,7 +273,7 @@ services:
             retries: 3
             start_period: 20s
 
-    worker-transcripts:
+    worker-records:
         # === IMAGE ================================================ #
         build:
             context: ../../..
@@ -285,7 +285,7 @@ services:
                 "run-program",
                 "python",
                 "-m",
-                "entrypoints.worker_transcripts",
+                "entrypoints.worker_records",
             ]
         # === CONFIGURATION ======================================== #
         env_file:
@@ -308,7 +308,7 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_transcripts' in cmd else 1)"]
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_records' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -457,7 +457,7 @@ services:
             # API as reached FROM this container: the compose service name over the network
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
             # which does not resolve inside a container. Used by the OTLP tracing-export
-            # fallback AND the session heartbeat/transcript-persist calls.
+            # fallback AND the session heartbeat/record-persist calls.
             AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}

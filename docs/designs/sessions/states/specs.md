@@ -13,7 +13,7 @@ each turn with no memory of the conversation (only a durable cwd, if any, carrie
 To make a session genuinely resumable we must persist, across cold runner connects, the
 **SDK SessionRecord** (the local-id → agentSessionId mapping, sessionInit, modes, model,
 …) and the **remote sandbox id** (so a resumed run can reconnect the same sandbox, or
-recreate + remount when it's gone). Combined with the durable transcript (other worktree) as
+recreate + remount when it's gone). Combined with the durable record (other worktree) as
 the replay source, this is what makes `resumeOrCreateSession` actually **resume**.
 
 This is audit FUN-1 (durable sessions) + PER-1/PER-2 (cold start / full-history replay).
@@ -28,7 +28,7 @@ different concern.) So: **"persistence" = Postgres here; "coordination" = Redis 
 
 ### The durable agent record (`session_states`)
 
-The SDK's `SessionRecord` is **small, durable metadata** that rides alongside the transcript.
+The SDK's `SessionRecord` is **small, durable metadata** that rides alongside the record.
 It is config-shaped (not append-only), so it lives in the **core DB**.
 
 **`session_states` is metadata, not blobs.** The SDK record is a small JSON object
@@ -43,25 +43,25 @@ session. (The `session_` prefix is correct for the same reason as `session_runne
 - API = **`/sessions/states/`** (under the `sessions` namespace, fixed sub-path) keyed by
   `session_id` (NOT nested
   `/sessions/{id}/state` — the codebase doesn't nest a domain under `/<parent>/{id}/…`).
-  Sibling to `/sessions/transcripts/`, `/sessions/runners/`, `/sessions/interactions/`,
+  Sibling to `/sessions/records/`, `/sessions/runners/`, `/sessions/interactions/`,
   `/sessions/mounts/`.
 - Round-tripped by the runner's persist driver (PoC `session-persist.js` `makePersist`):
   - `getSession(id)` → `GET /sessions/states/{session_id}`
   - `updateSession(record)` → `PUT /sessions/states/{session_id}`
-  - `listEvents({sessionId})` → reads the **transcript** (other worktree) — the replay source
-  - `insertEvent()` → no-op (the transcript path already writes events; never double-write)
+  - `listEvents({sessionId})` → reads the **record** (other worktree) — the replay source
+  - `insertEvent()` → no-op (the record path already writes events; never double-write)
 
 ## Naming: `session_states` (+ `session_runners`), surfaced under `/sessions`
 
 There is **no `sessions` table** yet — a "session" is just a UUID that threads through
-transcripts, state, mounts, and runner liveness. Each worktree adds one **facet** keyed by
+records, state, mounts, and runner liveness. Each worktree adds one **facet** keyed by
 `session_id`. So: do we name the facet tables `session_states` / `session_runners`, or bare
 `states` / `runners` (or even fold everything under a real `sessions` entity)?
 
 **Recommendation — split the layers:**
 
 - **API / service layer**: a **`sessions` namespace** with fixed sub-paths —
-  `/sessions/states/`, `/sessions/runners/`, `/sessions/mounts/`, `/sessions/transcripts/`,
+  `/sessions/states/`, `/sessions/runners/`, `/sessions/mounts/`, `/sessions/records/`,
   `/sessions/interactions/` — each keyed/filtered by `session_id`. **Not** `/sessions/{id}/…`
   (no id mid-path). Mounts ALSO has a standalone top-level `/mounts/` (mounts that aren't
   session-bound); `/sessions/mounts/` is the session-filtered view of the same domain.
@@ -69,7 +69,7 @@ transcripts, state, mounts, and runner liveness. Each worktree adds one **facet*
   they are *dependent facets* with no independent existence (a runner-liveness row is
   meaningless without its session). A bare `runners` table would mislead (it reads like a
   registry of runner *processes/replicas*, a different thing we may also want later).
-- **Tracing DB**: `transcripts` stays **bare** (already decided) — it lives in a different
+- **Tracing DB**: `records` stays **bare** (already decided) — it lives in a different
   DB and parallels `spans` / `events`, which are also unprefixed.
 - **No `sessions` table, and `session_id` is NOT an FK** — like `trace_id`/`span_id`. We host
   observability/sessions for agents running **outside Agenta**, so a `session_id` may reference
@@ -87,7 +87,7 @@ a session id is a **correlator**, not an owned entity.
 2. Runner's persist driver `getSession(S)` → `record` from `session_states` (Postgres).
    `sandbox_id` read alongside.
 3. `resumeOrCreateSession({ id: S, … })`:
-   - record present → resume the prior agent session; SDK calls `listEvents` → transcript →
+   - record present → resume the prior agent session; SDK calls `listEvents` → record →
      replays prior context.
    - record absent → create; first `updateSession` persists the new record.
 4. Remote sandbox: reconnect `sandbox_id` if alive; if gone, recreate + remount the durable
@@ -122,14 +122,14 @@ Under the `/sessions/states/` sub-path, keyed by `session_id` (NOT `/sessions/{i
 - `PUT /sessions/states/{session_id}/sandbox-id` → record/clear the remote sandbox id (PoC split
   this out so a *detached* run still records where it ran)
 
-(`listEvents` reads `/transcripts` filtered by `session_id` — transcripts worktree.)
+(`listEvents` reads `/records` filtered by `session_id` — records worktree.)
 
 ## What we clean up from the PoC
 
 - Ad-hoc Redis cache of the record → dropped; Postgres only (no Redis in this worktree).
 - `sandbox_id` living on the `sessions` table → on `session_states` as the **single source of
   truth** (resume pointer); `session_runners` carries only `sandbox_live`.
-- The demo's single Postgres → core DB for `session_states`, tracing DB for transcripts.
+- The demo's single Postgres → core DB for `session_states`, tracing DB for records.
 - The persist driver stays a **thin adapter** over the API (no SQL in the runner).
 
 ## Decided
@@ -151,7 +151,7 @@ Under the `/sessions/states/` sub-path, keyed by `session_id` (NOT `/sessions/{i
 ## Open questions (for discussion)
 
 1. **Ownership (SEC-8)**: state/sandbox-id endpoints must enforce project ownership and
-   validate the `session_id` shape — same gate as transcripts/mounts.
+   validate the `session_id` shape — same gate as records/mounts.
 
 > The **combined session overlay** + the **`sessions` table / ownership anchor** questions moved
 > to the cross-cutting review (findings A, B4) — they span all five worktrees and shouldn't be

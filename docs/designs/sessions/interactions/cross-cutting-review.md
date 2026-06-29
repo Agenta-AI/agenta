@@ -1,6 +1,6 @@
 # Cross-cutting review — the five session worktrees
 
-> Reviews `mounts`, `transcripts`, `sessions-persistence`, `runner-scalability`,
+> Reviews `mounts`, `records`, `sessions-persistence`, `runner-scalability`,
 > `interactions` together for completeness, soundness, consistency, security, scalability.
 > Lives here for now (the in-flight worktree); each finding names the worktree(s) it touches.
 > Findings are **raised for discussion**, not yet folded into the individual specs.
@@ -13,19 +13,19 @@ id), each with **its own row id** + a route under the `sessions` namespace:
 | Worktree | DB table | own pk | DB / store | API resource | Beyond sessions |
 |---|---|---|---|---|---|
 | mounts | `mounts` | `mount` id (uuid7) | core | `/mounts/` **+** `/sessions/mounts/` | project-level & shared mounts; external mounts later |
-| transcripts | `transcripts` | uuid7 (ordering key) | **tracing** | `/sessions/transcripts/` | parallels spans/events; retention |
+| records | `records` | uuid7 (ordering key) | **tracing** | `/sessions/records/` | parallels spans/events; retention |
 | sessions-persistence | `session_states` | `state_id` (uuid7) | core | `/sessions/states/` | — |
 | runner-scalability | `session_runners` | `runner_id` (uuid7) | core | `/sessions/runners/` + control verbs | multi-replica fleet; future `runners` registry; **detached invoke** |
 | interactions | `interactions` | `interaction_id` (uuid7) + `token` | core | `/sessions/interactions/` | webhooks/notifications; **triggers detach** |
 
 **Endpoint convention (settled):** a **`sessions` namespace** with fixed sub-paths —
-`/sessions/states/`, `/sessions/runners/`, `/sessions/mounts/`, `/sessions/transcripts/`,
+`/sessions/states/`, `/sessions/runners/`, `/sessions/mounts/`, `/sessions/records/`,
 `/sessions/interactions/` — each keyed/filtered by `session_id`. **No id mid-path**
 (`/sessions/{id}/X` is wrong; the codebase only deep-nests key-based catalogs). `…/query` for
 many, `…/{own_id}` for one. Mounts ALSO keeps a standalone `/mounts/` (mounts with no session).
 
 **Per-facet ids (settled):** each facet has its **own uuid7 pk** (`state_id`, `runner_id`,
-`interaction_id`, mount id, transcript id), with `session_id` a **bare correlator column** (not
+`interaction_id`, mount id, record id), with `session_id` a **bare correlator column** (not
 the pk, not an FK). Interactions additionally carries `token` (the harness reply key) as an
 indexed VARCHAR, separate from `interaction_id`.
 
@@ -83,13 +83,13 @@ The split was recommended on lifecycle grounds (D1), but if liveness writes are 
 (D1's fix) the churn argument weakens → merge may win on simplicity. **Decide deliberately.**
 
 ### B3. Cleanup: `project_id` cascade already covers it; session-level deferred
-- transcripts → tracing retention (entitlement + cron), different DB/governance.
+- records → tracing retention (entitlement + cron), different DB/governance.
 - interactions → cancel + TTL-predicate, **plus** the `project_id` cascade.
 - `session_states` / `session_runners` → the **`project_id` `ON DELETE CASCADE`** (every facet
   has it) + `session_runners`' orphan sweep for liveness.
 → So there's no *gap*: deleting a project cascades all facets today. A **session-level** "delete
 this session and everything attached" is a **later** user-facing feature (an endpoint that
-internally deletes the corresponding mount/transcript/state/runner/interactions), anchored on
+internally deletes the corresponding mount/record/state/runner/interactions), anchored on
 `session_states` if we add the cascade. Deferred — in the deferred-work file.
 
 ### B4. Session-overlay endpoint — ownerless in 3 specs → defer, each does its part
@@ -115,9 +115,9 @@ filesystem/object path on the runner (PoC fed `session_id` into the geesefs moun
   characters from an id we didn't mint. (Our own ids are uuid7/uuid5; external ones are
   arbitrary — hashing makes both safe-by-construction in a path.)
 
-### ~~C2. Cross-DB ownership for transcripts~~ — WITHDRAWN (not a real issue)
+### ~~C2. Cross-DB ownership for records~~ — WITHDRAWN (not a real issue)
 RBAC already covers tracing: `VIEW_SPANS` / `VIEW_EVENTS` etc. are tracing permissions — RBAC
-is **not** core-DB-only. A transcript read enforces the same way spans/events reads do (project
+is **not** core-DB-only. A record read enforces the same way spans/events reads do (project
 scope + the tracing view permission). No special cross-DB story needed.
 
 ### C3. Webhook SSRF — DEFERRED with webhooks
@@ -145,15 +145,15 @@ on how triggers do it (`tasks/asyncio/triggers/dispatcher.py`: resolve reference
 *change* + a coarse periodic checkpoint (~once/min), not every Redis refresh. (Also weakens the
 split rationale in B2.) **Decided.**
 
-### D2. Transcript ingestion: add a queue/worker (don't write synchronously)
-**transcripts + runner-scalability.** Two related points:
+### D2. Record ingestion: add a queue/worker (don't write synchronously)
+**records + runner-scalability.** Two related points:
 - uuid7 ordering means a steer handoff A→B keeps *order* correct; the only residue is a possible
-  *gap* if A dies mid-drain (B re-drives from the transcript) — acceptable, but pick the fix
+  *gap* if A dies mid-drain (B re-drives from the record) — acceptable, but pick the fix
   that balances **ordering safety vs how fast B can take over**.
-- More importantly: **transcript ingest should be a QUEUE, like spans/events**, not a
-  synchronous write per event. A **transcript worker** consuming an ingestion queue
+- More importantly: **record ingest should be a QUEUE, like spans/events**, not a
+  synchronous write per event. A **record worker** consuming an ingestion queue
   (Redis-Streams, as spans do) gives backpressure, decouples the runner from DB latency, and is
-  consistent with the rest of tracing. → **elevate the transcripts ingest path (Q1) to "queue +
+  consistent with the rest of tracing. → **elevate the records ingest path (Q1) to "queue +
   worker," matching spans/events.**
 
 ### D3. Detached invoke — interactions is the first user; triggers follow
@@ -169,12 +169,12 @@ detach and shed their worker. Elevate detached invoke to a **named deliverable**
 - **E1 — mounts `read_only`: DEFERRED.** Drop from v1. It returns later as a **flag in
   `flags`** (alongside the external-mount fields). No v1 consumer needs the shared-writable vs
   shared-read-only distinction yet.
-- **transcripts ingest path**: → **queue + worker** (Redis-Streams, like spans/events). See D2.
-- **transcripts privacy erase**: a session-level delete is a deferred post-five feature
+- **records ingest path**: → **queue + worker** (Redis-Streams, like spans/events). See D2.
+- **records privacy erase**: a session-level delete is a deferred post-five feature
   (finding B3 / deferred-work file); for now project-cascade + tracing-retention cover it.
 - **interactions `tool_call` kind**: confirm schema-only for v1 (still open, fine).
 - **endpoint naming SETTLED**: `sessions` namespace, fixed sub-paths
-  (`/sessions/states/`, `/sessions/runners/`, `/sessions/mounts/`, `/sessions/transcripts/`,
+  (`/sessions/states/`, `/sessions/runners/`, `/sessions/mounts/`, `/sessions/records/`,
   `/sessions/interactions/`), keyed/filtered by `session_id`; mounts also keeps standalone
   `/mounts/`. No `/sessions/{id}/X`.
 - **per-facet ids SETTLED**: each facet has its own uuid7 pk; `session_id` is a bare correlator;
@@ -203,7 +203,7 @@ detach and shed their worker. Elevate detached invoke to a **named deliverable**
   `session_runners` reads/references it for the sweep; it does NOT re-own the id.
 - **`session_runners` is 1:1** per session (unique `session_id`, current-liveness, PoC-style);
   own `runner_id` pk for consistency only. (1:many assignment-log is a later option.)
-- **D2 — transcript ingest = DEDICATED queue + worker** (own transcript stream, NOT reusing the
+- **D2 — record ingest = DEDICATED queue + worker** (own record stream, NOT reusing the
   spans/events pipeline — everything independent). Confirmed.
 - **interactions outlive-its-run — NO.** Run cancel/steer cancels its pending interactions.
 
@@ -223,22 +223,22 @@ detach and shed their worker. Elevate detached invoke to a **named deliverable**
 - **`data` is JSON, not JSONB** (the `DataDBA` mixin is `JSON`; only `status`/`flags`/`tags` are
   JSONB). The SDK record (session_states) and the request/references/selector/resolution
   (interactions) all live opaque **inside `data`** — no dedicated columns for them.
-- **session_states record validation/versioning + transcript privacy-erase: DEFERRED.**
+- **session_states record validation/versioning + record privacy-erase: DEFERRED.**
 - **Mounts**: cwd mount = the session-bound one; shared/non-bound mounts NOT implemented v1
   (`session_id` already optional). Provisioning = create at mount-time (lazy).
-- **Retention windows DEDICATED per signal** — transcripts ≠ spans ≠ events, each its own.
-- **Transcript payload truncation** — per-line max size, mirroring how spans truncate.
+- **Retention windows DEDICATED per signal** — records ≠ spans ≠ events, each its own.
+- **Record payload truncation** — per-line max size, mirroring how spans truncate.
 - **Routes**: `/sessions/state/…` form (per the namespace), no `-state` suffix.
 
 ## Consolidated open questions (for our discussion)
 
 **None.** All design questions across the five worktrees are settled — they're ready to build.
 (Two items are explicitly DEFERRED, not open: session_states record validation/versioning, and
-transcript privacy-erase — both revisit later.)
+record privacy-erase — both revisit later.)
 
 ## Deferred to AFTER the five PRs (see `big-agents-audit/sessions-integration-deferred.md`)
 
-- A real **session-level delete** endpoint that cascades mount + transcript + state + runner +
+- A real **session-level delete** endpoint that cascades mount + record + state + runner +
   interactions, tolerating external `session_id`s.
 - The **session overlay** read endpoint (join across facets; no `sessions` id resource).
 - **Webhooks / notifications** for interactions detached delivery (+ the SSRF fix dependency).

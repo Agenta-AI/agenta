@@ -99,7 +99,7 @@ self-contained edit that keeps the tree green (ruff + the streams unit/contract 
 - [ ] streams tab: `fetchSessionStream` → nest badges (`is_alive`/`is_running`/`is_attached`;
       `resumable`/`reattachable` derived client-side) + attach (`setSessionStream`) / detach
       (`detachSessionStream`) / kill (`deleteSessionStream`).
-- [ ] transcripts tab: `queryTranscripts` (+ `getTranscriptEvent` on expand).
+- [ ] records tab: `queryRecords` (+ `getRecordEvent` on expand).
 - [ ] states tab: `getState`.
 - [ ] mounts tab: `querySessionMounts`.
 - [ ] interactions tab: `queryInteractions` + respond (`respondInteraction`).

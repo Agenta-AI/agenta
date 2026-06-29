@@ -9,9 +9,9 @@ import {
 } from "./store"
 import InteractionsTab from "./tabs/InteractionsTab"
 import MountsTab from "./tabs/MountsTab"
+import RecordsTab from "./tabs/RecordsTab"
 import StatesTab from "./tabs/StatesTab"
 import StreamsTab from "./tabs/StreamsTab"
-import TranscriptsTab from "./tabs/TranscriptsTab"
 
 const {Text} = Typography
 
@@ -45,9 +45,9 @@ const SessionInspectorDrawer = () => {
                             children: <StreamsTab sessionId={sessionId} />,
                         },
                         {
-                            key: "transcripts",
-                            label: "Transcripts",
-                            children: <TranscriptsTab sessionId={sessionId} />,
+                            key: "records",
+                            label: "Records",
+                            children: <RecordsTab sessionId={sessionId} />,
                         },
                         {
                             key: "states",

@@ -17,13 +17,13 @@ from ..types.session_interaction_response import SessionInteractionResponse
 from ..types.session_interactions_response import SessionInteractionsResponse
 from ..types.session_mount_query import SessionMountQuery
 from ..types.session_mounts_response import SessionMountsResponse
+from ..types.session_record_response import SessionRecordResponse
+from ..types.session_records_query_response import SessionRecordsQueryResponse
 from ..types.session_state_response import SessionStateResponse
 from ..types.session_stream_command_response_model import SessionStreamCommandResponseModel
 from ..types.session_stream_response_model import SessionStreamResponseModel
 from ..types.session_stream_status import SessionStreamStatus
 from ..types.session_streams_response_model import SessionStreamsResponseModel
-from ..types.session_transcript_response import SessionTranscriptResponse
-from ..types.session_transcripts_query_response import SessionTranscriptsQueryResponse
 from ..types.windowing import Windowing
 
 # this is used as the default value for optional parameters
@@ -573,7 +573,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def query_transcripts(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionTranscriptsQueryResponse]:
+    def query_records(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionRecordsQueryResponse]:
         """
         Parameters
         ----------
@@ -584,11 +584,11 @@ class RawSessionsClient:
         
         Returns
         -------
-        HttpResponse[SessionTranscriptsQueryResponse]
+        HttpResponse[SessionRecordsQueryResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "sessions/transcripts/query",method="POST",
+            "sessions/records/query",method="POST",
             json={
                 "session_id": session_id,
             }
@@ -600,9 +600,9 @@ class RawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SessionTranscriptsQueryResponse,
+                    SessionRecordsQueryResponse,
                     parse_obj_as(
-                        type_ =SessionTranscriptsQueryResponse,  # type: ignore
+                        type_ =SessionRecordsQueryResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -620,7 +620,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionTranscriptResponse]:
+    def get_record_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionRecordResponse]:
         """
         Parameters
         ----------
@@ -631,18 +631,18 @@ class RawSessionsClient:
         
         Returns
         -------
-        HttpResponse[SessionTranscriptResponse]
+        HttpResponse[SessionRecordResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"sessions/transcripts/{jsonable_encoder(event_id)}",method="GET",
+            f"sessions/records/{jsonable_encoder(event_id)}",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SessionTranscriptResponse,
+                    SessionRecordResponse,
                     parse_obj_as(
-                        type_ =SessionTranscriptResponse,  # type: ignore
+                        type_ =SessionRecordResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -660,7 +660,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def ingest_transcript(self, *, session_id: str, event_index: typing.Optional[int] = OMIT, sender: typing.Optional[str] = OMIT, session_update: typing.Optional[str] = OMIT, payload: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Dict[str, typing.Any]]:
+    def ingest_record(self, *, session_id: str, event_index: typing.Optional[int] = OMIT, sender: typing.Optional[str] = OMIT, session_update: typing.Optional[str] = OMIT, payload: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Dict[str, typing.Any]]:
         """
         Parameters
         ----------
@@ -683,7 +683,7 @@ class RawSessionsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "sessions/transcripts/ingest",method="POST",
+            "sessions/records/ingest",method="POST",
             json={
                 "session_id": session_id,
                 "event_index": event_index,
@@ -768,7 +768,7 @@ class RawSessionsClient:
         session_id : str
         
         data : typing.Optional[typing.Dict[str, typing.Any]]
-            Opaque SDK SessionRecord to persist.
+            Opaque SDK session state to persist.
         
         sandbox_id : typing.Optional[str]
             Remote sandbox id to record alongside the SDK record.
@@ -1361,7 +1361,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def query_transcripts(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionTranscriptsQueryResponse]:
+    async def query_records(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionRecordsQueryResponse]:
         """
         Parameters
         ----------
@@ -1372,11 +1372,11 @@ class AsyncRawSessionsClient:
         
         Returns
         -------
-        AsyncHttpResponse[SessionTranscriptsQueryResponse]
+        AsyncHttpResponse[SessionRecordsQueryResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "sessions/transcripts/query",method="POST",
+            "sessions/records/query",method="POST",
             json={
                 "session_id": session_id,
             }
@@ -1388,9 +1388,9 @@ class AsyncRawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SessionTranscriptsQueryResponse,
+                    SessionRecordsQueryResponse,
                     parse_obj_as(
-                        type_ =SessionTranscriptsQueryResponse,  # type: ignore
+                        type_ =SessionRecordsQueryResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1408,7 +1408,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionTranscriptResponse]:
+    async def get_record_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionRecordResponse]:
         """
         Parameters
         ----------
@@ -1419,18 +1419,18 @@ class AsyncRawSessionsClient:
         
         Returns
         -------
-        AsyncHttpResponse[SessionTranscriptResponse]
+        AsyncHttpResponse[SessionRecordResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"sessions/transcripts/{jsonable_encoder(event_id)}",method="GET",
+            f"sessions/records/{jsonable_encoder(event_id)}",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SessionTranscriptResponse,
+                    SessionRecordResponse,
                     parse_obj_as(
-                        type_ =SessionTranscriptResponse,  # type: ignore
+                        type_ =SessionRecordResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1448,7 +1448,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def ingest_transcript(self, *, session_id: str, event_index: typing.Optional[int] = OMIT, sender: typing.Optional[str] = OMIT, session_update: typing.Optional[str] = OMIT, payload: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Dict[str, typing.Any]]:
+    async def ingest_record(self, *, session_id: str, event_index: typing.Optional[int] = OMIT, sender: typing.Optional[str] = OMIT, session_update: typing.Optional[str] = OMIT, payload: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Dict[str, typing.Any]]:
         """
         Parameters
         ----------
@@ -1471,7 +1471,7 @@ class AsyncRawSessionsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "sessions/transcripts/ingest",method="POST",
+            "sessions/records/ingest",method="POST",
             json={
                 "session_id": session_id,
                 "event_index": event_index,
@@ -1556,7 +1556,7 @@ class AsyncRawSessionsClient:
         session_id : str
         
         data : typing.Optional[typing.Dict[str, typing.Any]]
-            Opaque SDK SessionRecord to persist.
+            Opaque SDK session state to persist.
         
         sandbox_id : typing.Optional[str]
             Remote sandbox id to record alongside the SDK record.

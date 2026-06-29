@@ -12,7 +12,7 @@ class SessionState(Lifecycle):
     session_id: str = Field(description="Bare session correlator (not an FK).")
     data: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Opaque SDK SessionRecord stored as JSON.",
+        description="Opaque SDK session state stored as JSON.",
     )
     sandbox_id: Optional[str] = Field(
         default=None,

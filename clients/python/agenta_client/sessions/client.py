@@ -9,13 +9,13 @@ from ..types.session_interaction_response import SessionInteractionResponse
 from ..types.session_interactions_response import SessionInteractionsResponse
 from ..types.session_mount_query import SessionMountQuery
 from ..types.session_mounts_response import SessionMountsResponse
+from ..types.session_record_response import SessionRecordResponse
+from ..types.session_records_query_response import SessionRecordsQueryResponse
 from ..types.session_state_response import SessionStateResponse
 from ..types.session_stream_command_response_model import SessionStreamCommandResponseModel
 from ..types.session_stream_response_model import SessionStreamResponseModel
 from ..types.session_stream_status import SessionStreamStatus
 from ..types.session_streams_response_model import SessionStreamsResponseModel
-from ..types.session_transcript_response import SessionTranscriptResponse
-from ..types.session_transcripts_query_response import SessionTranscriptsQueryResponse
 from ..types.windowing import Windowing
 from .raw_client import AsyncRawSessionsClient, RawSessionsClient
 
@@ -372,7 +372,7 @@ class SessionsClient:
         _response = self._raw_client.query_session_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
         return _response.data
     
-    def query_transcripts(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionTranscriptsQueryResponse:
+    def query_records(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionRecordsQueryResponse:
         """
         Parameters
         ----------
@@ -383,7 +383,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionTranscriptsQueryResponse
+        SessionRecordsQueryResponse
             Successful Response
         
         Examples
@@ -393,14 +393,14 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.query_transcripts(
+        client.sessions.query_records(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.query_transcripts(session_id=session_id, request_options=request_options)
+        _response = self._raw_client.query_records(session_id=session_id, request_options=request_options)
         return _response.data
     
-    def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionTranscriptResponse:
+    def get_record_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionRecordResponse:
         """
         Parameters
         ----------
@@ -411,7 +411,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionTranscriptResponse
+        SessionRecordResponse
             Successful Response
         
         Examples
@@ -421,14 +421,14 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.get_transcript_event(
+        client.sessions.get_record_event(
             event_id="event_id",
         )
         """
-        _response = self._raw_client.get_transcript_event(event_id, request_options=request_options)
+        _response = self._raw_client.get_record_event(event_id, request_options=request_options)
         return _response.data
     
-    def ingest_transcript(self, *, session_id: str, event_index: typing.Optional[int] = OMIT, sender: typing.Optional[str] = OMIT, session_update: typing.Optional[str] = OMIT, payload: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+    def ingest_record(self, *, session_id: str, event_index: typing.Optional[int] = OMIT, sender: typing.Optional[str] = OMIT, session_update: typing.Optional[str] = OMIT, payload: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
@@ -457,11 +457,11 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.ingest_transcript(
+        client.sessions.ingest_record(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.ingest_transcript(session_id=session_id, event_index=event_index, sender=sender, session_update=session_update, payload=payload, request_options=request_options)
+        _response = self._raw_client.ingest_record(session_id=session_id, event_index=event_index, sender=sender, session_update=session_update, payload=payload, request_options=request_options)
         return _response.data
     
     def get_state(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
@@ -499,7 +499,7 @@ class SessionsClient:
         session_id : str
         
         data : typing.Optional[typing.Dict[str, typing.Any]]
-            Opaque SDK SessionRecord to persist.
+            Opaque SDK session state to persist.
         
         sandbox_id : typing.Optional[str]
             Remote sandbox id to record alongside the SDK record.
@@ -964,7 +964,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.query_session_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
         return _response.data
     
-    async def query_transcripts(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionTranscriptsQueryResponse:
+    async def query_records(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionRecordsQueryResponse:
         """
         Parameters
         ----------
@@ -975,7 +975,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionTranscriptsQueryResponse
+        SessionRecordsQueryResponse
             Successful Response
         
         Examples
@@ -990,17 +990,17 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.query_transcripts(
+            await client.sessions.query_records(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.query_transcripts(session_id=session_id, request_options=request_options)
+        _response = await self._raw_client.query_records(session_id=session_id, request_options=request_options)
         return _response.data
     
-    async def get_transcript_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionTranscriptResponse:
+    async def get_record_event(self, event_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionRecordResponse:
         """
         Parameters
         ----------
@@ -1011,7 +1011,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionTranscriptResponse
+        SessionRecordResponse
             Successful Response
         
         Examples
@@ -1026,17 +1026,17 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.get_transcript_event(
+            await client.sessions.get_record_event(
                 event_id="event_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_transcript_event(event_id, request_options=request_options)
+        _response = await self._raw_client.get_record_event(event_id, request_options=request_options)
         return _response.data
     
-    async def ingest_transcript(self, *, session_id: str, event_index: typing.Optional[int] = OMIT, sender: typing.Optional[str] = OMIT, session_update: typing.Optional[str] = OMIT, payload: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+    async def ingest_record(self, *, session_id: str, event_index: typing.Optional[int] = OMIT, sender: typing.Optional[str] = OMIT, session_update: typing.Optional[str] = OMIT, payload: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
@@ -1070,14 +1070,14 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.ingest_transcript(
+            await client.sessions.ingest_record(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.ingest_transcript(session_id=session_id, event_index=event_index, sender=sender, session_update=session_update, payload=payload, request_options=request_options)
+        _response = await self._raw_client.ingest_record(session_id=session_id, event_index=event_index, sender=sender, session_update=session_update, payload=payload, request_options=request_options)
         return _response.data
     
     async def get_state(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
@@ -1123,7 +1123,7 @@ class AsyncSessionsClient:
         session_id : str
         
         data : typing.Optional[typing.Dict[str, typing.Any]]
-            Opaque SDK SessionRecord to persist.
+            Opaque SDK session state to persist.
         
         sandbox_id : typing.Optional[str]
             Remote sandbox id to record alongside the SDK record.

@@ -6,7 +6,7 @@
 
 ## The problem (observed)
 
-The agent runner's session calls (heartbeat + transcript-persist) hit the
+The agent runner's session calls (heartbeat + record-persist) hit the
 `/admin/sessions/*` endpoints with the global `AGENTA_AUTH_KEY` and a
 **body `project_id`**. The runner has no real `project_id` (it's empty for the
 chat lane) → the admin endpoints 422 on `project_id` validation → nothing
@@ -76,7 +76,7 @@ every other authenticated call already does. No admin key on the runner, no
    calls itself — invariant to preserve).
 
 3. **Session API — accept credential-authenticated session writes.**
-   Provide non-admin, credential-authed heartbeat + transcript-ingest (or make the
+   Provide non-admin, credential-authed heartbeat + record-ingest (or make the
    existing ones resolve scope from `request.state` auth like `set_session_stream`
    does at `router.py:204`). `project_id` comes from the verified `AuthScope`, not
    the body. The `/admin/*` variants + the global-admin-key path for sessions can

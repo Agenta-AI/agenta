@@ -9,7 +9,7 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 class SessionStateUpsertRequest(UniversalBaseModel):
     data: typing.Optional[typing.Dict[str, typing.Any]] = pydantic.Field(default=None)
     """
-    Opaque SDK SessionRecord to persist.
+    Opaque SDK session state to persist.
     """
     
     sandbox_id: typing.Optional[str] = pydantic.Field(default=None)

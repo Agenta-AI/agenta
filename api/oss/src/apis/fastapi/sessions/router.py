@@ -3,7 +3,7 @@
 Composes four sub-domain routers:
   - SessionStreamsRouter  — /sessions/streams/* and /admin/sessions/streams/*
   - SessionStatesRouter  — /sessions/states/
-  - TranscriptsRouter    — /sessions/transcripts/*
+  - RecordsRouter        — /sessions/records/*
   - InteractionsRouter   — /sessions/interactions/* and /admin/sessions/interactions/*
 """
 
@@ -38,9 +38,9 @@ from oss.src.core.sessions.streams.types import (
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.states.service import SessionStatesService
 from oss.src.core.sessions.states.dtos import SessionStateUpsert
-from oss.src.core.sessions.transcripts.service import TranscriptsService
-from oss.src.core.sessions.transcripts.dtos import SessionTranscriptEvent
-from oss.src.core.sessions.transcripts.streaming import publish_transcript
+from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.streaming import publish_record
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.mounts.service import SessionMountsService
@@ -63,11 +63,11 @@ from oss.src.apis.fastapi.sessions.models import (
     # states
     SessionStateResponse,
     SessionStateUpsertRequest,
-    # transcripts
-    SessionTranscriptIngestRequest,
-    SessionTranscriptQueryRequest,
-    SessionTranscriptResponse,
-    SessionTranscriptsQueryResponse,
+    # records
+    SessionRecordIngestRequest,
+    SessionRecordQueryRequest,
+    SessionRecordResponse,
+    SessionRecordsQueryResponse,
     # interactions
     SessionInteractionCreateRequest,
     SessionInteractionQueryRequest,
@@ -451,48 +451,48 @@ class SessionStatesRouter:
         )
 
 
-class TranscriptsRouter:
-    """Transcripts sub-router — /sessions/transcripts/* + /admin/sessions/transcripts/*"""
+class RecordsRouter:
+    """Records sub-router — /sessions/records/* + /admin/sessions/records/*"""
 
-    def __init__(self, transcripts_service: TranscriptsService):
-        self.transcripts_service = transcripts_service
+    def __init__(self, records_service: RecordsService):
+        self.records_service = records_service
         self.router = APIRouter()
         self.admin_router = APIRouter()
 
         self.router.add_api_route(
             "/query",
-            self.query_transcripts,
+            self.query_records,
             methods=["POST"],
-            operation_id="query_transcripts",
+            operation_id="query_records",
             status_code=status.HTTP_200_OK,
-            response_model=SessionTranscriptsQueryResponse,
+            response_model=SessionRecordsQueryResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/{event_id}",
-            self.get_transcript_event,
+            self.get_record_event,
             methods=["GET"],
-            operation_id="get_transcript_event",
+            operation_id="get_record_event",
             status_code=status.HTTP_200_OK,
-            response_model=SessionTranscriptResponse,
+            response_model=SessionRecordResponse,
             response_model_exclude_none=True,
         )
 
         self.router.add_api_route(
             "/ingest",
-            self.ingest_transcript_event,
+            self.ingest_record_event,
             methods=["POST"],
-            operation_id="ingest_transcript",
+            operation_id="ingest_record",
             tags=["Sessions"],
         )
 
     @intercept_exceptions()
-    async def query_transcripts(
+    async def query_records(
         self,
         request: Request,
         *,
-        query_request: SessionTranscriptQueryRequest,
-    ) -> Union[SessionTranscriptsQueryResponse, JSONResponse]:
+        query_request: SessionRecordQueryRequest,
+    ) -> Union[SessionRecordsQueryResponse, JSONResponse]:
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -500,21 +500,21 @@ class TranscriptsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        transcripts = await self.transcripts_service.get_transcript(
+        records = await self.records_service.get_records(
             project_id=UUID(request.state.project_id),
             session_id=query_request.session_id,
         )
-        return SessionTranscriptsQueryResponse(
-            count=len(transcripts),
-            transcripts=transcripts,
+        return SessionRecordsQueryResponse(
+            count=len(records),
+            records=records,
         )
 
     @intercept_exceptions()
-    async def get_transcript_event(
+    async def get_record_event(
         self,
         request: Request,
         event_id: UUID,
-    ) -> Union[SessionTranscriptResponse, JSONResponse]:
+    ) -> Union[SessionRecordResponse, JSONResponse]:
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -522,17 +522,17 @@ class TranscriptsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        transcript = await self.transcripts_service.get_event(
+        record = await self.records_service.get_event(
             project_id=UUID(request.state.project_id),
             event_id=event_id,
         )
-        return SessionTranscriptResponse(transcript=transcript)
+        return SessionRecordResponse(record=record)
 
     @intercept_exceptions()
-    async def ingest_transcript_event(
+    async def ingest_record_event(
         self,
         request: Request,
-        body: SessionTranscriptIngestRequest,
+        body: SessionRecordIngestRequest,
     ) -> dict:
         # The runner authenticates AS the invoke caller; project scope comes from the
         # credential, never the body.
@@ -544,10 +544,10 @@ class TranscriptsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        await publish_transcript(
+        await publish_record(
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),
-            transcript_event=SessionTranscriptEvent(
+            record_event=SessionRecordEvent(
                 session_id=UUID(body.session_id),
                 project_id=UUID(project_id),
                 event_index=body.event_index,
@@ -886,8 +886,8 @@ class SessionsRouter:
       sessions_router.streams.router               → no prefix (paths include /sessions/streams/…)
       sessions_router.streams.admin_router         → prefix /admin/sessions/streams
       sessions_router.states.router                → prefix /sessions
-      sessions_router.transcripts.router           → prefix /sessions/transcripts
-      sessions_router.transcripts.admin_router     → prefix /admin/sessions/transcripts
+      sessions_router.records.router               → prefix /sessions/records
+      sessions_router.records.admin_router         → prefix /admin/sessions/records
       sessions_router.interactions.router          → prefix /sessions/interactions
       sessions_router.interactions.admin_router    → prefix /admin/sessions/interactions
       sessions_router.mounts.router                → prefix /sessions
@@ -898,7 +898,7 @@ class SessionsRouter:
         *,
         streams_service: SessionStreamsService,
         states_service: SessionStatesService,
-        transcripts_service: TranscriptsService,
+        records_service: RecordsService,
         interactions_service: SessionInteractionsService,
         workflows_service: WorkflowsService,
         session_mounts_service: SessionMountsService,
@@ -906,7 +906,7 @@ class SessionsRouter:
     ) -> None:
         self.streams = SessionStreamsRouter(service=streams_service)
         self.states = SessionStatesRouter(session_states_service=states_service)
-        self.transcripts = TranscriptsRouter(transcripts_service=transcripts_service)
+        self.records = RecordsRouter(records_service=records_service)
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,
             workflows_service=workflows_service,

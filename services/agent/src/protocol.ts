@@ -467,7 +467,7 @@ export interface AgentRunRequest {
   turnId?: string;
   /**
    * The Agenta project id for this run. Set alongside `turnId` on session-owned runs so
-   * the runner can include it in heartbeat and transcript-ingest calls. Absent otherwise.
+   * the runner can include it in heartbeat and record-ingest calls. Absent otherwise.
    */
   projectId?: string;
 }

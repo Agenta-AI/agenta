@@ -66,7 +66,7 @@ Three concerns live on this plane:
 2. **Attach / watch (`attached`)** — "is a client currently watching this run's live view",
    with a short TTL + displacement pub/sub so a steal tears down the prior watcher
    immediately. Dropping `attached` (detach) must **never** cancel the run or stop
-   persistence (those are producer-driven; see transcripts worktree).
+   persistence (those are producer-driven; see records worktree).
 3. **Session → runner sticky affinity** — which replica currently owns a session, with a
    TTL. New turns / control signals for that session route to (or are coordinated through)
    the owning replica. This is the missing piece that makes steer/cancel reach the right box.
@@ -131,7 +131,7 @@ as a **separate** bare `runners` table (process id, host, cap, health) and `sess
 `replica_id` becomes an FK into it. The two coexist; they are not the same row renamed.
 Surfaced at the API as **`/sessions/runners/`** (under the `sessions` namespace, keyed/filtered
 by `session_id`; NOT `/sessions/{id}/runner`), alongside `/sessions/states/` /
-`/sessions/transcripts/` / `/sessions/mounts/` / `/sessions/interactions/`. (See
+`/sessions/records/` / `/sessions/mounts/` / `/sessions/interactions/`. (See
 sessions-persistence "Naming" for the shared facet rationale.)
 
 ### Relationship to `session_states` (sessions-persistence worktree)
@@ -172,7 +172,7 @@ liveness is lossy/derived). A convenience overlay joins them at read time; no me
 - In-runner-only liveness → durable `session_runners` + heartbeat + orphan sweep.
 - `live` badge TTL heuristic → authoritative `sandbox_live` + `last_seen_at`.
 - Keep: the DATA/FORCE matrix, displacement-on-steal, detach-never-cancels,
-  drain-before-done coupling (the latter owned by transcripts).
+  drain-before-done coupling (the latter owned by records).
 
 ## Decided
 
@@ -191,7 +191,7 @@ liveness is lossy/derived). A convenience overlay joins them at read time; no me
 - **Concurrency cap = per-container, start ~1000; over-limit → `429`** (scale out = more
   containers, not a queue). Tune the number after measuring per-run resource use.
 - **Drain across a steer handoff**: drain-before-done stays; if a runner dies mid-drain that's
-  fine (uuid7 keeps order; the next owner re-drives from the transcript). No extra guard.
+  fine (uuid7 keeps order; the next owner re-drives from the record). No extra guard.
 
 ## Open questions (for discussion)
 

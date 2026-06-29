@@ -9,7 +9,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamStatus,
 )
 from oss.src.core.sessions.states.dtos import SessionState
-from oss.src.core.sessions.transcripts.dtos import SessionTranscript
+from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionCreate,
@@ -82,7 +82,7 @@ class SessionStateResponse(BaseModel):
 class SessionStateUpsertRequest(BaseModel):
     data: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Opaque SDK SessionRecord to persist.",
+        description="Opaque SDK session state to persist.",
     )
     sandbox_id: Optional[str] = Field(
         default=None,
@@ -91,21 +91,21 @@ class SessionStateUpsertRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Transcripts request/response models
+# Records request/response models
 # ---------------------------------------------------------------------------
 
 
-class SessionTranscriptQueryRequest(BaseModel):
+class SessionRecordQueryRequest(BaseModel):
     session_id: UUID
 
 
-class SessionTranscriptsQueryResponse(BaseModel):
+class SessionRecordsQueryResponse(BaseModel):
     count: int
-    transcripts: List[SessionTranscript]
+    records: List[SessionRecord]
 
 
-class SessionTranscriptResponse(BaseModel):
-    transcript: Optional[SessionTranscript] = None
+class SessionRecordResponse(BaseModel):
+    record: Optional[SessionRecord] = None
 
 
 # ---------------------------------------------------------------------------
@@ -161,11 +161,11 @@ class SessionMountsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Admin transcript ingest model
+# Admin record ingest model
 # ---------------------------------------------------------------------------
 
 
-class SessionTranscriptIngestRequest(BaseModel):
+class SessionRecordIngestRequest(BaseModel):
     # project scope comes from the caller's credential, never the body
     session_id: str
     event_index: Optional[int] = None

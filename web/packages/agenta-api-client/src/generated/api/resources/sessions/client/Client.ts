@@ -16,7 +16,7 @@ export declare namespace SessionsClient {
 }
 
 /**
- * Agent sessions — runner coordination (invoke/cancel/steer/attach/detach/heartbeat/liveness), state persistence (durable SDK record and sandbox resume pointer), transcripts, and streams.
+ * Agent sessions — runner coordination (invoke/cancel/steer/attach/detach/heartbeat/liveness), state persistence (durable SDK state and sandbox resume pointer), records, and streams.
  */
 export class SessionsClient {
     protected readonly _options: NormalizedClientOptionsWithAuth<SessionsClient.Options>;
@@ -830,27 +830,27 @@ export class SessionsClient {
     }
 
     /**
-     * @param {AgentaApi.SessionTranscriptQueryRequest} request
+     * @param {AgentaApi.SessionRecordQueryRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.sessions.queryTranscripts({
+     *     await client.sessions.queryRecords({
      *         session_id: "session_id"
      *     })
      */
-    public queryTranscripts(
-        request: AgentaApi.SessionTranscriptQueryRequest,
+    public queryRecords(
+        request: AgentaApi.SessionRecordQueryRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SessionTranscriptsQueryResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__queryTranscripts(request, requestOptions));
+    ): core.HttpResponsePromise<AgentaApi.SessionRecordsQueryResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__queryRecords(request, requestOptions));
     }
 
-    private async __queryTranscripts(
-        request: AgentaApi.SessionTranscriptQueryRequest,
+    private async __queryRecords(
+        request: AgentaApi.SessionRecordQueryRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SessionTranscriptsQueryResponse>> {
+    ): Promise<core.WithRawResponse<AgentaApi.SessionRecordsQueryResponse>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -862,7 +862,7 @@ export class SessionsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "sessions/transcripts/query",
+                "sessions/records/query",
             ),
             method: "POST",
             headers: _headers,
@@ -879,7 +879,7 @@ export class SessionsClient {
         });
         if (_response.ok) {
             return {
-                data: _response.body as AgentaApi.SessionTranscriptsQueryResponse,
+                data: _response.body as AgentaApi.SessionRecordsQueryResponse,
                 rawResponse: _response.rawResponse,
             };
         }
@@ -900,31 +900,31 @@ export class SessionsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/sessions/transcripts/query");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/sessions/records/query");
     }
 
     /**
-     * @param {AgentaApi.GetTranscriptEventRequest} request
+     * @param {AgentaApi.GetRecordEventRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.sessions.getTranscriptEvent({
+     *     await client.sessions.getRecordEvent({
      *         event_id: "event_id"
      *     })
      */
-    public getTranscriptEvent(
-        request: AgentaApi.GetTranscriptEventRequest,
+    public getRecordEvent(
+        request: AgentaApi.GetRecordEventRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SessionTranscriptResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__getTranscriptEvent(request, requestOptions));
+    ): core.HttpResponsePromise<AgentaApi.SessionRecordResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__getRecordEvent(request, requestOptions));
     }
 
-    private async __getTranscriptEvent(
-        request: AgentaApi.GetTranscriptEventRequest,
+    private async __getRecordEvent(
+        request: AgentaApi.GetRecordEventRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SessionTranscriptResponse>> {
+    ): Promise<core.WithRawResponse<AgentaApi.SessionRecordResponse>> {
         const { event_id: eventId } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -937,7 +937,7 @@ export class SessionsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `sessions/transcripts/${core.url.encodePathParam(eventId)}`,
+                `sessions/records/${core.url.encodePathParam(eventId)}`,
             ),
             method: "GET",
             headers: _headers,
@@ -950,7 +950,7 @@ export class SessionsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SessionTranscriptResponse, rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.SessionRecordResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -969,34 +969,29 @@ export class SessionsClient {
             }
         }
 
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "GET",
-            "/sessions/transcripts/{event_id}",
-        );
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/sessions/records/{event_id}");
     }
 
     /**
-     * @param {AgentaApi.SessionTranscriptIngestRequest} request
+     * @param {AgentaApi.SessionRecordIngestRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.sessions.ingestTranscript({
+     *     await client.sessions.ingestRecord({
      *         session_id: "session_id"
      *     })
      */
-    public ingestTranscript(
-        request: AgentaApi.SessionTranscriptIngestRequest,
+    public ingestRecord(
+        request: AgentaApi.SessionRecordIngestRequest,
         requestOptions?: SessionsClient.RequestOptions,
     ): core.HttpResponsePromise<Record<string, unknown>> {
-        return core.HttpResponsePromise.fromPromise(this.__ingestTranscript(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__ingestRecord(request, requestOptions));
     }
 
-    private async __ingestTranscript(
-        request: AgentaApi.SessionTranscriptIngestRequest,
+    private async __ingestRecord(
+        request: AgentaApi.SessionRecordIngestRequest,
         requestOptions?: SessionsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Record<string, unknown>>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
@@ -1010,7 +1005,7 @@ export class SessionsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "sessions/transcripts/ingest",
+                "sessions/records/ingest",
             ),
             method: "POST",
             headers: _headers,
@@ -1045,7 +1040,7 @@ export class SessionsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/sessions/transcripts/ingest");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/sessions/records/ingest");
     }
 
     /**

@@ -1,7 +1,7 @@
 # Sessions domain — identifier glossary
 
 > One authoritative list of every id/correlator across the five session facets
-> (states / streams / transcripts / interactions / mounts), the coordination plane,
+> (states / streams / records / interactions / mounts), the coordination plane,
 > and the execution wire. Written before Phase 2 so we don't conflate terms or carry
 > redundant ones. Each entry says **what it points to**, **who mints it**, **its
 > lifetime/cardinality**, and **how it relates to the others**.
@@ -26,12 +26,12 @@ watcher / replica).
 |---|---|---|---|---|
 | `state_id` | states | `session_states` | **1:1** (unique `session_id`) | own uuid7 pk; the business key is `session_id`. The durable agent record lives here. |
 | `stream_id` | streams | `session_streams` | **1:1** (unique `session_id`) | own uuid7 **pk**; the durable run/liveness mirror of the Redis nest, created **once per conversation**. The business key is `session_id`. **Distinct from `turn_id`**: the stream row is the 1:1 durable home; `turn_id` is the ephemeral *running* correlator stamped into its `turn_id` column, replaced each turn. One `stream_id` outlives a *succession* of `turn_id`s. |
-| `transcript event id` (`id`) | transcripts | `session_transcripts` | **1:many** | own uuid7 pk per event; ordered within a session by `event_index`. |
+| `record event id` (`id`) | records | `session_records` | **1:many** | own uuid7 pk per event; ordered within a session by `event_index`. |
 | `interaction_id` (`id`) | interactions | `session_interactions` | **1:many** | own uuid7 pk per interaction (one pending question/answer cycle). |
 | `mount_id` (`id`) | mounts | `mounts` (standalone) | **1:many**, optional session | own uuid7 pk; a mount is a standalone durable directory whose `session_id` is an *optional* pointer (it can outlive any session). |
 
 > Note the asymmetry: states and streams are **1:1 with the session** (the session has one
-> durable record and one liveness mirror), while transcripts, interactions, and mounts are
+> durable record and one liveness mirror), while records, interactions, and mounts are
 > **1:many** (a session accrues many events, many interactions, and may bind several mounts).
 
 ## Pointers into other systems
@@ -101,7 +101,7 @@ proves the turn still owns the lock). That is what makes the design correct for 
 4. **`<facet>.id` vs `session_id` as "the id"** — every facet has its own uuid7 pk, but the
    *business* key is `session_id` for the 1:1 facets (states/streams). Don't expose the row pk
    as the primary handle in the web layer; key the inspector tabs off `session_id`, surface the
-   row pk only where lineage matters (transcript events, interactions). (guidance, not a bug) ✅
+   row pk only where lineage matters (record events, interactions). (guidance, not a bug) ✅
 
 5. **`sandbox_id` single-owner** — lives only in `session_states`; streams dropped
    `sandbox_live`. Do not reintroduce a sandbox pointer on streams. ✅
@@ -111,7 +111,7 @@ proves the turn still owns the lock). That is what makes the design correct for 
 ```
 session_id ──┬─→ session_states   (state_id, sandbox_id)        [1:1]
              ├─→ session_streams  (stream_id, flags, turn_id)   [1:1]   ← Redis nest mirror
-             ├─→ session_transcripts (event id, event_index…)   [1:many]
+             ├─→ session_records (event id, event_index…)   [1:many]
              ├─→ session_interactions (interaction_id, token, turn_id) [1:many]
              └─→ mounts            (mount_id, path…)             [1:many, optional]
 

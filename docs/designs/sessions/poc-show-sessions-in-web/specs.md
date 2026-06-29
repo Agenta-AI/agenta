@@ -22,7 +22,7 @@
    It edits the lock/row nest. The renamed `set_session_stream` (was `invoke`) is a
    **state edit** over locks + the durable row; it runs nothing.
 3. **Bridge** — already wired in the runner: a session-owned run (`sessionId` + `runId`)
-   survives client disconnect, persists every event producer-side (transcript ingest), and
+   survives client disconnect, persists every event producer-side (record ingest), and
    heartbeats the alive lock for the run's lifetime. The coordination plane never talks to a
    socket; the runner is the only component that observes the live connection.
 
@@ -31,7 +31,7 @@
 `alive ⊇ running ⊇ attached`. Invariant: `attached ⟹ running ⟹ alive`.
 
 - **alive** — the session/run is claimed; the runner owns the lock and is persisting the
-  transcript. **Survives client disconnect.** (Redis `alive:session:<id>`, TTL 3600s.)
+  record. **Survives client disconnect.** (Redis `alive:session:<id>`, TTL 3600s.)
 - **running** — a turn is actively executing right now (an SSE/NDJSON stream is producing).
   **Distinct from alive**: a session can be alive-but-idle between turns. (Redis
   `running:session:<id>`, TTL = alive TTL; set when a turn starts, cleared when it ends.)
@@ -137,7 +137,7 @@ This is wired now, not deferred.
 ## Phase 2 (web demonstrator)
 
 A "sessions inspector" drawer behind a session icon in the playground header. One tab per
-session element (mounts / transcripts / states / streams / interactions), each exercising the
+session element (mounts / records / states / streams / interactions), each exercising the
 real productized endpoint. The streams tab shows the nest (alive/running/attached badges) and
 drives lifecycle (attach / detach / kill / respond). **Send/steer/cancel stay the playground
 chat's job** — the drawer inspects and drives lifecycle; it is not a second send path.
@@ -150,25 +150,25 @@ by client minting:
 
 - The playground **sends no `session_id`** on invoke. The runner mints one
   (`resolveRunSessionId` returns its fallback when the request omits it), persists the
-  transcript and holds the alive lock under it, and **echoes it back** on the result
+  record and holds the alive lock under it, and **echoes it back** on the result
   (`AgentRunResult.sessionId`).
 - The playground **captures `session_id` from the first run's response** at the same point
   it already extracts `trace_id`/`span_id` (the `executeViaFetch` normalizer), threads it onto
   the `ExecutionResult`, and **persists it per panel** in playground execution state.
 - `session_id` stays **null until the first invoke returns it**. Pre-minting a client-side id
   was rejected: its only benefit was opening the inspector before the first run, but there is
-  no nest / transcript / state to inspect before the first run anyway.
+  no nest / record / state to inspect before the first run anyway.
 
 **Two unrelated "session" concepts — do not conflate (they are different axes):**
 
 | concept | what it is | scope | crosses to API? |
 |---|---|---|---|
 | `"sess:<runnableId>"` (`ExecutionSession.id`) | a playground **UI column key** — which compare-column a streamed message renders in | per **revision** (same every open of that revision) | **never** |
-| backend `session_id` | the durable **conversation correlator** (alive lock, transcript, state, mounts, interactions) | per **conversation thread** (a new chat is a new id) | yes — this is what the inspector uses |
+| backend `session_id` | the durable **conversation correlator** (alive lock, record, state, mounts, interactions) | per **conversation thread** (a new chat is a new id) | yes — this is what the inspector uses |
 
 One revision column hosts **many** backend sessions over its life. `"sess:<runnableId>"` must
 **never** be sent as the invoke `session_id` — it would collapse every conversation on that
-revision onto one lock/transcript/state. The panel simply *holds* a runner-minted `session_id`
+revision onto one lock/record/state. The panel simply *holds* a runner-minted `session_id`
 alongside its column key once the first run returns one.
 
 ### Inspector surface
@@ -181,7 +181,7 @@ a `session_id`. Clicking it opens the drawer keyed off that id. The drawer is an
 | tab | endpoint(s) | shows / does |
 |---|---|---|
 | streams | `fetchSessionStream`; `setSessionStream` (attach); `detachSessionStream`; `deleteSessionStream` (kill) | nest badges (`is_alive`/`is_running`/`is_attached`; `resumable`/`reattachable` derived client-side) + attach / detach / kill controls |
-| transcripts | `queryTranscripts` (+ `getTranscriptEvent` on expand) | the persisted event log |
+| records | `queryRecords` (+ `getRecordEvent` on expand) | the persisted event log |
 | states | `getState` | the durable record (incl. `sandbox_id`) |
 | mounts | `querySessionMounts` | bound durable directories |
 | interactions | `queryInteractions`; `respondInteraction` | pending interactions + respond |

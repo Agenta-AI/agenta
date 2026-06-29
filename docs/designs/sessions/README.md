@@ -8,7 +8,7 @@ one `apis/fastapi/sessions` router), plus the standalone `mounts` domain it dele
 |---|---|---|---|
 | **states** | Durable SDK `SessionRecord` + sandbox resume pointer (1:1 per session) | core DB `session_states` | [states/](./states/) |
 | **streams** | Live control/ownership handle for a session's ACP stream — invoke (DATA/FORCE matrix), heartbeat, attach/detach, liveness; Redis coordination plane | core DB `session_streams` + Redis | [streams/](./streams/) |
-| **transcripts** | Append-only persisted contents of a session's stream (events) | tracing DB `transcripts` | [transcripts/](./transcripts/) |
+| **records** | Append-only persisted contents of a session's stream (events) | tracing DB `records` | [records/](./records/) |
 | **interactions** | Human-in-the-loop requests raised by running agents (approvals, inputs, tool confirmations) | core DB `interactions` | [interactions/](./interactions/) |
 | **mounts** (standalone) | Durable object-store mounts for agent working directories; `sessions/mounts` is a thin session-scoped layer over it | core DB `mounts` | [../mounts/](../mounts/) |
 

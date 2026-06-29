@@ -164,7 +164,7 @@ const runAgent: RunAgent = (request, emit, signal) =>
  *
  * For session-owned runs (a sessionId is present; the turnId is runner-minted):
  *  - the run survives client disconnect (abort is NOT wired to the response close event);
- *  - every event is persisted producer-side via the transcript ingest endpoint;
+ *  - every event is persisted producer-side via the record ingest endpoint;
  *  - an alive-lock watchdog heartbeats the coordination plane for the run's lifetime.
  */
 async function runAndStream(

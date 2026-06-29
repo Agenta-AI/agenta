@@ -1,12 +1,12 @@
 /**
- * Producer-driven transcript persistence.
+ * Producer-driven record persistence.
  *
- * The runner posts every agent event to the API's transcript-ingest endpoint
+ * The runner posts every agent event to the API's record-ingest endpoint
  * independently of any client connection. This is the "producer-driven" model:
  * persistence is decoupled from whether anyone is listening to the live stream.
  *
  * Port of the PoC sidecar's `persistChain` / `persistEvent` / `drainPersist` pattern
- * from `server.js`, adapted to POST to the `POST /sessions/transcripts/ingest` endpoint,
+ * from `server.js`, adapted to POST to the `POST /sessions/records/ingest` endpoint,
  * authenticated AS the invoke caller (the run credential).
  *
  * Design invariants:
@@ -42,7 +42,7 @@ async function postEvent(
   eventIndex: number,
   sender: string,
 ): Promise<void> {
-  const url = `${apiBase()}/sessions/transcripts/ingest`;
+  const url = `${apiBase()}/sessions/records/ingest`;
   let lastErr: unknown;
   for (let attempt = 1; attempt <= INGEST_MAX_RETRIES; attempt++) {
     try {

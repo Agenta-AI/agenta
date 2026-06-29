@@ -1,5 +1,5 @@
 /**
- * Unit tests for producer-driven transcript persistence (sessions/persist.ts).
+ * Unit tests for producer-driven record persistence (sessions/persist.ts).
  *
  * Verifies:
  *  - events are POSTed to the ingest endpoint in order

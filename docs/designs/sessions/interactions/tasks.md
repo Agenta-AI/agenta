@@ -6,7 +6,7 @@
 ## 0. Decided (was blocking — now settled)
 
 - [x] Always-persist `pending`, conditional webhook/notify fan-out (detached only).
-- [x] Render question from **transcript**; gate actionability on the interaction record.
+- [x] Render question from **record**; gate actionability on the interaction record.
 - [x] **Runner is the single state-machine writer; resolution flows through `/invoke`** (API =
       read + deliver). CAS-on-token idempotency; run lock = only serialization point.
 - [x] Kinds named by expected answer: `user_approval` / `user_input` / `tool_call`.
@@ -81,7 +81,7 @@
 
 - [ ] **Mechanism A (attached)**: runner's in-band `interaction_request` stream unchanged; the
       `pending` record is written alongside (always-persist) and flagged `delivered_in_band`.
-      Late attachers render the question from the **transcript** and reconcile actionability
+      Late attachers render the question from the **record** and reconcile actionability
       against the record.
 - [ ] **Mechanism B (detached)**: when `attached == false`, v1 = **inbox only** (the always-
       available query). Webhook/notification fan-out is **deferred** (webhooks work + its SSRF
@@ -95,7 +95,7 @@
 - [ ] Runner emits the `token` (we mint our own `interaction_id`); accepts the stored decision keyed
       by tool-call id / name+args (`responder.ts` — already implemented).
 - [ ] Runner writes `pending` on raise (admin endpoint), capturing `run_id` + `references`/
-      `selector`, in the same step it emits the transcript event.
+      `selector`, in the same step it emits the record event.
 - [ ] On run/turn cancel the runner writes that `run_id`'s pending interactions → `cancelled`
       (ordinary write, same path as resolve). **Depends on Open question 1.**
 - [ ] **First impl = an interactions worker** that does the respond invoke. Once **detached
@@ -130,7 +130,7 @@
 - [ ] Acceptance: attached run raises `user_approval` → answer via in-band `/invoke` →
       continues. Detached run raises it → appears in **inbox** → answer via detached `/invoke`
       → run continues. Both editions. (Webhook fan-out deferred — inbox only in v1.)
-- [ ] Acceptance: late-attacher renders the pending question from the **transcript** and sees
+- [ ] Acceptance: late-attacher renders the pending question from the **record** and sees
       it as actionable (record=`pending`); an already-answered one renders as resolved.
 - [ ] Security: cross-tenant inbox read blocked; double-answer (two `/invoke`s) cannot
       double-resolve (CAS-on-token).
@@ -144,7 +144,7 @@
   **detached `/invoke`** (respond uses it). Also owns the trigger-detach change below.
 - **sessions-persistence**: detached-resolve relies on stored-decision + resume; cold-replay
   fallback (PER-4) without it.
-- **transcripts**: `interaction_request` is a transcript event; the interaction record is a
+- **records**: `interaction_request` is a record event; the interaction record is a
   separate mutable projection — keep them distinct.
 
 ## Cross-cutting: interactions is the FIRST detached-invoke user; triggers follow

@@ -78,7 +78,7 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.events.service import EventsService
-from oss.src.core.sessions.transcripts.service import TranscriptsService
+from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
@@ -186,8 +186,8 @@ from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
 )
 from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
 
-# Transcripts DAO (analytics DB)
-from oss.src.dbs.postgres.sessions.transcripts.dao import TranscriptsDAO
+# Records DAO (analytics DB)
+from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 
 
 from oss.src.routers import (
@@ -380,7 +380,7 @@ _OPENAPI_TAGS = [
     # --
     {
         "name": "Sessions",
-        "description": "Agent sessions — runner coordination (invoke/cancel/steer/attach/detach/heartbeat/liveness), state persistence (durable SDK record and sandbox resume pointer), transcripts, and streams.",
+        "description": "Agent sessions — runner coordination (invoke/cancel/steer/attach/detach/heartbeat/liveness), state persistence (durable SDK state and sandbox resume pointer), records, and streams.",
     },
     {
         "name": "Interactions",
@@ -493,7 +493,7 @@ webhooks_dao = WebhooksDAO(engine=_transactions_engine)
 
 tracing_dao = TracingDAO(engine=_analytics_engine)
 events_dao = EventsDAO(engine=_analytics_engine)
-transcripts_dao = TranscriptsDAO(engine=_analytics_engine)  # analytics DB
+records_dao = RecordsDAO(engine=_analytics_engine)  # analytics DB
 
 testcases_dao = BlobsDAO(
     engine=_transactions_engine,
@@ -560,8 +560,8 @@ events_service = EventsService(
     events_dao=events_dao,
 )
 
-transcripts_service = TranscriptsService(
-    transcripts_dao=transcripts_dao,
+records_service = RecordsService(
+    records_dao=records_dao,
 )
 
 
@@ -998,7 +998,7 @@ session_states_service = SessionStatesService(
 sessions = SessionsRouter(
     streams_service=session_streams_service,
     states_service=session_states_service,
-    transcripts_service=transcripts_service,
+    records_service=records_service,
     interactions_service=interactions_service,
     workflows_service=workflows_service,
     session_mounts_service=session_mounts_service,
@@ -1446,14 +1446,14 @@ app.include_router(
 )
 
 app.include_router(
-    router=sessions.transcripts.router,
-    prefix="/sessions/transcripts",
+    router=sessions.records.router,
+    prefix="/sessions/records",
     tags=["Sessions"],
 )
 
 app.include_router(
-    router=sessions.transcripts.admin_router,
-    prefix="/admin/sessions/transcripts",
+    router=sessions.records.admin_router,
+    prefix="/admin/sessions/records",
     tags=["Sessions", "Admin"],
 )
 

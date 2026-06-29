@@ -29,7 +29,7 @@ awaiting completion. Detached invoke is a stub.
 
 1. Make streams' invoke **actually detach**: when `detached=True`, start the run on the runner
    (fire-and-forget), return immediately with the `run_id`, and let the runner drive the run +
-   persist the transcript + heartbeat the stream — with no caller connection held.
+   persist the record + heartbeat the stream — with no caller connection held.
 2. Route **interactions respond** and **triggers** (subscription + schedule dispatch) through the
    detached path instead of the blocking `invoke_workflow`.
 3. **Investigate + recommend** whether the dedicated **triggers worker** and **interactions
@@ -44,7 +44,7 @@ the **runner-side behavior that makes detach actually work is missing**. Verifie
 **Present (API side):** Redis locks (`acquire_alive`, `force_cancel_alive`, `get_session_liveness`,
 `refresh_owner`, `steal_attached`, `release_attached`); the DATA/FORCE matrix + `detach()` in
 `SessionStreamsService`; `session_streams` table + status; the cross-language Redis contract
-(`contract.ts` + golden fixture); the transcripts ingest table/worker; the `WorkflowServiceRequest`
+(`contract.ts` + golden fixture); the records ingest table/worker; the `WorkflowServiceRequest`
 bound-refs invoke pattern; the `detached` flag plumbed end-to-end (but inert).
 
 **MISSING — the real body of work for this worktree (port from the demo `poc-persistent-sessions`):**
@@ -57,7 +57,7 @@ bound-refs invoke pattern; the `detached` flag plumbed end-to-end (but inert).
    **zero callers**. (PoC: the sidecar owns `alive` + a refresh watchdog.)
 3. **Persistence is consumer-driven, not producer-driven.** The runner streams events over the
    held `/run` connection and the Python service drains them; there is no independent POST to the
-   transcript ingest. A detached run would persist nothing once the connection drops. (PoC: the
+   record ingest. A detached run would persist nothing once the connection drops. (PoC: the
    sidecar's retrying `/events` chain persists every event regardless of any client — port this.)
 
 These three are prerequisites for detach to be safe and are part of THIS work (they overlap the
@@ -74,7 +74,7 @@ accepted status) immediately. The run executes on the runner; its outcome is obs
 **out-of-band**, not via the caller's return value:
 
 - the **stream row** reflects run state (running → ended) via the runner's heartbeat;
-- the **transcript** captures the events;
+- the **record** captures the events;
 - for triggers, the **delivery record** must still be written — but it records *"dispatched"*
   (accepted) at fire time, and the terminal outcome is reconciled later (see "Triggers delivery"),
   NOT by awaiting the run.
@@ -129,8 +129,8 @@ caller (interactions respond / triggers dispatch)
     hand the run to the runner (the MISSING dispatch) → runner owns+refreshes alive + heartbeats
   → return run_id + accepted  ← "started" = alive held + run owned   (the handshake)
   → caller disconnects (never awaits)
-  → runner continues; persists transcript producer-side; heartbeats running→ended
-  → outcome observable via trace / transcript / stream row
+  → runner continues; persists record producer-side; heartbeats running→ended
+  → outcome observable via trace / record / stream row
 ```
 
 This is why detach is **seconds-long and network-bound** (spin-up + alive handshake + possible
@@ -154,7 +154,7 @@ status/outputs from the awaited response. Detached means there's no terminal sta
 Resolution: write the delivery as **`dispatched`/accepted** at fire time (record the run_id), and
 reconcile the terminal status out-of-band — either the runner/run reports completion against the
 delivery, or the delivery is left as "dispatched" and terminal status is observed via the
-trace/transcript. **This is a required design decision** — do not silently drop the delivery's
+trace/record. **This is a required design decision** — do not silently drop the delivery's
 terminal-status semantics. Preserve `is_test` (no invoke) and `is_valid`/no-refs (failed
 delivery, no invoke) paths unchanged — only the actual-invoke branch goes detached.
 
