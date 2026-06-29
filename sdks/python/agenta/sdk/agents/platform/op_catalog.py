@@ -68,7 +68,7 @@ class PlatformOp(BaseModel):
     description: str = Field(
         min_length=1, description="Model-facing description (SDK-owned)."
     )
-    method: Literal["GET", "POST"]
+    method: Literal["GET", "POST", "DELETE"]
     # An EXISTING Agenta endpoint, as a path relative to the API origin (e.g. ``/api/tools/discover``).
     # The runner binds the origin to the run's own Agenta and confines the path to the API mount.
     path: str = Field(min_length=1)
@@ -283,6 +283,155 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["workflow_revision"],
 }
 
+_FIND_TRIGGERS_DESCRIPTION = (
+    "Discover trigger events that fit plain-language use cases. Returns the best-match "
+    "event per use case with event_key, trigger_config schema, sample payload, connection "
+    "state and connection instructions, alternatives, and setup guidance."
+)
+_FIND_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "use_cases": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "One short fragment per trigger the agent needs "
+            "(e.g. 'new github issue opened').",
+        },
+        "provider": {
+            "type": "string",
+            "default": "composio",
+            "description": "Trigger provider to search.",
+        },
+        "limit_alternatives": {
+            "type": "integer",
+            "default": 3,
+            "minimum": 0,
+            "description": "Max alternative events to return per use case.",
+        },
+    },
+    "required": ["use_cases"],
+}
+
+_TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
+    "description": "Template that maps schedule or event context into run inputs.",
+    "anyOf": [
+        {"type": "object", "additionalProperties": True},
+        {"type": "string"},
+    ],
+}
+
+_CREATE_SCHEDULE_DESCRIPTION = (
+    "Create a cron schedule that runs this agent. The destination workflow is bound "
+    "from the current run context, so only this agent can be scheduled. Requires approval."
+)
+_CREATE_SCHEDULE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Human label for the schedule."},
+        "description": {"type": "string"},
+        "data": {
+            "type": "object",
+            "properties": {
+                "event_key": {
+                    "type": "string",
+                    "description": "Label recorded on each schedule delivery.",
+                },
+                "schedule": {
+                    "type": "string",
+                    "description": "Five-field cron expression in UTC.",
+                },
+                "start_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Optional UTC start of the active window.",
+                },
+                "end_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Optional UTC end of the active window.",
+                },
+                "inputs_fields": _TRIGGER_INPUTS_FIELDS_SCHEMA,
+            },
+            "required": ["event_key", "schedule"],
+        },
+    },
+    "required": ["data"],
+}
+
+_CREATE_SUBSCRIPTION_DESCRIPTION = (
+    "Create an event subscription that runs this agent when a provider event occurs. "
+    "The destination workflow is bound from the current run context. Requires approval."
+)
+_CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Human label for the subscription."},
+        "description": {"type": "string"},
+        "connection_id": {
+            "type": "string",
+            "description": "Ready trigger connection id for the event source.",
+        },
+        "data": {
+            "type": "object",
+            "properties": {
+                "event_key": {
+                    "type": "string",
+                    "description": "Provider event key returned by find_triggers.",
+                },
+                "trigger_config": {
+                    "type": "object",
+                    "description": "Event parameters shaped by the event trigger_config schema.",
+                },
+                "inputs_fields": _TRIGGER_INPUTS_FIELDS_SCHEMA,
+            },
+            "required": ["event_key"],
+        },
+    },
+    "required": ["connection_id", "data"],
+}
+
+_TEST_SUBSCRIPTION_DESCRIPTION = (
+    "Open a temporary provider watch, wait for one real matching event, record it as a "
+    "test delivery, and tear the watch down. It does not run the workflow. Requires approval."
+)
+_TEST_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Optional label for the test watch."},
+        "connection_id": {
+            "type": "string",
+            "description": "Ready trigger connection id for the event source.",
+        },
+        "data": {
+            "type": "object",
+            "properties": {
+                "event_key": {
+                    "type": "string",
+                    "description": "Provider event key returned by find_triggers.",
+                },
+                "trigger_config": {
+                    "type": "object",
+                    "description": "Event parameters shaped by the event trigger_config schema.",
+                },
+            },
+            "required": ["event_key"],
+        },
+    },
+    "required": ["connection_id", "data"],
+}
+
+_EMPTY_INPUT_SCHEMA: Dict[str, Any] = {"type": "object", "properties": {}}
+_TRIGGER_ID_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "The schedule or subscription id returned by the list tools.",
+        }
+    },
+    "required": ["id"],
+}
+
 
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
@@ -314,6 +463,141 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             context_bindings={
                 "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
             },
+            default_permission="ask",
+            default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="find_triggers",
+            description=_FIND_TRIGGERS_DESCRIPTION,
+            method="POST",
+            path="/api/triggers/discover",
+            input_schema=_FIND_TRIGGERS_INPUT_SCHEMA,
+            default_permission="allow",
+            default_needs_approval=False,
+        ),
+        PlatformOp(
+            op="create_schedule",
+            description=_CREATE_SCHEDULE_DESCRIPTION,
+            method="POST",
+            path="/api/triggers/schedules/",
+            input_schema=_CREATE_SCHEDULE_INPUT_SCHEMA,
+            context_bindings={
+                "schedule.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
+            },
+            args_into="schedule",
+            default_permission="ask",
+            default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="create_subscription",
+            description=_CREATE_SUBSCRIPTION_DESCRIPTION,
+            method="POST",
+            path="/api/triggers/subscriptions/",
+            input_schema=_CREATE_SUBSCRIPTION_INPUT_SCHEMA,
+            context_bindings={
+                "subscription.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
+            },
+            args_into="subscription",
+            default_permission="ask",
+            default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="list_schedules",
+            description="List this project's trigger schedules.",
+            method="GET",
+            path="/api/triggers/schedules/",
+            input_schema=_EMPTY_INPUT_SCHEMA,
+            default_permission="allow",
+            default_needs_approval=False,
+        ),
+        PlatformOp(
+            op="list_subscriptions",
+            description="List this project's trigger subscriptions.",
+            method="GET",
+            path="/api/triggers/subscriptions/",
+            input_schema=_EMPTY_INPUT_SCHEMA,
+            default_permission="allow",
+            default_needs_approval=False,
+        ),
+        PlatformOp(
+            op="list_deliveries",
+            description="List trigger delivery logs so the agent can inspect recent fires and tests.",
+            method="GET",
+            path="/api/triggers/deliveries",
+            input_schema=_EMPTY_INPUT_SCHEMA,
+            default_permission="allow",
+            default_needs_approval=False,
+        ),
+        PlatformOp(
+            op="list_connections",
+            description="List trigger connections visible to this project.",
+            method="POST",
+            path="/api/triggers/connections/query",
+            input_schema=_EMPTY_INPUT_SCHEMA,
+            default_permission="allow",
+            default_needs_approval=False,
+        ),
+        PlatformOp(
+            op="test_subscription",
+            description=_TEST_SUBSCRIPTION_DESCRIPTION,
+            method="POST",
+            path="/api/triggers/subscriptions/test",
+            input_schema=_TEST_SUBSCRIPTION_INPUT_SCHEMA,
+            args_into="subscription",
+            default_permission="ask",
+            default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="remove_schedule",
+            description="Delete a trigger schedule by id. Requires approval.",
+            method="DELETE",
+            path="/api/triggers/schedules/{id}",
+            input_schema=_TRIGGER_ID_INPUT_SCHEMA,
+            default_permission="ask",
+            default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="remove_subscription",
+            description="Delete a trigger subscription by id. Requires approval.",
+            method="DELETE",
+            path="/api/triggers/subscriptions/{id}",
+            input_schema=_TRIGGER_ID_INPUT_SCHEMA,
+            default_permission="ask",
+            default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="pause_schedule",
+            description="Pause a trigger schedule without deleting it. Requires approval.",
+            method="POST",
+            path="/api/triggers/schedules/{id}/stop",
+            input_schema=_TRIGGER_ID_INPUT_SCHEMA,
+            default_permission="ask",
+            default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="resume_schedule",
+            description="Resume a paused trigger schedule. Requires approval.",
+            method="POST",
+            path="/api/triggers/schedules/{id}/start",
+            input_schema=_TRIGGER_ID_INPUT_SCHEMA,
+            default_permission="ask",
+            default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="pause_subscription",
+            description="Pause a trigger subscription without deleting it. Requires approval.",
+            method="POST",
+            path="/api/triggers/subscriptions/{id}/stop",
+            input_schema=_TRIGGER_ID_INPUT_SCHEMA,
+            default_permission="ask",
+            default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="resume_subscription",
+            description="Resume a paused trigger subscription. Requires approval.",
+            method="POST",
+            path="/api/triggers/subscriptions/{id}/start",
+            input_schema=_TRIGGER_ID_INPUT_SCHEMA,
             default_permission="ask",
             default_needs_approval=True,
         ),

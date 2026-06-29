@@ -153,8 +153,8 @@ async function executeRelayedTool(
   // `callRef`, so this is checked before the gateway fallback. `runContext` fills the
   // `call.context` bindings server-side (direct-call tools, Phase 3a), hidden from the model.
   if (spec.call) {
-    const url = directCallUrl(callback.endpoint, spec.call);
     const body = assembleBody(spec.call, req.args, runContext);
+    const url = directCallUrl(callback.endpoint, spec.call, body);
     return callDirect(spec.call.method, url, callback.authorization, body);
   }
   // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.
