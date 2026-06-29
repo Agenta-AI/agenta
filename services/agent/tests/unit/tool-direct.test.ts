@@ -379,10 +379,46 @@ describe("directCallUrl", () => {
     );
   });
 
+  it("allows DELETE and substitutes scalar path parameters", () => {
+    const url = directCallUrl(
+      ENDPOINT,
+      {
+        method: "DELETE",
+        path: "/api/triggers/schedules/{id}",
+      },
+      { id: "sched 1" },
+    );
+    assert.equal(url, "https://agenta.example/api/triggers/schedules/sched%201");
+  });
+
+  it("rejects a missing path parameter", () => {
+    assert.throws(
+      () =>
+        directCallUrl(
+          ENDPOINT,
+          { method: "POST", path: "/api/triggers/schedules/{id}/stop" },
+          {},
+        ),
+      /path parameter '\{id\}' is missing/,
+    );
+  });
+
+  it("rejects a non-scalar path parameter", () => {
+    assert.throws(
+      () =>
+        directCallUrl(
+          ENDPOINT,
+          { method: "POST", path: "/api/triggers/schedules/{id}/stop" },
+          { id: { nested: true } },
+        ),
+      /path parameter '\{id\}' must be scalar/,
+    );
+  });
+
   it("rejects a disallowed method", () => {
     assert.throws(
-      () => directCallUrl(ENDPOINT, { method: "DELETE" as any, path: "/api/x" }),
-      /method 'DELETE' is not allowed/,
+      () => directCallUrl(ENDPOINT, { method: "PATCH" as any, path: "/api/x" }),
+      /method 'PATCH' is not allowed/,
     );
   });
 
