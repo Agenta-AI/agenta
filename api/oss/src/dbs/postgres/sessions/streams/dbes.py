@@ -34,6 +34,10 @@ class SessionStreamDBE(
     # Bare string correlator — NOT an FK (sessions may be external).
     session_id = Column(String, nullable=False)
 
+    # Current turn (uuid7 minted by the service); the Postgres mirror of the Redis
+    # alive/running lock value. Null when idle/ended. Not a pk — a token-like correlator.
+    turn_id = Column(String, nullable=True)
+
     __table_args__ = (
         ForeignKeyConstraint(
             ["project_id"],

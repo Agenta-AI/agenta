@@ -94,10 +94,13 @@ read reconciles by reading Redis for the bools and the row for `status`/`updated
 ## Row shape (`session_streams`)
 
 Drop `attached` (bool col), `sandbox_live`, `last_seen_at`. Add a `flags` JSONB
-(`FlagsDBA`-style) carrying `is_alive`/`is_running`/`is_attached`. Liveness/heartbeat writes
-update `flags` + `status` + `updated_at` (no dedicated heartbeat timestamp column — the
-shared `updated_at` is the heartbeat). Keep `IdentifierDBA` (the row `id` = `stream_id`),
-`ProjectScopeDBA`, `LifecycleDBA`, `StatusDBA`, the unique `session_id`.
+(`FlagsDBA`-style) carrying `is_alive`/`is_running`/`is_attached`, and a nullable `turn_id`
+column — the Postgres mirror of the Redis alive/running lock value, so an attaching/fetching
+client reads the **current** turn off the row (a `stream_id` outlives a succession of
+`turn_id`s). Liveness/heartbeat writes update `flags` + `turn_id` + `status` + `updated_at`
+(no dedicated heartbeat timestamp column — the shared `updated_at` is the heartbeat). Keep
+`IdentifierDBA` (the row `id` = `stream_id`), `ProjectScopeDBA`, `LifecycleDBA`, `StatusDBA`,
+the unique `session_id`.
 
 ## Naming (the run → turn rename)
 

@@ -265,6 +265,7 @@ class SessionStreamsService:
                 stream=SessionStreamCreate(
                     session_id=request.session_id,
                     flags=flags,
+                    turn_id=request.turn_id,
                     status=status,
                 ),
             )
@@ -273,7 +274,9 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=None,
                 session_id=request.session_id,
-                stream=SessionStreamEdit(flags=flags, status=status),
+                stream=SessionStreamEdit(
+                    flags=flags, turn_id=request.turn_id, status=status
+                ),
             )
         return stream
 
@@ -349,6 +352,7 @@ class SessionStreamsService:
                 stream=SessionStreamCreate(
                     session_id=session_id,
                     flags=flags,
+                    turn_id=turn_id,
                     status=status,
                 ),
             )
@@ -357,7 +361,7 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
-                stream=SessionStreamEdit(flags=flags, status=status),
+                stream=SessionStreamEdit(flags=flags, turn_id=turn_id, status=status),
             )
         return turn_id
 

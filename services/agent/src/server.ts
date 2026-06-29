@@ -13,7 +13,7 @@
  * `createAgentServer(run)` is the testable seam: it builds the server around an injectable
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -95,11 +95,21 @@ export type RunAgent = (
 ) => Promise<AgentRunResult>;
 
 /**
- * Whether this request is session-owned (detached run that the runner coordinates).
- * Both `sessionId` and `turnId` must be present; an empty string counts as absent.
+ * Whether this request is session-owned (a run the runner coordinates + persists).
+ * A `sessionId` is sufficient — it names the conversation. The `turnId` is the runner's
+ * to mint per execution (the client never composes one), so it is NOT part of the gate.
  */
 function isSessionOwned(request: AgentRunRequest): boolean {
-  return !!(request.sessionId?.trim() && request.turnId?.trim());
+  return !!request.sessionId?.trim();
+}
+
+/**
+ * The turn correlator: identifies the currently-running stream. The runner owns running,
+ * so it mints the turn when it starts a session-owned run (the coordination plane mints its
+ * own in `_start_turn` for send/steer). A turn_id is a lock value, not a pk — uuid4 is fine.
+ */
+function resolveTurnId(request: AgentRunRequest): string {
+  return request.turnId?.trim() || randomUUID();
 }
 
 /** Resolve the project_id for session coordination calls. Falls back to "" gracefully. */
@@ -117,7 +127,7 @@ const runAgent: RunAgent = (request, emit, signal) =>
  * exactly one terminal `{kind:"result"}` line (success or failure). Selected by the caller
  * with `Accept: application/x-ndjson`; the one-shot `/run` path is left untouched.
  *
- * For session-owned runs (sessionId + turnId present):
+ * For session-owned runs (a sessionId is present; the turnId is runner-minted):
  *  - the run survives client disconnect (abort is NOT wired to the response close event);
  *  - every event is persisted producer-side via the transcript ingest endpoint;
  *  - an alive-lock watchdog heartbeats the coordination plane for the run's lifetime.
@@ -137,7 +147,7 @@ async function runAndStream(
 
   const sessionOwned = isSessionOwned(request);
   const sessionId = request.sessionId!;
-  const turnId = request.turnId!;
+  const turnId = resolveTurnId(request);
   const projectId = resolveProjectId(request);
 
   // Session-owned runs survive client disconnect — the runner owns the run. Non-session
