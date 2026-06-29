@@ -32,6 +32,14 @@ export function attachPermissionResponder({
     const id = String(req?.id ?? "");
     const availableReplies: string[] = req?.availableReplies ?? [];
     const toolCall = req?.toolCall;
+    // The harness raises a permission request before running ANY gated tool. We branch on the
+    // tool's resolved spec: a `kind: "client"` tool is not really a sandbox permission gate — it
+    // is a tool whose execution belongs to the browser (e.g. `request_connection`, which renders a
+    // connect widget the user interacts with). So instead of approving/denying it in the sandbox,
+    // we forward it to the frontend as a `client_tool` interaction_request and let the responder
+    // decide: PARK it for a cross-turn round-trip (the browser fulfills the call, the next turn
+    // resumes with its result) or reply inline. Every other tool falls through to the normal
+    // permission gate below.
     const spec = clientToolSpecOf(toolCall);
     if (spec?.kind === "client") {
       const toolCallId =
