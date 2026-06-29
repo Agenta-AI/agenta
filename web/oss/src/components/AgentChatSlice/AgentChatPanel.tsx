@@ -849,8 +849,33 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 )}
             </div>
 
-            {/* Rich markdown composer (Lexical). Cmd/Ctrl+Enter or the send button submits; the
-                attachments / queue / stop UI is hosted via its header/prefix/footer slots. */}
+            {/* Queue / streaming / approval status sits BETWEEN the messages and the composer,
+                so showing it never shifts the composer (and the editor) upward. */}
+            {(busy || hitlPending || queued.length > 0) && (
+                <div className="flex items-center justify-between gap-2 px-3 pb-2">
+                    {queued.length > 0 ? (
+                        <QueuedMessages
+                            queued={queued}
+                            onRemove={removeQueued}
+                            onClear={clearQueue}
+                        />
+                    ) : (
+                        <span />
+                    )}
+                    {busy ? (
+                        <span className="inline-flex items-center gap-2">
+                            <span className="text-xs text-colorTextTertiary">Streaming…</span>
+                            <Button icon={<Stop size={14} weight="fill" />} onClick={handleStop}>
+                                Stop
+                            </Button>
+                        </span>
+                    ) : hitlPending ? (
+                        <span className="text-xs text-colorTextTertiary">Waiting for approval</span>
+                    ) : null}
+                </div>
+            )}
+
+            {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots. */}
             <RichChatInput
                 ref={richInputRef}
                 onSubmit={handleSubmit}
@@ -879,40 +904,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                             onDismissRejections={() => setRejections([])}
                         />
                     </HeightCollapse>
-                }
-                footer={
-                    busy || hitlPending || queued.length > 0 ? (
-                        <div className="flex items-center justify-between gap-2">
-                            {/* Left: collapsed queue pill → popover. */}
-                            {queued.length > 0 ? (
-                                <QueuedMessages
-                                    queued={queued}
-                                    onRemove={removeQueued}
-                                    onClear={clearQueue}
-                                />
-                            ) : (
-                                <span />
-                            )}
-                            {/* Right: why nothing is sending — streaming (stoppable) vs HITL-held. */}
-                            {busy ? (
-                                <span className="inline-flex items-center gap-2">
-                                    <span className="text-xs text-colorTextTertiary">
-                                        Streaming…
-                                    </span>
-                                    <Button
-                                        icon={<Stop size={14} weight="fill" />}
-                                        onClick={handleStop}
-                                    >
-                                        Stop
-                                    </Button>
-                                </span>
-                            ) : hitlPending ? (
-                                <span className="text-xs text-colorTextTertiary">
-                                    Waiting for approval
-                                </span>
-                            ) : null}
-                        </div>
-                    ) : null
                 }
             />
         </div>
