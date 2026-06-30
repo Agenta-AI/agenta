@@ -187,24 +187,6 @@ global:
 #   target: eu
 
 # ================================================================== #
-# === agentRunner ===
-# runner used by agent workflows. The services pod gets
-# AGENTA_RUNNER_URL from this component.
-# ================================================================== #
-# agentRunner:
-#   enabled: true
-#   port: 8765
-#   provider: local
-#   enableMcp: false
-#   daytona:
-#     apiKey:
-#     apiUrl: https://app.daytona.io/api
-#     target: eu
-#     snapshot:
-#     image:
-#     installPi: false
-
-# ================================================================== #
 # docker (compose-only — no-op on Kubernetes, kept commented so this
 # file mirrors the compose env surface without affecting K8s behavior).
 # ================================================================== #
@@ -481,7 +463,13 @@ posthog:
 # workerEvents:
 #   enabled: true
 #   replicas: 1
+# workerRecords:
+#   enabled: true
+#   replicas: 1
 # workerTriggers:
+#   enabled: true
+#   replicas: 1
+# workerInteractions:
 #   enabled: true
 #   replicas: 1
 # cron:
@@ -512,6 +500,20 @@ posthog:
 #       pathType: Prefix
 
 # ================================================================== #
+# === store — object-storage config (AGENTA_STORE_*) ===
+# Enable store.seaweedfs.enabled=true to deploy the bundled SeaweedFS.
+# ================================================================== #
+# store:
+#   endpointUrl:
+#   accessKey:
+#   secretKey:
+#   region:
+#   bucket:
+#   signingKey:
+#   seaweedfs:
+#     enabled: false
+
+# ================================================================== #
 # === extraObjects — arbitrary Kubernetes resources ===
 # Includes the Traefik v3 StripPrefix Middleware referenced from the
 # ingress.annotations above.  Required so /api and /services backends
@@ -528,22 +530,3 @@ posthog:
 #         prefixes:
 #           - /api
 #           - /services
-
-# ================================================================== #
-# === mounts (durable object store for session/agent mounts) ===
-# Opt-in. When enabled with the bundled SeaweedFS, the API + runner
-# get matching S3 credentials and the runner pod gains FUSE for the
-# durable agent cwd. signingKey (base64 32-byte) enables in-process S3 STS
-# so the runner receives scoped, short-lived credentials (never the master key).
-# For an external store (AWS S3 / R2 / MinIO), set seaweedfs.enabled=false
-# and provide endpointUrl + accessKey/secretKey (empty endpoint = real AWS S3).
-# ================================================================== #
-# mounts:
-#   enabled: true
-#   accessKey: "replace-me"
-#   secretKey: "replace-me"
-#   signingKey: ""              # base64 32-byte; required for STS on a self-hosted store
-#   seaweedfs:
-#     enabled: true
-#     persistence:
-#       size: "10Gi"

@@ -89,25 +89,25 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.redisDurable).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
-{{- /* Mounts (durable object store). Opt-in: off unless mounts.enabled=true. */ -}}
-{{- define "agenta.mounts.enabled" -}}
-{{- $v := (default dict .Values.mounts).enabled -}}
+{{- /* Store (durable object store). Opt-in: off unless store.enabled=true. */ -}}
+{{- define "agenta.store.enabled" -}}
+{{- $v := (default dict .Values.store).enabled -}}
 {{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
 {{- end }}
-{{- /* Bundle SeaweedFS as the mounts store (only when mounts is on AND not external). */ -}}
+{{- /* Bundle SeaweedFS as the store backend (only when store is on AND not external). */ -}}
 {{- define "agenta.seaweedfs.enabled" -}}
-{{- $mounts := default dict .Values.mounts -}}
-{{- if eq (include "agenta.mounts.enabled" .) "true" -}}
+{{- $mounts := default dict .Values.store -}}
+{{- if eq (include "agenta.store.enabled" .) "true" -}}
 {{- $v := (default dict $mounts.seaweedfs).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- else }}false{{- end }}
 {{- end }}
 {{- define "agenta.seaweedfs.image" -}}
-{{- $img := default dict (default dict (default dict .Values.mounts).seaweedfs).image -}}
+{{- $img := default dict (default dict (default dict .Values.store).seaweedfs).image -}}
 {{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "latest" $img.tag) -}}
 {{- end }}
-{{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.mounts).seaweedfs).image).pullPolicy }}{{- end }}
-{{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.mounts).seaweedfs).port }}{{- end }}
+{{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
+{{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
 {{- define "agenta.workerEvaluations.enabled" -}}
 {{- $v := (default dict .Values.workerEvaluations).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -130,6 +130,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- define "agenta.workerRecords.enabled" -}}
 {{- $v := (default dict .Values.workerRecords).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+{{- define "agenta.workerInteractions.enabled" -}}
+{{- $v := (default dict .Values.workerInteractions).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.ingress.enabled" -}}
@@ -155,6 +159,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.workerEvents.replicas" -}}{{ default 1 (default dict .Values.workerEvents).replicas }}{{- end }}
 {{- define "agenta.workerTriggers.replicas" -}}{{ default 1 (default dict .Values.workerTriggers).replicas }}{{- end }}
 {{- define "agenta.workerRecords.replicas" -}}{{ default 1 (default dict .Values.workerRecords).replicas }}{{- end }}
+{{- define "agenta.workerInteractions.replicas" -}}{{ default 1 (default dict .Values.workerInteractions).replicas }}{{- end }}
 
 {{/* ================================================================
    Workers (gunicorn worker count, default 2).
@@ -318,7 +323,7 @@ ghcr.io/agenta-ai/agenta-services
 {{- if $img.repository -}}
 {{- $img.repository -}}
 {{- else -}}
-ghcr.io/agenta-ai/agenta-agent-runner
+ghcr.io/agenta-ai/agenta-runner
 {{- end -}}
 {{- end }}
 
@@ -860,18 +865,18 @@ imagePullSecrets:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
       key: AGENTA_CRYPT_KEY
-{{- if eq (include "agenta.mounts.enabled" .) "true" }}
-{{- $mounts := default dict .Values.mounts }}
+{{- if eq (include "agenta.store.enabled" .) "true" }}
+{{- $store := default dict .Values.store }}
 - name: AGENTA_STORE_ENDPOINT_URL
   {{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
   value: {{ printf "http://%s-seaweedfs:%v" (include "agenta.fullname" .) (include "agenta.seaweedfs.port" .) | quote }}
   {{- else }}
-  value: {{ default "" $mounts.endpointUrl | quote }}
+  value: {{ default "" $store.endpointUrl | quote }}
   {{- end }}
 - name: AGENTA_STORE_REGION
-  value: {{ default "us-east-1" $mounts.region | quote }}
+  value: {{ default "us-east-1" $store.region | quote }}
 - name: AGENTA_STORE_BUCKET
-  value: {{ default "agenta-mounts" $mounts.bucket | quote }}
+  value: {{ default "agenta-mounts" $store.bucket | quote }}
 - name: AGENTA_STORE_ACCESS_KEY
   valueFrom:
     secretKeyRef:

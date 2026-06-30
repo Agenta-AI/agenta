@@ -105,47 +105,24 @@ redisDurable:
     size: "5Gi"
 
 # ================================================================== #
-# agentRunner — runner-backed agent workflow runner.
-# The services pod calls this over AGENTA_RUNNER_URL. Keep provider
-# credentials scoped here instead of putting them in every Agenta container.
+# store — object-storage config (AGENTA_STORE_*).
+# Covers file mounts, session artifacts, and SeaweedFS wiring.
+# Set store.seaweedfs.enabled=true to deploy the bundled SeaweedFS.
 # ================================================================== #
-agentRunner:
-  enabled: true
-  port: 8765
-  provider: "local"
-  enableMcp: false
-  # daytona — only used when provider is "daytona". All optional.
-  # daytona:
-  #   apiKey: ""
-  #   apiUrl: ""
-  #   target: ""
-  #   snapshot: ""
-  #   image: ""
-  #   installPi: true
-  #   autostopDelay: 15  # idle minutes before a leaked sandbox self-reaps (DAYTONA_AUTOSTOP)
-
-# ================================================================== #
-# mounts — durable object store for session/agent mounts (the agent's
-# persistent working directory). Opt-in: off by default. When enabled with
-# the bundled SeaweedFS, the API + runner get matching S3 credentials
-# and the runner pod gains FUSE (SYS_ADMIN + /dev/fuse) for geesefs.
-# To use an external store (AWS S3 / R2 / MinIO) instead, set
-# seaweedfs.enabled=false and provide endpointUrl + accessKey/secretKey.
-# ================================================================== #
-mounts:
-  enabled: false
-  # endpointUrl: ""            # external store only; empty endpoint = real AWS S3
-  # region: "us-east-1"
-  # bucket: "agenta-mounts"
-  # accessKey: ""              # required when enabled (secret)
-  # secretKey: ""              # required when enabled (secret)
-  # signingKey: ""             # base64 32-byte; enables in-process S3 STS (scoped creds)
-  seaweedfs:
-    enabled: true              # bundle SeaweedFS; set false to point at an external store
-    # port: 8333
-    # image:
-    #   repository: chrislusf/seaweedfs
-    #   tag: latest
-    persistence:
-      size: "10Gi"
-      # storageClass: ""
+# store:
+#   endpointUrl:
+#   accessKey:
+#   secretKey:
+#   region:
+#   bucket:
+#   signingKey:
+#   seaweedfs:
+#     enabled: false
+#     port: 8888
+#     image:
+#       repository: chrislusf/seaweedfs
+#       tag: "3"
+#       pullPolicy: IfNotPresent
+#     persistence:
+#       enabled: true
+#       size: 20Gi

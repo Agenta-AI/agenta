@@ -36,7 +36,7 @@ spec:
           {{- if $runner.securityContext }}
           securityContext:
             {{- toYaml $runner.securityContext | nindent 12 }}
-          {{- else if eq (include "agenta.mounts.enabled" .) "true" }}
+          {{- else if eq (include "agenta.store.enabled" .) "true" }}
           securityContext:
             capabilities:
               add: ["SYS_ADMIN"]
@@ -116,12 +116,12 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if and (eq (include "agenta.mounts.enabled" .) "true") (not $runner.securityContext) }}
+          {{- if and (eq (include "agenta.store.enabled" .) "true") (not $runner.securityContext) }}
           volumeMounts:
             - name: fuse
               mountPath: /dev/fuse
           {{- end }}
-      {{- if and (eq (include "agenta.mounts.enabled" .) "true") (not $runner.securityContext) }}
+      {{- if and (eq (include "agenta.store.enabled" .) "true") (not $runner.securityContext) }}
       volumes:
         - name: fuse
           hostPath:
