@@ -4,9 +4,10 @@
  * The agent config panel's "Triggers" section. Lists the CURRENT agent's persisted
  * triggers — provider event subscriptions and recurring schedules — as rows, and lets
  * the user add/manage them through the existing propless, atom-driven trigger drawers
- * (`@agenta/entity-ui/gatewayTrigger`). It reuses the same hooks, ActiveToggle, and
- * "⋯" menu the workspace settings sections use; nothing about trigger CRUD is rebuilt
- * here.
+ * (`@agenta/entity-ui/gatewayTrigger`). It reuses the same hooks and "⋯" menu the
+ * workspace settings sections use; nothing about trigger CRUD is rebuilt here. In the
+ * playground, running/paused is irrelevant, so rows expose a "Run in playground" test
+ * action (status shown as a passive dot); pause/resume stays in the schedule drawer.
  *
  * Two pieces of real work live here:
  *  1. Scoping — the list hooks return every project trigger, so we filter to the agent
@@ -19,8 +20,8 @@ import {type ReactNode, useCallback, useMemo} from "react"
 
 import {
     describeCron,
+    getScheduleMessagePreview,
     isEntityActive,
-    isEntityValid,
     triggerCatalogDrawerOpenAtom,
     triggerDeliveriesDrawerAtom,
     triggerScheduleDrawerAtom,
@@ -37,25 +38,25 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {message} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
 import {
     ArrowsClockwise,
     CaretRight,
     Clock,
+    Flask,
     Lightning,
     ListChecks,
     PencilSimpleLine,
-    Play,
     Plus,
     Sparkle,
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, Typography, message} from "antd"
+import {Button, Dropdown, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import ActiveToggle from "../../gatewayTrigger/components/ActiveToggle"
 import TriggerCatalogDrawer from "../../gatewayTrigger/drawers/TriggerCatalogDrawer"
 import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"
 import TriggerScheduleDrawer from "../../gatewayTrigger/drawers/TriggerScheduleDrawer"
@@ -144,25 +145,29 @@ export function useAgentTriggers(entityId: string | null) {
     }
 }
 
-/** A trigger row: leading icon, bold name + chevron, subtitle, ActiveToggle, ⋯ menu. */
+/** A trigger row: leading status-dot icon, bold name + chevron, subtitle, run + ⋯ menu. */
 function TriggerRow({
     icon,
     name,
+    nameMuted,
+    chip,
     subtitle,
     active,
     disabled,
-    toggleDisabled,
-    onToggle,
+    runDisabled,
+    onRun,
     onOpen,
     menuItems,
 }: {
-    icon: React.ReactNode
+    icon: ReactNode
     name: string
+    nameMuted?: boolean
+    chip?: ReactNode
     subtitle: string
     active: boolean
     disabled?: boolean
-    toggleDisabled?: boolean
-    onToggle: (next: boolean) => Promise<void>
+    runDisabled?: boolean
+    onRun: () => void
     onOpen: () => void
     menuItems: MenuProps["items"]
 }) {
@@ -176,7 +181,7 @@ function TriggerRow({
             onClick={open}
             onKeyDown={(e) => {
                 // Only the row itself activates — keyboard events bubbling up from the
-                // toggle or ⋯ menu must not also open the drawer.
+                // run button or ⋯ menu must not also open the drawer.
                 if (e.target !== e.currentTarget || !open) return
                 if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
@@ -185,34 +190,58 @@ function TriggerRow({
             }}
             className={`group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:border-[var(--ag-colorBorder)]"}`}
         >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]">
-                {icon}
-            </span>
+            <Tooltip title={active ? "Active" : "Paused"}>
+                <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]">
+                    {icon}
+                    <span
+                        className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-solid border-[var(--ag-colorBgContainer)] ${
+                            active
+                                ? "bg-[var(--ag-colorSuccess)]"
+                                : "bg-[var(--ag-colorTextQuaternary)]"
+                        }`}
+                    />
+                </span>
+            </Tooltip>
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1 truncate text-xs font-medium">
-                    <span className="truncate">{name}</span>
+                <div className="flex items-center gap-1.5">
+                    <span
+                        className={`truncate text-xs font-medium ${
+                            nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                        }`}
+                    >
+                        {name}
+                    </span>
                     <CaretRight
                         size={12}
                         className="shrink-0 text-[var(--ag-colorTextSecondary)]"
                     />
+                    {chip ? (
+                        <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] text-[var(--ag-colorTextSecondary)]">
+                            {chip}
+                        </span>
+                    ) : null}
                 </div>
-                <Typography.Text type="secondary" className="block truncate text-xs leading-tight">
+                <div className="mt-0.5 line-clamp-2 max-w-prose text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                     {subtitle}
-                </Typography.Text>
+                </div>
             </div>
             <div
                 className="flex shrink-0 items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
                 role="presentation"
             >
-                <ActiveToggle
-                    active={active}
-                    onToggle={onToggle}
-                    disabled={toggleDisabled}
-                    activatedMessage="Trigger resumed"
-                    pausedMessage="Trigger paused"
-                    errorMessage="Failed to update trigger"
-                />
+                <Tooltip title="Run in playground">
+                    <Button
+                        type="text"
+                        icon={<Flask size={16} />}
+                        aria-label="Run in playground"
+                        disabled={runDisabled}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onRun()
+                        }}
+                    />
+                </Tooltip>
                 <Dropdown
                     trigger={["click"]}
                     styles={{root: {width: 180}}}
@@ -236,12 +265,11 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
 
     const {connections} = useTriggerConnectionsQuery()
     const {
-        setActive: setSubscriptionActive,
         remove: removeSubscription,
         refresh: refreshSubscription,
         revoke: revokeSubscription,
     } = useTriggerSubscription()
-    const {setActive: setScheduleActive, remove: removeSchedule} = useTriggerSchedule()
+    const {remove: removeSchedule} = useTriggerSchedule()
 
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
@@ -292,6 +320,30 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
         [entityId, setPendingRun],
     )
 
+    // A schedule (cron) has no external event to replay — simulate it with its own
+    // configured inputs, exactly like the schedule drawer's "Run in playground".
+    const simulateSchedule = useCallback(
+        (record: TriggerSchedule) => {
+            if (!entityId) {
+                message.info("Open this agent in the playground first")
+                return
+            }
+            const msg = getScheduleMessagePreview(record.data?.inputs_fields)
+            const label = record.name?.trim() || "Scheduled run"
+            const cron = record.data?.schedule
+            const text = msg.trim()
+                ? msg
+                : `[Scheduled run · ${label}${cron ? ` (${cron})` : ""}]\n\`\`\`json\n${JSON.stringify(
+                      record.data?.inputs_fields ?? {},
+                      null,
+                      2,
+                  )}\n\`\`\``
+            setPendingRun({text, nonce: Date.now()})
+            message.success("Running in playground")
+        },
+        [entityId, setPendingRun],
+    )
+
     const connectionLabel = useCallback(
         (connectionId?: string) => {
             const c = connections.find((conn) => conn.id === connectionId)
@@ -301,13 +353,6 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
     )
 
     // ---- subscription actions ----
-    const handleSubscriptionToggle = useCallback(
-        (record: TriggerSubscription) => async (next: boolean) => {
-            if (!record.id) return
-            await setSubscriptionActive(record.id, next)
-        },
-        [setSubscriptionActive],
-    )
     const subscriptionMenu = useCallback(
         (record: TriggerSubscription): MenuProps["items"] => [
             {
@@ -321,21 +366,6 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                             owner: {kind: "subscription", id: record.id},
                             name: record.name ?? undefined,
                             playgroundEntityId: entityId ?? undefined,
-                        })
-                },
-            },
-            {
-                key: "run-in-playground",
-                label: "Run in playground",
-                icon: <Play size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    if (record.id)
-                        runInPlayground({
-                            kind: "subscription",
-                            id: record.id,
-                            label: record.name || record.data?.event_key || "trigger",
-                            eventKey: record.data?.event_key ?? undefined,
                         })
                 },
             },
@@ -411,19 +441,11 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
             refreshSubscription,
             revokeSubscription,
             removeSubscription,
-            runInPlayground,
             disabled,
         ],
     )
 
     // ---- schedule actions ----
-    const handleScheduleToggle = useCallback(
-        (record: TriggerSchedule) => async (next: boolean) => {
-            if (!record.id) return
-            await setScheduleActive(record.id, next)
-        },
-        [setScheduleActive],
-    )
     const scheduleMenu = useCallback(
         (record: TriggerSchedule): MenuProps["items"] => [
             {
@@ -437,21 +459,6 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                             owner: {kind: "schedule", id: record.id},
                             name: record.name ?? undefined,
                             playgroundEntityId: entityId ?? undefined,
-                        })
-                },
-            },
-            {
-                key: "run-in-playground",
-                label: "Run in playground",
-                icon: <Play size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    if (record.id)
-                        runInPlayground({
-                            kind: "schedule",
-                            id: record.id,
-                            label: record.name || "schedule",
-                            eventKey: record.data?.event_key ?? undefined,
                         })
                 },
             },
@@ -488,7 +495,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 },
             },
         ],
-        [openDeliveries, openScheduleDrawer, removeSchedule, runInPlayground, entityId, disabled],
+        [openDeliveries, openScheduleDrawer, removeSchedule, entityId, disabled],
     )
 
     return (
@@ -507,16 +514,20 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 <div className="flex flex-col gap-2">
                     {scopedSchedules.map((record) => {
                         const cron = record.data?.schedule
+                        const named = !!record.name?.trim()
+                        const message = getScheduleMessagePreview(record.data?.inputs_fields)
                         return (
                             <TriggerRow
                                 key={`schedule-${record.id}`}
                                 icon={<Clock size={15} />}
-                                name={record.name || record.id || "Schedule"}
-                                subtitle={cron ? describeCron(cron) : "Recurring schedule"}
+                                name={named ? (record.name as string) : "Untitled schedule"}
+                                nameMuted={!named}
+                                chip={cron ? describeCron(cron) : undefined}
+                                subtitle={message || "No message set"}
                                 active={isEntityActive(record)}
                                 disabled={disabled}
-                                toggleDisabled={disabled || !record.id}
-                                onToggle={handleScheduleToggle(record)}
+                                runDisabled={disabled || !record.id}
+                                onRun={() => simulateSchedule(record)}
                                 onOpen={() =>
                                     record.id &&
                                     openScheduleDrawer({
@@ -534,16 +545,26 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                             record.data?.event_key ||
                             connectionLabel(record.connection_id) ||
                             "App subscription"
+                        const named = !!record.name?.trim()
                         return (
                             <TriggerRow
                                 key={`subscription-${record.id}`}
                                 icon={<Lightning size={15} />}
-                                name={record.name || record.id || "Subscription"}
+                                name={named ? (record.name as string) : "Untitled subscription"}
+                                nameMuted={!named}
                                 subtitle={subtitle}
                                 active={isEntityActive(record)}
                                 disabled={disabled}
-                                toggleDisabled={disabled || !record.id || !isEntityValid(record)}
-                                onToggle={handleSubscriptionToggle(record)}
+                                runDisabled={disabled || !record.id}
+                                onRun={() =>
+                                    record.id &&
+                                    runInPlayground({
+                                        kind: "subscription",
+                                        id: record.id,
+                                        label: record.name || record.data?.event_key || "trigger",
+                                        eventKey: record.data?.event_key ?? undefined,
+                                    })
+                                }
                                 onOpen={() =>
                                     record.id &&
                                     openSubscriptionDrawer({
