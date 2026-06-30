@@ -1,0 +1,132 @@
+# All-harness, self-hostable agent sidecar (Claude Code + Pi) — SELF-HOST RECIPE.
+#
+# One image that serves EVERY harness the runner supports — `pi_core`, `pi_agenta`, and
+# `claude` — on the runner port (:8765), with NO compose CMD override. It layers the Pi
+# provisioning that the dev compose CMD does inline today onto the production runner
+# image, and (optionally) bakes Claude Code for fast cold starts.
+#
+# Why this exists: the production `Dockerfile` IS the Pi-capable runner, but it relies on
+# an external orchestrator to make Pi usable. The dev compose service overrides the image
+# CMD to run as root and `mkdir -p /pi-agent` + copy the Pi login + rebuild the extension
+# before serving. A self-hoster running a bare `docker run` of that image as a non-root
+# user instead hits `EACCES: mkdir '/pi-agent/extensions'`, because the runner daemon
+# tries to lay the Agenta Pi extension into an unwritable PI_CODING_AGENT_DIR. (That is
+# exactly why `agenta-claude-sub-sidecar` — the same image, plain entrypoint, non-root,
+# no Pi prep — can host `claude` but not Pi.) This image bakes that provisioning in so a
+# single `docker build` + `docker run` hosts all three harnesses.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# LICENSING BOUNDARY — READ BEFORE BUILDING OR PUBLISHING
+# ─────────────────────────────────────────────────────────────────────────────
+# This is a build RECIPE for self-hosters, NOT an image Agenta publishes. See
+# docker/README.md ("We ship build recipes, not Claude-containing images").
+#   - Pi (@earendil-works/pi-coding-agent, MIT) is baked via the runner image. Fine.
+#   - Claude Code is proprietary (Anthropic Commercial Terms): a usage license, no
+#     redistribution right. With INSTALL_CLAUDE_CODE=true this recipe installs Claude
+#     Code FROM ANTHROPIC at build (`npm i -g @anthropic-ai/claude-code`), so the
+#     self-hoster who runs `docker build` is the one pulling it from Anthropic for their
+#     own individual use. The resulting image MUST NOT be published, pushed to a shared
+#     registry, or otherwise distributed by Agenta — that would make Agenta a Claude Code
+#     redistributor, which the Commercial Terms forbid.
+#   - Set --build-arg INSTALL_CLAUDE_CODE=false for a redistribution-safe base: it bakes
+#     NO Claude Code; the runner daemon installs it from Anthropic at runtime on the
+#     first `claude` run instead (the production path). Pi still works either way.
+#   - No credential is ever baked: no API key, no OAuth login. Auth is supplied at
+#     runtime (ANTHROPIC_API_KEY / request secrets, or the read-only ~/.claude OAuth
+#     mount documented below).
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# BUILD (two steps — reuses the production runner build, does not fork it)
+# ─────────────────────────────────────────────────────────────────────────────
+#   # 1. Build the production runner image (Pi baked, extension bundled):
+#   docker build -t agenta-sandbox-agent:latest \
+#     -f services/agent/docker/Dockerfile services/agent
+#
+#   # 2. Build this all-harness sidecar on top of it:
+#   docker build -t agenta-allharness-sidecar:latest \
+#     -f services/agent/docker/Dockerfile.sidecar services/agent
+#
+#   # To reuse an already-built runner image instead of rebuilding step 1, pass e.g.
+#   #   --build-arg RUNNER_IMAGE=agenta-ee-dev-sandbox-agent:latest
+#   # To build a redistribution-safe base (no Claude Code baked):
+#   #   --build-arg INSTALL_CLAUDE_CODE=false
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# RUN
+# ─────────────────────────────────────────────────────────────────────────────
+#   # Subscription OAuth (individual self-host use only):
+#   docker run -d --name agenta-allharness-sidecar \
+#     -p 127.0.0.1:8790:8765 \
+#     -v "$HOME/.claude":/home/node/.claude:ro \
+#     agenta-allharness-sidecar:latest
+#
+#   # API-key auth instead of the OAuth mount (the cloud / multi-tenant safe path):
+#   docker run -d --name agenta-allharness-sidecar \
+#     -p 127.0.0.1:8790:8765 \
+#     -e ANTHROPIC_API_KEY=sk-ant-... \
+#     agenta-allharness-sidecar:latest
+#
+#   # Optional: seed a Pi subscription login (so Pi can authenticate off your Pi OAuth):
+#   #   -v "$HOME/.pi/agent":/pi-agent-ro:ro
+#
+# Bind the host port to 127.0.0.1: /run bodies can carry resolved secrets, so the runner
+# must never be exposed off-host. Subscription OAuth is individual-use only and must never
+# serve other users (Anthropic restricts Free/Pro/Max OAuth to first-party use); cloud /
+# multi-tenant deployments must stay API-key only. Daytona is NOT used here — this sidecar
+# is local-only by design (Claude Code's IP is banned on Daytona). See docker/README.md.
+
+# The production runner image: Pi baked, extension bundled into dist/, ca-certificates /
+# git / python3 installed, USER node. Reused as-is; this image only layers provisioning on
+# top of it (it does not re-run the build).
+ARG RUNNER_IMAGE=agenta-sandbox-agent:latest
+FROM ${RUNNER_IMAGE}
+
+# Re-declare after FROM so the ARG is in scope for the RUN below.
+ARG INSTALL_CLAUDE_CODE=true
+
+# Provisioning runs as root, then we drop back to the unprivileged runtime user to serve.
+USER root
+
+# Pi provisioning. On every Pi run the runner daemon installs the Agenta Pi extension into
+# PI_CODING_AGENT_DIR (installPiExtensionLocal -> mkdir `$PI_CODING_AGENT_DIR/extensions`).
+# The dev compose CMD created /pi-agent as root before serving; here we create it at build,
+# owned by the runtime user (node), so a non-root `docker run` can write it — no compose
+# CMD override, no EACCES. The extension *bundle* is already in dist/ from the runner
+# image's `pnpm run build:extension`, so no runtime rebuild is needed (unlike dev compose,
+# whose bundle had to be rebuilt because src/ was bind-mounted over the baked dist/).
+RUN mkdir -p /pi-agent && chown -R node:node /pi-agent
+
+# Claude Code (self-host recipe; see LICENSING BOUNDARY above). Installed FROM Anthropic at
+# build only when opted in; the resulting image must not be redistributed by Agenta. When
+# false, the runner daemon installs Claude Code from Anthropic at runtime on the first
+# `claude` run (the production path), so Claude still works — just with a one-time cold
+# start. Pi is unaffected either way.
+RUN if [ "$INSTALL_CLAUDE_CODE" = "true" ]; then \
+        npm install -g @anthropic-ai/claude-code \
+        && echo "Baked Claude Code from Anthropic (self-host recipe — DO NOT redistribute this image)"; \
+    else \
+        echo "INSTALL_CLAUDE_CODE=false — Claude Code will be installed from Anthropic at runtime"; \
+    fi
+
+# Entrypoint: seed an optional read-only Pi login, ensure the agent dir, then serve.
+COPY docker/sidecar-entrypoint.sh /usr/local/bin/sidecar-entrypoint.sh
+RUN chmod +x /usr/local/bin/sidecar-entrypoint.sh
+
+# Serve on all interfaces (a co-located service container reaches it over the network),
+# point Pi at the writable agent dir created above, give Claude Code a writable HOME for
+# its OAuth login + session state, and keep the sandbox local (no Daytona).
+ENV AGENTA_AGENT_RUNNER_HOST=0.0.0.0 \
+    AGENTA_AGENT_RUNNER_PORT=8765 \
+    PI_CODING_AGENT_DIR=/pi-agent \
+    SANDBOX_AGENT_PROVIDER=local \
+    HOME=/home/node
+
+EXPOSE 8765
+
+# Drop privileges: serve as the unprivileged runtime user. Claude Code reads its OAuth
+# login from $HOME/.claude (mount ~/.claude:/home/node/.claude:ro) and writes session
+# state under the writable $HOME (/home/node).
+USER node
+
+ENTRYPOINT ["/usr/local/bin/sidecar-entrypoint.sh"]
+CMD ["node_modules/.bin/tsx", "src/server.ts"]

@@ -20,6 +20,13 @@ the first-class deployable runner service reached through `AGENTA_AGENT_RUNNER_U
 - Added self-hosting docs for deploying the runner, building custom runner images, and
   using Daytona-backed sandboxes.
 - Swept active docs and deployment references for stale runner names and old env vars.
+- Added the **all-harness self-host sidecar** image recipe
+  (`services/agent/docker/Dockerfile.sidecar` + `sidecar-entrypoint.sh`): one image that
+  hosts every harness (`pi_core`, `pi_agenta`, `claude`) on `:8765` with no compose CMD
+  override — it bakes the Pi provisioning (writable `/pi-agent`) and optionally Claude Code
+  (self-host licensing boundary documented). This is the single-`docker run` self-host shape.
+  Verified in isolation: a subscription-OAuth `claude` run and a `pi_core` run both pass on a
+  test container with no `/pi-agent` EACCES. Documented in `services/agent/docker/README.md`.
 
 ## Decisions
 
