@@ -31,11 +31,11 @@ services:
         # === EXECUTION ============================================ #
         command: ["true"]
 
-    .sandbox-agent:
+    .runner:
         # === IMAGE ================================================ #
-        image: agenta-ee-dev-sandbox-agent:latest
+        image: agenta-ee-dev-runner:latest
         build:
-            context: ../../../services/agent
+            context: ../../../services/runner
             dockerfile: docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
@@ -610,8 +610,8 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            AGENTA_AGENT_RUNNER_URL: ${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
-            AGENTA_AGENT_MCP_SERVERS_ENABLED: ${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
+            AGENTA_RUNNER_URL: ${AGENTA_RUNNER_URL:-http://runner:8765}
+            AGENTA_AGENT_MCPS_ENABLED: ${AGENTA_AGENT_MCPS_ENABLED:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -619,7 +619,7 @@ services:
             - "host.docker.internal:host-gateway"
         # === ORCHESTRATION ======================================== #
         depends_on:
-            sandbox-agent:
+            runner:
                 condition: service_healthy
         # === LABELS =============================================== #
         labels:
@@ -633,16 +633,16 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
-    sandbox-agent:
+    runner:
         # === IMAGE ================================================ #
-        image: agenta-ee-dev-sandbox-agent:latest
+        image: agenta-ee-dev-runner:latest
         # === EXECUTION ============================================ #
         # No file watcher (the box's inotify limit is shared across stacks). Copy the
         # read-only mounted Pi login into a writable path so OAuth refresh stays
         # in-container. This command replaces the image CMD, so the Pi extension rebuild
         # has to live here too: dist/ is not bind-mounted and src/extensions/agenta.ts is,
         # so without this a restart keeps a stale bundle and custom tools silently stop
-        # being delivered on the sandbox-agent path. Rebuild from the mounted
+        # being delivered on the runner path. Rebuild from the mounted
         # src on start; fail loud if it cannot build rather than run a stale bundle.
         command: >
             sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
@@ -655,17 +655,17 @@ services:
         # login (mounted below), the OTLP export fallback, and the Daytona credentials
         # the runner reads for the `daytona` sandbox provider.
         environment:
-            AGENTA_AGENT_RUNNER_PORT: "8765"
+            AGENTA_RUNNER_PORT: "8765"
             # Bind on all interfaces: the co-located Python `services` container reaches the
-            # sidecar over the compose network at `sandbox-agent:8765`, so the trust-model
+            # sidecar over the compose network at `runner:8765`, so the trust-model
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
-            AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
+            AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             PI_CODING_AGENT_DIR: /pi-agent
             # The API as reached FROM this container — by its compose service name, over the
             # network (the same `http://api:8000` the workers use), NOT the public
             # `http://localhost/api` (which doesn't resolve inside a container). Used by the
             # OTLP tracing-export fallback AND the session heartbeat/record-persist calls.
-            AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
+            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
@@ -676,11 +676,11 @@ services:
             AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
         # === STORAGE ============================================== #
         volumes:
-            - ../../../services/agent/src:/app/src
+            - ../../../services/runner/src:/app/src
             # The Agenta harness's forced skills are real files the runner lays into the
             # sandbox per run (resolved from /app/skills). Bind-mounted like src so edits are
             # live; the prod image bakes them with `COPY skills ./skills`.
-            - ../../../services/agent/skills:/app/skills
+            - ../../../services/runner/skills:/app/skills
             - ${HOME}/.pi/agent:/pi-agent-ro:ro
         # === NETWORK ============================================== #
         networks:

@@ -1,0 +1,876 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="371" failures="1" errors="0" time="5.163971376">
+    <testsuite name="tests/unit/cli.test.ts" timestamp="2026-06-30T10:21:16.771Z" hostname="agenta.local" tests="4" failures="0" errors="0" skipped="0" time="0.002318042">
+        <testcase classname="tests/unit/cli.test.ts" name="runCli &gt; one-shot: writes the result JSON and returns exit 0" time="0.001108458">
+        </testcase>
+        <testcase classname="tests/unit/cli.test.ts" name="runCli &gt; invalid JSON: returns exit 1 with an error result" time="0.000160792">
+        </testcase>
+        <testcase classname="tests/unit/cli.test.ts" name="runCli &gt; a failing result returns exit 1" time="0.000082917">
+        </testcase>
+        <testcase classname="tests/unit/cli.test.ts" name="runCli &gt; stream: event lines then exactly one terminal result line" time="0.000125291">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/code-tool.test.ts" timestamp="2026-06-30T10:21:16.771Z" hostname="agenta.local" tests="1" failures="0" errors="0" skipped="0" time="0.001496333">
+        <testcase classname="tests/unit/code-tool.test.ts" name="runCodeTool &gt; fails with a clear unsupported error instead of executing code" time="0.000839542">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/continuation.test.ts" timestamp="2026-06-30T10:21:16.772Z" hostname="agenta.local" tests="3" failures="0" errors="0" skipped="0" time="0.00183075">
+        <testcase classname="tests/unit/continuation.test.ts" name="messageTranscript &gt; encodes plain text, content blocks, and tool turns" time="0.000776459">
+        </testcase>
+        <testcase classname="tests/unit/continuation.test.ts" name="resolveRunSessionId &gt; prefers the platform session id, falling back to the ephemeral one" time="0.000097167">
+        </testcase>
+        <testcase classname="tests/unit/continuation.test.ts" name="buildTurnText &gt; keeps a resolved tool turn in the replay" time="0.00018875">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/extension-tools.test.ts" timestamp="2026-06-30T10:21:16.772Z" hostname="agenta.local" tests="4" failures="0" errors="0" skipped="0" time="0.0030195">
+        <testcase classname="tests/unit/extension-tools.test.ts" name="agenta extension tool registration &gt; registers one tool per public spec, schema passed through" time="0.001598208">
+        </testcase>
+        <testcase classname="tests/unit/extension-tools.test.ts" name="agenta extension tool registration &gt; is inert without the tool env (the F-005 bug shape: never delivered)" time="0.000114458">
+        </testcase>
+        <testcase classname="tests/unit/extension-tools.test.ts" name="agenta extension tool registration &gt; rejects missing required args before relaying a no-op tool call" time="0.000435125">
+        </testcase>
+        <testcase classname="tests/unit/extension-tools.test.ts" name="agenta extension tool registration &gt; does not register when specs are present but the relay dir is missing" time="0.000094417">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/mcp-servers.test.ts" timestamp="2026-06-30T10:21:16.772Z" hostname="agenta.local" tests="11" failures="0" errors="0" skipped="0" time="0.009375417">
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers (http enabled, stdio disabled) &gt; maps empty input to []" time="0.002348292">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers (http enabled, stdio disabled) &gt; throws the unsupported error for a stdio server" time="0.000469458">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers (http enabled, stdio disabled) &gt; delivers an http server, routing the resolved secret into a header" time="0.001047042">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers (http enabled, stdio disabled) &gt; delivers an http server with no secrets as an empty header list" time="0.000611125">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers (http enabled, stdio disabled) &gt; does not throw on a mix of http (delivered) and command-less stdio (skipped)" time="0.000253834">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers SSRF guard (http url scheme/host) &gt; rejects a non-https url (the secret would ride in clear text)" time="0.00062425">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers SSRF guard (http url scheme/host) &gt; rejects the cloud metadata host (169.254.169.254)" time="0.000313625">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers SSRF guard (http url scheme/host) &gt; rejects localhost and loopback / private literals" time="0.000486208">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers SSRF guard (http url scheme/host) &gt; rejects a malformed url" time="0.000256375">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers SSRF guard (http url scheme/host) &gt; allows a public https url unchanged" time="0.00027225">
+        </testcase>
+        <testcase classname="tests/unit/mcp-servers.test.ts" name="toAcpMcpServers SSRF guard (http url scheme/host) &gt; allowlist opts a host out of the https + internal-host checks" time="0.000412084">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/otel-skills-error.test.ts" timestamp="2026-06-30T10:21:16.773Z" hostname="agenta.local" tests="7" failures="0" errors="0" skipped="0" time="0.008287875">
+        <testcase classname="tests/unit/otel-skills-error.test.ts" name="otel skills + error tracing &gt; stamps loaded skills (author + builtins) on the sandbox-agent agent span (F-029/F-036)" time="0.004831">
+        </testcase>
+        <testcase classname="tests/unit/otel-skills-error.test.ts" name="otel skills + error tracing &gt; uses recognized ag.* namespaces, never ag.agent.* / ag.error.* (F-036)" time="0.000389375">
+        </testcase>
+        <testcase classname="tests/unit/otel-skills-error.test.ts" name="otel skills + error tracing &gt; omits the skills attributes when no skills loaded" time="0.000195542">
+        </testcase>
+        <testcase classname="tests/unit/otel-skills-error.test.ts" name="otel skills + error tracing &gt; stamps loaded skills on Pi&apos;s own agent span (F-029, local Pi)" time="0.000473458">
+        </testcase>
+        <testcase classname="tests/unit/otel-skills-error.test.ts" name="otel skills + error tracing &gt; records the error message + provider + exception on the owned agent span (F-030)" time="0.000253209">
+        </testcase>
+        <testcase classname="tests/unit/otel-skills-error.test.ts" name="otel skills + error tracing &gt; emits a standalone error span when the harness self-instruments (F-030, local Pi)" time="0.000282958">
+        </testcase>
+        <testcase classname="tests/unit/otel-skills-error.test.ts" name="otel skills + error tracing &gt; falls back to the init model provider when recordError omits one" time="0.0001325">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/responder.test.ts" timestamp="2026-06-30T10:21:16.773Z" hostname="agenta.local" tests="20" failures="0" errors="0" skipped="0" time="0.006452917">
+        <testcase classname="tests/unit/responder.test.ts" name="policyFromRequest &gt; honors the arg and the env override" time="0.00078625">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="decisionToReply &gt; maps allow to ONCE (never always) so an approval grants only this call" time="0.000130625">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="decisionToReply &gt; maps deny onto reject" time="0.000079792">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="parkedCallKey &gt; binds name + args, order-independently" time="0.000204333">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="parkedCallKey &gt; normalizes absent args to {} so a no-arg tool resumes" time="0.000122417">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="parkedCallKey &gt; returns no key (fails closed) for no name or non-JSON args" time="0.000106583">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="PolicyResponder &gt; auto allows and deny denies" time="0.000083167">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="HITLResponder &gt; applies a stored decision (resume path) by tool-call id" time="0.00015425">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="HITLResponder &gt; matches a stored decision by tool name + args when the id was not preserved (cold replay)" time="0.000082875">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="HITLResponder &gt; SECURITY: approving call A does NOT auto-approve a later call B to the same tool with different args" time="0.000115375">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="HITLResponder &gt; SECURITY: bare tool NAME is not a key — a stored bare-name entry never auto-approves" time="0.000071917">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="HITLResponder &gt; parks when there is a human surface and no stored decision (NOT deny)" time="0.000064042">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="HITLResponder &gt; headless: no decision + no human surface falls back to basePolicy (PolicyResponder parity)" time="0.000082958">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="extractApprovalDecisions &gt; builds the lookup from approval tool_result blocks, keyed by id and by name+args (not bare name)" time="0.000162041">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="extractApprovalDecisions &gt; ignores ordinary tool results that are not approval envelopes" time="0.000060292">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="extractApprovalDecisions &gt; returns an empty lookup when there are no structured messages (headless /invoke)" time="0.000044958">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="extractApprovalDecisions &gt; end-to-end: an extracted decision resumes via name+args when the approval block names the tool" time="0.000066583">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="extractApprovalDecisions &gt; end-to-end: a cold replay (FRESH id) resumes the parked call by name+args" time="0.000074958">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="emitEvent &gt; streaming path: flushes to the live sink and the batch log" time="0.002838625">
+        </testcase>
+        <testcase classname="tests/unit/responder.test.ts" name="emitEvent &gt; one-shot path: records in the batch log only" time="0.000164">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-acp-fetch.test.ts" timestamp="2026-06-30T10:21:16.775Z" hostname="agenta.local" tests="4" failures="0" errors="0" skipped="0" time="0.002575625">
+        <testcase classname="tests/unit/sandbox-agent-acp-fetch.test.ts" name="createAcpDispatcher &gt; disables headers/body timeouts by default so a parked HITL turn is not reaped" time="0.000967084">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-acp-fetch.test.ts" name="createAcpDispatcher &gt; honors a positive env override for the headers and body timeout" time="0.0001265">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-acp-fetch.test.ts" name="createAcpDispatcher &gt; falls back to disabled (0) for a non-numeric override" time="0.000093917">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-acp-fetch.test.ts" name="createAcpFetch &gt; returns a fetch bound to the long-timeout ACP dispatcher" time="0.000107666">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-capabilities.test.ts" timestamp="2026-06-30T10:21:16.775Z" hostname="agenta.local" tests="16" failures="0" errors="0" skipped="0" time="0.003340417">
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="mapCapabilities &gt; maps probed sandbox-agent capabilities, always enables usage, marks the source probed" time="0.001079333">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="mapCapabilities &gt; falls back to no MCP for Pi and MCP for non-Pi harnesses, marked static" time="0.000085625">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="mapCapabilities &gt; invariant: rejects an empty harness id" time="0.000207834">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="mapCapabilities &gt; invariant: rejects a non-object probed capabilities payload" time="0.000076458">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="probeCapabilities &gt; uses the daemon probe when available and reports the source" time="0.000118792">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="probeCapabilities &gt; uses static fallback when probing fails" time="0.000091708">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="probeCapabilities &gt; returns a complete boolean-valued flag set even when the probe omits flags" time="0.000074209">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="probeCapabilities &gt; invariant: rejects a sandbox without getAgent" time="0.000109833">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="assertRequiredCapabilities (fail loud on tool delivery) &gt; passes a non-Pi harness that advertises mcpTools + toolCalls" time="0.000140166">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="assertRequiredCapabilities (fail loud on tool delivery) &gt; throws a specific error when the harness lacks mcpTools" time="0.000144166">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="assertRequiredCapabilities (fail loud on tool delivery) &gt; throws naming both missing flags when neither is advertised" time="0.000089084">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="assertRequiredCapabilities (fail loud on tool delivery) &gt; exempts Pi (tools ride its native extension, not the probed MCP flags)" time="0.00005025">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="assertRequiredCapabilities (fail loud on tool delivery) &gt; is a no-op when the run carries no tools" time="0.000042541">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="assertRequiredCapabilities (fail loud on tool delivery) &gt; logs the source so a failed-probe static guess is debuggable" time="0.0000925">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="assert (debug invariant) &gt; throws a prefixed message when the condition is false" time="0.00005325">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-capabilities.test.ts" name="assert (debug invariant) &gt; does nothing when the condition holds" time="0.000033375">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-daemon.test.ts" timestamp="2026-06-30T10:21:16.776Z" hostname="agenta.local" tests="3" failures="0" errors="0" skipped="0" time="0.002014709">
+        <testcase classname="tests/unit/sandbox-agent-daemon.test.ts" name="buildDaemonEnv &gt; builds the adapter path and Pi command" time="0.000922958">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-daemon.test.ts" name="buildDaemonEnv &gt; copies only known provider/auth variables, not unrelated secret-bearing env (non-managed run)" time="0.00017175">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-daemon.test.ts" name="buildDaemonEnv &gt; clears the COMPLETE provider env inventory on a managed run (clear-then-apply, rule 5)" time="0.000180041">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-daytona.test.ts" timestamp="2026-06-30T10:21:16.776Z" hostname="agenta.local" tests="3" failures="0" errors="0" skipped="0" time="0.004389">
+        <testcase classname="tests/unit/sandbox-agent-daytona.test.ts" name="daytonaEnvVars &gt; combines Pi agent dir, extension env, provider secrets, and Pi command" time="0.000769">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-daytona.test.ts" name="uploadPiAuthToSandbox &gt; uploads local Pi auth and settings when present" time="0.001292834">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-daytona.test.ts" name="createCookieFetch &gt; persists Daytona preview cookies per host" time="0.001604333">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-errors.test.ts" timestamp="2026-06-30T10:21:16.777Z" hostname="agenta.local" tests="9" failures="0" errors="0" skipped="0" time="0.004431875">
+        <testcase classname="tests/unit/sandbox-agent-errors.test.ts" name="conciseError &gt; formats provider credit failures with the right provider hint" time="0.001272208">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-errors.test.ts" name="conciseError &gt; formats OpenAI quota failures as insufficient credit" time="0.000421333">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-errors.test.ts" name="conciseError &gt; formats auth failures with the right provider hint" time="0.000223583">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-errors.test.ts" name="conciseError &gt; names the resolved provider, not the harness, for a Pi+Anthropic run" time="0.000324625">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-errors.test.ts" name="conciseError &gt; names the resolved provider for a Pi+Anthropic credit failure" time="0.000765292">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-errors.test.ts" name="conciseError &gt; keeps the OpenAI hint when the resolved provider is openai on Pi" time="0.000080958">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-errors.test.ts" name="conciseError &gt; falls back to the harness default when no provider is resolved" time="0.000080208">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-errors.test.ts" name="conciseError &gt; falls back to the harness default for an unknown custom provider" time="0.000070167">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-errors.test.ts" name="conciseError &gt; falls back to the first line" time="0.000067334">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-model.test.ts" timestamp="2026-06-30T10:21:16.777Z" hostname="agenta.local" tests="7" failures="0" errors="0" skipped="0" time="0.003716458">
+        <testcase classname="tests/unit/sandbox-agent-model.test.ts" name="pickModel &gt; matches exact ids first" time="0.000898875">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-model.test.ts" name="pickModel &gt; matches by provider suffix" time="0.000100875">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-model.test.ts" name="pickModel &gt; returns undefined when no model matches" time="0.000070042">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-model.test.ts" name="allowedFromError &gt; parses allowed values from harness errors" time="0.000534666">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-model.test.ts" name="applyModel &gt; uses the requested model when the harness accepts it" time="0.0001255">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-model.test.ts" name="applyModel &gt; retries with an allowed suffix match from the harness error" time="0.000182125">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-model.test.ts" name="applyModel &gt; falls back to harness default when no match exists" time="0.000161875">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-mount.test.ts" timestamp="2026-06-30T10:21:16.778Z" hostname="agenta.local" tests="15" failures="0" errors="0" skipped="0" time="0.003326333">
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="signSessionMountCredentials &gt; maps the API snake_case response to camelCase credentials" time="0.0008275">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="signSessionMountCredentials &gt; returns null on 503 (mounts disabled) without throwing" time="0.000091334">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="signSessionMountCredentials &gt; returns null when credentials are incomplete" time="0.000073166">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="signSessionMountCredentials &gt; returns null when fetch throws (network error)" time="0.000089875">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="mountStorage &gt; builds the geesefs command with creds in env, not argv" time="0.000526458">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="mountStorage &gt; omits --endpoint for AWS S3 (empty endpoint)" time="0.000082042">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="mountStorage &gt; is a no-op when already mounted (idempotent)" time="0.000069666">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="mountStorage &gt; returns false (does not throw) when geesefs fails" time="0.000088792">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="unmountStorage &gt; runs fusermount -u via the injected runner" time="0.000115875">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="unmountStorage &gt; swallows unmount errors (data lives in the store)" time="0.000103459">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="discoverTunnelEndpoint (remote) &gt; prefers the https public_url from the ngrok agent API" time="0.000115542">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="discoverTunnelEndpoint (remote) &gt; returns null when no tunnel is up" time="0.000057167">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="discoverTunnelEndpoint (remote) &gt; returns null when the agent API is unreachable" time="0.000066125">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="mountStorageRemote &gt; execs geesefs IN the sandbox with the tunnel endpoint and creds in env" time="0.000118625">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-mount.test.ts" name="mountStorageRemote &gt; returns false on a non-zero geesefs exit (no throw)" time="0.00005025">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-orchestration.test.ts" timestamp="2026-06-30T10:21:16.778Z" hostname="agenta.local" tests="21" failures="1" errors="0" skipped="0" time="0.015906458">
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; returns a successful one-shot result and cleans up acquired resources" time="0.002518625">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; keeps terminal events empty on the streaming path" time="0.000283084">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; surfaces permission requests and answers them through the responder" time="0.000482">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; starts and stops the tool relay only when executable tools are present" time="0.005080625">
+            <failure message="Expected values to be strictly deep-equal:
++ actual - expected
+... Skipped lines
+
+  [
+    &apos;local-relay-host&apos;,
+    &apos;/tmp/agenta-fake-cwd/.agenta-tools&apos;,
+    [
+      {
+...
+    &apos;auto&apos;,
++   undefined,
++   {
++     onClientTool: [AsyncFunction: onClientTool],
++     onPark: [Function: onPark]
++   }
+  ]
+" type="AssertionError">
+AssertionError: Expected values to be strictly deep-equal:
++ actual - expected
+... Skipped lines
+
+  [
+    &apos;local-relay-host&apos;,
+    &apos;/tmp/agenta-fake-cwd/.agenta-tools&apos;,
+    [
+      {
+...
+    &apos;auto&apos;,
++   undefined,
++   {
++     onClientTool: [AsyncFunction: onClientTool],
++     onPark: [Function: onPark]
++   }
+  ]
+
+
+- Expected
++ Received
+
+@@ -7,6 +7,11 @@
+        &quot;name&quot;: &quot;server_tool&quot;,
+      },
+    ],
+    undefined,
+    &quot;auto&quot;,
++   undefined,
++   {
++     &quot;onClientTool&quot;: [Function onClientTool],
++     &quot;onPark&quot;: [Function onPark],
++   },
+  ]
+
+ ❯ tests/unit/sandbox-agent-orchestration.test.ts:357:12
+            </failure>
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; delivers a non-Pi run&apos;s gateway tools over the internal HTTP MCP channel" time="0.003438083">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; still refuses a run carrying a USER stdio MCP server (user gate untouched)" time="0.000141041">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; fails loud when a non-Pi harness probes mcpTools:false but the run carries tools" time="0.000275959">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; does not gate tool delivery for a Pi run even when mcpTools is false" time="0.000192459">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; flushes a partial trace and cleans up on prompt errors" time="0.000351584">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; passes the sandbox permission through to buildSandboxProvider" time="0.000420291">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; passes cancellation signals into SandboxAgent.start" time="0.000172583">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; clears inherited provider env on a managed run and applies ANTHROPIC_BASE_URL for claude" time="0.000151042">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; does not set ENABLE_TOOL_SEARCH for a non-claude (pi) run" time="0.000117792">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; sets Claude Bedrock env and strict selected model pass-through" time="0.000121084">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; sets Claude Vertex env and selected model pass-through" time="0.00009625">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent orchestration &gt; does not clear provider env or set a base url on a runtime_provided run" time="0.000077333">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent default HITL responder wiring &gt; headless (/invoke: no sessionId, no decisions) auto-allows — no regression" time="0.000358583">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent default HITL responder wiring &gt; human surface (/messages: sessionId set) with no decision PARKS the tool, no harness reply (F-024)" time="0.000210291">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent default HITL responder wiring &gt; park ENDS the turn even when the prompt hangs: terminal stopReason &apos;paused&apos;, no harness reply (F-040)" time="0.00013725">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent default HITL responder wiring &gt; park terminates even if the managed cancel rejects (local park signal still ends the turn)" time="0.000148875">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-orchestration.test.ts" name="runSandboxAgent default HITL responder wiring &gt; human surface with a stored approval resumes the tool (once)" time="0.000226417">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-permissions.test.ts" timestamp="2026-06-30T10:21:16.780Z" hostname="agenta.local" tests="3" failures="0" errors="0" skipped="0" time="0.005601125">
+        <testcase classname="tests/unit/sandbox-agent-permissions.test.ts" name="attachPermissionResponder &gt; emits an interaction_request and answers the ACP permission" time="0.0013015">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-permissions.test.ts" name="attachPermissionResponder &gt; parks: emits the interaction_request but sends NO harness reply (F-024 regression)" time="0.002397708">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-permissions.test.ts" name="attachPermissionResponder &gt; does not respond when the ACP request has no id" time="0.001031042">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-pi-assets.test.ts" timestamp="2026-06-30T10:21:16.781Z" hostname="agenta.local" tests="9" failures="0" errors="0" skipped="0" time="0.007842375">
+        <testcase classname="tests/unit/sandbox-agent-pi-assets.test.ts" name="buildPiExtensionEnv &gt; exposes tracing, usage, and public tool metadata only" time="0.001267">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-assets.test.ts" name="buildPiExtensionEnv &gt; omits trace and tool env when tracing and relay are disabled" time="0.000108">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-assets.test.ts" name="buildPiExtensionEnv &gt; accepts snake_case tool schemas from older Python wire payloads" time="0.000103584">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-assets.test.ts" name="buildPiExtensionEnv &gt; carries the loaded skill names under tracing (F-029)" time="0.000083917">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-assets.test.ts" name="buildPiExtensionEnv &gt; omits the loaded skills env when there are none or tracing is off" time="0.000078917">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-assets.test.ts" name="writeSystemPromptLocal &gt; writes replacement and append prompt files" time="0.000863667">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-assets.test.ts" name="prepareLocalAgentDir &gt; seeds auth/settings and installs materialized skills into a throwaway dir" time="0.002901">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-assets.test.ts" name="sandbox uploads &gt; recursively uploads files into sandbox fs" time="0.00099075">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-assets.test.ts" name="sandbox uploads &gt; uploads each materialized skill under the Pi skills directory" time="0.000578375">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-pi-error.test.ts" timestamp="2026-06-30T10:21:16.781Z" hostname="agenta.local" tests="5" failures="0" errors="0" skipped="0" time="0.005828791">
+        <testcase classname="tests/unit/sandbox-agent-pi-error.test.ts" name="findSwallowedPiError &gt; returns the last assistant errorMessage for a matching cwd" time="0.002071">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-error.test.ts" name="findSwallowedPiError &gt; returns undefined for a successful turn" time="0.000969916">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-error.test.ts" name="findSwallowedPiError &gt; does not surface an error cleared by a later successful turn" time="0.000807334">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-error.test.ts" name="findSwallowedPiError &gt; ignores transcripts for a different cwd" time="0.00086225">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-pi-error.test.ts" name="findSwallowedPiError &gt; returns undefined when the sessions dir is absent" time="0.000310375">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-provider.test.ts" timestamp="2026-06-30T10:21:16.781Z" hostname="agenta.local" tests="14" failures="0" errors="0" skipped="0" time="0.003029792">
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaNetworkFields &gt; blocks all egress for network:off" time="0.001174416">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaNetworkFields &gt; renders a non-empty allowlist as a comma-separated CIDR string" time="0.000112083">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaNetworkFields &gt; blocks all egress for an empty allowlist (allow zero ranges == allow nothing)" time="0.000083166">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaNetworkFields &gt; leaves the sandbox default-open for network:on" time="0.000075375">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaNetworkFields &gt; leaves the sandbox default-open when no policy is set" time="0.000076292">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaAutoStopMinutes (leak backstop) &gt; uses the env value when it is a positive integer" time="0.000107541">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaAutoStopMinutes (leak backstop) &gt; floors a fractional env value to whole minutes" time="0.000059292">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaAutoStopMinutes (leak backstop) &gt; falls back to the default when the env is unset" time="0.000051959">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaAutoStopMinutes (leak backstop) &gt; falls back to the default for a non-numeric env value" time="0.000068417">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaAutoStopMinutes (leak backstop) &gt; clamps 0 to the default so auto-stop is never re-disabled (the leak)" time="0.000077917">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaAutoStopMinutes (leak backstop) &gt; clamps a negative env value to the default" time="0.000047875">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="daytonaAutoStopMinutes (leak backstop) &gt; the default is a positive backstop (auto-stop stays ON)" time="0.000037041">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="buildDaytonaCreate (leak backstop on the create object) &gt; carries a positive auto-stop interval + ephemeral by default (self-reaps a leak)" time="0.000092667">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-provider.test.ts" name="buildDaytonaCreate (leak backstop on the create object) &gt; carries the env-configured auto-stop interval" time="0.000068917">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-run-plan.test.ts" timestamp="2026-06-30T10:21:16.782Z" hostname="agenta.local" tests="29" failures="0" errors="0" skipped="0" time="0.007972167">
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; returns the current no-prompt error without creating a cwd" time="0.002260708">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; normalizes an Agenta/Pi local run and filters executable tools" time="0.001199">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; keeps the relay enabled for client-only Pi tools" time="0.000681541">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; carries the sandbox permission onto the plan and leaves an unrestricted run alone" time="0.0002615">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; treats an absent sandbox permission as unrestricted" time="0.000283459">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; errors on a restricted-network run on the local sandbox under strict" time="0.00017375">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; errors on a restricted-network run on the local sandbox even under best_effort" time="0.000077917">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; allows an unrestricted (network: on) run on the local sandbox" time="0.000089917">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; errors when filesystem is specified (not implemented on any backend)" time="0.000094666">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; rejects a strict restricted-network Daytona run with a runner-host tool" time="0.000108834">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; treats an OMITTED enforcement as strict (LOW-6: wire-schema default is strict)" time="0.0000725">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; lets best_effort opt out of the runner-host-tool guard (LOW-6 contrast)" time="0.000074959">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; errors on any run carrying a stdio MCP server (MCP disabled)" time="0.000075">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; errors on a stdio MCP server on the local sandbox too (non-Pi harness)" time="0.000054416">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; errors LOUD on a Pi run carrying a user STDIO MCP server (F-032, Pi-specific)" time="0.00005525">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; errors LOUD on a Pi run carrying a user HTTP MCP server (F-032 silent-drop fix)" time="0.00005675">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; allows a non-Pi (claude) run with a user HTTP MCP server (Pi gate is Pi-only)" time="0.000064959">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; errors on any run carrying a code tool (code execution removed, fail loud)" time="0.000066917">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; allows a run with a non-code (callback) tool" time="0.000056125">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; allows a strict restricted-network Daytona run with only a remote MCP server" time="0.000062542">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; allows a best_effort restricted-network Daytona run with a runner-host tool" time="0.000056875">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; allows a strict Daytona run with a clean network boundary (no host tools)" time="0.000051209">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; materializes skills for Claude so workspace preparation can write .claude/skills" time="0.000107">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; stays quiet for a Claude harness with no skills" time="0.000067333">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="buildRunPlan &gt; normalizes a Daytona Claude run without Pi-only state" time="0.0000785">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="shouldUploadOwnLogin &gt; never uploads when the connection resolved a real key (credentialMode &apos;env&apos;)" time="0.000055625">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="shouldUploadOwnLogin &gt; uploads for runtime_provided (the harness authenticates with its own login)" time="0.000037167">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="shouldUploadOwnLogin &gt; never uploads for credentialMode &apos;none&apos; (no credential asserted)" time="0.000030167">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-run-plan.test.ts" name="shouldUploadOwnLogin &gt; falls back to the hasApiKey heuristic for an un-migrated caller (no credentialMode)" time="0.000034542">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-usage.test.ts" timestamp="2026-06-30T10:21:16.784Z" hostname="agenta.local" tests="5" failures="0" errors="0" skipped="0" time="0.004627792">
+        <testcase classname="tests/unit/sandbox-agent-usage.test.ts" name="readRunUsage &gt; reads local Pi usage writeback" time="0.002477667">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-usage.test.ts" name="readRunUsage &gt; reads Daytona Pi usage writeback through the sandbox fs API" time="0.000288542">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-usage.test.ts" name="mergePromptAndStreamUsage &gt; combines prompt token split with stream cost" time="0.000172208">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-usage.test.ts" name="mergePromptAndStreamUsage &gt; returns undefined when no usage was reported" time="0.000139667">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-usage.test.ts" name="resolveRunUsage &gt; prefers Pi usage writeback over prompt/stream fallback" time="0.00063575">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sandbox-agent-workspace.test.ts" timestamp="2026-06-30T10:21:16.784Z" hostname="agenta.local" tests="8" failures="0" errors="0" skipped="0" time="0.006716041">
+        <testcase classname="tests/unit/sandbox-agent-workspace.test.ts" name="prepareWorkspace &gt; prepares and cleans a local cwd" time="0.001582959">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-workspace.test.ts" name="prepareWorkspace &gt; writes a nested harnessFiles entry (.claude/settings.json) for a local run" time="0.000904083">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-workspace.test.ts" name="prepareWorkspace &gt; writes no harness file for a plan with no harnessFiles" time="0.000485334">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-workspace.test.ts" name="prepareWorkspace &gt; prepares a Daytona cwd through the sandbox fs API" time="0.000528916">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-workspace.test.ts" name="prepareWorkspace &gt; writes a nested harnessFiles entry on Daytona via the fs API" time="0.000186625">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-workspace.test.ts" name="prepareWorkspace &gt; writes no harness file on Daytona for a plan with no harnessFiles" time="0.000104041">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-workspace.test.ts" name="prepareWorkspace &gt; writes Claude skills into the project-local .claude/skills tree for a local run" time="0.001606791">
+        </testcase>
+        <testcase classname="tests/unit/sandbox-agent-workspace.test.ts" name="prepareWorkspace &gt; uploads Claude skills into the project-local .claude/skills tree on Daytona" time="0.000583416">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/server.test.ts" timestamp="2026-06-30T10:21:16.785Z" hostname="agenta.local" tests="15" failures="0" errors="0" skipped="0" time="0.037641792">
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; GET /health returns runner identity" time="0.015530583">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; POST /run returns the engine result (200)" time="0.006947792">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; POST /run with invalid JSON returns 400" time="0.001687583">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; a failing result returns 500" time="0.0014655">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; POST /run is accepted with no token configured (default-off, network isolation only)" time="0.0012555">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; POST /run without the token returns 401 when a token is configured" time="0.001317791">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; POST /run with a wrong token returns 401" time="0.001325125">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; POST /run accepts the matching token via Authorization: Bearer" time="0.001291125">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; POST /run accepts the matching token via X-Agenta-Runner-Token" time="0.001328958">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; GET /health is reachable without the token even when one is configured" time="0.001430791">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="createAgentServer &gt; NDJSON stream: events first, then exactly one terminal result with no echoed events" time="0.002364167">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="registerShutdownHandler (sandbox-leak backstop on docker stop) &gt; registers a listener for each shutdown signal" time="0.0002065">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="registerShutdownHandler (sandbox-leak backstop on docker stop) &gt; runs cleanup then exits when a signal fires" time="0.000191625">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="registerShutdownHandler (sandbox-leak backstop on docker stop) &gt; still exits when cleanup rejects (cleanup must never block shutdown)" time="0.000262625">
+        </testcase>
+        <testcase classname="tests/unit/server.test.ts" name="registerShutdownHandler (sandbox-leak backstop on docker stop) &gt; cleans up only once even if the signal fires repeatedly" time="0.000170167">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/session-alive.test.ts" timestamp="2026-06-30T10:21:16.786Z" hostname="agenta.local" tests="4" failures="0" errors="0" skipped="0" time="0.019088292">
+        <testcase classname="tests/unit/session-alive.test.ts" name="startAliveWatchdog &gt; sends an immediate heartbeat on start carrying turn_id and is_running=true" time="0.011991709">
+        </testcase>
+        <testcase classname="tests/unit/session-alive.test.ts" name="startAliveWatchdog &gt; uses a stable replica_id across turns (distinct from turn_id)" time="0.002724708">
+        </testcase>
+        <testcase classname="tests/unit/session-alive.test.ts" name="startAliveWatchdog &gt; release() sends a final heartbeat with is_running=false and status=ended" time="0.001899166">
+        </testcase>
+        <testcase classname="tests/unit/session-alive.test.ts" name="startAliveWatchdog &gt; swallows heartbeat failures — never throws" time="0.001641833">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/session-interactions.test.ts" timestamp="2026-06-30T10:21:16.787Z" hostname="agenta.local" tests="4" failures="0" errors="0" skipped="0" time="0.923736375">
+        <testcase classname="tests/unit/session-interactions.test.ts" name="createInteraction &gt; POSTs to /sessions/interactions with correct body shape" time="0.015293833">
+        </testcase>
+        <testcase classname="tests/unit/session-interactions.test.ts" name="createInteraction &gt; retries on failure then gives up without throwing" time="0.603731834">
+        </testcase>
+        <testcase classname="tests/unit/session-interactions.test.ts" name="createInteraction &gt; succeeds after partial failures" time="0.303125917">
+        </testcase>
+        <testcase classname="tests/unit/session-interactions.test.ts" name="createInteraction &gt; does not throw when auth returns empty string" time="0.000230666">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/session-mcp-layering.test.ts" timestamp="2026-06-30T10:21:16.787Z" hostname="agenta.local" tests="8" failures="0" errors="0" skipped="0" time="0.009507084">
+        <testcase classname="tests/unit/session-mcp-layering.test.ts" name="buildSessionMcpServers layering (do-not-merge regression guard) &gt; (a) gateway tools + no user MCP -&gt; internal channel present, no throw" time="0.004890125">
+        </testcase>
+        <testcase classname="tests/unit/session-mcp-layering.test.ts" name="buildSessionMcpServers layering (do-not-merge regression guard) &gt; (b) user stdio MCP + no gateway tools -&gt; refused (user gate untouched)" time="0.000343041">
+        </testcase>
+        <testcase classname="tests/unit/session-mcp-layering.test.ts" name="buildSessionMcpServers layering (do-not-merge regression guard) &gt; (c) gateway tools + user http MCP -&gt; BOTH delivered; user stdio still refused" time="0.002792667">
+        </testcase>
+        <testcase classname="tests/unit/session-mcp-layering.test.ts" name="buildSessionMcpServers layering (do-not-merge regression guard) &gt; Pi gets [] (native delivery, no MCP channel) even with gateway tools" time="0.000104125">
+        </testcase>
+        <testcase classname="tests/unit/session-mcp-layering.test.ts" name="buildSessionMcpServers layering (do-not-merge regression guard) &gt; a non-MCP harness gets [] (capability gate), no internal server started" time="0.000085625">
+        </testcase>
+        <testcase classname="tests/unit/session-mcp-layering.test.ts" name="buildSessionMcpServers layering (do-not-merge regression guard) &gt; the internal channel advertisement carries no credential (server-side invariant)" time="0.000195125">
+        </testcase>
+        <testcase classname="tests/unit/session-mcp-layering.test.ts" name="buildSessionMcpServers layering (do-not-merge regression guard) &gt; (Daytona) gateway tools -&gt; NO internal loopback advertisement (file relay delivers them)" time="0.000083125">
+        </testcase>
+        <testcase classname="tests/unit/session-mcp-layering.test.ts" name="buildSessionMcpServers layering (do-not-merge regression guard) &gt; (Daytona) a user http MCP is STILL delivered (remote url, not a runner loopback)" time="0.000243833">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/session-persist.test.ts" timestamp="2026-06-30T10:21:16.788Z" hostname="agenta.local" tests="6" failures="0" errors="0" skipped="0" time="0.014503542">
+        <testcase classname="tests/unit/session-persist.test.ts" name="buildPersistingEmitter &gt; persists a plain message event and forwards to the live emitter" time="0.012598292">
+        </testcase>
+        <testcase classname="tests/unit/session-persist.test.ts" name="buildPersistingEmitter &gt; coalesces message_start/delta/end into a single persisted message" time="0.000260209">
+        </testcase>
+        <testcase classname="tests/unit/session-persist.test.ts" name="buildPersistingEmitter &gt; persists done and tool events as-is" time="0.000241875">
+        </testcase>
+        <testcase classname="tests/unit/session-persist.test.ts" name="buildPersistingEmitter &gt; event_index increments monotonically across events" time="0.000288708">
+        </testcase>
+        <testcase classname="tests/unit/session-persist.test.ts" name="drainPersist &gt; resolves immediately when no events are pending" time="0.000160625">
+        </testcase>
+        <testcase classname="tests/unit/session-persist.test.ts" name="drainPersist &gt; waits for all queued events before resolving" time="0.000198791">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/session-redis-contract.test.ts" timestamp="2026-06-30T10:21:16.788Z" hostname="agenta.local" tests="18" failures="0" errors="0" skipped="0" time="0.002548625">
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: TTLs &gt; alive TTL matches golden" time="0.000676542">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: TTLs &gt; running TTL matches golden" time="0.000068792">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: TTLs &gt; attached TTL matches golden" time="0.000055833">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: TTLs &gt; owner TTL matches golden" time="0.000045958">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: TTLs &gt; heartbeat interval matches golden" time="0.000050958">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: TTLs &gt; heartbeat write threshold matches golden" time="0.0000505">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: key builders &gt; aliveKey matches golden" time="0.000052542">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: key builders &gt; runningKey matches golden" time="0.000057333">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: key builders &gt; attachedKey matches golden" time="0.00006225">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: key builders &gt; ownerKey matches golden" time="0.000080583">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: key builders &gt; displacedChannel matches golden" time="0.000046584">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: displacement payload &gt; reason constant matches golden" time="0.000040792">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: displacement payload &gt; makeDisplacementPayload matches golden shape" time="0.000044375">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: Lua script &gt; RELEASE_IF_OWNER_LUA matches golden exactly" time="0.000032375">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: caps and validation &gt; concurrency cap matches golden" time="0.000029125">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: caps and validation &gt; session id max length matches golden" time="0.0000275">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: caps and validation &gt; validateSessionId accepts valid ids" time="0.000104125">
+        </testcase>
+        <testcase classname="tests/unit/session-redis-contract.test.ts" name="session Redis contract: caps and validation &gt; validateSessionId rejects invalid ids" time="0.000038458">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/skills.test.ts" timestamp="2026-06-30T10:21:16.790Z" hostname="agenta.local" tests="14" failures="0" errors="0" skipped="0" time="0.015841291">
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; writes SKILL.md with composed frontmatter and the body" time="0.001751125">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; emits disable-model-invocation in the frontmatter only when set" time="0.001380667">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; uses the hyphenated disable-model-invocation key, never the camelCase/snake_case spellings" time="0.000718125">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; lays bundled files at their relative paths" time="0.001576292">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; does NOT chmod +x an executable file when policy is deny (default)" time="0.000955583">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; does NOT chmod +x when the skill disallows executable files, even with an allow policy" time="0.00100425">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; chmod +x ONLY when the skill allows AND the policy allows" time="0.001281459">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; skips an unsafe file path (absolute / parent escape) but keeps the skill" time="0.002109958">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; materializes multiple skills into separate dirs under one root" time="0.001414583">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; treats empty / undefined input as a no-op" time="0.000115917">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; rejects a skill whose name would traverse out of the root (untrusted wire)" time="0.000575041">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; rejects a bundled file that targets SKILL.md (would clobber the composed frontmatter)" time="0.001016625">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; escapes YAML-breaking characters in the description scalar" time="0.000543583">
+        </testcase>
+        <testcase classname="tests/unit/skills.test.ts" name="resolveSkillDirs (materializer) &gt; cleanup() removes the per-run temp root" time="0.000520292">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/startup-banner.test.ts" timestamp="2026-06-30T10:21:16.791Z" hostname="agenta.local" tests="14" failures="0" errors="0" skipped="0" time="0.005259292">
+        <testcase classname="tests/unit/startup-banner.test.ts" name="isBannerLine &gt; matches every banner-line variant the user saw" time="0.000948583">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="isBannerLine &gt; does not match genuine answer lines" time="0.000079917">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="stripStartupBanner (coalesced / finish path) &gt; strips the raw markdown banner the user saw" time="0.000086875">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="stripStartupBanner (coalesced / finish path) &gt; strips the rendered banner the user saw" time="0.000066208">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="stripStartupBanner (coalesced / finish path) &gt; strips a multi-line answer&apos;s banner but keeps the whole answer" time="0.000058917">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="stripStartupBanner (coalesced / finish path) &gt; leaves a clean answer untouched" time="0.000049083">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="stripStartupBanner (coalesced / finish path) &gt; returns empty when the text is only the banner" time="0.000045292">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="splitLeadingBanner (streaming path) &gt; holds emission while only banner-or-blank has arrived" time="0.000495542">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="splitLeadingBanner (streaming path) &gt; does not judge an incomplete trailing line" time="0.000081875">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="splitLeadingBanner (streaming path) &gt; settles and returns the body once a real line completes" time="0.000106542">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="splitLeadingBanner (streaming path) &gt; holds the first real line until its newline arrives (boundary safety)" time="0.000153334">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="splitLeadingBanner (streaming path) &gt; settles immediately for a banner-free stream" time="0.000081916">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="createSandboxAgentOtel streaming suppresses the banner &gt; never streams banner deltas, only the real answer" time="0.001983667">
+        </testcase>
+        <testcase classname="tests/unit/startup-banner.test.ts" name="createSandboxAgentOtel streaming suppresses the banner &gt; strips the banner on finish when the stream had no clean body line" time="0.000124958">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/stream-events.test.ts" timestamp="2026-06-30T10:21:16.791Z" hostname="agenta.local" tests="3" failures="0" errors="0" skipped="0" time="0.022706083">
+        <testcase classname="tests/unit/stream-events.test.ts" name="createSandboxAgentOtel state machine &gt; scenario 1: streaming (emit set) yields pure deltas and balanced lifecycle" time="0.02032225">
+        </testcase>
+        <testcase classname="tests/unit/stream-events.test.ts" name="createSandboxAgentOtel state machine &gt; scenario 2: one-shot (no emit) coalesces text/thought and keeps structured events" time="0.001317458">
+        </testcase>
+        <testcase classname="tests/unit/stream-events.test.ts" name="createSandboxAgentOtel state machine &gt; scenario 3: span-less mode still records ACP events and final usage" time="0.000232875">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/tool-bridge.test.ts" timestamp="2026-06-30T10:21:16.792Z" hostname="agenta.local" tests="9" failures="0" errors="0" skipped="0" time="0.347444417">
+        <testcase classname="tests/unit/tool-bridge.test.ts" name="buildToolMcpServers (internal gateway-tool channel) &gt; starts one internal http server for an executable callback run, with NO credentials" time="0.0059095">
+        </testcase>
+        <testcase classname="tests/unit/tool-bridge.test.ts" name="buildToolMcpServers (internal gateway-tool channel) &gt; starts the server for a code run too (executable)" time="0.002112625">
+        </testcase>
+        <testcase classname="tests/unit/tool-bridge.test.ts" name="buildToolMcpServers (internal gateway-tool channel) &gt; returns [] for empty specs (no-tools path untouched)" time="0.0001355">
+        </testcase>
+        <testcase classname="tests/unit/tool-bridge.test.ts" name="buildToolMcpServers (internal gateway-tool channel) &gt; returns [] for client-only specs (nothing executable goes through the channel)" time="0.00008775">
+        </testcase>
+        <testcase classname="tests/unit/tool-bridge.test.ts" name="buildToolMcpServers (internal gateway-tool channel) &gt; starts the server when an executable spec sits beside a client spec" time="0.000171875">
+        </testcase>
+        <testcase classname="tests/unit/tool-bridge.test.ts" name="buildToolMcpServers (internal gateway-tool channel) &gt; the served MCP endpoint &gt; answers initialize / tools/list (public spec only, client filtered)" time="0.027686917">
+        </testcase>
+        <testcase classname="tests/unit/tool-bridge.test.ts" name="buildToolMcpServers (internal gateway-tool channel) &gt; the served MCP endpoint &gt; routes tools/call through the relay dir (server-side execution)" time="0.307007">
+        </testcase>
+        <testcase classname="tests/unit/tool-bridge.test.ts" name="buildToolMcpServers (internal gateway-tool channel) &gt; the served MCP endpoint &gt; returns an MCP error for an unknown tool" time="0.002117959">
+        </testcase>
+        <testcase classname="tests/unit/tool-bridge.test.ts" name="buildToolMcpServers (internal gateway-tool channel) &gt; the served MCP endpoint &gt; accepts a notification with no response (202)" time="0.00135075">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/tool-direct.test.ts" timestamp="2026-06-30T10:21:16.792Z" hostname="agenta.local" tests="45" failures="0" errors="0" skipped="0" time="1.521899958">
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody &gt; deep-sets the model args at args_into" time="0.001164292">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody &gt; merges the model args at the root when args_into is absent" time="0.000125458">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody &gt; overlays the reference invoke: args at data.inputs, fixed revision at the root" time="0.000117458">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody &gt; lets the server-fixed body win over a colliding model arg (no retargeting)" time="0.000109917">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody &gt; fixed body wins on a nested collision, too" time="0.000097">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody &gt; drops non-object args when there is no args_into (nowhere safe at the root)" time="0.000070083">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody &gt; is prototype-pollution-safe via args_into" time="0.000234833">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody &gt; is prototype-pollution-safe via a body key" time="0.000071459">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody context binding &gt; binds a $ctx value from the run context, deep-set at the mapped path" time="0.000144833">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody context binding &gt; fails closed when a run-context key is missing" time="0.000222167">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody context binding &gt; fails closed when a colliding model arg cannot be bound from context" time="0.000284541">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody context binding &gt; fails closed when a colliding static body field cannot be bound from context" time="0.000131875">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody context binding &gt; fails closed when run context is absent" time="0.000130458">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody context binding &gt; lets a bound field win over a colliding model arg (the model cannot override it)" time="0.000078792">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody context binding &gt; lets a bound field win over a static body field (context is filled last)" time="0.00005275">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody context binding &gt; fails closed on a malformed context token (one without the $ctx. prefix)" time="0.000335625">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="assembleBody context binding &gt; is prototype-pollution-safe on the bound body path" time="0.000172042">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="resolveCtxToken &gt; navigates a dotted path against the run context" time="0.000126833">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="resolveCtxToken &gt; returns undefined for a missing key, a malformed token, or no run context" time="0.000103">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="resolveCtxToken &gt; rejects unsafe / inherited segments in the token (prototype-safe at the source)" time="0.0000995">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="deepSet / deepMerge &gt; deepSet rejects an empty path segment" time="0.000141083">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="deepSet / deepMerge &gt; deepSet replaces a non-object intermediate" time="0.000279875">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="deepSet / deepMerge &gt; deepMerge has the overlay win and does not mutate inputs" time="0.000101125">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="deepSet / deepMerge &gt; deepDelete removes a nested leaf and no-ops a missing parent, proto-safely" time="0.000106833">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; joins the callback origin with the /api path" time="0.000193583">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; preserves a non-default port from the callback origin" time="0.000071209">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; keeps a query string" time="0.00007025">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; allows DELETE and substitutes scalar path parameters" time="0.000081833">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; rejects a missing path parameter" time="0.000059625">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; rejects a non-scalar path parameter" time="0.000047667">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; rejects a disallowed method" time="0.000041625">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; accepts a path on a non-/api mount (OSS self-host at the origin root)" time="0.000042875">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; rejects a same-origin path outside the callback&apos;s mount" time="0.000047333">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; rejects a percent-encoded traversal that normalizes out of the mount" time="0.000044208">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; rejects an absolute URL as the path" time="0.000037709">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; rejects a protocol-relative path" time="0.000036625">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; rejects a literal traversal path" time="0.000037583">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="directCallUrl &gt; rejects a callback endpoint with no usable origin" time="0.000050084">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="pathParamNames &gt; extracts the {name} tokens from a path" time="0.000068083">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="pathParamNames &gt; returns an empty list for a path with no params or a non-string" time="0.00003125">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="startToolRelay direct branch (host makes the call for the sandbox) &gt; makes the direct call host-side from a relayed name + args" time="0.302411209">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="startToolRelay direct branch (host makes the call for the sandbox) &gt; binds run context into the relayed direct call, server-side (model never sets it)" time="0.30206425">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="startToolRelay direct branch (host makes the call for the sandbox) &gt; strips substituted path params out of the POST body" time="0.302136125">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="startToolRelay direct branch (host makes the call for the sandbox) &gt; surfaces the SSRF-guard rejection as a relay error" time="0.305945084">
+        </testcase>
+        <testcase classname="tests/unit/tool-direct.test.ts" name="startToolRelay direct branch (host makes the call for the sandbox) &gt; returns a generic error on a non-2xx (no internal URL or upstream body leaks)" time="0.302515708">
+            <system-err>
+direct tool call POST https://agenta.example/api/workflows/invoke returned HTTP 500: INTERNAL stack trace + secret detail
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/tool-dispatch.test.ts" timestamp="2026-06-30T10:21:16.796Z" hostname="agenta.local" tests="6" failures="0" errors="0" skipped="0" time="0.004305917">
+        <testcase classname="tests/unit/tool-dispatch.test.ts" name="runResolvedTool &gt; fails code specs with a clear unsupported error" time="0.0009205">
+        </testcase>
+        <testcase classname="tests/unit/tool-dispatch.test.ts" name="runResolvedTool &gt; throws for a client spec (never executed in-sandbox)" time="0.000096583">
+        </testcase>
+        <testcase classname="tests/unit/tool-dispatch.test.ts" name="runResolvedTool &gt; relays a client spec when the Pi extension has a runner relay" time="0.001089708">
+        </testcase>
+        <testcase classname="tests/unit/tool-dispatch.test.ts" name="runResolvedTool &gt; rejects missing required args before any relay or callback execution" time="0.00010675">
+        </testcase>
+        <testcase classname="tests/unit/tool-dispatch.test.ts" name="relayToolCall (Daytona file relay) &gt; returns the relayed text when the response is ok" time="0.000618625">
+        </testcase>
+        <testcase classname="tests/unit/tool-dispatch.test.ts" name="relayToolCall (Daytona file relay) &gt; reports the tool name on an empty relay error (regression for the callRef bug)" time="0.000662">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/tool-relay-permission.test.ts" timestamp="2026-06-30T10:21:16.796Z" hostname="agenta.local" tests="17" failures="0" errors="0" skipped="0" time="2.119708791">
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=allow policy=auto -&gt; allow" time="0.000663166">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=allow policy=deny -&gt; allow" time="0.000059792">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=deny policy=auto -&gt; deny" time="0.000045375">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=deny policy=deny -&gt; deny" time="0.000036625">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=ask policy=auto -&gt; allow" time="0.000040541">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=ask policy=deny -&gt; deny" time="0.0000345">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=unset policy=auto -&gt; allow" time="0.000033583">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=unset policy=deny -&gt; deny" time="0.000039166">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=bogus policy=auto -&gt; allow" time="0.000053875">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="resolvePermission &gt; permission=bogus policy=deny -&gt; deny" time="0.000062458">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="startToolRelay permission enforcement &gt; refuses a deny spec without executing its code" time="0.302325791">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="startToolRelay permission enforcement &gt; returns unsupported for an allow code spec" time="0.302223583">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="startToolRelay permission enforcement &gt; rejects missing required args before executing a relayed tool" time="0.302441875">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="startToolRelay permission enforcement &gt; refuses an unset spec when the headless policy is deny" time="0.303499459">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="startToolRelay permission enforcement &gt; parks a browser-fulfilled client tool without writing a relay response" time="0.302583583">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="startToolRelay permission enforcement &gt; still parks a browser-fulfilled client tool under deny permission policy" time="0.302270459">
+        </testcase>
+        <testcase classname="tests/unit/tool-relay-permission.test.ts" name="startToolRelay permission enforcement &gt; writes stored client-tool output when the browser already fulfilled it" time="0.301770791">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/wire-contract.test.ts" timestamp="2026-06-30T10:21:16.797Z" hostname="agenta.local" tests="7" failures="0" errors="0" skipped="0" time="0.005680125">
+        <testcase classname="tests/unit/wire-contract.test.ts" name="wire contract: requests (vs Python golden) &gt; run_request.pi_core.json: every top-level key is known to AgentRunRequest" time="0.001451125">
+        </testcase>
+        <testcase classname="tests/unit/wire-contract.test.ts" name="wire contract: requests (vs Python golden) &gt; run_request.claude.json: every top-level key is known to AgentRunRequest" time="0.000752292">
+        </testcase>
+        <testcase classname="tests/unit/wire-contract.test.ts" name="wire contract: requests (vs Python golden) &gt; pi request: shape, tool axes, and the runner helpers" time="0.001048333">
+        </testcase>
+        <testcase classname="tests/unit/wire-contract.test.ts" name="wire contract: requests (vs Python golden) &gt; claude request: gates tool use, no prompt overrides, null session id" time="0.000218459">
+        </testcase>
+        <testcase classname="tests/unit/wire-contract.test.ts" name="wire contract: results (vs Python golden) &gt; ok result: shape, events, and camelCase capabilities" time="0.000408042">
+        </testcase>
+        <testcase classname="tests/unit/wire-contract.test.ts" name="wire contract: results (vs Python golden) &gt; error result: ok=false carries the error message" time="0.0001745">
+        </testcase>
+        <testcase classname="tests/unit/wire-contract.test.ts" name="wire contract: results (vs Python golden) &gt; minimal ok result: bare success is valid" time="0.000423959">
+        </testcase>
+    </testsuite>
+</testsuites>

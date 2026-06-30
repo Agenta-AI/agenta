@@ -10,8 +10,8 @@ docs-only. The decided near-term code changes are now implemented in a follow-up
 (lane `feat/agent-sidecar-trust-enforcement`, `services/agent/src/**` only):
 
 1. **Network isolation + optional `/run` token** (Part 1 steps 1–2): the sidecar binds to
-   loopback by default (`AGENTA_AGENT_RUNNER_HOST`, default `127.0.0.1`, never `0.0.0.0`), and
-   an OPTIONAL shared token (`AGENTA_AGENT_RUNNER_TOKEN`, default OFF) gates `/run` with a
+   loopback by default (`AGENTA_RUNNER_HOST`, default `127.0.0.1`, never `0.0.0.0`), and
+   an OPTIONAL shared token (`AGENTA_RUNNER_TOKEN`, default OFF) gates `/run` with a
    constant-time compare when set (`server.ts`). `/health` stays open. mTLS / scoped tokens /
    payload encryption remain deferred.
 2. **Error-on-unimplemented `sandbox_permission`** (Part 2): `run-plan.ts` now errors the
@@ -40,7 +40,7 @@ wire field). Gateway/callback tools were NOT touched (Layer-3 tool-permission, n
 ## Key findings (verified in code)
 
 Part 1 (transport):
-- `services/oss/src/agent/config.py` `runner_url()` reads `AGENTA_AGENT_RUNNER_URL`: set →
+- `services/oss/src/agent/config.py` `runner_url()` reads `AGENTA_RUNNER_URL`: set →
   HTTP; unset → local CLI subprocess.
 - `sdks/python/agenta/sdk/agents/utils/ts_runner.py` `deliver_http` posts `json=payload` with
   no auth header, no TLS, no shared token. Only `Accept` is set (streaming).

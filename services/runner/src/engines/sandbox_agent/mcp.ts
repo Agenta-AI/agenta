@@ -33,19 +33,19 @@ export type McpServerEntry = McpServerStdio | McpServerHttp;
  * SSRF guard for a user HTTP MCP `url`. The runner emits the run's Agenta-resolved named secrets
  * as request headers to this author-supplied URL, so an attacker-controlled config could point it
  * at an internal/metadata endpoint and exfiltrate a credential (a classic server-side request
- * forgery). The capability is flag-gated (`AGENTA_AGENT_MCP_SERVERS_ENABLED`, off by default) and
+ * forgery). The capability is flag-gated (`AGENTA_AGENT_MCPS_ENABLED`, off by default) and
  * config-trust, so a scheme + host guard is enough rather than full DNS-resolution pinning:
  *
  *  - require `https` (the secret rides in a header; `http` would send it in clear text). Opt out
- *    for a known-safe non-https endpoint by listing its host in `AGENTA_AGENT_MCP_HOST_ALLOWLIST`.
+ *    for a known-safe non-https endpoint by listing its host in `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`.
  *  - reject loopback, link-local (incl. the `169.254.169.254` cloud metadata host), and private
- *    address literals unless the host is in `AGENTA_AGENT_MCP_HOST_ALLOWLIST` (comma-separated).
+ *    address literals unless the host is in `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` (comma-separated).
  *
  * Returns an error message string when the URL is rejected, or `undefined` when it is allowed.
  */
 function mcpHostAllowlist(): Set<string> {
   return new Set(
-    (process.env.AGENTA_AGENT_MCP_HOST_ALLOWLIST ?? "")
+    (process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST ?? "")
       .split(",")
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean),

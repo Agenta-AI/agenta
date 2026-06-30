@@ -96,11 +96,11 @@ describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
 });
 
 describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
-  const previousAllowlist = process.env.AGENTA_AGENT_MCP_HOST_ALLOWLIST;
+  const previousAllowlist = process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST;
   afterEach(() => {
     if (previousAllowlist === undefined)
-      delete process.env.AGENTA_AGENT_MCP_HOST_ALLOWLIST;
-    else process.env.AGENTA_AGENT_MCP_HOST_ALLOWLIST = previousAllowlist;
+      delete process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST;
+    else process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST = previousAllowlist;
   });
 
   const http = (url: string): McpServerConfig[] => [
@@ -154,7 +154,7 @@ describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
   });
 
   it("allowlist opts a host out of the https + internal-host checks", () => {
-    process.env.AGENTA_AGENT_MCP_HOST_ALLOWLIST = "localhost,10.0.0.5";
+    process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST = "localhost,10.0.0.5";
     // http://localhost is normally rejected twice over (non-https + internal); allowlisted -> ok.
     const out = toAcpMcpServers(http("http://localhost:9000/mcp"));
     assert.equal(out.length, 1, "allowlisted host is delivered");

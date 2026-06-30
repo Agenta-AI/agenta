@@ -30,8 +30,8 @@ installs it from Anthropic at runtime.
 ## Configure Compose
 
 ```bash
-AGENTA_AGENT_RUNNER_IMAGE_NAME=<org>/agenta-agent-runner
-AGENTA_AGENT_RUNNER_IMAGE_TAG=<tag>
+AGENTA_RUNNER_IMAGE_NAME=<org>/agenta-agent-runner
+AGENTA_RUNNER_IMAGE_TAG=<tag>
 ```
 
 ## Configure Helm
@@ -46,7 +46,7 @@ agentRunner:
 ## Configure Railway
 
 ```bash
-export AGENTA_AGENT_RUNNER_IMAGE="ghcr.io/<org>/agenta-agent-runner:<tag>"
+export AGENTA_RUNNER_IMAGE="ghcr.io/<org>/agenta-agent-runner:<tag>"
 ```
 
 Then run the normal Railway deploy flow.

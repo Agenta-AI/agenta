@@ -5,12 +5,12 @@ metadata:
   name: {{ include "agenta.agentRunner.serviceName" . }}
   labels:
     {{- include "agenta.labels" . | nindent 4 }}
-    app.kubernetes.io/component: sandbox-agent
+    app.kubernetes.io/component: runner
 spec:
   type: ClusterIP
   selector:
     {{- include "agenta.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: sandbox-agent
+    app.kubernetes.io/component: runner
   ports:
     - name: http
       port: {{ include "agenta.agentRunner.port" . }}

@@ -11,11 +11,11 @@ and the `sandbox-agent` package) are Node libraries with no Python SDK.
 Two entrypoints, same `/run` contract (see `src/protocol.ts`):
 
 - **`src/cli.ts`** — one JSON request on stdin, one result on stdout. The Python
-  SDK adapters use this subprocess transport when `AGENTA_AGENT_RUNNER_URL` is unset. stdout is
+  SDK adapters use this subprocess transport when `AGENTA_RUNNER_URL` is unset. stdout is
   the result channel only; logs go to stderr.
 - **`src/server.ts`** — the same thing as a long-lived HTTP server on `:8765`
   (`GET /health`, `POST /run`). This is the dockerized agent runner sidecar the Python SDK
-  adapters call over HTTP when `AGENTA_AGENT_RUNNER_URL` points at it. The dev image
+  adapters call over HTTP when `AGENTA_RUNNER_URL` points at it. The dev image
   (`docker/Dockerfile.dev`) runs `tsx watch src/server.ts`.
 
 Both route to an engine by the request's `backend` field.

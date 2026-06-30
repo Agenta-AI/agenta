@@ -128,7 +128,7 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **Purpose**: Executes agent workflows for the Services API
 
 **Key Responsibilities**:
-- **Agent Runs**: Receives `/run` requests from the Services API through `AGENTA_AGENT_RUNNER_URL`
+- **Agent Runs**: Receives `/run` requests from the Services API through `AGENTA_RUNNER_URL`
 - **Harness Launch**: Starts Pi, Claude Code, or other supported harness adapters over ACP
 - **Sandbox Provider**: Runs local sandboxes or creates Daytona sandboxes using runner-scoped `SANDBOX_AGENT_*` configuration
 - **Tool Relay**: Relays server-side tools back to the Services API without exposing the full stack environment to the harness process

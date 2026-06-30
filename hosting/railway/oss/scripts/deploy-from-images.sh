@@ -28,10 +28,10 @@ REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE"
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
 AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-}"
-AGENTA_AGENT_RUNNER_IMAGE="${AGENTA_AGENT_RUNNER_IMAGE:-}"
+AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-}"
 
-if [ -z "$AGENTA_API_IMAGE" ] || [ -z "$AGENTA_WEB_IMAGE" ] || [ -z "$AGENTA_SERVICES_IMAGE" ] || [ -z "$AGENTA_AGENT_RUNNER_IMAGE" ]; then
-    printf "AGENTA_API_IMAGE, AGENTA_WEB_IMAGE, AGENTA_SERVICES_IMAGE, and AGENTA_AGENT_RUNNER_IMAGE are required\n" >&2
+if [ -z "$AGENTA_API_IMAGE" ] || [ -z "$AGENTA_WEB_IMAGE" ] || [ -z "$AGENTA_SERVICES_IMAGE" ] || [ -z "$AGENTA_RUNNER_IMAGE" ]; then
+    printf "AGENTA_API_IMAGE, AGENTA_WEB_IMAGE, AGENTA_SERVICES_IMAGE, and AGENTA_RUNNER_IMAGE are required\n" >&2
     exit 1
 fi
 
@@ -145,11 +145,11 @@ CMD ["gunicorn", "entrypoints.main:app", "--bind", "0.0.0.0:8080", "--worker-cla
 EOF
 }
 
-render_sandbox_agent_wrapper() {
-    local dir="$TMP_DIR/sandbox-agent"
+render_runner_wrapper() {
+    local dir="$TMP_DIR/runner"
     mkdir -p "$dir"
     cat > "$dir/Dockerfile" <<EOF
-FROM ${AGENTA_AGENT_RUNNER_IMAGE}
+FROM ${AGENTA_RUNNER_IMAGE}
 
 ENV PORT=8765
 
@@ -205,7 +205,7 @@ EOF
 
 render_api_wrapper
 render_services_wrapper
-render_sandbox_agent_wrapper
+render_runner_wrapper
 render_web_wrapper
 render_alembic_wrapper
 render_redis_wrapper
@@ -240,7 +240,7 @@ railway_call up "$TMP_DIR/worker-tracing" --path-as-root --service worker-tracin
 railway_call up "$TMP_DIR/worker-evaluations" --path-as-root --service worker-evaluations --detach
 railway_call up "$TMP_DIR/worker-webhooks" --path-as-root --service worker-webhooks --detach
 railway_call up "$TMP_DIR/worker-events" --path-as-root --service worker-events --detach
-railway_call up "$TMP_DIR/sandbox-agent" --path-as-root --service sandbox-agent --detach
+railway_call up "$TMP_DIR/runner" --path-as-root --service runner --detach
 railway_call up "$TMP_DIR/services" --path-as-root --service services --detach
 railway_call up "$TMP_DIR/cron" --path-as-root --service cron --detach
 railway_call up "$TMP_DIR/web" --path-as-root --service web --detach

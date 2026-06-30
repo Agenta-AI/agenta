@@ -17,7 +17,7 @@ import {
   type RunAgent,
 } from "../../src/server.ts";
 
-const TOKEN_ENV = "AGENTA_AGENT_RUNNER_TOKEN";
+const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
 
 afterEach(() => {

@@ -188,8 +188,8 @@ global:
 
 # ================================================================== #
 # === agentRunner ===
-# sandbox-agent runner used by agent workflows. The services pod gets
-# AGENTA_AGENT_RUNNER_URL from this component.
+# runner used by agent workflows. The services pod gets
+# AGENTA_RUNNER_URL from this component.
 # ================================================================== #
 # agentRunner:
 #   enabled: true
@@ -531,8 +531,8 @@ posthog:
 
 # ================================================================== #
 # === mounts (durable object store for session/agent mounts) ===
-# Opt-in. When enabled with the bundled SeaweedFS, the API + sandbox-agent
-# get matching S3 credentials and the sandbox-agent pod gains FUSE for the
+# Opt-in. When enabled with the bundled SeaweedFS, the API + runner
+# get matching S3 credentials and the runner pod gains FUSE for the
 # durable agent cwd. signingKey (base64 32-byte) enables in-process S3 STS
 # so the runner receives scoped, short-lived credentials (never the master key).
 # For an external store (AWS S3 / R2 / MinIO), set seaweedfs.enabled=false

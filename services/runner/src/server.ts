@@ -37,22 +37,22 @@ import { startAliveWatchdog } from "./sessions/alive.ts";
 import { cancelStaleInteractions } from "./sessions/interactions.ts";
 import { buildPersistingEmitter } from "./sessions/persist.ts";
 
-const PORT = Number(process.env.AGENTA_AGENT_RUNNER_PORT ?? 8765);
+const PORT = Number(process.env.AGENTA_RUNNER_PORT ?? 8765);
 
 // Bind to loopback by default (sidecar-trust step 1): the `/run` body carries plaintext
 // provider secrets and reusable bearer tokens, so the sidecar MUST sit on a trusted,
 // non-public network. `127.0.0.1` keeps it reachable only from the same host (the co-located
-// Python service) and never `0.0.0.0`. In Kubernetes/Compose, set `AGENTA_AGENT_RUNNER_HOST`
+// Python service) and never `0.0.0.0`. In Kubernetes/Compose, set `AGENTA_RUNNER_HOST`
 // to the private pod/internal-network interface; never publish the port to the host.
-const HOST = process.env.AGENTA_AGENT_RUNNER_HOST ?? "127.0.0.1";
+const HOST = process.env.AGENTA_RUNNER_HOST ?? "127.0.0.1";
 
 // Optional shared `/run` token (sidecar-trust step 2): default OFF. When
-// `AGENTA_AGENT_RUNNER_TOKEN` is set, every `/run` request must present the same secret (in
+// `AGENTA_RUNNER_TOKEN` is set, every `/run` request must present the same secret (in
 // `Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`); otherwise it is
 // rejected with 401. Cheap defense-in-depth against accidental exposure on top of network
 // isolation; a static shared secret is not a substitute for TLS (deferred). Unset = no check,
 // so co-located/loopback deployments are unaffected.
-const RUNNER_TOKEN_ENV = "AGENTA_AGENT_RUNNER_TOKEN";
+const RUNNER_TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 
 /** Constant-time string compare so the token check does not leak length/prefix via timing. */
 function tokensMatch(provided: string, expected: string): boolean {
@@ -80,7 +80,7 @@ function presentedToken(req: IncomingMessage): string {
 
 /**
  * Whether this `/run` request is authorized. The check is OFF unless the operator opts in by
- * setting `AGENTA_AGENT_RUNNER_TOKEN`; when set, the presented token must match exactly.
+ * setting `AGENTA_RUNNER_TOKEN`; when set, the presented token must match exactly.
  */
 function isAuthorized(req: IncomingMessage): boolean {
   const expected = process.env[RUNNER_TOKEN_ENV];
