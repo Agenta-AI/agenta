@@ -1336,4 +1336,135 @@ For every RTM entry below:
 - License: `ee`
 - Status: active
 
+### WEB-ACC-SCHEDULE-001 - Create a cron schedule (happy path)
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: create > creates a new schedule and it appears active in the table`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-002 - Invalid cron expression is rejected with inline error
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: validation > rejects an invalid cron expression with an inline error`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `light`
+- Path: `grumpy`
+- Case: `edge`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-003 - Pause and resume a schedule
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: lifecycle > pauses an active schedule then resumes it`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-004 - Edit a schedule's cron expression
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: lifecycle > edits the cron expression and the table reflects the change`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-005 - Delete a schedule
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: lifecycle > deletes a schedule and it disappears from the table`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-006 - Deliveries appear after schedule fires
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: dispatch > deliveries appear in the drawer after the schedule fires`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
 
