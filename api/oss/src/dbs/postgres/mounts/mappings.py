@@ -1,4 +1,8 @@
+from datetime import datetime
+from typing import Any, Dict
 from uuid import UUID
+
+import uuid_utils.compat as uuid_utils
 
 from oss.src.core.mounts.dtos import (
     Mount,
@@ -8,6 +12,37 @@ from oss.src.core.mounts.dtos import (
     MountFlags,
 )
 from oss.src.dbs.postgres.mounts.dbes import MountDBE
+
+
+def map_mount_dto_to_dbe_upsert(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    now: datetime,
+    #
+    mount_create: MountCreate,
+) -> Dict[str, Any]:
+    """Column values for an `insert(...).on_conflict_do_update` upsert.
+
+    `id` is minted here because explicit `insert().values()` bypasses the ORM's
+    `default=uuid7` (it only fires on `session.add`), so the pk would be null otherwise.
+    """
+    return {
+        "id": uuid_utils.uuid7(),
+        "project_id": project_id,
+        "created_by_id": user_id,
+        "created_at": now,
+        "updated_at": None,
+        "updated_by_id": None,
+        "deleted_at": None,
+        "deleted_by_id": None,
+        "slug": mount_create.slug,
+        "session_id": mount_create.session_id,
+        "name": mount_create.name,
+        "description": mount_create.description,
+        "flags": mount_create.flags.model_dump(),
+        "data": {},
+    }
 
 
 def map_mount_dto_to_dbe_create(
@@ -30,7 +65,7 @@ def map_mount_dto_to_dbe_create(
         #
         flags=mount_create.flags.model_dump(),
         #
-        data=mount_create.data.model_dump(mode="json"),
+        data={},
     )
 
 

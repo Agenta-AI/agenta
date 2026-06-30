@@ -952,11 +952,17 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 streaming={busy}
                 onStop={handleStop}
                 prefix={
-                    <Tooltip title={atMax ? `Up to ${limits.maxCount} files` : "Attach files"}>
+                    // Attach button is gated until the agent service is ready for inline
+                    // file parts (big-agents d4b119af26); paste / drag-to-add still work.
+                    <Tooltip
+                        title={
+                            atMax ? `Up to ${limits.maxCount} files` : "Attach files coming soon"
+                        }
+                    >
                         <Button
                             type="text"
                             icon={<Paperclip size={16} />}
-                            disabled={atMax}
+                            disabled={true}
                             onClick={() => setAttachmentsOpen((open) => !open)}
                             aria-label="Attach files"
                         />

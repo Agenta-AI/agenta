@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from oss.src.core.mounts.dtos import (
     Mount,
     MountCreate,
+    MountCredentials,
     MountEdit,
     MountFile,
     MountQuery,
@@ -72,3 +73,14 @@ class MountFolderCreatedResponse(BaseModel):
 class MountFileDeletedResponse(BaseModel):
     deleted: str
     count: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Signed-credentials response (sandbox injection)
+# ---------------------------------------------------------------------------
+
+
+class MountCredentialsResponse(BaseModel):
+    count: int = 0
+    mount: Optional[Mount] = None
+    credentials: Optional[MountCredentials] = None

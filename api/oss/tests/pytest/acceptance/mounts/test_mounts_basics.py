@@ -7,7 +7,9 @@ path-injection rejection. Requires a running API (OSS or EE).
 from uuid import uuid4
 
 
-def _mount_payload(*, name=None, session_id=None, bucket=None, prefix=None):
+def _mount_payload(*, name=None, session_id=None):
+    # Storage location is derived server-side (bucket from env, key = project_id/mount_id);
+    # the caller supplies identity only (slug/name/session_id), no bucket/prefix.
     slug = uuid4().hex[:12]
     return {
         "mount": {
@@ -15,10 +17,6 @@ def _mount_payload(*, name=None, session_id=None, bucket=None, prefix=None):
             "name": name or f"mount-{slug}",
             "description": "Acceptance test mount",
             "session_id": session_id,
-            "data": {
-                "bucket": bucket or "agenta-dev",
-                "prefix": prefix or f"sessions/{slug}/cwd",
-            },
         }
     }
 
@@ -71,7 +69,8 @@ class TestMountsCreate:
         body = response.json()
         mount = body["mount"]
         assert mount["slug"] == payload["mount"]["slug"]
-        assert mount["data"]["bucket"] == "agenta-dev"
+        # Storage is server-derived: data carries no caller bucket/prefix anymore.
+        assert mount["data"] == {}
         assert "id" in mount
 
     def test_create_mount_with_session_id(self, authed_api):
@@ -91,13 +90,11 @@ class TestMountsCreate:
         r2 = authed_api("POST", "/mounts/", json=payload)
         assert r2.status_code == 409, r2.text
 
-    def test_create_mount_invalid_prefix_dotdot_returns_422(self, authed_api):
-        payload = _mount_payload(prefix="../etc/passwd")
-        response = authed_api("POST", "/mounts/", json=payload)
-        assert response.status_code == 422, response.text
-
-    def test_create_mount_invalid_bucket_special_chars_returns_422(self, authed_api):
-        payload = _mount_payload(bucket="bad;bucket<>")
+    def test_create_mount_reserved_slug_returns_422(self, authed_api):
+        # Storage location is server-derived (no caller bucket/prefix), so the only create-time
+        # guard is the reserved-slug namespace the service mints session slugs into.
+        payload = _mount_payload()
+        payload["mount"]["slug"] = "__ag__hijack"
         response = authed_api("POST", "/mounts/", json=payload)
         assert response.status_code == 422, response.text
 
@@ -233,7 +230,7 @@ class TestSessionsMountsQuery:
 # ---------------------------------------------------------------------------
 # File ops (durable store contents)
 #
-# Require a configured object store (AGENTA_MOUNTS_S3_* → SeaweedFS in the dev
+# Require a configured object store (AGENTA_MOUNTS_STORAGE_* → SeaweedFS in the dev
 # stack). A 503 means the backend isn't configured in this env — skip rather
 # than fail so the suite stays green where no store is wired.
 # ---------------------------------------------------------------------------

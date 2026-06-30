@@ -11,7 +11,7 @@ import re
 from functools import wraps
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 from typing import Any, Optional, Union
 
@@ -50,6 +50,17 @@ from oss.src.core.sessions.interactions.service import SessionInteractionsServic
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.core.sessions.mounts.dtos import SessionMountQuery
+from oss.src.core.mounts.service import MountsService
+from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
+from oss.src.apis.fastapi.mounts.utils import (
+    download_mount_file,
+    sign_mount_credentials,
+    upload_mount_file,
+)
+from oss.src.apis.fastapi.mounts.models import (
+    MountCredentialsResponse,
+    MountFileWrittenResponse,
+)
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -835,6 +846,7 @@ class InteractionsRouter:
                 references=references,
                 selector=selector,
                 data=WorkflowServiceRequestData(inputs=answer),
+                session_id=interaction.session_id,
             )
 
             await self.workflows_service.invoke_workflow(
@@ -869,8 +881,14 @@ class SessionMountsRouter:
     full mounts domain). No mounts logic or storage lives here.
     """
 
-    def __init__(self, *, session_mounts_service: SessionMountsService) -> None:
+    def __init__(
+        self,
+        *,
+        session_mounts_service: SessionMountsService,
+        mounts_service: MountsService,
+    ) -> None:
         self.session_mounts_service = session_mounts_service
+        self.mounts_service = mounts_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -889,6 +907,36 @@ class SessionMountsRouter:
             operation_id="query_session_mounts",
             response_model=SessionMountsResponse,
             response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        # File ops mirror the main /mounts surface (shared utils); addressed by mount_id,
+        # which the session list view above hands the client.
+        # Bind-and-sign the session's durable cwd mount, then mint scoped, short-lived
+        # credentials for it — the runner's entry point for injecting the geesefs mount.
+        self.router.add_api_route(
+            "/mounts/sign",
+            self.sign_session_mount_credentials,
+            methods=["POST"],
+            operation_id="sign_session_mount_credentials",
+            response_model=MountCredentialsResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/mounts/{mount_id}/files/upload",
+            self.upload_session_mount_file,
+            methods=["POST"],
+            operation_id="upload_session_mount_file",
+            response_model=MountFileWrittenResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/mounts/{mount_id}/files/download",
+            self.download_session_mount_file,
+            methods=["GET"],
+            operation_id="download_session_mount_file",
+            response_model=None,
             status_code=status.HTTP_200_OK,
         )
 
@@ -960,6 +1008,87 @@ class SessionMountsRouter:
 
         return SessionMountsResponse(count=len(mounts), mounts=mounts)
 
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def sign_session_mount_credentials(
+        self,
+        request: Request,
+        *,
+        session_id: str = Query(...),
+    ) -> MountCredentialsResponse:
+        _validate_session_id_http(session_id)
+
+        # RUN_SESSIONS: the runner authenticates as the invoke caller and binds the cwd
+        # mount before injecting it. The master key never leaves the API.
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        mount = await self.mounts_service.get_or_create_session_cwd(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            session_id=session_id,
+        )
+
+        credentials = await sign_mount_credentials(
+            mounts_service=self.mounts_service,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount.id,
+        )
+        return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def upload_session_mount_file(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        file: UploadFile,
+        path: Optional[str] = Query(default=None),
+    ) -> MountFileWrittenResponse:
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        written = await upload_mount_file(
+            mounts_service=self.mounts_service,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            file=file,
+            path=path,
+        )
+        return MountFileWrittenResponse(path=written.path, size=written.size)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def download_session_mount_file(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        path: str = Query(...),
+    ):
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        return await download_mount_file(
+            mounts_service=self.mounts_service,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            path=path,
+        )
+
 
 # ---------------------------------------------------------------------------
 # Top-level composer
@@ -986,6 +1115,7 @@ class SessionsRouter:
         interactions_service: SessionInteractionsService,
         workflows_service: WorkflowsService,
         session_mounts_service: SessionMountsService,
+        mounts_service: MountsService,
         respond_task: Optional[Any] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
@@ -1001,4 +1131,5 @@ class SessionsRouter:
         )
         self.mounts = SessionMountsRouter(
             session_mounts_service=session_mounts_service,
+            mounts_service=mounts_service,
         )

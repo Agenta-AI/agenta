@@ -89,6 +89,25 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.redisDurable).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
+{{- /* Mounts (durable object store). Opt-in: off unless mounts.enabled=true. */ -}}
+{{- define "agenta.mounts.enabled" -}}
+{{- $v := (default dict .Values.mounts).enabled -}}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+{{- /* Bundle SeaweedFS as the mounts store (only when mounts is on AND not external). */ -}}
+{{- define "agenta.seaweedfs.enabled" -}}
+{{- $mounts := default dict .Values.mounts -}}
+{{- if eq (include "agenta.mounts.enabled" .) "true" -}}
+{{- $v := (default dict $mounts.seaweedfs).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- else }}false{{- end }}
+{{- end }}
+{{- define "agenta.seaweedfs.image" -}}
+{{- $img := default dict (default dict (default dict .Values.mounts).seaweedfs).image -}}
+{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "latest" $img.tag) -}}
+{{- end }}
+{{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.mounts).seaweedfs).image).pullPolicy }}{{- end }}
+{{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.mounts).seaweedfs).port }}{{- end }}
 {{- define "agenta.workerEvaluations.enabled" -}}
 {{- $v := (default dict .Values.workerEvaluations).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -836,6 +855,34 @@ imagePullSecrets:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
       key: AGENTA_CRYPT_KEY
+{{- if eq (include "agenta.mounts.enabled" .) "true" }}
+{{- $mounts := default dict .Values.mounts }}
+- name: AGENTA_MOUNTS_STORAGE_ENDPOINT_URL
+  {{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+  value: {{ printf "http://%s-seaweedfs:%v" (include "agenta.fullname" .) (include "agenta.seaweedfs.port" .) | quote }}
+  {{- else }}
+  value: {{ default "" $mounts.endpointUrl | quote }}
+  {{- end }}
+- name: AGENTA_MOUNTS_STORAGE_REGION
+  value: {{ default "us-east-1" $mounts.region | quote }}
+- name: AGENTA_MOUNTS_STORAGE_BUCKET
+  value: {{ default "agenta-mounts" $mounts.bucket | quote }}
+- name: AGENTA_MOUNTS_STORAGE_ACCESS_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_MOUNTS_STORAGE_ACCESS_KEY
+- name: AGENTA_MOUNTS_STORAGE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_MOUNTS_STORAGE_SECRET_KEY
+- name: AGENTA_MOUNTS_STORAGE_SIGNING_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_MOUNTS_STORAGE_SIGNING_KEY
+{{- end }}
 {{- if $rv.password }}
 - name: REDIS_VOLATILE_PASSWORD
   valueFrom:
