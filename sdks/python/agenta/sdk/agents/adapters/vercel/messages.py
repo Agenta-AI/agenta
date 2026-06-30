@@ -34,7 +34,43 @@ def vercel_messages_to_agenta_messages(raw: Optional[List[Any]]) -> List[Message
         message = _ui_message_to_message(item)
         if message is not None:
             messages.append(message)
+    _hitl_debug_inbound(raw, messages)
     return messages
+
+
+def _hitl_debug_inbound(raw: Optional[List[Any]], messages: List[Message]) -> None:
+    """HITL resume debug: dump inbound part types and the tool_call/tool_result blocks they
+    produced, so we can see whether an approval reply round-trips with its tool_call (name+args)."""
+    import sys
+
+    try:
+        part_types = [
+            str(p.get("type"))
+            for item in (raw or [])
+            if isinstance(item, dict)
+            for p in (item.get("parts") or [])
+            if isinstance(p, dict)
+        ]
+        tool_blocks = []
+        for m in messages:
+            content = m.content
+            if isinstance(content, list):
+                for b in content:
+                    if getattr(b, "type", None) in ("tool_call", "tool_result"):
+                        tool_blocks.append(
+                            {
+                                "type": b.type,
+                                "tool_name": getattr(b, "tool_name", None),
+                                "tool_call_id": getattr(b, "tool_call_id", None),
+                                "input": getattr(b, "input", None),
+                                "output": getattr(b, "output", None),
+                            }
+                        )
+        sys.stderr.write(
+            f"[hitl-resume] inbound part_types={part_types} tool_blocks={tool_blocks}\n"
+        )
+    except Exception as exc:  # never break the turn for a debug log
+        sys.stderr.write(f"[hitl-resume] inbound debug failed: {exc}\n")
 
 
 def _ui_message_to_message(raw: Any) -> Optional[Message]:

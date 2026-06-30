@@ -47,6 +47,12 @@ export function attachPermissionResponder({
     const id = String(req?.id ?? "");
     const availableReplies: string[] = req?.availableReplies ?? [];
     const toolCall = req?.toolCall;
+    process.stderr.write(
+      `[hitl-resume] LIVE gate id=${id} ` +
+        `name=${JSON.stringify(toolCall?.name)} title=${JSON.stringify(toolCall?.title)} ` +
+        `kind=${JSON.stringify(toolCall?.kind)} toolCallId=${JSON.stringify(toolCall?.toolCallId)} ` +
+        `rawInput=${JSON.stringify(toolCall?.rawInput)} input=${JSON.stringify(toolCall?.input)}\n`,
+    );
     // The harness raises a permission request before running ANY gated tool. We branch on the
     // tool's resolved spec: a `kind: "client"` tool is not really a sandbox permission gate — it
     // is a tool whose execution belongs to the browser (e.g. `request_connection`, which renders a

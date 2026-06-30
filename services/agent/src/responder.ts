@@ -21,6 +21,11 @@
 
 import type { AgentRunRequest, ContentBlock } from "./protocol.ts";
 
+/** HITL resume debug: traces stored-vs-live key matching that decides resolve-vs-re-park. */
+function hitlDebug(message: string): void {
+  process.stderr.write(`[hitl-resume] ${message}\n`);
+}
+
 export type PermissionPolicy = "auto" | "deny";
 
 /**
@@ -196,7 +201,12 @@ export class HITLResponder implements Responder {
     private readonly decisions: ApprovalDecisions,
     private readonly basePolicy: PermissionPolicy,
     private readonly hasHumanSurface: boolean,
-  ) {}
+  ) {
+    hitlDebug(
+      `responder built: hasHumanSurface=${hasHumanSurface} basePolicy=${basePolicy} ` +
+        `storedDecisionKeys=${JSON.stringify([...decisions.keys()])}`,
+    );
+  }
 
   async onPermission(request: PermissionRequest): Promise<ResponderOutcome> {
     const stored = this.lookupPermission(request);
@@ -213,20 +223,36 @@ export class HITLResponder implements Responder {
   }
 
   private lookupPermission(request: PermissionRequest): PermissionDecision | undefined {
-    for (const key of permissionRequestKeys(request)) {
+    const liveKeys = permissionRequestKeys(request);
+    for (const key of liveKeys) {
       const decision = this.decisions.get(key);
-      if (isPermissionDecision(decision)) return decision;
+      if (isPermissionDecision(decision)) {
+        hitlDebug(`permission RESOLVED on key=${JSON.stringify(key)} -> ${decision}`);
+        return decision;
+      }
     }
+    hitlDebug(
+      `permission RE-PARK (no key match): liveKeys=${JSON.stringify(liveKeys)} ` +
+        `storedKeys=${JSON.stringify([...this.decisions.keys()])}`,
+    );
     return undefined;
   }
 
   private lookupClientTool(request: ClientToolRequest): { found: boolean; output?: unknown } {
-    for (const key of clientToolRequestKeys(request)) {
+    const liveKeys = clientToolRequestKeys(request);
+    for (const key of liveKeys) {
       if (this.decisions.has(key)) {
         const output = this.decisions.get(key);
-        if (!isPermissionDecision(output)) return { found: true, output };
+        if (!isPermissionDecision(output)) {
+          hitlDebug(`clientTool RESOLVED on key=${JSON.stringify(key)}`);
+          return { found: true, output };
+        }
       }
     }
+    hitlDebug(
+      `clientTool RE-PARK (no key match): liveKeys=${JSON.stringify(liveKeys)} ` +
+        `storedKeys=${JSON.stringify([...this.decisions.keys()])}`,
+    );
     return { found: false };
   }
 }
@@ -322,6 +348,10 @@ export function extractApprovalDecisions(
       }
     }
   }
+  hitlDebug(
+    `extract: scanned ${request.messages?.length ?? 0} messages, ` +
+      `callShapeById ids=${JSON.stringify([...callShapeById.keys()])}`,
+  );
   for (const message of request.messages ?? []) {
     const content = message?.content;
     if (!Array.isArray(content)) continue;
@@ -336,7 +366,19 @@ export function extractApprovalDecisions(
       const name = block.toolName ?? shape?.name;
       const input = block.input ?? shape?.input;
       const argsKey = parkedCallKey(name, input);
-      if (argsKey) decisions.set(argsKey, result.output);
+      if (argsKey) {
+        decisions.set(argsKey, result.output);
+        hitlDebug(
+          `extract: stored decision key=${JSON.stringify(argsKey)} ` +
+            `name=${JSON.stringify(name)} input=${JSON.stringify(input)} ` +
+            `toolCallId=${JSON.stringify(block.toolCallId)}`,
+        );
+      } else {
+        hitlDebug(
+          `extract: SKIPPED a result (no key): name=${JSON.stringify(name)} ` +
+            `input=${JSON.stringify(input)} toolCallId=${JSON.stringify(block.toolCallId)}`,
+        );
+      }
     }
   }
   return decisions;
