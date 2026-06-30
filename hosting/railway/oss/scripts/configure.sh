@@ -16,6 +16,10 @@ REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
 AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-replace-me}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
+AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-}"
+AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-}"
+AGENTA_STORE_BUCKET="${AGENTA_STORE_BUCKET:-agenta-mounts}"
+AGENTA_STORE_SIGNING_KEY="${AGENTA_STORE_SIGNING_KEY:-$(openssl rand -base64 32)}"
 
 # Populated by resolve_railway_ids() after `railway link`. Used by the GraphQL
 # variableCollectionUpsert path; left empty -> upsert_service_vars falls back
@@ -210,6 +214,11 @@ main() {
     local agent_runner_url
     agent_runner_url="http://${agent_runner_host_ref}:8765"
 
+    local seaweedfs_host_ref
+    seaweedfs_host_ref='${{seaweedfs.RAILWAY_PRIVATE_DOMAIN}}'
+    local seaweedfs_endpoint_url
+    seaweedfs_endpoint_url="http://${seaweedfs_host_ref}:8333"
+
     local pg_async_core
     pg_async_core="postgresql+asyncpg://${pg_user_ref}:${pg_password_ref}@${pg_host_ref}:${pg_port_ref}/agenta_oss_core"
     local pg_async_tracing
@@ -236,7 +245,12 @@ main() {
         AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
         POSTGRES_URI_CORE="$pg_async_core" \
         POSTGRES_URI_TRACING="$pg_async_tracing" \
-        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
+        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
+        AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
+        AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
+        AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
+        AGENTA_STORE_BUCKET="$AGENTA_STORE_BUCKET" \
+        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY"
 
     unset_vars api AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
 
@@ -253,7 +267,12 @@ main() {
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
         AGENTA_AGENT_RUNNER_URL="$agent_runner_url" \
-        AGENTA_AGENT_MCP_SERVERS_ENABLED="${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}"
+        AGENTA_AGENT_MCP_SERVERS_ENABLED="${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}" \
+        AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
+        AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
+        AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
+        AGENTA_STORE_BUCKET="$AGENTA_STORE_BUCKET" \
+        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY"
 
     unset_vars services AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_INTERNAL_URL
 
@@ -262,7 +281,15 @@ main() {
 
     set_vars sandbox-agent \
         AGENTA_AGENT_RUNNER_PORT=8765 \
-        SANDBOX_AGENT_PROVIDER="${SANDBOX_AGENT_PROVIDER:-local}"
+        SANDBOX_AGENT_PROVIDER="${SANDBOX_AGENT_PROVIDER:-local}" \
+        AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
+        AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
+        AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
+        AGENTA_STORE_BUCKET="$AGENTA_STORE_BUCKET" \
+        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY"
+    # Note: Railway does not currently expose Linux capabilities via the CLI.
+    # To enable FUSE for geesefs local mounts, go to the sandbox-agent service
+    # Settings → Linux Capabilities and add SYS_ADMIN, /dev/fuse.
 
     set_optional_vars sandbox-agent \
         "AGENTA_API_URL=${AGENTA_API_URL:-}" \
