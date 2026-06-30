@@ -131,6 +131,7 @@ services:
             AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
             AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
             AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -206,6 +207,12 @@ services:
                 condition: service_healthy
         # === LIFECYCLE ============================================ #
         restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_evaluations' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
 
     worker-tracing:
         # === IMAGE ================================================ #

@@ -112,6 +112,12 @@ services:
                 condition: service_healthy
         # === LIFECYCLE ============================================ #
         restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_evaluations' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
 
     worker-tracing:
         # === IMAGE ================================================ #
@@ -422,6 +428,12 @@ services:
             - SCRIPT_NAME=/services
             - AGENTA_RUNNER_URL=${AGENTA_RUNNER_URL:-http://runner:8765}
             - AGENTA_AGENT_MCPS_ENABLED=${AGENTA_AGENT_MCPS_ENABLED:-false}
+            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
+            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
+            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
+            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-}
+            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
+            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -468,6 +480,14 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
+        # === RUNTIME ============================================== #
+        # FUSE for geesefs mounts (local sandbox cwd). Mirrors docker-compose.gh.yml.
+        cap_add:
+            - SYS_ADMIN
+        devices:
+            - /dev/fuse
+        security_opt:
+            - apparmor:unconfined
         # === LABELS =============================================== #
         labels:
             - "traefik.enable=false"
