@@ -133,8 +133,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             <LexicalExtensionComposer extension={chatInputExtension} contentEditable={null}>
                 <div
                     className={clsx(
-                        // overflow-hidden so the footer row + its top border clip to the rounded
-                        // corners (otherwise the bottom corners read as squared-off cut-offs).
+                        // Single rounded border around the whole composer; overflow-hidden clips the
+                        // editor + toolbar to the rounded corners. The toolbar has no divider of its
+                        // own, so the bottom edge reads as one border, not two.
                         "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] transition-colors",
                         // Neutral, low-key focus emphasis — a soft border darkening rather than the
                         // full brand-primary ring, which was too loud for a chat composer.
@@ -167,7 +168,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         />
                     </div>
 
-                    <div className="flex items-center gap-2 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-2 py-1.5">
+                    <div className="flex items-center gap-2 px-2 py-1.5">
                         {prefix}
                         <div className="flex flex-wrap items-center gap-2.5">
                             <ShortcutHint keys={`${modKey} B`} label="Bold" />

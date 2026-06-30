@@ -392,9 +392,10 @@ const AgentMessage = ({
             defaultBody
         )
 
-    // Control toolbar — an X `Actions` row that FLOATS over the bubble's bottom edge. It is
-    // absolutely positioned (out of flow), so it adds no height: bubbles sit tight with no
-    // reserved lane, and revealing it only fades opacity — no layout shift either way.
+    // Control toolbar — an X `Actions` row that sits in a reserved lane BELOW the bubble (the
+    // `pb-7` on the row), so it never overlays the last content line and never reaches the next
+    // turn. The lane is always present (stable height), so revealing it only fades opacity — no
+    // layout shift either way (the scroll engineering is sensitive to hover-driven reflow).
     // `pointer-events-none` while hidden keeps the invisible buttons unclickable. `Actions`
     // items carry no `disabled`, so the busy guard lives in the handlers: `onRewind` →
     // `handleRewind` early-returns while a stream is in flight (copy / view-trace are always
@@ -442,13 +443,13 @@ const AgentMessage = ({
         </>
     )
 
-    // `group relative` → the floating toolbar reveals on hover/focus of the whole message row
-    // and anchors to the bubble without consuming layout space. The row is a flex that
-    // justifies the (width-capped) bubble to its side, so the opposite side keeps whitespace —
-    // agent bubbles hug the left, user bubbles the right, neither spans the full column.
+    // `group relative` → the toolbar reveals on hover/focus of the whole message row and anchors
+    // to the reserved lane (`pb-7`) at the row's bottom. The row is a flex that justifies the
+    // (width-capped) bubble to its side, so the opposite side keeps whitespace — agent bubbles hug
+    // the left, user bubbles the right, neither spans the full column.
     return (
         <div
-            className={`group relative flex items-start ${isUser ? "justify-end" : "justify-start"}`}
+            className={`group relative flex items-start pb-7 ${isUser ? "justify-end" : "justify-start"}`}
         >
             <Bubble<React.ReactNode>
                 placement={isUser ? "end" : "start"}
@@ -466,7 +467,7 @@ const AgentMessage = ({
                 content={body}
             />
             <div
-                className={`absolute top-full z-10 flex -translate-y-1/2 items-center gap-1 rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated px-1 shadow-sm ${
+                className={`absolute bottom-0 z-10 flex items-center gap-1 rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated px-1 shadow-sm ${
                     isUser ? "right-2" : "left-10"
                 } ${toolbarReveal}`}
             >

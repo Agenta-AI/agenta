@@ -4,9 +4,18 @@ import {Input} from "antd"
 
 /**
  * A session tab's label. Double-click to rename inline (commit on Enter/blur). Clicks while
- * editing are stopped so they don't also switch tabs.
+ * editing are stopped so they don't also switch tabs. `className` styles the resting display
+ * span (the tag passes `truncate` so a long title clips with an ellipsis).
  */
-const SessionTabLabel = ({label, onRename}: {label: string; onRename: (next: string) => void}) => {
+const SessionTabLabel = ({
+    label,
+    onRename,
+    className,
+}: {
+    label: string
+    onRename: (next: string) => void
+    className?: string
+}) => {
     const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState(label)
 
@@ -17,20 +26,20 @@ const SessionTabLabel = ({label, onRename}: {label: string; onRename: (next: str
         }
         return (
             <Input
-                size="small"
                 autoFocus
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onPressEnter={commit}
                 onBlur={commit}
                 onClick={(e) => e.stopPropagation()}
-                className="!w-28 !text-xs"
+                className="!h-6 !w-28 !px-1 !text-xs"
             />
         )
     }
 
     return (
         <span
+            className={className}
             onDoubleClick={() => {
                 setDraft(label)
                 setEditing(true)

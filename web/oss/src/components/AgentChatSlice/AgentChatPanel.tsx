@@ -33,21 +33,20 @@ import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import QueuedMessages from "./components/QueuedMessages"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
-import SessionTabLabel from "./components/SessionTabLabel"
+import SessionTagBar from "./components/SessionTagBar"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useChatScopeKey} from "./state/scope"
 import {
-    type AgentChatSession,
+    type SessionRunStatus,
     activeSessionIdAtomFamily,
     addSessionAtomFamily,
     closeSessionAtomFamily,
     persistSessionMessagesAtom,
     renameSessionAtomFamily,
-    sessionFirstUserTextAtomFamily,
     sessionMessagesAtom,
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
-    setSessionStreamingAtom,
+    setSessionStatusAtom,
 } from "./state/sessions"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
@@ -184,6 +183,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
+    const setSessionStatus = useSetAtom(setSessionStatusAtom)
 
     const [files, setFiles] = useState<UploadFile[]>([])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
@@ -275,17 +275,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     const busy = status === "submitted" || status === "streaming"
 
-    // Publish this client's live streaming state for the session so the Session inspector knows
-    // THIS tab is the active watcher (inline chat streams over the runner NDJSON, not the
-    // coordination-plane attach). Clear on unmount so a closed/navigated-away tab stops claiming it.
-    const setSessionStreaming = useSetAtom(setSessionStreamingAtom)
-    useEffect(() => {
-        setSessionStreaming({id: sessionId, streaming: busy})
-    }, [sessionId, busy, setSessionStreaming])
-    useEffect(() => {
-        return () => setSessionStreaming({id: sessionId, streaming: false})
-    }, [sessionId, setSessionStreaming])
-
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
     // last turn and the resume predicate auto-resends. `tool` is only the typed-tools key — matching
@@ -357,6 +346,25 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         messages,
         sendQueued,
     })
+
+    // Publish this session's run state (single source of truth: drives the tab bar's status dot
+    // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
+    // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
+    // tab keeps no stale dot and stops claiming it's the live watcher.
+    useEffect(() => {
+        const status: SessionRunStatus = error
+            ? "error"
+            : hitlPending
+              ? "awaiting"
+              : busy
+                ? "running"
+                : "idle"
+        setSessionStatus({id: sessionId, status})
+    }, [error, hitlPending, busy, sessionId, setSessionStatus])
+    useEffect(
+        () => () => setSessionStatus({id: sessionId, status: "idle"}),
+        [sessionId, setSessionStatus],
+    )
 
     // Consume a pending "Run in playground" request (declared above) via the queue's `submit`,
     // so it interleaves with HITL approval / queued messages exactly like a manual send.
@@ -942,9 +950,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 </div>
             )}
 
-            {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots. */}
+            {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
+                `mx-3 mb-3` insets it to match the message padding + session-bar gutter (the panel
+                root has no padding so the session bar can align with the config header). */}
             <RichChatInput
                 ref={richInputRef}
+                className="mx-3 mb-3"
                 onSubmit={handleSubmit}
                 placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                 onPasteFile={(pasted) => addFiles(Array.from(pasted))}
@@ -989,37 +1000,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
  * AgentChatPanel — the agent-generation surface hosted INSIDE the playground (the third
  * generation arm beside chat and completion).
  *
- * Single view keeps the slice's editable-card session tab bar (design decision D2): parallel
- * conversations, add with `+`, close with `×`, double-click to rename. Sessions are app-scoped
- * (shared with the rest of the playground) and persist to localStorage, so tabs survive a
- * reload; antd keeps visited panes mounted, so switching tabs preserves a session's live
- * stream / approval state. Each tab is its own `useChat` driven by `buildAgentRequest` against
- * the current `entityId` (so the run always uses the live draft config).
+ * Single view keeps the slice's session tab bar (design decision D2): parallel conversations,
+ * add with `+`, close with `×`, double-click to rename — rendered as a row of status-dotted tags
+ * (`SessionTagBar`) whose bottom edge aligns with the config panel header. Sessions are app-scoped
+ * (shared with the rest of the playground) and persist to localStorage, so tabs survive a reload;
+ * antd keeps visited panes mounted (we only swap the bar via `renderTabBar`), so switching tabs
+ * preserves a session's live stream / approval state. Each tab is its own `useChat` driven by
+ * `buildAgentRequest` against the current `entityId` (so the run always uses the live draft config).
  */
-/**
- * Tab label, scoped to its own session: subscribes only to that session's first-user-text
- * (a stable string), so a streaming conversation doesn't re-render the whole tab bar / every
- * mounted pane on each token.
- */
-const TabLabel = ({
-    session,
-    index,
-    onRename,
-}: {
-    session: AgentChatSession
-    index: number
-    onRename: (title: string) => void
-}) => {
-    const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
-    const truncated = text.length > 24 ? `${text.slice(0, 24)}…` : text
-    return (
-        <SessionTabLabel
-            label={session.title || truncated || `Chat ${index + 1}`}
-            onRename={onRename}
-        />
-    )
-}
-
 const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const scope = useChatScopeKey()
     const sessions = useAtomValue(sessionsListAtomFamily(scope))
@@ -1044,35 +1032,32 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id
 
     return (
-        <div className="flex h-full min-h-0 w-full flex-col p-3">
+        <div className="flex h-full min-h-0 w-full flex-col">
             <Tabs
-                type="editable-card"
-                size="small"
-                className="flex min-h-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-nav]:!-mx-3 [&_.ant-tabs-nav]:!px-3 [&_.ant-tabs-tabpane]:h-full"
+                animated={false}
+                className="flex min-h-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
                 activeKey={activeId}
                 onChange={setActiveSession}
-                onEdit={(targetKey, action) => {
-                    if (action === "add") addSession()
-                    else if (typeof targetKey === "string") closeSession(targetKey)
-                }}
-                tabBarExtraContent={{
-                    right: (
-                        <div className="flex items-center gap-1">
-                            <SessionInspectorButton sessionId={activeId ?? null} />
-                            <SessionHistoryMenu />
-                        </div>
-                    ),
-                }}
-                items={sessions.map((session, index) => ({
+                renderTabBar={() => (
+                    <SessionTagBar
+                        sessions={sessions}
+                        activeId={activeId}
+                        onSelect={setActiveSession}
+                        onAdd={addSession}
+                        onClose={closeSession}
+                        onRename={(id, title) => renameSession({id, title})}
+                        extra={
+                            <>
+                                <SessionInspectorButton sessionId={activeId ?? null} />
+                                <SessionHistoryMenu />
+                            </>
+                        }
+                    />
+                )}
+                items={sessions.map((session) => ({
                     key: session.id,
-                    closable: sessions.length > 1,
-                    label: (
-                        <TabLabel
-                            session={session}
-                            index={index}
-                            onRename={(title) => renameSession({id: session.id, title})}
-                        />
-                    ),
+                    // Bar is rendered by `renderTabBar` (SessionTagBar); the per-item label is unused.
+                    label: null,
                     children: <AgentConversation entityId={entityId} sessionId={session.id} />,
                 }))}
             />
