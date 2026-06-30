@@ -22,7 +22,7 @@ const createWorkflowHeader = (lastPath?: string) => {
             <>
                 <div
                     className={[
-                        "w-full h-[44px] flex items-center",
+                        "w-full h-[48px] flex items-center",
                         collapsed ? "justify-center" : "mx-1.5",
                     ].join(" ")}
                 >

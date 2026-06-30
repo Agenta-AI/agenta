@@ -1,5 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {InitialsAvatar} from "@agenta/ui"
 import {CaretDown, CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
@@ -200,23 +201,33 @@ const ListOfProjects = ({
         isOpen: boolean,
         showCaret: boolean,
         disabled?: boolean,
+        subtitle?: string,
     ) => (
         <Button
             type={sharedButtonProps.type ?? "text"}
             className={clsx(
-                "flex items-center justify-between gap-2 w-full px-1.5 py-3",
+                "flex items-center justify-between gap-2 w-full pl-2 pr-3 py-3 h-12 border border-solid border-gray-200",
                 {"!w-auto": collapsed},
                 sharedButtonProps.className,
             )}
             disabled={disabled || sharedButtonProps.disabled}
             {...sharedButtonProps.rest}
         >
-            <span
-                className={clsx("truncate", collapsed ? "max-w-[52px]" : "max-w-[180px]")}
-                title={label || placeholder}
-            >
-                {label || placeholder}
-            </span>
+            <div className="flex items-center gap-2 min-w-0">
+                <InitialsAvatar size="middle" name={label || placeholder} />
+                {!collapsed && (
+                    <div className="flex min-w-0 flex-col text-left">
+                        <span className="max-w-[150px] truncate" title={label || placeholder}>
+                            {label || placeholder}
+                        </span>
+                        {subtitle && (
+                            <span className="text-[10px] leading-3 text-colorTextTertiary">
+                                {subtitle}
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
             {!collapsed && showCaret && (
                 <CaretDown
                     size={14}
@@ -407,10 +418,13 @@ const ListOfProjects = ({
                 disabled: !interactive,
                 label: (
                     <div className="flex items-center gap-2 w-full max-w-[300px]">
-                        <span className="truncate">{proj.project_name}</span>
-                        {proj.is_default_project && (
-                            <Tag className="bg-[var(--ag-c-0517290F)] m-0">default</Tag>
-                        )}
+                        <InitialsAvatar size="small" name={proj.project_name} />
+                        <div className="flex min-w-0 items-center gap-2">
+                            <span className="truncate">{proj.project_name}</span>
+                            {proj.is_default_project && (
+                                <Tag className="bg-[var(--ag-c-0517290F)] m-0">default</Tag>
+                            )}
+                        </div>
                     </div>
                 ),
                 children,
@@ -510,26 +524,26 @@ const ListOfProjects = ({
                             "Projects",
                             projectDropdownOpen,
                             true,
+                            false,
+                            project?.is_default_project ? "Default" : undefined,
                         )}
                     </Dropdown>
                 ) : (
                     <div className={clsx({"flex items-center justify-center": collapsed})}>
-                        {renderSelectionButton(projectButtonLabel, "Projects", false, false, true)}
+                        {renderSelectionButton(
+                            projectButtonLabel,
+                            "Projects",
+                            false,
+                            false,
+                            true,
+                            project?.is_default_project ? "Default" : undefined,
+                        )}
                     </div>
                 )
             ) : (
-                <Button
-                    type={sharedButtonProps.type ?? "text"}
-                    className={clsx(
-                        "flex items-center justify-between gap-2 w-full px-1.5 py-3 text-left",
-                        {"!w-auto": collapsed},
-                        sharedButtonProps.className,
-                    )}
-                    disabled
-                    {...sharedButtonProps.rest}
-                >
-                    {!collapsed && <span className="truncate">No projects</span>}
-                </Button>
+                <div className={clsx({"flex items-center justify-center": collapsed})}>
+                    {renderSelectionButton("No projects", "Projects", false, false, true)}
+                </div>
             )}
 
             <Modal

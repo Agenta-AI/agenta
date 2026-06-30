@@ -165,8 +165,9 @@ const createSettingsHeader = (lastPath?: string) => {
                 >
                     <Button
                         aria-label="Back"
-                        className="gap-2 flex items-center justify-center"
+                        className="gap-2 flex items-center justify-center ml-2 mt-2"
                         type="text"
+                        size="small"
                         icon={<ArrowLeft size={14} />}
                         onClick={() => {
                             if (lastPath) router.push(lastPath)
@@ -177,7 +178,6 @@ const createSettingsHeader = (lastPath?: string) => {
                     </Button>
                 </div>
 
-                <Divider className="mb-1 mt-0" />
                 <ListOfOrgs collapsed={collapsed} buttonProps={{type: "text"}} />
                 <Divider className="-mt-[3.5px] mb-3" />
             </>
