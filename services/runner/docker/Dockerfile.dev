@@ -2,7 +2,7 @@
 #
 # Runs the TypeScript runner as an HTTP server. The Python agent service calls
 # it in-network. Source is bind-mounted in dev so `tsx watch` hot-reloads; node_modules
-# stays baked into the image. Build context is services/agent.
+# stays baked into the image. Build context is services/runner.
 
 FROM node:24-slim
 

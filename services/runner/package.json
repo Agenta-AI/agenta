@@ -1,5 +1,5 @@
 {
-  "name": "agenta-agent-runner",
+  "name": "agenta-runner",
   "version": "0.1.0",
   "private": true,
   "type": "module",

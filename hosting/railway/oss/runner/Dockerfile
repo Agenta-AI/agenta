@@ -1,7 +1,7 @@
 # Wrapper Dockerfile for Railway deployment.
 # Adds the runtime port to the GHCR image and keeps the runner service image-backed.
 
-FROM ghcr.io/agenta-ai/agenta-agent-runner:latest
+FROM ghcr.io/agenta-ai/agenta-runner:latest
 
 ENV AGENTA_RUNNER_PORT=8765
 

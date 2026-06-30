@@ -346,6 +346,39 @@ main() {
 
     unset_vars worker-events AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
 
+    set_vars worker-interactions \
+        AGENTA_WEB_URL="https://${public_domain_ref}" \
+        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
+        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
+        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
+        POSTGRES_URI_CORE="$pg_async_core" \
+        POSTGRES_URI_TRACING="$pg_async_tracing" \
+        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
+
+    unset_vars worker-interactions AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
+
+    set_vars worker-records \
+        AGENTA_WEB_URL="https://${public_domain_ref}" \
+        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
+        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
+        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
+        POSTGRES_URI_CORE="$pg_async_core" \
+        POSTGRES_URI_TRACING="$pg_async_tracing" \
+        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
+
+    unset_vars worker-records AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
+
+    set_vars worker-triggers \
+        AGENTA_WEB_URL="https://${public_domain_ref}" \
+        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
+        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
+        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
+        POSTGRES_URI_CORE="$pg_async_core" \
+        POSTGRES_URI_TRACING="$pg_async_tracing" \
+        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
+
+    unset_vars worker-triggers AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
+
     set_vars cron \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
         AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \

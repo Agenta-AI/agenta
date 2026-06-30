@@ -151,7 +151,7 @@ render_runner_wrapper() {
     cat > "$dir/Dockerfile" <<EOF
 FROM ${AGENTA_RUNNER_IMAGE}
 
-ENV PORT=8765
+ENV AGENTA_RUNNER_PORT=8765
 
 CMD ["node_modules/.bin/tsx", "src/server.ts"]
 EOF
@@ -213,6 +213,9 @@ render_api_like_wrapper worker-tracing '["python", "-m", "entrypoints.worker_tra
 render_api_like_wrapper worker-evaluations '["python", "-m", "entrypoints.worker_evaluations"]'
 render_api_like_wrapper worker-webhooks '["python", "-m", "entrypoints.worker_webhooks"]'
 render_api_like_wrapper worker-events '["python", "-m", "entrypoints.worker_events"]'
+render_api_like_wrapper worker-interactions '["python", "-m", "entrypoints.worker_interactions"]'
+render_api_like_wrapper worker-records '["python", "-m", "entrypoints.worker_records"]'
+render_api_like_wrapper worker-triggers '["python", "-m", "entrypoints.worker_triggers"]'
 render_api_like_wrapper cron '["/usr/local/bin/supercronic", "/app/crontab"]'
 
 export RAILWAY_PROJECT_NAME="$PROJECT_NAME"
@@ -240,6 +243,9 @@ railway_call up "$TMP_DIR/worker-tracing" --path-as-root --service worker-tracin
 railway_call up "$TMP_DIR/worker-evaluations" --path-as-root --service worker-evaluations --detach
 railway_call up "$TMP_DIR/worker-webhooks" --path-as-root --service worker-webhooks --detach
 railway_call up "$TMP_DIR/worker-events" --path-as-root --service worker-events --detach
+railway_call up "$TMP_DIR/worker-interactions" --path-as-root --service worker-interactions --detach
+railway_call up "$TMP_DIR/worker-records" --path-as-root --service worker-records --detach
+railway_call up "$TMP_DIR/worker-triggers" --path-as-root --service worker-triggers --detach
 railway_call up "$TMP_DIR/runner" --path-as-root --service runner --detach
 railway_call up "$TMP_DIR/services" --path-as-root --service services --detach
 railway_call up "$TMP_DIR/cron" --path-as-root --service cron --detach

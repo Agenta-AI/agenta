@@ -23,7 +23,7 @@ fi
 API_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-api:${TAG}"
 WEB_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-web:${TAG}"
 SERVICES_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-services:${TAG}"
-RUNNER_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-agent-runner:${TAG}"
+RUNNER_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-runner:${TAG}"
 
 printf "Building local images with tag '%s'\n" "$TAG"
 

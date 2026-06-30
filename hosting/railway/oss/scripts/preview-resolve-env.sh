@@ -47,13 +47,13 @@ if [ -z "${AGENTA_SERVICES_IMAGE:-}" ] && [ -n "$IMAGE_TAG" ]; then
 fi
 
 if [ -z "${AGENTA_RUNNER_IMAGE:-}" ] && [ -n "$IMAGE_TAG" ]; then
-    export AGENTA_RUNNER_IMAGE="ghcr.io/${GHCR_NAMESPACE}/agenta-agent-runner:${IMAGE_TAG}"
+    export AGENTA_RUNNER_IMAGE="ghcr.io/${GHCR_NAMESPACE}/agenta-runner:${IMAGE_TAG}"
 fi
 
 export AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-api:latest}"
 export AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-web:latest}"
 export AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-services:latest}"
-export AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-agent-runner:latest}"
+export AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-runner:latest}"
 
 export RAILWAY_PROJECT_NAME="$PROJECT_NAME"
 export RAILWAY_ENVIRONMENT_NAME="$ENV_NAME"

@@ -1,6 +1,6 @@
 # Agent runner (TypeScript) conventions
 
-Scope: everything under `services/agent/`. This is the Node "agent runner" sidecar. It runs
+Scope: everything under `services/runner/`. This is the Node "agent runner" sidecar. It runs
 the agent loop and serves one contract: a JSON `/run` request in, a structured result out.
 The Python agent service (`services/oss/src/agent/`) decides *what* to run; this package
 *runs* it. It lives in Node because the harnesses (Pi, Claude Code, and the `sandbox-agent` package)
@@ -35,7 +35,7 @@ pnpm run typecheck        # tsc --noEmit (src + tests + vitest.config)
   helpers and fixtures live in `tests/utils/`. This mirrors `web/packages/*` and the repo
   testing.structure spec. Do not add tests back under a flat `test/` directory.
 - Build/test artifacts (`test-results/`, `coverage/`, `dist/`) are git-ignored from the ROOT
-  `.gitignore` — a nested `services/agent/.gitignore` does NOT take effect (the repo-wide
+  `.gitignore` — a nested `services/runner/.gitignore` does NOT take effect (the repo-wide
   `.*` rule ignores all nested `.gitignore` files).
 
 ## The wire contract is mirrored — change both sides
