@@ -6,6 +6,7 @@ from .. import core
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
 from ..types.mount_create import MountCreate
+from ..types.mount_credentials_response import MountCredentialsResponse
 from ..types.mount_edit import MountEdit
 from ..types.mount_file_deleted_response import MountFileDeletedResponse
 from ..types.mount_file_written_response import MountFileWrittenResponse
@@ -49,18 +50,13 @@ class MountsClient:
         
         Examples
         --------
-        from agenta import AgentaApi, MountCreate, MountData
+        from agenta import AgentaApi, MountCreate
         
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
         client.mounts.create_mount(
-            mount=MountCreate(
-                data=MountData(
-                    bucket="bucket",
-                    prefix="prefix",
-                ),
-            ),
+            mount=MountCreate(),
         )
         """
         _response = self._raw_client.create_mount(mount=mount, request_options=request_options)
@@ -155,6 +151,34 @@ class MountsClient:
         )
         """
         _response = self._raw_client.edit_mount(mount_id, mount=mount, request_options=request_options)
+        return _response.data
+    
+    def sign_mount_credentials(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountCredentialsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.mounts.sign_mount_credentials(
+            mount_id="mount_id",
+        )
+        """
+        _response = self._raw_client.sign_mount_credentials(mount_id, request_options=request_options)
         return _response.data
     
     def archive_mount(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:
@@ -275,6 +299,37 @@ class MountsClient:
         )
         """
         _response = self._raw_client.upload_mount_file(mount_id, file=file, path=path, request_options=request_options)
+        return _response.data
+    
+    def download_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        path : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.mounts.download_mount_file(
+            mount_id="mount_id",
+            path="path",
+        )
+        """
+        _response = self._raw_client.download_mount_file(mount_id, path=path, request_options=request_options)
         return _response.data
     
     def get_mount_files(self, mount_id: str, *, path: typing.Optional[str] = None, read: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
@@ -403,7 +458,7 @@ class AsyncMountsClient:
         --------
         import asyncio
         
-        from agenta import AsyncAgentaApi, MountCreate, MountData
+        from agenta import AsyncAgentaApi, MountCreate
         
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -412,12 +467,7 @@ class AsyncMountsClient:
         
         async def main() -> None:
             await client.mounts.create_mount(
-                mount=MountCreate(
-                    data=MountData(
-                        bucket="bucket",
-                        prefix="prefix",
-                    ),
-                ),
+                mount=MountCreate(),
             )
         
         
@@ -539,6 +589,42 @@ class AsyncMountsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_mount(mount_id, mount=mount, request_options=request_options)
+        return _response.data
+    
+    async def sign_mount_credentials(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountCredentialsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.mounts.sign_mount_credentials(
+                mount_id="mount_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.sign_mount_credentials(mount_id, request_options=request_options)
         return _response.data
     
     async def archive_mount(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:
@@ -691,6 +777,45 @@ class AsyncMountsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.upload_mount_file(mount_id, file=file, path=path, request_options=request_options)
+        return _response.data
+    
+    async def download_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        path : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.mounts.download_mount_file(
+                mount_id="mount_id",
+                path="path",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.download_mount_file(mount_id, path=path, request_options=request_options)
         return _response.data
     
     async def get_mount_files(self, mount_id: str, *, path: typing.Optional[str] = None, read: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:

@@ -1,61 +1,90 @@
-"""Unit tests for MountsService immutability rules and path validation."""
+"""Unit tests for MountsService slug minting, reserved-slug guard, and path validation."""
 
-import hashlib
-import base64
+from uuid import uuid5, NAMESPACE_DNS
+
 import pytest
 
-from oss.src.core.mounts.service import validate_bucket, validate_prefix
-from oss.src.core.mounts.types import MountDataInvalid
+from oss.src.core.mounts.service import (
+    mint_session_slug,
+    reject_reserved_slug,
+    validate_file_path,
+)
+from oss.src.core.mounts.types import MountPathInvalid, MountSlugReserved
+
+
+_MOUNTS_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "mounts")
 
 
 # ---------------------------------------------------------------------------
-# Path segment validation
+# Session slug minting
 # ---------------------------------------------------------------------------
 
 
-class TestMountPathValidation:
-    def test_valid_bucket_simple(self):
-        validate_bucket("my-bucket")
+class TestSessionSlugMinting:
+    def test_mints_reserved_namespaced_slug(self):
+        slug = mint_session_slug(session_id="sess-1", name="cwd")
+        expected_hash = uuid5(_MOUNTS_NAMESPACE, "sess-1")
+        assert slug == f"__ag__{expected_hash}__cwd"
 
-    def test_valid_bucket_with_spaces(self):
-        validate_bucket("my bucket")
+    def test_is_deterministic_for_same_session_and_name(self):
+        a = mint_session_slug(session_id="sess-1", name="cwd")
+        b = mint_session_slug(session_id="sess-1", name="cwd")
+        assert a == b
 
-    def test_valid_prefix_single_segment(self):
-        validate_prefix("workspace")
+    def test_different_sessions_get_different_slugs(self):
+        a = mint_session_slug(session_id="sess-1", name="cwd")
+        b = mint_session_slug(session_id="sess-2", name="cwd")
+        assert a != b
 
-    def test_valid_prefix_multi_segment(self):
-        validate_prefix("workspaces/session-1/files")
+    def test_name_is_slugified(self):
+        slug = mint_session_slug(session_id="sess-1", name="Claude Home")
+        assert slug.endswith("__claude-home")
 
-    def test_valid_prefix_with_underscores(self):
-        validate_prefix("my_project/agent_workspace")
+    def test_carries_full_undashed_uuid_no_truncation(self):
+        slug = mint_session_slug(session_id="sess-1", name="cwd")
+        # full canonical dashed uuid5 between the markers
+        middle = slug[len("__ag__") : -len("__cwd")]
+        assert middle == str(uuid5(_MOUNTS_NAMESPACE, "sess-1"))
 
-    def test_rejects_dotdot_traversal(self):
-        with pytest.raises(MountDataInvalid):
-            validate_prefix("../etc/passwd")
 
-    def test_rejects_absolute_path(self):
-        with pytest.raises(MountDataInvalid):
-            validate_prefix("/absolute/path")
+# ---------------------------------------------------------------------------
+# Reserved-slug guard
+# ---------------------------------------------------------------------------
 
-    def test_rejects_dotdot_segment_in_middle(self):
-        with pytest.raises(MountDataInvalid):
-            validate_prefix("safe/../../../etc")
 
-    def test_rejects_special_chars_in_bucket(self):
-        with pytest.raises(MountDataInvalid):
-            validate_bucket("my;bucket")
+class TestReservedSlugGuard:
+    def test_allows_plain_slug(self):
+        reject_reserved_slug("datasets")
+
+    def test_rejects_reserved_prefix(self):
+        with pytest.raises(MountSlugReserved):
+            reject_reserved_slug("__ag__anything")
+
+
+# ---------------------------------------------------------------------------
+# File path validation
+# ---------------------------------------------------------------------------
+
+
+class TestFilePathValidation:
+    def test_valid_single_segment(self):
+        validate_file_path("file.txt")
+
+    def test_valid_multi_segment(self):
+        validate_file_path("dir/sub/file.txt")
+
+    def test_rejects_absolute(self):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("/etc/passwd")
+
+    def test_rejects_dotdot(self):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("safe/../../etc")
+
+    def test_rejects_empty(self):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("/")
 
     def test_rejects_angle_brackets(self):
-        with pytest.raises(MountDataInvalid):
-            validate_prefix("path/<injection>")
-
-    def test_empty_segment_in_prefix_is_skipped(self):
-        # trailing slash produces empty segment — allowed (strip empty)
-        validate_prefix("workspace/files/")
-
-    def test_valid_hashed_id_segment(self):
-        # Simulates a hashed session_id used as a path segment
-        raw = "ext-session-abc123"
-        digest = hashlib.sha256(raw.encode()).digest()
-        hashed = base64.b32encode(digest[:10]).decode().lower().rstrip("=")
-        validate_prefix(f"sessions/{hashed}/cwd")
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("path/<injection>")

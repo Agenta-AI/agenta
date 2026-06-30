@@ -15,7 +15,7 @@ user cannot author or shadow it, and resolution never falls through to Postgres.
 """
 
 from typing import Any, Dict, Optional, Tuple
-from uuid import UUID, uuid5
+from uuid import UUID, uuid5, NAMESPACE_DNS
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_YOUR_FIRST_APP_SKILL,
@@ -55,10 +55,10 @@ __all__ = [
     "StaticWorkflowCatalog",
 ]
 
-# Fixed namespace UUID for deterministic UUIDv5 ids. Stable across instances and restarts so a
-# static workflow keeps the same artifact / variant / revision ids everywhere. Do not change it:
-# the ids are derived from it, and changing it would silently re-key every static workflow.
-_STATIC_NAMESPACE_UUID = UUID("a6e6b3f2-2c4a-5f3a-9b6f-0a1b2c3d4e5f")
+# Deterministic UUIDv5 namespace: the stable project-wide root (uuid5(NAMESPACE_DNS, "agenta"))
+# sub-namespaced under "catalog". Stable across instances/restarts so a static workflow keeps the
+# same artifact / variant / revision ids everywhere. Changing it re-keys every static workflow.
+_STATIC_NAMESPACE_UUID = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "catalog")
 
 
 # ---------------------------------------------------------------------------

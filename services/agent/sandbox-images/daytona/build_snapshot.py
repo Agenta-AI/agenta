@@ -42,6 +42,16 @@ from daytona import (
 SNAPSHOT_NAME = "agenta-sandbox-pi"
 SANDBOX_AGENT_IMAGE = "rivetdev/sandbox-agent:0.5.0-rc.2-full"
 PI_PACKAGE = "@earendil-works/pi-coding-agent@0.79.4"
+# Durable session cwd: geesefs (FUSE-over-S3) mounts the store prefix INSIDE the sandbox for
+# remote runs. fuse provides fusermount + /etc/fuse.conf; geesefs is the static mount binary.
+# amd64 is correct here regardless of the builder's local arch: the snapshot is built and run
+# on Daytona's x86_64 cloud hosts, not on this machine. (The local/prod runner Dockerfiles, by
+# contrast, arch-match via `dpkg --print-architecture` because they may build on arm64 Macs.)
+GEESEFS_VERSION = "v0.43.0"
+GEESEFS_URL = (
+    "https://github.com/yandex-cloud/geesefs/releases/download/"
+    f"{GEESEFS_VERSION}/geesefs-linux-amd64"
+)
 
 
 def main() -> None:
@@ -68,6 +78,11 @@ def main() -> None:
             "USER root",
             f"RUN npm install -g --ignore-scripts {PI_PACKAGE}",
             "RUN pi --version || true",
+            # Durable cwd: fuse + geesefs so the remote sandbox can mount its store prefix.
+            "RUN apt-get update && apt-get install -y --no-install-recommends fuse curl "
+            "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",
+            f"RUN curl -fsSL -o /usr/local/bin/geesefs {GEESEFS_URL} "
+            "&& chmod +x /usr/local/bin/geesefs",
             "USER sandbox",
         ]
     )

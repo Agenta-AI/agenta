@@ -1,4 +1,6 @@
+export type { BodyUploadSessionMountFile } from "./BodyUploadSessionMountFile.js";
 export type { DeleteSessionStreamRequest } from "./DeleteSessionStreamRequest.js";
+export type { DownloadSessionMountFileRequest } from "./DownloadSessionMountFileRequest.js";
 export type { FetchInteractionRequest } from "./FetchInteractionRequest.js";
 export type { FetchSessionMountsRequest } from "./FetchSessionMountsRequest.js";
 export type { FetchSessionStreamRequest } from "./FetchSessionStreamRequest.js";
@@ -17,3 +19,4 @@ export type { SessionRecordQueryRequest } from "./SessionRecordQueryRequest.js";
 export type { SessionStreamCommandRequestModel } from "./SessionStreamCommandRequestModel.js";
 export type { SessionStreamQueryRequestModel } from "./SessionStreamQueryRequestModel.js";
 export type { SetStateRequest } from "./SetStateRequest.js";
+export type { SignSessionMountCredentialsRequest } from "./SignSessionMountCredentialsRequest.js";

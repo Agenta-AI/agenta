@@ -1,10 +1,11 @@
 """add mounts table
 
-A mount is a durable object-store prefix bound to a project (and optionally
+A mount is a durable object-store location bound to a project (and optionally
 a session). The backend (SeaweedFS dev / S3 platform) is resolved from env
 vars, not stored per row. session_id is a bare varchar column — not a FK —
 because sessions may be external (trace/span ids). slug is project-unique
-(partial unique index); data carries bucket + prefix as JSON.
+(unique constraint); the object key is derived (project_id/mount_id), so data
+holds no storage location (empty JSON).
 
 Revision ID: oss000000006
 Revises: oss000000005

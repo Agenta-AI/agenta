@@ -288,6 +288,8 @@ export * from "./MetricsBucket.js";
 export * from "./MetricType.js";
 export * from "./Mount.js";
 export * from "./MountCreate.js";
+export * from "./MountCredentials.js";
+export * from "./MountCredentialsResponse.js";
 export * from "./MountData.js";
 export * from "./MountEdit.js";
 export * from "./MountFileDeletedResponse.js";

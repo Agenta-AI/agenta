@@ -819,15 +819,16 @@ _triggers_worker = TriggersWorker(
 triggers_service.schedule_dispatch_task = _triggers_worker.dispatch_schedule
 
 mounts_storage = MountStorage(
-    endpoint_url=env.mounts.s3_endpoint_url,
-    access_key=env.mounts.s3_access_key,
-    secret_key=env.mounts.s3_secret_key,
-    region=env.mounts.s3_region,
+    endpoint_url=env.mounts.storage_endpoint_url,
+    access_key=env.mounts.storage_access_key,
+    secret_key=env.mounts.storage_secret_key,
+    region=env.mounts.storage_region,
 )
 
 mounts_service = MountsService(
     mounts_dao=mounts_dao,
     mount_storage=mounts_storage,
+    bucket=env.mounts.storage_bucket,
 )
 
 session_mounts_service = SessionMountsService(
@@ -1002,6 +1003,7 @@ sessions = SessionsRouter(
     interactions_service=interactions_service,
     workflows_service=workflows_service,
     session_mounts_service=session_mounts_service,
+    mounts_service=mounts_service,
     respond_task=_interactions_worker.respond_interaction,
 )
 

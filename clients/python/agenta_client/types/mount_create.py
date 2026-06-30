@@ -4,7 +4,6 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .mount_data import MountData
 from .mount_flags import MountFlags
 
 
@@ -13,7 +12,6 @@ class MountCreate(UniversalBaseModel):
     description: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     session_id: typing.Optional[str] = None
-    data: MountData
     flags: typing.Optional[MountFlags] = None
     
     if IS_PYDANTIC_V2:
