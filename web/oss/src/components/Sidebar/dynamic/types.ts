@@ -1,3 +1,5 @@
+import type {ReactElement} from "react"
+
 import type {ListQueryState} from "@agenta/entities/shared"
 import type {Atom} from "jotai"
 
@@ -31,6 +33,8 @@ export interface SidebarEntitySource<TRef extends SidebarEntityRef = SidebarEnti
 export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEntityRef> {
     /** Reference tone → icon (matches the entity chips in the TraceDrawer). */
     kind: ReferenceTone
+    /** Optional icon override for entity kinds without a reference tone. */
+    icon?: ReactElement
     /** Existing `@agenta/entities` list atom. Use `fromParts` if only query+data atoms exist. */
     listAtom: Atom<ListQueryState<TRef>>
     /** Row label, e.g. `(ref) => ref.name ?? ref.slug`. */
@@ -53,6 +57,7 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
 export interface SidebarEntity {
     parentKey: string
     kind: ReferenceTone
+    icon?: ReactElement
     activeSourceAtom: Atom<SidebarEntitySource>
     getLabel: (ref: SidebarEntityRef) => string
     childLink: (ref: SidebarEntityRef, projectURL: string) => string

@@ -209,6 +209,8 @@ export {
     appWorkflowsListDataAtom,
     nonArchivedAppWorkflowsAtom,
     appWorkflowsListQueryStateAtom,
+    promptWorkflowsListQueryStateAtom,
+    agentWorkflowsListQueryStateAtom,
     // Union atoms (app + evaluator combined)
     workflowsListDataAtom,
     nonArchivedWorkflowsAtom,

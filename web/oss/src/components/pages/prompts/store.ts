@@ -157,7 +157,7 @@ const workflowsQueryAtom = atomWithQuery((get) => {
             if (!projectId) return []
             const response = await queryWorkflows({
                 projectId,
-                flags: {is_evaluator: false},
+                flags: {is_evaluator: false, is_agent: false},
                 includeArchived: false,
                 // undefined = no filter (search), null = root, string = specific folder
                 folderId: isSearching ? undefined : (currentFolderId ?? null),

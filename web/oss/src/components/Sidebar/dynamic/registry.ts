@@ -1,4 +1,10 @@
-import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {createElement} from "react"
+
+import {
+    agentWorkflowsListQueryStateAtom,
+    promptWorkflowsListQueryStateAtom,
+} from "@agenta/entities/workflow"
+import {RobotIcon} from "@phosphor-icons/react"
 import {atom} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID} from "../scopes/constants"
@@ -17,6 +23,7 @@ const DEFAULT_SIDEBAR_ENTITY_LIMIT = 3
 // `useSidebarConfig` and the registry entry below must share the same key —
 // keep the constant the single source of truth.
 export const PROMPTS_SIDEBAR_KEY = "project-prompts-link"
+export const AGENTS_SIDEBAR_KEY = "project-agents-link"
 
 /**
  * Turns an author config into a resolved {@link SidebarEntity}: applies open-state
@@ -31,6 +38,7 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
 ): SidebarEntity => ({
     parentKey,
     kind: config.kind,
+    icon: config.icon,
     activeSourceAtom: gatedSidebarSource(scopeId, parentKey, config.listAtom),
     getLabel: (ref) => config.getLabel(ref as TRef),
     childLink: (ref, projectURL) => `${projectURL}${config.childPath(ref as TRef)}`,
@@ -47,11 +55,20 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
 const ENTITIES: SidebarEntity[] = [
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, PROMPTS_SIDEBAR_KEY, {
         kind: "app",
-        listAtom: appWorkflowsListQueryStateAtom,
+        listAtom: promptWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled prompt",
         childPath: (workflow) => `/apps/${workflow.id}/overview`,
         emptyLabel: "No prompts",
         showAllPath: "/prompts",
+    }),
+    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
+        kind: "app",
+        icon: createElement(RobotIcon, {size: 14}),
+        listAtom: agentWorkflowsListQueryStateAtom,
+        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
+        childPath: (workflow) => `/apps/${workflow.id}/overview`,
+        emptyLabel: "No agents",
+        showAllPath: "/agents",
     }),
 ]
 

@@ -19,6 +19,7 @@ import {
     HouseIcon,
     RocketLaunchIcon,
     ListChecksIcon,
+    RobotIcon,
 } from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -33,7 +34,7 @@ import {useAppsData} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 
-import {PROMPTS_SIDEBAR_KEY} from "../../dynamic/registry"
+import {AGENTS_SIDEBAR_KEY, PROMPTS_SIDEBAR_KEY} from "../../dynamic/registry"
 import {
     injectDynamicChildren,
     useSidebarDynamicChildren,
@@ -98,6 +99,13 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Prompts",
                 link: `${projectURL}/prompts`,
                 icon: getEntityKindIcon("app"),
+                disabled: !hasProjectURL,
+            },
+            {
+                key: AGENTS_SIDEBAR_KEY,
+                title: "Agents",
+                link: `${projectURL}/agents`,
+                icon: <RobotIcon size={14} />,
                 disabled: !hasProjectURL,
             },
             {

@@ -26,7 +26,7 @@ const resolveChildren = (
     projectURL: string,
     idleFallback?: SidebarConfig[],
 ): SidebarConfig[] => {
-    const icon = () => getEntityKindIcon(entity.kind)
+    const icon = () => entity.icon ?? getEntityKindIcon(entity.kind)
     const status = source?.status ?? "idle"
 
     if (status === "idle") {

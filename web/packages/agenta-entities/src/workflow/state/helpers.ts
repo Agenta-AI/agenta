@@ -13,6 +13,24 @@ import {collectEvaluatorCandidates, type Workflow} from "../core"
 
 import type {WorkflowType} from "./molecule"
 
+export function withLatestAgentFlags(
+    workflows: Workflow[],
+    latestRevisions: ReadonlyMap<string, Workflow>,
+): Workflow[] {
+    return workflows.map((workflow) => {
+        const latestRevision = latestRevisions.get(workflow.id)
+        if (!latestRevision) return workflow
+
+        return {
+            ...workflow,
+            flags: {
+                ...workflow.flags,
+                is_agent: latestRevision.flags?.is_agent ?? false,
+            } as Workflow["flags"],
+        }
+    })
+}
+
 /**
  * Legacy evaluator keys → workflow type. Used for evaluators committed before
  * `infer_flags_from_data` populated `is_llm`/`is_match`/`is_code`/`is_hook` on

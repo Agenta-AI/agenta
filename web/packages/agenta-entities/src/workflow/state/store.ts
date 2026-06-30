@@ -56,6 +56,7 @@ import {
     buildServiceUrlFromUri,
     isManagedServiceUrl,
     deriveWorkflowTypeFromRevision,
+    withLatestAgentFlags,
 } from "./helpers"
 
 // ============================================================================
@@ -439,6 +440,27 @@ export const nonArchivedAppWorkflowsAtom = atom<Workflow[]>((get) => {
     return refs.filter((ref) => !ref.deleted_at) as Workflow[]
 })
 
+const appWorkflowsWithAgentFlagsQueryAtom = atomWithQuery((get) => {
+    const projectId = get(workflowProjectIdAtom)
+    const appQuery = get(appWorkflowsListQueryAtom)
+    const workflows = (appQuery.data?.refs ?? []) as Workflow[]
+    const workflowVersionKey = workflows.map((workflow) => [workflow.id, workflow.updated_at])
+
+    return {
+        queryKey: ["workflows", "apps", "agentFlags", projectId, workflowVersionKey],
+        queryFn: async (): Promise<Workflow[]> => {
+            if (!projectId || workflows.length === 0) return workflows
+            const latestRevisions = await fetchWorkflowsBatch(
+                projectId,
+                workflows.map((workflow) => workflow.id),
+            )
+            return withLatestAgentFlags(workflows, latestRevisions)
+        },
+        enabled: get(sessionAtom) && !!projectId && !appQuery.isPending,
+        staleTime: 30_000,
+    }
+})
+
 // ============================================================================
 // VARIANT LIST QUERY (for 3-level hierarchy)
 // ============================================================================
@@ -750,6 +772,34 @@ export const appWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((ge
         isPending: query.isPending ?? false,
         isError: query.isError ?? false,
         error: query.error ?? null,
+    }
+})
+
+export const promptWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
+    const appQuery = get(appWorkflowsListQueryAtom)
+    const agentFlagsQuery = get(appWorkflowsWithAgentFlagsQueryAtom)
+    const data = (agentFlagsQuery.data ?? []).filter(
+        (workflow) => !workflow.deleted_at && !workflow.flags?.is_agent,
+    )
+    return {
+        data,
+        isPending: (appQuery.isPending || agentFlagsQuery.isPending) ?? false,
+        isError: appQuery.isError || agentFlagsQuery.isError,
+        error: appQuery.error ?? agentFlagsQuery.error ?? null,
+    }
+})
+
+export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
+    const appQuery = get(appWorkflowsListQueryAtom)
+    const agentFlagsQuery = get(appWorkflowsWithAgentFlagsQueryAtom)
+    const data = (agentFlagsQuery.data ?? []).filter(
+        (workflow) => workflow.flags?.is_agent === true,
+    )
+    return {
+        data,
+        isPending: (appQuery.isPending || agentFlagsQuery.isPending) ?? false,
+        isError: appQuery.isError || agentFlagsQuery.isError,
+        error: appQuery.error ?? agentFlagsQuery.error ?? null,
     }
 })
 

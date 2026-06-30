@@ -38,6 +38,8 @@ export {
     appWorkflowsListDataAtom,
     nonArchivedAppWorkflowsAtom,
     appWorkflowsListQueryStateAtom,
+    promptWorkflowsListQueryStateAtom,
+    agentWorkflowsListQueryStateAtom,
     // Variant/Revision list queries (for 3-level hierarchy)
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
