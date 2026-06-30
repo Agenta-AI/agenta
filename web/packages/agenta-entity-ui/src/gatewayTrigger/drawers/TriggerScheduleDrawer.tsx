@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     appEnvironmentsQueryAtomFamily,
@@ -30,30 +30,17 @@ import {message} from "@agenta/ui"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Editor} from "@agenta/ui/editor"
-import {CalendarBlank, ChatText, Clock, GitBranch, Play, Plus, Tag, X} from "@phosphor-icons/react"
-import {
-    Button,
-    DatePicker,
-    Divider,
-    Form,
-    Input,
-    Modal,
-    Popover,
-    Spin,
-    Switch,
-    Select,
-    Tooltip,
-    Typography,
-} from "antd"
+import {CalendarBlank, ChatText, Clock, GitBranch, Play, Tag} from "@phosphor-icons/react"
+import {Button, DatePicker, Form, Input, Modal, Popover, Spin, Tooltip, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {
-    createWorkflowRevisionAdapter,
-    EntityPicker,
-    type WorkflowRevisionSelectionResult,
-} from "../../selection"
+import {createWorkflowRevisionAdapter, type WorkflowRevisionSelectionResult} from "../../selection"
 
 import {ScheduleBuilderField} from "./ScheduleBuilderField"
+import {RunVersionField, buildRunVersionReferences} from "./shared/RunVersionField"
+import {TriggerDrawerFooter} from "./shared/TriggerDrawerFooter"
+import {DraftListRow, EntityListRow, TriggerListRail, isDraftId} from "./shared/TriggerListRail"
+import {useDraftMasterDetail} from "./shared/useDraftMasterDetail"
 
 // Weekly (Monday 09:00 UTC) so the builder opens on the Weekly cadence by default.
 const DEFAULT_CRON = "0 9 * * 1"
@@ -61,9 +48,9 @@ const DEFAULT_CRON = "0 9 * * 1"
 // (the "New schedule" button disables while a draft is active); raise for multiple
 // staged drafts. Purely a config knob — no other logic depends on the value.
 const MAX_DRAFTS = 5
-// Draft list ids are prefixed so they're distinguishable from real schedule ids.
-const DRAFT_PREFIX = "draft:"
-const isDraftId = (id?: string): id is string => !!id && id.startsWith(DRAFT_PREFIX)
+// Show the master-detail list rail (existing schedules + "New schedule"). Hidden for now —
+// the playground opens straight to a single form; flip back to true to restore the list.
+const SHOW_LIST_RAIL = false
 // A schedule fires a synthetic tick; there is no provider event, but the data
 // model still requires an `event_key`. We use a stable schedule-tick key.
 const SCHEDULE_EVENT_KEY = "schedule.tick"
@@ -111,11 +98,12 @@ export default function TriggerScheduleDrawer() {
     const handleClose = useCallback(() => setState(null), [setState])
 
     const playgroundEntityId = state?.playgroundEntityId
-    const title = playgroundEntityId
-        ? "Schedules"
-        : state?.scheduleId
-          ? "Edit schedule"
-          : "New schedule"
+    const title =
+        SHOW_LIST_RAIL && playgroundEntityId
+            ? "Schedules"
+            : state?.scheduleId
+              ? "Edit schedule"
+              : "New schedule"
 
     // EnhancedDrawer renders nothing until first open and unmounts after close, so the
     // content below — which owns all data fetching and master-detail state — only mounts
@@ -153,13 +141,6 @@ function ScheduleDrawerContent({
 }) {
     const playgroundEntityId = state.playgroundEntityId
 
-    // Master-detail draft state: `drafts` is the list of unsaved draft slots (each its
-    // own persisted form), `draftNames` mirrors their typed names for the list rows.
-    // `selectedId` is a real schedule id or a draft id.
-    const [selectedId, setSelectedId] = useState<string | undefined>(undefined)
-    const [drafts, setDrafts] = useState<string[]>([])
-    const [draftNames, setDraftNames] = useState<Record<string, string>>({})
-    const draftSeq = useRef(0)
     const {schedules: allSchedules, isLoading: schedulesLoading} = useTriggerSchedules()
     const {remove: deleteScheduleApi} = useTriggerSchedule()
 
@@ -180,104 +161,37 @@ function ScheduleDrawerContent({
         })
     }, [allSchedules, playgroundEntityId, playgroundData])
 
-    // Initial selection (runs on open, since content mounts then): edit a specific
-    // schedule, else open a fresh draft.
-    useEffect(() => {
-        if (state.scheduleId) {
-            setDrafts([])
-            setDraftNames({})
-            setSelectedId(state.scheduleId)
-        } else {
-            draftSeq.current += 1
-            const first = `${DRAFT_PREFIX}${draftSeq.current}`
-            setDrafts([first])
-            setDraftNames({})
-            setSelectedId(first)
-        }
-    }, [state.scheduleId])
-
-    // "New schedule" adds a draft slot (up to MAX_DRAFTS) and focuses it.
-    const handleNew = useCallback(() => {
-        if (drafts.length >= MAX_DRAFTS) return
-        draftSeq.current += 1
-        const id = `${DRAFT_PREFIX}${draftSeq.current}`
-        setDrafts((d) => [...d, id])
-        setSelectedId(id)
-    }, [drafts.length])
-
-    const setDraftName = useCallback(
-        (id: string, name: string) => setDraftNames((n) => ({...n, [id]: name})),
-        [],
-    )
-
-    // A draft saved → it's now a real schedule (the list query is invalidated on create):
-    // drop the slot and select the created schedule, keeping the drawer open.
-    const handleDraftSaved = useCallback((draftId: string, savedId: string) => {
-        setDrafts((d) => d.filter((x) => x !== draftId))
-        setDraftNames((n) => {
-            const next = {...n}
-            delete next[draftId]
-            return next
-        })
-        setSelectedId(savedId)
-    }, [])
-
-    // Discard a draft slot. If it was active, fall back to another item (or a fresh
-    // draft) so the right pane never goes blank.
-    const removeDraft = useCallback(
-        (draftId: string) => {
-            const remaining = drafts.filter((x) => x !== draftId)
-            setDraftNames((n) => {
-                const next = {...n}
-                delete next[draftId]
-                return next
-            })
-            if (selectedId !== draftId) {
-                setDrafts(remaining)
-                return
-            }
-            const fallbackSchedule = schedules.find((s) => !!s.id)?.id
-            if (remaining.length) {
-                setDrafts(remaining)
-                setSelectedId(remaining[0])
-            } else if (fallbackSchedule) {
-                setDrafts(remaining)
-                setSelectedId(fallbackSchedule)
-            } else {
-                draftSeq.current += 1
-                const fresh = `${DRAFT_PREFIX}${draftSeq.current}`
-                setDrafts([fresh])
-                setSelectedId(fresh)
-            }
-        },
-        [drafts, selectedId, schedules],
-    )
-
-    // Delete an existing schedule (API), then fall back like above.
-    const deleteSchedule = useCallback(
-        async (scheduleId: string) => {
+    const onDeleteSchedule = useCallback(
+        async (scheduleId: string): Promise<boolean> => {
             try {
                 await deleteScheduleApi(scheduleId)
             } catch {
                 message.error("Failed to delete schedule")
-                return
+                return false
             }
             message.success("Schedule deleted")
-            if (selectedId !== scheduleId) return
-            const fallbackSchedule = schedules.find((s) => s.id && s.id !== scheduleId)?.id
-            if (drafts.length) {
-                setSelectedId(drafts[0])
-            } else if (fallbackSchedule) {
-                setSelectedId(fallbackSchedule)
-            } else {
-                draftSeq.current += 1
-                const fresh = `${DRAFT_PREFIX}${draftSeq.current}`
-                setDrafts((d) => [...d, fresh])
-                setSelectedId(fresh)
-            }
+            return true
         },
-        [deleteScheduleApi, drafts, selectedId, schedules],
+        [deleteScheduleApi],
     )
+
+    const {
+        selectedId,
+        setSelectedId,
+        drafts,
+        draftNames,
+        canCreate,
+        handleNew,
+        setDraftName,
+        handleDraftSaved,
+        removeDraft,
+        deleteEntity,
+    } = useDraftMasterDetail({
+        initialId: state.scheduleId,
+        entities: schedules,
+        maxDrafts: MAX_DRAFTS,
+        onDelete: onDeleteSchedule,
+    })
 
     if (!playgroundEntityId) {
         return (
@@ -291,18 +205,20 @@ function ScheduleDrawerContent({
 
     return (
         <div className="flex h-full min-h-0 w-full overflow-hidden">
-            <SchedulesList
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                onNew={handleNew}
-                drafts={drafts}
-                draftNames={draftNames}
-                canCreate={drafts.length < MAX_DRAFTS}
-                schedules={schedules}
-                isLoading={schedulesLoading}
-                onRemoveDraft={removeDraft}
-                onDeleteSchedule={deleteSchedule}
-            />
+            {SHOW_LIST_RAIL && (
+                <SchedulesList
+                    selectedId={selectedId}
+                    onSelect={setSelectedId}
+                    onNew={handleNew}
+                    drafts={drafts}
+                    draftNames={draftNames}
+                    canCreate={canCreate}
+                    schedules={schedules}
+                    isLoading={schedulesLoading}
+                    onRemoveDraft={removeDraft}
+                    onDeleteSchedule={deleteEntity}
+                />
+            )}
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 {/* Each draft form stays mounted (hidden unless selected) so its
                     in-progress values persist while the user works on others. */}
@@ -384,158 +300,38 @@ function SchedulesList({
         })
 
     return (
-        <div className="flex w-[240px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
+        <TriggerListRail
+            newLabel="New schedule"
+            onNew={onNew}
+            canCreate={canCreate}
+            isLoading={isLoading}
+            isEmpty={schedules.length === 0 && drafts.length === 0}
+            emptyText="No schedules yet."
+        >
             {modalContextHolder}
-            <div className="shrink-0 px-3 pb-2 pt-3">
-                <Button block icon={<Plus size={14} />} onClick={onNew} disabled={!canCreate}>
-                    New schedule
-                </Button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-                {isLoading ? (
-                    <div className="flex justify-center py-8">
-                        <Spin />
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-0.5">
-                        {/* One row per unsaved draft slot; each persists its own form state. */}
-                        {drafts.map((draftId) => (
-                            <DraftRow
-                                key={draftId}
-                                active={selectedId === draftId}
-                                name={draftNames[draftId] ?? ""}
-                                onClick={() => onSelect(draftId)}
-                                onRemove={() =>
-                                    confirmRemoveDraft(draftId, draftNames[draftId] ?? "")
-                                }
-                            />
-                        ))}
-                        {schedules.map((s) => (
-                            <ScheduleRow
-                                key={s.id}
-                                schedule={s}
-                                active={!!s.id && s.id === selectedId}
-                                onClick={() => onSelect(s.id ?? undefined)}
-                                onRemove={s.id ? () => confirmDeleteSchedule(s) : undefined}
-                            />
-                        ))}
-                        {schedules.length === 0 && drafts.length === 0 && (
-                            <Typography.Text
-                                type="secondary"
-                                className="!text-[11px] block px-2 py-3 leading-snug"
-                            >
-                                No schedules yet.
-                            </Typography.Text>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
-    )
-}
-
-// Hover-revealed remove affordance for a list row. A span (not a button) so it can
-// live inside the row's <button> without nesting interactive elements.
-function RowRemoveButton({onRemove}: {onRemove: () => void}) {
-    return (
-        <span
-            role="button"
-            aria-label="Remove"
-            tabIndex={-1}
-            onClick={(e) => {
-                e.stopPropagation()
-                onRemove()
-            }}
-            className="flex shrink-0 cursor-pointer items-center self-center rounded p-0.5 text-[var(--ag-colorTextTertiary)] opacity-0 hover:bg-[var(--ag-colorFillSecondary)] hover:text-[var(--ag-colorText)] group-hover:opacity-100"
-        >
-            <X size={13} />
-        </span>
-    )
-}
-
-function DraftRow({
-    active,
-    name,
-    onClick,
-    onRemove,
-}: {
-    active: boolean
-    name: string
-    onClick: () => void
-    onRemove?: () => void
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={`group flex w-full cursor-pointer items-start gap-2 rounded border-0 px-2 py-1.5 text-left ${
-                active
-                    ? "bg-[var(--ag-colorPrimaryBg)]"
-                    : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
-            }`}
-        >
-            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorTextQuaternary)]" />
-            <span className="min-w-0 flex-1">
-                <span
-                    className={`block truncate text-xs font-medium ${
-                        active ? "text-[var(--ag-colorPrimary)]" : "text-[var(--ag-colorText)]"
-                    }`}
-                >
-                    {name.trim() || "Untitled schedule"}
-                </span>
-                <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
-                    Draft · not saved
-                </span>
-            </span>
-            {onRemove && <RowRemoveButton onRemove={onRemove} />}
-        </button>
-    )
-}
-
-function ScheduleRow({
-    schedule,
-    active,
-    onClick,
-    onRemove,
-}: {
-    schedule: TriggerSchedule
-    active: boolean
-    onClick: () => void
-    onRemove?: () => void
-}) {
-    const running = isEntityActive(schedule)
-    const summary = describeCron(schedule.data?.schedule ?? "")
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={`group flex w-full cursor-pointer items-start gap-2 rounded border-0 px-2 py-1.5 text-left ${
-                active
-                    ? "bg-[var(--ag-colorPrimaryBg)]"
-                    : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
-            }`}
-        >
-            <span
-                className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
-                    running ? "bg-[var(--ag-colorSuccess)]" : "bg-[var(--ag-colorTextQuaternary)]"
-                }`}
-            />
-            <span className="min-w-0 flex-1">
-                <span
-                    className={`block truncate text-xs ${
-                        active
-                            ? "font-medium text-[var(--ag-colorPrimary)]"
-                            : "text-[var(--ag-colorText)]"
-                    }`}
-                >
-                    {schedule.name || "Untitled schedule"}
-                </span>
-                <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
-                    {summary}
-                </span>
-            </span>
-            {onRemove && <RowRemoveButton onRemove={onRemove} />}
-        </button>
+            {/* One row per unsaved draft slot; each persists its own form state. */}
+            {drafts.map((draftId) => (
+                <DraftListRow
+                    key={draftId}
+                    active={selectedId === draftId}
+                    name={draftNames[draftId] ?? ""}
+                    draftLabel="Untitled schedule"
+                    onClick={() => onSelect(draftId)}
+                    onRemove={() => confirmRemoveDraft(draftId, draftNames[draftId] ?? "")}
+                />
+            ))}
+            {schedules.map((s) => (
+                <EntityListRow
+                    key={s.id}
+                    active={!!s.id && s.id === selectedId}
+                    running={isEntityActive(s)}
+                    title={s.name || "Untitled schedule"}
+                    subtitle={describeCron(s.data?.schedule ?? "")}
+                    onClick={() => onSelect(s.id ?? undefined)}
+                    onRemove={s.id ? () => confirmDeleteSchedule(s) : undefined}
+                />
+            ))}
+        </TriggerListRail>
     )
 }
 
@@ -634,18 +430,18 @@ function ScheduleForm({
         ? (playgroundWorkflow?.workflow_id ?? playgroundEntityId)
         : ""
     const appDeployments = useAtomValue(appEnvironmentsQueryAtomFamily(appIdForEnv))
-    const envOptions = useMemo(() => {
+    const envOptions = useMemo<{value: string; label: string}[]>(() => {
         if (!playgroundEntityId) {
-            return environments.map((e) => ({value: e.slug, label: e.name || e.slug}))
+            return environments.map((e) => ({value: e.slug ?? "", label: e.name || e.slug || ""}))
         }
         return (appDeployments.data ?? [])
             .filter((d) => d.deployedRevisionId || d.deployedVariantId)
             .map((d) => ({
-                value: d.slug,
+                value: d.slug ?? "",
                 label:
                     d.deployedVariantName && d.revision
                         ? `${d.name} · ${d.deployedVariantName} v${d.revision}`
-                        : (d.name ?? d.slug),
+                        : (d.name ?? d.slug ?? ""),
             }))
     }, [playgroundEntityId, environments, appDeployments.data])
 
@@ -805,31 +601,14 @@ function ScheduleForm({
         // `application_revision`; otherwise it's a variant (latest) →
         // `application_variant`. Without a re-pick (edit), resend the stored
         // already-complete references. The BE completes the family either way.
-        let references: TriggerScheduleData["references"]
-        if (bindMode === "environment") {
-            references = environmentSlug
-                ? {
-                      environment: {slug: environmentSlug},
-                      ...(appSlug ? {application: {slug: appSlug}} : {}),
-                  }
-                : undefined
-        } else {
-            const meta = workflowSelection?.metadata
-            if (meta) {
-                const leafId = workflowSelection?.id ?? (workflowRevId as string)
-                const isRevision = !!meta.variantId && leafId !== meta.variantId
-                references = {
-                    ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
-                    ...(isRevision
-                        ? {application_revision: {id: leafId}}
-                        : {application_variant: {id: meta.variantId || leafId}}),
-                }
-            } else {
-                references = schedule?.data?.references ?? {
-                    application_variant: {id: workflowRevId as string},
-                }
-            }
-        }
+        const references = buildRunVersionReferences({
+            bindMode,
+            environmentSlug,
+            appSlug,
+            workflowSelection,
+            workflowRevId,
+            fallbackReferences: schedule?.data?.references,
+        })
 
         const data: TriggerScheduleData = {
             event_key: schedule?.data?.event_key ?? SCHEDULE_EVENT_KEY,
@@ -1004,101 +783,42 @@ function ScheduleForm({
                         summary={versionSummary}
                         summaryCollapsedOnly
                     >
-                        <div className="flex gap-3">
-                            <div className="flex w-[116px] shrink-0 flex-col gap-0.5">
-                                {(
-                                    [
-                                        {value: "revision", label: "Pinned"},
-                                        {value: "environment", label: "Deployed"},
-                                    ] as const
-                                ).map((m) => {
-                                    const active = bindMode === m.value
-                                    return (
-                                        <Button
-                                            key={m.value}
-                                            type="text"
-                                            block
-                                            onClick={() => setBindMode(m.value)}
-                                            className={`!h-8 !justify-start !px-2.5 !text-xs ${
-                                                active
-                                                    ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
-                                                    : "!text-[var(--ag-colorTextSecondary)]"
-                                            }`}
-                                        >
-                                            {m.label}
-                                        </Button>
-                                    )
-                                })}
-                            </div>
-
-                            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                                {bindMode === "revision" ? (
-                                    <>
-                                        <Typography.Text
-                                            type="secondary"
-                                            className="!text-[11px] leading-snug"
-                                        >
-                                            Runs one exact variant + revision.
-                                        </Typography.Text>
-                                        <EntityPicker<WorkflowRevisionSelectionResult>
-                                            variant="popover-cascader"
-                                            adapter={revisionAdapter}
-                                            onSelect={(selection) => {
-                                                setWorkflowRevId(selection.id)
-                                                setWorkflowSelection(selection)
-                                                const m = selection.metadata
-                                                const app = playgroundAppName ?? m.workflowName
-                                                const segs: string[] = []
-                                                if (app) segs.push(app)
-                                                if (m.variantName && m.variantName !== app)
-                                                    segs.push(m.variantName)
-                                                let label = segs.join(" / ")
-                                                if (m.revision != null)
-                                                    label = label
-                                                        ? `${label} · v${m.revision}`
-                                                        : `v${m.revision}`
-                                                setWorkflowLabel(label || selection.label)
-                                            }}
-                                            size="small"
-                                            className="!flex w-full max-w-prose !justify-between"
-                                            placeholder={
-                                                workflowLabel ??
-                                                resolvedRevisionName ??
-                                                (playgroundEntityId
-                                                    ? "Select a variant revision"
-                                                    : "Select workflow revision")
-                                            }
-                                        />
-                                    </>
-                                ) : (
-                                    <>
-                                        <Typography.Text
-                                            type="secondary"
-                                            className="!text-[11px] leading-snug"
-                                        >
-                                            Follows the revision deployed to an environment.
-                                        </Typography.Text>
-                                        <Select
-                                            placeholder="Select an environment"
-                                            className="w-full max-w-prose"
-                                            value={environmentSlug ?? undefined}
-                                            onChange={(v) => setEnvironmentSlug(v)}
-                                            loading={
-                                                playgroundEntityId
-                                                    ? appDeployments.isLoading
-                                                    : envQuery.isLoading
-                                            }
-                                            options={envOptions}
-                                            notFoundContent={
-                                                playgroundEntityId
-                                                    ? "This agent isn't deployed to any environment yet."
-                                                    : undefined
-                                            }
-                                        />
-                                    </>
-                                )}
-                            </div>
-                        </div>
+                        <RunVersionField
+                            bindMode={bindMode}
+                            onBindModeChange={setBindMode}
+                            revisionAdapter={revisionAdapter}
+                            revisionPlaceholder={
+                                workflowLabel ??
+                                resolvedRevisionName ??
+                                (playgroundEntityId
+                                    ? "Select a variant revision"
+                                    : "Select workflow revision")
+                            }
+                            onRevisionSelect={(selection) => {
+                                setWorkflowRevId(selection.id)
+                                setWorkflowSelection(selection)
+                                const m = selection.metadata
+                                const app = playgroundAppName ?? m.workflowName
+                                const segs: string[] = []
+                                if (app) segs.push(app)
+                                if (m.variantName && m.variantName !== app) segs.push(m.variantName)
+                                let label = segs.join(" / ")
+                                if (m.revision != null)
+                                    label = label ? `${label} · v${m.revision}` : `v${m.revision}`
+                                setWorkflowLabel(label || selection.label)
+                            }}
+                            envOptions={envOptions}
+                            envLoading={
+                                playgroundEntityId ? appDeployments.isLoading : envQuery.isLoading
+                            }
+                            environmentSlug={environmentSlug}
+                            onEnvironmentChange={setEnvironmentSlug}
+                            envNotFound={
+                                playgroundEntityId
+                                    ? "This agent isn't deployed to any environment yet."
+                                    : undefined
+                            }
+                        />
                     </ConfigAccordionSection>
 
                     <ConfigAccordionSection
@@ -1121,16 +841,12 @@ function ScheduleForm({
                 </Form>
             </div>
 
-            <Divider className="!m-0" />
-
-            <div className="flex items-center justify-between gap-2 px-6 py-3 shrink-0">
-                <div className="flex items-center gap-2">
-                    <Switch checked={enabled} onChange={setEnabled} />
-                    <span className="text-xs text-[var(--ag-colorTextSecondary)]">Active</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button onClick={onClose}>Cancel</Button>
-                    {playgroundEntityId && (
+            <TriggerDrawerFooter
+                enabled={enabled}
+                onEnabledChange={setEnabled}
+                onCancel={onClose}
+                run={
+                    playgroundEntityId ? (
                         <RunInPlaygroundButton
                             playgroundEntityId={playgroundEntityId}
                             name={name}
@@ -1140,17 +856,13 @@ function ScheduleForm({
                             disabled={!isEdit}
                             onClose={onClose}
                         />
-                    )}
-                    <Button
-                        type="primary"
-                        loading={isMutating}
-                        disabled={!isDirty}
-                        onClick={handleSubmit}
-                    >
-                        {isEdit ? "Save" : "Create"}
-                    </Button>
-                </div>
-            </div>
+                    ) : undefined
+                }
+                isMutating={isMutating}
+                canSave={isDirty}
+                submitLabel={isEdit ? "Save" : "Create"}
+                onSubmit={handleSubmit}
+            />
         </div>
     )
 }

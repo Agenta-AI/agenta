@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {
+    getScheduleMessagePreview,
     triggerDeliveriesDrawerAtom,
     triggerDeliveriesOwnerAtom,
     triggerDeliveriesPaginatedStore,
@@ -80,11 +81,15 @@ export default function TriggerDeliveriesDrawer() {
         return (record: TriggerDeliveryRow) => {
             const label = state?.name || record.data?.event_key || "trigger"
             const eventKey = record.data?.event_key
-            const text = `[Triggered by ${label}${eventKey ? ` · ${eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
-                deliveryInputs(record),
-                null,
-                2,
-            )}\n\`\`\``
+            // Replay the actual mapped message; JSON only as a non-chat fallback.
+            const msg = getScheduleMessagePreview(deliveryInputs(record))
+            const text = msg.trim()
+                ? msg
+                : `[Triggered by ${label}${eventKey ? ` · ${eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
+                      deliveryInputs(record),
+                      null,
+                      2,
+                  )}\n\`\`\``
             setPendingRun({text, nonce: Date.now()})
             setState(null)
         }

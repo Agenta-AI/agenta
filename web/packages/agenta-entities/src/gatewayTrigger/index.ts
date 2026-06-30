@@ -70,8 +70,14 @@ export type {CronCadence, CronTimeOfDay, ScheduleBuilderState} from "./core/sche
 export {
     getScheduleMessage,
     getScheduleMessagePreview,
+    messageContentText,
     setScheduleMessage,
 } from "./core/messageInputs"
+export {
+    compileMessageTemplate,
+    parseMessageTemplate,
+    splitTemplate,
+} from "./core/eventMessageTemplate"
 export {localFaceToUtcIso, utcIsoToLocalFace} from "./core/window"
 export {previewValue, resolveSelectorPreview} from "./core/selectorPreview"
 

@@ -21,6 +21,28 @@ function parseObject(inputsText: string): Record<string, unknown> {
     }
 }
 
+/**
+ * Read a message's `content` as readable text. A trigger message's content is either a
+ * plain string or an array of `{type:"text", text}` parts (the only way the resolver can
+ * carry mixed literal + `$.selector` in one message — each whole leaf is resolved). Joins
+ * the parts so previews and playground replays show real text, never a JSON blob.
+ */
+export function messageContentText(content: unknown): string {
+    if (typeof content === "string") return content
+    if (Array.isArray(content)) {
+        return content
+            .map((part) =>
+                part && typeof part === "object" && "text" in part
+                    ? String((part as {text?: unknown}).text ?? "")
+                    : typeof part === "string"
+                      ? part
+                      : "",
+            )
+            .join("")
+    }
+    return ""
+}
+
 /** Read the message out of `inputs_fields`. Empty string when absent or unparseable. */
 export function getScheduleMessage(
     inputsText: string,
@@ -35,7 +57,7 @@ export function getScheduleMessage(
                 (m) => !!m && typeof m === "object" && (m as {role?: string}).role === "user",
             ) as {content?: unknown} | undefined) ??
             (messages[0] as {content?: unknown} | undefined)
-        return typeof user?.content === "string" ? user.content : ""
+        return messageContentText(user?.content)
     }
     const value = obj[primaryKey]
     return typeof value === "string" ? value : ""
@@ -75,7 +97,7 @@ export function getScheduleMessagePreview(inputsFields: unknown): string {
             (msgs.find(
                 (m) => !!m && typeof m === "object" && (m as {role?: string}).role === "user",
             ) as {content?: unknown} | undefined) ?? (msgs[0] as {content?: unknown} | undefined)
-        return typeof user?.content === "string" ? user.content : ""
+        return messageContentText(user?.content)
     }
     for (const value of Object.values(obj)) {
         if (typeof value === "string" && value.trim()) return value
