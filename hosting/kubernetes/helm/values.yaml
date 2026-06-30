@@ -105,8 +105,8 @@ redisDurable:
     size: "5Gi"
 
 # ================================================================== #
-# agentRunner — sandbox-agent-backed agent workflow runner.
-# The services pod calls this over AGENTA_AGENT_RUNNER_URL. Keep provider
+# agentRunner — runner-backed agent workflow runner.
+# The services pod calls this over AGENTA_RUNNER_URL. Keep provider
 # credentials scoped here instead of putting them in every Agenta container.
 # ================================================================== #
 agentRunner:
@@ -127,8 +127,8 @@ agentRunner:
 # ================================================================== #
 # mounts — durable object store for session/agent mounts (the agent's
 # persistent working directory). Opt-in: off by default. When enabled with
-# the bundled SeaweedFS, the API + sandbox-agent get matching S3 credentials
-# and the sandbox-agent pod gains FUSE (SYS_ADMIN + /dev/fuse) for geesefs.
+# the bundled SeaweedFS, the API + runner get matching S3 credentials
+# and the runner pod gains FUSE (SYS_ADMIN + /dev/fuse) for geesefs.
 # To use an external store (AWS S3 / R2 / MinIO) instead, set
 # seaweedfs.enabled=false and provide endpointUrl + accessKey/secretKey.
 # ================================================================== #

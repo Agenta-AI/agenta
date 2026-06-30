@@ -3,6 +3,6 @@
 
 FROM ghcr.io/agenta-ai/agenta-agent-runner:latest
 
-ENV AGENTA_AGENT_RUNNER_PORT=8765
+ENV AGENTA_RUNNER_PORT=8765
 
 CMD ["node_modules/.bin/tsx", "src/server.ts"]

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="8" failures="0" errors="0" time="0.036445375">
+    <testsuite name="tests/integration/server-smoke.test.ts" timestamp="2026-06-30T10:21:03.183Z" hostname="agenta.local" tests="8" failures="0" errors="0" skipped="0" time="0.036445375">
+        <testcase classname="tests/integration/server-smoke.test.ts" name="server integration — in-process server with fake engine &gt; GET /health returns 200 with runner identity" time="0.015584125">
+        </testcase>
+        <testcase classname="tests/integration/server-smoke.test.ts" name="server integration — in-process server with fake engine &gt; POST /run with no token returns 200 (default-off gate)" time="0.007240083">
+        </testcase>
+        <testcase classname="tests/integration/server-smoke.test.ts" name="server integration — in-process server with fake engine &gt; POST /run returns 401 when AGENTA_RUNNER_TOKEN is set and no bearer supplied" time="0.001756083">
+        </testcase>
+        <testcase classname="tests/integration/server-smoke.test.ts" name="server integration — in-process server with fake engine &gt; POST /run accepts the correct bearer token" time="0.001983208">
+        </testcase>
+        <testcase classname="tests/integration/server-smoke.test.ts" name="server integration — in-process server with fake engine &gt; POST /run returns NDJSON stream with event lines then a result line" time="0.003011375">
+        </testcase>
+        <testcase classname="tests/integration/server-smoke.test.ts" name="session record persist — skipped when Redis unavailable &gt; alive watchdog start+release does not throw (in-process, no Redis)" time="0.004842834">
+        </testcase>
+        <testcase classname="tests/integration/server-smoke.test.ts" name="session record persist — skipped when Redis unavailable &gt; buildPersistingEmitter flush is a no-op when no events emitted" time="0.0002005">
+        </testcase>
+        <testcase classname="tests/integration/server-smoke.test.ts" name="session record persist — skipped when Redis unavailable &gt; Redis-dependent session coordination is skipped when Redis is unavailable" time="0.000970125">
+            <system-out>
+  [skip] Redis not available — skipping Redis integration assertions
+
+            </system-out>
+        </testcase>
+    </testsuite>
+</testsuites>

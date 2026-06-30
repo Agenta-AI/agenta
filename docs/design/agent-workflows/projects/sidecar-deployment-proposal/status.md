@@ -4,7 +4,7 @@
 
 Implementation complete for the repo surfaces covered by the proposal. The flat proposal
 has been moved into this folder as `proposal.md`, and Agenta now treats `sandbox-agent` as
-the first-class deployable runner service reached through `AGENTA_AGENT_RUNNER_URL`.
+the first-class deployable runner service reached through `AGENTA_RUNNER_URL`.
 
 ## Progress Log
 
@@ -24,7 +24,7 @@ the first-class deployable runner service reached through `AGENTA_AGENT_RUNNER_U
 ## Decisions
 
 - Use `sandbox-agent` for the deployable service name.
-- Use `AGENTA_AGENT_RUNNER_URL` for the services/API container URL to the runner.
+- Use `AGENTA_RUNNER_URL` for the services/API container URL to the runner.
 - Move the direct in-process Pi path toward an example/dev path, not the production default.
 - No compatibility note for old env names is required because this surface has not shipped.
 - Keep runner-provider defaults runner-side under `SANDBOX_AGENT_*`.

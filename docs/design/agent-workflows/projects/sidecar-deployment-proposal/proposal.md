@@ -91,7 +91,7 @@ services container
     agent workflow handler
     resolves config, provider access, tools, trace context
     |
-    | POST /run to AGENTA_AGENT_RUNNER_URL
+    | POST /run to AGENTA_RUNNER_URL
     v
 sandbox-agent runner service
     services/agent HTTP server on :8765
@@ -130,8 +130,8 @@ The Agenta services container should have a small deployment contract:
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `AGENTA_AGENT_RUNNER_URL` | `http://sandbox-agent:8765` in Compose/Helm/Railway | HTTP URL for the runner service. |
-| `AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS` | implementation default | Request timeout for a runner call. |
+| `AGENTA_RUNNER_URL` | `http://sandbox-agent:8765` in Compose/Helm/Railway | HTTP URL for the runner service. |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | implementation default | Request timeout for a runner call. |
 | `AGENTA_AGENT_ENABLE_MCP` | `false` until the runtime support is complete | Feature gate for user-declared MCP server resolution. |
 
 Remove these concerns from the services env surface:
@@ -229,7 +229,7 @@ Target shape:
 services:
   services:
     environment:
-      AGENTA_AGENT_RUNNER_URL: ${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
+      AGENTA_RUNNER_URL: ${AGENTA_RUNNER_URL:-http://sandbox-agent:8765}
 
   sandbox-agent:
     image: ghcr.io/agenta-ai/agenta-sandbox-agent:${AGENTA_VERSION}
@@ -265,7 +265,7 @@ Published production Compose files should not include:
 
 External runner path:
 
-- Set `AGENTA_AGENT_RUNNER_URL` to the external service URL.
+- Set `AGENTA_RUNNER_URL` to the external service URL.
 - Either omit the internal `sandbox-agent` service through a documented advanced override or
   let it run unused if the deployment tool cannot conditionally remove it cleanly.
 
@@ -277,7 +277,7 @@ Add a first-class runner Deployment and Service:
 - `templates/sandbox-agent-service.yaml`
 - helper for the runner image
 - image pull secrets wired for EE/private registries
-- services-pod env injection for `AGENTA_AGENT_RUNNER_URL`
+- services-pod env injection for `AGENTA_RUNNER_URL`
 
 Proposed values:
 
@@ -303,7 +303,7 @@ agentRunner:
 
 Rules:
 
-- If `agentRunner.enabled=true`, set `AGENTA_AGENT_RUNNER_URL` to the in-cluster Service.
+- If `agentRunner.enabled=true`, set `AGENTA_RUNNER_URL` to the in-cluster Service.
 - If `agentRunner.externalUrl` is set, point services at that URL and do not require the
   in-cluster runner.
 - Keep existing SDK code-sandbox Daytona values separate from runner Daytona values. They
@@ -316,7 +316,7 @@ Railway has an existing OSS deployment tree under `hosting/railway/oss/`. Add a
 
 - `hosting/railway/oss/sandbox-agent/Dockerfile` or image-backed deployment config.
 - Bootstrap/configure scripts create the Railway service.
-- The services Railway service gets `AGENTA_AGENT_RUNNER_URL` set to the private Railway URL
+- The services Railway service gets `AGENTA_RUNNER_URL` set to the private Railway URL
   for `sandbox-agent`.
 - For Daytona runs, set the runner-scoped Daytona vars on the `sandbox-agent` Railway
   service.
@@ -459,7 +459,7 @@ Docs live under `docs/docs/self-host/`.
 
 - Pick final names:
   - service: `sandbox-agent`
-  - services env: `AGENTA_AGENT_RUNNER_URL`
+  - services env: `AGENTA_RUNNER_URL`
   - image: `agenta-sandbox-agent`
   - Helm values root: `agentRunner`
 - Rename current docs and comments away from legacy runner wording.
@@ -468,7 +468,7 @@ Docs live under `docs/docs/self-host/`.
 
 ### Phase 1 - Runner URL and config cleanup
 
-- Add `AGENTA_AGENT_RUNNER_URL` to the env module.
+- Add `AGENTA_RUNNER_URL` to the env module.
 - Keep the old URL env as a temporary fallback with deprecation logging.
 - Remove deployment env defaults for runtime, harness, and sandbox from the services layer.
 - Move sandbox-provider defaults into runner service config.
@@ -482,7 +482,7 @@ Docs live under `docs/docs/self-host/`.
 ### Phase 3 - Compose
 
 - Add `sandbox-agent` to OSS and EE dev/prod Compose.
-- Wire `AGENTA_AGENT_RUNNER_URL` into services.
+- Wire `AGENTA_RUNNER_URL` into services.
 - Remove dev-only defaults from published Compose files.
 - Add health checks.
 
@@ -507,7 +507,7 @@ Docs live under `docs/docs/self-host/`.
 
 ## 11. Open decisions
 
-1. **Final env name:** this proposal recommends `AGENTA_AGENT_RUNNER_URL`.
+1. **Final env name:** this proposal recommends `AGENTA_RUNNER_URL`.
 2. **Final image name:** this proposal recommends `agenta-sandbox-agent`.
 3. **Direct Pi POC destination:** move it to an example after the sandbox-agent path is
    stable.

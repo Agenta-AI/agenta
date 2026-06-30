@@ -64,7 +64,7 @@ COPY skills ./skills
 RUN pnpm run build:extension
 
 ENV NODE_ENV=production \
-    AGENTA_AGENT_RUNNER_PORT=8765
+    AGENTA_RUNNER_PORT=8765
 
 EXPOSE 8765
 

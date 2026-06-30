@@ -420,8 +420,8 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/services
-            - AGENTA_AGENT_RUNNER_URL=${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
-            - AGENTA_AGENT_MCP_SERVERS_ENABLED=${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
+            - AGENTA_RUNNER_URL=${AGENTA_RUNNER_URL:-http://runner:8765}
+            - AGENTA_AGENT_MCPS_ENABLED=${AGENTA_AGENT_MCPS_ENABLED:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -429,7 +429,7 @@ services:
             - "host.docker.internal:host-gateway"
         # === ORCHESTRATION ======================================== #
         depends_on:
-            sandbox-agent:
+            runner:
                 condition: service_healthy
         # === LABELS =============================================== #
         labels:
@@ -443,20 +443,20 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
-    sandbox-agent:
+    runner:
         # === IMAGE ================================================ #
         build:
-            context: ../../../services/agent
+            context: ../../../services/runner
             dockerfile: docker/Dockerfile
         # === CONFIGURATION ======================================== #
         environment:
-            AGENTA_AGENT_RUNNER_PORT: "8765"
-            AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
+            AGENTA_RUNNER_PORT: "8765"
+            AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             # API as reached FROM this container: the compose service name over the network
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
             # which does not resolve inside a container. Used by the OTLP tracing-export
             # fallback AND the session heartbeat/record-persist calls.
-            AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
+            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}

@@ -323,7 +323,7 @@ ghcr.io/agenta-ai/agenta-agent-runner
 {{- end }}
 
 {{- define "agenta.agentRunner.serviceName" -}}
-{{ include "agenta.fullname" . }}-sandbox-agent
+{{ include "agenta.fullname" . }}-runner
 {{- end }}
 
 {{- define "agenta.agentRunner.url" -}}
@@ -339,10 +339,10 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- $runner := default dict .Values.agentRunner -}}
 {{- $url := include "agenta.agentRunner.url" . -}}
 {{- if $url }}
-- name: AGENTA_AGENT_RUNNER_URL
+- name: AGENTA_RUNNER_URL
   value: {{ $url | quote }}
 {{- end }}
-- name: AGENTA_AGENT_MCP_SERVERS_ENABLED
+- name: AGENTA_AGENT_MCPS_ENABLED
   value: {{ default false $runner.enableMcp | quote }}
 {{- end }}
 

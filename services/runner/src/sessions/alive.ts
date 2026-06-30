@@ -24,12 +24,12 @@ const REFRESH_INTERVAL_MS = HEARTBEAT_INTERVAL_SECONDS * 1000;
 
 /**
  * This runner container's stable id, minted once per process. An orchestrator can inject a
- * meaningful id (pod/container name) via `AGENTA_AGENT_RUNNER_REPLICA_ID`; otherwise a random
+ * meaningful id (pod/container name) via `AGENTA_RUNNER_REPLICA_ID`; otherwise a random
  * uuid per process. Distinct from any turn id — many turns share one replica_id, and with 2+
  * containers each holds its own, so affinity routing can find the box running a session.
  */
 const REPLICA_ID =
-  process.env.AGENTA_AGENT_RUNNER_REPLICA_ID?.trim() || randomUUID();
+  process.env.AGENTA_RUNNER_REPLICA_ID?.trim() || randomUUID();
 
 import { refreshCredential } from "./auth.ts";
 

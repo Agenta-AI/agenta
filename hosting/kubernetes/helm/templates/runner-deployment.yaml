@@ -7,18 +7,18 @@ metadata:
   name: {{ include "agenta.agentRunner.serviceName" . }}
   labels:
     {{- include "agenta.labels" . | nindent 4 }}
-    app.kubernetes.io/component: sandbox-agent
+    app.kubernetes.io/component: runner
 spec:
   replicas: {{ include "agenta.agentRunner.replicas" . }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: sandbox-agent
+      app.kubernetes.io/component: runner
   template:
     metadata:
       labels:
         {{- include "agenta.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: sandbox-agent
+        app.kubernetes.io/component: runner
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
@@ -27,7 +27,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: sandbox-agent
+        - name: runner
           image: {{ include "agenta.agentRunnerImage" . }}
           imagePullPolicy: {{ include "agenta.agentRunner.pullPolicy" . }}
           {{- /* FUSE for the durable session cwd: geesefs mounts the store prefix on-host for
@@ -46,7 +46,7 @@ spec:
               containerPort: {{ include "agenta.agentRunner.port" . }}
               protocol: TCP
           env:
-            - name: AGENTA_AGENT_RUNNER_PORT
+            - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
             - name: SANDBOX_AGENT_PROVIDER
               value: {{ default "local" $runner.provider | quote }}

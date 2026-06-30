@@ -129,8 +129,8 @@ jobs:
             context: .
             dockerfile: services/oss/docker/Dockerfile.gh
           - image_name: agenta-agent-runner
-            context: services/agent
-            dockerfile: services/agent/docker/Dockerfile
+            context: services/runner
+            dockerfile: services/runner/docker/Dockerfile
           # Per-arch config (runner + platform string)
           - arch: amd64
             runner: ubuntu-24.04

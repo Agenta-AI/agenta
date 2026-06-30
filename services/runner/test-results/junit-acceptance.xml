@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="16" failures="0" errors="0" time="0.049999792">
+    <testsuite name="tests/acceptance/server-contract.test.ts" timestamp="2026-06-30T10:21:09.498Z" hostname="agenta.local" tests="16" failures="0" errors="0" skipped="0" time="0.049999792">
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="GET /health contract &gt; returns 200 with required fields: status, runner, protocol, engines, harnesses" time="0.014973083">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="GET /health contract &gt; is reachable without a bearer token even when AGENTA_RUNNER_TOKEN is set" time="0.0047275">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run auth contract &gt; no token configured → 200 (default-off gate)" time="0.007246459">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run auth contract &gt; token configured, no header → 401 {ok:false, error:/Unauthorized/}" time="0.002721667">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run auth contract &gt; token configured, wrong bearer → 401" time="0.00290225">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run auth contract &gt; token configured, correct Authorization: Bearer → 200" time="0.002382625">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run auth contract &gt; token configured, correct X-Agenta-Runner-Token → 200" time="0.002902375">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run response schema contract &gt; success → 200 {ok:true, output:string}" time="0.001392">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run response schema contract &gt; engine failure → 500 {ok:false, error:string}" time="0.001323167">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run response schema contract &gt; invalid JSON body → 400 {ok:false, error:/Invalid JSON/}" time="0.001408333">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run response schema contract &gt; NDJSON stream: content-type is application/x-ndjson" time="0.001415333">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /run response schema contract &gt; NDJSON stream: last record is {kind:&apos;result&apos;}" time="0.001491334">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /stream alias contract &gt; POST /stream accepts the same body shape as /run" time="0.001091542">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /kill contract &gt; returns 200 {ok:true} when no token configured" time="0.001341417">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="POST /kill contract &gt; returns 401 when token is set and no bearer supplied" time="0.000858417">
+        </testcase>
+        <testcase classname="tests/acceptance/server-contract.test.ts" name="unknown routes contract &gt; GET /nonexistent returns 404 {ok:false, error:&apos;Not found&apos;}" time="0.000854333">
+        </testcase>
+    </testsuite>
+</testsuites>

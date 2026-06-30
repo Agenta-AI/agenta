@@ -386,14 +386,14 @@
     "agentRunner": {
       "type": "object",
       "additionalProperties": true,
-      "description": "sandbox-agent runner deployment. Services receive AGENTA_AGENT_RUNNER_URL from this component unless externalUrl is set.",
+      "description": "runner deployment. Services receive AGENTA_RUNNER_URL from this component unless externalUrl is set.",
       "properties": {
         "enabled":     { "type": "boolean" },
         "replicas":    { "type": "integer", "minimum": 0 },
         "port":        { "type": ["integer", "string"] },
-        "externalUrl": { "type": "string", "description": "External runner URL. Emitted as AGENTA_AGENT_RUNNER_URL when set." },
+        "externalUrl": { "type": "string", "description": "External runner URL. Emitted as AGENTA_RUNNER_URL when set." },
         "provider":    { "type": "string", "enum": ["local", "daytona"], "description": "SANDBOX_AGENT_PROVIDER." },
-        "enableMcp":   { "type": ["boolean", "string"], "description": "AGENTA_AGENT_MCP_SERVERS_ENABLED on the services pod." },
+        "enableMcp":   { "type": ["boolean", "string"], "description": "AGENTA_AGENT_MCPS_ENABLED on the services pod." },
         "logLevel":    { "type": "string", "description": "SANDBOX_AGENT_LOG_LEVEL." },
         "image": {
           "type": "object",
