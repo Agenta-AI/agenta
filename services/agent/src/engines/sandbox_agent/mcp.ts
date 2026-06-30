@@ -3,6 +3,7 @@ import type {
   McpServerConfig,
   ResolvedToolSpec,
 } from "../../protocol.ts";
+import type { ClientToolRelay } from "../../responder.ts";
 import {
   buildToolMcpServers,
   USER_MCP_UNSUPPORTED_MESSAGE,
@@ -171,6 +172,14 @@ export interface BuildSessionMcpServersInput {
   toolSpecs: ResolvedToolSpec[];
   userMcpServers?: McpServerConfig[];
   relayDir: string;
+  /**
+   * The shared client-tool relay. When set (local Claude), the internal channel advertises
+   * `client` tools and parks a `tools/call` for one. Omit for Pi (which uses the file relay) and
+   * Daytona (the channel is skipped there).
+   */
+  clientToolRelay?: ClientToolRelay;
+  /** Engine park/teardown abort signal, threaded to the internal MCP server. */
+  signal?: AbortSignal;
   log?: Log;
 }
 
@@ -209,6 +218,8 @@ export async function buildSessionMcpServers({
   toolSpecs,
   userMcpServers,
   relayDir,
+  clientToolRelay,
+  signal,
   log = () => {},
 }: BuildSessionMcpServersInput): Promise<SessionMcpServers> {
   const userMcpCount = userMcpServers?.length ?? 0;
@@ -229,11 +240,19 @@ export async function buildSessionMcpServers({
   // tool relay in `engines/sandbox_agent.ts`).
   const internal = isDaytona
     ? { servers: [], close: async () => {} }
-    : await buildToolMcpServers(toolSpecs, relayDir, log);
+    : await buildToolMcpServers(toolSpecs, relayDir, {
+        clientToolRelay,
+        signal,
+        log,
+      });
   if (isDaytona && toolSpecs.length > 0) {
+    // The internal loopback channel is skipped on Daytona (its `127.0.0.1` URL is unreachable
+    // from the in-sandbox harness). Only Pi consumes the file relay there; a non-Pi (MCP) harness
+    // has no in-sandbox tool reader, so a non-Pi Daytona run carrying tools is rejected UPSTREAM
+    // in `run-plan.ts` (DAYTONA_TOOL_DELIVERY_UNSUPPORTED_MESSAGE) — this branch is Pi-only.
     log(
-      `daytona: ${toolSpecs.length} gateway tool(s) delivered via the file relay, not a ` +
-        `loopback MCP URL (unreachable from the sandbox)`,
+      `daytona: ${toolSpecs.length} tool(s) not advertised over the loopback MCP channel ` +
+        `(unreachable from the sandbox); Pi consumes them via the file relay`,
     );
   }
   // Layer 2: USER MCP capability (stdio disabled, http delivered; do not merge with Layer 1).

@@ -38,9 +38,14 @@ import {
   extractApprovalDecisions,
   extractClientToolOutputs,
   policyFromRequest,
+  type ClientToolOutcome,
+  type ClientToolRelay,
   type Responder,
 } from "../responder.ts";
-import { buildClientToolRelay } from "./sandbox_agent/client-tools.ts";
+import {
+  buildClientToolRelay,
+  createToolCallCorrelationIndex,
+} from "./sandbox_agent/client-tools.ts";
 import {
   type AgentRunRequest,
   type AgentRunResult,
@@ -405,6 +410,26 @@ export async function runSandboxAgent(
       log: logger,
     });
 
+    // Correlate a Claude MCP `tools/call` (name + args only) to the real ACP tool-call id the
+    // event stream surfaces, so a parked `client_tool` widget attaches to Claude's tool bubble.
+    const toolCallIndex = createToolCallCorrelationIndex();
+    // The shared client-tool relay is only built AFTER the session/model resolve (it needs the
+    // responder + otel run). But the internal MCP server is built HERE (its URL is handed to
+    // createSession) and parks client tools through that relay. A `tools/call` can only arrive
+    // during `session.prompt()` — long after the relay is wired — so the server captures a
+    // DEFERRED reference that resolves to the real relay before any call lands.
+    let clientToolRelay: ClientToolRelay | undefined;
+    const deferredClientToolRelay: ClientToolRelay = {
+      onClientTool: (req) =>
+        clientToolRelay
+          ? clientToolRelay.onClientTool(req)
+          : Promise.resolve("deny" as ClientToolOutcome),
+      onPark: (req) => clientToolRelay?.onPark?.(req),
+    };
+    // Abort an in-flight loopback `tools/call` on park/teardown so a parked client tool's handler
+    // never settles after the turn ended (belt and suspenders with the no-result park).
+    const mcpAbort = new AbortController();
+
     const sessionMcp = await buildSessionMcpServers({
       isPi: plan.isPi,
       capabilities,
@@ -415,6 +440,11 @@ export async function runSandboxAgent(
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
+      // Local Claude only: lets the internal channel advertise + park `client` tools. The deferred
+      // ref resolves before any `tools/call` arrives. buildSessionMcpServers ignores it for Pi /
+      // Daytona (no internal channel there).
+      clientToolRelay: deferredClientToolRelay,
+      signal: mcpAbort.signal,
       log: logger,
     });
     // Close the internal gateway-tool MCP server (if one started) when the run ends.
@@ -465,7 +495,11 @@ export async function runSandboxAgent(
     session.onEvent((event: any) => {
       const payload = event?.payload;
       const update = payload?.params?.update ?? payload?.update;
-      if (update) run.handleUpdate(update);
+      if (update) {
+        run.handleUpdate(update);
+        // Record live ACP tool_call ids so a parked client_tool can correlate to Claude's bubble.
+        toolCallIndex.record(update);
+      }
     });
 
     // Cross-turn HITL: when the request carries a platform `sessionId` it came through the
@@ -491,6 +525,9 @@ export async function runSandboxAgent(
       if (parked) return; // first park wins; later gates this turn are moot once we cancel
       parked = true;
       resolveParked?.();
+      // Abort any in-flight loopback `tools/call` (a parked Claude client tool) so its handler is
+      // torn down deterministically and cannot write a result after the turn ends.
+      mcpAbort.abort();
       // Cancel the in-flight prompt so `session.prompt()` returns instead of hanging. The
       // managed cancel lives on the SandboxAgent handle (the `Session` wrapper has none).
       // Best effort: the `finally` disposes the sandbox regardless, and the prompt is also
@@ -505,10 +542,16 @@ export async function runSandboxAgent(
         policyFromRequest(request.permissionPolicy),
         hasHumanSurface,
       );
-    // ONE client-tool relay both delivery paths share: the Pi file relay (below) and the Claude
-    // internal MCP server (Phase 4) call it instead of re-deriving the park decision and the
-    // `client_tool` payload. Behavior-preserving for Pi — same emit, same first-park-wins onPark.
-    const clientToolRelay = buildClientToolRelay({ responder, run, onPark });
+    // Resolve the ONE client-tool relay both delivery paths share: the Pi file relay (below) and
+    // the Claude internal MCP server (via the deferred ref captured above). Built here because it
+    // needs the responder + otel run. The correlation index is wired for Claude only — Pi's relay
+    // toolCallId is already exact, so it parks with no index (behavior-preserving).
+    clientToolRelay = buildClientToolRelay({
+      responder,
+      run,
+      onPark,
+      toolCallIndex: plan.isPi ? undefined : toolCallIndex,
+    });
     attachPermissionResponder({
       session,
       run,
