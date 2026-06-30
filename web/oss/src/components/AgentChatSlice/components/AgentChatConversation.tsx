@@ -295,12 +295,15 @@ const AgentChatConversation = ({
                     setAttachmentsOpen(true)
                 }}
                 prefix={
-                    <Tooltip title="Attach files">
+                    <Tooltip title="Attach files coming soon">
                         <Button
                             type="text"
                             size="small"
                             icon={<Paperclip size={16} />}
                             onClick={() => setAttachmentsOpen((open) => !open)}
+                            disabled={
+                                true /* TODO: re-enable once we can read the files into data: URLs at send time */
+                            }
                         />
                     </Tooltip>
                 }
