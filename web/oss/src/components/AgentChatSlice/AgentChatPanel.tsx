@@ -969,12 +969,18 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     }
                     onPasteFile={(pasted) => addFiles(Array.from(pasted))}
                     prefix={
-                        <Tooltip title={atMax ? `Up to ${limits.maxCount} files` : "Attach files"}>
+                        <Tooltip
+                            title={
+                                atMax
+                                    ? `Up to ${limits.maxCount} files`
+                                    : "Attach files coming soon"
+                            }
+                        >
                             <Button
                                 type="text"
                                 size="small"
                                 icon={<Paperclip size={16} />}
-                                disabled={atMax}
+                                disabled={true}
                                 onClick={() => setAttachmentsOpen((open) => !open)}
                                 aria-label="Attach files"
                             />
