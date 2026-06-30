@@ -681,9 +681,6 @@ export async function runSandboxAgent(
       traceId: run.traceId(),
     };
   } catch (err) {
-    logger(
-      `RUN FAILED (raw): ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
-    );
     const error = conciseError(err, plan.harness, request.provider);
     // Stamp the error message + provider on the agent span before finishing it (F-030), so a
     // trace carries the same diagnostic the response does (it previously held only a count).
