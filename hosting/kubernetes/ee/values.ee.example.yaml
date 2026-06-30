@@ -503,6 +503,12 @@ posthog:
 # === store — object-storage config (AGENTA_STORE_*) ===
 # Enable store.seaweedfs.enabled=true to deploy the bundled SeaweedFS.
 # ================================================================== #
+# accessKey/secretKey are the only required values for an external S3 store.
+# signingKey/jwtIssuer/jwtPrivateKey are SeaweedFS-only (real S3/R2 ignore them):
+#   signingKey  base64 of exactly 32 bytes (head -c 32 /dev/urandom | base64)
+#   jwtIssuer   in-cluster API URL for the JWKS; defaults to http://<release>-api:<api.port>
+#   jwtPrivateKey  STABLE RSA PEM (PKCS#8); required so all API replicas share one key
+#                  (openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048)
 # store:
 #   endpointUrl:
 #   accessKey:
@@ -510,8 +516,14 @@ posthog:
 #   region:
 #   bucket:
 #   signingKey:
+#   jwtIssuer:
+#   jwtPrivateKey:
 #   seaweedfs:
 #     enabled: false
+#     port: 8333
+#     image:
+#       repository: chrislusf/seaweedfs
+#       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
 
 # ================================================================== #
 # === extraObjects — arbitrary Kubernetes resources ===

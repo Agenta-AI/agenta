@@ -42,8 +42,8 @@ const SIGNED_BODY = {
   credentials: {
     endpoint: "http://seaweedfs:8333",
     region: "us-east-1",
-    bucket: "agenta-mounts",
-    prefix: "proj-1/mount-9",
+    bucket: "agenta-store",
+    prefix: "mounts/proj-1/mount-9",
     access_key: "SCOPED-AK",
     secret_key: "SCOPED-SK",
     session_token: "SCOPED-TOK",
@@ -67,8 +67,8 @@ describe("signSessionMountCredentials", () => {
     });
 
     assert.ok(creds);
-    assert.equal(creds.bucket, "agenta-mounts");
-    assert.equal(creds.prefix, "proj-1/mount-9");
+    assert.equal(creds.bucket, "agenta-store");
+    assert.equal(creds.prefix, "mounts/proj-1/mount-9");
     assert.equal(creds.accessKey, "SCOPED-AK");
     assert.equal(creds.secretKey, "SCOPED-SK");
     assert.equal(creds.sessionToken, "SCOPED-TOK");
@@ -117,19 +117,27 @@ describe("signSessionMountCredentials", () => {
 const CREDS: MountCredentials = {
   endpoint: "http://seaweedfs:8333",
   region: "us-east-1",
-  bucket: "agenta-mounts",
-  prefix: "proj-1/mount-9",
+  bucket: "agenta-store",
+  prefix: "mounts/proj-1/mount-9",
   accessKey: "SCOPED-AK",
   secretKey: "SCOPED-SK",
   sessionToken: "SCOPED-TOK",
 };
+
+function notMountedThenAlive(): (cwd: string) => Promise<boolean> {
+  let calls = 0;
+  return async () => {
+    calls += 1;
+    return calls > 1;
+  };
+}
 
 describe("mountStorage", () => {
   it("builds the geesefs command with creds in env, not argv", async () => {
     let seenArgs: string[] = [];
     let seenEnv: Record<string, string> = {};
     const ok = await mountStorage("/work/cwd", CREDS, {
-      checkMounted: async () => false,
+      checkMounted: notMountedThenAlive(),
       runGeesefs: async (args, env) => {
         seenArgs = args;
         seenEnv = env;
@@ -140,12 +148,15 @@ describe("mountStorage", () => {
     assert.equal(ok, true);
     // bucket:prefix and cwd are the positional tail.
     assert.deepEqual(seenArgs.slice(-2), [
-      "agenta-mounts:proj-1/mount-9",
+      "agenta-store:mounts/proj-1/mount-9",
       "/work/cwd",
     ]);
     assert.ok(seenArgs.includes("--endpoint"));
     assert.ok(seenArgs.includes("http://seaweedfs:8333"));
     assert.ok(seenArgs.includes("allow_other"));
+    // -f keeps geesefs foreground (tracked child). Without it the detached daemon dies under
+    // write-heavy load (git clone) and the mount goes ENOTCONN.
+    assert.ok(seenArgs.includes("-f"));
     // Credentials ride the child env, never the argv (no key leak to the process table).
     assert.equal(seenEnv.AWS_ACCESS_KEY_ID, "SCOPED-AK");
     assert.equal(seenEnv.AWS_SECRET_ACCESS_KEY, "SCOPED-SK");
@@ -160,7 +171,7 @@ describe("mountStorage", () => {
       "/work/cwd",
       { ...CREDS, endpoint: undefined },
       {
-        checkMounted: async () => false,
+        checkMounted: notMountedThenAlive(),
         runGeesefs: async (args) => {
           seenArgs = args;
         },
@@ -285,7 +296,7 @@ describe("mountStorageRemote", () => {
     const ei = geesefs.args!.indexOf("--endpoint");
     assert.equal(geesefs.args![ei + 1], "https://abc.ngrok.io");
     assert.deepEqual(geesefs.args!.slice(-2), [
-      "agenta-mounts:proj-1/mount-9",
+      "agenta-store:mounts/proj-1/mount-9",
       "/home/sandbox/work",
     ]);
     // Scoped creds cross into the sandbox via env only.

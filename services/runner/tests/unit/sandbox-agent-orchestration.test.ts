@@ -5,6 +5,8 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
@@ -22,6 +24,8 @@ interface FakeOptions {
   cwd?: string;
   capabilities?: Record<string, unknown>;
   promptResult?: Record<string, unknown>;
+  promptEvent?: Record<string, unknown>;
+  promptEvents?: Array<Record<string, unknown>>;
   streamUsage?: Record<string, number>;
   output?: string;
   promptError?: Error;
@@ -81,7 +85,10 @@ function fakeHarness(options: FakeOptions = {}) {
     },
     async prompt(blocks: any) {
       calls.promptBlocks = blocks;
-      eventHandler?.({ payload: { update: { kind: "noop" } } });
+      const promptEvents = options.promptEvents ?? [
+        options.promptEvent ?? { payload: { update: { kind: "noop" } } },
+      ];
+      for (const event of promptEvents) eventHandler?.(event);
       if (options.emitPermission) {
         permissionHandler?.({
           id: "perm-1",
@@ -166,8 +173,10 @@ function fakeHarness(options: FakeOptions = {}) {
 
   const deps: SandboxAgentDeps = {
     log: () => {},
-    createLocalCwd: () => options.cwd ?? "/tmp/agenta-fake-cwd",
-    createDaytonaCwd: () => "/home/sandbox/agenta-fake-cwd",
+    createLocalCwd: (durable?: string) =>
+      durable ?? options.cwd ?? "/tmp/agenta-fake-cwd",
+    createDaytonaCwd: (durable?: string) =>
+      durable ?? "/home/sandbox/agenta-fake-cwd",
     resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
     buildDaemonEnv: (agent, daemonOptions) => {
       calls.daemonAgent = agent;
@@ -280,6 +289,163 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.workspaceCleanup, 1);
   });
 
+  it("re-signs, remounts, and retries local workspace prep on durable cwd ENOTCONN", async () => {
+    const { calls, deps } = fakeHarness();
+    const seenMountAccessKeys: string[] = [];
+    let signCalls = 0;
+    let mountCalls = 0;
+    let workspaceCalls = 0;
+    let mountCallsBeforeFirstWorkspace = 0;
+    let cleanupCalls = 0;
+
+    deps.signSessionMountCredentials = (async () => {
+      signCalls += 1;
+      return {
+        endpoint: "http://seaweedfs:8333",
+        region: "us-east-1",
+        bucket: "agenta-store",
+        prefix: "mounts/proj-1/mount-1",
+        accessKey: `AK-${signCalls}`,
+        secretKey: `SK-${signCalls}`,
+        sessionToken: `TOK-${signCalls}`,
+      };
+    }) as any;
+    deps.mountStorage = (async (_cwd: string, creds: any) => {
+      mountCalls += 1;
+      seenMountAccessKeys.push(creds.accessKey);
+      return true;
+    }) as any;
+    deps.unmountStorage = (async () => {}) as any;
+    deps.prepareWorkspace = (async ({ plan }: any) => {
+      workspaceCalls += 1;
+      if (workspaceCalls === 1) {
+        mountCallsBeforeFirstWorkspace = mountCalls;
+        const err = new Error("ENOTCONN: Transport endpoint is not connected");
+        (err as Error & { code?: string }).code = "ENOTCONN";
+        throw err;
+      }
+      calls.workspacePlan = plan;
+      return {
+        cleanup: async () => {
+          cleanupCalls += 1;
+        },
+      };
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: {
+            otlp: {
+              headers: { authorization: "ApiKey run" },
+            },
+          },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(signCalls, 2, "initial sign + re-sign after ENOTCONN");
+    assert.equal(mountCalls, 2, "initial mount + remount after ENOTCONN");
+    assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
+    assert.equal(
+      mountCallsBeforeFirstWorkspace,
+      1,
+      "local durable cwd is mounted before first workspace write",
+    );
+    assert.equal(workspaceCalls, 2, "workspace prep is retried once");
+    assert.equal(calls.createSessionOptions.cwd, "/tmp/agenta/mounts/proj-1/mount-1");
+    assert.equal(cleanupCalls, 1);
+  });
+
+  it("re-signs and remounts when an ACP event reports durable cwd ENOTCONN during prompt", async () => {
+    const { deps } = fakeHarness({
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              kind: "tool_result",
+              content:
+                "realpath '/tmp/agenta/mounts/proj-1/mount-1/.restore_test': Transport endpoint is not connected",
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              kind: "tool_result",
+              content:
+                "realpath '/tmp/agenta/mounts/proj-1/mount-1/README.md': ENOTCONN",
+            },
+          },
+        },
+      ],
+    });
+    const seenMountAccessKeys: string[] = [];
+    let signCalls = 0;
+    let mountCalls = 0;
+    let unmountCalls = 0;
+
+    deps.signSessionMountCredentials = (async () => {
+      signCalls += 1;
+      return {
+        endpoint: "http://seaweedfs:8333",
+        region: "us-east-1",
+        bucket: "agenta-store",
+        prefix: "mounts/proj-1/mount-1",
+        accessKey: `AK-${signCalls}`,
+        secretKey: `SK-${signCalls}`,
+        sessionToken: `TOK-${signCalls}`,
+      };
+    }) as any;
+    deps.mountStorage = (async (_cwd: string, creds: any) => {
+      mountCalls += 1;
+      seenMountAccessKeys.push(creds.accessKey);
+      return true;
+    }) as any;
+    deps.unmountStorage = (async () => {
+      unmountCalls += 1;
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: {
+            otlp: {
+              headers: { authorization: "ApiKey run" },
+            },
+          },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      signCalls,
+      2,
+      "initial sign + one capped runtime re-sign after ENOTCONN",
+    );
+    assert.equal(
+      mountCalls,
+      2,
+      "initial mount + one capped runtime remount after ENOTCONN",
+    );
+    assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
+    assert.equal(unmountCalls, 1, "cleanup waits for runtime remount before unmount");
+  });
+
   it("keeps terminal events empty on the streaming path", async () => {
     const { deps } = fakeHarness();
     const streamed: AgentEvent[] = [];
@@ -354,15 +520,23 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.deepEqual(calls.toolRelayArgs, [
+    assert.deepEqual(calls.toolRelayArgs?.slice(0, 6), [
       "local-relay-host",
-      "/tmp/agenta-fake-cwd/.agenta-tools",
+      // Relay scratch lives off the geesefs mount: host tmpdir/agenta/relay/<cwd basename>.
+      join(tmpdir(), "agenta", "relay", "agenta-fake-cwd"),
       [{ name: "server_tool", kind: "callback" }],
       undefined,
       // Layer 3 (S3b): the resolved permission policy threaded into the relay. No
       // `permissionPolicy` on the request -> the headless default `auto`.
       "auto",
+      // No runContext on the request.
+      undefined,
     ]);
+    // Trailing arg is the relay callbacks object (client-tool + park handlers).
+    assert.deepEqual(
+      Object.keys((calls.toolRelayArgs?.[6] ?? {}) as object).sort(),
+      ["onClientTool", "onPark"],
+    );
     assert.equal(
       calls.toolRelayStops,
       2,

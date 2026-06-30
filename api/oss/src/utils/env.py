@@ -855,11 +855,22 @@ class StoreConfig(BaseModel):
     Dev points at SeaweedFS; prod points at real S3 / R2 — same code path.
     """
 
-    endpoint_url: str | None = os.getenv("AGENTA_STORE_ENDPOINT_URL")
+    # Everything except the keys/secrets carries a dev default in code (mirrors RedisConfig):
+    # the bundled SeaweedFS store works zero-config, and a self-hosted deploy that uses it
+    # inherits the same values; only ACCESS_KEY / SECRET_KEY must be supplied.
+    endpoint_url: str | None = (
+        os.getenv("AGENTA_STORE_ENDPOINT_URL") or "http://seaweedfs:8333"
+    )
     access_key: str | None = os.getenv("AGENTA_STORE_ACCESS_KEY")
     secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
     region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
-    bucket: str | None = os.getenv("AGENTA_STORE_BUCKET")
+    bucket: str | None = os.getenv("AGENTA_STORE_BUCKET") or "agenta-store"
+
+    # AssumeRoleWithWebIdentity issuer (SeaweedFS only): the in-network API URL the store's OIDC
+    # IAM uses to fetch our JWKS, and the RSA key signing the web-identity token. The key falls
+    # back to a baked-in local-dev key when unset (see core/store/webidentity.py).
+    jwt_private_key: str | None = os.getenv("AGENTA_STORE_JWT_PRIVATE_KEY")
+    jwt_issuer: str = os.getenv("AGENTA_STORE_JWT_ISSUER") or "http://api:8000"
 
     model_config = ConfigDict(extra="ignore")
 

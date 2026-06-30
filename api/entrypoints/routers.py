@@ -254,6 +254,14 @@ async def lifespan(*args, **kwargs):
 
     await _triggers_broker.startup()
 
+    # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
+    # so a store outage doesn't block API startup (mounts degrade, the rest runs).
+    if env.store.bucket:
+        try:
+            await store.ensure_bucket(bucket=env.store.bucket)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Store bucket ensure failed at startup: %s", e)
+
     _orphan_sweep_task = asyncio.create_task(orphan_sweep_loop(_transactions_engine))
 
     # Best-effort: ingestion re-resolves on demand if this fails.
@@ -1457,6 +1465,14 @@ app.include_router(
 @app.get("/health", operation_id="health_check", tags=["Status"])
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/.well-known/jwks.json", operation_id="store_jwks", tags=["Status"])
+async def store_jwks():
+    """Public JWKS the object store's OIDC IAM fetches to verify our web-identity tokens."""
+    from oss.src.core.store import webidentity
+
+    return webidentity.jwks()
 
 
 access_router = AccessRouter()

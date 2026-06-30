@@ -154,8 +154,8 @@ and `SECRET_KEY` are set. Point these at any S3-compatible store (AWS S3, Cloudf
 or the bundled SeaweedFS); an empty endpoint URL means real AWS S3.
 
 The API holds the master credentials and never passes them to the runner. At run start, the API
-mints short-lived, prefix-scoped credentials (S3 STS `GetFederationToken`) and only those reach
-the sandbox, which mounts the durable prefix as its working directory.
+mints short-lived, prefix-scoped credentials (S3 STS `AssumeRoleWithWebIdentity`) and only those
+reach the sandbox, which mounts the durable prefix as its working directory.
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
@@ -165,18 +165,34 @@ the sandbox, which mounts the durable prefix as its working directory.
 | `AGENTA_STORE_REGION` | `store.region` | `store.region` |
 | `AGENTA_STORE_BUCKET` | `store.bucket` | `store.bucket` |
 | `AGENTA_STORE_SIGNING_KEY` | n/a (store-side) | `store.signingKey` |
+| `AGENTA_STORE_JWT_ISSUER` | `store.jwt_issuer` | `store.jwtIssuer` |
+| `AGENTA_STORE_JWT_PRIVATE_KEY` | `store.jwt_private_key` | `store.jwtPrivateKey` |
 | — | — | `store.seaweedfs.enabled` |
 
 `store.seaweedfs.enabled=true` bundles a SeaweedFS StatefulSet and auto-populates
 `store.endpointUrl`. Set it to `false` and supply `store.endpointUrl` to use an external
 S3-compatible store. This toggle mirrors `postgresql.enabled`.
 
-:::note SeaweedFS STS signing key
-`AGENTA_STORE_SIGNING_KEY` is read by the **store**, not the API: a base64-encoded 32-byte key
-that the bundled SeaweedFS uses to serve S3 STS in-process (so the API can mint scoped runner
-credentials on the same S3 port, with no separate IAM service). Real AWS S3 and R2 serve STS
-natively and ignore it. The bundled store and the API must agree on `ACCESS_KEY` and `SECRET_KEY`;
-in the Helm chart and docker-compose this is wired automatically.
+:::note SeaweedFS-only STS settings (real S3/R2 ignore these)
+`SIGNING_KEY`, `JWT_ISSUER`, and `JWT_PRIVATE_KEY` configure how the **bundled SeaweedFS** serves
+S3 STS in-process — real AWS S3 and R2 serve STS natively and ignore all three. SeaweedFS authorizes
+scoped credentials only through its OIDC IAM engine: the API acts as the OIDC issuer, mints a
+short-lived RS256 *web-identity* token, and serves the matching public JWKS at
+`/.well-known/jwks.json`; SeaweedFS fetches that JWKS to verify the token on each
+`AssumeRoleWithWebIdentity` call.
+
+- `AGENTA_STORE_SIGNING_KEY` — base64 of exactly 32 bytes; the HMAC key SeaweedFS signs its own STS
+  session tokens with (`head -c 32 /dev/urandom | base64`).
+- `AGENTA_STORE_JWT_ISSUER` — the in-network API URL SeaweedFS fetches the JWKS from (e.g.
+  `http://api:8000`).
+- `AGENTA_STORE_JWT_PRIVATE_KEY` — a stable RSA private key (PKCS#8 PEM) the API signs the
+  web-identity token with. **Required in production:** every API replica must share one key, or
+  SeaweedFS's cached JWKS desyncs and token validation fails intermittently. Generate with
+  `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Local dev falls back to a
+  built-in key when unset.
+
+The bundled store and the API must agree on `ACCESS_KEY` and `SECRET_KEY`; in the Helm chart and
+docker-compose this is wired automatically.
 :::
 
 :::warning Remote sandboxes (Daytona) need a reachable store endpoint

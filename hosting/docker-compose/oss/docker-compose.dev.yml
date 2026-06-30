@@ -120,13 +120,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
-            AGENTA_STORE_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -178,12 +171,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -228,12 +215,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -272,12 +253,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -322,12 +297,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -372,12 +341,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -422,12 +385,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -472,12 +429,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -518,12 +469,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -553,12 +498,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
-            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -771,14 +710,19 @@ services:
 
     seaweedfs:
         # === IMAGE ================================================ #
-        image: chrislusf/seaweedfs:latest
+        # Pinned (not :latest) so the IAM/STS subsystem stays on a known-good build — it has
+        # regressed across releases (e.g. 4.13). 4.37 verified working with the config below.
+        image: chrislusf/seaweedfs:4.37
         # === EXECUTION ============================================ #
-        # Generate the S3 identities file from the mounts env credentials (single source of
-        # truth — no committed s3.json), then start the S3 gateway. WEED_JWT_FILER_SIGNING_KEY
-        # (a base64 32-byte key) doubles as the S3 STS signing key in-process (per SeaweedFS's
-        # own scaffold note), so AssumeRole/GetFederationToken are served on the SAME S3 port —
-        # the API mints scoped, short-lived credentials, no separate IAM container, no master key
-        # in the runner.
+        # ONLY FOR SEAWEEDFS (the bundled dev store). Real S3/R2/MinIO ship their own STS/IAM
+        # and ignore all of this. Two configs, both generated from env (no committed files):
+        #  - s3.json: the master identity only (admin; the API holds these creds, never the runner).
+        #  - iam.json: the ADVANCED IAM config — the only path SeaweedFS authorizes STS credentials.
+        #    An OIDC provider points at the API's self-served JWKS; the API mints a short-lived
+        #    RS256 web-identity token and calls AssumeRoleWithWebIdentity to assume `agenta-store`,
+        #    whose policy grants the whole bucket; the API's per-request inline session policy
+        #    narrows each credential to one mount prefix (effective = role ∩ session).
+        #    GetFederationToken is NOT modelled by SeaweedFS IAM and yields actionless (denied) tokens.
         entrypoint:
             - sh
             - -c
@@ -786,18 +730,26 @@ services:
               cat > /etc/seaweedfs/s3.json <<EOF
               {"identities":[{"name":"agenta","credentials":[{"accessKey":"$${AGENTA_STORE_ACCESS_KEY}","secretKey":"$${AGENTA_STORE_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
               EOF
-              exec weed server -dir=/data -ip=seaweedfs -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+              cat > /etc/seaweedfs/iam.json <<EOF
+              {"sts":{"tokenDuration":"1h","maxSessionLength":"12h","issuer":"seaweedfs-sts","signingKey":"$${AGENTA_STORE_SIGNING_KEY}"},"providers":[{"name":"agenta","type":"oidc","enabled":true,"config":{"issuer":"$${AGENTA_STORE_JWT_ISSUER}","clientId":"agenta-store","jwksUri":"$${AGENTA_STORE_JWT_ISSUER}/.well-known/jwks.json"}}],"policies":[{"name":"store-rw","document":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::$${AGENTA_STORE_BUCKET}","arn:aws:s3:::$${AGENTA_STORE_BUCKET}/*"]}]}}],"roles":[{"roleName":"agenta-store","roleArn":"arn:aws:iam::role/agenta-store","attachedPolicies":["store-rw"],"trustPolicy":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"agenta"},"Action":["sts:AssumeRoleWithWebIdentity"]}]}}]}
+              EOF
+              exec weed server -dir=/data -ip=seaweedfs -volume.max=64 -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -s3.iam.config=/etc/seaweedfs/iam.json
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
-        # Dev defaults so mounts work out of the box even if the env file omits them.
         environment:
-            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
-            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
-            # Enables in-process S3 STS. MUST be base64 that decodes to exactly 32 bytes, or
-            # SeaweedFS silently disables STS (GetFederationToken 405). The dev default below is
-            # base64("this-is-a-signing-key-for-mounts"); for real deployments generate one with
-            # `head -c 32 /dev/urandom | base64`. NOT a free-form string — `replace-me` would break it.
+            # The entrypoint bakes these into s3.json/iam.json via raw shell expansion, so unlike
+            # the API (which reads code defaults from env.py) they must be present in this service's
+            # env. Defaults live here for the bundled store the same way supertokens carries its own
+            # connection URI — a service configuring itself. Override via the env file to use S3/R2.
+            # Keys come from the env file — secrets never get a baked-in default.
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY}
+            # Non-secret store config: defaults live here for the bundled store (override via env).
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-store}
+            AGENTA_STORE_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
+            AGENTA_STORE_JWT_ISSUER: ${AGENTA_STORE_JWT_ISSUER:-http://api:8000}
+            # SeaweedFS reads its STS signing key under this vendor name; bridge ours to it.
             WEED_JWT_FILER_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
         # === STORAGE ============================================== #
         volumes:

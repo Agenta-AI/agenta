@@ -104,7 +104,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- define "agenta.seaweedfs.image" -}}
 {{- $img := default dict (default dict (default dict .Values.store).seaweedfs).image -}}
-{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "latest" $img.tag) -}}
+{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "4.37" $img.tag) -}}
 {{- end }}
 {{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
 {{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
@@ -876,7 +876,7 @@ imagePullSecrets:
 - name: AGENTA_STORE_REGION
   value: {{ default "us-east-1" $store.region | quote }}
 - name: AGENTA_STORE_BUCKET
-  value: {{ default "agenta-mounts" $store.bucket | quote }}
+  value: {{ default "agenta-store" $store.bucket | quote }}
 - name: AGENTA_STORE_ACCESS_KEY
   valueFrom:
     secretKeyRef:
@@ -892,6 +892,17 @@ imagePullSecrets:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
       key: AGENTA_STORE_SIGNING_KEY
+{{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+- name: AGENTA_STORE_JWT_ISSUER
+  value: {{ default (printf "http://%s-api:%v" (include "agenta.fullname" .) (include "agenta.api.port" .)) $store.jwtIssuer | quote }}
+{{- if $store.jwtPrivateKey }}
+- name: AGENTA_STORE_JWT_PRIVATE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_STORE_JWT_PRIVATE_KEY
+{{- end }}
+{{- end }}
 {{- end }}
 {{- if $rv.password }}
 - name: REDIS_VOLATILE_PASSWORD

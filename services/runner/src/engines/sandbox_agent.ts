@@ -85,6 +85,7 @@ import {
   mountStorageRemote,
   unmountStorage,
   discoverTunnelEndpoint,
+  type MountCredentials,
 } from "./sandbox_agent/mount.ts";
 
 export {
@@ -112,6 +113,7 @@ function apiBase(): string {
 }
 
 type Log = (message: string) => void;
+const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
 
 // In-flight sandbox handles, by run. The per-run `finally` deletes the sandbox on every normal /
 // error / client-disconnect path, but a process KILL (docker stop / SIGTERM / OOM mid-run) skips
@@ -214,8 +216,61 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   startToolRelay?: typeof startToolRelay;
   localRelayHost?: typeof localRelayHost;
   sandboxRelayHost?: typeof sandboxRelayHost;
+  signSessionMountCredentials?: typeof signSessionMountCredentials;
+  mountStorage?: typeof mountStorage;
+  mountStorageRemote?: typeof mountStorageRemote;
+  unmountStorage?: typeof unmountStorage;
+  discoverTunnelEndpoint?: typeof discoverTunnelEndpoint;
   responderFactory?: (permissionPolicy: string | undefined) => Responder;
   log?: Log;
+}
+
+function isTransportEndpointDisconnected(err: unknown): boolean {
+  const message = String(err instanceof Error ? err.message : err);
+  const code =
+    typeof err === "object" && err !== null && "code" in err
+      ? String((err as { code?: unknown }).code)
+      : "";
+  return (
+    code === "ENOTCONN" ||
+    message.includes("ENOTCONN") ||
+    message.includes("Transport endpoint is not connected")
+  );
+}
+
+function containsTransportEndpointDisconnected(value: unknown): boolean {
+  const seen = new Set<object>();
+
+  const visit = (current: unknown): boolean => {
+    if (typeof current === "string") {
+      return isTransportEndpointDisconnected(current);
+    }
+    if (current instanceof Error) {
+      return isTransportEndpointDisconnected(current);
+    }
+    if (!current || typeof current !== "object") {
+      return false;
+    }
+    if (seen.has(current)) {
+      return false;
+    }
+    seen.add(current);
+
+    const code =
+      "code" in current
+        ? String((current as { code?: unknown }).code)
+        : "";
+    if (code === "ENOTCONN") {
+      return true;
+    }
+
+    if (Array.isArray(current)) {
+      return current.some(visit);
+    }
+    return Object.values(current as Record<string, unknown>).some(visit);
+  };
+
+  return visit(value);
 }
 
 export async function runSandboxAgent(
@@ -231,9 +286,10 @@ export async function runSandboxAgent(
   // failure leaves durableCwd undefined and buildRunPlan falls back to the ephemeral path.
   const sessionForMount = request.sessionId?.trim();
   const runCred = runCredential(request);
-  const preSignedCreds =
+  const signMount = deps.signSessionMountCredentials ?? signSessionMountCredentials;
+  let mountCreds: MountCredentials | null =
     sessionForMount && runCred
-      ? await signSessionMountCredentials(sessionForMount, {
+      ? await signMount(sessionForMount, {
           apiBase: apiBase(),
           authorization: runCred,
           log: logger,
@@ -244,11 +300,11 @@ export async function runSandboxAgent(
   // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
   let durableCwd: string | undefined;
-  if (preSignedCreds?.prefix) {
+  if (mountCreds?.prefix) {
     const isDaytonaReq = (request.sandbox ?? process.env.SANDBOX_AGENT_PROVIDER ?? "local") === "daytona";
     durableCwd = isDaytonaReq
-      ? `/home/sandbox/agenta/${preSignedCreds.prefix}`
-      : `/tmp/agenta/${preSignedCreds.prefix}`;
+      ? `/home/sandbox/agenta/${mountCreds.prefix}`
+      : `/tmp/agenta/${mountCreds.prefix}`;
   }
 
   const planResult = buildRunPlan(request, {
@@ -315,6 +371,59 @@ export async function runSandboxAgent(
   // Durable cwd: set to the host mountpoint once a session-owned local run geesefs-mounts its
   // store prefix, so the `finally` can unmount it. Undefined for non-session/remote/unmounted runs.
   let mountedCwd: string | undefined;
+  const mountLocalDurableCwd = async (reason: string): Promise<boolean> => {
+    if (!mountCreds || plan.isDaytona) return false;
+    logger(
+      `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
+    );
+    if (await (deps.mountStorage ?? mountStorage)(plan.cwd, mountCreds, { log: logger })) {
+      mountedCwd = plan.cwd;
+      return true;
+    }
+    return false;
+  };
+  let localDurableCwdEnotconnRemounts = 0;
+  const reSignAndRemountLocalCwd = async (): Promise<boolean> => {
+    if (!sessionForMount || !runCred || plan.isDaytona) return false;
+    if (
+      localDurableCwdEnotconnRemounts >=
+      LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT
+    ) {
+      logger(
+        `local durable cwd ENOTCONN remount limit reached session=${sessionForMount} cwd=${plan.cwd}`,
+      );
+      return false;
+    }
+    localDurableCwdEnotconnRemounts += 1;
+    logger(
+      `local durable cwd ENOTCONN session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
+    );
+    const fresh = await signMount(sessionForMount, {
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
+    });
+    if (!fresh) {
+      logger(`local durable cwd re-sign returned no credentials session=${sessionForMount}`);
+      return false;
+    }
+    mountCreds = fresh;
+    return mountLocalDurableCwd("enotconn-retry");
+  };
+  let runtimeRemount: Promise<boolean> | undefined;
+  const remountLocalCwdAfterRuntimeEnotconn = (event: unknown): void => {
+    if (plan.isDaytona || !mountCreds || !mountedCwd) return;
+    if (runtimeRemount || !containsTransportEndpointDisconnected(event)) return;
+    logger(
+      `local durable cwd ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
+    );
+    runtimeRemount = reSignAndRemountLocalCwd().catch((err) => {
+      logger(
+        `local durable cwd runtime remount failed session=${sessionForMount}: ${conciseError(err, plan.harness)}`,
+      );
+      return false;
+    });
+  };
   let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
     ? undefined
     : {
@@ -362,22 +471,49 @@ export async function runSandboxAgent(
     if (plan.isDaytona) {
       await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
     }
-    workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
-      sandbox,
-      plan,
-      log: logger,
-    });
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
     // cwd derivation). The mount lands BEFORE createSession so the session opens inside it.
     // Local: on-host geesefs; scoped creds never enter agent space.
     // Remote (Daytona): geesefs inside the sandbox over the ngrok tunnel.
-    if (preSignedCreds) {
+    if (mountCreds && !plan.isDaytona) {
+      // Mount before local workspace materialization so AGENTS.md, harness files, and skills
+      // land in the durable prefix instead of being hidden under the later FUSE mount.
+      await mountLocalDurableCwd("initial");
+    }
+
+    try {
+      workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
+        sandbox,
+        plan,
+        log: logger,
+      });
+    } catch (err) {
+      if (
+        !plan.isDaytona &&
+        mountCreds &&
+        isTransportEndpointDisconnected(err) &&
+        (await reSignAndRemountLocalCwd())
+      ) {
+        logger(`retrying workspace preparation after local durable cwd remount`);
+        workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
+          sandbox,
+          plan,
+          log: logger,
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    if (mountCreds) {
       if (plan.isDaytona) {
-        const endpoint = await discoverTunnelEndpoint({ log: logger });
+        const endpoint = await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+          log: logger,
+        });
         if (
           endpoint &&
-          (await mountStorageRemote(sandbox, plan.cwd, preSignedCreds, {
+          (await (deps.mountStorageRemote ?? mountStorageRemote)(sandbox, plan.cwd, mountCreds, {
             endpoint,
             log: logger,
           }))
@@ -385,8 +521,6 @@ export async function runSandboxAgent(
           // Remote files live in the store; nothing on this host to unmount.
           logger(`remote durable cwd active for session=${sessionForMount}`);
         }
-      } else if (await mountStorage(plan.cwd, preSignedCreds, { log: logger })) {
-        mountedCwd = plan.cwd;
       }
     }
 
@@ -478,6 +612,7 @@ export async function runSandboxAgent(
     });
 
     session.onEvent((event: any) => {
+      remountLocalCwdAfterRuntimeEnotconn(event);
       const payload = event?.payload;
       const update = payload?.params?.update ?? payload?.update;
       if (update) run.handleUpdate(update);
@@ -711,6 +846,7 @@ export async function runSandboxAgent(
       error,
     };
   } finally {
+    await runtimeRemount?.catch(() => {});
     if (sandbox) inFlightSandboxes.delete(sandbox);
     await toolRelay?.stop().catch(() => {});
     await closeToolMcp?.().catch(() => {});
@@ -718,7 +854,10 @@ export async function runSandboxAgent(
     await sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
     // mountpoint is torn down. Best-effort (the store keeps the files regardless).
-    if (mountedCwd) await unmountStorage(mountedCwd, { log }).catch(() => {});
+    if (mountedCwd)
+      await (deps.unmountStorage ?? unmountStorage)(mountedCwd, { log }).catch(
+        () => {},
+      );
     await workspace?.cleanup().catch(() => {});
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
     if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });

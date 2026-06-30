@@ -1,9 +1,8 @@
-from datetime import datetime, timezone
-from hashlib import sha256
+from datetime import datetime
 from io import BytesIO
 from json import dumps
 from typing import List, Optional, Tuple
-from urllib.parse import urlencode, urlparse, urlsplit
+from urllib.parse import urlencode, urlparse
 from xml.etree import ElementTree
 
 import aiohttp
@@ -11,16 +10,16 @@ from miniopy_async import Minio
 from miniopy_async.credentials import Credentials
 from miniopy_async.deleteobjects import DeleteObject
 from miniopy_async.error import S3Error
-from miniopy_async.signer import sign_v4_sts
 
+from oss.src.core.store import webidentity
 from oss.src.core.mounts.types import MountFileNotFound, MountStorageUnavailable
 
 # STS responses are SOAP-ish XML under the 2011-06-15 namespace; strip it for tag lookups.
 _STS_NS = "{https://sts.amazonaws.com/doc/2011-06-15/}"
 
 
-def _parse_federation_token(xml_text: str) -> Credentials:
-    """Parse a GetFederationToken XML response into a miniopy Credentials.
+def _parse_sts_credentials(xml_text: str) -> Credentials:
+    """Parse an STS XML response (`AssumeRoleWithWebIdentity`) into a miniopy Credentials.
 
     Returns the scoped access/secret/session triple plus expiry; raises if the response
     carried no Credentials block (e.g. an STS error document slipped past the status check).
@@ -107,24 +106,71 @@ class ObjectStore:
             region=self._region,
         )
 
+    async def ensure_bucket(self, *, bucket: str) -> None:
+        """Create the store bucket if absent (master key).
+
+        The bucket is not lazily created on first write — an STS/mount write to a missing
+        bucket fails (AccessDenied for scoped creds, NoSuchBucket for the master key). Call
+        once at startup so signed mounts land in an existing bucket.
+        """
+        if not self.enabled:
+            return
+        client = self._client()
+        if not await client.bucket_exists(bucket):
+            await client.make_bucket(bucket)
+
     def _scope_policy(self, *, bucket: str, prefix: str) -> str:
-        resource = f"arn:aws:s3:::{bucket}/{prefix.strip('/')}/*"
+        """Inline STS session policy scoping credentials to one mount prefix.
+
+        Three statements, and the split matters:
+          - ObjRW: object verbs on `<bucket>/<prefix>/*`. Includes the multipart verbs —
+            FUSE/geesefs uploads multipart, so omitting them denies large writes.
+          - BktMeta: GetBucketLocation + ListBucketMultipartUploads, UNCONDITIONED. These
+            are bucket-level preflights (the S3 client issues GetBucketLocation on first use);
+            they carry no `s3:prefix`, so gating them on one denies the preflight and aborts
+            every op. They leak only region / in-progress upload ids, not object data.
+          - BktListScoped: ListBucket narrowed by `s3:prefix` — the only op where the prefix
+            condition is both populated and load-bearing.
+        Isolation is enforced by ObjRW's prefix-scoped ARN; a cross-prefix write is denied at
+        the object resource, not the bucket.
+        """
+        scope = f"{prefix.strip('/')}/*"
         return dumps(
             {
                 "Version": "2012-10-17",
                 "Statement": [
                     {
+                        "Sid": "ObjRW",
                         "Effect": "Allow",
-                        "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-                        "Resource": [resource],
+                        "Action": [
+                            "s3:GetObject",
+                            "s3:PutObject",
+                            "s3:DeleteObject",
+                            "s3:GetObjectAttributes",
+                            "s3:CreateMultipartUpload",
+                            "s3:UploadPart",
+                            "s3:UploadPartCopy",
+                            "s3:CompleteMultipartUpload",
+                            "s3:AbortMultipartUpload",
+                            "s3:ListMultipartUploadParts",
+                        ],
+                        "Resource": [f"arn:aws:s3:::{bucket}/{scope}"],
                     },
                     {
+                        "Sid": "BktMeta",
+                        "Effect": "Allow",
+                        "Action": [
+                            "s3:GetBucketLocation",
+                            "s3:ListBucketMultipartUploads",
+                        ],
+                        "Resource": [f"arn:aws:s3:::{bucket}"],
+                    },
+                    {
+                        "Sid": "BktListScoped",
                         "Effect": "Allow",
                         "Action": ["s3:ListBucket"],
                         "Resource": [f"arn:aws:s3:::{bucket}"],
-                        "Condition": {
-                            "StringLike": {"s3:prefix": [f"{prefix.strip('/')}/*"]}
-                        },
+                        "Condition": {"StringLike": {"s3:prefix": [scope]}},
                     },
                 ],
             }
@@ -139,54 +185,55 @@ class ObjectStore:
     ) -> Credentials:
         """STS-sign short-lived credentials scoped to `<bucket>/<prefix>/*`.
 
-        Calls `GetFederationToken` (NOT `AssumeRole`) on the store's STS endpoint — the
-        federation path federates the caller's OWN identity with an inline policy, so it
-        needs no pre-defined roles/trust policies (which `AssumeRole` requires and which
-        SeaweedFS's released build does not ship by default). One path for every store:
-        AWS S3, R2, and SeaweedFS all answer GetFederationToken on the same S3 endpoint
-        (SeaweedFS serves STS in-process when a signing key is configured). The master key
-        signs the request and never leaves the API; the returned scoped key pair + session
-        token are what reach the runner.
+        Calls `AssumeRoleWithWebIdentity` on the store's STS endpoint with a short-lived
+        RS256 web-identity token the API mints and self-signs (the store's OIDC IAM fetches
+        our public JWKS to verify it — see core/store/webidentity.py). This is the only STS
+        path SeaweedFS's OIDC IAM authorizes; `GetFederationToken` yields actionless tokens.
+
+        The role grants the whole bucket; the inline session `Policy` narrows the credentials
+        to this one mount prefix (effective permission = role ∩ session). One shared bucket,
+        per-mount prefix isolation — identical on SeaweedFS and real S3.
+
+        Isolation rests ENTIRELY on that session policy being present: the role is bucket-wide,
+        so a token signed without the inline policy inherits the whole bucket (every tenant's
+        mount). Fail closed — refuse to sign when the policy cannot be built for a prefix.
         """
         if not self.enabled:
             raise MountStorageUnavailable()
+
+        scope_policy = self._scope_policy(bucket=bucket, prefix=prefix)
+        if not prefix.strip("/") or not scope_policy:
+            raise MountStorageUnavailable(
+                "Refusing to sign store credentials without a prefix-scoped session policy."
+            )
 
         host, secure = self._host_secure()
         endpoint = f"{'https' if secure else 'http'}://{host}"
         body = urlencode(
             {
-                "Action": "GetFederationToken",
+                "Action": "AssumeRoleWithWebIdentity",
                 "Version": "2011-06-15",
-                "Name": "agenta-mount",
+                "RoleArn": webidentity.role_arn(),
+                "RoleSessionName": webidentity.STORE_SUBJECT,
+                "WebIdentityToken": webidentity.mint_web_identity_token(),
                 "DurationSeconds": str(duration_seconds),
-                "Policy": self._scope_policy(bucket=bucket, prefix=prefix),
+                "Policy": scope_policy,
             }
         )
 
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        signed = sign_v4_sts(
-            "POST",
-            urlsplit(endpoint + "/"),
-            self._region,
-            {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Host": host,
-                "X-Amz-Date": now.strftime("%Y%m%dT%H%M%SZ"),
-            },
-            Credentials(self._access_key, self._secret_key),
-            sha256(body.encode()).hexdigest(),
-            now,
-        )
-
         async with aiohttp.ClientSession() as session:
-            async with session.post(endpoint + "/", data=body, headers=signed) as resp:
+            async with session.post(
+                endpoint + "/",
+                data=body,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            ) as resp:
                 text = await resp.text()
                 if resp.status != 200:
                     raise MountStorageUnavailable(
-                        f"STS GetFederationToken failed ({resp.status})."
+                        f"STS AssumeRoleWithWebIdentity failed ({resp.status})."
                     )
 
-        return _parse_federation_token(text)
+        return _parse_sts_credentials(text)
 
     async def list_objects_v2(
         self,

@@ -15,7 +15,7 @@
  * (`geesefsScript`), but with scoped STS credentials instead of the bucket-wide master key.
  */
 
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
 const pExecFile = promisify(execFile);
@@ -129,6 +129,11 @@ function geesefsArgs(
     creds.region,
     "--no-detect",
     "--fsync-on-close",
+    // -f keeps geesefs in the FOREGROUND as a tracked child of the runner. Without it geesefs
+    // double-forks into a detached daemon that is reparented to init and dies under write-heavy
+    // load (a `git clone`'s pack write/rename drops the FUSE channel -> ENOTCONN). Foreground
+    // survives the same workload; the runner owns the process and tears it down on teardown.
+    "-f",
     "-o",
     "allow_other",
     `${creds.bucket}:${creds.prefix}`,
@@ -146,11 +151,31 @@ function credEnv(creds: MountCredentials): Record<string, string> {
   return env;
 }
 
-async function isMounted(cwd: string): Promise<boolean> {
+/**
+ * True only when `cwd` is a mountpoint AND the FUSE backend still serves I/O.
+ *
+ * `mountpoint -q` returns true for a STALE geesefs node — one whose daemon died (expired
+ * STS creds, SeaweedFS restart) leaving the kernel entry behind. That node answers every
+ * file op with ENOTCONN ("Transport endpoint is not connected"), yet a bare `mountpoint`
+ * check trusts it, so `mountStorage` short-circuits and the next session inherits a dead cwd.
+ * Probe with a real access (`ls -A`) and treat ENOTCONN as NOT-mounted so the caller remounts.
+ */
+async function isMounted(cwd: string, log: (m: string) => void): Promise<boolean> {
   try {
     await pExecFile("mountpoint", ["-q", cwd]);
-    return true;
   } catch {
+    return false;
+  }
+  // Mountpoint present — verify the backend is alive, not a stale ENOTCONN node.
+  try {
+    await pExecFile("ls", ["-A", cwd]);
+    log(`mount alive: ${cwd}`);
+    return true;
+  } catch (err) {
+    const msg = String(err instanceof Error ? err.message : err);
+    log(
+      `STALE mountpoint (present but I/O fails) ${cwd}: ${msg.slice(0, 200)} — treating as unmounted`,
+    );
     return false;
   }
 }
@@ -176,29 +201,67 @@ export async function mountStorage(
   deps: MountStorageDeps = {},
 ): Promise<boolean> {
   const log = deps.log ?? defaultLog;
-  const checkMounted = deps.checkMounted ?? isMounted;
+  const checkMounted = deps.checkMounted ?? ((c: string) => isMounted(c, log));
+
+  log(
+    `mountStorage begin cwd=${cwd} bucket=${creds.bucket} prefix=${creds.prefix} ` +
+      `endpoint=${creds.endpoint ?? "(aws-default)"} sts=${creds.sessionToken ? "yes" : "no"} ` +
+      `expiresAt=${creds.expiresAt ?? "(none)"}`,
+  );
 
   if (await checkMounted(cwd)) {
-    log(`already mounted: ${cwd}`);
+    log(`already mounted (verified alive): ${cwd}`);
     return true;
   }
+
+  // Not alive: a prior stale node may still occupy the mountpoint. Force-detach before
+  // remounting, else geesefs fails "mountpoint is not empty" / re-stacks on the dead node.
+  await unmountStorage(cwd, { log });
 
   const args = geesefsArgs(creds, cwd);
   const env = credEnv(creds);
 
+  // geesefs runs FOREGROUND (-f): spawn it as a long-lived child and poll for the mount to come
+  // alive, rather than awaiting exit (it never exits). Detached + unref'd so it is not killed when
+  // this call returns but survives for the run; teardown unmounts it (fusermount -uz reaps it).
   const run =
     deps.runGeesefs ??
     (async (a: string[], e: Record<string, string>) => {
-      await pExecFile("geesefs", a, { env: { ...process.env, ...e } });
+      const child = spawn("geesefs", a, {
+        env: { ...process.env, ...e },
+        detached: true,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+      child.stderr?.on("data", (d) => {
+        const s = String(d).trim();
+        if (s) log(`geesefs stderr: ${s.slice(0, 400)}`);
+      });
+      child.unref();
+      // Poll up to ~15s for the mountpoint to serve I/O; geesefs logs "successfully mounted"
+      // within ~1s normally. Resolve as soon as it's alive; the caller re-verifies after.
+      for (let i = 0; i < 30; i++) {
+        if (await isMounted(cwd, () => {})) return;
+        await new Promise((r) => setTimeout(r, 500));
+      }
     });
 
   try {
+    log(`geesefs mount argv: ${args.join(" ")}`);
     await run(args, env);
-    log(`mounted ${creds.bucket}:${creds.prefix} -> ${cwd}`);
+    // Confirm the new mount actually serves I/O — a still-not-alive cwd means geesefs failed
+    // to mount (invalid STS creds, store unreachable) or did not come up within the poll window.
+    if (!(await checkMounted(cwd))) {
+      log(
+        `mount reported success but cwd is NOT alive ${creds.bucket}:${creds.prefix} -> ${cwd} ` +
+          `— likely expired/invalid STS creds or store unreachable`,
+      );
+      return false;
+    }
+    log(`mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
     return true;
   } catch (err) {
     log(
-      `mount failed ${creds.bucket}:${creds.prefix} -> ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
+      `mount failed ${creds.bucket}:${creds.prefix} -> ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 300)}`,
     );
     return false;
   }
@@ -227,10 +290,19 @@ export async function unmountStorage(
     });
   try {
     await run(cwd);
-    log(`unmounted ${cwd}`);
+    // Lazy unmount can leave the node attached until the dead daemon's last ref drops; that
+    // residual node serves ENOTCONN and poisons the next session. Verify it's actually gone.
+    let stillMounted = false;
+    try {
+      await pExecFile("mountpoint", ["-q", cwd]);
+      stillMounted = true;
+    } catch {
+      stillMounted = false;
+    }
+    log(`unmounted ${cwd} (mountpoint still present after detach: ${stillMounted})`);
   } catch (err) {
     log(
-      `unmount failed ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
+      `unmount failed ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
   }
 }

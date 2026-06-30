@@ -73,16 +73,29 @@ existing self-hosted Agenta deployment that predates the runner and store featur
 
    ```yaml
    store:
-     seaweedfs:
-       enabled: true
+     enabled: true
      accessKey: <access-key>
      secretKey: <secret-key>
+     seaweedfs:
+       enabled: true
+     # SeaweedFS serves S3 STS through its OIDC IAM engine, so a bundled store also needs:
+     signingKey: <base64 of 32 random bytes>          # head -c 32 /dev/urandom | base64
+     jwtPrivateKey: |                                  # one stable RSA key shared by all API replicas
+       -----BEGIN PRIVATE KEY-----
+       ...
+       -----END PRIVATE KEY-----
    ```
 
-   To point at an external S3-compatible store instead:
+   `jwtPrivateKey` is **required when the API runs more than one replica** — every replica must
+   sign with the same key or SeaweedFS's cached JWKS desyncs and STS fails intermittently.
+   Generate it with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`.
+
+   To point at an external S3-compatible store instead (real S3/R2 serve STS natively, so no
+   `signingKey`/`jwtPrivateKey` are needed):
 
    ```yaml
    store:
+     enabled: true
      seaweedfs:
        enabled: false
      endpointUrl: https://your-store-endpoint

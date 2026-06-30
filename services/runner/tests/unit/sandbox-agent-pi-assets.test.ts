@@ -155,7 +155,7 @@ describe("buildPiExtensionEnv", () => {
             },
           },
         ],
-      } as AgentRunRequest,
+      } as unknown as AgentRunRequest,
       false,
       { relayDir: "/tmp/relay" },
     );
