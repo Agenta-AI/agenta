@@ -237,7 +237,7 @@ describe("buildRunPlan", () => {
   it("rejects a strict restricted-network Daytona run with a runner-host tool", () => {
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -262,7 +262,7 @@ describe("buildRunPlan", () => {
     // explicit "best_effort" opts out.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -284,7 +284,7 @@ describe("buildRunPlan", () => {
     // guarantee, so the same restricted-network Daytona run with a host tool is allowed.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -442,6 +442,54 @@ describe("buildRunPlan", () => {
     assert.equal(created, false);
   });
 
+  it("errors LOUD on a non-Pi (claude) Daytona run carrying ANY custom tool (silent-drop fix)", () => {
+    // On Daytona the loopback MCP channel is skipped and a non-Pi harness has no in-sandbox tool
+    // reader, so the tools would vanish silently (the capability gate passes). Fail up front.
+    let created = false;
+    for (const tool of [
+      { name: "search", kind: "callback", callRef: "x" },
+      { name: "request_connection", kind: "client" },
+    ] as const) {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "use the tool" }],
+          customTools: [tool],
+        } as AgentRunRequest,
+        {
+          createDaytonaCwd: () => {
+            created = true;
+            return "/home/sandbox/x";
+          },
+        },
+      );
+      assert.equal(result.ok, false, `tool kind=${tool.kind} must fail`);
+      if (result.ok) return;
+      assert.match(result.error, /not deliverable to this harness on daytona/);
+    }
+    assert.equal(created, false, "fails before any cwd is created");
+  });
+
+  it("allows a Pi Daytona run with tools (Pi consumes the file relay in-sandbox)", () => {
+    const result = buildRunPlan({
+      harness: "pi_agenta",
+      sandbox: "daytona",
+      messages: [{ role: "user", content: "use the tool" }],
+      customTools: [{ name: "request_connection", kind: "client" }],
+    } as AgentRunRequest);
+    assert.equal(result.ok, true, "Pi on daytona keeps tools (no guard)");
+  });
+
+  it("allows a non-Pi (claude) Daytona run with NO custom tools", () => {
+    const result = buildRunPlan({
+      harness: "claude",
+      sandbox: "daytona",
+      messages: [{ role: "user", content: "just chat" }],
+    } as AgentRunRequest);
+    assert.equal(result.ok, true, "no tools -> the guard does not fire");
+  });
+
   it("allows a run with a non-code (callback) tool", () => {
     const result = buildRunPlan(
       {
@@ -479,7 +527,7 @@ describe("buildRunPlan", () => {
   it("allows a best_effort restricted-network Daytona run with a runner-host tool", () => {
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],

@@ -42,6 +42,23 @@ export const FILESYSTEM_UNSUPPORTED_MESSAGE =
   "Filesystem sandbox policy is not implemented (no backend applies a filesystem jail); " +
   "remove sandbox_permission.filesystem.";
 
+/**
+ * A non-Pi (MCP-delivered) harness on Daytona cannot receive ANY custom tool — gateway/callback
+ * AND client. The internal loopback MCP channel is skipped on Daytona (`mcp.ts`: its `127.0.0.1`
+ * URL is unreachable from the in-sandbox harness), and unlike Pi a non-Pi harness has no
+ * in-sandbox extension to consume the file relay, so the tools would be dropped SILENTLY (the
+ * capability gate keys on `mcpTools`, which Claude reports `true`). Fail loud instead, the way the
+ * code-tool / stdio-MCP gates do.
+ *
+ * ISOLATED ON PURPOSE: this is the honest default until a real in-sandbox MCP shim delivers tools
+ * to a non-Pi harness on Daytona (a separate future project). Swap this guard for that path then;
+ * do not widen it into other behavior.
+ */
+export const DAYTONA_TOOL_DELIVERY_UNSUPPORTED_MESSAGE =
+  "Custom tools are not deliverable to this harness on daytona (the internal MCP channel is " +
+  "unreachable from the sandbox and the harness has no in-sandbox tool reader). Run on the local " +
+  "sandbox, use a Pi harness, or remove the tools.";
+
 export interface RunPlan {
   harness: string;
   acpAgent: string;
@@ -231,6 +248,15 @@ export function buildRunPlan(
   // tools are gated — keep the wire shape, but the delivery is not supported.
   if (hasStdioMcpServer(request.mcpServers)) {
     return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
+  }
+
+  // A non-Pi (MCP-delivered) harness on Daytona cannot receive ANY custom tool: the loopback MCP
+  // channel is skipped there (unreachable from the sandbox) and the harness has no in-sandbox
+  // reader for the file relay (only Pi's extension is), so the tools would be dropped silently
+  // (the capability gate keys on `mcpTools`, which Claude reports true). Fail loud, the way the
+  // code-tool / stdio-MCP gates do. See DAYTONA_TOOL_DELIVERY_UNSUPPORTED_MESSAGE.
+  if (!isPi && isDaytona && toolSpecs.length > 0) {
+    return { ok: false, error: DAYTONA_TOOL_DELIVERY_UNSUPPORTED_MESSAGE };
   }
 
   // Layer 2: even on Daytona, code/gateway tools run on the RUNNER HOST via the relay, not
