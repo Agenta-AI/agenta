@@ -354,15 +354,22 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.deepEqual(calls.toolRelayArgs, [
-      "local-relay-host",
-      "/tmp/agenta-fake-cwd/.agenta-tools",
-      [{ name: "server_tool", kind: "callback" }],
-      undefined,
-      // Layer 3 (S3b): the resolved permission policy threaded into the relay. No
-      // `permissionPolicy` on the request -> the headless default `auto`.
-      "auto",
-    ]);
+    const relayArgs = calls.toolRelayArgs ?? [];
+    assert.equal(relayArgs[0], "local-relay-host");
+    assert.equal(relayArgs[1], "/tmp/agenta-fake-cwd/.agenta-tools");
+    assert.deepEqual(relayArgs[2], [{ name: "server_tool", kind: "callback" }]);
+    assert.equal(relayArgs[3], undefined, "no toolCallback on the request");
+    // Layer 3 (S3b): the resolved permission policy threaded into the relay. No
+    // `permissionPolicy` on the request -> the headless default `auto`.
+    assert.equal(relayArgs[4], "auto");
+    assert.equal(relayArgs[5], undefined, "no runContext on the request");
+    // The shared client-tool relay (the buildClientToolRelay seam) is threaded in as the last
+    // arg so the Pi file-relay loop parks a client tool through the same seam Claude uses.
+    const relay = relayArgs[6] as
+      | { onClientTool?: unknown; onPark?: unknown }
+      | undefined;
+    assert.equal(typeof relay?.onClientTool, "function", "relay exposes onClientTool");
+    assert.equal(typeof relay?.onPark, "function", "relay exposes onPark");
     assert.equal(
       calls.toolRelayStops,
       2,

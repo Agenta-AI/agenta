@@ -36,9 +36,11 @@ import {
 import {
   HITLResponder,
   extractApprovalDecisions,
+  extractClientToolOutputs,
   policyFromRequest,
   type Responder,
 } from "../responder.ts";
+import { buildClientToolRelay } from "./sandbox_agent/client-tools.ts";
 import {
   type AgentRunRequest,
   type AgentRunResult,
@@ -499,9 +501,14 @@ export async function runSandboxAgent(
       deps.responderFactory?.(request.permissionPolicy) ??
       new HITLResponder(
         extractApprovalDecisions(request),
+        extractClientToolOutputs(request),
         policyFromRequest(request.permissionPolicy),
         hasHumanSurface,
       );
+    // ONE client-tool relay both delivery paths share: the Pi file relay (below) and the Claude
+    // internal MCP server (Phase 4) call it instead of re-deriving the park decision and the
+    // `client_tool` payload. Behavior-preserving for Pi — same emit, same first-park-wins onPark.
+    const clientToolRelay = buildClientToolRelay({ responder, run, onPark });
     attachPermissionResponder({
       session,
       run,
@@ -552,40 +559,7 @@ export async function runSandboxAgent(
         request.toolCallback as ToolCallbackContext | undefined,
         policyFromRequest(request.permissionPolicy),
         request.runContext,
-        {
-          onClientTool: async ({ id, toolCallId, toolName, input, spec }) => {
-            const decision = await responder.onClientTool({
-              id,
-              toolCallId,
-              toolName,
-              input,
-              raw: { spec },
-            });
-            if (decision === "park") {
-              run.emitEvent({
-                type: "interaction_request",
-                id,
-                kind: "client_tool",
-                payload: {
-                  toolCallId,
-                  toolName,
-                  input,
-                  render: spec.render,
-                  toolCall: {
-                    id: toolCallId,
-                    toolCallId,
-                    name: toolName,
-                    rawInput: input,
-                    input,
-                    kind: spec.kind,
-                  },
-                },
-              });
-            }
-            return decision;
-          },
-          onPark,
-        },
+        clientToolRelay,
       );
     }
 

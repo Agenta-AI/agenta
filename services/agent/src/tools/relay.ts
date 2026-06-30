@@ -31,7 +31,7 @@ import type {
   RunContext,
   ToolCallbackContext,
 } from "../protocol.ts";
-import type { ClientToolOutcome, PermissionPolicy } from "../responder.ts";
+import type { ClientToolRelay, PermissionPolicy } from "../responder.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
 
 export const RELAY_REQ_SUFFIX = ".req.json";
@@ -53,17 +53,11 @@ export interface RelayResponse {
   text?: string;
   error?: string;
 }
-export interface ClientToolRelayRequest {
-  id: string;
-  toolCallId: string;
-  toolName: string;
-  input: unknown;
-  spec: ResolvedToolSpec;
-}
-export interface ClientToolRelay {
-  onClientTool: (request: ClientToolRelayRequest) => Promise<ClientToolOutcome>;
-  onPark?: (request: ClientToolRelayRequest) => void;
-}
+// `ClientToolRelay` / `ClientToolRelayRequest` now live in `responder.ts` so the Claude MCP
+// delivery path can park a client tool without importing this Daytona file-relay module. Re-export
+// them here for callers that still reach for the relay's vocabulary.
+export type { ClientToolRelay, ClientToolRelayRequest } from "../responder.ts";
+
 const CLIENT_TOOL_PARKED = Symbol("client-tool-parked");
 
 /** Make a tool-call id safe to use as a filename (and bounded). */

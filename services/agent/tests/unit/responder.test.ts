@@ -19,7 +19,9 @@ import {
   parkedCallKey,
   decisionToReply,
   extractApprovalDecisions,
+  extractClientToolOutputs,
   policyFromRequest,
+  type ClientToolRequest,
   type PermissionDecision,
   type PermissionRequest,
 } from "../../src/responder.ts";
@@ -158,11 +160,11 @@ function permReq(
 describe("HITLResponder", () => {
   it("applies a stored decision (resume path) by tool-call id", async () => {
     const decisions = new Map<string, PermissionDecision>([["tc-1", "allow"]]);
-    const allow = new HITLResponder(decisions, "auto", true);
+    const allow = new HITLResponder(decisions, new Map(), "auto", true);
     assert.equal(await allow.onPermission(permReq("tc-1", "edit")), "allow");
 
     const denied = new Map<string, PermissionDecision>([["tc-2", "deny"]]);
-    const deny = new HITLResponder(denied, "auto", true);
+    const deny = new HITLResponder(denied, new Map(), "auto", true);
     assert.equal(await deny.onPermission(permReq("tc-2", "edit")), "deny");
   });
 
@@ -172,7 +174,7 @@ describe("HITLResponder", () => {
     const decisions = new Map<string, PermissionDecision>([
       [parkedCallKey("edit", { path: "a.txt" })!, "allow"],
     ]);
-    const responder = new HITLResponder(decisions, "auto", true);
+    const responder = new HITLResponder(decisions, new Map(), "auto", true);
     assert.equal(
       await responder.onPermission(
         permReq("fresh-id", "edit", { path: "a.txt" }),
@@ -187,7 +189,7 @@ describe("HITLResponder", () => {
     const decisions = new Map<string, PermissionDecision>([
       [parkedCallKey("edit", { path: "a.txt" })!, "allow"],
     ]);
-    const responder = new HITLResponder(decisions, "auto", true);
+    const responder = new HITLResponder(decisions, new Map(), "auto", true);
     // Same tool name, different args, brand-new id -> no stored match -> park (re-prompt).
     assert.equal(
       await responder.onPermission(
@@ -200,7 +202,7 @@ describe("HITLResponder", () => {
     const orderDecisions = new Map<string, PermissionDecision>([
       [parkedCallKey("edit", { a: 1, b: 2 })!, "allow"],
     ]);
-    const orderResponder = new HITLResponder(orderDecisions, "auto", true);
+    const orderResponder = new HITLResponder(orderDecisions, new Map(), "auto", true);
     assert.equal(
       await orderResponder.onPermission(
         permReq("call-c", "edit", { b: 2, a: 1 }),
@@ -214,7 +216,7 @@ describe("HITLResponder", () => {
     // Defense in depth: even if a bare tool name somehow lands in the map, the responder must
     // not honor it (it only consults the id key and the name+args key).
     const decisions = new Map<string, PermissionDecision>([["edit", "allow"]]);
-    const responder = new HITLResponder(decisions, "auto", true);
+    const responder = new HITLResponder(decisions, new Map(), "auto", true);
     assert.equal(
       await responder.onPermission(
         permReq("fresh-id", "edit", { path: "a.txt" }),
@@ -227,18 +229,18 @@ describe("HITLResponder", () => {
   it("parks when there is a human surface and no stored decision (NOT deny)", async () => {
     // `basePolicy` is "auto" so this proves the park overrides the policy, not the policy.
     // Park must NOT be `deny`: replying `reject` to Claude clobbers the approval prompt (F-024).
-    const responder = new HITLResponder(new Map(), "auto", true);
+    const responder = new HITLResponder(new Map(), new Map(), "auto", true);
     assert.equal(await responder.onPermission(permReq("tc-x", "edit")), "park");
 
     // A deny basePolicy must still PARK (the human surface wins): a human can decide, so the
     // turn ends pending rather than refusing the tool with a clobbering reject.
-    const denyBase = new HITLResponder(new Map(), "deny", true);
+    const denyBase = new HITLResponder(new Map(), new Map(), "deny", true);
     assert.equal(await denyBase.onPermission(permReq("tc-w", "edit")), "park");
   });
 
   it("headless: no decision + no human surface falls back to basePolicy (PolicyResponder parity)", async () => {
-    const auto = new HITLResponder(new Map(), "auto", false);
-    const deny = new HITLResponder(new Map(), "deny", false);
+    const auto = new HITLResponder(new Map(), new Map(), "auto", false);
+    const deny = new HITLResponder(new Map(), new Map(), "deny", false);
     assert.equal(await auto.onPermission(permReq("tc-y", "edit")), "allow");
     assert.equal(await deny.onPermission(permReq("tc-z", "edit")), "deny");
 
@@ -363,6 +365,7 @@ describe("extractApprovalDecisions", () => {
     };
     const responder = new HITLResponder(
       extractApprovalDecisions(request),
+      extractClientToolOutputs(request),
       "auto",
       true, // human surface present, but the stored decision wins over the park
     );
@@ -406,6 +409,7 @@ describe("extractApprovalDecisions", () => {
     };
     const responder = new HITLResponder(
       extractApprovalDecisions(request),
+      extractClientToolOutputs(request),
       "auto",
       true,
     );
@@ -424,6 +428,148 @@ describe("extractApprovalDecisions", () => {
       ),
       "park",
       "a different-args call must NOT inherit the earlier approval",
+    );
+  });
+});
+
+describe("client-tool output store (separate from approvals)", () => {
+  // A client-tool browser reply as the Vercel adapter would replay it: a plain tool_result whose
+  // output is the raw browser result (NOT an `{approved}` envelope).
+  function clientReq(
+    toolName: string,
+    input: unknown,
+    toolCallId = "live-id",
+  ): ClientToolRequest {
+    return { id: "i-1", toolCallId, toolName, input };
+  }
+
+  it("extractClientToolOutputs stores raw outputs (not approvals) as a FIFO list per key", () => {
+    const request: AgentRunRequest = {
+      sessionId: "s-client",
+      messages: [
+        {
+          role: "tool",
+          content: [
+            // Two identical request_connection calls -> same name+args key -> a FIFO list of 2.
+            {
+              type: "tool_result",
+              toolCallId: "c-1",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { connected: true, account: "first" },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "c-2",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { connected: true, account: "second" },
+            },
+            // An approval envelope must NOT land in the client-output store.
+            {
+              type: "tool_result",
+              toolCallId: "c-3",
+              toolName: "edit",
+              input: { path: "a" },
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    };
+    const outputs = extractClientToolOutputs(request);
+    const key = parkedCallKey("request_connection", { integration: "slack" })!;
+    assert.deepEqual(outputs.get(key), [
+      { connected: true, account: "first" },
+      { connected: true, account: "second" },
+    ]);
+    // The approval-envelope result is absent from the client-output store.
+    assert.equal(outputs.has(parkedCallKey("edit", { path: "a" })!), false);
+    // ...and absent from the client store means it lives only in the approval store.
+    const decisions = extractApprovalDecisions(request);
+    assert.equal(decisions.get(parkedCallKey("edit", { path: "a" })!), "allow");
+  });
+
+  it("resolves two identical client calls from the FIFO store, in order", async () => {
+    const request: AgentRunRequest = {
+      sessionId: "s-client",
+      messages: [
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "c-1",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { account: "first" },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "c-2",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { account: "second" },
+            },
+          ],
+        },
+      ],
+    };
+    const responder = new HITLResponder(
+      new Map(),
+      extractClientToolOutputs(request),
+      "auto",
+      true,
+    );
+    // First call consumes the first output; the second identical call consumes the second.
+    assert.deepEqual(await responder.onClientTool(clientReq("request_connection", { integration: "slack" })), {
+      output: { account: "first" },
+    });
+    assert.deepEqual(await responder.onClientTool(clientReq("request_connection", { integration: "slack" })), {
+      output: { account: "second" },
+    });
+    // A third identical call has no stored output left -> park (human surface present).
+    assert.equal(
+      await responder.onClientTool(clientReq("request_connection", { integration: "slack" })),
+      "park",
+    );
+  });
+
+  it("returns a client output literally \"allow\" as output, never as a permission decision", async () => {
+    const request: AgentRunRequest = {
+      sessionId: "s-client",
+      messages: [
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "c-1",
+              toolName: "confirm",
+              input: { q: "ok?" },
+              // The raw browser output happens to be the string "allow" — under the old shared
+              // store this collided with a permission decision and was skipped.
+              output: "allow",
+            },
+          ],
+        },
+      ],
+    };
+    const responder = new HITLResponder(
+      new Map(),
+      extractClientToolOutputs(request),
+      "auto",
+      true,
+    );
+    assert.deepEqual(
+      await responder.onClientTool({
+        id: "i-1",
+        toolCallId: "live",
+        toolName: "confirm",
+        input: { q: "ok?" },
+      }),
+      { output: "allow" },
+      "the client output is returned verbatim, not interpreted as a permission allow",
     );
   });
 });

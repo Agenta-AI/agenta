@@ -19,7 +19,11 @@
  * available ACP replies via `decisionToReply`.
  */
 
-import type { AgentRunRequest, ContentBlock } from "./protocol.ts";
+import type {
+  AgentRunRequest,
+  ContentBlock,
+  ResolvedToolSpec,
+} from "./protocol.ts";
 
 /** HITL resume debug: traces stored-vs-live key matching that decides resolve-vs-re-park. */
 function hitlDebug(message: string): void {
@@ -71,6 +75,26 @@ export interface ClientToolRequest {
 }
 
 /**
+ * One browser-fulfilled client-tool call presented to a relay. The relay decides whether to park
+ * it (cross-turn round-trip), deny it, or resolve it from a stored browser output.
+ *
+ * This contract lives here (not in `tools/relay.ts`) so the Claude MCP delivery path
+ * (`tools/tool-mcp-http.ts`) can park a client tool WITHOUT importing the Daytona file-relay
+ * module. Both delivery paths build the same relay via `engines/sandbox_agent/client-tools.ts`.
+ */
+export interface ClientToolRelayRequest {
+  id: string;
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+  spec: ResolvedToolSpec;
+}
+export interface ClientToolRelay {
+  onClientTool: (request: ClientToolRelayRequest) => Promise<ClientToolOutcome>;
+  onPark?: (request: ClientToolRelayRequest) => void;
+}
+
+/**
  * Answers interaction requests the harness raises. Permission is the only kind wired today;
  * `input` (elicitation) and `client_tool` are forward-looking and will extend this interface
  * alongside the cross-turn responder.
@@ -111,6 +135,20 @@ export class PolicyResponder implements Responder {
  * legitimate approve -> resume path working (resume re-raises the same name + args).
  */
 export type ApprovalDecisions = ReadonlyMap<string, unknown>;
+
+/**
+ * Client-tool browser outputs the user already produced on a prior turn, keyed by
+ * `parkedCallKey(name, args)` (the cold-replay anchor), with a FIFO LIST per key. This store is
+ * SEPARATE from `ApprovalDecisions` for two reasons Codex flagged:
+ *
+ *   1. No allow/deny coercion. A permission reply is `{approved}` -> `"allow"`/`"deny"`; a client
+ *      output is the raw browser result. Sharing one map meant a client output whose value was
+ *      literally the string `"allow"`/`"deny"` collided with a permission decision. Here the value
+ *      is stored verbatim and `onClientTool` never interprets it as a permission decision.
+ *   2. Duplicate calls. A single `Map.set` per key let two identical name+args calls overwrite
+ *      each other. A FIFO list lets each identical call consume the next stored output in order.
+ */
+export type ClientToolOutputs = ReadonlyMap<string, readonly unknown[]>;
 
 /**
  * The cold-replay approval anchor: the tool name bound to its arguments. Resume re-derives
@@ -197,14 +235,19 @@ function canonicalJson(value: unknown): string {
  * Pure: every input (decisions, base policy, surface flag) is injected; no I/O.
  */
 export class HITLResponder implements Responder {
+  /** Per-key FIFO cursor: how many outputs under a key this turn has already consumed. */
+  private readonly clientOutputCursor = new Map<string, number>();
+
   constructor(
     private readonly decisions: ApprovalDecisions,
+    private readonly clientOutputs: ClientToolOutputs,
     private readonly basePolicy: PermissionPolicy,
     private readonly hasHumanSurface: boolean,
   ) {
     hitlDebug(
       `responder built: hasHumanSurface=${hasHumanSurface} basePolicy=${basePolicy} ` +
-        `storedDecisionKeys=${JSON.stringify([...decisions.keys()])}`,
+        `storedDecisionKeys=${JSON.stringify([...decisions.keys()])} ` +
+        `clientOutputKeys=${JSON.stringify([...clientOutputs.keys()])}`,
     );
   }
 
@@ -216,7 +259,7 @@ export class HITLResponder implements Responder {
   }
 
   async onClientTool(request: ClientToolRequest): Promise<ClientToolOutcome> {
-    const stored = this.lookupClientTool(request);
+    const stored = this.takeClientOutput(request);
     if (stored.found) return { output: stored.output };
     if (this.hasHumanSurface) return "park";
     return "deny";
@@ -238,20 +281,29 @@ export class HITLResponder implements Responder {
     return undefined;
   }
 
-  private lookupClientTool(request: ClientToolRequest): { found: boolean; output?: unknown } {
+  /**
+   * Consume the next FIFO browser output for this call from the separate client-output store.
+   * Two identical name+args calls each take the next stored output in order (instead of one
+   * overwriting the other); a client output is returned verbatim and never read as a permission
+   * decision (that store is `decisions`, consulted only by `onPermission`).
+   */
+  private takeClientOutput(request: ClientToolRequest): { found: boolean; output?: unknown } {
     const liveKeys = clientToolRequestKeys(request);
     for (const key of liveKeys) {
-      if (this.decisions.has(key)) {
-        const output = this.decisions.get(key);
-        if (!isPermissionDecision(output)) {
-          hitlDebug(`clientTool RESOLVED on key=${JSON.stringify(key)}`);
-          return { found: true, output };
-        }
+      const list = this.clientOutputs.get(key);
+      if (!list || list.length === 0) continue;
+      const consumed = this.clientOutputCursor.get(key) ?? 0;
+      if (consumed < list.length) {
+        this.clientOutputCursor.set(key, consumed + 1);
+        hitlDebug(
+          `clientTool RESOLVED on key=${JSON.stringify(key)} (output ${consumed + 1}/${list.length})`,
+        );
+        return { found: true, output: list[consumed] };
       }
     }
     hitlDebug(
       `clientTool RE-PARK (no key match): liveKeys=${JSON.stringify(liveKeys)} ` +
-        `storedKeys=${JSON.stringify([...this.decisions.keys()])}`,
+        `storedKeys=${JSON.stringify([...this.clientOutputs.keys()])}`,
     );
     return { found: false };
   }
@@ -333,55 +385,95 @@ export function extractApprovalDecisions(
   request: AgentRunRequest,
 ): Map<string, unknown> {
   const decisions = new Map<string, unknown>();
-  // First pass: recover each tool call's name + args, keyed by its id, so an approval reply
-  // (which may carry only the id + the `{approved}` envelope) can be bound to name + args.
-  const callShapeById = new Map<string, { name?: string; input?: unknown }>();
+  const callShapeById = buildCallShapeIndex(request);
+  hitlDebug(
+    `extract approvals: scanned ${request.messages?.length ?? 0} messages, ` +
+      `callShapeById ids=${JSON.stringify([...callShapeById.keys()])}`,
+  );
+  for (const block of toolResultBlocks(request)) {
+    // ONLY approval-envelope (`{approved}`) results land here; a client-tool's raw browser
+    // output goes to the separate `extractClientToolOutputs` store (so a client output literally
+    // `"allow"`/`"deny"` can never be mis-read as a permission decision).
+    const decision = approvalDecisionOf(block);
+    if (decision === undefined) continue;
+    const argsKey = coldReplayKey(block, callShapeById);
+    if (argsKey) {
+      decisions.set(argsKey, decision);
+      hitlDebug(
+        `extract: stored decision key=${JSON.stringify(argsKey)} -> ${decision}`,
+      );
+    }
+  }
+  return decisions;
+}
+
+/**
+ * Build the client-tool output store from the inbound history: every NON-approval `tool_result`
+ * is a browser-fulfilled client-tool output. Keyed by the cold-replay anchor `parkedCallKey(name,
+ * args)`, with a FIFO LIST per key so two identical calls each resolve from the next stored
+ * output instead of one overwriting the other. The value is the raw output, never coerced.
+ *
+ * (A normal callback/code tool result also lands here, but is harmless: `onClientTool` only fires
+ * for `kind: "client"` tools, and a resolved callback tool is not re-called as a client park.)
+ */
+export function extractClientToolOutputs(
+  request: AgentRunRequest,
+): Map<string, unknown[]> {
+  const outputs = new Map<string, unknown[]>();
+  const callShapeById = buildCallShapeIndex(request);
+  for (const block of toolResultBlocks(request)) {
+    if (approvalDecisionOf(block) !== undefined) continue; // an approval, not a client output
+    const argsKey = coldReplayKey(block, callShapeById);
+    if (!argsKey) continue;
+    const list = outputs.get(argsKey) ?? [];
+    list.push(block.output);
+    outputs.set(argsKey, list);
+    hitlDebug(
+      `extract: stored client output key=${JSON.stringify(argsKey)} (${list.length} queued)`,
+    );
+  }
+  return outputs;
+}
+
+/** Recover each tool call's name + args keyed by its id, so a reply that carries only the id
+ * (e.g. an `{approved}` envelope) can be bound to the cold-replay name+args anchor. */
+function buildCallShapeIndex(
+  request: AgentRunRequest,
+): Map<string, { name?: string; input?: unknown }> {
+  const index = new Map<string, { name?: string; input?: unknown }>();
   for (const message of request.messages ?? []) {
     const content = message?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type === "tool_call" && block.toolCallId) {
-        callShapeById.set(block.toolCallId, {
-          name: block.toolName,
-          input: block.input,
-        });
+        index.set(block.toolCallId, { name: block.toolName, input: block.input });
       }
     }
   }
-  hitlDebug(
-    `extract: scanned ${request.messages?.length ?? 0} messages, ` +
-      `callShapeById ids=${JSON.stringify([...callShapeById.keys()])}`,
-  );
+  return index;
+}
+
+/** Every `tool_result` content block across the run's message history. */
+function* toolResultBlocks(request: AgentRunRequest): Generator<ContentBlock> {
   for (const message of request.messages ?? []) {
     const content = message?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
-      const result = parkedCallResultOf(block);
-      if (!result.found) continue;
-      // Bind the cold-replay name+args key: prefer the block's own name/input, else the
-      // correlated tool_call block (same id). Never key by bare name or by a replayed id.
-      const shape = block.toolCallId
-        ? callShapeById.get(block.toolCallId)
-        : undefined;
-      const name = block.toolName ?? shape?.name;
-      const input = block.input ?? shape?.input;
-      const argsKey = parkedCallKey(name, input);
-      if (argsKey) {
-        decisions.set(argsKey, result.output);
-        hitlDebug(
-          `extract: stored decision key=${JSON.stringify(argsKey)} ` +
-            `name=${JSON.stringify(name)} input=${JSON.stringify(input)} ` +
-            `toolCallId=${JSON.stringify(block.toolCallId)}`,
-        );
-      } else {
-        hitlDebug(
-          `extract: SKIPPED a result (no key): name=${JSON.stringify(name)} ` +
-            `input=${JSON.stringify(input)} toolCallId=${JSON.stringify(block.toolCallId)}`,
-        );
-      }
+      if (block?.type === "tool_result") yield block;
     }
   }
-  return decisions;
+}
+
+/** The cold-replay name+args key for a tool_result, recovering name/args from the correlated
+ * tool_call block when the result block itself carries only an id. Never a bare name or an id. */
+function coldReplayKey(
+  block: ContentBlock,
+  callShapeById: Map<string, { name?: string; input?: unknown }>,
+): string | undefined {
+  const shape = block.toolCallId ? callShapeById.get(block.toolCallId) : undefined;
+  const name = block.toolName ?? shape?.name;
+  const input = block.input ?? shape?.input;
+  return parkedCallKey(name, input);
 }
 
 function isPermissionDecision(value: unknown): value is PermissionDecision {
@@ -389,11 +481,12 @@ function isPermissionDecision(value: unknown): value is PermissionDecision {
 }
 
 /**
- * A parked call reply. Permission responses use `{ approved: boolean }`; client tools carry their
- * real structured `output`.
+ * An approval reply uses an `{ approved: boolean }` envelope (the Vercel adapter's
+ * `_approval_response_blocks` shape), unique to a permission response. Returns `"allow"`/`"deny"`
+ * for one, or `undefined` for any other tool_result (a real browser/client output).
  */
-function parkedCallResultOf(block: ContentBlock): { found: boolean; output?: unknown } {
-  if (!block || block.type !== "tool_result") return { found: false };
+function approvalDecisionOf(block: ContentBlock): PermissionDecision | undefined {
+  if (!block || block.type !== "tool_result") return undefined;
   const output = block.output;
   if (
     output &&
@@ -401,12 +494,9 @@ function parkedCallResultOf(block: ContentBlock): { found: boolean; output?: unk
     !Array.isArray(output) &&
     typeof (output as { approved?: unknown }).approved === "boolean"
   ) {
-    return {
-      found: true,
-      output: (output as { approved: boolean }).approved ? "allow" : "deny",
-    };
+    return (output as { approved: boolean }).approved ? "allow" : "deny";
   }
-  return { found: true, output };
+  return undefined;
 }
 
 /**
