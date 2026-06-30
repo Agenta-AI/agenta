@@ -117,24 +117,23 @@ for how they behave. The plan and role variables are Enterprise-only; see
 
 ## Agent runner
 
-These variables configure agent workflows. `AGENTA_AGENT_*` variables are read by the
-Services API. `SANDBOX_AGENT_*` variables are read by the separate `sandbox-agent` runner
-service. See [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
+These variables configure agent workflows. `AGENTA_RUNNER_*` variables are read by the
+Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` service. See
+[Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
 
 | Env var | Component | values.yaml path |
 |---|---|---|
-| `AGENTA_AGENT_RUNNER_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
-| `AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS` | Services API / SDK | n/a |
-| `AGENTA_AGENT_MCP_SERVERS_ENABLED` | Services API | `agentRunner.enableMcp` |
-| `SANDBOX_AGENT_PROVIDER` | `sandbox-agent` | `agentRunner.provider` |
-| `SANDBOX_AGENT_LOG_LEVEL` | `sandbox-agent` | `agentRunner.logLevel` |
-| `DAYTONA_API_KEY` | `sandbox-agent` | `agentRunner.daytona.apiKey` |
-| `DAYTONA_API_URL` | `sandbox-agent` | `agentRunner.daytona.apiUrl` |
-| `DAYTONA_TARGET` | `sandbox-agent` | `agentRunner.daytona.target` |
-| `DAYTONA_SNAPSHOT` | `sandbox-agent` | `agentRunner.daytona.snapshot` |
-| `DAYTONA_IMAGE` | `sandbox-agent` | `agentRunner.daytona.image` |
-| `DAYTONA_AUTOSTOP` | `sandbox-agent` | `agentRunner.daytona.autostopDelay` |
-| `AGENTA_AGENT_SANDBOX_PI_INSTALLED` | `sandbox-agent` | `agentRunner.daytona.installPi` |
+| `AGENTA_RUNNER_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
+| `AGENTA_AGENT_MCPS_ENABLED` | Services API | `agentRunner.enableMcp` |
+| `SANDBOX_AGENT_PROVIDER` | `runner` | `agentRunner.provider` |
+| `SANDBOX_AGENT_LOG_LEVEL` | `runner` | `agentRunner.logLevel` |
+| `DAYTONA_API_KEY` | `runner` | `agentRunner.daytona.apiKey` |
+| `DAYTONA_API_URL` | `runner` | `agentRunner.daytona.apiUrl` |
+| `DAYTONA_TARGET` | `runner` | `agentRunner.daytona.target` |
+| `DAYTONA_SNAPSHOT` | `runner` | `agentRunner.daytona.snapshot` |
+| `DAYTONA_IMAGE` | `runner` | `agentRunner.daytona.image` |
+| `DAYTONA_AUTOSTOP` | `runner` | `agentRunner.daytona.autostopDelay` |
+| `AGENTA_AGENT_SANDBOX_PI_INSTALLED` | `runner` | `agentRunner.daytona.installPi` |
 :::warning Custom-code evaluator runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
 
@@ -145,39 +144,45 @@ service. See [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner
 The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
 :::
 
-## Mounts (durable object store)
+## Store (durable object store) {#store-durable-object-store}
 
-Backs the durable working directory for sessions and agents — files written by an agent run
-survive sandbox teardown and reappear in the next turn. Disabled until `ACCESS_KEY` and
-`SECRET_KEY` are set. Point these at any S3-compatible store (AWS S3, Cloudflare R2, MinIO, or
-the bundled SeaweedFS); an empty endpoint means real AWS S3.
+Backs the durable working directory for sessions and agents. Files written by an agent run
+survive sandbox teardown and reappear in the next turn. The store is disabled until `ACCESS_KEY`
+and `SECRET_KEY` are set. Point these at any S3-compatible store (AWS S3, Cloudflare R2, MinIO,
+or the bundled SeaweedFS); an empty endpoint URL means real AWS S3.
 
-The API holds the master credentials and **never** passes them to the runner: at run start it
+The API holds the master credentials and never passes them to the runner. At run start, the API
 mints short-lived, prefix-scoped credentials (S3 STS `GetFederationToken`) and only those reach
-the sandbox, which geesefs-mounts the durable prefix as its cwd.
+the sandbox, which mounts the durable prefix as its working directory.
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
-| `AGENTA_MOUNTS_STORAGE_ENDPOINT_URL` | `mounts.storage_endpoint_url` | `mounts.endpointUrl` (auto when `mounts.seaweedfs.enabled`) |
-| `AGENTA_MOUNTS_STORAGE_ACCESS_KEY` | `mounts.storage_access_key` | `mounts.accessKey` |
-| `AGENTA_MOUNTS_STORAGE_SECRET_KEY` | `mounts.storage_secret_key` | `mounts.secretKey` |
-| `AGENTA_MOUNTS_STORAGE_REGION` | `mounts.storage_region` | `mounts.region` |
-| `AGENTA_MOUNTS_STORAGE_BUCKET` | `mounts.storage_bucket` | `mounts.bucket` |
-| `AGENTA_MOUNTS_STORAGE_SIGNING_KEY` | n/a (store-side) | `mounts.signingKey` |
+| `AGENTA_STORE_ENDPOINT_URL` | `store.endpoint_url` | `store.endpointUrl` (auto-populated when `store.seaweedfs.enabled=true`) |
+| `AGENTA_STORE_ACCESS_KEY` | `store.access_key` | `store.accessKey` |
+| `AGENTA_STORE_SECRET_KEY` | `store.secret_key` | `store.secretKey` |
+| `AGENTA_STORE_REGION` | `store.region` | `store.region` |
+| `AGENTA_STORE_BUCKET` | `store.bucket` | `store.bucket` |
+| `AGENTA_STORE_SIGNING_KEY` | n/a (store-side) | `store.signingKey` |
+| — | — | `store.seaweedfs.enabled` |
+
+`store.seaweedfs.enabled=true` bundles a SeaweedFS StatefulSet and auto-populates
+`store.endpointUrl`. Set it to `false` and supply `store.endpointUrl` to use an external
+S3-compatible store. This toggle mirrors `postgresql.enabled`.
 
 :::note SeaweedFS STS signing key
-`AGENTA_MOUNTS_STORAGE_SIGNING_KEY` is read by the **store**, not the API: a base64-encoded
-32-byte key that the bundled SeaweedFS uses to serve S3 STS in-process (so the API can mint the
-scoped runner credentials on the same S3 port — no separate IAM service). Real AWS S3 / R2 serve
-STS natively and ignore it. The bundled store and the API must agree on `ACCESS_KEY` / `SECRET_KEY`;
+`AGENTA_STORE_SIGNING_KEY` is read by the **store**, not the API: a base64-encoded 32-byte key
+that the bundled SeaweedFS uses to serve S3 STS in-process (so the API can mint scoped runner
+credentials on the same S3 port, with no separate IAM service). Real AWS S3 and R2 serve STS
+natively and ignore it. The bundled store and the API must agree on `ACCESS_KEY` and `SECRET_KEY`;
 in the Helm chart and docker-compose this is wired automatically.
 :::
 
-:::warning Remote sandboxes (Daytona/E2B) need a reachable store
-A local sandbox geesefs-mounts on the runner host against the in-network store. A **remote**
-sandbox runs geesefs inside the cloud sandbox, so the store endpoint must be publicly reachable —
-enable the `ngrok` tunnel (the compose `remote` profile) or point the mounts endpoint at a public
-S3/R2 URL. Only the scoped, short-lived credentials ever cross into a remote sandbox.
+:::warning Remote sandboxes (Daytona) need a reachable store endpoint
+A local sandbox mounts durable storage on the runner host against the in-network store. A
+**remote** sandbox mounts from inside the cloud sandbox, so the store endpoint must be publicly
+reachable. Enable the `ngrok` tunnel (the compose `remote` profile) or point
+`AGENTA_STORE_ENDPOINT_URL` at a public S3/R2 URL. Only the scoped, short-lived credentials ever
+cross into a remote sandbox.
 :::
 
 ## Agenta — webhooks
@@ -405,6 +410,14 @@ future major release.
 | `AGENTA_LOG_OTLP_ENABLED` | `AGENTA_LOGGING_OTLP_ENABLED` |
 | `AGENTA_LOG_OTLP_LEVEL` | `AGENTA_LOGGING_OTLP_LEVEL` |
 | `AGENTA_SERVICES_SANDBOX_RUNNER` | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` |
+| `AGENTA_AGENT_RUNNER_URL` | `AGENTA_RUNNER_URL` |
+| `AGENTA_AGENT_MCP_SERVERS_ENABLED` | `AGENTA_AGENT_MCPS_ENABLED` |
+| `AGENTA_MOUNTS_STORAGE_ENDPOINT_URL` | `AGENTA_STORE_ENDPOINT_URL` |
+| `AGENTA_MOUNTS_STORAGE_ACCESS_KEY` | `AGENTA_STORE_ACCESS_KEY` |
+| `AGENTA_MOUNTS_STORAGE_SECRET_KEY` | `AGENTA_STORE_SECRET_KEY` |
+| `AGENTA_MOUNTS_STORAGE_REGION` | `AGENTA_STORE_REGION` |
+| `AGENTA_MOUNTS_STORAGE_BUCKET` | `AGENTA_STORE_BUCKET` |
+| `AGENTA_MOUNTS_STORAGE_SIGNING_KEY` | `AGENTA_STORE_SIGNING_KEY` |
 | `AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` |
 | `AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` |
 | `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_WEBHOOKS_ALLOW_INSECURE` (API), `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` (SDK) |
