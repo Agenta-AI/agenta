@@ -163,10 +163,10 @@ class TestSignMountCredentials:
 
         creds = await service.sign_mount_credentials(project_id=pid, mount_id=mount.id)
 
-        # Prefix is identity-derived: <project_id>/<mount_id> (slug-independent).
-        assert storage.signed_with["prefix"] == f"{pid}/{mount.id}"
+        # Prefix is identity-derived: mounts/<project_id>/<mount_id> (slug-independent).
+        assert storage.signed_with["prefix"] == f"mounts/{pid}/{mount.id}"
         assert storage.signed_with["bucket"] == _BUCKET
-        assert creds.prefix == f"{pid}/{mount.id}"
+        assert creds.prefix == f"mounts/{pid}/{mount.id}"
         assert creds.bucket == _BUCKET
 
     async def test_returns_scoped_not_master_credentials(self):
@@ -221,9 +221,9 @@ class TestStoragePolicyScope:
     async def test_policy_resource_targets_only_the_mount_prefix(self):
         from json import loads
 
-        from oss.src.core.mounts.storage import MountStorage
+        from oss.src.core.store.storage import ObjectStore
 
-        storage = MountStorage(
+        storage = ObjectStore(
             endpoint_url="http://seaweedfs:8333",
             access_key=_MASTER_KEY,
             secret_key=_MASTER_SECRET,
@@ -250,7 +250,7 @@ class TestStoragePolicyScope:
         )
 
     async def test_parses_federation_token_xml(self):
-        from oss.src.core.mounts.storage import _parse_federation_token
+        from oss.src.core.store.storage import _parse_federation_token
 
         xml = (
             '<?xml version="1.0"?>'

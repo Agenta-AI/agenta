@@ -158,15 +158,15 @@ the sandbox, which geesefs-mounts the durable prefix as its cwd.
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
-| `AGENTA_MOUNTS_STORAGE_ENDPOINT_URL` | `mounts.storage_endpoint_url` | `mounts.endpointUrl` (auto when `mounts.seaweedfs.enabled`) |
-| `AGENTA_MOUNTS_STORAGE_ACCESS_KEY` | `mounts.storage_access_key` | `mounts.accessKey` |
-| `AGENTA_MOUNTS_STORAGE_SECRET_KEY` | `mounts.storage_secret_key` | `mounts.secretKey` |
-| `AGENTA_MOUNTS_STORAGE_REGION` | `mounts.storage_region` | `mounts.region` |
-| `AGENTA_MOUNTS_STORAGE_BUCKET` | `mounts.storage_bucket` | `mounts.bucket` |
-| `AGENTA_MOUNTS_STORAGE_SIGNING_KEY` | n/a (store-side) | `mounts.signingKey` |
+| `AGENTA_STORE_ENDPOINT_URL` | `store.endpoint_url` | `mounts.endpointUrl` (auto when `mounts.seaweedfs.enabled`) |
+| `AGENTA_STORE_ACCESS_KEY` | `store.access_key` | `mounts.accessKey` |
+| `AGENTA_STORE_SECRET_KEY` | `store.secret_key` | `mounts.secretKey` |
+| `AGENTA_STORE_REGION` | `store.region` | `mounts.region` |
+| `AGENTA_STORE_BUCKET` | `store.bucket` | `mounts.bucket` |
+| `AGENTA_STORE_SIGNING_KEY` | n/a (store-side) | `mounts.signingKey` |
 
 :::note SeaweedFS STS signing key
-`AGENTA_MOUNTS_STORAGE_SIGNING_KEY` is read by the **store**, not the API: a base64-encoded
+`AGENTA_STORE_SIGNING_KEY` is read by the **store**, not the API: a base64-encoded
 32-byte key that the bundled SeaweedFS uses to serve S3 STS in-process (so the API can mint the
 scoped runner credentials on the same S3 port — no separate IAM service). Real AWS S3 / R2 serve
 STS natively and ignore it. The bundled store and the API must agree on `ACCESS_KEY` / `SECRET_KEY`;

@@ -166,7 +166,7 @@ from taskiq_redis import RedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
-from oss.src.core.mounts.storage import MountStorage
+from oss.src.core.store.storage import ObjectStore
 from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.apis.fastapi.mounts.router import MountsRouter
 
@@ -818,17 +818,17 @@ _triggers_worker = TriggersWorker(
 
 triggers_service.schedule_dispatch_task = _triggers_worker.dispatch_schedule
 
-mounts_storage = MountStorage(
-    endpoint_url=env.mounts.storage_endpoint_url,
-    access_key=env.mounts.storage_access_key,
-    secret_key=env.mounts.storage_secret_key,
-    region=env.mounts.storage_region,
+store = ObjectStore(
+    endpoint_url=env.store.endpoint_url,
+    access_key=env.store.access_key,
+    secret_key=env.store.secret_key,
+    region=env.store.region,
 )
 
 mounts_service = MountsService(
     mounts_dao=mounts_dao,
-    mount_storage=mounts_storage,
-    bucket=env.mounts.storage_bucket,
+    mount_storage=store,
+    bucket=env.store.bucket,
 )
 
 session_mounts_service = SessionMountsService(

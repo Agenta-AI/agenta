@@ -845,28 +845,38 @@ class LoopsConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# mounts
+# store — shared S3-compatible object store
 # ---------------------------------------------------------------------------
 
 
-class MountsConfig(BaseModel):
-    """Durable object-store (S3/SeaweedFS) backing for mounts.
+class StoreConfig(BaseModel):
+    """Shared S3-compatible object store credentials.
 
-    Dev points at SeaweedFS; platform/prod points at real S3 — same code path.
+    Dev points at SeaweedFS; prod points at real S3 / R2 — same code path.
     """
 
-    storage_endpoint_url: str | None = os.getenv("AGENTA_MOUNTS_STORAGE_ENDPOINT_URL")
-    storage_access_key: str | None = os.getenv("AGENTA_MOUNTS_STORAGE_ACCESS_KEY")
-    storage_secret_key: str | None = os.getenv("AGENTA_MOUNTS_STORAGE_SECRET_KEY")
-    storage_region: str = os.getenv("AGENTA_MOUNTS_STORAGE_REGION", "us-east-1")
-    storage_bucket: str | None = os.getenv("AGENTA_MOUNTS_STORAGE_BUCKET")
+    endpoint_url: str | None = os.getenv("AGENTA_STORE_ENDPOINT_URL")
+    access_key: str | None = os.getenv("AGENTA_STORE_ACCESS_KEY")
+    secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
+    region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
+    bucket: str | None = os.getenv("AGENTA_STORE_BUCKET")
 
     model_config = ConfigDict(extra="ignore")
 
     @property
     def enabled(self) -> bool:
-        """Mounts file ops enabled if an endpoint and credentials are present."""
-        return bool(self.storage_access_key and self.storage_secret_key)
+        return bool(self.access_key and self.secret_key)
+
+
+# ---------------------------------------------------------------------------
+# mounts
+# ---------------------------------------------------------------------------
+
+
+class MountsConfig(BaseModel):
+    """Mounts-domain config. Store credentials live in StoreConfig."""
+
+    model_config = ConfigDict(extra="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -1217,6 +1227,7 @@ class EnvironSettings(BaseModel):
     redis: RedisConfig = RedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
+    store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
 
