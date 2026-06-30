@@ -174,7 +174,7 @@ export function AgentTemplateControl({
 
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
-    const mh = useModelHarness({schema, config, onChange, disabled, withTooltip})
+    const mh = useModelHarness({schema, config, onChange, disabled, withTooltip, revisionId})
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {

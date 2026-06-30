@@ -48,7 +48,7 @@ describe("agenta extension tool registration", () => {
       {
         name: "secret_math",
         description: "qa math",
-        inputSchema: {
+        input_schema: {
           type: "object",
           properties: { x: { type: "integer" } },
           required: ["x"],
@@ -74,6 +74,11 @@ describe("agenta extension tool registration", () => {
       math.parameters && math.parameters.properties && math.parameters.properties.x,
       "passes the JSON Schema through to Pi",
     );
+    assert.equal(math.promptSnippet, "qa math", "opts the tool into Pi's Available tools prompt");
+    assert.ok(
+      math.promptGuidelines.some((line: string) => line.includes("required argument(s): x")),
+      "adds prompt guidance for required arguments",
+    );
     assert.equal(typeof math.execute, "function", "each tool has an execute() that relays");
 
     const noSchema = pi.registered[1];
@@ -91,6 +96,38 @@ describe("agenta extension tool registration", () => {
       pi.registered.length,
       0,
       "no tool env => registers nothing (no silent partial state)",
+    );
+  });
+
+  it("rejects missing required args before relaying a no-op tool call", async () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      {
+        name: "commit_revision",
+        description: "commit",
+        inputSchema: {
+          type: "object",
+          properties: {
+            workflow_revision: {
+              type: "object",
+              properties: {
+                data: { type: "object" },
+              },
+              required: ["data"],
+            },
+          },
+          required: ["workflow_revision"],
+        },
+      },
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    await assert.rejects(
+      () => pi.registered[0].execute("call-1", {}),
+      /missing required argument\(s\): workflow_revision/,
     );
   });
 

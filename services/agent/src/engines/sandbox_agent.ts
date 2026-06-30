@@ -238,6 +238,10 @@ export async function runSandboxAgent(
       })
     : {};
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
+  logger(
+    `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
+      `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
+  );
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
@@ -430,17 +434,18 @@ export async function runSandboxAgent(
       // raced against `parkedSignal` below so the turn ends even if this call rejects.
       void sandbox.destroySession?.(session.id).catch(() => {});
     };
+    const responder =
+      deps.responderFactory?.(request.permissionPolicy) ??
+      new HITLResponder(
+        extractApprovalDecisions(request),
+        policyFromRequest(request.permissionPolicy),
+        hasHumanSurface,
+      );
     attachPermissionResponder({
       session,
       run,
       onPark,
-      responder:
-        deps.responderFactory?.(request.permissionPolicy) ??
-        new HITLResponder(
-          extractApprovalDecisions(request),
-          policyFromRequest(request.permissionPolicy),
-          hasHumanSurface,
-        ),
+      responder,
     });
 
     if (plan.useToolRelay) {
@@ -455,6 +460,41 @@ export async function runSandboxAgent(
         plan.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
         policyFromRequest(request.permissionPolicy),
+        request.runContext,
+        {
+          onClientTool: async ({ id, toolCallId, toolName, input, spec }) => {
+            const decision = await responder.onClientTool({
+              id,
+              toolCallId,
+              toolName,
+              input,
+              raw: { spec },
+            });
+            if (decision === "park") {
+              run.emitEvent({
+                type: "interaction_request",
+                id,
+                kind: "client_tool",
+                payload: {
+                  toolCallId,
+                  toolName,
+                  input,
+                  render: spec.render,
+                  toolCall: {
+                    id: toolCallId,
+                    toolCallId,
+                    name: toolName,
+                    rawInput: input,
+                    input,
+                    kind: spec.kind,
+                  },
+                },
+              });
+            }
+            return decision;
+          },
+          onPark,
+        },
       );
     }
 

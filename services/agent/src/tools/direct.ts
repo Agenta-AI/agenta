@@ -117,10 +117,10 @@ export function deepMerge(
 /**
  * Resolve a `call.context` token (`"$ctx.<dotted.path>"`) against the run's `runContext` blob.
  *
- * The descriptor is untrusted, so a malformed token (one that does not start with `$ctx.`) is
- * skipped rather than trusted: it returns `undefined`. A path that does not resolve in the blob
- * (no `runContext`, a missing sub-object, or a missing key) also returns `undefined`. Only a
- * non-`undefined` resolved value is bound — `null` is a real value and binds, `undefined` does not.
+ * The descriptor is untrusted, so a malformed token (one that does not start with `$ctx.`) returns
+ * `undefined`. A path that does not resolve in the blob (no `runContext`, a missing sub-object, or
+ * a missing key) also returns `undefined`. `assembleBody` treats that as a hard binding failure so
+ * self-targeting direct calls cannot silently drop their hidden target field.
  *
  * Traversal follows ONLY own, safe keys: an unsafe segment (`__proto__`/`constructor`/`prototype`)
  * or a key inherited from the prototype chain returns `undefined`, so a crafted token can never
@@ -219,15 +219,20 @@ export function assembleBody(
   if (call.body) body = deepMerge(body, call.body);
   // 3. Run-context binding wins over everything (filled LAST). For each [bodyPath, token] in
   //    call.context, the field is owned by run context alone: first clear whatever the model's args
-  //    or the static `body` put at that path, then deep-set the resolved value. A token that does
-  //    not resolve leaves the field ABSENT (the cleared state), so a missing run-context value can
-  //    never let a model-supplied value survive in a bound field — the model-invisible guarantee.
-  //    deepDelete / deepSet are prototype-pollution-safe and reject unsafe path segments.
+  //    or the static `body` put at that path, then deep-set the resolved value. A missing binding
+  //    value fails closed instead of silently no-oping; direct calls that declare context require
+  //    that context to target the platform safely. deepDelete / deepSet are prototype-pollution-safe
+  //    and reject unsafe path segments.
   if (call.context) {
     for (const [bodyPath, token] of Object.entries(call.context)) {
       deepDelete(body, bodyPath);
       const value = resolveCtxToken(runContext, token);
-      if (value !== undefined) deepSet(body, bodyPath, value);
+      if (value === undefined) {
+        throw new Error(
+          `missing run-context value for direct-call binding '${bodyPath}'`,
+        );
+      }
+      deepSet(body, bodyPath, value);
     }
   }
   return body;
