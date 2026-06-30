@@ -1,16 +1,16 @@
 ---
 title: System Architecture
-description: "Complete overview of Agenta's system architecture, components, and service relationships"
+description: "Overview of Agenta's system architecture, components, and service relationships"
 sidebar_position: 1
 ---
 
 # System Architecture
 
-This guide provides a comprehensive overview of Agenta's system architecture, explaining each component's role, responsibilities, and how they work together to deliver AI application evaluation and management capabilities.
+This page explains Agenta's system architecture: what each component does and how they connect.
 
 ## System Overview
 
-Agenta follows a modern microservices architecture with clear separation of concerns. The system is designed for scalability, maintainability, and ease of deployment using Docker containers.
+Agenta uses a microservices architecture deployed as Docker containers. The diagram below shows how the main layers connect.
 
 ```
                                     ┌─────────────────────────────────────┐
@@ -34,32 +34,32 @@ Agenta follows a modern microservices architecture with clear separation of conc
           │ • Next.js App   │         │ • REST API      │         │ • Completion    │
           │ • Playground    │         │ • Core logic    │         │ • Chat          │
           │ • Admin UI      │         │ • Persistence   │         │ • LLM adapters  │
-          └─────────────────┘         └─────────┬───────┘         └─────────────────┘
-                    │                           │
-                    │                           ▼
-                    │                 ┌─────────────────────────────┐
-                    │                 │      Worker Pool            │
-                    │                 │   (background processes)    │
-                    │                 │                             │
-                    │                 │ • worker-evaluations        │
-                    │                 │ • worker-tracing            │
-                    │                 │ • worker-webhooks           │
-                    │                 │ • worker-events             │
-                    │                 │ • cron                      │
-                    │                 └──────────────┬──────────────┘
-                    │                                │
-                    ▼                                ▼
-          ┌───────────────────────────────────────────────────────────────────┐
-          │                       Infrastructure Layer                        │
-          │                                                                   │
-          │ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐ │
-          │ │   PostgreSQL      │ │      Redis        │ │   SuperTokens     │ │
-          │ │                   │ │                   │ │                   │ │
-          │ │ • Core DB         │ │ • Task queues     │ │ • Authentication  │ │
-          │ │ • Tracing DB      │ │ • Streams         │ │ • Session mgmt    │ │
-          │ │ • Auth DB         │ │ • Caching         │ │                   │ │
-          │ └───────────────────┘ └───────────────────┘ └───────────────────┘ │
-          └───────────────────────────────────────────────────────────────────┘
+          └─────────────────┘         └─────────┬───────┘         └────────┬────────┘
+                    │                           │                           │
+                    │                           ▼                           ▼
+                    │                 ┌─────────────────────────┐  ┌─────────────────┐
+                    │                 │      Worker Pool        │  │  runner :8765   │
+                    │                 │   (background procs)    │  │ (agent runs)    │
+                    │                 │ • worker-evaluations    │  └────────┬────────┘
+                    │                 │ • worker-tracing        │           │
+                    │                 │ • worker-webhooks       │           │
+                    │                 │ • worker-events         │           │
+                    │                 │ • worker-records        │           │
+                    │                 │ • cron                  │           │
+                    │                 └──────────────┬──────────┘           │
+                    │                                │                      │
+                    ▼                                ▼                      ▼
+          ┌──────────────────────────────────────────────────────────────────────────┐
+          │                          Infrastructure Layer                            │
+          │                                                                          │
+          │ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────┐ ┌──────────┐ │
+          │ │   PostgreSQL     │ │      Redis       │ │ SuperTokens  │ │seaweedfs │ │
+          │ │                  │ │                  │ │              │ │  :8333   │ │
+          │ │ • Core DB        │ │ • Task queues    │ │ • Auth       │ │(bundled  │ │
+          │ │ • Tracing DB     │ │ • Streams        │ │ • Sessions   │ │or ext S3)│ │
+          │ │ • Auth DB        │ │ • Caching        │ │              │ │          │ │
+          │ └──────────────────┘ └──────────────────┘ └──────────────┘ └──────────┘ │
+          └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Frontend Components
@@ -100,12 +100,26 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **Tracing Ingestion**: `worker-tracing` consumes OTLP tracing pipelines
 - **Webhook Delivery**: `worker-webhooks` dispatches outbound webhook notifications
 - **Event Processing**: `worker-events` processes internal event streams
+- **Session Records**: `worker-records` persists agent session records from the `streams:records` Redis stream
 - **Scheduled Tasks**: `cron` runs periodic maintenance and cleanup jobs
 
 **TaskIQ Integration**:
 - **Broker**: Uses Redis streams for queueing and task distribution
 - **Task Registration**: Evaluation tasks are registered at worker startup
 - **Execution**: Workers consume Redis-backed jobs and process them asynchronously
+
+### Agent Runner
+- **Technology**: Node.js TypeScript sidecar
+- **Port**: 8765 (internal)
+- **Purpose**: Executes agent workflows on behalf of the Services API
+
+The runner receives `/run` requests from the Services API (routed via `AGENTA_RUNNER_URL`) and starts harness processes (Pi, Claude Code, or other supported adapters) in local or remote sandboxes. It mounts durable working directories from the store into each sandbox and relays server-side tools back to the Services API without exposing the full stack environment to the harness.
+
+Sandbox matrix:
+- `local` — in-process on the runner host; the default for compose and Kubernetes deployments.
+- `daytona` — a remote Daytona cloud sandbox; requires `SANDBOX_AGENT_PROVIDER=daytona` on the runner.
+
+See [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
 
 ## Services Backend
 
@@ -121,17 +135,6 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **Provider Abstraction**: Unified interface across different LLM providers
 - **Error Handling**: Robust error handling for LLM API failures
 - **Endpoint Groups**: Includes `/services/completion/*` and `/services/chat/*`
-
-### sandbox-agent Runner
-- **Technology**: Node.js TypeScript runner plus sandbox-agent daemon
-- **Port**: 8765 (internal)
-- **Purpose**: Executes agent workflows for the Services API
-
-**Key Responsibilities**:
-- **Agent Runs**: Receives `/run` requests from the Services API through `AGENTA_RUNNER_URL`
-- **Harness Launch**: Starts Pi, Claude Code, or other supported harness adapters over ACP
-- **Sandbox Provider**: Runs local sandboxes or creates Daytona sandboxes using runner-scoped `SANDBOX_AGENT_*` configuration
-- **Tool Relay**: Relays server-side tools back to the Services API without exposing the full stack environment to the harness process
 
 ## Infrastructure Services
 
@@ -169,6 +172,23 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **OAuth Integration**: Google, and GitHub
 - **User Management**: User registration, profile management
 
+### Durable Store (SeaweedFS / S3)
+- **Technology**: SeaweedFS (bundled) or any S3-compatible store (AWS S3, Cloudflare R2, MinIO)
+- **Port**: 8333 (bundled SeaweedFS)
+- **Purpose**: S3-compatible object store backing durable agent workspaces
+
+Files written during an agent run are stored here and remounted automatically on the next turn, so agent workspaces survive sandbox teardown.
+
+The `seaweedfs.enabled` Helm toggle (and the matching compose profile) controls whether the chart bundles a SeaweedFS StatefulSet or points `store.endpointUrl` at an external store. This mirrors the `postgresql.enabled` pattern. An empty endpoint URL means real AWS S3.
+
+Per-deployment default:
+- Compose (local / self-host): SeaweedFS container bundled.
+- Railway: SeaweedFS service and volume (publicly reachable, no tunnel needed).
+- Kubernetes: operator's choice via `seaweedfs.enabled`.
+- Live / private cloud: external AWS S3 (`seaweedfs.enabled=false`).
+
+See the [Store configuration reference](/self-host/02-configuration#store-durable-object-store).
+
 ## Service Dependencies
 
 ### Frontend Dependencies
@@ -190,7 +210,7 @@ API Service depends on:
 Services API depends on:
 ├── PostgreSQL (agent and service state)
 ├── LLM providers (model calls)
-└── sandbox-agent runner (agent workflow execution)
+└── runner sidecar (agent workflow execution via AGENTA_RUNNER_URL)
 ```
 
 ### Worker Dependencies
@@ -199,5 +219,6 @@ Worker pool depends on:
 ├── Redis (queues and streams)
 ├── PostgreSQL (state and persistence)
 ├── API backend (coordination and config)
+├── worker-records (streams:records stream → session persistence)
 └── Services API / external endpoints (workload-specific processing)
 ```
