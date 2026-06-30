@@ -22,6 +22,7 @@ import {
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
+import {resolveSidebarView} from "../Sidebar/scopes/viewRegistry"
 import type {SidebarView} from "../Sidebar/types"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"
@@ -174,21 +175,21 @@ const AppWithVariants = memo(
         const {baseAppURL} = useURL()
         const appState = useAppState()
         const isAnnotations = appState.pathname.includes("/annotations")
-        const lastNonSettingsRef = useRef<string | null>(null)
+        const lastBasePathRef = useRef<string | null>(null)
 
         useEffect(() => {
-            if (!appState.pathname.includes("/settings")) {
-                lastNonSettingsRef.current = appState.asPath
+            if (resolveSidebarView(appState.pathname).isBase) {
+                lastBasePathRef.current = appState.asPath
             }
         }, [appState.asPath, appState.pathname])
 
-        const sidebarView = useMemo<SidebarView>(
-            () =>
-                appState.pathname.endsWith("/settings")
-                    ? {id: "settings", lastPath: lastNonSettingsRef.current || baseAppURL}
-                    : {id: "main"},
-            [appState.pathname, baseAppURL],
-        )
+        const sidebarView = useMemo<SidebarView>(() => {
+            const view = resolveSidebarView(appState.pathname)
+            return {
+                id: view.id,
+                lastPath: view.isBase ? null : lastBasePathRef.current || baseAppURL,
+            }
+        }, [appState.pathname, baseAppURL])
 
         const currentApp = useAtomValue(currentAppAtom)
         const {project} = useProjectData()

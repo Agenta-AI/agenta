@@ -12,28 +12,17 @@ import {
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 import SidebarShell from "./engine/SidebarShell"
-import {mainSidebarScope} from "./scopes/mainScope"
-import {createSettingsSidebarScope} from "./scopes/settingsScope"
+import {getSidebarViewDefinition} from "./scopes/viewRegistry"
 import type {SidebarView} from "./types"
-
-const resolveSidebarScope = (view: SidebarView) => {
-    switch (view.id) {
-        case "main":
-            return mainSidebarScope
-        case "settings":
-            return createSettingsSidebarScope({lastPath: view.lastPath ?? undefined})
-        default: {
-            const exhaustiveCheck: never = view
-            return exhaustiveCheck
-        }
-    }
-}
 
 const Sidebar: React.FC<{view: SidebarView}> = ({view}) => {
     const {appTheme} = useAppTheme()
     const router = useRouter()
     const setSidebarPopupGroupOpen = useSetAtom(setSidebarPopupGroupOpenAtom)
-    const scope = useMemo(() => resolveSidebarScope(view), [view])
+    const scope = useMemo(
+        () => getSidebarViewDefinition(view.id).create({lastPath: view.lastPath ?? undefined}),
+        [view],
+    )
     const handlePopupOpenChange = useCallback(
         (key: string, open: boolean) => {
             setSidebarPopupGroupOpen({key, open})
