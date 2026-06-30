@@ -721,6 +721,9 @@ function SubscriptionForm({
                     name: name || null,
                     connection_id: connectionId,
                     data,
+                    // Honor the Active toggle at creation (BE defaults to active; is_valid
+                    // defaults to true). Otherwise a paused-on-create trigger starts active.
+                    flags: {is_active: enabled},
                 }
                 const result = await create(body)
                 if (!result) {

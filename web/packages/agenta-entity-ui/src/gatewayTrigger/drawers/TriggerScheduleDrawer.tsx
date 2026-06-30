@@ -643,6 +643,8 @@ function ScheduleForm({
                 const body: TriggerScheduleCreate = {
                     name: name || null,
                     data,
+                    // Honor the Active toggle at creation (otherwise the BE defaults to active).
+                    flags: {is_active: enabled},
                 }
                 const result = await create(body)
                 if (!result) {
