@@ -24,6 +24,8 @@ INFRA_SETTLE_SECONDS="${RAILWAY_INFRA_SETTLE_SECONDS:-40}"
 APP_SETTLE_SECONDS="${RAILWAY_APP_SETTLE_SECONDS:-60}"
 ALEMBIC_MAX_ATTEMPTS="${RAILWAY_ALEMBIC_MAX_ATTEMPTS:-3}"
 REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE")}"
+# Pin a 4.37-era SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases.
+SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.37}"
 
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
@@ -203,12 +205,27 @@ CMD ["redis-server"]
 EOF
 }
 
+render_seaweedfs_wrapper() {
+    local dir="$TMP_DIR/seaweedfs"
+    mkdir -p "$dir"
+    cp "$ROOT_DIR/hosting/railway/oss/seaweedfs/entrypoint.sh" "$dir/entrypoint.sh"
+    cat > "$dir/Dockerfile" <<EOF
+FROM ${SEAWEEDFS_IMAGE}
+
+COPY entrypoint.sh /usr/local/bin/railway-seaweedfs-entrypoint.sh
+RUN chmod +x /usr/local/bin/railway-seaweedfs-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/railway-seaweedfs-entrypoint.sh"]
+EOF
+}
+
 render_api_wrapper
 render_services_wrapper
 render_runner_wrapper
 render_web_wrapper
 render_alembic_wrapper
 render_redis_wrapper
+render_seaweedfs_wrapper
 render_api_like_wrapper worker-tracing '["python", "-m", "entrypoints.worker_tracing"]'
 render_api_like_wrapper worker-evaluations '["python", "-m", "entrypoints.worker_evaluations"]'
 render_api_like_wrapper worker-webhooks '["python", "-m", "entrypoints.worker_webhooks"]'
@@ -232,6 +249,11 @@ railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/d
 redeploy_service_if_exists "$POSTGRES_SERVICE"
 if railway_call service "$REDIS_SERVICE" >/dev/null 2>&1; then
     railway_call up "$TMP_DIR/redis" --path-as-root --service "$REDIS_SERVICE" --detach
+fi
+# Bring up the bundled store (IAM-aware wrapper) before the API so its bucket-ensure
+# at startup can reach it. The API also serves the JWKS the store's OIDC IAM verifies.
+if railway_call service seaweedfs >/dev/null 2>&1; then
+    railway_call up "$TMP_DIR/seaweedfs" --path-as-root --service seaweedfs --detach
 fi
 sleep "$INFRA_SETTLE_SECONDS"
 

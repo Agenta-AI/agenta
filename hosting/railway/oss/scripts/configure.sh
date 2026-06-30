@@ -20,6 +20,9 @@ AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-}"
 AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-}"
 AGENTA_STORE_BUCKET="${AGENTA_STORE_BUCKET:-agenta-store}"
 AGENTA_STORE_SIGNING_KEY="${AGENTA_STORE_SIGNING_KEY:-$(openssl rand -base64 32)}"
+# RSA key the API signs its store web-identity token with; the bundled SeaweedFS verifies it
+# against the API's JWKS. Generated once per configure run if unset (single-replica Railway).
+AGENTA_STORE_JWT_PRIVATE_KEY="${AGENTA_STORE_JWT_PRIVATE_KEY:-$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null)}"
 
 # Populated by resolve_railway_ids() after `railway link`. Used by the GraphQL
 # variableCollectionUpsert path; left empty -> upsert_service_vars falls back
@@ -219,6 +222,12 @@ main() {
     local seaweedfs_endpoint_url
     seaweedfs_endpoint_url="http://${seaweedfs_host_ref}:8333"
 
+    # The store's OIDC IAM fetches the API's JWKS over the private network to verify the
+    # web-identity token. SCRIPT_NAME=/api prefixes the route, so the issuer carries /api
+    # and the JWKS lands at <issuer>/.well-known/jwks.json (api also publishes the /api/ alias).
+    local store_jwt_issuer
+    store_jwt_issuer="http://api.railway.internal:8000/api"
+
     local pg_async_core
     pg_async_core="postgresql+asyncpg://${pg_user_ref}:${pg_password_ref}@${pg_host_ref}:${pg_port_ref}/agenta_oss_core"
     local pg_async_tracing
@@ -250,12 +259,23 @@ main() {
         AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
         AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
         AGENTA_STORE_BUCKET="$AGENTA_STORE_BUCKET" \
-        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY"
+        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY" \
+        AGENTA_STORE_JWT_ISSUER="$store_jwt_issuer" \
+        AGENTA_STORE_JWT_PRIVATE_KEY="$AGENTA_STORE_JWT_PRIVATE_KEY"
 
     unset_vars api AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
 
     set_optional_vars api \
         "COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}"
+
+    # The bundled store's entrypoint reads these to generate s3.json + iam.json. JWT_ISSUER is
+    # the API URL its OIDC IAM fetches the JWKS from (it does NOT hold the private key).
+    set_vars seaweedfs \
+        AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
+        AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
+        AGENTA_STORE_BUCKET="$AGENTA_STORE_BUCKET" \
+        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY" \
+        AGENTA_STORE_JWT_ISSUER="$store_jwt_issuer"
 
     set_vars services \
         AGENTA_WEB_URL="https://${public_domain_ref}" \

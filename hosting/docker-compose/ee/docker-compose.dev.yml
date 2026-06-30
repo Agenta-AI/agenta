@@ -779,8 +779,6 @@ services:
             AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-store}
             AGENTA_STORE_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
             AGENTA_STORE_JWT_ISSUER: ${AGENTA_STORE_JWT_ISSUER:-http://api:8000}
-            # SeaweedFS reads its STS signing key under this vendor name; bridge ours to it.
-            WEED_JWT_FILER_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
         # === STORAGE ============================================== #
         volumes:
             - seaweed-data:/data
