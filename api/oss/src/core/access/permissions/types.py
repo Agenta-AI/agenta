@@ -165,6 +165,11 @@ class Permission(str, Enum):
     EDIT_TRIGGERS = "edit_triggers"
     RUN_TRIGGERS = "run_triggers"
 
+    # Sessions
+    VIEW_SESSIONS = "view_sessions"
+    EDIT_SESSIONS = "edit_sessions"
+    RUN_SESSIONS = "run_sessions"
+
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
@@ -174,6 +179,7 @@ class Permission(str, Enum):
             cls.RUN_SERVICE,
             cls.VIEW_BILLING,
             cls.VIEW_WORKFLOWS,
+            cls.VIEW_SESSIONS,
             cls.VIEW_EVALUATORS,
             cls.VIEW_QUERIES,
             cls.VIEW_TESTSETS,
@@ -208,6 +214,8 @@ class Permission(str, Enum):
             cls.EDIT_FOLDERS,
             cls.EDIT_WORKFLOWS,
             cls.RUN_WORKFLOWS,
+            cls.EDIT_SESSIONS,
+            cls.RUN_SESSIONS,
             cls.EDIT_EVALUATORS,
             cls.EDIT_QUERIES,
             cls.EDIT_TESTSETS,

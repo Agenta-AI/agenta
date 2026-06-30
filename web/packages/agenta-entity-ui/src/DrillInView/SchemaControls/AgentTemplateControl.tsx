@@ -24,6 +24,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
@@ -38,7 +39,7 @@ import {
     Wrench,
 } from "@phosphor-icons/react"
 import {Button, Tabs, Tag, Tooltip, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useStore} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
@@ -122,17 +123,30 @@ export function AgentTemplateControl({
     // is restored on Cancel, giving the same draft-then-save feel as the item drawers.
     const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
     const sectionSnapshot = useRef<Record<string, unknown> | null>(null)
+    // Snapshot + restore for the build-kit enabled atom (lives outside config; needs separate tracking).
+    const store = useStore()
+    const revisionIdRef = useRef<string | null>(null)
+    const buildKitEnabledSnapshot = useRef<boolean | null>(null)
     const openSectionDrawer = useCallback(
         (key: "model-harness" | "advanced") => {
             sectionSnapshot.current = value ?? {}
+            buildKitEnabledSnapshot.current = store.get(
+                workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
+            )
             setOpenSection(key)
         },
-        [value],
+        [value, store],
     )
     const cancelSection = useCallback(() => {
         if (sectionSnapshot.current) onChange(sectionSnapshot.current)
+        if (buildKitEnabledSnapshot.current !== null) {
+            store.set(
+                workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
+                buildKitEnabledSnapshot.current,
+            )
+        }
         setOpenSection(null)
-    }, [onChange])
+    }, [onChange, store])
     const saveSection = useCallback(() => setOpenSection(null), [])
 
     // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
@@ -153,13 +167,14 @@ export function AgentTemplateControl({
     // useModelHarness) and bound-trigger scoping both key off it.
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
+    revisionIdRef.current = revisionId
     // Triggers bound to this agent (for the section count badge). The section body and the header
     // add-dropdown derive scoping from the same hook.
     const {count: triggerCount} = useAgentTriggers(revisionId)
 
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
-    const mh = useModelHarness({schema, config, onChange, disabled, withTooltip})
+    const mh = useModelHarness({schema, config, onChange, disabled, withTooltip, revisionId})
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {

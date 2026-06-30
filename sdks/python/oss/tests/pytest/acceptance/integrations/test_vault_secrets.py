@@ -171,8 +171,8 @@ class TestSecretsLifecycle:
             secret_id = created.id
             assert secret_id is not None
 
-            # Read the secret back
-            read_result = ag.api.secrets.read_secret(secret_id=secret_id)
+            # Read the secret back (path param is positional in the generated client)
+            read_result = ag.api.secrets.read_secret(secret_id)
             assert read_result is not None
             assert read_result.id == secret_id
             assert read_result.kind == "provider_key"

@@ -21,6 +21,7 @@ export type { StopTriggerScheduleRequest } from "./StopTriggerScheduleRequest.js
 export type { StopTriggerSubscriptionRequest } from "./StopTriggerSubscriptionRequest.js";
 export type { TriggerConnectionCreateRequest } from "./TriggerConnectionCreateRequest.js";
 export type { TriggerDeliveryQueryRequest } from "./TriggerDeliveryQueryRequest.js";
+export type { TriggerDiscoveryQuery } from "./TriggerDiscoveryQuery.js";
 export type { TriggerScheduleCreateRequest } from "./TriggerScheduleCreateRequest.js";
 export type { TriggerScheduleEditRequest } from "./TriggerScheduleEditRequest.js";
 export type { TriggerScheduleQueryRequest } from "./TriggerScheduleQueryRequest.js";

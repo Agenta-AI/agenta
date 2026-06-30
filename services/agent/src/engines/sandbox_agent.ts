@@ -66,6 +66,11 @@ import {
   prepareLocalPiAssets,
 } from "./sandbox_agent/pi-assets.ts";
 import { attachPermissionResponder } from "./sandbox_agent/permissions.ts";
+import {
+  createInteraction,
+  resolveInteraction,
+  buildWorkflowReferences,
+} from "../sessions/interactions.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
 import {
   buildRunPlan,
@@ -83,6 +88,12 @@ export { toAcpMcpServers } from "./sandbox_agent/mcp.ts";
 
 function log(message: string): void {
   process.stderr.write(`[sandbox-agent] ${message}\n`);
+}
+
+/** Extract the run credential from the OTLP export headers (initial value, constant for the run). */
+function runCredential(request: AgentRunRequest): string {
+  const headers = (request.telemetry?.exporters?.otlp?.headers ?? {}) as Record<string, string>;
+  return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
 }
 
 type Log = (message: string) => void;
@@ -238,6 +249,10 @@ export async function runSandboxAgent(
       })
     : {};
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
+  logger(
+    `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
+      `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
+  );
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
@@ -430,17 +445,43 @@ export async function runSandboxAgent(
       // raced against `parkedSignal` below so the turn ends even if this call rejects.
       void sandbox.destroySession?.(session.id).catch(() => {});
     };
+    const responder =
+      deps.responderFactory?.(request.permissionPolicy) ??
+      new HITLResponder(
+        extractApprovalDecisions(request),
+        policyFromRequest(request.permissionPolicy),
+        hasHumanSurface,
+      );
     attachPermissionResponder({
       session,
       run,
       onPark,
-      responder:
-        deps.responderFactory?.(request.permissionPolicy) ??
-        new HITLResponder(
-          extractApprovalDecisions(request),
-          policyFromRequest(request.permissionPolicy),
-          hasHumanSurface,
-        ),
+      onCreateInteraction: (token, toolName, toolArgs) => {
+        const cred = runCredential(request);
+        if (!cred) return;
+        // The /interactions plane only works when respond can re-invoke THIS revision, which
+        // needs at least a committed workflow_revision reference. A draft (inline config, no
+        // committed revision) can't be re-resolved, so skip create and stay messages/park-only.
+        const references = buildWorkflowReferences(request.runContext?.workflow);
+        if (!references?.workflow_revision) return;
+        void createInteraction(
+          sessionId,
+          request.turnId ?? "",
+          token,
+          "user_approval",
+          { request: { tool: toolName ?? token, args: toolArgs }, references },
+          () => cred,
+        );
+      },
+      onResolveInteraction: (token) => {
+        const cred = runCredential(request);
+        if (!cred) return;
+        // Mirror the create guard: no interaction exists for a draft, so nothing to resolve.
+        if (!buildWorkflowReferences(request.runContext?.workflow)?.workflow_revision)
+          return;
+        void resolveInteraction(sessionId, token, () => cred);
+      },
+      responder,
     });
 
     if (plan.useToolRelay) {
@@ -455,6 +496,41 @@ export async function runSandboxAgent(
         plan.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
         policyFromRequest(request.permissionPolicy),
+        request.runContext,
+        {
+          onClientTool: async ({ id, toolCallId, toolName, input, spec }) => {
+            const decision = await responder.onClientTool({
+              id,
+              toolCallId,
+              toolName,
+              input,
+              raw: { spec },
+            });
+            if (decision === "park") {
+              run.emitEvent({
+                type: "interaction_request",
+                id,
+                kind: "client_tool",
+                payload: {
+                  toolCallId,
+                  toolName,
+                  input,
+                  render: spec.render,
+                  toolCall: {
+                    id: toolCallId,
+                    toolCallId,
+                    name: toolName,
+                    rawInput: input,
+                    input,
+                    kind: spec.kind,
+                  },
+                },
+              });
+            }
+            return decision;
+          },
+          onPark,
+        },
       );
     }
 

@@ -22,6 +22,7 @@ from typing import Optional, Sequence
 
 from agenta.sdk.agents.tools import (
     CallbackToolSpec,
+    ClientToolSpec,
     GatewayToolResolution,
     GatewayToolResolutionError,
     ReferenceToolConfig,
@@ -33,6 +34,9 @@ from ._schema import expand_type_refs
 from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
+
+REQUEST_CONNECTION_WORKFLOW_SLUG = "__ag__request_connection"
+REQUEST_CONNECTION_TOOL_NAME = "request_connection"
 
 
 class AgentaWorkflowToolResolver:
@@ -59,7 +63,7 @@ class AgentaWorkflowToolResolver:
         authorization = self._connection.authorization()
 
         seen: set[str] = set()
-        tool_specs: list[CallbackToolSpec] = []
+        tool_specs: list[CallbackToolSpec | ClientToolSpec] = []
         for tool_config in tools:
             call_ref = tool_config.call_ref
             if call_ref in seen:
@@ -70,6 +74,18 @@ class AgentaWorkflowToolResolver:
                 log.warning("agent: %s", error)
                 raise error
             seen.add(call_ref)
+            if _is_request_connection_workflow(tool_config):
+                tool_specs.append(
+                    ClientToolSpec(
+                        kind="client",
+                        name=REQUEST_CONNECTION_TOOL_NAME,
+                        description=tool_config.description
+                        or "Request a connection from the user.",
+                        input_schema=expand_type_refs(tool_config.input_schema),
+                        render={"kind": "connect"},
+                    )
+                )
+                continue
             tool_specs.append(
                 CallbackToolSpec(
                     name=tool_config.tool_name,
@@ -94,3 +110,15 @@ class AgentaWorkflowToolResolver:
                 authorization=authorization,
             ),
         )
+
+
+def _is_request_connection_workflow(tool_config: ReferenceToolConfig) -> bool:
+    workflow = getattr(tool_config, "workflow", None)
+    if getattr(workflow, "slug", None) == REQUEST_CONNECTION_WORKFLOW_SLUG:
+        return True
+
+    call_ref = tool_config.call_ref
+    return (
+        call_ref == f"workflow.variant.{REQUEST_CONNECTION_WORKFLOW_SLUG}"
+        or call_ref.startswith(f"workflow.variant.{REQUEST_CONNECTION_WORKFLOW_SLUG}.")
+    )

@@ -11,6 +11,8 @@ export interface PublicToolSpec {
   name: string;
   description?: string;
   inputSchema?: Record<string, unknown> | null;
+  kind?: ResolvedToolSpec["kind"];
+  render?: ResolvedToolSpec["render"];
 }
 
 /** `client` tools are browser-fulfilled and are not executable by a runner child process. */
@@ -19,13 +21,20 @@ export function executableToolSpecs(specs: ResolvedToolSpec[]): ResolvedToolSpec
 }
 
 export function publicToolSpec(spec: ResolvedToolSpec): PublicToolSpec {
-  return {
+  const inputSchema =
+    spec.inputSchema ??
+    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
+      .input_schema;
+  const out: PublicToolSpec = {
     name: spec.name,
     description: spec.description,
-    inputSchema: spec.inputSchema,
+    inputSchema,
   };
+  if (spec.kind) out.kind = spec.kind;
+  if (spec.render) out.render = spec.render;
+  return out;
 }
 
 export function publicToolSpecs(specs: ResolvedToolSpec[]): PublicToolSpec[] {
-  return executableToolSpecs(specs).map(publicToolSpec);
+  return specs.map(publicToolSpec);
 }

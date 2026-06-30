@@ -1,4 +1,5 @@
 import html as html_lib
+from inspect import isawaitable
 import json
 import re
 from datetime import datetime, timezone
@@ -1323,6 +1324,12 @@ class ToolsRouter:
             else (response.status.message if response.status else None)
         )
 
+        if successful:
+            await _emit_committed_revision_data_event_from_outputs(
+                request=request,
+                outputs=outputs,
+            )
+
         result = ToolResult(
             id=uuid4(),
             data=ToolResultData(
@@ -1337,6 +1344,46 @@ class ToolsRouter:
         )
 
         return ToolCallResponse(call=result)
+
+
+async def _emit_committed_revision_data_event_from_outputs(
+    *,
+    request: Request,
+    outputs: object,
+) -> None:
+    if not isinstance(outputs, dict):
+        return
+
+    data = {
+        "variantId": outputs.get("variantId") or outputs.get("variant_id"),
+        "revisionId": outputs.get("revisionId") or outputs.get("revision_id"),
+        "version": outputs.get("version"),
+    }
+    if not all(data.values()):
+        return
+
+    await _emit_data_event(
+        request=request,
+        name="committed-revision",
+        data=data,
+    )
+
+
+async def _emit_data_event(
+    *,
+    request: Request,
+    name: str,
+    data: dict,
+) -> None:
+    emit = getattr(request.state, "emit", None) or getattr(
+        request.state, "emit_event", None
+    )
+    if not callable(emit):
+        return
+
+    result = emit({"type": "data", "name": name, "data": data})
+    if isawaitable(result):
+        await result
 
 
 # ---------------------------------------------------------------------------

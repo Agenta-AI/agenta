@@ -6,6 +6,8 @@ identity are captured separately, so a failure reading one must not drop the oth
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from agenta.sdk.agents import RunContextTrace, RunContextWorkflow
 
 from oss.src.agent import tracing
@@ -53,3 +55,32 @@ def test_run_context_none_when_both_empty(monkeypatch):
     monkeypatch.setattr(tracing, "_run_context_workflow", lambda: None)
     monkeypatch.setattr(tracing, "_run_context_trace", lambda: None)
     assert tracing.run_context() is None
+
+
+def test_run_context_workflow_normalizes_application_references(monkeypatch):
+    # Playground app runs carry application-family references. Platform tools still bind workflow
+    # identity because applications are workflow-backed, so the context normalizes those keys.
+    monkeypatch.setattr(
+        tracing.TracingContext,
+        "get",
+        lambda: SimpleNamespace(
+            references={
+                "application": {"id": "app-id", "slug": "agent-app"},
+                "application_variant": {"id": "variant-id", "slug": "default"},
+                "application_revision": {
+                    "id": "revision-id",
+                    "slug": "default",
+                    "version": "v2",
+                },
+            }
+        ),
+    )
+
+    workflow = tracing._run_context_workflow()
+
+    assert workflow is not None
+    assert workflow.artifact.id == "app-id"
+    assert workflow.variant.id == "variant-id"
+    assert workflow.revision.id == "revision-id"
+    assert workflow.revision.version == "v2"
+    assert workflow.is_draft is False

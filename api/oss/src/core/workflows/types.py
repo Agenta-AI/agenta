@@ -42,3 +42,17 @@ class StaticWorkflowSlug(WorkflowError):
                 f"Choose a different slug than '{slug}'."
             )
         )
+
+
+class WorkflowServiceUrlMissing(WorkflowError):
+    """Raised when a revision has no runnable service URL to invoke (batch or detached)."""
+
+    def __init__(self, message: Optional[str] = None):
+        super().__init__(message or "Workflow revision has no runnable service URL.")
+
+
+class WorkflowDetachedStartFailed(WorkflowError):
+    """Raised when a detached invoke could not obtain the started/accepted handshake."""
+
+    def __init__(self, message: Optional[str] = None):
+        super().__init__(message or "Detached workflow run failed to start.")

@@ -27,6 +27,7 @@ import {
   deepMerge,
   deepSet,
   directCallUrl,
+  pathParamNames,
   resolveCtxToken,
   type DirectCall,
 } from "../../src/tools/direct.ts";
@@ -181,53 +182,60 @@ describe("assembleBody context binding", () => {
     });
   });
 
-  it("handles a missing run-context key safely (the field stays unset)", () => {
+  it("fails closed when a run-context key is missing", () => {
     const call: DirectCall = {
       method: "POST",
       path: "/api/x",
       context: { latest: "$ctx.workflow.revision.missing" }, // not in RUN_CONTEXT
     };
-    const body = assembleBody(call, { a: 1 }, RUN_CONTEXT);
-    assert.deepEqual(body, { a: 1 });
-    assert.ok(!("latest" in body));
+    assert.throws(
+      () => assembleBody(call, { a: 1 }, RUN_CONTEXT),
+      /missing run-context value for direct-call binding 'latest'/,
+    );
   });
 
-  it("clears a colliding model arg when the bound key is missing (model-invisible)", () => {
+  it("fails closed when a colliding model arg cannot be bound from context", () => {
     const call: DirectCall = {
       method: "POST",
       path: "/api/x",
-      // The bound field is owned by run context; a missing key must leave it ABSENT, never let the
+      // The bound field is owned by run context; a missing key must fail the call, never let the
       // model's value survive.
       context: { workflow_variant_id: "$ctx.workflow.revision.missing" },
     };
-    const body = assembleBody(
-      call,
-      { workflow_variant_id: "someone-elses", keep: 1 },
-      RUN_CONTEXT,
+    assert.throws(
+      () =>
+        assembleBody(
+          call,
+          { workflow_variant_id: "someone-elses", keep: 1 },
+          RUN_CONTEXT,
+        ),
+      /missing run-context value for direct-call binding 'workflow_variant_id'/,
     );
-    assert.ok(!("workflow_variant_id" in body));
-    assert.equal(body.keep, 1);
   });
 
-  it("clears a colliding static body field when the bound key is missing", () => {
+  it("fails closed when a colliding static body field cannot be bound from context", () => {
     const call: DirectCall = {
       method: "POST",
       path: "/api/x",
       body: { trace_id: "from-body" },
       context: { trace_id: "$ctx.trace.missing" },
     };
-    const body = assembleBody(call, {}, RUN_CONTEXT);
-    assert.ok(!("trace_id" in body));
+    assert.throws(
+      () => assembleBody(call, {}, RUN_CONTEXT),
+      /missing run-context value for direct-call binding 'trace_id'/,
+    );
   });
 
-  it("handles an absent run context safely (no binding applied)", () => {
+  it("fails closed when run context is absent", () => {
     const call: DirectCall = {
       method: "POST",
       path: "/api/x",
       context: { "trace.trace_id": "$ctx.trace.trace_id" },
     };
-    // No runContext argument at all (the Phase-2 call shape): the binding is simply skipped.
-    assert.deepEqual(assembleBody(call, { a: 1 }), { a: 1 });
+    assert.throws(
+      () => assembleBody(call, { a: 1 }),
+      /missing run-context value for direct-call binding 'trace.trace_id'/,
+    );
   });
 
   it("lets a bound field win over a colliding model arg (the model cannot override it)", () => {
@@ -257,14 +265,16 @@ describe("assembleBody context binding", () => {
     assert.equal(body.trace_id, "trace-self");
   });
 
-  it("skips a malformed context token (one without the $ctx. prefix)", () => {
+  it("fails closed on a malformed context token (one without the $ctx. prefix)", () => {
     const call: DirectCall = {
       method: "POST",
       path: "/api/x",
-      context: { trace_id: "trace.trace_id" }, // missing the $ctx. prefix -> untrusted, skipped
+      context: { trace_id: "trace.trace_id" }, // missing the $ctx. prefix -> untrusted
     };
-    const body = assembleBody(call, { a: 1 }, RUN_CONTEXT);
-    assert.deepEqual(body, { a: 1 });
+    assert.throws(
+      () => assembleBody(call, { a: 1 }, RUN_CONTEXT),
+      /missing run-context value for direct-call binding 'trace_id'/,
+    );
   });
 
   it("is prototype-pollution-safe on the bound body path", () => {
@@ -379,10 +389,46 @@ describe("directCallUrl", () => {
     );
   });
 
+  it("allows DELETE and substitutes scalar path parameters", () => {
+    const url = directCallUrl(
+      ENDPOINT,
+      {
+        method: "DELETE",
+        path: "/api/triggers/schedules/{id}",
+      },
+      { id: "sched 1" },
+    );
+    assert.equal(url, "https://agenta.example/api/triggers/schedules/sched%201");
+  });
+
+  it("rejects a missing path parameter", () => {
+    assert.throws(
+      () =>
+        directCallUrl(
+          ENDPOINT,
+          { method: "POST", path: "/api/triggers/schedules/{id}/stop" },
+          {},
+        ),
+      /path parameter '\{id\}' is missing/,
+    );
+  });
+
+  it("rejects a non-scalar path parameter", () => {
+    assert.throws(
+      () =>
+        directCallUrl(
+          ENDPOINT,
+          { method: "POST", path: "/api/triggers/schedules/{id}/stop" },
+          { id: { nested: true } },
+        ),
+      /path parameter '\{id\}' must be scalar/,
+    );
+  });
+
   it("rejects a disallowed method", () => {
     assert.throws(
-      () => directCallUrl(ENDPOINT, { method: "DELETE" as any, path: "/api/x" }),
-      /method 'DELETE' is not allowed/,
+      () => directCallUrl(ENDPOINT, { method: "PATCH" as any, path: "/api/x" }),
+      /method 'PATCH' is not allowed/,
     );
   });
 
@@ -442,6 +488,18 @@ describe("directCallUrl", () => {
       () => directCallUrl("not a url", { method: "POST", path: "/api/x" }),
       /cannot derive Agenta origin/,
     );
+  });
+});
+
+describe("pathParamNames", () => {
+  it("extracts the {name} tokens from a path", () => {
+    assert.deepEqual(pathParamNames("/api/triggers/schedules/{id}/stop"), ["id"]);
+    assert.deepEqual(pathParamNames("/api/x/{a}/y/{b.c}"), ["a", "b.c"]);
+  });
+
+  it("returns an empty list for a path with no params or a non-string", () => {
+    assert.deepEqual(pathParamNames("/api/workflows/invoke"), []);
+    assert.deepEqual(pathParamNames(undefined), []);
   });
 });
 
@@ -552,6 +610,28 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
       workflow_variant_id: "own-variant", // bound to the run's own variant, not the model's
       parameters: { temperature: 0.2 },
     });
+  });
+
+  it("strips substituted path params out of the POST body", async () => {
+    const calls = stubFetch("paused");
+    // A lifecycle op like pause_schedule: `id` names a path param AND is the only model arg.
+    // After substitution into the URL, it must not also be sent in the JSON body, or a handler
+    // whose request model expects the id only in the route would reject the extra key.
+    const pauseSpec: ResolvedToolSpec = {
+      name: "pause_schedule",
+      kind: "callback",
+      call: { method: "POST", path: "/api/triggers/schedules/{id}/stop" },
+    };
+    const res = await relayOnce(
+      pauseSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { id: "sched_1" },
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://agenta.example/api/triggers/schedules/sched_1/stop");
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {});
   });
 
   it("surfaces the SSRF-guard rejection as a relay error", async () => {
