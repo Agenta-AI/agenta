@@ -139,7 +139,7 @@ export const injectDynamicChildren = (
 ): SidebarConfig[] =>
     items.map((item) => {
         const dynamicChildren = childrenByKey[item.key]
-        if (dynamicChildren) return {...item, submenu: dynamicChildren}
+        if (dynamicChildren) return {...item, submenu: dynamicChildren, isDynamic: true}
         if (item.submenu) {
             return {...item, submenu: injectDynamicChildren(item.submenu, childrenByKey)}
         }

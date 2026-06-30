@@ -1,9 +1,8 @@
 import {useMemo} from "react"
 
-import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Divider} from "antd"
-import {useRouter} from "next/router"
+import {Divider} from "antd"
 
+import SidebarBackButton from "../components/SidebarBackButton"
 import WorkflowPicker from "../components/WorkflowPicker"
 import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
 
@@ -16,8 +15,6 @@ interface WorkflowScopeOptions {
 
 const createWorkflowHeader = (lastPath?: string) => {
     const WorkflowSidebarHeader = ({collapsed}: SidebarSlotContext) => {
-        const router = useRouter()
-
         return (
             <>
                 <div
@@ -26,22 +23,10 @@ const createWorkflowHeader = (lastPath?: string) => {
                         collapsed ? "justify-center" : "mx-1.5",
                     ].join(" ")}
                 >
-                    <Button
-                        aria-label="Back"
-                        className="gap-2 flex items-center justify-center ml-2"
-                        type="text"
-                        size="small"
-                        icon={<ArrowLeft size={14} />}
-                        onClick={() => {
-                            if (lastPath) router.push(lastPath)
-                            else router.back()
-                        }}
-                    >
-                        {!collapsed && "Back"}
-                    </Button>
+                    <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
                 </div>
 
-                <div className="px-2 pt-1 pb-2">
+                <div className={collapsed ? "flex w-full justify-center p-2" : "px-2 pt-1 pb-2"}>
                     <WorkflowPicker collapsed={collapsed} />
                 </div>
                 <Divider className="mb-1 mt-0" />

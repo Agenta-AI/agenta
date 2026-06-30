@@ -44,10 +44,10 @@ const WorkflowPicker = memo(({collapsed}: WorkflowPickerProps) => {
                 type="text"
                 aria-label="Switch workflow"
                 className={clsx(
-                    "flex items-center justify-between gap-2 w-full pl-2 pr-3 py-3 h-12 border border-solid border-gray-200",
-                    {
-                        "!w-auto": collapsed,
-                    },
+                    "flex items-center justify-between gap-2",
+                    collapsed
+                        ? "!w-8 !h-8 !p-1"
+                        : "w-full pl-2 pr-3 py-3 h-12 border border-solid border-gray-200",
                 )}
             >
                 <WorkflowIdentity

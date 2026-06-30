@@ -47,11 +47,12 @@ const WorkflowIdentityView = ({
         <div className="flex items-center gap-2 min-w-0 w-full">
             <span
                 className={clsx(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                    "flex shrink-0 items-center justify-center",
+                    showDetails ? "h-8 w-8 rounded-lg" : "h-6 w-6 rounded-md",
                     className,
                 )}
             >
-                <Icon size={17} />
+                <Icon size={showDetails ? 17 : 14} />
             </span>
             {showDetails && (
                 <div className="flex min-w-0 flex-1 flex-col text-left">

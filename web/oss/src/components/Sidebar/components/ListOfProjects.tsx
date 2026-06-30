@@ -206,15 +206,17 @@ const ListOfProjects = ({
         <Button
             type={sharedButtonProps.type ?? "text"}
             className={clsx(
-                "flex items-center justify-between gap-2 w-full pl-2 pr-3 py-3 h-12 border border-solid border-gray-200",
-                {"!w-auto": collapsed},
+                "flex items-center justify-between gap-2",
+                collapsed
+                    ? "!w-8 !h-8 !p-1"
+                    : "w-full pl-2 pr-3 py-3 h-12 border border-solid border-gray-200",
                 sharedButtonProps.className,
             )}
             disabled={disabled || sharedButtonProps.disabled}
             {...sharedButtonProps.rest}
         >
             <div className="flex items-center gap-2 min-w-0">
-                <InitialsAvatar size="middle" name={label || placeholder} />
+                <InitialsAvatar size={collapsed ? "small" : "middle"} name={label || placeholder} />
                 {!collapsed && (
                     <div className="flex min-w-0 flex-col text-left">
                         <span className="max-w-[150px] truncate" title={label || placeholder}>

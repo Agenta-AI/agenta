@@ -1,7 +1,6 @@
 import {useEffect, useMemo} from "react"
 
 import {
-    ArrowLeft,
     Buildings,
     ClockCounterClockwise,
     Key,
@@ -14,9 +13,8 @@ import {
     Vault,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Divider} from "antd"
+import {Divider} from "antd"
 import {useAtom} from "jotai"
-import {useRouter} from "next/router"
 
 import {
     getSettingsSidebarTabs,
@@ -32,6 +30,7 @@ import {useProfileData} from "@/oss/state/profile"
 import {settingsTabAtom} from "@/oss/state/settings"
 
 import ListOfOrgs from "../components/ListOfOrgs"
+import SidebarBackButton from "../components/SidebarBackButton"
 import type {
     SidebarConfig,
     SidebarScope,
@@ -153,8 +152,6 @@ const useSettingsSidebarSections = (): SidebarSection[] => {
 
 const createSettingsHeader = (lastPath?: string) => {
     const SettingsSidebarHeader = ({collapsed}: SidebarSlotContext) => {
-        const router = useRouter()
-
         return (
             <>
                 <div
@@ -163,19 +160,7 @@ const createSettingsHeader = (lastPath?: string) => {
                         collapsed ? "justify-center" : "mx-1.5",
                     ].join(" ")}
                 >
-                    <Button
-                        aria-label="Back"
-                        className="gap-2 flex items-center justify-center ml-2 mt-2"
-                        type="text"
-                        size="small"
-                        icon={<ArrowLeft size={14} />}
-                        onClick={() => {
-                            if (lastPath) router.push(lastPath)
-                            else router.back()
-                        }}
-                    >
-                        {!collapsed && "Back"}
-                    </Button>
+                    <SidebarBackButton collapsed={collapsed} lastPath={lastPath} className="mt-2" />
                 </div>
 
                 <ListOfOrgs collapsed={collapsed} buttonProps={{type: "text"}} />

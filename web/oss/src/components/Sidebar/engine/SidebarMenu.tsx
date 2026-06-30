@@ -84,7 +84,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
     const transformItems = useCallback(
         (items: SidebarConfig[]): MenuItem[] => {
             return items.flatMap((item): MenuItem[] => {
-                if (item.submenu) {
+                if (item.submenu && !(collapsed && item.isDynamic)) {
                     const titleNode = (
                         <>
                             {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
