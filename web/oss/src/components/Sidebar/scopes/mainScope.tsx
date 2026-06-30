@@ -5,7 +5,6 @@ import {Divider} from "antd"
 import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
 
 import ListOfOrgs from "../components/ListOfOrgs"
-import WorkflowEntityCard from "../components/WorkflowEntityCard"
 import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
 import {useSidebarConfig} from "../hooks/useSidebarConfig"
 
@@ -16,12 +15,6 @@ const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => (
         <ListOfOrgs collapsed={collapsed} />
         <Divider className="-mt-[3.5px] mb-1" />
     </>
-)
-
-const WorkflowEntitySectionBefore = ({collapsed}: SidebarSlotContext) => (
-    <div className="px-2 pt-1 pb-2">
-        <WorkflowEntityCard collapsed={collapsed} />
-    </div>
 )
 
 const MainSidebarFooter = ({collapsed}: SidebarSlotContext) =>
@@ -35,7 +28,7 @@ const ROUTE_SELECTION = {mode: "route"} as const
 const useMainSidebarSelection = () => ROUTE_SELECTION
 
 const useMainSidebarSections = (): SidebarSection[] => {
-    const {projectItems, appItems, bottomItems} = useSidebarConfig()
+    const {projectItems, bottomItems} = useSidebarConfig()
 
     return useMemo(
         () => [
@@ -44,19 +37,13 @@ const useMainSidebarSections = (): SidebarSection[] => {
                 items: projectItems,
             },
             {
-                key: "app",
-                items: appItems,
-                before: WorkflowEntitySectionBefore,
-                dividerBefore: true,
-            },
-            {
                 key: "bottom",
                 items: bottomItems,
                 placement: "bottom",
                 mode: "vertical",
             },
         ],
-        [appItems, bottomItems, projectItems],
+        [bottomItems, projectItems],
     )
 }
 

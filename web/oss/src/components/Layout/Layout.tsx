@@ -178,18 +178,26 @@ const AppWithVariants = memo(
         const lastBasePathRef = useRef<string | null>(null)
 
         useEffect(() => {
-            if (resolveSidebarView(appState.pathname).isBase) {
+            if (
+                resolveSidebarView({
+                    pathname: appState.pathname,
+                    routeLayer: appState.routeLayer,
+                }).isBase
+            ) {
                 lastBasePathRef.current = appState.asPath
             }
-        }, [appState.asPath, appState.pathname])
+        }, [appState.asPath, appState.pathname, appState.routeLayer])
 
         const sidebarView = useMemo<SidebarView>(() => {
-            const view = resolveSidebarView(appState.pathname)
+            const view = resolveSidebarView({
+                pathname: appState.pathname,
+                routeLayer: appState.routeLayer,
+            })
             return {
                 id: view.id,
                 lastPath: view.isBase ? null : lastBasePathRef.current || baseAppURL,
             }
-        }, [appState.pathname, baseAppURL])
+        }, [appState.pathname, appState.routeLayer, baseAppURL])
 
         const currentApp = useAtomValue(currentAppAtom)
         const {project} = useProjectData()

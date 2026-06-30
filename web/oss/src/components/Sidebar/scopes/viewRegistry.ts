@@ -1,8 +1,20 @@
+import type {RouteLayer} from "@/oss/state/appState"
+
 import type {SidebarScope} from "../engine/types"
 
-import {MAIN_SIDEBAR_SCOPE_ID, SETTINGS_SIDEBAR_SCOPE_ID} from "./constants"
+import {
+    MAIN_SIDEBAR_SCOPE_ID,
+    SETTINGS_SIDEBAR_SCOPE_ID,
+    WORKFLOW_SIDEBAR_SCOPE_ID,
+} from "./constants"
 import {mainSidebarScope} from "./mainScope"
 import {createSettingsSidebarScope} from "./settingsScope"
+import {createWorkflowSidebarScope} from "./workflowScope"
+
+export interface SidebarViewMatchContext {
+    pathname: string
+    routeLayer: RouteLayer
+}
 
 export interface SidebarViewContext {
     /** Where the back button returns to when leaving a swap view. */
@@ -13,7 +25,7 @@ export interface SidebarViewDefinition {
     id: string
     /** The base view matches everything; back buttons return to its last path. */
     isBase?: boolean
-    matches: (pathname: string) => boolean
+    matches: (ctx: SidebarViewMatchContext) => boolean
     create: (ctx: SidebarViewContext) => SidebarScope
 }
 
@@ -23,8 +35,13 @@ export interface SidebarViewDefinition {
 export const SIDEBAR_VIEWS = [
     {
         id: SETTINGS_SIDEBAR_SCOPE_ID,
-        matches: (pathname: string) => pathname.endsWith("/settings"),
+        matches: (ctx: SidebarViewMatchContext) => ctx.pathname.endsWith("/settings"),
         create: ({lastPath}: SidebarViewContext) => createSettingsSidebarScope({lastPath}),
+    },
+    {
+        id: WORKFLOW_SIDEBAR_SCOPE_ID,
+        matches: (ctx: SidebarViewMatchContext) => ctx.routeLayer === "app",
+        create: ({lastPath}: SidebarViewContext) => createWorkflowSidebarScope({lastPath}),
     },
     {
         id: MAIN_SIDEBAR_SCOPE_ID,
@@ -39,8 +56,8 @@ export type SidebarViewId = (typeof SIDEBAR_VIEWS)[number]["id"]
 const BASE_VIEW = SIDEBAR_VIEWS[SIDEBAR_VIEWS.length - 1]
 
 /** First view whose `matches` accepts the path; falls back to the base view. */
-export const resolveSidebarView = (pathname: string): SidebarViewDefinition =>
-    SIDEBAR_VIEWS.find((view) => view.matches(pathname)) ?? BASE_VIEW
+export const resolveSidebarView = (ctx: SidebarViewMatchContext): SidebarViewDefinition =>
+    SIDEBAR_VIEWS.find((view) => view.matches(ctx)) ?? BASE_VIEW
 
 /** Look up a view definition by id; falls back to the base view. */
 export const getSidebarViewDefinition = (id: string): SidebarViewDefinition =>
