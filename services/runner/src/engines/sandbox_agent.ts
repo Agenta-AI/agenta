@@ -225,10 +225,37 @@ export async function runSandboxAgent(
   deps: SandboxAgentDeps = {},
 ): Promise<AgentRunResult> {
   const logger = deps.log ?? log;
+
+  // Sign BEFORE buildRunPlan so the prefix is available for the durable cwd derivation.
+  // Inputs (sessionId, apiBase, credential) are independent of the plan. Best-effort: null on
+  // failure leaves durableCwd undefined and buildRunPlan falls back to the ephemeral path.
+  const sessionForMount = request.sessionId?.trim();
+  const runCred = runCredential(request);
+  const preSignedCreds =
+    sessionForMount && runCred
+      ? await signSessionMountCredentials(sessionForMount, {
+          apiBase: apiBase(),
+          authorization: runCred,
+          log: logger,
+        })
+      : null;
+
+  // Derive the durable cwd from the sign prefix (one source of truth, both providers).
+  // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
+  // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
+  let durableCwd: string | undefined;
+  if (preSignedCreds?.prefix) {
+    const isDaytonaReq = (request.sandbox ?? process.env.SANDBOX_AGENT_PROVIDER ?? "local") === "daytona";
+    durableCwd = isDaytonaReq
+      ? `/home/sandbox/agenta/${preSignedCreds.prefix}`
+      : `/tmp/agenta/${preSignedCreds.prefix}`;
+  }
+
   const planResult = buildRunPlan(request, {
     sandboxProvider: deps.sandboxProvider,
     createLocalCwd: deps.createLocalCwd,
     createDaytonaCwd: deps.createDaytonaCwd,
+    durableCwd,
     resolveSkillDirs: deps.resolveSkillDirs,
     log: logger,
   });
@@ -341,35 +368,25 @@ export async function runSandboxAgent(
       log: logger,
     });
 
-    // Durable cwd: a session-owned run mounts its store prefix at the cwd so files survive
-    // teardown. Best-effort — sign/mount failure leaves the plain ephemeral cwd and the turn
-    // proceeds. The mount lands BEFORE createSession so the session opens inside it. Local mounts
-    // on-host (scoped creds never enter agent space); remote (Daytona) mounts INSIDE the sandbox
-    // over the ngrok tunnel, where the scoped, short-lived creds are the only ones that cross.
-    const sessionForMount = request.sessionId?.trim();
-    if (sessionForMount) {
-      const cred = runCredential(request);
-      if (cred) {
-        const creds = await signSessionMountCredentials(sessionForMount, {
-          apiBase: apiBase(),
-          authorization: cred,
-          log: logger,
-        });
-        if (creds && plan.isDaytona) {
-          const endpoint = await discoverTunnelEndpoint({ log: logger });
-          if (
-            endpoint &&
-            (await mountStorageRemote(sandbox, plan.cwd, creds, {
-              endpoint,
-              log: logger,
-            }))
-          ) {
-            // Remote files live in the store; nothing on this host to unmount.
-            logger(`remote durable cwd active for session=${sessionForMount}`);
-          }
-        } else if (creds && (await mountStorage(plan.cwd, creds, { log: logger }))) {
-          mountedCwd = plan.cwd;
+    // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
+    // cwd derivation). The mount lands BEFORE createSession so the session opens inside it.
+    // Local: on-host geesefs; scoped creds never enter agent space.
+    // Remote (Daytona): geesefs inside the sandbox over the ngrok tunnel.
+    if (preSignedCreds) {
+      if (plan.isDaytona) {
+        const endpoint = await discoverTunnelEndpoint({ log: logger });
+        if (
+          endpoint &&
+          (await mountStorageRemote(sandbox, plan.cwd, preSignedCreds, {
+            endpoint,
+            log: logger,
+          }))
+        ) {
+          // Remote files live in the store; nothing on this host to unmount.
+          logger(`remote durable cwd active for session=${sessionForMount}`);
         }
+      } else if (await mountStorage(plan.cwd, preSignedCreds, { log: logger })) {
+        mountedCwd = plan.cwd;
       }
     }
 

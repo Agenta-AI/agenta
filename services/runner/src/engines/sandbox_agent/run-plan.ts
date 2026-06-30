@@ -102,8 +102,10 @@ export type BuildRunPlanResult =
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
-  createLocalCwd?: (sessionId?: string) => string;
-  createDaytonaCwd?: () => string;
+  createLocalCwd?: (durableCwd?: string) => string;
+  createDaytonaCwd?: (durableCwd?: string) => string;
+  /** Pre-computed durable cwd derived from the sign prefix; when set, skips the ephemeral helpers. */
+  durableCwd?: string;
   resolveSkillDirs?: typeof defaultResolveSkillDirs;
   log?: Log;
 }
@@ -131,24 +133,20 @@ function hasCodeTool(specs: ResolvedToolSpec[]): boolean {
   return specs.some((spec) => spec.kind === "code");
 }
 
-function defaultLocalCwd(sessionId?: string): string {
-  // A session-owned run reuses ONE stable mountpoint per session: the same session id across
-  // turns lands on the same dir, so the durable store prefix mounts once and `checkMounted`
-  // short-circuits later turns. A fresh mkdtemp per turn would re-mount the same prefix onto a
-  // new path every turn, and failed busy-unmounts would leak stale geesefs mounts (-> ENOTCONN).
-  // Non-session (ephemeral) runs keep a throwaway mkdtemp dir.
-  const sid = sessionId?.trim();
-  if (sid) {
-    const safe = sid.replace(/[^A-Za-z0-9_-]/g, "");
-    const dir = join(tmpdir(), `agenta-sandbox-agent-${safe}`);
-    mkdirSync(dir, { recursive: true });
-    return dir;
+function defaultLocalCwd(durableCwd?: string): string {
+  // When the caller pre-computed a durable cwd from the sign prefix, use it — same prefix means
+  // same mountpoint across turns, so checkMounted short-circuits and no geesefs leak accrues.
+  if (durableCwd) {
+    mkdirSync(durableCwd, { recursive: true });
+    return durableCwd;
   }
+  // Ephemeral fallback for non-session runs.
   return mkdtempSync(join(tmpdir(), "agenta-sandbox-agent-"));
 }
 
-function defaultDaytonaCwd(): string {
-  return `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
+function defaultDaytonaCwd(durableCwd?: string): string {
+  // Daytona: the remote sandbox creates the dir via mkdir-p in mountStorageRemote; no mkdirSync.
+  return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
 export function buildRunPlan(
@@ -157,6 +155,7 @@ export function buildRunPlan(
     sandboxProvider = process.env.SANDBOX_AGENT_PROVIDER,
     createLocalCwd = defaultLocalCwd,
     createDaytonaCwd = defaultDaytonaCwd,
+    durableCwd,
     resolveSkillDirs = defaultResolveSkillDirs,
     log = () => {},
   }: BuildRunPlanDeps = {},
@@ -267,7 +266,7 @@ export function buildRunPlan(
     }
   }
 
-  const cwd = isDaytona ? createDaytonaCwd() : createLocalCwd(request.sessionId);
+  const cwd = isDaytona ? createDaytonaCwd(durableCwd) : createLocalCwd(durableCwd);
   const relayDir = `${cwd}/.agenta-tools`;
 
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs

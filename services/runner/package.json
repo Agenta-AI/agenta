@@ -12,9 +12,9 @@
     "build:extension": "node scripts/build-extension.mjs",
     "login": "pi",
     "test": "pnpm run test:unit",
-    "test:unit": "vitest run --project unit --reporter=default --reporter=junit --outputFile.junit=./test-results/junit-unit.xml",
-    "test:integration": "vitest run --project integration --reporter=default --reporter=junit --outputFile.junit=./test-results/junit-integration.xml",
-    "test:acceptance": "vitest run --project acceptance --reporter=default --reporter=junit --outputFile.junit=./test-results/junit-acceptance.xml",
+    "test:unit": "vitest run --project unit --reporter=default --reporter=junit --outputFile.junit=./tests/results/junit-unit.xml",
+    "test:integration": "vitest run --project integration --reporter=default --reporter=junit --outputFile.junit=./tests/results/junit-integration.xml",
+    "test:acceptance": "vitest run --project acceptance --reporter=default --reporter=junit --outputFile.junit=./tests/results/junit-acceptance.xml",
     "test:watch": "vitest",
     "test:coverage": "vitest run --project unit --coverage",
     "typecheck": "tsc --noEmit"

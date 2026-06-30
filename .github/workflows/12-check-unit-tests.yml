@@ -384,7 +384,7 @@ jobs:
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: services/runner/test-results/junit-unit.xml
+          files: services/runner/tests/results/junit-unit.xml
           check_name: Agent Runner Unit Test Results
           comment_mode: off
 
@@ -444,7 +444,7 @@ jobs:
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: services/runner/test-results/junit-integration.xml
+          files: services/runner/tests/results/junit-integration.xml
           check_name: Agent Runner Integration Test Results
           comment_mode: off
 
@@ -504,6 +504,6 @@ jobs:
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: services/runner/test-results/junit-acceptance.xml
+          files: services/runner/tests/results/junit-acceptance.xml
           check_name: Agent Runner Acceptance Test Results
           comment_mode: off

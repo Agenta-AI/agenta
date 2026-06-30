@@ -603,6 +603,106 @@ describe("buildRunPlan", () => {
   });
 });
 
+describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
+  it("uses durableCwd directly for local, making the cwd deterministic from the prefix", () => {
+    // Same prefix -> same cwd -> checkMounted short-circuits -> no re-mount -> no geesefs leak.
+    const localCwdCalls: Array<string | undefined> = [];
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      {
+        durableCwd: "/tmp/agenta/mounts/proj-1/mount-abc",
+        createLocalCwd: (durable) => {
+          localCwdCalls.push(durable);
+          // mimic the real helper: when durableCwd is set, just return it
+          return durable ?? "/tmp/agenta-sandbox-agent-fallback";
+        },
+      },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.cwd, "/tmp/agenta/mounts/proj-1/mount-abc");
+    assert.equal(result.plan.relayDir, "/tmp/agenta/mounts/proj-1/mount-abc/.agenta-tools");
+    // createLocalCwd received the durableCwd value.
+    assert.deepEqual(localCwdCalls, ["/tmp/agenta/mounts/proj-1/mount-abc"]);
+  });
+
+  it("uses durableCwd directly for daytona, same prefix -> same remote cwd", () => {
+    const daytonaCwdCalls: Array<string | undefined> = [];
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      {
+        durableCwd: "/home/sandbox/agenta/mounts/proj-1/mount-abc",
+        createDaytonaCwd: (durable) => {
+          daytonaCwdCalls.push(durable);
+          return durable ?? `/home/sandbox/agenta-fallback`;
+        },
+      },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.cwd, "/home/sandbox/agenta/mounts/proj-1/mount-abc");
+    assert.deepEqual(daytonaCwdCalls, ["/home/sandbox/agenta/mounts/proj-1/mount-abc"]);
+  });
+
+  it("falls back to ephemeral cwd when durableCwd is absent (non-session / sign failed)", () => {
+    // No durableCwd -> createLocalCwd receives undefined -> mkdtempSync ephemeral path.
+    const localCwdCalls: Array<string | undefined> = [];
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      {
+        // no durableCwd property
+        createLocalCwd: (durable) => {
+          localCwdCalls.push(durable);
+          return "/tmp/agenta-sandbox-agent-ephemeral";
+        },
+      },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.cwd, "/tmp/agenta-sandbox-agent-ephemeral");
+    assert.deepEqual(localCwdCalls, [undefined]);
+  });
+
+  it("second turn with same durableCwd gets identical cwd (deterministic, mount reuse)", () => {
+    // Two buildRunPlan calls with the same durableCwd -> same cwd.
+    // In practice the runner calls mountStorage which calls checkMounted(cwd) -> no re-mount.
+    const prefix = "mounts/proj-2/mount-xyz";
+    const localPath = `/tmp/agenta/${prefix}`;
+
+    function makePlan() {
+      return buildRunPlan(
+        { harness: "claude", messages: [{ role: "user", content: "hi" }] } as AgentRunRequest,
+        {
+          durableCwd: localPath,
+          createLocalCwd: (durable) => durable ?? "/tmp/fallback",
+        },
+      );
+    }
+
+    const r1 = makePlan();
+    const r2 = makePlan();
+    assert.equal(r1.ok, true);
+    assert.equal(r2.ok, true);
+    if (!r1.ok || !r2.ok) return;
+    // Same prefix -> same cwd across turns.
+    assert.equal(r1.plan.cwd, r2.plan.cwd);
+    assert.equal(r1.plan.cwd, localPath);
+  });
+});
+
 describe("shouldUploadOwnLogin", () => {
   it("never uploads when the connection resolved a real key (credentialMode 'env')", () => {
     // A resolved key is the credential (Security rule 6); the fallback auth.json must not load,
