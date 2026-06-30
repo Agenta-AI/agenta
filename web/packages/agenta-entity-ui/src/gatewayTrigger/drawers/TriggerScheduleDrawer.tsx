@@ -914,7 +914,7 @@ function RunInPlaygroundButton({
             message.error("Inputs is not valid JSON")
             return
         }
-        setPendingRun({text: preview, nonce: Date.now()})
+        setPendingRun({text: preview, nonce: Date.now(), newSession: true})
         onClose()
     }, [parsed.ok, preview, setPendingRun, onClose])
 

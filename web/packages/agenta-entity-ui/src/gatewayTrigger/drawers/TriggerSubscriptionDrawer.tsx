@@ -2283,7 +2283,7 @@ function RunSubscriptionButton({
             const text = preview
                 ? preview
                 : `[Trigger · ${label}]\n\`\`\`json\n${JSON.stringify(event.payload ?? {}, null, 2)}\n\`\`\``
-            setPendingRun({text, nonce: Date.now()})
+            setPendingRun({text, nonce: Date.now(), newSession: true})
             onClose()
         },
         [name, eventKey, setPendingRun, onClose],

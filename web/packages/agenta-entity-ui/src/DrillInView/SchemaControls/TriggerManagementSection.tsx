@@ -253,7 +253,7 @@ function SubscriptionRunPopover({
                       null,
                       2,
                   )}\n\`\`\``
-            setPendingRun({text, nonce: Date.now()})
+            setPendingRun({text, nonce: Date.now(), newSession: true})
             message.success("Running in playground")
         },
         [playgroundEntityId, setPendingRun, label, eventKey],
@@ -552,7 +552,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                       null,
                       2,
                   )}\n\`\`\``
-            setPendingRun({text, nonce: Date.now()})
+            setPendingRun({text, nonce: Date.now(), newSession: true})
             message.success("Running in playground")
         },
         [entityId, setPendingRun],

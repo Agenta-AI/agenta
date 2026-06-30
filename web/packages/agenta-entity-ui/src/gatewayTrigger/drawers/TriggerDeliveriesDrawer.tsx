@@ -90,7 +90,7 @@ export default function TriggerDeliveriesDrawer() {
                       null,
                       2,
                   )}\n\`\`\``
-            setPendingRun({text, nonce: Date.now()})
+            setPendingRun({text, nonce: Date.now(), newSession: true})
             setState(null)
         }
     }, [playgroundEntityId, state?.name, setPendingRun, setState])
