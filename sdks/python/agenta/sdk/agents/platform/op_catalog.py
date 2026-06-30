@@ -252,19 +252,15 @@ _QUERY_WORKFLOWS_INPUT_SCHEMA: Dict[str, Any] = {
 # and stripped from the model-visible schema, so the agent can only ever target itself, never a
 # different variant in the project. Defaults to approval.
 _COMMIT_REVISION_DESCRIPTION = (
-    "Commit a new revision to your own workflow variant (update yourself). Send only the "
-    "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
-    "current config) and any field paths to drop under `delta.remove`. Put agent-template "
-    "edits under `delta.set.parameters.agent`. The variant you are running is targeted "
-    "automatically. This changes the agent and requires approval."
+    "Commit a new revision to your own workflow variant (update yourself). Supply the new "
+    "configuration under `workflow_revision.data` and an optional commit message; the variant "
+    "you are running is targeted automatically. This changes the agent and requires approval."
 )
 _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
-    "additionalProperties": False,
     "properties": {
         "workflow_revision": {
             "type": "object",
-            "additionalProperties": False,
             "description": "The revision to append to your variant's history.",
             "properties": {
                 # Bound from $ctx.workflow.variant.id and stripped before the model sees it.
@@ -276,34 +272,12 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                     "type": "string",
                     "description": "Commit message describing the change.",
                 },
-                "delta": {
+                "data": {
                     "type": "object",
-                    "additionalProperties": False,
-                    "description": (
-                        "Change set applied to your current revision. `set` is deep-merged "
-                        "(omitted fields preserved); `remove` deletes the listed paths."
-                    ),
-                    "properties": {
-                        "set": {
-                            "type": "object",
-                            "additionalProperties": True,
-                            "description": (
-                                "Partial workflow revision data to merge. For agent-template "
-                                "updates, include parameters.agent with instructions, llm, tools, "
-                                "mcps, skills, harness, runner, or sandbox fields as needed."
-                            ),
-                        },
-                        "remove": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": (
-                                "Dotted field paths to delete, e.g. parameters.agent.tools."
-                            ),
-                        },
-                    },
+                    "description": "The new configuration (parameters, inputs) for the revision.",
                 },
             },
-            "required": ["workflow_variant_id", "delta"],
+            "required": ["workflow_variant_id"],
         },
     },
     "required": ["workflow_revision"],

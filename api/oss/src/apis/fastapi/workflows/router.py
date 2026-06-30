@@ -1517,43 +1517,6 @@ class WorkflowsRouter:
         ):
             return WorkflowRevisionResponse()
 
-        workflow_revision_commit = workflow_revision_commit_request.workflow_revision
-
-        variant_id = (
-            workflow_revision_commit.workflow_variant_id
-            or workflow_revision_commit.variant_id
-        )
-        if variant_id is None:
-            raise HTTPException(
-                status_code=400,
-                detail="workflow_revision.workflow_variant_id is required when committing a workflow revision.",
-            )
-
-        # A commit carries data (full replace) or delta (ops merged onto the latest revision),
-        # never both. Empty is allowed only as the v0 seed (intentionally null data/flags/meta);
-        # once the variant has a data revision, an empty commit is rejected.
-        has_data = bool(
-            workflow_revision_commit.data
-            and workflow_revision_commit.data.model_dump(mode="json", exclude_none=True)
-        )
-        has_delta = workflow_revision_commit.delta is not None
-        if has_data and has_delta:
-            raise HTTPException(
-                status_code=400,
-                detail="Provide either data or delta for a commit, not both.",
-            )
-        if not has_data and not has_delta:
-            current_revision = await self.workflows_service.fetch_workflow_revision(
-                project_id=UUID(request.state.project_id),
-                workflow_variant_ref=Reference(id=variant_id),
-                include_archived=False,
-            )
-            if current_revision and current_revision.data:
-                raise HTTPException(
-                    status_code=400,
-                    detail="workflow_revision.data is required when committing a workflow revision.",
-                )
-
         workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
