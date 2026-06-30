@@ -218,6 +218,31 @@ describe("agentShouldResumeAfterApproval", () => {
         expect(agentShouldResumeAfterApproval({messages})).toBe(false)
     })
 
+    it("does NOT resume for a settled SERVER tool (the read-skill / Aloha-loop regression)", () => {
+        // A server tool the agent ran itself (e.g. the `read` skill auto-loaded each turn) settles
+        // to output-available with providerExecuted falsy and no approval — but it is NOT a client
+        // tool (no render.kind, not a known client-tool name). It must not trigger a resume, or
+        // every tool-using turn auto-resends forever.
+        const messages = [
+            user("Aloha"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-read",
+                        toolCallId: "call_read_1",
+                        state: "output-available",
+                        input: {},
+                        output: "---\nname: agenta-getting-started\n---\n",
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
     it("does NOT resume for an APPROVED tool that ran (output-available WITH approval)", () => {
         // An approval-gated tool that was approved and then produced output keeps its `approval`
         // field. It is not a parked client tool — the turn already continued — so it must not be
