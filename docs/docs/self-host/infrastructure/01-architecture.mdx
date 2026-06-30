@@ -45,6 +45,8 @@ Agenta uses a microservices architecture deployed as Docker containers. The diag
                     │                 │ • worker-webhooks       │           │
                     │                 │ • worker-events         │           │
                     │                 │ • worker-records        │           │
+                    │                 │ • worker-interactions   │           │
+                    │                 │ • worker-triggers       │           │
                     │                 │ • cron                  │           │
                     │                 └──────────────┬──────────┘           │
                     │                                │                      │
@@ -101,7 +103,8 @@ Agenta uses a microservices architecture deployed as Docker containers. The diag
 - **Webhook Delivery**: `worker-webhooks` dispatches outbound webhook notifications
 - **Event Processing**: `worker-events` processes internal event streams
 - **Session Records**: `worker-records` persists agent session records from the `streams:records` Redis stream
-- **Scheduled Tasks**: `cron` runs periodic maintenance and cleanup jobs
+- **Interaction Dispatch**: `worker-interactions` consumes the `queues:interactions` queue and dispatches async session interactions
+- **Trigger Processing**: `worker-triggers` processes trigger events for automated workflow execution
 
 **TaskIQ Integration**:
 - **Broker**: Uses Redis streams for queueing and task distribution
@@ -125,7 +128,7 @@ See [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
 
 ### Services API (FastAPI)
 - **Technology**: Python, FastAPI
-- **Port**: 80 (internal)
+- **Port**: 8080 (internal)
 - **Purpose**: LLM-facing endpoints and service-layer APIs exposed under `/services/*`
 
 **Key Responsibilities**:
@@ -139,7 +142,7 @@ See [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
 ## Infrastructure Services
 
 ### PostgreSQL (Database)
-- **Technology**: PostgreSQL 16
+- **Technology**: PostgreSQL 17
 - **Port**: 5432
 - **Purpose**: Primary data storage
 
@@ -179,15 +182,16 @@ See [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
 
 Files written during an agent run are stored here and remounted automatically on the next turn, so agent workspaces survive sandbox teardown.
 
-The `seaweedfs.enabled` Helm toggle (and the matching compose profile) controls whether the chart bundles a SeaweedFS StatefulSet or points `store.endpointUrl` at an external store. This mirrors the `postgresql.enabled` pattern. An empty endpoint URL means real AWS S3.
+The `store.seaweedfs.enabled` Helm toggle controls whether the chart bundles a SeaweedFS StatefulSet or points `store.endpointUrl` at an external store. This mirrors the `postgresql.enabled` pattern. An empty endpoint URL means real AWS S3.
 
 Per-deployment default:
-- Compose (local / self-host): SeaweedFS container bundled.
+- Dev compose: SeaweedFS container bundled.
 - Railway: SeaweedFS service and volume (publicly reachable, no tunnel needed).
-- Kubernetes: operator's choice via `seaweedfs.enabled`.
-- Live / private cloud: external AWS S3 (`seaweedfs.enabled=false`).
+- Kubernetes (gh self-host): no bundled SeaweedFS; supply external S3 credentials via `store.*` values.
+- Kubernetes (operator choice): enable via `store.seaweedfs.enabled=true`.
+- Live / private cloud: external AWS S3 (`store.seaweedfs.enabled=false`).
 
-See the [Store configuration reference](/self-host/02-configuration#store-durable-object-store).
+See the [Store configuration reference](/self-host/configuration#store-durable-object-store).
 
 ## Service Dependencies
 

@@ -19,9 +19,9 @@ From the repository root:
 
 ```bash
 docker build \
-  -f services/agent/docker/Dockerfile \
+  -f services/runner/docker/Dockerfile \
   -t ghcr.io/<org>/agenta-runner:<tag> \
-  services/agent
+  services/runner
 ```
 
 The published image does not bundle Claude Code. If a harness needs Claude Code, the runner

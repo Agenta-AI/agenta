@@ -46,9 +46,11 @@ existing self-hosted Agenta deployment that predates the runner and store featur
    # or set it to a SeaweedFS / MinIO / R2 endpoint.
    ```
 
-   The bundled SeaweedFS container starts automatically with the compose stack when
-   the `AGENTA_STORE_ACCESS_KEY` and `AGENTA_STORE_SECRET_KEY` are set. For the full
-   reference, see [Store configuration](/self-host/02-configuration#store-durable-object-store).
+   The dev compose stack bundles SeaweedFS and starts it automatically when
+   `AGENTA_STORE_ACCESS_KEY` and `AGENTA_STORE_SECRET_KEY` are set. The gh self-host
+   compose does not bundle SeaweedFS; point `AGENTA_STORE_ENDPOINT_URL` at an external
+   S3-compatible store or leave it empty for real AWS S3. For the full reference, see
+   [Store configuration](/self-host/configuration#store-durable-object-store).
 
 ## Helm
 
@@ -88,7 +90,7 @@ existing self-hosted Agenta deployment that predates the runner and store featur
      secretKey: <secret-key>
    ```
 
-   For the full reference, see [Store configuration](/self-host/02-configuration#store-durable-object-store).
+   For the full reference, see [Store configuration](/self-host/configuration#store-durable-object-store).
 
 ## What changes
 

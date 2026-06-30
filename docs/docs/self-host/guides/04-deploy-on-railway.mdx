@@ -16,7 +16,7 @@ The scripts create the following services inside one Railway project:
 - **Web** frontend (Next.js)
 - **API** backend (FastAPI + Gunicorn)
 - **Services** backend (FastAPI + Gunicorn)
-- **sandbox-agent** runner for agent workflows
+- **runner** for agent workflows
 - **Postgres** with a persistent volume
 - **Redis** with a persistent volume
 - **SuperTokens** for authentication
@@ -86,7 +86,7 @@ Set the image tags you want to deploy. Use `latest` for the most recent stable r
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
-export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-agent-runner:latest"
+export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:latest"
 ```
 
 Then run the deploy script:
@@ -103,7 +103,7 @@ You can also pin to a specific version instead of `latest`:
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:v0.30.0"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:v0.30.0"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:v0.30.0"
-export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-agent-runner:v0.30.0"
+export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:v0.30.0"
 ```
 
 ## Step 5: Verify
@@ -129,7 +129,7 @@ export RAILWAY_ENVIRONMENT_NAME="production"
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
-export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-agent-runner:latest"
+export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:latest"
 
 ./hosting/railway/oss/scripts/deploy-from-images.sh
 ```
@@ -191,7 +191,7 @@ These environment variables control the deployment scripts. All have sensible de
 
 | Variable | Default | Description |
 |---|---|---|
-| `AGENTA_RUNNER_IMAGE` | `ghcr.io/agenta-ai/agenta-agent-runner:latest` | Image used by the `sandbox-agent` runner service |
+| `AGENTA_RUNNER_IMAGE` | `ghcr.io/agenta-ai/agenta-runner:latest` | Image used by the `runner` service |
 | `SANDBOX_AGENT_PROVIDER` | `local` | Default sandbox provider for agent runs |
 | `DAYTONA_API_KEY` | (none) | Daytona key for agent-runner sandboxes |
 

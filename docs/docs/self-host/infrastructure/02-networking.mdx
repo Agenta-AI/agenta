@@ -33,7 +33,7 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 │    ▼                     ▼                     ▼                            │
 │  ┌─────────────┐  ┌─────────────┐   ┌────────────────────┐                 │
 │  │     Web     │  │     API     │   │   Services API     │                 │
-│  │   :3000     │  │   :8000     │   │      :80           │                 │
+│  │   :3000     │  │   :8000     │   │      :8080         │                 │
 │  └─────────────┘  └──────┬──────┘   └─────────┬──────────┘                 │
 │                          │                     │ AGENTA_RUNNER_URL          │
 │                          │ Redis queues         ▼                           │
@@ -45,8 +45,9 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 │                          ▼                      │                           │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │                            Worker Pool                               │   │
-│  │   worker-evaluations, worker-tracing, worker-webhooks,              │   │
-│  │   worker-events, worker-records, cron                                │   │
+│  │   worker-evaluations, worker-tracing, worker-webhooks,               │   │
+│  │   worker-events, worker-records, worker-interactions,                │   │
+│  │   worker-triggers, cron                                              │   │
 │  └─────────────────────────┬────────────────────────────────────────────┘   │
 │                            │                    │ (from runner)              │
 │                            ▼                    ▼                           │
@@ -72,14 +73,14 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 Internet → Traefik (80/443) → Internal Services
 ├── / → web:3000 (Frontend)
 ├── /api/ → api:8000 (Backend API)
-└── /services/ → services:80 (includes completion/chat endpoints)
+└── /services/ → services:8080 (includes completion/chat endpoints)
 ```
 
 ### Internal Service Communication
 ```
 Web Container:
 ├── → api:8000 (Backend API calls)
-└── → services:80 (Playground and model interaction endpoints)
+└── → services:8080 (Playground and model interaction endpoints)
 
 API Container:
 ├── → postgres:5432 (Database operations)
@@ -172,14 +173,14 @@ Middleware: Path prefix stripping
 
 #### Services Routing
 ```yaml
-# Route: /services/ -> services:80
+# Route: /services/ -> services:8080
 Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/`)
-Target: services:80
+Target: services:8080
 Processing: Strip `/services` prefix
 
 # Examples served by the same services container:
-# /services/completion/* -> services:80/completion/*
-# /services/chat/* -> services:80/chat/*
+# /services/completion/* -> services:8080/completion/*
+# /services/chat/* -> services:8080/chat/*
 ```
 
 ## SSL/TLS Configuration

@@ -33,7 +33,7 @@ Daytona runs start faster from a prepared snapshot. Agenta ships the recipe, not
 prebuilt snapshot:
 
 ```bash
-cd services/agent/sandbox-images/daytona
+cd services/runner/sandbox-images/daytona
 uv run build_snapshot.py --force
 ```
 
@@ -60,7 +60,7 @@ store endpoint must be publicly reachable. If you run compose locally, enable th
 compose profile (ngrok tunnel). On Railway and Kubernetes the store endpoint is already
 public.
 
-See the [Store configuration reference](/self-host/02-configuration#store-durable-object-store).
+See the [Store configuration reference](/self-host/configuration#store-durable-object-store).
 
 ## Related
 
