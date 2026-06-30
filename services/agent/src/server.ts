@@ -122,6 +122,15 @@ function runCredential(request: AgentRunRequest): string {
   return (headers.authorization ?? headers.Authorization ?? "").trim();
 }
 
+function apiBaseFromRequest(request: AgentRunRequest): string | undefined {
+  const endpoint = request.telemetry?.exporters?.otlp?.endpoint?.trim();
+  if (!endpoint) return undefined;
+  const marker = "/otlp/";
+  const idx = endpoint.indexOf(marker);
+  if (idx === -1) return undefined;
+  return endpoint.slice(0, idx).replace(/\/+$/, "");
+}
+
 /**
  * Persist the session's sandbox id to the durable session-state row (best-effort), so the
  * inspector's States tab shows which sandbox backs the session. Authenticated AS the invoke
@@ -214,6 +223,11 @@ async function runAndStream(
   let aliveWatchdog: { release: () => Promise<void> } | undefined;
 
   if (sessionOwned) {
+    const requestApiBase = apiBaseFromRequest(request);
+    if (requestApiBase && !process.env.AGENTA_API_URL) {
+      process.env.AGENTA_API_URL = requestApiBase;
+      process.stderr.write(`[sessions] inferred AGENTA_API_URL=${requestApiBase}\n`);
+    }
     // The runner authenticates session calls AS the invoke caller (the run credential),
     // refreshing it for the turn's lifetime — never the admin key. Project scope is
     // resolved server-side from the credential, so no project_id rides the request.

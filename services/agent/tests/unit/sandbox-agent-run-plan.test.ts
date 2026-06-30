@@ -91,11 +91,28 @@ describe("buildRunPlan", () => {
       result.plan.executableToolSpecs.map((tool) => tool.name),
       ["server_tool"],
     );
+    assert.deepEqual(
+      result.plan.toolSpecs.map((tool) => tool.name),
+      ["server_tool", "client_tool"],
+    );
     assert.equal(result.plan.useToolRelay, true);
     assert.deepEqual(result.plan.skillDirs, [
       { name: "alpha", dir: "/skills/alpha" },
     ]);
     assert.deepEqual(logs, ["resolved alpha", "skills: alpha"]);
+  });
+
+  it("keeps the relay enabled for client-only Pi tools", () => {
+    const result = buildRunPlan({
+      harness: "pi_agenta",
+      messages: [{ role: "user", content: "connect slack" }],
+      customTools: [{ name: "request_connection", kind: "client" }],
+    } as AgentRunRequest);
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.executableToolSpecs, []);
+    assert.equal(result.plan.useToolRelay, true);
   });
 
   it("carries the sandbox permission onto the plan and leaves an unrestricted run alone", () => {

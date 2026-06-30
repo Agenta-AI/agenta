@@ -4,7 +4,7 @@
  * The kind-dispatch ("branch on spec.kind to execute a resolved tool") lives once in
  * `runResolvedTool`, used by the Pi extension (extensions/agenta.ts) and the MCP server
  * (tools/mcp-server.ts). These tests cover the routing into that function and the file relay:
- *  - runResolvedTool advertises code tools but fails their sidecar execution, and throws for `client`.
+ *  - runResolvedTool advertises code tools but fails their sidecar execution, and relays `client`.
  *  - relayToolCall reads back the relayed result from the Daytona file relay.
  *
  * No network and no harness: the `code` path now fails before any subprocess; the
@@ -23,6 +23,15 @@ import { RELAY_RES_SUFFIX, sanitizeRelayId } from "../../src/tools/relay.ts";
 import type { ResolvedToolSpec } from "../../src/protocol.ts";
 
 const clientSpec: ResolvedToolSpec = { name: "client_tool", kind: "client" };
+const requiredClientSpec = {
+  name: "request_connection",
+  kind: "client",
+  input_schema: {
+    type: "object",
+    properties: { integration: { type: "string" } },
+    required: ["integration"],
+  },
+} as ResolvedToolSpec;
 const codeSpec: ResolvedToolSpec = {
   name: "code_tool",
   kind: "code",
@@ -47,6 +56,33 @@ describe("runResolvedTool", () => {
       () => runResolvedTool(clientSpec, {}, { toolCallId: "call-2" }),
       /browser-fulfilled/,
       "client tool throws (never executed in-sandbox)",
+    );
+  });
+
+  it("relays a client spec when the Pi extension has a runner relay", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-test-"));
+    try {
+      const toolCallId = "call-client";
+      const resPath = join(dir, sanitizeRelayId(toolCallId) + RELAY_RES_SUFFIX);
+      writeFileSync(resPath, JSON.stringify({ ok: true, text: '{"connected":true}' }));
+      const out = await runResolvedTool(clientSpec, { integration: "slack" }, {
+        toolCallId,
+        relayDir: dir,
+      });
+      assert.equal(out, '{"connected":true}');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects missing required args before any relay or callback execution", async () => {
+    await assert.rejects(
+      () =>
+        runResolvedTool(requiredClientSpec, {}, {
+          toolCallId: "call-required",
+          relayDir: "/tmp/agenta-relay-must-not-be-used",
+        }),
+      /missing required argument\(s\): integration/,
     );
   });
 });

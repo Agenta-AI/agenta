@@ -48,6 +48,64 @@ export interface RunResolvedToolOpts {
   signal?: AbortSignal;
 }
 
+function objectSchema(schema: unknown): Record<string, unknown> | undefined {
+  return schema && typeof schema === "object" && !Array.isArray(schema)
+    ? (schema as Record<string, unknown>)
+    : undefined;
+}
+
+function requiredFields(schema: unknown): string[] {
+  const object = objectSchema(schema);
+  const required = object?.required;
+  return Array.isArray(required)
+    ? required.filter((field): field is string => typeof field === "string")
+    : [];
+}
+
+function specInputSchema(spec: ResolvedToolSpec): Record<string, unknown> | null | undefined {
+  return (
+    spec.inputSchema ??
+    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
+      .input_schema
+  );
+}
+
+function missingRequiredFields(
+  schema: unknown,
+  value: unknown,
+  path: string[] = [],
+): string[] {
+  const object = objectSchema(schema);
+  if (!object) return [];
+
+  const missing: string[] = [];
+  const required = requiredFields(object);
+  const record = objectSchema(value);
+  for (const field of required) {
+    if (!record || record[field] === undefined || record[field] === null) {
+      missing.push([...path, field].join("."));
+    }
+  }
+
+  const properties = objectSchema(object.properties);
+  if (!properties || !record) return missing;
+  for (const [field, childSchema] of Object.entries(properties)) {
+    if (record[field] !== undefined && record[field] !== null) {
+      missing.push(...missingRequiredFields(childSchema, record[field], [...path, field]));
+    }
+  }
+  return missing;
+}
+
+function assertRequiredArguments(spec: ResolvedToolSpec, params: unknown): void {
+  const missing = missingRequiredFields(specInputSchema(spec), params);
+  if (missing.length === 0) return;
+  throw new Error(
+    `Tool '${spec.name}' missing required argument(s): ${missing.join(", ")}. ` +
+      "Retry the tool call with those argument fields populated.",
+  );
+}
+
 /**
  * Daytona tool call: the in-sandbox process can't reach Agenta, so write the request to a
  * file the runner watches and poll for the response it writes back (see tools/relay.ts).
@@ -97,7 +155,7 @@ export async function relayToolCall(
  * turns the throw into a tool-error result so the model loop continues rather than crashing.
  *
  *  - `code`   -> reject as unsupported by the sidecar, no callback/relay.
- *  - `client` → signal pending: browser-fulfilled, never executed in-sandbox.
+ *  - `client` → relay to the runner so it can park the browser-fulfilled call.
  *  - default/`callback` → relay through the runner when `opts.relayDir` is set (Daytona),
  *    else POST directly to `opts.endpoint`.
  */
@@ -106,14 +164,15 @@ export async function runResolvedTool(
   params: unknown,
   opts: RunResolvedToolOpts,
 ): Promise<string> {
+  assertRequiredArguments(spec, params);
   if (spec.kind === "code") {
     return runCodeTool(spec.runtime, spec.code ?? "", spec.env, params, opts.signal);
   }
   if (spec.kind === "client") {
-    return JSON.stringify({
-      type: "client_tool_pending",
-      toolName: spec.name,
-    });
+    if (opts.relayDir) {
+      return relayToolCall(opts.relayDir, spec.name, opts.toolCallId, params, opts.signal);
+    }
+    throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
   }
   // callback (default): route back to Agenta's /tools/call (directly or via the Daytona relay).
   if (opts.relayDir) {

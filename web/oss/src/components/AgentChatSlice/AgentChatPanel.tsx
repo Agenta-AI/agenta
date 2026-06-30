@@ -1,7 +1,11 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
 import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
-import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
+import {
+    agentShouldResumeAfterApproval,
+    buildAgentRequest,
+    playgroundController,
+} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
@@ -175,6 +179,7 @@ const MessageRow = ({
 const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
+    const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
 
     const [input, setInput] = useState("")
     const [files, setFiles] = useState<UploadFile[]>([])
@@ -418,9 +423,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 if (committedRevisionsSeenRef.current.has(key)) continue
                 committedRevisionsSeenRef.current.add(key)
                 invalidateAgentCommittedRevisionCache()
+                if (data?.revisionId && data.revisionId !== entityId) {
+                    switchEntity({currentEntityId: entityId, newEntityId: data.revisionId})
+                }
             }
         }
-    }, [messages])
+    }, [messages, entityId, switchEntity])
 
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const markStopped = useCallback(() => {

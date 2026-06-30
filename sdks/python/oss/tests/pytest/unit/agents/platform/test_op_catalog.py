@@ -196,7 +196,7 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
         [PlatformToolConfig(op="commit_revision")]
     )
     spec = resolution.tool_specs[0]
-    assert spec.call.path == "/api/workflows/revisions/commit"
+    assert spec.call.path == "/api/workflows/revisions/commit/patch"
     # The context binding rides as call.context — the runner fills it from runContext at dispatch.
     assert spec.call.context == {
         "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
@@ -206,7 +206,10 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     workflow_revision = spec.input_schema["properties"]["workflow_revision"]
     assert "workflow_variant_id" not in workflow_revision["properties"]
     assert set(workflow_revision["properties"]) == {"message", "data"}
-    assert "required" not in workflow_revision  # only the bound field was required
+    assert workflow_revision["required"] == ["data"]
+    data = workflow_revision["properties"]["data"]
+    assert "parameters" in data["properties"]
+    assert "parameters.agent" in data["properties"]["parameters"]["description"]
 
 
 async def test_commit_revision_defaults_to_approval(connection):

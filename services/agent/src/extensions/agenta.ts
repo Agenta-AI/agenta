@@ -49,6 +49,53 @@ function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
 }
 
+function objectSchema(schema: unknown): Record<string, unknown> | undefined {
+  return schema && typeof schema === "object" && !Array.isArray(schema)
+    ? (schema as Record<string, unknown>)
+    : undefined;
+}
+
+function requiredFields(schema: unknown): string[] {
+  const object = objectSchema(schema);
+  const required = object?.required;
+  return Array.isArray(required)
+    ? required.filter((field): field is string => typeof field === "string")
+    : [];
+}
+
+function specInputSchema(spec: ResolvedToolSpec): Record<string, unknown> | null | undefined {
+  return (
+    spec.inputSchema ??
+    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
+      .input_schema
+  );
+}
+
+function promptSnippet(spec: ResolvedToolSpec): string {
+  return spec.description ?? `Call ${spec.name}`;
+}
+
+function promptGuidelines(spec: ResolvedToolSpec): string[] {
+  const guidelines: string[] = [];
+  const required = requiredFields(specInputSchema(spec));
+  if (required.length > 0) {
+    guidelines.push(
+      `When calling ${spec.name}, include the required argument(s): ${required.join(", ")}.`,
+    );
+  }
+  if (spec.name === "request_connection") {
+    guidelines.push(
+      "When calling request_connection, set integration to the lowercase provider key such as slack or github; use mode oauth unless the user explicitly asks for an API key.",
+    );
+  }
+  if (spec.name === "commit_revision") {
+    guidelines.push(
+      "When calling commit_revision, include workflow_revision.data with the updated workflow configuration, usually workflow_revision.data.parameters.agent for agent-template changes.",
+    );
+  }
+  return guidelines;
+}
+
 /** Parse the JSON array of loaded skill names from AGENTA_AGENT_SKILLS_LOADED; [] on absent/malformed. */
 function parseSkillsLoaded(raw: string | undefined): string[] {
   if (!raw) return [];
@@ -82,8 +129,10 @@ function registerTools(pi: ExtensionAPI): void {
       name: spec.name,
       label: spec.name,
       description: spec.description ?? spec.name,
+      promptSnippet: promptSnippet(spec),
+      promptGuidelines: promptGuidelines(spec),
       // Pi accepts plain JSON Schema here (non-TypeBox validation path).
-      parameters: (spec.inputSchema as any) ?? EMPTY_OBJECT_SCHEMA,
+      parameters: (specInputSchema(spec) as any) ?? EMPTY_OBJECT_SCHEMA,
       async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
         const text = await runResolvedTool(spec, params, {
           toolCallId,

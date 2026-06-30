@@ -104,7 +104,23 @@ def _client_tool_revision() -> WorkflowRevision:
                     "description": "Request a connection from the user.",
                     "input_schema": {
                         "type": "object",
-                        "additionalProperties": True,
+                        "properties": {
+                            "integration": {
+                                "type": "string",
+                                "description": "The external integration key the user should connect, for example 'slack' or 'github'.",
+                            },
+                            "slug": {
+                                "type": "string",
+                                "description": "Optional stable connection slug to create or reuse. Defaults to the integration key.",
+                            },
+                            "mode": {
+                                "type": "string",
+                                "enum": ["oauth", "api_key"],
+                                "description": "Connection flow to request. Defaults to 'oauth'.",
+                            },
+                        },
+                        "required": ["integration"],
+                        "additionalProperties": False,
                     },
                     "render": {"kind": "connect"},
                 }

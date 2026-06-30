@@ -104,23 +104,50 @@ def _run_context_reference(
     return None
 
 
+def _run_context_reference_from_any(
+    references: Optional[Dict[str, Any]],
+    keys: tuple[str, ...],
+    *,
+    with_version: bool = False,
+) -> Optional[RunContextReference]:
+    """Build one run-context reference from the first populated key in ``keys``.
+
+    Playground application and evaluator invocations carry application/evaluator references, but
+    platform tools bind workflow identity because applications and evaluators are workflow-backed.
+    Normalize those reference families into the workflow-shaped run context so self-targeting
+    platform tools can still bind their own variant server-side.
+    """
+    for key in keys:
+        reference = _run_context_reference(references, key, with_version=with_version)
+        if reference is not None:
+            return reference
+    return None
+
+
 def _run_context_workflow() -> Optional[RunContextWorkflow]:
     """The running workflow identity, best-effort, from the resolved tracing references.
 
     The references land on the tracing context after the resolver hydrates a stored
-    variant/environment reference, grouped into the platform's three workflow entities — the
-    artifact (``workflow``), the variant (``workflow_variant``), and the revision
-    (``workflow_revision``). A playground run of an unsaved inline config carries no revision
-    reference, so ``is_draft`` is ``True``; a run pinned to a stored revision is not a draft. A run
-    with no workflow identity at all returns ``None`` and the binding simply has no value — every
-    field is optional."""
+    variant/environment reference. Native workflow invocations use ``workflow*`` keys. Playground
+    application and evaluator invocations use ``application*`` / ``evaluator*`` keys, but those
+    entities are workflow-backed, so they normalize into the same run-context shape. A playground
+    run of an unsaved inline config carries no revision reference, so ``is_draft`` is ``True``; a
+    run pinned to a stored revision is not a draft. A run with no workflow identity at all returns
+    ``None`` and the binding simply has no value — every field is optional."""
     references = TracingContext.get().references
-    revision = _run_context_reference(
-        references, "workflow_revision", with_version=True
+    revision = _run_context_reference_from_any(
+        references,
+        ("workflow_revision", "application_revision", "evaluator_revision"),
+        with_version=True,
     )
     workflow = RunContextWorkflow(
-        artifact=_run_context_reference(references, "workflow"),
-        variant=_run_context_reference(references, "workflow_variant"),
+        artifact=_run_context_reference_from_any(
+            references, ("workflow", "application", "evaluator")
+        ),
+        variant=_run_context_reference_from_any(
+            references,
+            ("workflow_variant", "application_variant", "evaluator_variant"),
+        ),
         revision=revision,
     )
     if not workflow.model_dump(exclude_none=True):

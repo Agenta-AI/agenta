@@ -51,12 +51,14 @@ export function useModelHarness({
     onChange,
     disabled,
     withTooltip,
+    revisionId,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
     disabled?: boolean
     withTooltip?: boolean
+    revisionId?: string | null
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(

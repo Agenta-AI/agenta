@@ -308,7 +308,7 @@ export function buildRunPlan(
       usageOutPath: isPi ? `${cwd}/.agenta-usage.json` : undefined,
       toolSpecs,
       executableToolSpecs: executableToolSpecsForRun,
-      useToolRelay: executableToolSpecsForRun.length > 0,
+      useToolRelay: toolSpecs.length > 0,
       systemPrompt,
       appendSystemPrompt,
       hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),
