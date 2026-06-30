@@ -21,6 +21,7 @@ SUPERTOKENS_IMAGE="${SUPERTOKENS_IMAGE:-$(require_compose_service_image "$SOURCE
 REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE")}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-$(require_compose_service_image "$SOURCE_COMPOSE_FILE" "postgres")}"
 GATEWAY_IMAGE="${AGENTA_GATEWAY_IMAGE:-}"
+SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:latest}"
 
 require_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -161,6 +162,9 @@ main() {
 
     add_service_image redis "$REDIS_IMAGE"
     ensure_volume redis /data
+
+    add_service_image seaweedfs "$SEAWEEDFS_IMAGE"
+    ensure_volume seaweedfs /data
 
     railway_call domain --service gateway --json >/dev/null 2>&1 || true
 

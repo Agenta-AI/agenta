@@ -54,6 +54,12 @@ services:
         environment:
             - SCRIPT_NAME=/api
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
+            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
+            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
+            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
+            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-}
+            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
+            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -452,6 +458,12 @@ services:
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             - AGENTA_RUNNER_URL=${AGENTA_RUNNER_URL:-http://runner:8765}
             - AGENTA_AGENT_MCPS_ENABLED=${AGENTA_AGENT_MCPS_ENABLED:-false}
+            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
+            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
+            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
+            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-}
+            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
+            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -499,6 +511,14 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
+        # === RUNTIME ============================================== #
+        # FUSE for geesefs mounts (local sandbox cwd). Mirrors docker-compose.dev.yml.
+        cap_add:
+            - SYS_ADMIN
+        devices:
+            - /dev/fuse
+        security_opt:
+            - apparmor:unconfined
         # === LABELS =============================================== #
         labels:
             - "traefik.enable=false"
