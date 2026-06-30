@@ -32,6 +32,7 @@ interface ToolPartLike {
     state?: string
     providerExecuted?: boolean
     approval?: ApprovalLike
+    render?: {kind?: unknown}
 }
 
 interface MessageLike {
@@ -60,10 +61,31 @@ const isRespondedToolPart = (part: ToolPartLike): boolean =>
  * resume (and stops the queue gate, which composes this predicate, from holding forever). v1 client
  * tools are never approval-gated; an approval-gated client tool would need a richer signal.
  */
+/**
+ * Known browser-fulfilled client tools, mirroring the app-layer registry's `BY_TOOL_NAME`
+ * (v1: `request_connection`). The package cannot import that registry (layering), so it tracks
+ * the same names. A part dispatches as a client tool by `render.kind` (finer axis) OR this name,
+ * matching the registry's `render.kind -> toolName` precedence.
+ */
+const CLIENT_TOOL_NAMES = new Set(["request_connection"])
+
+const toolPartName = (part: ToolPartLike): string =>
+    typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
+
+/** A part that is actually a client tool (browser-fulfilled), not an ordinary server tool. */
+const isClientTool = (part: ToolPartLike): boolean =>
+    typeof part.render?.kind === "string" || CLIENT_TOOL_NAMES.has(toolPartName(part))
+
 const isClientToolResult = (part: ToolPartLike): boolean =>
     isToolPart(part) &&
     part.providerExecuted !== true &&
     part.approval == null &&
+    // Load-bearing: only a real CLIENT tool (a `render.kind` hint or a known client-tool name)
+    // is a resume trigger. An ordinary server tool the agent ran itself (e.g. the `read` skill)
+    // also settles to `output-available` with `providerExecuted` falsy and no `approval` —
+    // without this guard it is misread as a client-tool result, so every tool-using turn
+    // auto-resends forever (the Aloha loop).
+    isClientTool(part) &&
     (part.state === "output-available" || part.state === "output-error")
 
 /** A resolved tool part is settled when it has run, errored, or carries a decision. */
