@@ -238,9 +238,8 @@ export const appOpenApiSchemaAtomFamily = atomFamily((workflowId: string) =>
  * Invocation URL for workflow execution.
  *
  * Calls `POST {serviceUrl}/invoke` directly on the service dispatcher,
- * mirroring how `/inspect` works. Builtin apps use `resolveBuiltinAppServiceUrl`
- * (URI-derived proxy URL) so Docker-internal hostnames never reach the browser.
- * Custom apps and evaluators fall back to `data.url` then URI.
+ * mirroring how `/inspect` works. The service URL is resolved from
+ * `data.url` (stored) or built from `data.uri` via `buildServiceUrlFromUri`.
  *
  * Unified for all workflow types (apps and evaluators).
  */
@@ -249,13 +248,7 @@ export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
         if (!entity?.data) return null
 
-        // Builtins: resolve via URI so the browser hits the public proxy, not Docker-internal.
-        const builtinUrl = resolveBuiltinAppServiceUrl(entity)
-        if (builtinUrl) {
-            return `${builtinUrl.replace(/\/+$/, "")}/invoke`
-        }
-
-        // Custom apps / evaluators: stored url then URI fallback.
+        // Resolve service URL: prefer stored url, fall back to building from URI
         const serviceUrl =
             entity.data.url?.replace(/\/+$/, "") ?? buildServiceUrlFromUri(entity.data.uri)
 
