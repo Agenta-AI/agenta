@@ -219,14 +219,22 @@ function SubscriptionRunPopover({
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
     const [recent, setRecent] = useState<SampledEvent[]>([])
 
-    const refresh = useCallback(() => {
-        loadRecentSamples(subscriptionId, label)
-            .then(setRecent)
-            .catch(() => {})
+    const refresh = useCallback(async () => {
+        try {
+            setRecent(await loadRecentSamples(subscriptionId, label))
+        } catch {
+            message.error("Couldn't load recent events")
+        }
     }, [subscriptionId, label])
 
     const waitForEvent = useCallback(async () => {
-        const result = await waitForNewDelivery(subscriptionId, label)
+        let result: Awaited<ReturnType<typeof waitForNewDelivery>>
+        try {
+            result = await waitForNewDelivery(subscriptionId, label)
+        } catch {
+            message.error("Couldn't check for new events")
+            return null
+        }
         if (!result) {
             message.info("No event arrived yet — trigger it from the app, then try again.")
             return null

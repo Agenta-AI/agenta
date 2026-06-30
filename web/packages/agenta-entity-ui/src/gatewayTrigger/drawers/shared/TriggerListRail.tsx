@@ -7,31 +7,32 @@ import {Button, Spin, Typography} from "antd"
 export const DRAFT_PREFIX = "draft:"
 export const isDraftId = (id?: string): id is string => !!id && id.startsWith(DRAFT_PREFIX)
 
-// Hover-revealed remove affordance for a list row. A span (not a button) so it can live
-// inside the row's <button> without nesting interactive elements.
+// Hover-revealed remove affordance: a real <button> (keyboard-operable, appears on
+// focus/hover) rendered as a SIBLING of the row's click button — never nested inside it
+// (nested <button>s are invalid + unreachable). Reset to avoid the preflight-off native chrome.
 export function RowRemoveButton({onRemove}: {onRemove: () => void}) {
     return (
-        <span
-            role="button"
+        <button
+            type="button"
             aria-label="Remove"
-            tabIndex={-1}
             onClick={(e) => {
                 e.stopPropagation()
                 onRemove()
             }}
-            className="flex shrink-0 cursor-pointer items-center self-center rounded p-0.5 text-[var(--ag-colorTextTertiary)] opacity-0 hover:bg-[var(--ag-colorFillSecondary)] hover:text-[var(--ag-colorText)] group-hover:opacity-100"
+            className="flex shrink-0 cursor-pointer appearance-none items-center self-center rounded border-0 bg-transparent p-0.5 text-[var(--ag-colorTextTertiary)] opacity-0 hover:bg-[var(--ag-colorFillSecondary)] hover:text-[var(--ag-colorText)] focus-visible:opacity-100 group-hover:opacity-100"
         >
             <X size={13} />
-        </span>
+        </button>
     )
 }
 
-const rowClass = (active: boolean) =>
-    `group flex w-full cursor-pointer items-start gap-2 rounded border-0 px-2 py-1.5 text-left ${
-        active
-            ? "bg-[var(--ag-colorPrimaryBg)]"
-            : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
+const containerClass = (active: boolean) =>
+    `group flex w-full items-start gap-2 rounded px-2 py-1.5 ${
+        active ? "bg-[var(--ag-colorPrimaryBg)]" : "hover:bg-[var(--ag-colorFillTertiary)]"
     }`
+
+const clickClass =
+    "flex min-w-0 flex-1 cursor-pointer appearance-none items-start gap-2 border-0 bg-transparent p-0 text-left"
 
 /** An unsaved draft slot row: muted dot, name (or fallback label), "Draft · not saved". */
 export function DraftListRow({
@@ -48,22 +49,24 @@ export function DraftListRow({
     onRemove?: () => void
 }) {
     return (
-        <button type="button" onClick={onClick} className={rowClass(active)}>
-            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorTextQuaternary)]" />
-            <span className="min-w-0 flex-1">
-                <span
-                    className={`block truncate text-xs font-medium ${
-                        active ? "text-[var(--ag-colorPrimary)]" : "text-[var(--ag-colorText)]"
-                    }`}
-                >
-                    {name.trim() || draftLabel}
+        <div className={containerClass(active)}>
+            <button type="button" onClick={onClick} className={clickClass}>
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorTextQuaternary)]" />
+                <span className="min-w-0 flex-1">
+                    <span
+                        className={`block truncate text-xs font-medium ${
+                            active ? "text-[var(--ag-colorPrimary)]" : "text-[var(--ag-colorText)]"
+                        }`}
+                    >
+                        {name.trim() || draftLabel}
+                    </span>
+                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                        Draft · not saved
+                    </span>
                 </span>
-                <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
-                    Draft · not saved
-                </span>
-            </span>
+            </button>
             {onRemove && <RowRemoveButton onRemove={onRemove} />}
-        </button>
+        </div>
     )
 }
 
@@ -86,30 +89,34 @@ export function EntityListRow({
     onRemove?: () => void
 }) {
     return (
-        <button type="button" onClick={onClick} className={rowClass(active)}>
-            <span
-                className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
-                    running ? "bg-[var(--ag-colorSuccess)]" : "bg-[var(--ag-colorTextQuaternary)]"
-                }`}
-            />
-            <span className="min-w-0 flex-1">
+        <div className={containerClass(active)}>
+            <button type="button" onClick={onClick} className={clickClass}>
                 <span
-                    className={`block truncate text-xs ${
-                        active
-                            ? "font-medium text-[var(--ag-colorPrimary)]"
-                            : titleMuted
-                              ? "text-[var(--ag-colorTextTertiary)]"
-                              : "text-[var(--ag-colorText)]"
+                    className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
+                        running
+                            ? "bg-[var(--ag-colorSuccess)]"
+                            : "bg-[var(--ag-colorTextQuaternary)]"
                     }`}
-                >
-                    {title}
+                />
+                <span className="min-w-0 flex-1">
+                    <span
+                        className={`block truncate text-xs ${
+                            active
+                                ? "font-medium text-[var(--ag-colorPrimary)]"
+                                : titleMuted
+                                  ? "text-[var(--ag-colorTextTertiary)]"
+                                  : "text-[var(--ag-colorText)]"
+                        }`}
+                    >
+                        {title}
+                    </span>
+                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                        {subtitle}
+                    </span>
                 </span>
-                <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
-                    {subtitle}
-                </span>
-            </span>
+            </button>
             {onRemove && <RowRemoveButton onRemove={onRemove} />}
-        </button>
+        </div>
     )
 }
 

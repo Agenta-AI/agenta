@@ -74,32 +74,41 @@ export function compileMessageTemplate(
     return {[primaryKey]: content}
 }
 
-function contentToTemplate(content: unknown): string {
+// A content value the composer can REPRODUCE: a plain string, or an array of strictly
+// `{type:"text", text}` parts (what `segmentsToContent` emits). Returns the template, or null
+// when not representable (an image/audio part, or a malformed object) so callers don't show —
+// then silently collapse — a payload they can't round-trip.
+function contentToTemplate(content: unknown): string | null {
     if (typeof content === "string") {
         return content.startsWith("$") || content.startsWith("/")
             ? selectorToToken(content)
             : content
     }
     if (Array.isArray(content)) {
-        return content
-            .map((p) => {
-                const text =
-                    p && typeof p === "object" && "text" in p
-                        ? String((p as {text: unknown}).text ?? "")
-                        : typeof p === "string"
-                          ? p
-                          : ""
-                return text.startsWith("$") || text.startsWith("/") ? selectorToToken(text) : text
-            })
-            .join("")
+        const parts: string[] = []
+        for (const p of content) {
+            if (
+                !p ||
+                typeof p !== "object" ||
+                (p as {type?: unknown}).type !== "text" ||
+                typeof (p as {text?: unknown}).text !== "string"
+            ) {
+                return null
+            }
+            const text = (p as {text: string}).text
+            parts.push(text.startsWith("$") || text.startsWith("/") ? selectorToToken(text) : text)
+        }
+        return parts.join("")
     }
-    return ""
+    return null
 }
 
 /**
- * Parse `inputs_fields` (serialized JSON) back into a token template for the editor.
- * Returns "" when the mapping isn't a representable message (the user can fall back to the
- * raw-JSON advanced view).
+ * Parse `inputs_fields` (serialized JSON) back into a token template for the editor. Returns ""
+ * unless the mapping is EXACTLY what `compileMessageTemplate` emits — a single `{role:"user"}`
+ * message (chat) / the one `primaryKey` (completion) with representable content, and no other
+ * keys. Anything else (multi-message, system/assistant, non-text parts, extra keys) isn't
+ * representable; the caller falls back to the raw-JSON Advanced editor instead of collapsing it.
  */
 export function parseMessageTemplate(
     inputsText: string,
@@ -114,14 +123,16 @@ export function parseMessageTemplate(
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return ""
     const obj = parsed as Record<string, unknown>
+    const keys = Object.keys(obj)
     if (isChat) {
-        const messages = Array.isArray(obj.messages) ? (obj.messages as unknown[]) : []
-        const user =
-            (messages.find(
-                (m) => !!m && typeof m === "object" && (m as {role?: string}).role === "user",
-            ) as {content?: unknown} | undefined) ??
-            (messages[0] as {content?: unknown} | undefined)
-        return user ? contentToTemplate(user.content) : ""
+        if (keys.length !== 1 || keys[0] !== "messages") return ""
+        const messages = obj.messages
+        if (!Array.isArray(messages) || messages.length !== 1) return ""
+        const message = messages[0]
+        if (!message || typeof message !== "object" || (message as {role?: string}).role !== "user")
+            return ""
+        return contentToTemplate((message as {content?: unknown}).content) ?? ""
     }
-    return contentToTemplate(obj[primaryKey])
+    if (keys.length !== 1 || keys[0] !== primaryKey) return ""
+    return contentToTemplate(obj[primaryKey]) ?? ""
 }

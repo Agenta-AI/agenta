@@ -22,6 +22,29 @@ function parseObject(inputsText: string): Record<string, unknown> {
 }
 
 /**
+ * Parse the editor text into `inputs_fields`, enforcing the STORED shape: a non-array JSON
+ * object (key → selector/literal/parts). Arrays/strings/numbers parse fine but break every
+ * downstream reader (message composition, previews, the resolver's per-key walk), so reject
+ * them at the save boundary instead of persisting an unreadable mapping.
+ */
+export function parseInputsFields(
+    inputsText: string,
+): {value: Record<string, unknown>; error?: undefined} | {value?: undefined; error: string} {
+    const trimmed = inputsText.trim()
+    if (!trimmed) return {value: {}}
+    let parsed: unknown
+    try {
+        parsed = JSON.parse(trimmed)
+    } catch {
+        return {error: "Inputs mapping is not valid JSON"}
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return {error: "Inputs mapping must be a JSON object"}
+    }
+    return {value: parsed as Record<string, unknown>}
+}
+
+/**
  * Read a message's `content` as readable text. A trigger message's content is either a
  * plain string or an array of `{type:"text", text}` parts (the only way the resolver can
  * carry mixed literal + `$.selector` in one message — each whole leaf is resolved). Joins
@@ -49,15 +72,19 @@ export function getScheduleMessage(
     isChat: boolean,
     primaryKey: string,
 ): string {
+    // Representable only as the single user/string message `setScheduleMessage` writes (it
+    // REPLACES `messages` wholesale, so a multi-message / non-user / non-string-content payload
+    // would be collapsed on save). Extra top-level keys are fine — setScheduleMessage preserves
+    // them. Not representable → "" so the caller falls back to the raw-JSON editor.
     const obj = parseObject(inputsText)
     if (isChat) {
-        const messages = Array.isArray(obj.messages) ? (obj.messages as unknown[]) : []
-        const user =
-            (messages.find(
-                (m) => !!m && typeof m === "object" && (m as {role?: string}).role === "user",
-            ) as {content?: unknown} | undefined) ??
-            (messages[0] as {content?: unknown} | undefined)
-        return messageContentText(user?.content)
+        const messages = obj.messages
+        if (!Array.isArray(messages) || messages.length !== 1) return ""
+        const message = messages[0]
+        if (!message || typeof message !== "object" || (message as {role?: string}).role !== "user")
+            return ""
+        const content = (message as {content?: unknown}).content
+        return typeof content === "string" ? content : ""
     }
     const value = obj[primaryKey]
     return typeof value === "string" ? value : ""

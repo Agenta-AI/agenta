@@ -11,6 +11,7 @@ import {describe, expect, it} from "vitest"
 import {
     getScheduleMessage,
     getScheduleMessagePreview,
+    parseInputsFields,
     setScheduleMessage,
 } from "../../src/gatewayTrigger/core/messageInputs"
 
@@ -30,6 +31,53 @@ describe("getScheduleMessage", () => {
         expect(getScheduleMessage("{}", true, "messages")).toBe("")
         expect(getScheduleMessage("{}", false, "query")).toBe("")
         expect(getScheduleMessage("not json", false, "query")).toBe("")
+    })
+
+    it("returns empty for non-reproducible chat payloads (multi/non-user/non-string)", () => {
+        const j = (v: unknown) => JSON.stringify(v)
+        expect(
+            getScheduleMessage(
+                j({
+                    messages: [
+                        {role: "user", content: "a"},
+                        {role: "user", content: "b"},
+                    ],
+                }),
+                true,
+                "messages",
+            ),
+        ).toBe("")
+        expect(
+            getScheduleMessage(
+                j({messages: [{role: "assistant", content: "a"}]}),
+                true,
+                "messages",
+            ),
+        ).toBe("")
+        expect(
+            getScheduleMessage(
+                j({messages: [{role: "user", content: [{type: "text", text: "a"}]}]}),
+                true,
+                "messages",
+            ),
+        ).toBe("")
+    })
+})
+
+describe("parseInputsFields", () => {
+    it("accepts a non-array object", () => {
+        expect(parseInputsFields('{"context":"$"}')).toEqual({value: {context: "$"}})
+    })
+
+    it("treats empty as {}", () => {
+        expect(parseInputsFields("   ")).toEqual({value: {}})
+    })
+
+    it("rejects arrays, primitives, and invalid JSON", () => {
+        expect(parseInputsFields("[]").error).toBeTruthy()
+        expect(parseInputsFields('"hi"').error).toBeTruthy()
+        expect(parseInputsFields("5").error).toBeTruthy()
+        expect(parseInputsFields("{not json").error).toBeTruthy()
     })
 })
 

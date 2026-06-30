@@ -7,6 +7,7 @@ import {
 import {
     compileMessageTemplate,
     getScheduleMessagePreview,
+    parseInputsFields,
     isConnectionActive,
     isEntityActive,
     isEntityValid,
@@ -654,20 +655,25 @@ function SubscriptionForm({
             message.error("Select an environment")
             return null
         }
+        // Deployed binding resolves via app slug + environment; without the app the reference
+        // is ambiguous (an env can host many apps). Fail loud rather than persist it.
+        if (bindMode === "environment" && !appSlug) {
+            message.error("This trigger isn't linked to an app — use Pinned (a specific revision)")
+            return null
+        }
         if (bindMode === "revision" && !workflowRevId) {
             message.error("Bind a workflow")
             return null
         }
 
-        let inputsFields: Record<string, unknown> | string = {}
-        try {
-            inputsFields = inputsText.trim() ? JSON.parse(inputsText) : {}
-            setInputsError(null)
-        } catch {
-            setInputsError("Invalid JSON")
-            message.error("inputs mapping is not valid JSON")
+        const parsedInputs = parseInputsFields(inputsText)
+        if (parsedInputs.error) {
+            setInputsError(parsedInputs.error)
+            message.error(parsedInputs.error)
             return null
         }
+        setInputsError(null)
+        const inputsFields = parsedInputs.value
 
         let triggerConfig: Record<string, unknown> | undefined
         try {
@@ -1032,6 +1038,7 @@ function SubscriptionForm({
                             onWaitForEvent={onWaitForEvent}
                             recentEvents={recentSamples}
                             isAgent={isAgent}
+                            isEdit={isEdit}
                             isChat={isChatInput}
                             primaryKey={primaryInputKey}
                         />
@@ -2001,6 +2008,7 @@ function MappingSection({
     onWaitForEvent,
     recentEvents = [],
     isAgent,
+    isEdit,
     isChat,
     primaryKey,
 }: {
@@ -2016,12 +2024,17 @@ function MappingSection({
     onWaitForEvent?: () => Promise<SampledEvent | null>
     recentEvents?: SampledEvent[]
     isAgent: boolean
+    isEdit: boolean
     isChat: boolean
     primaryKey: string
 }) {
     const samplePayload = eventSample
     const context = useMemo(() => buildPreviewContext(eventSample), [eventSample])
-    const [raw, setRaw] = useState(false)
+    // Open in Advanced (raw JSON) when editing a saved mapping the token composer can't
+    // reproduce — otherwise the first composer edit would silently collapse it.
+    const [raw, setRaw] = useState(
+        () => isEdit && !!value.trim() && parseMessageTemplate(value, isChat, primaryKey) === "",
+    )
     const insertApi = useRef<{insert: (path: string) => void} | null>(null)
 
     // Token template is the composer's source of truth; it compiles to `value`

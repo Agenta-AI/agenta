@@ -71,6 +71,7 @@ export {
     getScheduleMessage,
     getScheduleMessagePreview,
     messageContentText,
+    parseInputsFields,
     setScheduleMessage,
 } from "./core/messageInputs"
 export {

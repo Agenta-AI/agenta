@@ -7,6 +7,7 @@ import {
 import {
     describeCron,
     getScheduleMessage,
+    parseInputsFields,
     isEntityActive,
     localFaceToUtcIso,
     setScheduleMessage,
@@ -579,6 +580,12 @@ function ScheduleForm({
             message.error("Select an environment")
             return
         }
+        // Deployed binding resolves via app slug + environment; without the app the reference
+        // is ambiguous (an env can host many apps). Fail loud rather than persist it.
+        if (bindMode === "environment" && !appSlug) {
+            message.error("This schedule isn't linked to an app — use Pinned (a specific revision)")
+            return
+        }
         if (bindMode === "revision" && !workflowRevId) {
             message.error("Bind a workflow")
             return
@@ -588,13 +595,12 @@ function ScheduleForm({
             return
         }
 
-        let inputsFields: Record<string, unknown> = {}
-        try {
-            inputsFields = inputsText.trim() ? JSON.parse(inputsText) : {}
-        } catch {
-            message.error("inputs mapping is not valid JSON")
+        const parsedInputs = parseInputsFields(inputsText)
+        if (parsedInputs.error) {
+            message.error(parsedInputs.error)
             return
         }
+        const inputsFields = parsedInputs.value
 
         // On a fresh pick, send the application family by the picker's ids. The
         // scoped (playground) picker's leaf is a specific REVISION → bind via
@@ -835,6 +841,7 @@ function ScheduleForm({
                         <MessageComposer
                             inputsText={inputsText}
                             onChange={setInputsText}
+                            isEdit={isEdit}
                             isChat={isChatInput}
                             primaryKey={primaryInputKey}
                             disabled={isMutating}
@@ -1015,17 +1022,26 @@ function WindowField({
 function MessageComposer({
     inputsText,
     onChange,
+    isEdit,
     isChat,
     primaryKey,
     disabled,
 }: {
     inputsText: string
     onChange: (next: string) => void
+    isEdit: boolean
     isChat: boolean
     primaryKey: string
     disabled?: boolean
 }) {
-    const [rawMode, setRawMode] = useState(false)
+    // Open in Advanced (raw JSON) when editing a saved mapping the simple composer can't
+    // reproduce, so the first edit doesn't collapse it to a single message.
+    const [rawMode, setRawMode] = useState(
+        () =>
+            isEdit &&
+            !!inputsText.trim() &&
+            getScheduleMessage(inputsText, isChat, primaryKey) === "",
+    )
 
     const rawValid = useMemo(() => {
         const t = inputsText.trim()

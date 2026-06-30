@@ -106,3 +106,56 @@ describe("parseMessageTemplate round-trips", () => {
         expect(parseMessageTemplate(JSON.stringify({context: "$"}), true, "messages")).toBe("")
     })
 })
+
+describe("parseMessageTemplate strictness (non-representable → '')", () => {
+    const j = (v: unknown) => JSON.stringify(v)
+
+    it("rejects multiple messages", () => {
+        expect(
+            parseMessageTemplate(
+                j({
+                    messages: [
+                        {role: "user", content: "a"},
+                        {role: "user", content: "b"},
+                    ],
+                }),
+                true,
+                "messages",
+            ),
+        ).toBe("")
+    })
+
+    it("rejects a non-user role", () => {
+        expect(
+            parseMessageTemplate(
+                j({messages: [{role: "assistant", content: "a"}]}),
+                true,
+                "messages",
+            ),
+        ).toBe("")
+    })
+
+    it("rejects non-text content parts", () => {
+        expect(
+            parseMessageTemplate(
+                j({messages: [{role: "user", content: [{type: "image_url", url: "x"}]}]}),
+                true,
+                "messages",
+            ),
+        ).toBe("")
+    })
+
+    it("rejects extra keys alongside messages (compile would drop them)", () => {
+        expect(
+            parseMessageTemplate(
+                j({messages: [{role: "user", content: "a"}], context: "$"}),
+                true,
+                "messages",
+            ),
+        ).toBe("")
+    })
+
+    it("completion: rejects extra keys beyond the primary input", () => {
+        expect(parseMessageTemplate(j({query: "$.x", other: "y"}), false, "query")).toBe("")
+    })
+})
