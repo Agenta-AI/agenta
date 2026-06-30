@@ -59,7 +59,7 @@ CONCISE = (
 
 
 async def test_failure_500_returns_result_body_with_concise_error(monkeypatch):
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     monkeypatch.setattr(
         httpx,
         "AsyncClient",
@@ -75,7 +75,7 @@ async def test_failure_500_returns_result_body_with_concise_error(monkeypatch):
 async def test_failure_500_surfaces_concise_error_through_result_from_wire(monkeypatch):
     # End-to-end of the batch boundary: the concise provider message reaches the caller,
     # matching what SSE already surfaces, not a generic "HTTP 500".
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     monkeypatch.setattr(
         httpx,
         "AsyncClient",
@@ -93,7 +93,7 @@ async def test_failure_500_surfaces_concise_error_through_result_from_wire(monke
 
 
 async def test_success_2xx_still_returns_body(monkeypatch):
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     monkeypatch.setattr(
         httpx,
         "AsyncClient",
@@ -108,7 +108,7 @@ async def test_success_2xx_still_returns_body(monkeypatch):
 async def test_non_result_error_body_falls_through_to_transport_error(monkeypatch):
     # A genuine transport failure (no ``ok`` key, e.g. a proxy/gateway error page) stays a
     # generic transport error; we do not mistake an arbitrary 4xx/5xx body for a run result.
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     monkeypatch.setattr(
         httpx,
         "AsyncClient",
@@ -125,7 +125,7 @@ async def test_non_result_error_body_falls_through_to_transport_error(monkeypatc
 
 async def test_non_json_error_body_falls_through_to_transport_error(monkeypatch):
     # A 500 whose body is not JSON at all (e.g. an HTML error page) is a transport failure.
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     monkeypatch.setattr(
         httpx,
         "AsyncClient",

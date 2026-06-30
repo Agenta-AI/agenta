@@ -328,6 +328,8 @@ class TriggerSchedule(Identifier, Lifecycle, Header, Metadata):
 
 class TriggerScheduleCreate(Header, Metadata):
     data: TriggerScheduleData
+    #
+    flags: TriggerScheduleFlags = Field(default_factory=TriggerScheduleFlags)
 
 
 class TriggerScheduleEdit(Identifier, Header, Metadata):

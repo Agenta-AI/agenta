@@ -6,7 +6,7 @@ Two layers, both against in-memory fakes:
 2. ``sign_mount_credentials`` derives the prefix-scoped policy, returns scoped temp
    credentials, and never leaks the master key.
 
-The real STS call (a signed ``GetFederationToken`` against the S3 endpoint) is covered
+The real STS call (a signed ``AssumeRoleWithWebIdentity`` against the S3 endpoint) is covered
 live against the docker-compose SeaweedFS in the acceptance suite; the fakes here exercise
 the service-side derivation (prefix, bucket, policy scope, XML parsing, master-key isolation).
 """
@@ -163,10 +163,10 @@ class TestSignMountCredentials:
 
         creds = await service.sign_mount_credentials(project_id=pid, mount_id=mount.id)
 
-        # Prefix is identity-derived: <project_id>/<mount_id> (slug-independent).
-        assert storage.signed_with["prefix"] == f"{pid}/{mount.id}"
+        # Prefix is identity-derived: mounts/<project_id>/<mount_id> (slug-independent).
+        assert storage.signed_with["prefix"] == f"mounts/{pid}/{mount.id}"
         assert storage.signed_with["bucket"] == _BUCKET
-        assert creds.prefix == f"{pid}/{mount.id}"
+        assert creds.prefix == f"mounts/{pid}/{mount.id}"
         assert creds.bucket == _BUCKET
 
     async def test_returns_scoped_not_master_credentials(self):
@@ -221,9 +221,9 @@ class TestStoragePolicyScope:
     async def test_policy_resource_targets_only_the_mount_prefix(self):
         from json import loads
 
-        from oss.src.core.mounts.storage import MountStorage
+        from oss.src.core.store.storage import ObjectStore
 
-        storage = MountStorage(
+        storage = ObjectStore(
             endpoint_url="http://seaweedfs:8333",
             access_key=_MASTER_KEY,
             secret_key=_MASTER_SECRET,
@@ -249,20 +249,20 @@ class TestStoragePolicyScope:
             for r in resources
         )
 
-    async def test_parses_federation_token_xml(self):
-        from oss.src.core.mounts.storage import _parse_federation_token
+    async def test_parses_sts_credentials_xml(self):
+        from oss.src.core.store.storage import _parse_sts_credentials
 
         xml = (
             '<?xml version="1.0"?>'
-            '<GetFederationTokenResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">'
-            "<GetFederationTokenResult><Credentials>"
+            '<AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">'
+            "<AssumeRoleWithWebIdentityResult><Credentials>"
             "<AccessKeyId>ASIASCOPED</AccessKeyId>"
             "<SecretAccessKey>scoped-secret</SecretAccessKey>"
             "<SessionToken>scoped-token</SessionToken>"
             "<Expiration>2026-06-30T08:00:00Z</Expiration>"
-            "</Credentials></GetFederationTokenResult></GetFederationTokenResponse>"
+            "</Credentials></AssumeRoleWithWebIdentityResult></AssumeRoleWithWebIdentityResponse>"
         )
-        creds = _parse_federation_token(xml)
+        creds = _parse_sts_credentials(xml)
         assert creds.access_key == "ASIASCOPED"
         assert creds.secret_key == "scoped-secret"
         assert creds.session_token == "scoped-token"

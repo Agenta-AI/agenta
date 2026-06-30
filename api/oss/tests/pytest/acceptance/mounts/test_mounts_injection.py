@@ -9,7 +9,7 @@ credentials are prefix-scoped (carry the mount's `<project_id>/<mount_id>` prefi
 bucket root), and a durable file written through the mount's file API survives a re-bind
 (the cross-turn persistence contract, exercised at the store level).
 
-Requires a configured object store with a working STS endpoint (AGENTA_MOUNTS_STORAGE_* →
+Requires a configured object store with a working STS endpoint (AGENTA_STORE_* →
 SeaweedFS in the dev stack). A 503 means no store / STS — skip rather than fail.
 
 The full runner round-trip (geesefs mount inside a live run, file visible across two turns)

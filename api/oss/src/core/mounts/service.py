@@ -16,7 +16,7 @@ from oss.src.core.mounts.dtos import (
     MountQuery,
 )
 from oss.src.core.mounts.interfaces import MountsDAOInterface
-from oss.src.core.mounts.storage import MountStorage
+from oss.src.core.store.storage import ObjectStore
 from oss.src.core.mounts.types import (
     MountFileNotFound,
     MountNotFound,
@@ -88,7 +88,7 @@ class MountsService:
         self,
         *,
         mounts_dao: MountsDAOInterface,
-        mount_storage: Optional[MountStorage] = None,
+        mount_storage: Optional[ObjectStore] = None,
         bucket: Optional[str] = None,
     ):
         self.mounts_dao = mounts_dao
@@ -96,8 +96,8 @@ class MountsService:
         self.bucket = bucket
 
     def _storage_key(self, *, project_id: UUID, mount: Mount, path: str = "") -> str:
-        """Object-key prefix for a mount: <project_id>/<mount_id>/<path>. Slug-independent."""
-        base = f"{project_id}/{mount.id}"
+        """Object-key prefix for a mount: mounts/<project_id>/<mount_id>/<path>."""
+        base = f"mounts/{project_id}/{mount.id}"
         return f"{base}/{path.lstrip('/')}" if path else f"{base}/"
 
     async def create_mount(

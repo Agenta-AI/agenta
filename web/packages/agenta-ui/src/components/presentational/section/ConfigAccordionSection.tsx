@@ -71,6 +71,20 @@ export interface ConfigAccordionSectionProps {
      * layout). @default true
      */
     collapsible?: boolean
+    /**
+     * Header title size. `"default"` is 14px (config panel); `"compact"` is 12px for
+     * dense surfaces that follow the 12px text convention (e.g. the trigger drawers).
+     * @default "default"
+     */
+    size?: "default" | "compact"
+    /**
+     * Tints the leading icon to reflect the section's completion:
+     * `"complete"` (filled — success), `"warning"` (required but empty), `"default"`
+     * (neutral, e.g. an empty optional field). @default "default"
+     */
+    status?: "default" | "complete" | "warning"
+    /** Only show `summary` while the section is collapsed. @default false (always). */
+    summaryCollapsedOnly?: boolean
     /** Additional CSS class for the section wrapper. */
     className?: string
     /** Section body. */
@@ -93,6 +107,9 @@ export function ConfigAccordionSection({
     locked = false,
     lockedReason,
     noDivider = false,
+    size = "default",
+    status = "default",
+    summaryCollapsedOnly = false,
     className,
     children,
 }: ConfigAccordionSectionProps) {
@@ -146,15 +163,29 @@ export function ConfigAccordionSection({
             >
                 <div className="flex min-w-0 items-center gap-2">
                     {icon ? (
-                        <span className="flex shrink-0 items-center text-[var(--ag-c-586673,#586673)]">
+                        <span
+                            className={cn(
+                                "flex shrink-0 items-center",
+                                status === "complete" && "text-[var(--ag-colorSuccess)]",
+                                status === "warning" && "text-[var(--ag-colorWarning)]",
+                                status === "default" && "text-[var(--ag-c-586673,#586673)]",
+                            )}
+                        >
                             {icon}
                         </span>
                     ) : null}
-                    <Text className="truncate text-sm font-medium">{title}</Text>
+                    <Text
+                        className={cn(
+                            "truncate font-medium",
+                            size === "compact" ? "text-xs" : "text-sm",
+                        )}
+                    >
+                        {title}
+                    </Text>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
-                    {summary ? (
+                    {summary && (!summaryCollapsedOnly || !isOpen) ? (
                         <Text
                             type="secondary"
                             className="max-w-[220px] truncate text-right text-xs"

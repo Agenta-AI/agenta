@@ -168,7 +168,9 @@ The chart creates the following workloads inside your Kubernetes namespace:
 - **Worker (evaluations)** for async evaluation jobs
 - **Worker (webhooks)** for webhook delivery
 - **Worker (events)** for async event processing
-- **Cron** for scheduled maintenance tasks
+- **Worker (records)** for session record persistence from the `streams:records` stream
+- **Worker (interactions)** for async session interaction dispatch from `queues:interactions`
+- **Worker (triggers)** for automated workflow trigger processing
 - **PostgreSQL** (Bitnami subchart) with three databases
 - **Redis Volatile** for caching and pub/sub
 - **Redis Durable** for queues and persistent state
@@ -285,7 +287,7 @@ When these values are set, they override the edition-based defaults.
 
 ### Component Toggles and Replicas
 
-Each component (`api`, `web`, `services`, `workerEvaluations`, `workerTracing`, `workerWebhooks`, `workerEvents`, `cron`, `supertokens`) supports:
+Each component (`api`, `web`, `services`, `workerEvaluations`, `workerTracing`, `workerWebhooks`, `workerEvents`, `workerRecords`, `workerTriggers`, `workerInteractions`, `cron`, `supertokens`) supports:
 
 | Value | Purpose | Default |
 |-------|---------|---------|

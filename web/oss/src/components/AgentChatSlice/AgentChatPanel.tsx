@@ -9,9 +9,10 @@ import {
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
+import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useChat} from "@ai-sdk/react"
-import {Bubble, Sender} from "@ant-design/x"
-import {ArrowDown, Paperclip, Stop, UploadSimple} from "@phosphor-icons/react"
+import {Bubble} from "@ant-design/x"
+import {ArrowDown, Paperclip, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
@@ -32,21 +33,20 @@ import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import QueuedMessages from "./components/QueuedMessages"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
-import SessionTabLabel from "./components/SessionTabLabel"
+import SessionTagBar from "./components/SessionTagBar"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useChatScopeKey} from "./state/scope"
 import {
-    type AgentChatSession,
+    type SessionRunStatus,
     activeSessionIdAtomFamily,
     addSessionAtomFamily,
     closeSessionAtomFamily,
     persistSessionMessagesAtom,
     renameSessionAtomFamily,
-    sessionFirstUserTextAtomFamily,
     sessionMessagesAtom,
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
-    setSessionStreamingAtom,
+    setSessionStatusAtom,
 } from "./state/sessions"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
@@ -159,16 +159,19 @@ const MessageRow = ({
     children: React.ReactNode
 }) => {
     const [shown, setShown] = useState(!enter)
+    // Reveal one frame after mount so the opacity transition plays. Deps are [] (NOT
+    // [enter]) on purpose: an `enter` flip when a sibling turn arrives must not cancel
+    // this rAF, or a just-sent message strands at opacity-0 for the whole agent run.
     useEffect(() => {
-        if (!enter) return
         const raf = requestAnimationFrame(() => setShown(true))
         return () => cancelAnimationFrame(raf)
-    }, [enter])
+    }, [])
+    // `shown || !enter` is a belt-and-suspenders: a settled row (id seen) is always visible.
     return (
         <div
             data-mid={mid}
             className={`flex flex-col gap-1 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out ${
-                shown ? "opacity-100" : "motion-safe:opacity-0"
+                shown || !enter ? "opacity-100" : "motion-safe:opacity-0"
             }`}
         >
             {children}
@@ -180,8 +183,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
+    const setSessionStatus = useSetAtom(setSessionStatusAtom)
 
-    const [input, setInput] = useState("")
     const [files, setFiles] = useState<UploadFile[]>([])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
@@ -207,7 +210,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // declarative EnhancedModal (centered, 16px radius).
     const [modal, modalContextHolder] = Modal.useModal()
 
-    const senderRef = useRef<React.ComponentRef<typeof Sender>>(null)
+    const richInputRef = useRef<RichChatInputHandle>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     // Stick to the bottom of the scrollable area. This is the ONE source of truth for auto-scroll:
     // the active turn reserves a viewport (min-h-full), so "bottom" puts the latest question at the
@@ -271,17 +274,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     })
 
     const busy = status === "submitted" || status === "streaming"
-
-    // Publish this client's live streaming state for the session so the Session inspector knows
-    // THIS tab is the active watcher (inline chat streams over the runner NDJSON, not the
-    // coordination-plane attach). Clear on unmount so a closed/navigated-away tab stops claiming it.
-    const setSessionStreaming = useSetAtom(setSessionStreamingAtom)
-    useEffect(() => {
-        setSessionStreaming({id: sessionId, streaming: busy})
-    }, [sessionId, busy, setSessionStreaming])
-    useEffect(() => {
-        return () => setSessionStreaming({id: sessionId, streaming: false})
-    }, [sessionId, setSessionStreaming])
 
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
@@ -355,10 +347,32 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         sendQueued,
     })
 
+    // Publish this session's run state (single source of truth: drives the tab bar's status dot
+    // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
+    // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
+    // tab keeps no stale dot and stops claiming it's the live watcher.
+    useEffect(() => {
+        const status: SessionRunStatus = error
+            ? "error"
+            : hitlPending
+              ? "awaiting"
+              : busy
+                ? "running"
+                : "idle"
+        setSessionStatus({id: sessionId, status})
+    }, [error, hitlPending, busy, sessionId, setSessionStatus])
+    useEffect(
+        () => () => setSessionStatus({id: sessionId, status: "idle"}),
+        [sessionId, setSessionStatus],
+    )
+
     // Consume a pending "Run in playground" request (declared above) via the queue's `submit`,
     // so it interleaves with HITL approval / queued messages exactly like a manual send.
     useEffect(() => {
         if (!pendingRun || activeSessionId !== sessionId) return
+        // A new-session run is handled at the panel level first (it creates + activates a fresh
+        // session and clears the flag); this per-session consumer ignores it until then.
+        if (pendingRun.newSession) return
         if (consumedRunNonceRef.current === pendingRun.nonce) return
         consumedRunNonceRef.current = pendingRun.nonce
         stickRef.current = true
@@ -736,7 +750,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         setStopped(false)
         // One path: `submit` sends now or queues behind held messages via the shared release gate.
         submit({text: trimmed, fileParts})
-        setInput("")
         setFiles([])
         setRejections([])
         setAttachmentsOpen(false)
@@ -754,8 +767,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             const run = () => {
                 if (isUser) {
                     setMessages(msgs.slice(0, idx))
-                    setInput(messageText(message))
-                    requestAnimationFrame(() => senderRef.current?.focus())
+                    richInputRef.current?.setMarkdown(messageText(message))
+                    requestAnimationFrame(() => richInputRef.current?.focus())
                 } else {
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)
                 }
@@ -919,91 +932,69 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 )}
             </div>
 
-            {/* Neutralize antd X Sender's header chrome: `.ant-sender-header-header` ships a
-                tinted (`colorFillAlter`) + top-rounded box that reads as a second border inside
-                the composer; flatten it and drop the header-content's double padding so our
-                attachment panel sits flush on the composer surface. */}
-            <div className="[&_.ant-sender-header-content]:!p-0 [&_.ant-sender-header-header]:!rounded-none [&_.ant-sender-header-header]:!bg-transparent">
-                <Sender
-                    ref={senderRef}
-                    value={input}
-                    onChange={setInput}
-                    // NOT `loading={busy}`: Ant X gates `onSubmit` on `!loading`, so a loading Sender
-                    // can't submit. The send button stays live and routes to the queue while busy
-                    // (see `handleSubmit`); stopping the stream lives in the footer below instead.
-                    onSubmit={handleSubmit}
-                    footer={
-                        busy || hitlPending || queued.length > 0 ? (
-                            <div className="flex items-center justify-between gap-2">
-                                {/* Left: collapsed queue pill → popover. */}
-                                {queued.length > 0 ? (
-                                    <QueuedMessages
-                                        queued={queued}
-                                        onRemove={removeQueued}
-                                        onClear={clearQueue}
-                                    />
-                                ) : (
-                                    <span />
-                                )}
-                                {/* Right: why nothing is sending — streaming (stoppable) vs HITL-held. */}
-                                {busy ? (
-                                    <span className="inline-flex items-center gap-2">
-                                        <span className="text-xs text-colorTextTertiary">
-                                            Streaming…
-                                        </span>
-                                        <Button
-                                            size="small"
-                                            icon={<Stop size={14} weight="fill" />}
-                                            onClick={handleStop}
-                                        >
-                                            Stop
-                                        </Button>
-                                    </span>
-                                ) : hitlPending ? (
-                                    <span className="text-xs text-colorTextTertiary">
-                                        Waiting for approval
-                                    </span>
-                                ) : null}
-                            </div>
-                        ) : null
-                    }
-                    onPasteFile={(pasted) => addFiles(Array.from(pasted))}
-                    prefix={
-                        <Tooltip
-                            title={
-                                atMax
-                                    ? `Up to ${limits.maxCount} files`
-                                    : "Attach files coming soon"
-                            }
-                        >
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<Paperclip size={16} />}
-                                disabled={true}
-                                onClick={() => setAttachmentsOpen((open) => !open)}
-                                aria-label="Attach files"
-                            />
-                        </Tooltip>
-                    }
-                    header={
-                        // HeightCollapse animates real height (0 ↔ auto via interpolate-size), not
-                        // grid-template-rows fr units — no per-frame grid relayout and no cold
-                        // intrinsic-size cost on the first open. Content stays mounted (warm).
-                        <HeightCollapse open={attachmentsOpen || files.length > 0}>
-                            <ComposerAttachments
-                                files={files}
-                                rejections={rejections}
-                                limits={limits}
-                                onAdd={addFiles}
-                                onRemove={removeFile}
-                                onDismissRejections={() => setRejections([])}
-                            />
-                        </HeightCollapse>
-                    }
-                    placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
-                />
-            </div>
+            {/* Queue / approval status sits BETWEEN the messages and the composer, so showing it
+                never shifts the composer (and the editor) upward. Streaming itself is signalled by
+                the composer's send button (it becomes a spinning Stop button), so there's no
+                separate "Streaming…" row. */}
+            {(hitlPending || queued.length > 0) && (
+                <div className="flex items-center justify-between gap-2 px-3 pb-2">
+                    {queued.length > 0 ? (
+                        <QueuedMessages
+                            queued={queued}
+                            onRemove={removeQueued}
+                            onClear={clearQueue}
+                        />
+                    ) : (
+                        <span />
+                    )}
+                    {hitlPending ? (
+                        <span className="text-xs text-colorTextTertiary">Waiting for approval</span>
+                    ) : null}
+                </div>
+            )}
+
+            {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
+                `mx-3 mb-3` insets it to match the message padding + session-bar gutter (the panel
+                root has no padding so the session bar can align with the config header). */}
+            <RichChatInput
+                ref={richInputRef}
+                className="mx-3 mb-3"
+                onSubmit={handleSubmit}
+                placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                sendForceEnabled={files.length > 0}
+                streaming={busy}
+                onStop={handleStop}
+                prefix={
+                    // Attach button is gated until the agent service is ready for inline
+                    // file parts (big-agents d4b119af26); paste / drag-to-add still work.
+                    <Tooltip
+                        title={
+                            atMax ? `Up to ${limits.maxCount} files` : "Attach files coming soon"
+                        }
+                    >
+                        <Button
+                            type="text"
+                            icon={<Paperclip size={16} />}
+                            disabled={true}
+                            onClick={() => setAttachmentsOpen((open) => !open)}
+                            aria-label="Attach files"
+                        />
+                    </Tooltip>
+                }
+                header={
+                    <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                        <ComposerAttachments
+                            files={files}
+                            rejections={rejections}
+                            limits={limits}
+                            onAdd={addFiles}
+                            onRemove={removeFile}
+                            onDismissRejections={() => setRejections([])}
+                        />
+                    </HeightCollapse>
+                }
+            />
         </div>
     )
 }
@@ -1012,37 +1003,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
  * AgentChatPanel — the agent-generation surface hosted INSIDE the playground (the third
  * generation arm beside chat and completion).
  *
- * Single view keeps the slice's editable-card session tab bar (design decision D2): parallel
- * conversations, add with `+`, close with `×`, double-click to rename. Sessions are app-scoped
- * (shared with the rest of the playground) and persist to localStorage, so tabs survive a
- * reload; antd keeps visited panes mounted, so switching tabs preserves a session's live
- * stream / approval state. Each tab is its own `useChat` driven by `buildAgentRequest` against
- * the current `entityId` (so the run always uses the live draft config).
+ * Single view keeps the slice's session tab bar (design decision D2): parallel conversations,
+ * add with `+`, close with `×`, double-click to rename — rendered as a row of status-dotted tags
+ * (`SessionTagBar`) whose bottom edge aligns with the config panel header. Sessions are app-scoped
+ * (shared with the rest of the playground) and persist to localStorage, so tabs survive a reload;
+ * antd keeps visited panes mounted (we only swap the bar via `renderTabBar`), so switching tabs
+ * preserves a session's live stream / approval state. Each tab is its own `useChat` driven by
+ * `buildAgentRequest` against the current `entityId` (so the run always uses the live draft config).
  */
-/**
- * Tab label, scoped to its own session: subscribes only to that session's first-user-text
- * (a stable string), so a streaming conversation doesn't re-render the whole tab bar / every
- * mounted pane on each token.
- */
-const TabLabel = ({
-    session,
-    index,
-    onRename,
-}: {
-    session: AgentChatSession
-    index: number
-    onRename: (title: string) => void
-}) => {
-    const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
-    const truncated = text.length > 24 ? `${text.slice(0, 24)}…` : text
-    return (
-        <SessionTabLabel
-            label={session.title || truncated || `Chat ${index + 1}`}
-            onRename={onRename}
-        />
-    )
-}
-
 const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const scope = useChatScopeKey()
     const sessions = useAtomValue(sessionsListAtomFamily(scope))
@@ -1066,36 +1034,46 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // Tolerate a stale active id (its tab was closed) by falling back to the first tab.
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id
 
+    // A trigger test asks for a fresh session: create + activate one, then clear the flag so the
+    // new session's conversation consumes the turn (the per-session consumer skips flagged runs).
+    const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
+    const newSessionNonceRef = useRef<number | null>(null)
+    useEffect(() => {
+        if (!pendingRun?.newSession) return
+        if (newSessionNonceRef.current === pendingRun.nonce) return
+        newSessionNonceRef.current = pendingRun.nonce
+        addSession()
+        setPendingRun({text: pendingRun.text, nonce: pendingRun.nonce})
+    }, [pendingRun, addSession, setPendingRun])
+
     return (
-        <div className="flex h-full min-h-0 w-full flex-col p-3">
+        <div className="flex h-full min-h-0 w-full flex-col">
             <Tabs
-                type="editable-card"
-                size="small"
-                className="flex min-h-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-nav]:!-mx-3 [&_.ant-tabs-nav]:!px-3 [&_.ant-tabs-tabpane]:h-full"
+                animated={false}
+                className="flex min-h-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
                 activeKey={activeId}
                 onChange={setActiveSession}
-                onEdit={(targetKey, action) => {
-                    if (action === "add") addSession()
-                    else if (typeof targetKey === "string") closeSession(targetKey)
-                }}
-                tabBarExtraContent={{
-                    right: (
-                        <div className="flex items-center gap-1">
-                            <SessionInspectorButton sessionId={activeId ?? null} />
-                            <SessionHistoryMenu />
-                        </div>
-                    ),
-                }}
-                items={sessions.map((session, index) => ({
+                renderTabBar={() => (
+                    <SessionTagBar
+                        sessions={sessions}
+                        activeId={activeId}
+                        onSelect={setActiveSession}
+                        onAdd={addSession}
+                        onClose={closeSession}
+                        onRename={(id, title) => renameSession({id, title})}
+                        extra={
+                            <>
+                                <SessionInspectorButton sessionId={activeId ?? null} />
+                                <SessionHistoryMenu />
+                            </>
+                        }
+                    />
+                )}
+                items={sessions.map((session) => ({
                     key: session.id,
-                    closable: sessions.length > 1,
-                    label: (
-                        <TabLabel
-                            session={session}
-                            index={index}
-                            onRename={(title) => renameSession({id: session.id, title})}
-                        />
-                    ),
+                    // Bar is rendered by `renderTabBar` (SessionTagBar); the per-item label is unused.
+                    label: null,
                     children: <AgentConversation entityId={entityId} sessionId={session.id} />,
                 }))}
             />

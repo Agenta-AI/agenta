@@ -52,7 +52,7 @@ The Python agent service (`services/oss/src/agent/`) is the control plane; the N
 sidecar (`services/agent/`) is the execution plane. The boundary is the `/run` contract.
 
 - **Transport selection** is in `services/oss/src/agent/config.py` and
-  `services/oss/src/agent/app.py`. `runner_url()` reads `AGENTA_AGENT_RUNNER_URL`:
+  `services/oss/src/agent/app.py`. `runner_url()` reads `AGENTA_RUNNER_URL`:
   - set → HTTP transport to the deployed sidecar (`SandboxAgentBackend(url=...)`).
   - unset → local development spawns the runner as a CLI **subprocess** from `runner_dir()`.
 - **HTTP delivery** is `deliver_http` / `deliver_http_stream` in
@@ -174,17 +174,17 @@ hardening](#later--deferred-hardening) subsection below — it is NOT part of th
    secrets and bearer tokens and therefore **must** sit on a trusted, non-public network.
    This is the immediate, zero-cost correctness fix for the "no transport-security
    statement anywhere" gap. (The author endorsed the network-isolation/loopback-binding
-   option directly: "agree.") **IMPLEMENTED:** `server.ts` binds to `AGENTA_AGENT_RUNNER_HOST`
+   option directly: "agree.") **IMPLEMENTED:** `server.ts` binds to `AGENTA_RUNNER_HOST`
    (default `127.0.0.1`, never `0.0.0.0`); set it to the private pod/internal interface in
    Kubernetes/Compose and never map the port to the host.
 2. **Add a shared auth token on `/run`**, reusing the existing `X-Agenta-Internal-Token`
-   precedent (a new `AGENTA_AGENT_RUNNER_TOKEN`), default-off so co-located/loopback
+   precedent (a new `AGENTA_RUNNER_TOKEN`), default-off so co-located/loopback
    deployments are unaffected, on when set. Cheap defense-in-depth against accidental
-   exposure. **IMPLEMENTED:** when `AGENTA_AGENT_RUNNER_TOKEN` is set, `server.ts` requires it
+   exposure. **IMPLEMENTED:** when `AGENTA_RUNNER_TOKEN` is set, `server.ts` requires it
    on `/run` (`Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`,
    constant-time compare) and returns 401 otherwise; `/health` stays open for liveness probes.
    **Both sides now read the same env var** (Codex LOW-5): the SDK transport
-   (`sdks/.../utils/ts_runner.py` `_runner_auth_headers`) reads `AGENTA_AGENT_RUNNER_TOKEN`
+   (`sdks/.../utils/ts_runner.py` `_runner_auth_headers`) reads `AGENTA_RUNNER_TOKEN`
    and presents `Authorization: Bearer <token>` on the HTTP `/run` POST + NDJSON stream when
    set, so turning the gate on no longer locks the Python service out; unset = no header
    (loopback default unchanged).
@@ -208,7 +208,7 @@ belong on a deliberate hardening path on a separate timeline, not in this cycle.
 5. **Payload encryption of `secrets`** — held in reserve; only if a requirement forbids
    plaintext secrets even under TLS. Rarely worth its wire-contract cost. *Deferred.*
 
-Note on the CLI/subprocess transport: when `AGENTA_AGENT_RUNNER_URL` is unset, the runner is
+Note on the CLI/subprocess transport: when `AGENTA_RUNNER_URL` is unset, the runner is
 a child process and the payload never touches a network socket (stdin pipe). That path needs
 none of this; the trust question is purely about the HTTP transport.
 
@@ -434,7 +434,7 @@ recorded here for whoever lands the filesystem/local-network error behavior.
   the stale comments around it, and records the review decisions to tighten the not-implemented
   axes (local network and filesystem now error; stdio MCP to be disabled).
 - The **sidecar-deployment-proposal** project (`../sidecar-deployment-proposal/`) defines how
-  the runner is deployed (`AGENTA_AGENT_RUNNER_URL`, Compose/Helm/Railway). The decided
+  the runner is deployed (`AGENTA_RUNNER_URL`, Compose/Helm/Railway). The decided
   near-term work (localhost/in-cluster-only binding + the optional `/run` token) belongs in that
   proposal's hardening section when implemented; the deferred items (TLS/mTLS, scoped tokens,
   payload encryption) belong on its longer-term hardening path.

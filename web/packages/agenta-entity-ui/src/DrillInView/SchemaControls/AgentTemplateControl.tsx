@@ -38,7 +38,7 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Tabs, Tag, Tooltip, Typography} from "antd"
+import {Button, Tabs, Tooltip, Typography} from "antd"
 import {useAtomValue, useStore} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
@@ -380,16 +380,7 @@ export function AgentTemplateControl({
         {
             key: "triggers",
             icon: <Lightning size={16} />,
-            title: (
-                <span className="inline-flex items-center gap-2">
-                    Triggers
-                    {triggerCount > 0 ? (
-                        <Tag className="m-0 font-normal" bordered>
-                            {triggerCount}
-                        </Tag>
-                    ) : null}
-                </span>
-            ),
+            title: "Triggers",
             summary: countSummary(triggerCount, "trigger"),
             extra: !disabled ? <AddTriggerDropdown entityId={revisionId} /> : undefined,
             defaultOpen: triggerCount > 0,
