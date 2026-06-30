@@ -19,7 +19,13 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
-import { assembleBody, callDirect, directCallUrl } from "./direct.ts";
+import {
+  assembleBody,
+  callDirect,
+  deepDelete,
+  directCallUrl,
+  pathParamNames,
+} from "./direct.ts";
 import type {
   ResolvedToolSpec,
   RunContext,
@@ -153,8 +159,14 @@ async function executeRelayedTool(
   // `callRef`, so this is checked before the gateway fallback. `runContext` fills the
   // `call.context` bindings server-side (direct-call tools, Phase 3a), hidden from the model.
   if (spec.call) {
-    const url = directCallUrl(callback.endpoint, spec.call);
     const body = assembleBody(spec.call, req.args, runContext);
+    const url = directCallUrl(callback.endpoint, spec.call, body);
+    // Path params were just substituted into the URL from this same body; strip them so a
+    // POST handler whose request model expects the identifier only in the route (e.g.
+    // `/api/triggers/schedules/{id}/stop`) does not also receive `id` in the JSON payload.
+    for (const name of pathParamNames(spec.call.path)) {
+      deepDelete(body, name);
+    }
     return callDirect(spec.call.method, url, callback.authorization, body);
   }
   // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.

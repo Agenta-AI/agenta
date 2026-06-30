@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -99,6 +99,76 @@ class TriggerCatalogEventsPage(BaseModel):
     events: List[TriggerCatalogEvent] = []
     next_cursor: Optional[str] = None
     total: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Trigger discovery (find_triggers)
+# ---------------------------------------------------------------------------
+
+
+class TriggerDiscoveryConnectionState(str, Enum):
+    READY = "ready"
+    NEEDS_AUTH = "needs_auth"
+    NEEDS_INPUT = "needs_input"
+
+
+class DiscoveredTriggerEvent(BaseModel):
+    type: Literal["trigger"] = "trigger"
+    provider: str = TriggerProviderKind.COMPOSIO.value
+    integration: str
+    event_key: str
+    trigger_config: Optional[Dict[str, Any]] = None
+    payload: Optional[Dict[str, Any]] = None
+    description: Optional[str] = None
+    provider_event: str
+
+
+class DiscoveredTriggerAlternative(BaseModel):
+    integration: str
+    event_key: str
+    description: Optional[str] = None
+    provider_event: str
+
+
+class TriggerCapabilityConnection(BaseModel):
+    state: TriggerDiscoveryConnectionState
+    id: Optional[UUID] = None
+    slug: Optional[str] = None
+
+
+class TriggerConnectAffordance(BaseModel):
+    endpoint: str = "POST /triggers/connections/"
+    body: Dict[str, Any]
+
+
+class TriggerConnectionRequirement(BaseModel):
+    integration: str
+    state: TriggerDiscoveryConnectionState
+    id: Optional[UUID] = None
+    slug: Optional[str] = None
+    connect: Optional[TriggerConnectAffordance] = None
+
+
+class TriggerCapability(BaseModel):
+    use_case: str
+    integration: Optional[str] = None
+    event: Optional[DiscoveredTriggerEvent] = None
+    alternatives: List[DiscoveredTriggerAlternative] = Field(default_factory=list)
+    connection: Optional[TriggerCapabilityConnection] = None
+    note: Optional[str] = None
+
+
+class TriggerDiscoveryGuidance(BaseModel):
+    plan_steps: List[str] = Field(default_factory=list)
+    pitfalls: List[str] = Field(default_factory=list)
+
+
+class TriggerCapabilitiesResult(BaseModel):
+    capabilities: List[TriggerCapability] = Field(default_factory=list)
+    connections: List[TriggerConnectionRequirement] = Field(default_factory=list)
+    guidance: TriggerDiscoveryGuidance = Field(default_factory=TriggerDiscoveryGuidance)
+    ready: bool = False
+    notes: List[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
