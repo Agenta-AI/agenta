@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
@@ -22,6 +22,7 @@ import {
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
+import type {SidebarView} from "../Sidebar/types"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"
 import {useStyles} from "./assets/styles"
@@ -181,6 +182,14 @@ const AppWithVariants = memo(
             }
         }, [appState.asPath, appState.pathname])
 
+        const sidebarView = useMemo<SidebarView>(
+            () =>
+                appState.pathname.endsWith("/settings")
+                    ? {id: "settings", lastPath: lastNonSettingsRef.current || baseAppURL}
+                    : {id: "main"},
+            [appState.pathname, baseAppURL],
+        )
+
         const currentApp = useAtomValue(currentAppAtom)
         const {project} = useProjectData()
         const lastNonDemoProject = useAtomValue(lastNonDemoProjectAtom)
@@ -267,10 +276,7 @@ const AppWithVariants = memo(
                     </>
                 )}
                 <Layout hasSider className={classes.layout}>
-                    <SidebarIsland
-                        showSettingsView={appState.pathname.endsWith("/settings")}
-                        lastPath={lastNonSettingsRef.current || baseAppURL}
-                    />
+                    <SidebarIsland view={sidebarView} />
 
                     <Layout className={classes.layout}>
                         <div

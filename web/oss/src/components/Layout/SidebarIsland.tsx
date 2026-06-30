@@ -1,9 +1,10 @@
 import {memo} from "react"
 
 import Sidebar from "../Sidebar/Sidebar"
+import type {SidebarView} from "../Sidebar/types"
+
 interface SidebarIslandProps {
-    showSettingsView: boolean
-    lastPath: string | null
+    view: SidebarView
 }
 
 // Pure, memo-wrapped island so updates inside Layout don’t re-render it unless its props change

@@ -25,6 +25,8 @@ import {
     recentEvaluatorIdAtom,
 } from "@/oss/state/workflow"
 
+import {resolveWorkflowEntitySelection} from "./assets/workflowEntitySelection"
+
 interface WorkflowEntityCardProps {
     collapsed: boolean
 }
@@ -142,36 +144,23 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     const {baseAppURL} = useURL()
     const [switcherOpen, setSwitcherOpen] = useState(false)
 
-    // When the URL doesn't currently point at a workflow (e.g. user is on
-    // /home but the section is shown because they recently visited one), fall
-    // back to the persisted recent IDs so the card still shows something
-    // meaningful instead of a placeholder.
-    const fallbackWorkflow = useMemo<Workflow | null>(() => {
-        if (ctx.workflow) return null
-        const fromEvaluators = recentEvaluatorId
-            ? (evaluators.find((w) => w.id === recentEvaluatorId) ?? null)
-            : null
-        if (fromEvaluators) return fromEvaluators
-        const fromApps = recentAppId ? (apps.find((w) => w.id === recentAppId) ?? null) : null
-        return fromApps
-    }, [ctx.workflow, evaluators, apps, recentEvaluatorId, recentAppId])
+    // Route workflow wins. On project-level pages the app sidebar links are built
+    // from recentAppId, so the card must prefer the same app over a stale recent
+    // evaluator to avoid appearing to switch workflow context.
+    const workflow = useMemo<Workflow | null>(
+        () =>
+            resolveWorkflowEntitySelection({
+                currentWorkflow: ctx.workflow,
+                currentWorkflowId: ctx.workflowId,
+                apps,
+                evaluators,
+                recentAppId,
+                recentEvaluatorId,
+            }),
+        [ctx.workflow, ctx.workflowId, apps, evaluators, recentAppId, recentEvaluatorId],
+    )
 
-    const workflow = ctx.workflow ?? fallbackWorkflow
-    const isEvaluator = ctx.workflow
-        ? ctx.workflowKind === "evaluator"
-        : !!fallbackWorkflow?.flags?.is_evaluator
     const workflowId = workflow?.id ?? null
-
-    // Latest revision query — used to derive the evaluator key (URI parsing)
-    // and to read the resolved app type when the latest-revision derived atom
-    // hasn't run yet. Cached + batched so calling it here is cheap.
-    const latestRevision = useAtomValue(workflowLatestRevisionQueryAtomFamily(workflowId ?? ""))
-    const appType = useAtomValue(workflowAppTypeAtomFamily(workflowId ?? "")) as WorkflowType | null
-    const evaluatorKey = useMemo(() => {
-        if (!isEvaluator) return null
-        const uri = (latestRevision.data?.data as {uri?: string} | undefined)?.uri
-        return parseWorkflowKeyFromUri(uri ?? null)
-    }, [isEvaluator, latestRevision.data])
 
     const displayName = workflow?.name ?? workflow?.slug ?? workflowId ?? "Select workflow"
 
@@ -253,13 +242,13 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     return (
         <div
             className={clsx(
-                "rounded-md border border-solid border-gray-200 bg-[var(--ag-c-FFFFFF)] px-2.5 py-2",
+                "rounded-lg border border-solid border-gray-200 bg-[var(--ag-c-FFFFFF)] px-2.5 py-1.5",
                 "flex flex-col gap-1.5",
             )}
         >
             <div className="flex items-center gap-1 min-w-0">
                 <span
-                    className="truncate text-xs font-medium text-gray-900 flex-1 min-w-0"
+                    className="truncate font-medium text-colorTextSecondary flex-1 min-w-0"
                     title={displayName}
                 >
                     {displayName}
@@ -283,7 +272,7 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                             type="text"
                             size="small"
                             className="!px-1 !h-6 text-gray-500 hover:text-gray-900"
-                            icon={<ArrowsLeftRight size={14} />}
+                            icon={<ArrowsLeftRight size={12} />}
                             aria-label="Switch workflow"
                         />
                     </Dropdown>
@@ -293,19 +282,11 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                         type="text"
                         size="small"
                         className="!px-1 !h-6 text-gray-500 hover:text-gray-900"
-                        icon={<X size={14} />}
+                        icon={<X size={12} />}
                         onClick={handleClose}
                         aria-label="Close workflow"
                     />
                 </Tooltip>
-            </div>
-            <div>
-                <WorkflowTypeTag
-                    isEvaluator={isEvaluator}
-                    workflowKey={evaluatorKey}
-                    evaluatorTypeKey={appType}
-                    workflowType={appType}
-                />
             </div>
         </div>
     )
