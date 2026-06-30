@@ -33,26 +33,33 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 │    ▼                     ▼                     ▼                            │
 │  ┌─────────────┐  ┌─────────────┐   ┌────────────────────┐                 │
 │  │     Web     │  │     API     │   │   Services API     │                 │
-│  │   :3000     │  │   :8000     │   │      :80           │                 │
-│  └─────────────┘  └──────┬──────┘   └────────────────────┘                 │
-│                          │                                                  │
-│                          │ Redis queues / streams                           │
-│                          ▼                                                  │
+│  │   :3000     │  │   :8000     │   │      :8080         │                 │
+│  └─────────────┘  └──────┬──────┘   └─────────┬──────────┘                 │
+│                          │                     │ AGENTA_RUNNER_URL          │
+│                          │ Redis queues         ▼                           │
+│                          │ / streams   ┌─────────────────┐                  │
+│                          │             │  runner :8765   │                  │
+│                          │             │ (internal only) │                  │
+│                          │             └────────┬────────┘                  │
+│                          │                      │                           │
+│                          ▼                      │                           │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │                            Worker Pool                               │   │
-│  │   worker-evaluations, worker-tracing, worker-webhooks,              │   │
-│  │   worker-events, cron                                                 │   │
+│  │   worker-evaluations, worker-tracing, worker-webhooks,               │   │
+│  │   worker-events, worker-records, worker-interactions,                │   │
+│  │   worker-triggers, cron                                              │   │
 │  └─────────────────────────┬────────────────────────────────────────────┘   │
-│                            │                                                │
-│                            ▼                                                │
+│                            │                    │ (from runner)              │
+│                            ▼                    ▼                           │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │                     Infrastructure Layer                             │   │
 │  │                                                                      │   │
-│  │ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐    │   │
-│  │ │   PostgreSQL      │ │      Redis        │ │   SuperTokens     │    │   │
-│  │ │     :5432         │ │   :6379 / :6381   │ │      :3567        │    │   │
-│  │ │ Core + Tracing DB │ │ queues + caching   │ │ auth + sessions   │    │   │
-│  │ └───────────────────┘ └───────────────────┘ └───────────────────┘    │   │
+│  │ ┌──────────────┐ ┌──────────────────┐ ┌────────────┐ ┌────────────┐  │   │
+│  │ │  PostgreSQL  │ │      Redis       │ │SuperTokens │ │ seaweedfs  │  │   │
+│  │ │    :5432     │ │  :6379 / :6381   │ │   :3567    │ │   :8333    │  │   │
+│  │ │Core+Tracing  │ │queues + caching  │ │auth+sess   │ │bundled or  │  │   │
+│  │ │      DB      │ │                  │ │            │ │external S3 │  │   │
+│  │ └──────────────┘ └──────────────────┘ └────────────┘ └────────────┘  │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -66,20 +73,29 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 Internet → Traefik (80/443) → Internal Services
 ├── / → web:3000 (Frontend)
 ├── /api/ → api:8000 (Backend API)
-└── /services/ → services:80 (includes completion/chat endpoints)
+└── /services/ → services:8080 (includes completion/chat endpoints)
 ```
 
 ### Internal Service Communication
 ```
 Web Container:
 ├── → api:8000 (Backend API calls)
-└── → services:80 (Playground and model interaction endpoints)
+└── → services:8080 (Playground and model interaction endpoints)
 
 API Container:
 ├── → postgres:5432 (Database operations)
 ├── → redis-volatile:6379, redis-durable:6381 (queues, streams, caching)
 ├── → supertokens:3567 (Authentication)
 └── → worker pool (Task delegation via queues/streams)
+
+Services API Container:
+├── → postgres:5432 (agent and service state)
+├── → LLM providers (model calls)
+└── → runner:8765 (agent run dispatch via AGENTA_RUNNER_URL)
+
+Runner:
+├── → seaweedfs:8333 or external S3 endpoint (durable storage mount)
+└── → api:8000 (session record writes)
 
 Worker Pool:
 ├── → redis-volatile:6379, redis-durable:6381 (task and event consumption)
@@ -118,6 +134,11 @@ These variables configure how containers communicate internally. Use `REDIS_URI`
 | `REDIS_URI_VOLATILE` | Redis for caches/channels | `redis://redis-volatile:6379/0` | Falls back to `REDIS_URI` |
 | `REDIS_URI_DURABLE` | Redis for queues/streams | `redis://redis-durable:6381/0` | Falls back to `REDIS_URI` |
 | `SUPERTOKENS_CONNECTION_URI` | Auth service | `http://supertokens:3567` | SuperTokens service URL |
+| `AGENTA_RUNNER_URL` | Runner URL | `http://runner:8765` | Points the Services API at the agent runner; default in compose, generated from `agentRunner.*` in Helm |
+
+:::note Daytona sandboxes and the remote compose profile
+Compose deployments using Daytona remote sandboxes require the `remote` compose profile, which starts an ngrok tunnel. The remote sandbox mounts durable storage over the public internet, so the store endpoint must be reachable. Railway and Kubernetes deployments expose the store endpoint publicly and do not need ngrok.
+:::
 
 ### Port Mapping (Optional)
 
@@ -152,14 +173,14 @@ Middleware: Path prefix stripping
 
 #### Services Routing
 ```yaml
-# Route: /services/ -> services:80
+# Route: /services/ -> services:8080
 Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/`)
-Target: services:80
+Target: services:8080
 Processing: Strip `/services` prefix
 
 # Examples served by the same services container:
-# /services/completion/* -> services:80/completion/*
-# /services/chat/* -> services:80/chat/*
+# /services/completion/* -> services:8080/completion/*
+# /services/chat/* -> services:8080/chat/*
 ```
 
 ## SSL/TLS Configuration

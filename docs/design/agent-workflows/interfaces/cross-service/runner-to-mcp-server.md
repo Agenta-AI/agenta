@@ -72,7 +72,7 @@ allowlist, and permission. Two transports, opposite states:
   attaching the credential, `validateUserMcpUrl` applies an SSRF guard: the `url` must be `https`
   and must not target an internal/metadata host (loopback, link-local incl. `169.254.169.254`,
   or private literals), else the run fails loud. A host listed in the optional comma-separated
-  `AGENTA_AGENT_MCP_HOST_ALLOWLIST` env var opts out of both checks (e.g. a known-safe internal
+  `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` env var opts out of both checks (e.g. a known-safe internal
   endpoint).
 - **Stdio (`transport: "stdio"` + `command`) is disabled.** A stdio server launches an
   arbitrary process on the runner host, outside the sandbox boundary, so the implementation is

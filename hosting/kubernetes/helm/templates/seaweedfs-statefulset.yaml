@@ -1,6 +1,6 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
-{{- $mounts := default dict $values.mounts -}}
-{{- $seaweedfs := default dict $mounts.seaweedfs -}}
+{{- $store := default dict $values.store -}}
+{{- $seaweedfs := default dict $store.seaweedfs -}}
 {{- $persistence := default dict $seaweedfs.persistence -}}
 {{- $persistenceEnabled := true -}}
 {{- if hasKey $persistence "enabled" -}}
@@ -41,39 +41,50 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          # Generate the S3 identity file from the mounted credentials (single source of
-          # truth), then start the gateway. WEED_JWT_FILER_SIGNING_KEY doubles as the in-process
-          # S3 STS signing key so the API can mint scoped, short-lived runner credentials on the
-          # same S3 port — no separate IAM service, no master key in the runner.
+          # Generate the S3 master identity AND the advanced IAM config from env (no committed
+          # files), then start the gateway. The IAM config is the ONLY path SeaweedFS authorizes
+          # STS through: an OIDC provider points at the API's self-served JWKS; the API mints a
+          # short-lived RS256 web-identity token and calls AssumeRoleWithWebIdentity to assume
+          # `agenta-store` (whole-bucket role), and its per-request inline session policy narrows
+          # each credential to one mount prefix. GetFederationToken is NOT modelled by SeaweedFS
+          # IAM and yields actionless (denied) tokens. `-volume.max=64` lifts the default 8-volume
+          # cap ("No writable volumes"). Pin a 4.37-era image: IAM regressed in other releases.
           command:
             - sh
             - -c
             - |
               mkdir -p /etc/seaweedfs
               cat > /etc/seaweedfs/s3.json <<EOF
-              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$AGENTA_MOUNTS_STORAGE_ACCESS_KEY","secretKey":"$AGENTA_MOUNTS_STORAGE_SECRET_KEY"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$AGENTA_STORE_ACCESS_KEY","secretKey":"$AGENTA_STORE_SECRET_KEY"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
               EOF
-              exec weed server -dir=/data -ip=$(hostname -i) -s3 -s3.port={{ include "agenta.seaweedfs.port" . }} -s3.config=/etc/seaweedfs/s3.json
+              cat > /etc/seaweedfs/iam.json <<EOF
+              {"sts":{"tokenDuration":"1h","maxSessionLength":"12h","issuer":"seaweedfs-sts","signingKey":"$AGENTA_STORE_SIGNING_KEY"},"providers":[{"name":"agenta","type":"oidc","enabled":true,"config":{"issuer":"$AGENTA_STORE_JWT_ISSUER","clientId":"agenta-store","jwksUri":"$AGENTA_STORE_JWT_ISSUER/.well-known/jwks.json"}}],"policies":[{"name":"store-rw","document":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::$AGENTA_STORE_BUCKET","arn:aws:s3:::$AGENTA_STORE_BUCKET/*"]}]}}],"roles":[{"roleName":"agenta-store","roleArn":"arn:aws:iam::role/agenta-store","attachedPolicies":["store-rw"],"trustPolicy":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"agenta"},"Action":["sts:AssumeRoleWithWebIdentity"]}]}}]}
+              EOF
+              exec weed server -dir=/data -ip=$(hostname -i) -volume.max=64 -s3 -s3.port={{ include "agenta.seaweedfs.port" . }} -s3.config=/etc/seaweedfs/s3.json -s3.iam.config=/etc/seaweedfs/iam.json
           ports:
             - name: s3
               containerPort: {{ include "agenta.seaweedfs.port" . }}
               protocol: TCP
           env:
-            - name: AGENTA_MOUNTS_STORAGE_ACCESS_KEY
+            - name: AGENTA_STORE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "agenta.secretName" . }}
-                  key: AGENTA_MOUNTS_STORAGE_ACCESS_KEY
-            - name: AGENTA_MOUNTS_STORAGE_SECRET_KEY
+                  key: AGENTA_STORE_ACCESS_KEY
+            - name: AGENTA_STORE_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "agenta.secretName" . }}
-                  key: AGENTA_MOUNTS_STORAGE_SECRET_KEY
-            - name: WEED_JWT_FILER_SIGNING_KEY
+                  key: AGENTA_STORE_SECRET_KEY
+            - name: AGENTA_STORE_BUCKET
+              value: {{ default "agenta-store" $store.bucket | quote }}
+            - name: AGENTA_STORE_JWT_ISSUER
+              value: {{ default (printf "http://%s-api:%v" (include "agenta.fullname" .) (include "agenta.api.port" .)) $store.jwtIssuer | quote }}
+            - name: AGENTA_STORE_SIGNING_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "agenta.secretName" . }}
-                  key: AGENTA_MOUNTS_STORAGE_SIGNING_KEY
+                  key: AGENTA_STORE_SIGNING_KEY
           {{- if $persistenceEnabled }}
           volumeMounts:
             - name: seaweed-data

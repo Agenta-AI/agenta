@@ -13,7 +13,7 @@ from typing import Any, AsyncIterator, Dict, Optional, Sequence
 
 from agenta.sdk.utils.logging import get_module_logger
 
-_DEFAULT_TIMEOUT = float(os.getenv("AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS", "180"))
+_DEFAULT_TIMEOUT = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180"))
 
 log = get_module_logger(__name__)
 
@@ -21,14 +21,14 @@ log = get_module_logger(__name__)
 def _runner_auth_headers() -> Dict[str, str]:
     """The ``Authorization`` header for the runner's optional shared-token gate, if configured.
 
-    The runner enables a ``/run`` token check only when ``AGENTA_AGENT_RUNNER_TOKEN`` is set on
+    The runner enables a ``/run`` token check only when ``AGENTA_RUNNER_TOKEN`` is set on
     its side (default OFF; see ``server.ts``). When the gate is on, an un-tokened POST is rejected
     with 401, which would lock the co-located Python service out. Set the SAME env var here and we
     present it as ``Authorization: Bearer <token>`` (the runner also accepts this header). Unset =
     no header, matching the runner's default-off behavior, so loopback deployments are unaffected.
     Read per-call (not cached) so a test or runtime env change takes effect without a re-import.
     """
-    token = os.getenv("AGENTA_AGENT_RUNNER_TOKEN")
+    token = os.getenv("AGENTA_RUNNER_TOKEN")
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 

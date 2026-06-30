@@ -404,7 +404,7 @@ harness-agnostic: it drives Pi today, Claude Code and other harnesses next. The 
 wrongly implied the issue was Pi-specific when the issue was in the shared runner.
 
 **Resolution.** The deployable service is now `sandbox-agent`, and the services container
-uses `AGENTA_AGENT_RUNNER_URL` for the service-to-runner URL. Runner provider settings moved
+uses `AGENTA_RUNNER_URL` for the service-to-runner URL. Runner provider settings moved
 to `SANDBOX_AGENT_*` env vars on the runner service.
 
 ### F-014 Skill embed via `workflow_revision` bare slug 500s; reference at the artifact level
