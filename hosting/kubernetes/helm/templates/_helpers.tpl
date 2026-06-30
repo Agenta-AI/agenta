@@ -857,31 +857,31 @@ imagePullSecrets:
       key: AGENTA_CRYPT_KEY
 {{- if eq (include "agenta.mounts.enabled" .) "true" }}
 {{- $mounts := default dict .Values.mounts }}
-- name: AGENTA_MOUNTS_STORAGE_ENDPOINT_URL
+- name: AGENTA_STORE_ENDPOINT_URL
   {{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
   value: {{ printf "http://%s-seaweedfs:%v" (include "agenta.fullname" .) (include "agenta.seaweedfs.port" .) | quote }}
   {{- else }}
   value: {{ default "" $mounts.endpointUrl | quote }}
   {{- end }}
-- name: AGENTA_MOUNTS_STORAGE_REGION
+- name: AGENTA_STORE_REGION
   value: {{ default "us-east-1" $mounts.region | quote }}
-- name: AGENTA_MOUNTS_STORAGE_BUCKET
+- name: AGENTA_STORE_BUCKET
   value: {{ default "agenta-mounts" $mounts.bucket | quote }}
-- name: AGENTA_MOUNTS_STORAGE_ACCESS_KEY
+- name: AGENTA_STORE_ACCESS_KEY
   valueFrom:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
-      key: AGENTA_MOUNTS_STORAGE_ACCESS_KEY
-- name: AGENTA_MOUNTS_STORAGE_SECRET_KEY
+      key: AGENTA_STORE_ACCESS_KEY
+- name: AGENTA_STORE_SECRET_KEY
   valueFrom:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
-      key: AGENTA_MOUNTS_STORAGE_SECRET_KEY
-- name: AGENTA_MOUNTS_STORAGE_SIGNING_KEY
+      key: AGENTA_STORE_SECRET_KEY
+- name: AGENTA_STORE_SIGNING_KEY
   valueFrom:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
-      key: AGENTA_MOUNTS_STORAGE_SIGNING_KEY
+      key: AGENTA_STORE_SIGNING_KEY
 {{- end }}
 {{- if $rv.password }}
 - name: REDIS_VOLATILE_PASSWORD

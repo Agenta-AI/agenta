@@ -50,8 +50,8 @@ def _parse_federation_token(xml_text: str) -> Credentials:
     )
 
 
-class MountStorage:
-    """Thin S3-compatible adapter (miniopy-async) for durable mount contents.
+class ObjectStore:
+    """Thin S3-compatible adapter (miniopy-async) for durable object-store contents.
 
     Speaks the raw S3 protocol against any S3-compatible store (SeaweedFS in dev,
     real S3 / R2 / MinIO in prod) — only the endpoint/credentials differ, resolved

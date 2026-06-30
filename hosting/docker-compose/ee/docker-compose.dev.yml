@@ -126,11 +126,11 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -184,11 +184,11 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -229,11 +229,11 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -274,11 +274,11 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -325,11 +325,11 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -376,11 +376,11 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -427,11 +427,11 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -478,11 +478,11 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -555,11 +555,11 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
+            AGENTA_STORE_ENDPOINT_URL: ${AGENTA_STORE_ENDPOINT_URL:-http://seaweedfs:8333}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_REGION: ${AGENTA_STORE_REGION:-us-east-1}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -801,7 +801,7 @@ services:
             - -c
             - |
               cat > /etc/seaweedfs/s3.json <<EOF
-              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$${AGENTA_MOUNTS_STORAGE_ACCESS_KEY}","secretKey":"$${AGENTA_MOUNTS_STORAGE_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$${AGENTA_STORE_ACCESS_KEY}","secretKey":"$${AGENTA_STORE_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
               EOF
               exec weed server -dir=/data -ip=seaweedfs -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
         # === CONFIGURATION ======================================== #
@@ -809,13 +809,13 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         # Dev defaults so mounts work out of the box even if the env file omits them.
         environment:
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY:-agenta-dev}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY:-agenta-dev-secret}
             # Enables in-process S3 STS. MUST be base64 that decodes to exactly 32 bytes, or
             # SeaweedFS silently disables STS (GetFederationToken 405). The dev default below is
             # base64("this-is-a-signing-key-for-mounts"); for real deployments generate one with
             # `head -c 32 /dev/urandom | base64`. NOT a free-form string — `replace-me` would break it.
-            WEED_JWT_FILER_SIGNING_KEY: ${AGENTA_MOUNTS_STORAGE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
+            WEED_JWT_FILER_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
         # === STORAGE ============================================== #
         volumes:
             - seaweed-data:/data
