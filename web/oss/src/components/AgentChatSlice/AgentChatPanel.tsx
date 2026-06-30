@@ -9,9 +9,10 @@ import {
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
+import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useChat} from "@ai-sdk/react"
-import {Bubble, Sender} from "@ant-design/x"
-import {ArrowDown, Paperclip, Stop, UploadSimple} from "@phosphor-icons/react"
+import {Bubble} from "@ant-design/x"
+import {ArrowDown, Paperclip, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
@@ -159,16 +160,19 @@ const MessageRow = ({
     children: React.ReactNode
 }) => {
     const [shown, setShown] = useState(!enter)
+    // Reveal one frame after mount so the opacity transition plays. Deps are [] (NOT
+    // [enter]) on purpose: an `enter` flip when a sibling turn arrives must not cancel
+    // this rAF, or a just-sent message strands at opacity-0 for the whole agent run.
     useEffect(() => {
-        if (!enter) return
         const raf = requestAnimationFrame(() => setShown(true))
         return () => cancelAnimationFrame(raf)
-    }, [enter])
+    }, [])
+    // `shown || !enter` is a belt-and-suspenders: a settled row (id seen) is always visible.
     return (
         <div
             data-mid={mid}
             className={`flex flex-col gap-1 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out ${
-                shown ? "opacity-100" : "motion-safe:opacity-0"
+                shown || !enter ? "opacity-100" : "motion-safe:opacity-0"
             }`}
         >
             {children}
@@ -181,7 +185,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
 
-    const [input, setInput] = useState("")
     const [files, setFiles] = useState<UploadFile[]>([])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
@@ -207,7 +210,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // declarative EnhancedModal (centered, 16px radius).
     const [modal, modalContextHolder] = Modal.useModal()
 
-    const senderRef = useRef<React.ComponentRef<typeof Sender>>(null)
+    const richInputRef = useRef<RichChatInputHandle>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     // Stick to the bottom of the scrollable area. This is the ONE source of truth for auto-scroll:
     // the active turn reserves a viewport (min-h-full), so "bottom" puts the latest question at the
@@ -736,7 +739,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         setStopped(false)
         // One path: `submit` sends now or queues behind held messages via the shared release gate.
         submit({text: trimmed, fileParts})
-        setInput("")
         setFiles([])
         setRejections([])
         setAttachmentsOpen(false)
@@ -754,8 +756,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             const run = () => {
                 if (isUser) {
                     setMessages(msgs.slice(0, idx))
-                    setInput(messageText(message))
-                    requestAnimationFrame(() => senderRef.current?.focus())
+                    richInputRef.current?.setMarkdown(messageText(message))
+                    requestAnimationFrame(() => richInputRef.current?.focus())
                 } else {
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)
                 }
@@ -919,91 +921,66 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 )}
             </div>
 
-            {/* Neutralize antd X Sender's header chrome: `.ant-sender-header-header` ships a
-                tinted (`colorFillAlter`) + top-rounded box that reads as a second border inside
-                the composer; flatten it and drop the header-content's double padding so our
-                attachment panel sits flush on the composer surface. */}
-            <div className="[&_.ant-sender-header-content]:!p-0 [&_.ant-sender-header-header]:!rounded-none [&_.ant-sender-header-header]:!bg-transparent">
-                <Sender
-                    ref={senderRef}
-                    value={input}
-                    onChange={setInput}
-                    // NOT `loading={busy}`: Ant X gates `onSubmit` on `!loading`, so a loading Sender
-                    // can't submit. The send button stays live and routes to the queue while busy
-                    // (see `handleSubmit`); stopping the stream lives in the footer below instead.
-                    onSubmit={handleSubmit}
-                    footer={
-                        busy || hitlPending || queued.length > 0 ? (
-                            <div className="flex items-center justify-between gap-2">
-                                {/* Left: collapsed queue pill → popover. */}
-                                {queued.length > 0 ? (
-                                    <QueuedMessages
-                                        queued={queued}
-                                        onRemove={removeQueued}
-                                        onClear={clearQueue}
-                                    />
-                                ) : (
-                                    <span />
-                                )}
-                                {/* Right: why nothing is sending — streaming (stoppable) vs HITL-held. */}
-                                {busy ? (
-                                    <span className="inline-flex items-center gap-2">
-                                        <span className="text-xs text-colorTextTertiary">
-                                            Streaming…
-                                        </span>
-                                        <Button
-                                            size="small"
-                                            icon={<Stop size={14} weight="fill" />}
-                                            onClick={handleStop}
-                                        >
-                                            Stop
-                                        </Button>
-                                    </span>
-                                ) : hitlPending ? (
-                                    <span className="text-xs text-colorTextTertiary">
-                                        Waiting for approval
-                                    </span>
-                                ) : null}
-                            </div>
-                        ) : null
-                    }
-                    onPasteFile={(pasted) => addFiles(Array.from(pasted))}
-                    prefix={
-                        <Tooltip
-                            title={
-                                atMax
-                                    ? `Up to ${limits.maxCount} files`
-                                    : "Attach files coming soon"
-                            }
-                        >
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<Paperclip size={16} />}
-                                disabled={true}
-                                onClick={() => setAttachmentsOpen((open) => !open)}
-                                aria-label="Attach files"
-                            />
-                        </Tooltip>
-                    }
-                    header={
-                        // HeightCollapse animates real height (0 ↔ auto via interpolate-size), not
-                        // grid-template-rows fr units — no per-frame grid relayout and no cold
-                        // intrinsic-size cost on the first open. Content stays mounted (warm).
-                        <HeightCollapse open={attachmentsOpen || files.length > 0}>
-                            <ComposerAttachments
-                                files={files}
-                                rejections={rejections}
-                                limits={limits}
-                                onAdd={addFiles}
-                                onRemove={removeFile}
-                                onDismissRejections={() => setRejections([])}
-                            />
-                        </HeightCollapse>
-                    }
-                    placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
-                />
-            </div>
+            {/* Queue / approval status sits BETWEEN the messages and the composer, so showing it
+                never shifts the composer (and the editor) upward. Streaming itself is signalled by
+                the composer's send button (it becomes a spinning Stop button), so there's no
+                separate "Streaming…" row. */}
+            {(hitlPending || queued.length > 0) && (
+                <div className="flex items-center justify-between gap-2 px-3 pb-2">
+                    {queued.length > 0 ? (
+                        <QueuedMessages
+                            queued={queued}
+                            onRemove={removeQueued}
+                            onClear={clearQueue}
+                        />
+                    ) : (
+                        <span />
+                    )}
+                    {hitlPending ? (
+                        <span className="text-xs text-colorTextTertiary">Waiting for approval</span>
+                    ) : null}
+                </div>
+            )}
+
+            {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots. */}
+            <RichChatInput
+                ref={richInputRef}
+                onSubmit={handleSubmit}
+                placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                sendForceEnabled={files.length > 0}
+                streaming={busy}
+                onStop={handleStop}
+                prefix={
+                    // Attach button is gated until the agent service is ready for inline
+                    // file parts (big-agents d4b119af26); paste / drag-to-add still work.
+                    <Tooltip
+                        title={
+                            atMax ? `Up to ${limits.maxCount} files` : "Attach files coming soon"
+                        }
+                    >
+                        <Button
+                            type="text"
+                            icon={<Paperclip size={16} />}
+                            disabled={true}
+                            onClick={() => setAttachmentsOpen((open) => !open)}
+                            aria-label="Attach files"
+                        />
+                    </Tooltip>
+                }
+                header={
+                    <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                        <ComposerAttachments
+                            files={files}
+                            rejections={rejections}
+                            limits={limits}
+                            onAdd={addFiles}
+                            onRemove={removeFile}
+                            onDismissRejections={() => setRejections([])}
+                        />
+                    </HeightCollapse>
+                }
+            />
         </div>
     )
 }
