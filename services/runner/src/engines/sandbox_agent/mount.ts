@@ -211,7 +211,9 @@ export interface UnmountStorageDeps {
 
 /**
  * Unmount the durable cwd (LOCAL). Best-effort: the data lives in the store, so a failed
- * unmount loses nothing — only the host mountpoint lingers until the sandbox dir is reaped.
+ * unmount loses nothing. Lazy unmount (`-uz`) so a still-busy mount (harness holding the cwd
+ * at teardown) detaches now and reaps once released, instead of failing "busy" and leaking —
+ * leaked geesefs mounts later go stale and serve ENOTCONN to any file op on the cwd.
  */
 export async function unmountStorage(
   cwd: string,
@@ -221,7 +223,7 @@ export async function unmountStorage(
   const run =
     deps.runUnmount ??
     (async (c: string) => {
-      await pExecFile("fusermount", ["-u", c]);
+      await pExecFile("fusermount", ["-uz", c]);
     });
   try {
     await run(cwd);

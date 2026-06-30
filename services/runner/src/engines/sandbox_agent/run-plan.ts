@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -102,7 +102,7 @@ export type BuildRunPlanResult =
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
-  createLocalCwd?: () => string;
+  createLocalCwd?: (sessionId?: string) => string;
   createDaytonaCwd?: () => string;
   resolveSkillDirs?: typeof defaultResolveSkillDirs;
   log?: Log;
@@ -131,7 +131,19 @@ function hasCodeTool(specs: ResolvedToolSpec[]): boolean {
   return specs.some((spec) => spec.kind === "code");
 }
 
-function defaultLocalCwd(): string {
+function defaultLocalCwd(sessionId?: string): string {
+  // A session-owned run reuses ONE stable mountpoint per session: the same session id across
+  // turns lands on the same dir, so the durable store prefix mounts once and `checkMounted`
+  // short-circuits later turns. A fresh mkdtemp per turn would re-mount the same prefix onto a
+  // new path every turn, and failed busy-unmounts would leak stale geesefs mounts (-> ENOTCONN).
+  // Non-session (ephemeral) runs keep a throwaway mkdtemp dir.
+  const sid = sessionId?.trim();
+  if (sid) {
+    const safe = sid.replace(/[^A-Za-z0-9_-]/g, "");
+    const dir = join(tmpdir(), `agenta-sandbox-agent-${safe}`);
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  }
   return mkdtempSync(join(tmpdir(), "agenta-sandbox-agent-"));
 }
 
@@ -255,7 +267,7 @@ export function buildRunPlan(
     }
   }
 
-  const cwd = isDaytona ? createDaytonaCwd() : createLocalCwd();
+  const cwd = isDaytona ? createDaytonaCwd() : createLocalCwd(request.sessionId);
   const relayDir = `${cwd}/.agenta-tools`;
 
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
