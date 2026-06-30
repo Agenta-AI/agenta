@@ -2,8 +2,11 @@
 
 import typing
 
+from .. import core
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
+from ..types.mount_credentials_response import MountCredentialsResponse
+from ..types.mount_file_written_response import MountFileWrittenResponse
 from ..types.session_interaction_data import SessionInteractionData
 from ..types.session_interaction_flags import SessionInteractionFlags
 from ..types.session_interaction_kind import SessionInteractionKind
@@ -479,6 +482,98 @@ class SessionsClient:
         client.sessions.query_session_mounts()
         """
         _response = self._raw_client.query_session_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    def sign_session_mount_credentials(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountCredentialsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.sign_session_mount_credentials(
+            session_id="session_id",
+        )
+        """
+        _response = self._raw_client.sign_session_mount_credentials(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    def upload_session_mount_file(self, mount_id: str, *, file: core.File, path: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountFileWrittenResponse:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        file : core.File
+            See core.File for more documentation
+        
+        path : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountFileWrittenResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.upload_session_mount_file(
+            mount_id="mount_id",
+        )
+        """
+        _response = self._raw_client.upload_session_mount_file(mount_id, file=file, path=path, request_options=request_options)
+        return _response.data
+    
+    def download_session_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        path : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.download_session_mount_file(
+            mount_id="mount_id",
+            path="path",
+        )
+        """
+        _response = self._raw_client.download_session_mount_file(mount_id, path=path, request_options=request_options)
         return _response.data
     
     def query_records(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionRecordsQueryResponse:
@@ -1200,6 +1295,122 @@ class AsyncSessionsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.query_session_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    async def sign_session_mount_credentials(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountCredentialsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.sign_session_mount_credentials(
+                session_id="session_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.sign_session_mount_credentials(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    async def upload_session_mount_file(self, mount_id: str, *, file: core.File, path: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountFileWrittenResponse:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        file : core.File
+            See core.File for more documentation
+        
+        path : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountFileWrittenResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.upload_session_mount_file(
+                mount_id="mount_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.upload_session_mount_file(mount_id, file=file, path=path, request_options=request_options)
+        return _response.data
+    
+    async def download_session_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        path : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.download_session_mount_file(
+                mount_id="mount_id",
+                path="path",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.download_session_mount_file(mount_id, path=path, request_options=request_options)
         return _response.data
     
     async def query_records(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionRecordsQueryResponse:

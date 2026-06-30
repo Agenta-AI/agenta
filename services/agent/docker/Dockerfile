@@ -23,9 +23,25 @@ WORKDIR /app
 # fetch git deps. python3 runs `code` tools whose runtime is "python": the runner relays
 # the call and spawns `python3` (src/tools/code.ts), so without it those tools fail with
 # `spawn python3 ENOENT`.
+# fuse + geesefs: the durable session cwd (mount.ts) is a geesefs FUSE mount of the store
+# prefix; `fuse` provides fusermount + /etc/fuse.conf (user_allow_other for -o allow_other).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates git python3 \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends ca-certificates git python3 fuse curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "user_allow_other" >> /etc/fuse.conf
+
+# geesefs static binary (FUSE-over-S3) for the durable cwd. Pinned release; arch-matched.
+ARG GEESEFS_VERSION=v0.43.0
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) gee="geesefs-linux-amd64" ;; \
+      arm64) gee="geesefs-linux-arm64" ;; \
+      *) echo "unsupported arch $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/yandex-cloud/geesefs/releases/download/${GEESEFS_VERSION}/${gee}" \
+      -o /usr/local/bin/geesefs; \
+    chmod +x /usr/local/bin/geesefs
 
 RUN corepack enable
 

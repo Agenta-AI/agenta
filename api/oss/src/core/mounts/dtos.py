@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
@@ -12,8 +13,9 @@ from oss.src.core.shared.dtos import (
 
 
 class MountData(BaseModel):
-    bucket: str
-    prefix: str
+    # Storage location is derived server-side (bucket from env, key = project_id/mount_id),
+    # never caller-supplied. Kept as an (empty) model for forward-compatible mount metadata.
+    pass
 
 
 class MountFlags(BaseModel):
@@ -24,15 +26,13 @@ class Mount(Identifier, Slug, Header, Lifecycle):
     project_id: UUID
     session_id: Optional[str] = None
     #
-    data: MountData
+    data: MountData = Field(default_factory=MountData)
     #
     flags: MountFlags = Field(default_factory=MountFlags)
 
 
 class MountCreate(Slug, Header):
     session_id: Optional[str] = None
-    #
-    data: MountData
     #
     flags: MountFlags = Field(default_factory=MountFlags)
 
@@ -77,3 +77,25 @@ class MountFolderCreated(BaseModel):
 class MountFileDeleted(BaseModel):
     deleted: str
     count: int = 0
+
+
+# --- Signed credentials (sandbox injection) --------------------------------- #
+
+
+class MountCredentials(BaseModel):
+    """Short-lived, prefix-scoped credentials for a single mount.
+
+    Signed API-side from the store's STS endpoint; the master key never leaves the
+    API. Scoped to `<bucket>/<project_id>/<mount_id>/*` and expires within minutes,
+    so a leak grants only this mount's prefix for a short window.
+    """
+
+    endpoint: Optional[str] = None
+    region: str = "us-east-1"
+    bucket: str
+    # geesefs key suffix: `<project_id>/<mount_id>` (mount prefix, slug-independent).
+    prefix: str
+    access_key: str
+    secret_key: str
+    session_token: Optional[str] = None
+    expires_at: Optional[datetime] = None

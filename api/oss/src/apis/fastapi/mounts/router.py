@@ -18,11 +18,13 @@ from oss.src.core.mounts.types import (
     MountNotFound,
     MountPathInvalid,
     MountSlugConflict,
+    MountSlugReserved,
     MountStorageUnavailable,
 )
 
 from oss.src.apis.fastapi.mounts.models import (
     MountCreateRequest,
+    MountCredentialsResponse,
     MountEditRequest,
     MountFileContentResponse,
     MountFileDeletedResponse,
@@ -33,7 +35,12 @@ from oss.src.apis.fastapi.mounts.models import (
     MountResponse,
     MountsResponse,
 )
-from oss.src.apis.fastapi.mounts.utils import merge_mount_query
+from oss.src.apis.fastapi.mounts.utils import (
+    download_mount_file,
+    merge_mount_query,
+    sign_mount_credentials,
+    upload_mount_file,
+)
 
 
 def handle_mount_exceptions():
@@ -55,6 +62,11 @@ def handle_mount_exceptions():
             except MountSlugConflict as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
+                    detail=e.message,
+                ) from e
+            except MountSlugReserved as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=e.message,
                 ) from e
             except MountImmutableField as e:
@@ -131,6 +143,15 @@ class MountsRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
+            "/{mount_id}/sign",
+            self.sign_mount_credentials,
+            methods=["POST"],
+            operation_id="sign_mount_credentials",
+            response_model=MountCredentialsResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
             "/{mount_id}/archive",
             self.archive_mount,
             methods=["POST"],
@@ -167,6 +188,14 @@ class MountsRouter:
             operation_id="upload_mount_file",
             response_model=MountFileWrittenResponse,
             response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/{mount_id}/files/download",
+            self.download_mount_file,
+            methods=["GET"],
+            operation_id="download_mount_file",
+            response_model=None,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
@@ -339,6 +368,32 @@ class MountsRouter:
 
         return MountResponse(count=1, mount=mount)
 
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def sign_mount_credentials(
+        self,
+        request: Request,
+        mount_id: UUID,
+    ) -> MountCredentialsResponse:
+        await self._check(request, Permission.RUN_SESSIONS)
+
+        mount = await self.mounts_service.fetch_mount(
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+        )
+        if not mount:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Mount not found.",
+            )
+
+        credentials = await sign_mount_credentials(
+            mounts_service=self.mounts_service,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+        )
+        return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
+
     # -----------------------------------------------------------------------
     # File ops (durable store contents)
     # -----------------------------------------------------------------------
@@ -427,23 +482,32 @@ class MountsRouter:
     ) -> MountFileWrittenResponse:
         await self._check(request, Permission.EDIT_SESSIONS)
 
-        # path controls destination; fall back to the uploaded filename when the
-        # path omits a filename (trailing slash) or is absent entirely.
-        dest = path
-        if not dest:
-            dest = file.filename
-        elif dest.endswith("/"):
-            dest = f"{dest}{file.filename}"
-
-        content = await file.read()
-
-        written = await self.mounts_service.write_file(
+        written = await upload_mount_file(
+            mounts_service=self.mounts_service,
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
-            path=dest,
-            content=content,
+            file=file,
+            path=path,
         )
         return MountFileWrittenResponse(path=written.path, size=written.size)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def download_mount_file(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        path: str = Query(...),
+    ):
+        await self._check(request, Permission.VIEW_SESSIONS)
+
+        return await download_mount_file(
+            mounts_service=self.mounts_service,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            path=path,
+        )
 
     @intercept_exceptions()
     @handle_mount_exceptions()

@@ -855,17 +855,18 @@ class MountsConfig(BaseModel):
     Dev points at SeaweedFS; platform/prod points at real S3 — same code path.
     """
 
-    s3_endpoint_url: str | None = os.getenv("AGENTA_MOUNTS_S3_ENDPOINT_URL")
-    s3_access_key: str | None = os.getenv("AGENTA_MOUNTS_S3_ACCESS_KEY")
-    s3_secret_key: str | None = os.getenv("AGENTA_MOUNTS_S3_SECRET_KEY")
-    s3_region: str = os.getenv("AGENTA_MOUNTS_S3_REGION", "us-east-1")
+    storage_endpoint_url: str | None = os.getenv("AGENTA_MOUNTS_STORAGE_ENDPOINT_URL")
+    storage_access_key: str | None = os.getenv("AGENTA_MOUNTS_STORAGE_ACCESS_KEY")
+    storage_secret_key: str | None = os.getenv("AGENTA_MOUNTS_STORAGE_SECRET_KEY")
+    storage_region: str = os.getenv("AGENTA_MOUNTS_STORAGE_REGION", "us-east-1")
+    storage_bucket: str | None = os.getenv("AGENTA_MOUNTS_STORAGE_BUCKET")
 
     model_config = ConfigDict(extra="ignore")
 
     @property
     def enabled(self) -> bool:
         """Mounts file ops enabled if an endpoint and credentials are present."""
-        return bool(self.s3_access_key and self.s3_secret_key)
+        return bool(self.storage_access_key and self.storage_secret_key)
 
 
 # ---------------------------------------------------------------------------

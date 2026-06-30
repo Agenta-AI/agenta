@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import insert
 
 from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
 from oss.src.core.mounts.interfaces import MountsDAOInterface
@@ -20,6 +21,7 @@ from oss.src.dbs.postgres.mounts.mappings import (
     map_mount_dbe_to_dto,
     map_mount_dto_to_dbe_create,
     map_mount_dto_to_dbe_edit,
+    map_mount_dto_to_dbe_upsert,
 )
 
 
@@ -52,6 +54,43 @@ class MountsDAO(MountsDAOInterface):
             if "uq_mounts_project_id_slug" in str(e.orig):
                 raise MountSlugConflict() from e
             raise
+
+        return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
+
+    async def upsert_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        mount_create: MountCreate,
+    ) -> Mount:
+        now = datetime.now(timezone.utc)
+        values = map_mount_dto_to_dbe_upsert(
+            project_id=project_id,
+            user_id=user_id,
+            now=now,
+            mount_create=mount_create,
+        )
+
+        stmt = insert(MountDBE).values(**values)
+        # On re-bind (same project + slug), keep the original row/id and re-activate it:
+        # touch the audit fields and clear any archive, so a re-attached session gets a
+        # live mount on the same durable prefix. name/description/flags are left intact.
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_mounts_project_id_slug",
+            set_={
+                "updated_at": now,
+                "updated_by_id": user_id,
+                "deleted_at": None,
+                "deleted_by_id": None,
+            },
+        ).returning(MountDBE)
+
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            await session.commit()
+            mount_dbe = result.scalars().first()
 
         return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
 
