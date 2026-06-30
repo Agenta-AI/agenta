@@ -182,7 +182,7 @@ agenta:
 #   enabled: true
 #   port: 8765
 #   provider: local
-#   enableMcp: false
+#   enableMcp: true
 #   daytona:
 #     apiKey:
 #     apiUrl: https://app.daytona.io/api

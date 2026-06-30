@@ -343,7 +343,7 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
   value: {{ $url | quote }}
 {{- end }}
 - name: AGENTA_AGENT_MCP_SERVERS_ENABLED
-  value: {{ default false $runner.enableMcp | quote }}
+  value: {{ default true $runner.enableMcp | quote }}
 {{- end }}
 
 {{/* ================================================================

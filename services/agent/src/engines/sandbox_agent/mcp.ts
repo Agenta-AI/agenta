@@ -33,13 +33,19 @@ export type McpServerEntry = McpServerStdio | McpServerHttp;
  * SSRF guard for a user HTTP MCP `url`. The runner emits the run's Agenta-resolved named secrets
  * as request headers to this author-supplied URL, so an attacker-controlled config could point it
  * at an internal/metadata endpoint and exfiltrate a credential (a classic server-side request
- * forgery). The capability is flag-gated (`AGENTA_AGENT_MCP_SERVERS_ENABLED`, off by default) and
- * config-trust, so a scheme + host guard is enough rather than full DNS-resolution pinning:
+ * forgery). The capability is flag-gated (`AGENTA_AGENT_MCP_SERVERS_ENABLED`, on by default) and
+ * config-trust. This is a scheme + host guard:
  *
  *  - require `https` (the secret rides in a header; `http` would send it in clear text). Opt out
  *    for a known-safe non-https endpoint by listing its host in `AGENTA_AGENT_MCP_HOST_ALLOWLIST`.
  *  - reject loopback, link-local (incl. the `169.254.169.254` cloud metadata host), and private
  *    address literals unless the host is in `AGENTA_AGENT_MCP_HOST_ALLOWLIST` (comma-separated).
+ *
+ * RESIDUAL (tracked in #4911): the guard does NOT pin DNS resolution to the validated host and
+ * does NOT re-validate redirects, so DNS rebinding or an https->internal redirect can still reach
+ * an internal sink. The blast radius is bounded (secrets ride headers only to https hosts), but
+ * with the flag now on by default this should be hardened (DNS-resolution pinning + manual
+ * redirect handling with origin re-validation).
  *
  * Returns an error message string when the URL is rejected, or `undefined` when it is allowed.
  */
