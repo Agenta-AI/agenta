@@ -44,10 +44,10 @@ const WorkflowPicker = memo(({collapsed}: WorkflowPickerProps) => {
                 type="text"
                 aria-label="Switch workflow"
                 className={clsx(
-                    "flex items-center justify-between gap-2",
+                    "flex items-center justify-between overflow-hidden transition-[width,height,padding,gap,border-color] duration-300 ease-in-out",
                     collapsed
-                        ? "!w-8 !h-8 !p-1"
-                        : "w-full pl-2 pr-3 py-3 h-12 border border-solid border-gray-200",
+                        ? "!w-8 !h-8 !p-1 gap-0"
+                        : "w-full pl-2 pr-3 py-3 h-12 gap-2 border border-solid border-gray-200",
                 )}
             >
                 <WorkflowIdentity
@@ -56,12 +56,18 @@ const WorkflowPicker = memo(({collapsed}: WorkflowPickerProps) => {
                     isEvaluator={isEvaluator}
                     showDetails={!collapsed}
                 />
-                {!collapsed && (
+                <span
+                    className={clsx(
+                        "flex shrink-0 items-center overflow-hidden transition-[width,opacity] duration-300 ease-in-out",
+                        collapsed ? "w-0 opacity-0" : "w-3.5 opacity-100",
+                    )}
+                    aria-hidden={collapsed}
+                >
                     <CaretDown
                         size={14}
                         className={clsx("transition-transform", open && "rotate-180")}
                     />
-                )}
+                </span>
             </Button>
         </Dropdown>
     )

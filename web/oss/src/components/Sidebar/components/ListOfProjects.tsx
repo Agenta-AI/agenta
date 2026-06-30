@@ -206,36 +206,55 @@ const ListOfProjects = ({
         <Button
             type={sharedButtonProps.type ?? "text"}
             className={clsx(
-                "flex items-center justify-between gap-2",
+                "flex items-center overflow-hidden transition-[width,height,padding,gap,border-color] duration-300 ease-in-out",
                 collapsed
-                    ? "!w-8 !h-8 !p-1"
-                    : "w-full pl-2 pr-3 py-3 h-12 border border-solid border-gray-200",
+                    ? "!w-8 !h-8 !p-0 justify-center gap-0"
+                    : "w-full pl-2 pr-3 py-3 h-12 justify-between gap-2 border border-solid border-gray-200",
                 sharedButtonProps.className,
             )}
             disabled={disabled || sharedButtonProps.disabled}
             {...sharedButtonProps.rest}
         >
-            <div className="flex items-center gap-2 min-w-0">
-                <InitialsAvatar size={collapsed ? "small" : "middle"} name={label || placeholder} />
-                {!collapsed && (
-                    <div className="flex min-w-0 flex-col text-left">
-                        <span className="max-w-[150px] truncate" title={label || placeholder}>
-                            {label || placeholder}
-                        </span>
-                        {subtitle && (
-                            <span className="text-[10px] leading-3 text-colorTextTertiary">
-                                {subtitle}
-                            </span>
-                        )}
-                    </div>
+            <div
+                className={clsx(
+                    "flex min-w-0 items-center transition-[gap] duration-300 ease-in-out",
+                    collapsed ? "w-full justify-center gap-0" : "gap-2",
                 )}
+            >
+                <InitialsAvatar
+                    size={collapsed ? "small" : "middle"}
+                    name={label || placeholder}
+                    style={{transition: "width 300ms ease-in-out, height 300ms ease-in-out"}}
+                />
+                <div
+                    className={clsx(
+                        "flex min-w-0 flex-col overflow-hidden text-left transition-[max-width,opacity] duration-300 ease-in-out",
+                        collapsed ? "max-w-0 opacity-0" : "max-w-[150px] opacity-100",
+                    )}
+                    aria-hidden={collapsed}
+                >
+                    <span className="max-w-[150px] truncate" title={label || placeholder}>
+                        {label || placeholder}
+                    </span>
+                    {subtitle && (
+                        <span className="text-[10px] leading-3 text-colorTextTertiary">
+                            {subtitle}
+                        </span>
+                    )}
+                </div>
             </div>
-            {!collapsed && showCaret && (
+            <span
+                className={clsx(
+                    "flex shrink-0 items-center overflow-hidden transition-[width,opacity] duration-300 ease-in-out",
+                    !collapsed && showCaret ? "w-3.5 opacity-100" : "w-0 opacity-0",
+                )}
+                aria-hidden={collapsed || !showCaret}
+            >
                 <CaretDown
                     size={14}
                     className={clsx("transition-transform", isOpen ? "rotate-180" : "")}
                 />
-            )}
+            </span>
         </Button>
     )
 

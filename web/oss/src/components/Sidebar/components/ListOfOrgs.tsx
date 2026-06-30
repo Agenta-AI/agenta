@@ -311,27 +311,43 @@ const ListOfOrgs = ({
         <Button
             type={sharedButtonProps.type ?? "text"}
             className={clsx(
-                "flex items-center justify-between gap-2 w-full px-1.5 py-3 h-8",
-                {"!w-auto": collapsed},
+                "flex items-center justify-between overflow-hidden h-8 transition-[width,padding,gap] duration-300 ease-in-out",
+                collapsed ? "!w-8 !p-1 gap-0" : "w-full px-1.5 py-3 gap-2",
                 sharedButtonProps.className,
             )}
             disabled={disabled || sharedButtonProps.disabled}
             {...sharedButtonProps.rest}
         >
-            <div className="flex items-center gap-2">
-                <InitialsAvatar size="small" name={label || placeholder} />
-                {!collapsed && (
-                    <span className="max-w-[150px] truncate" title={label || placeholder}>
-                        {label || placeholder}
-                    </span>
+            <div
+                className={clsx(
+                    "flex min-w-0 items-center transition-[gap] duration-300 ease-in-out",
+                    collapsed ? "gap-0" : "gap-2",
                 )}
+            >
+                <InitialsAvatar size="small" name={label || placeholder} />
+                <span
+                    className={clsx(
+                        "max-w-[150px] truncate overflow-hidden transition-[max-width,opacity] duration-300 ease-in-out",
+                        collapsed ? "!max-w-0 opacity-0" : "opacity-100",
+                    )}
+                    title={label || placeholder}
+                    aria-hidden={collapsed}
+                >
+                    {label || placeholder}
+                </span>
             </div>
-            {!collapsed && showCaret && (
+            <span
+                className={clsx(
+                    "flex shrink-0 items-center overflow-hidden transition-[width,opacity] duration-300 ease-in-out",
+                    !collapsed && showCaret ? "w-3.5 opacity-100" : "w-0 opacity-0",
+                )}
+                aria-hidden={collapsed || !showCaret}
+            >
                 <CaretDown
                     size={14}
                     className={clsx("transition-transform", isOpen ? "rotate-180" : "")}
                 />
-            )}
+            </span>
         </Button>
     )
 

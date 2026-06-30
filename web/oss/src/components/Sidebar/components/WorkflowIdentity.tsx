@@ -44,24 +44,33 @@ const WorkflowIdentityView = ({
     const {Icon, className, label} = WORKFLOW_DISPLAY_META[displayType]
 
     return (
-        <div className="flex items-center gap-2 min-w-0 w-full">
+        <div
+            className={clsx(
+                "flex min-w-0 w-full items-center transition-[gap] duration-300 ease-in-out",
+                showDetails ? "gap-2" : "gap-0",
+            )}
+        >
             <span
                 className={clsx(
-                    "flex shrink-0 items-center justify-center",
+                    "flex shrink-0 items-center justify-center transition-[width,height,border-radius] duration-300 ease-in-out",
                     showDetails ? "h-8 w-8 rounded-lg" : "h-6 w-6 rounded-md",
                     className,
                 )}
             >
                 <Icon size={showDetails ? 17 : 14} />
             </span>
-            {showDetails && (
-                <div className="flex min-w-0 flex-1 flex-col text-left">
-                    <span className="truncate leading-5" title={name}>
-                        {name}
-                    </span>
-                    <span className="text-[10px] leading-3 text-colorTextTertiary">{label}</span>
-                </div>
-            )}
+            <div
+                className={clsx(
+                    "flex min-w-0 flex-1 flex-col overflow-hidden text-left transition-[max-width,opacity] duration-300 ease-in-out",
+                    showDetails ? "max-w-[160px] opacity-100" : "max-w-0 opacity-0",
+                )}
+                aria-hidden={!showDetails}
+            >
+                <span className="truncate leading-5" title={name}>
+                    {name}
+                </span>
+                <span className="text-[10px] leading-3 text-colorTextTertiary">{label}</span>
+            </div>
             {selected && <Check size={16} className="shrink-0" />}
         </div>
     )
