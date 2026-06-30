@@ -201,6 +201,15 @@ export function staticEmbedSlug(skill: Record<string, unknown>): string | undefi
     return typeof slug === "string" ? slug : undefined
 }
 
+/** Display name for an embedded skill: the embed's sibling `name`, else the referenced workflow's
+ * `name`. Callers fall back to the slug when this is undefined. */
+export function staticEmbedName(skill: Record<string, unknown>): string | undefined {
+    if (typeof skill.name === "string" && skill.name) return skill.name
+    const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
+    const wfName = asObj(refs?.workflow)?.name ?? asObj(refs?.workflow_revision)?.name
+    return typeof wfName === "string" && wfName ? wfName : undefined
+}
+
 /** A pinned revision's version, when the embed references a `workflow_revision`. */
 function embedRevisionVersion(skill: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
@@ -228,7 +237,7 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         const slug = staticEmbedSlug(s)
         const version = embedRevisionVersion(s)
         return {
-            name: slug ?? "Static skill",
+            name: staticEmbedName(s) ?? slug ?? "Static skill",
             mono: "sk",
             color: "#6b7280",
             tags: version ? ["static", `v${version}`] : ["static"],
@@ -238,7 +247,7 @@ export function describeSkill(skill: unknown): ItemDescriptor {
     }
     if (isEmbedRefSkill(s)) {
         return {
-            name: "Skill reference",
+            name: staticEmbedName(s) ?? staticEmbedSlug(s) ?? "Skill reference",
             mono: "sk",
             color: "#b45309",
             tags: ["@ag.embed"],
