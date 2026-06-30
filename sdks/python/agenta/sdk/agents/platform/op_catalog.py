@@ -252,10 +252,10 @@ _QUERY_WORKFLOWS_INPUT_SCHEMA: Dict[str, Any] = {
 # and stripped from the model-visible schema, so the agent can only ever target itself, never a
 # different variant in the project. Defaults to approval.
 _COMMIT_REVISION_DESCRIPTION = (
-    "Commit a new revision to your own workflow variant (update yourself). Supply the config "
-    "fields to change under `workflow_revision.data` and an optional commit message; existing "
-    "revision data is preserved. Put agent template edits under "
-    "`workflow_revision.data.parameters.agent`. The variant you are running is targeted "
+    "Commit a new revision to your own workflow variant (update yourself). Send only the "
+    "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
+    "current config) and any field paths to drop under `delta.remove`. Put agent-template "
+    "edits under `delta.set.parameters.agent`. The variant you are running is targeted "
     "automatically. This changes the agent and requires approval."
 )
 _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
@@ -276,36 +276,34 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                     "type": "string",
                     "description": "Commit message describing the change.",
                 },
-                "data": {
+                "delta": {
                     "type": "object",
                     "additionalProperties": False,
                     "description": (
-                        "Workflow revision data patch. For agent apps, put edits under "
-                        "parameters.agent; omitted existing fields are preserved."
+                        "Change set applied to your current revision. `set` is deep-merged "
+                        "(omitted fields preserved); `remove` deletes the listed paths."
                     ),
                     "properties": {
-                        "uri": {"type": "string"},
-                        "url": {"type": "string"},
-                        "headers": {"type": "object"},
-                        "runtime": {
-                            "type": "string",
-                            "enum": ["python", "typescript", "javascript"],
-                        },
-                        "script": {"type": "string"},
-                        "schemas": {"type": "object"},
-                        "parameters": {
+                        "set": {
                             "type": "object",
                             "additionalProperties": True,
                             "description": (
-                                "Workflow parameters. For agent-template updates, include "
-                                "parameters.agent with instructions, llm, tools, mcps, skills, "
-                                "harness, runner, or sandbox fields as needed."
+                                "Partial workflow revision data to merge. For agent-template "
+                                "updates, include parameters.agent with instructions, llm, tools, "
+                                "mcps, skills, harness, runner, or sandbox fields as needed."
+                            ),
+                        },
+                        "remove": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": (
+                                "Dotted field paths to delete, e.g. parameters.agent.tools."
                             ),
                         },
                     },
                 },
             },
-            "required": ["workflow_variant_id", "data"],
+            "required": ["workflow_variant_id", "delta"],
         },
     },
     "required": ["workflow_revision"],
@@ -494,7 +492,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             op="commit_revision",
             description=_COMMIT_REVISION_DESCRIPTION,
             method="POST",
-            path="/api/workflows/revisions/commit/patch",
+            path="/api/workflows/revisions/commit",
             input_schema=_COMMIT_REVISION_INPUT_SCHEMA,
             context_bindings={
                 "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"

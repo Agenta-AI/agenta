@@ -22,7 +22,7 @@ from oss.src.core.workflows.service import (
 from oss.src.core.environments.service import (
     EnvironmentsService,
 )
-from oss.src.core.workflows.dtos import WorkflowRevisionCommit, WorkflowRevisionData
+from oss.src.core.workflows.dtos import WorkflowRevisionCommit
 from oss.src.core.environments.dtos import (
     EnvironmentRevisionCommit,
     EnvironmentRevisionDelta,
@@ -423,16 +423,6 @@ class WorkflowsRouter:
             self.commit_workflow_revision,
             methods=["POST"],
             operation_id="commit_workflow_revision",
-            status_code=status.HTTP_200_OK,
-            response_model=WorkflowRevisionResponse,
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
-            "/revisions/commit/patch",
-            self.commit_workflow_revision_patch,
-            methods=["POST"],
-            operation_id="commit_workflow_revision_patch",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionResponse,
             response_model_exclude_none=True,
@@ -1302,71 +1292,6 @@ class WorkflowsRouter:
         return workflow_revision_response
 
     @intercept_exceptions()
-    @handle_workflow_exceptions()
-    async def commit_workflow_revision_patch(
-        self,
-        request: Request,
-        *,
-        workflow_revision_commit_request: WorkflowRevisionCommitRequest,
-    ) -> WorkflowRevisionResponse:
-        if not await check_action_access(  # type: ignore
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-        ):
-            raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        workflow_revision_commit = workflow_revision_commit_request.workflow_revision
-        revision_data = workflow_revision_commit.data
-        if revision_data is None or not revision_data.model_dump(
-            mode="json", exclude_none=True
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="workflow_revision.data is required when committing a workflow revision.",
-            )
-
-        variant_id = (
-            workflow_revision_commit.workflow_variant_id
-            or workflow_revision_commit.variant_id
-        )
-        if variant_id is None:
-            raise HTTPException(
-                status_code=400,
-                detail="workflow_revision.workflow_variant_id is required when committing a workflow revision.",
-            )
-
-        current_revision = await self.workflows_service.fetch_workflow_revision(
-            project_id=UUID(request.state.project_id),
-            workflow_variant_ref=Reference(id=variant_id),
-            include_archived=False,
-        )
-        if current_revision and current_revision.data:
-            merged_data = _deep_merge_revision_data(
-                current_revision.data.model_dump(mode="json", exclude_none=True),
-                revision_data.model_dump(mode="json", exclude_none=True),
-            )
-            workflow_revision_commit.data = WorkflowRevisionData(**merged_data)
-
-        workflow_revision = await self.workflows_service.commit_workflow_revision(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            workflow_revision_commit=workflow_revision_commit,
-        )
-
-        await invalidate_cache(project_id=request.state.project_id)
-
-        await _emit_committed_revision_data_event(
-            request=request,
-            workflow_revision=workflow_revision,
-        )
-
-        return WorkflowRevisionResponse(
-            count=1 if workflow_revision else 0,
-            workflow_revision=workflow_revision,
-        )
-
-    @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionResponse(), exclude=[HTTPException])
     async def fetch_workflow_revision(
         self,
@@ -1592,23 +1517,42 @@ class WorkflowsRouter:
         ):
             return WorkflowRevisionResponse()
 
-        revision_data = workflow_revision_commit_request.workflow_revision.data
-        if revision_data is None or not revision_data.model_dump(
-            mode="json", exclude_none=True
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="workflow_revision.data is required when committing a workflow revision.",
-            )
-        if (
-            workflow_revision_commit_request.workflow_revision.workflow_variant_id
-            is None
-            and workflow_revision_commit_request.workflow_revision.variant_id is None
-        ):
+        workflow_revision_commit = workflow_revision_commit_request.workflow_revision
+
+        variant_id = (
+            workflow_revision_commit.workflow_variant_id
+            or workflow_revision_commit.variant_id
+        )
+        if variant_id is None:
             raise HTTPException(
                 status_code=400,
                 detail="workflow_revision.workflow_variant_id is required when committing a workflow revision.",
             )
+
+        # A commit carries data (full replace) or delta (ops merged onto the latest revision),
+        # never both. Empty is allowed only as the v0 seed (intentionally null data/flags/meta);
+        # once the variant has a data revision, an empty commit is rejected.
+        has_data = bool(
+            workflow_revision_commit.data
+            and workflow_revision_commit.data.model_dump(mode="json", exclude_none=True)
+        )
+        has_delta = workflow_revision_commit.delta is not None
+        if has_data and has_delta:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide either data or delta for a commit, not both.",
+            )
+        if not has_data and not has_delta:
+            current_revision = await self.workflows_service.fetch_workflow_revision(
+                project_id=UUID(request.state.project_id),
+                workflow_variant_ref=Reference(id=variant_id),
+                include_archived=False,
+            )
+            if current_revision and current_revision.data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="workflow_revision.data is required when committing a workflow revision.",
+                )
 
         workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
@@ -2025,17 +1969,6 @@ async def _emit_committed_revision_data_event(
             "version": workflow_revision.version,
         },
     )
-
-
-def _deep_merge_revision_data(base: dict, patch: dict) -> dict:
-    merged = dict(base)
-    for key, value in patch.items():
-        current = merged.get(key)
-        if isinstance(current, dict) and isinstance(value, dict):
-            merged[key] = _deep_merge_revision_data(current, value)
-        else:
-            merged[key] = value
-    return merged
 
 
 async def _emit_data_event(
