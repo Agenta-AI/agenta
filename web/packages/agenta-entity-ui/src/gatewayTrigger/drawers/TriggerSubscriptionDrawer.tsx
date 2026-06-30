@@ -74,6 +74,10 @@ const SHOW_LIST_RAIL = false
 // The active form publishes its source-browse state here so the single drawer header can go
 // "smart" (back + "Choose a trigger") without lifting browse state out of the form.
 const browseHeaderAtom = atom<{onBack: () => void} | null>(null)
+// The master-detail content publishes whether the open form is a SAVED subscription (vs a new
+// draft) so the root title reads "Edit trigger" after a create switches to the saved id —
+// `state.subscriptionId` alone stays undefined in the playground create flow.
+const subscriptionEditingAtom = atom(false)
 // Default maps the whole event context under `context`; `$` resolves to the full context.
 const DEFAULT_INPUTS_MAPPING = '{"context": "$"}'
 
@@ -133,10 +137,12 @@ export default function TriggerSubscriptionDrawer() {
     // Smart header: while the active form is browsing for a source, the header becomes a
     // back affordance + "Choose a trigger"; otherwise it's the form title.
     const browseHeader = useAtomValue(browseHeaderAtom)
+    // Editing = opened on a saved id OR the master-detail switched to one (e.g. after create).
+    const editing = useAtomValue(subscriptionEditingAtom)
     const formTitle =
         SHOW_LIST_RAIL && playgroundEntityId
             ? "Triggers"
-            : state?.subscriptionId
+            : state?.subscriptionId || editing
               ? "Edit trigger"
               : "New trigger"
     const title = browseHeader ? (
@@ -233,6 +239,14 @@ function SubscriptionDrawerContent({
         maxDrafts: MAX_DRAFTS,
         onDelete: onDeleteSubscription,
     })
+
+    // Publish whether the open form is a saved subscription so the root title reflects it
+    // (after a create, selectedId switches to the saved id while state.subscriptionId stays unset).
+    const setEditing = useSetAtom(subscriptionEditingAtom)
+    useEffect(() => {
+        setEditing(!!selectedId && !isDraftId(selectedId))
+        return () => setEditing(false)
+    }, [selectedId, setEditing])
 
     if (!playgroundEntityId) {
         return (
