@@ -54,6 +54,12 @@ services:
         environment:
             - SCRIPT_NAME=/api
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
+            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
+            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
+            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
+            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-}
+            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
+            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -118,6 +124,12 @@ services:
                 condition: service_healthy
         # === LIFECYCLE ============================================ #
         restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_evaluations' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
 
     worker-tracing:
         # === IMAGE ================================================ #
@@ -450,8 +462,14 @@ services:
         environment:
             - SCRIPT_NAME=/services
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
-            - AGENTA_AGENT_RUNNER_URL=${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
-            - AGENTA_AGENT_MCP_SERVERS_ENABLED=${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
+            - AGENTA_RUNNER_URL=${AGENTA_RUNNER_URL:-http://runner:8765}
+            - AGENTA_AGENT_MCPS_ENABLED=${AGENTA_AGENT_MCPS_ENABLED:-false}
+            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
+            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
+            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
+            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-}
+            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
+            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -459,7 +477,7 @@ services:
             - "host.docker.internal:host-gateway"
         # === ORCHESTRATION ======================================== #
         depends_on:
-            sandbox-agent:
+            runner:
                 condition: service_healthy
         # === LABELS =============================================== #
         labels:
@@ -473,21 +491,21 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
-    sandbox-agent:
+    runner:
         # === IMAGE ================================================ #
-        image: ghcr.io/agenta-ai/${AGENTA_AGENT_RUNNER_IMAGE_NAME:-agenta-agent-runner}:${AGENTA_AGENT_RUNNER_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_RUNNER_IMAGE_NAME:-agenta-runner}:${AGENTA_RUNNER_IMAGE_TAG:-latest}
         # === CONFIGURATION ======================================== #
         environment:
-            AGENTA_AGENT_RUNNER_PORT: "8765"
+            AGENTA_RUNNER_PORT: "8765"
             # Bind on all interfaces: the co-located Python `services` container reaches the
-            # sidecar over the compose network at `sandbox-agent:8765`, so the trust-model
+            # sidecar over the compose network at `runner:8765`, so the trust-model
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
-            AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
+            AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             # API as reached FROM this container: the compose service name over the network
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
             # which does not resolve inside a container. Used by the OTLP tracing-export
             # fallback AND the session heartbeat/record-persist calls.
-            AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
+            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
@@ -499,6 +517,14 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
+        # === RUNTIME ============================================== #
+        # FUSE for geesefs mounts (local sandbox cwd). Mirrors docker-compose.dev.yml.
+        cap_add:
+            - SYS_ADMIN
+        devices:
+            - /dev/fuse
+        security_opt:
+            - apparmor:unconfined
         # === LABELS =============================================== #
         labels:
             - "traefik.enable=false"

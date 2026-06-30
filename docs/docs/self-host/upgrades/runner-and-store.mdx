@@ -1,0 +1,112 @@
+---
+title: Enable the agent runner and durable store
+sidebar_label: Enable runner and store
+---
+
+This page covers enabling the agent runner sidecar and durable workspace store on an
+existing self-hosted Agenta deployment that predates the runner and store features.
+
+## Prerequisites
+
+- Agenta version that includes the runner sidecar (`big-agents` branch or later).
+- An existing Docker Compose or Helm deployment.
+
+## Docker Compose
+
+1. Pull the new image set:
+
+   ```bash
+   docker compose pull
+   ```
+
+2. Start the updated stack:
+
+   ```bash
+   ./hosting/docker-compose/run.sh --oss --gh
+   ```
+
+3. Confirm the runner started:
+
+   ```bash
+   curl http://localhost:8765/health
+   ```
+
+   A `200` response confirms the runner is up. If you get a connection error, check
+   `docker compose logs runner`.
+
+4. The `AGENTA_RUNNER_URL=http://runner:8765` value is included in the updated Compose
+   files by default. If you maintain a custom env file, add it there.
+
+5. (Optional) Enable durable agent workspaces. Set the store credentials in your env file:
+
+   ```bash
+   AGENTA_STORE_ACCESS_KEY=<access-key>
+   AGENTA_STORE_SECRET_KEY=<secret-key>
+   # Leave AGENTA_STORE_ENDPOINT_URL empty to use AWS S3,
+   # or set it to a SeaweedFS / MinIO / R2 endpoint.
+   ```
+
+   The dev compose stack bundles SeaweedFS and starts it automatically when
+   `AGENTA_STORE_ACCESS_KEY` and `AGENTA_STORE_SECRET_KEY` are set. The gh self-host
+   compose does not bundle SeaweedFS; point `AGENTA_STORE_ENDPOINT_URL` at an external
+   S3-compatible store or leave it empty for real AWS S3. For the full reference, see
+   [Store configuration](/self-host/configuration#store-durable-object-store).
+
+## Helm
+
+1. Upgrade the chart to the version that includes the runner:
+
+   ```bash
+   helm upgrade agenta agenta/agenta -f <your-values-file>
+   ```
+
+   `agentRunner.enabled=true` is the default. The chart creates a `runner` Deployment and
+   Service automatically.
+
+2. Confirm the runner pod is ready:
+
+   ```bash
+   kubectl get pods -l app=runner
+   ```
+
+3. (Optional) Enable the bundled durable store:
+
+   ```yaml
+   store:
+     enabled: true
+     accessKey: <access-key>
+     secretKey: <secret-key>
+     seaweedfs:
+       enabled: true
+     # SeaweedFS serves S3 STS through its OIDC IAM engine, so a bundled store also needs:
+     signingKey: <base64 of 32 random bytes>          # head -c 32 /dev/urandom | base64
+     jwtPrivateKey: |                                  # one stable RSA key shared by all API replicas
+       -----BEGIN PRIVATE KEY-----
+       ...
+       -----END PRIVATE KEY-----
+   ```
+
+   `jwtPrivateKey` is **required when the API runs more than one replica** — every replica must
+   sign with the same key or SeaweedFS's cached JWKS desyncs and STS fails intermittently.
+   Generate it with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`.
+
+   To point at an external S3-compatible store instead (real S3/R2 serve STS natively, so no
+   `signingKey`/`jwtPrivateKey` are needed):
+
+   ```yaml
+   store:
+     enabled: true
+     seaweedfs:
+       enabled: false
+     endpointUrl: https://your-store-endpoint
+     accessKey: <access-key>
+     secretKey: <secret-key>
+   ```
+
+   For the full reference, see [Store configuration](/self-host/configuration#store-durable-object-store).
+
+## What changes
+
+Agent runs now use durable working directories that survive sandbox teardown. Files written
+during one run are available in the next. Agent runs that ran on ephemeral sandboxes before
+this upgrade are not affected.

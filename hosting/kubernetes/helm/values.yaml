@@ -105,47 +105,37 @@ redisDurable:
     size: "5Gi"
 
 # ================================================================== #
-# agentRunner — sandbox-agent-backed agent workflow runner.
-# The services pod calls this over AGENTA_AGENT_RUNNER_URL. Keep provider
-# credentials scoped here instead of putting them in every Agenta container.
+# store — object-storage config (AGENTA_STORE_*).
+# Covers file mounts, session artifacts, and SeaweedFS wiring.
+# Set store.seaweedfs.enabled=true to deploy the bundled SeaweedFS; leave it
+# false and set endpointUrl/accessKey/secretKey to use an external S3-compatible
+# store (AWS S3, R2, MinIO). This mirrors postgresql.enabled.
+# accessKey/secretKey are the only required values for an external store.
+# signingKey/jwtIssuer/jwtPrivateKey are SeaweedFS-only (real S3/R2 serve STS
+# natively and ignore them):
+#   - signingKey: base64 of exactly 32 bytes (head -c 32 /dev/urandom | base64).
+#   - jwtIssuer: in-cluster API URL SeaweedFS fetches the JWKS from; defaults to
+#     http://<release>-api:<api.port> when unset.
+#   - jwtPrivateKey: a STABLE RSA PEM (PKCS#8) the API signs its web-identity token
+#     with — required so every API replica shares one key
+#     (openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048).
 # ================================================================== #
-agentRunner:
-  enabled: true
-  port: 8765
-  provider: "local"
-  enableMcp: false
-  # daytona — only used when provider is "daytona". All optional.
-  # daytona:
-  #   apiKey: ""
-  #   apiUrl: ""
-  #   target: ""
-  #   snapshot: ""
-  #   image: ""
-  #   installPi: true
-  #   autostopDelay: 15  # idle minutes before a leaked sandbox self-reaps (DAYTONA_AUTOSTOP)
-
-# ================================================================== #
-# mounts — durable object store for session/agent mounts (the agent's
-# persistent working directory). Opt-in: off by default. When enabled with
-# the bundled SeaweedFS, the API + sandbox-agent get matching S3 credentials
-# and the sandbox-agent pod gains FUSE (SYS_ADMIN + /dev/fuse) for geesefs.
-# To use an external store (AWS S3 / R2 / MinIO) instead, set
-# seaweedfs.enabled=false and provide endpointUrl + accessKey/secretKey.
-# ================================================================== #
-mounts:
-  enabled: false
-  # endpointUrl: ""            # external store only; empty endpoint = real AWS S3
-  # region: "us-east-1"
-  # bucket: "agenta-mounts"
-  # accessKey: ""              # required when enabled (secret)
-  # secretKey: ""              # required when enabled (secret)
-  # signingKey: ""             # base64 32-byte; enables in-process S3 STS (scoped creds)
-  seaweedfs:
-    enabled: true              # bundle SeaweedFS; set false to point at an external store
-    # port: 8333
-    # image:
-    #   repository: chrislusf/seaweedfs
-    #   tag: latest
-    persistence:
-      size: "10Gi"
-      # storageClass: ""
+# store:
+#   endpointUrl:
+#   accessKey:
+#   secretKey:
+#   region:
+#   bucket:
+#   signingKey:
+#   jwtIssuer:
+#   jwtPrivateKey:
+#   seaweedfs:
+#     enabled: false
+#     port: 8333
+#     image:
+#       repository: chrislusf/seaweedfs
+#       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
+#       pullPolicy: IfNotPresent
+#     persistence:
+#       enabled: true
+#       size: 20Gi

@@ -166,9 +166,11 @@ const PlaygroundVariantConfigHeader = ({
         <section
             className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 ${
                 // Agent config below is a borderless summary, so the bar needs to read as a header.
-                // Give it a subtly tinted surface (vs the plain content) instead of the same FFFFFF.
+                // Give it a subtly tinted surface (vs the plain content): an opaque container base
+                // (background-color) with the translucent fill layered on top (background-image), so
+                // this sticky header stays opaque and scrolled content can't bleed through it.
                 isAgent && !embedded
-                    ? "bg-[var(--ant-color-fill-tertiary)]"
+                    ? "bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))]"
                     : "bg-[var(--ag-c-FFFFFF)]"
             } ${className ?? ""}`}
             {...divProps}

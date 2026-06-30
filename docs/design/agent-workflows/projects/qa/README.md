@@ -31,7 +31,7 @@ each cell valid, not-applicable, or blocked. Do not test cells that cannot exist
 - `E1` direct in-process Pi. Local contrast path only, used to isolate Pi-specific behavior.
   It is not the production deployment default.
 - `E2` service / sandbox-agent local. The `services` container reaches the runner through
-  `AGENTA_AGENT_RUNNER_URL`; `sandbox=local`. The harness runs over ACP through
+  `AGENTA_RUNNER_URL`; `sandbox=local`. The harness runs over ACP through
   `sandbox-agent` in local mode. Runner logs show `[sandbox-agent]`.
 - `E3` service / sandbox-agent Daytona. `sandbox=daytona`. Same as E2 but the sandbox is a Daytona
   cloud workspace. Always sandbox-agent. Slower to start.
@@ -50,7 +50,7 @@ tools (Composio), MCP, skills without code, skills with code, client tools.
 ## How the backend is chosen
 
 `select_backend` in `services/oss/src/agent/app.py` always uses `SandboxAgentBackend` for
-the deployed service path. The transport is selected by `AGENTA_AGENT_RUNNER_URL`: HTTP to
+the deployed service path. The transport is selected by `AGENTA_RUNNER_URL`: HTTP to
 the `sandbox-agent` service when set, or the local TypeScript runner CLI in a source checkout.
 
 Harness and sandbox are request/agent-config axes. Direct in-process Pi remains available to

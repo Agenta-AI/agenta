@@ -238,31 +238,6 @@ export const setActiveSessionAtomFamily = atomFamily((key: string) =>
     }),
 )
 
-/**
- * Live streaming status per session id, keyed by the globally-unique session id (no scope
- * dimension). The chat panel writes `true` while its turn is submitted/streaming and `false`
- * when it settles. The session inspector reads it to know THIS client is the live watcher of a
- * session — that's what drives the inspector's Attach/Detach enablement and the `attached`
- * indicator, since an inline chat run streams over the runner NDJSON, not the coordination-plane
- * attach. In-memory only (not persisted): it describes the current browser tab, not history.
- */
-export const sessionStreamingAtom = atom<Record<string, boolean>>({})
-
-/** Is THIS browser currently streaming the given session? */
-export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
-    atom((get) => Boolean(get(sessionStreamingAtom)[id])),
-)
-
-/** Set/clear the live-streaming flag for a session id. */
-export const setSessionStreamingAtom = atom(
-    null,
-    (get, set, {id, streaming}: {id: string; streaming: boolean}) => {
-        const cur = get(sessionStreamingAtom)
-        if (Boolean(cur[id]) === streaming) return
-        set(sessionStreamingAtom, {...cur, [id]: streaming})
-    },
-)
-
 /** Write a session's messages to the persisted store (called when its stream settles). */
 export const persistSessionMessagesAtom = atom(
     null,
@@ -303,4 +278,57 @@ export const sessionLabel = (
  */
 export const sessionFirstUserTextAtomFamily = atomFamily((id: string) =>
     selectAtom(sessionMessagesAtom, (all) => firstUserText(all[id])),
+)
+
+/**
+ * Run state of a session's live conversation — the single source of truth for "what is this
+ * session doing right now", surfaced as the tab bar's status dot AND the session inspector's
+ * live-watcher signal (see `isSessionStreamingAtomFamily`).
+ *  - running:  a turn is streaming / submitted
+ *  - awaiting: paused on a human-in-the-loop approval
+ *  - error:    the last run failed
+ *  - idle:     nothing in flight (also the default for unvisited / closed sessions)
+ */
+export type SessionRunStatus = "idle" | "running" | "awaiting" | "error"
+
+/**
+ * Canonical per-session run state, keyed by the globally-unique session id (no scope dimension).
+ * Written by the mounted conversation (from its useChat status / approval / error); everything
+ * status-related derives from this one record so there's no competing streaming flag to keep in
+ * sync. In-memory only (not persisted): it describes the current browser tab, not history.
+ */
+const sessionStatusByIdAtom = atom<Record<string, SessionRunStatus>>({})
+
+/** A single session's run state. Defaults to "idle" for sessions with no mounted conversation.
+ * Backs the tab bar's status dot; reads repaint only when this session's status changes. */
+export const sessionStatusAtomFamily = atomFamily((id: string) =>
+    atom((get) => get(sessionStatusByIdAtom)[id] ?? "idle"),
+)
+
+/**
+ * Is THIS browser currently streaming the given session? Derived from the run state (`running`).
+ * The session inspector reads it to know THIS client is the live watcher of a session — that's
+ * what drives the inspector's Attach/Detach enablement and the `attached` indicator, since an
+ * inline chat run streams over the runner NDJSON, not the coordination-plane attach.
+ */
+export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
+    atom((get) => get(sessionStatusByIdAtom)[id] === "running"),
+)
+
+/** Set a session's run state. "idle" is the default, so it's stored as ABSENCE: passing "idle"
+ * deletes the entry (clear-on-unmount) instead of accumulating idle keys for every closed session. */
+export const setSessionStatusAtom = atom(
+    null,
+    (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
+        const cur = get(sessionStatusByIdAtom)
+        if (status === "idle") {
+            if (!(id in cur)) return
+            const next = {...cur}
+            delete next[id]
+            set(sessionStatusByIdAtom, next)
+            return
+        }
+        if (cur[id] === status) return
+        set(sessionStatusByIdAtom, {...cur, [id]: status})
+    },
 )

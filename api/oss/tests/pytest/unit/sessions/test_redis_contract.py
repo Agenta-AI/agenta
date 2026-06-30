@@ -1,10 +1,10 @@
 """Golden-fixture contract test: Redis coordination plane (Python side).
 
 Asserts that the Python implementation (api/oss/src/dbs/redis/sessions/contract.py)
-agrees with the golden fixture (services/agent/tests/fixtures/sessions/redis_contract.json)
+agrees with the golden fixture (services/runner/tests/fixtures/sessions/redis_contract.json)
 on every key name, TTL, displacement payload shape, Lua script, and cap constant.
 
-The TypeScript implementation has a parallel vitest (services/agent/tests/unit/
+The TypeScript implementation has a parallel vitest (services/runner/tests/unit/
 session-redis-contract.test.ts) that asserts the same fixture. A drift between the
 two implementations causes one test suite to fail; you cannot silently break the contract.
 
@@ -39,7 +39,7 @@ from oss.src.dbs.redis.sessions.contract import (
 _FIXTURE_PATH = (
     Path(__file__).parent.parent.parent.parent.parent.parent.parent
     / "services"
-    / "agent"
+    / "runner"
     / "tests"
     / "fixtures"
     / "sessions"

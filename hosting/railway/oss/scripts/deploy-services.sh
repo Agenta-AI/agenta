@@ -30,7 +30,10 @@ railway up hosting/railway/oss/worker-tracing --path-as-root --service worker-tr
 railway up hosting/railway/oss/worker-evaluations --path-as-root --service worker-evaluations --detach
 railway up hosting/railway/oss/worker-webhooks --path-as-root --service worker-webhooks --detach
 railway up hosting/railway/oss/worker-events --path-as-root --service worker-events --detach
-railway up hosting/railway/oss/sandbox-agent --path-as-root --service sandbox-agent --detach
+railway up hosting/railway/oss/worker-interactions --path-as-root --service worker-interactions --detach
+railway up hosting/railway/oss/worker-records --path-as-root --service worker-records --detach
+railway up hosting/railway/oss/worker-triggers --path-as-root --service worker-triggers --detach
+railway up hosting/railway/oss/runner --path-as-root --service runner --detach
 railway up hosting/railway/oss/services --path-as-root --service services --detach
 railway up hosting/railway/oss/cron --path-as-root --service cron --detach
 railway up hosting/railway/oss/web --path-as-root --service web --detach

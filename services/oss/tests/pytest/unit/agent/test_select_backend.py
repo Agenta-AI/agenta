@@ -26,8 +26,8 @@ def runner_wrapper(tmp_path: Path) -> Path:
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch, runner_wrapper: Path):
     # Start every case from a known-empty deployment environment.
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_URL", raising=False)
-    monkeypatch.setenv("AGENTA_AGENT_RUNNER_DIR", str(runner_wrapper))
+    monkeypatch.delenv("AGENTA_RUNNER_URL", raising=False)
+    monkeypatch.setenv("AGENTA_RUNNER_DIR", str(runner_wrapper))
 
 
 def _sel(harness="pi_core", sandbox="local"):
@@ -47,7 +47,7 @@ def test_non_local_sandbox_is_threaded_through():
 
 
 def test_runner_url_selects_http_transport(monkeypatch):
-    monkeypatch.setenv("AGENTA_AGENT_RUNNER_URL", "http://sandbox-agent:8765")
+    monkeypatch.setenv("AGENTA_RUNNER_URL", "http://sandbox-agent:8765")
 
     backend = select_backend(_sel("pi_core", "local"))
 
@@ -62,7 +62,7 @@ def test_no_runner_url_uses_subprocess_transport():
 def test_no_runner_url_requires_runner_assets(monkeypatch, tmp_path: Path):
     missing_wrapper = tmp_path / "missing-wrapper"
     missing_wrapper.mkdir()
-    monkeypatch.setenv("AGENTA_AGENT_RUNNER_DIR", str(missing_wrapper))
+    monkeypatch.setenv("AGENTA_RUNNER_DIR", str(missing_wrapper))
 
     with pytest.raises(AgentRunnerConfigurationError, match="src/cli.ts"):
         select_backend(_sel("pi_core", "local"))

@@ -129,7 +129,7 @@ in the sessions/agent path (the evaluations `run_id` is a different domain, unto
 ## Multi-container correctness — `replica_id` distinct from `turn_id`
 
 The heartbeat carries **two ids**: `replica_id` (the runner *container*, minted once per
-process via `AGENTA_AGENT_RUNNER_REPLICA_ID` or a uuid — refreshes `owner` affinity) and
+process via `AGENTA_RUNNER_REPLICA_ID` or a uuid — refreshes `owner` affinity) and
 `turn_id` (the *turn* — refreshes `alive`/`running`). With 2+ containers, affinity routes
 control signals to the box running the session while each box proves its own turn ownership.
 This is wired now, not deferred.
@@ -205,7 +205,7 @@ session-scoped component — distinct from that drawer, which is trace/turn-scop
 ## Open questions
 
 - **Kill → runner reach**: the platform API has no runner client (the runner calls *into*
-  the API, not the reverse; there is no `AGENTA_AGENT_RUNNER_URL` in `api/.../env.py`).
+  the API, not the reverse; there is no `AGENTA_RUNNER_URL` in `api/.../env.py`).
   **Decided for Phase 1**: `delete_session_stream` collapses the nest in Redis (force-clear
   alive + running + attached) + marks the row `ended` + soft-deletes. Force-clearing `alive`
   makes the owning runner's watchdog lose the lock, which is the existing teardown signal; the

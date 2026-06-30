@@ -36,7 +36,7 @@ the runner (`toAcpMcpServers`) reads each resolved `env` entry and emits it as a
 header (so `secrets: {"Authorization": "vault-name"}` becomes an `Authorization` header on the
 remote call). Before attaching the credential, an SSRF guard (`validateUserMcpUrl`) requires the
 `url` to be `https` and to not target an internal/metadata host (loopback, `169.254.169.254`,
-private literals); `AGENTA_AGENT_MCP_HOST_ALLOWLIST` opts a host out. Stdio (`transport: "stdio"`
+private literals); `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` opts a host out. Stdio (`transport: "stdio"`
 + `command`) servers are disabled in the sidecar — a stdio server runs an arbitrary process on
 the runner host, outside the sandbox boundary — so a run carrying one is refused
 (`USER_MCP_UNSUPPORTED_MESSAGE`). On a Pi harness, ANY user MCP server (stdio or http) is refused

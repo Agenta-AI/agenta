@@ -1,6 +1,6 @@
 """The runner HTTP transport sends the optional shared-token header (Codex LOW-5).
 
-The runner's ``/run`` endpoint has an opt-in shared-token gate (``AGENTA_AGENT_RUNNER_TOKEN``,
+The runner's ``/run`` endpoint has an opt-in shared-token gate (``AGENTA_RUNNER_TOKEN``,
 default OFF; see ``services/agent/src/server.ts``). When the operator turns it on, an un-tokened
 POST from the co-located Python service is rejected with 401. These tests pin the Python side of
 that contract: ``deliver_http_result`` / ``deliver_http_stream`` attach ``Authorization: Bearer
@@ -88,20 +88,20 @@ def _fake_stream_client(capture: Dict[str, Any], *, lines: List[str]):
 
 
 def test_auth_headers_absent_by_default(monkeypatch):
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     assert _runner_auth_headers() == {}
 
 
 def test_auth_headers_present_when_token_set(monkeypatch):
-    monkeypatch.setenv("AGENTA_AGENT_RUNNER_TOKEN", "s3cr3t")
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "s3cr3t")
     assert _runner_auth_headers() == {"Authorization": "Bearer s3cr3t"}
 
 
 def test_auth_headers_read_per_call(monkeypatch):
     # Read fresh each call (not cached at import), so a runtime env flip takes effect.
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     assert _runner_auth_headers() == {}
-    monkeypatch.setenv("AGENTA_AGENT_RUNNER_TOKEN", "later")
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "later")
     assert _runner_auth_headers() == {"Authorization": "Bearer later"}
 
 
@@ -109,7 +109,7 @@ def test_auth_headers_read_per_call(monkeypatch):
 
 
 async def test_deliver_http_sends_bearer_when_token_set(monkeypatch):
-    monkeypatch.setenv("AGENTA_AGENT_RUNNER_TOKEN", "tok-123")
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "tok-123")
     capture: Dict[str, Any] = {}
     monkeypatch.setattr(
         httpx, "AsyncClient", _fake_post_client(capture, payload={"ok": True})
@@ -123,7 +123,7 @@ async def test_deliver_http_sends_bearer_when_token_set(monkeypatch):
 
 
 async def test_deliver_http_no_auth_header_when_unset(monkeypatch):
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     capture: Dict[str, Any] = {}
     monkeypatch.setattr(
         httpx, "AsyncClient", _fake_post_client(capture, payload={"ok": True})
@@ -138,7 +138,7 @@ async def test_deliver_http_no_auth_header_when_unset(monkeypatch):
 
 
 async def test_deliver_http_stream_sends_bearer_and_keeps_accept(monkeypatch):
-    monkeypatch.setenv("AGENTA_AGENT_RUNNER_TOKEN", "tok-stream")
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "tok-stream")
     capture: Dict[str, Any] = {}
     lines = [json.dumps({"kind": "result", "result": {"ok": True}})]
     monkeypatch.setattr(httpx, "AsyncClient", _fake_stream_client(capture, lines=lines))
@@ -157,7 +157,7 @@ async def test_deliver_http_stream_sends_bearer_and_keeps_accept(monkeypatch):
 
 
 async def test_deliver_http_stream_no_auth_header_when_unset(monkeypatch):
-    monkeypatch.delenv("AGENTA_AGENT_RUNNER_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     capture: Dict[str, Any] = {}
     lines = [json.dumps({"kind": "result", "result": {"ok": True}})]
     monkeypatch.setattr(httpx, "AsyncClient", _fake_stream_client(capture, lines=lines))

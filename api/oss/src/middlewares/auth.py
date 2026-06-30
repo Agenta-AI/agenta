@@ -54,10 +54,12 @@ _PUBLIC_ENDPOINTS = (
     "/health",
     "/docs",
     "/openapi.json",
+    "/.well-known/jwks.json",
     # API
     "/api/health",
     "/api/docs",
     "/api/openapi.json",
+    "/api/.well-known/jwks.json",
     # SUPERTOKENS
     "/auth",
     "/api/auth",
