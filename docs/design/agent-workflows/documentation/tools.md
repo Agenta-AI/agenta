@@ -194,8 +194,9 @@ natively. Today that splits cleanly into two paths.
   directory. It never receives the `call_ref`, the code, the scoped secrets, or the callback
   auth. When the model calls a tool, the bridge relays the request back to the runner, and the
   runner runs the private spec from memory. This `agenta-tools` server is a tool DELIVERY
-  vehicle, not a user MCP server: it carries gateway and code tools, and it exists only on the
-  Claude path.
+  vehicle, not a user MCP server: it carries gateway and code tools AND `client` tools (which it
+  parks in `tools/call` rather than executing — see "Client tools" below), and it exists only on
+  the local Claude path (it is skipped on Daytona, where its loopback URL is unreachable).
 
 Both paths funnel execution through one function, `runResolvedTool` in
 `services/agent/src/tools/dispatch.ts`. It is the single place that branches on `kind`, so how
@@ -293,13 +294,29 @@ not, until a provisioning story exists.
 ### Client tools: the browser fulfils them across a turn boundary
 
 Execution happens in the browser, not in the runner at all. A client tool is never run
-in-sandbox; `runResolvedTool` throws if one is ever dispatched there, and the MCP bridge filters
-client tools out of its advertised list. Instead, when the harness calls a client tool, the
-runner emits an `interaction_request` event of kind `client_tool`. The `/messages` egress
-projects it to a browser component, the browser runs it, and the result returns in the next
-`/messages` turn, matched back by id. This is the cross-turn human-in-the-loop path, the same
-mechanism approvals use. A client tool is the right type whenever only the user's environment
-can answer: their location, a file on their machine, a confirmation only they can give.
+in-sandbox; `runResolvedTool` throws if one is ever dispatched there. The model still SEES the
+tool and calls it; the runner then PARKS the call and emits an `interaction_request` event of
+kind `client_tool`. The `/messages` egress projects it to a browser component, the browser runs
+it, and the result returns in the next `/messages` turn, matched back by tool name + args. This
+is the cross-turn human-in-the-loop path, the same mechanism approvals use. A client tool is the
+right type whenever only the user's environment can answer: their location, a file on their
+machine, a confirmation only they can give.
+
+The park itself is shared by both delivery paths through one seam
+(`services/agent/src/engines/sandbox_agent/client-tools.ts`, `buildClientToolRelay` +
+`emitClientToolInteraction`):
+
+- **Pi** calls the tool through its extension; the runner's file relay parks it (writes no
+  response file) and the seam emits the interaction.
+- **Claude** calls the tool over the internal `agenta-tools` MCP server, and the runner parks it
+  inside the `tools/call` handler: it emits NO JSON-RPC result and aborts that in-flight request,
+  so Claude cannot settle the call before the turn ends `paused`. The browser result resumes it
+  next turn (the MCP handler returns the stored output if the model re-calls). This is local-only:
+  on Daytona the loopback MCP channel is skipped, so a non-Pi run carrying a client tool is
+  rejected up front (`DAYTONA_TOOL_DELIVERY_UNSUPPORTED_MESSAGE`), never delivered silently.
+
+A client tool's `render` hint can be `{ kind: "connect" }` (e.g. `request_connection`), the typed
+member of `RenderHint` that asks the frontend to draw the connect widget.
 
 ### Built-in tools: the harness runs them natively
 
