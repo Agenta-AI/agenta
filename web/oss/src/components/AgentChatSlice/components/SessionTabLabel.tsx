@@ -3,9 +3,11 @@ import {useState} from "react"
 import {Input} from "antd"
 
 /**
- * A session tab's label. Double-click to rename inline (commit on Enter/blur). Clicks while
- * editing are stopped so they don't also switch tabs. `className` styles the resting display
- * span (the tag passes `truncate` so a long title clips with an ellipsis).
+ * A session tab's label. Double-click to rename inline (commit on Enter/blur). While editing,
+ * the input owns its own pointer + keyboard events (stopped from bubbling) so the surrounding
+ * tab's activation handler never sees them — otherwise Space couldn't be typed into a name and
+ * Enter would also switch tabs. `className` styles the resting display span (the tag passes
+ * `truncate` so a long title clips with an ellipsis).
  */
 const SessionTabLabel = ({
     label,
@@ -32,6 +34,8 @@ const SessionTabLabel = ({
                 onPressEnter={commit}
                 onBlur={commit}
                 onClick={(e) => e.stopPropagation()}
+                // Keep typing (Space/Enter) inside the rename input; don't let it reach the tab.
+                onKeyDown={(e) => e.stopPropagation()}
                 className="!h-6 !w-28 !px-1 !text-xs"
             />
         )

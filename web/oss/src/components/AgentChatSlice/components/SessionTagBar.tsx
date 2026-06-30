@@ -95,7 +95,7 @@ const SessionTag = ({
                         e.stopPropagation()
                         onClose()
                     }}
-                    className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                    className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
                 />
             )}
         </div>

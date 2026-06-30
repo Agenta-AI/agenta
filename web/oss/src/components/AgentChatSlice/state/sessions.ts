@@ -315,11 +315,19 @@ export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
     atom((get) => get(sessionStatusByIdAtom)[id] === "running"),
 )
 
-/** Set a session's run state (pass "idle" to clear, e.g. on unmount). */
+/** Set a session's run state. "idle" is the default, so it's stored as ABSENCE: passing "idle"
+ * deletes the entry (clear-on-unmount) instead of accumulating idle keys for every closed session. */
 export const setSessionStatusAtom = atom(
     null,
     (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
         const cur = get(sessionStatusByIdAtom)
+        if (status === "idle") {
+            if (!(id in cur)) return
+            const next = {...cur}
+            delete next[id]
+            set(sessionStatusByIdAtom, next)
+            return
+        }
         if (cur[id] === status) return
         set(sessionStatusByIdAtom, {...cur, [id]: status})
     },
