@@ -370,6 +370,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // so it interleaves with HITL approval / queued messages exactly like a manual send.
     useEffect(() => {
         if (!pendingRun || activeSessionId !== sessionId) return
+        // A new-session run is handled at the panel level first (it creates + activates a fresh
+        // session and clears the flag); this per-session consumer ignores it until then.
+        if (pendingRun.newSession) return
         if (consumedRunNonceRef.current === pendingRun.nonce) return
         consumedRunNonceRef.current = pendingRun.nonce
         stickRef.current = true
@@ -1030,6 +1033,19 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
 
     // Tolerate a stale active id (its tab was closed) by falling back to the first tab.
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id
+
+    // A trigger test asks for a fresh session: create + activate one, then clear the flag so the
+    // new session's conversation consumes the turn (the per-session consumer skips flagged runs).
+    const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
+    const newSessionNonceRef = useRef<number | null>(null)
+    useEffect(() => {
+        if (!pendingRun?.newSession) return
+        if (newSessionNonceRef.current === pendingRun.nonce) return
+        newSessionNonceRef.current = pendingRun.nonce
+        addSession()
+        setPendingRun({text: pendingRun.text, nonce: pendingRun.nonce})
+    }, [pendingRun, addSession, setPendingRun])
 
     return (
         <div className="flex h-full min-h-0 w-full flex-col">

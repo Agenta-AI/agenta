@@ -127,7 +127,7 @@ def map_schedule_dto_to_dbe_create(
         tags=schedule.tags,
         meta=schedule.meta,
         #
-        flags=TriggerScheduleFlags().model_dump(),
+        flags=schedule.flags.model_dump(),
         #
         data=schedule.data.model_dump(mode="json", exclude_none=True),
     )

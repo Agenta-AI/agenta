@@ -46,6 +46,15 @@ export const useTriggerSchedule = (scheduleId?: string) => {
             try {
                 const res = await fn()
                 invalidateSchedules()
+                // Seed the detail cache with the create/edit result so a drawer that
+                // selects the just-saved schedule reads it immediately (no loading flash);
+                // it still background-refetches since the list invalidation marks it stale.
+                if (res.schedule?.id) {
+                    queryClient.setQueryData(
+                        ["triggers", "schedules", "detail", res.schedule.id],
+                        res,
+                    )
+                }
                 return res.schedule ?? null
             } finally {
                 setIsMutating(false)
