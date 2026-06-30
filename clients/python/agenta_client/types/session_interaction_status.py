@@ -2,4 +2,4 @@
 
 import typing
 
-SessionInteractionStatus = typing.Union[typing.Literal["pending", "resolved", "denied", "cancelled"], typing.Any]
+SessionInteractionStatus = typing.Union[typing.Literal["pending", "responded", "resolved", "cancelled"], typing.Any]

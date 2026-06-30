@@ -310,13 +310,14 @@ export type AgentEvent =
       isError?: boolean;
       render?: RenderHint;
     }
-  // A human-in-the-loop request the harness raised (ACP reverse-RPC). The egress projects
-  // it to a Vercel `tool-approval-request` (permission) or an input/data part (elicitation);
-  // the reply returns cross-turn in the next `/messages` message history, matched by `id`.
+  // A human-in-the-loop request the harness raised (ACP reverse-RPC). The kind is our own
+  // interactions vocabulary; each adapter maps it to its wire (the Vercel egress projects
+  // user_approval -> `tool-approval-request`, user_input -> an input/data part). The reply
+  // returns cross-turn in the next `/messages` message history, matched by `id`.
   | {
       type: "interaction_request";
       id: string;
-      kind: "permission" | "input" | "client_tool";
+      kind: "user_approval" | "user_input" | "client_tool";
       payload?: unknown;
     }
   // One-way generative-UI payloads (not tied to a tool result). `data` -> Vercel `data-<name>`,

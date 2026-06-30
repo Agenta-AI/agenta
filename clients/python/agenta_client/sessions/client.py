@@ -4,8 +4,12 @@ import typing
 
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
+from ..types.session_interaction_data import SessionInteractionData
+from ..types.session_interaction_flags import SessionInteractionFlags
+from ..types.session_interaction_kind import SessionInteractionKind
 from ..types.session_interaction_query import SessionInteractionQuery
 from ..types.session_interaction_response import SessionInteractionResponse
+from ..types.session_interaction_status import SessionInteractionStatus
 from ..types.session_interactions_response import SessionInteractionsResponse
 from ..types.session_mount_query import SessionMountQuery
 from ..types.session_mounts_response import SessionMountsResponse
@@ -224,6 +228,46 @@ class SessionsClient:
         _response = self._raw_client.heartbeat_session_stream(session_id=session_id, replica_id=replica_id, turn_id=turn_id, is_running=is_running, status=status, request_options=request_options)
         return _response.data
     
+    def create_interaction(self, *, session_id: str, token: str, kind: SessionInteractionKind, turn_id: typing.Optional[str] = OMIT, data: typing.Optional[SessionInteractionData] = OMIT, flags: typing.Optional[SessionInteractionFlags] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        token : str
+        
+        kind : SessionInteractionKind
+        
+        turn_id : typing.Optional[str]
+        
+        data : typing.Optional[SessionInteractionData]
+        
+        flags : typing.Optional[SessionInteractionFlags]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionInteractionResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.create_interaction(
+            session_id="session_id",
+            token="token",
+            kind="user_approval",
+        )
+        """
+        _response = self._raw_client.create_interaction(session_id=session_id, token=token, kind=kind, turn_id=turn_id, data=data, flags=flags, request_options=request_options)
+        return _response.data
+    
     def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionsResponse:
         """
         Parameters
@@ -250,6 +294,71 @@ class SessionsClient:
         client.sessions.query_interactions()
         """
         _response = self._raw_client.query_interactions(query=query, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    def transition_interaction(self, *, session_id: str, token: str, status: SessionInteractionStatus, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        token : str
+        
+        status : SessionInteractionStatus
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionInteractionResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.transition_interaction(
+            session_id="session_id",
+            token="token",
+            status="pending",
+        )
+        """
+        _response = self._raw_client.transition_interaction(session_id=session_id, token=token, status=status, request_options=request_options)
+        return _response.data
+    
+    def cancel_stale_interactions(self, *, session_id: str, turn_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        turn_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.Any]
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.cancel_stale_interactions(
+            session_id="session_id",
+            turn_id="turn_id",
+        )
+        """
+        _response = self._raw_client.cancel_stale_interactions(session_id=session_id, turn_id=turn_id, request_options=request_options)
         return _response.data
     
     def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
@@ -776,6 +885,54 @@ class AsyncSessionsClient:
         _response = await self._raw_client.heartbeat_session_stream(session_id=session_id, replica_id=replica_id, turn_id=turn_id, is_running=is_running, status=status, request_options=request_options)
         return _response.data
     
+    async def create_interaction(self, *, session_id: str, token: str, kind: SessionInteractionKind, turn_id: typing.Optional[str] = OMIT, data: typing.Optional[SessionInteractionData] = OMIT, flags: typing.Optional[SessionInteractionFlags] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        token : str
+        
+        kind : SessionInteractionKind
+        
+        turn_id : typing.Optional[str]
+        
+        data : typing.Optional[SessionInteractionData]
+        
+        flags : typing.Optional[SessionInteractionFlags]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionInteractionResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.create_interaction(
+                session_id="session_id",
+                token="token",
+                kind="user_approval",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.create_interaction(session_id=session_id, token=token, kind=kind, turn_id=turn_id, data=data, flags=flags, request_options=request_options)
+        return _response.data
+    
     async def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionsResponse:
         """
         Parameters
@@ -810,6 +967,87 @@ class AsyncSessionsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.query_interactions(query=query, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    async def transition_interaction(self, *, session_id: str, token: str, status: SessionInteractionStatus, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        token : str
+        
+        status : SessionInteractionStatus
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionInteractionResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.transition_interaction(
+                session_id="session_id",
+                token="token",
+                status="pending",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.transition_interaction(session_id=session_id, token=token, status=status, request_options=request_options)
+        return _response.data
+    
+    async def cancel_stale_interactions(self, *, session_id: str, turn_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        turn_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.Any]
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.cancel_stale_interactions(
+                session_id="session_id",
+                turn_id="turn_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.cancel_stale_interactions(session_id=session_id, turn_id=turn_id, request_options=request_options)
         return _response.data
     
     async def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:

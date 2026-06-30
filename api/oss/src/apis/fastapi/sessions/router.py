@@ -1,10 +1,10 @@
 """Unified sessions API router.
 
 Composes four sub-domain routers:
-  - SessionStreamsRouter  — /sessions/streams/* and /admin/sessions/streams/*
+  - SessionStreamsRouter  — /sessions/streams/*
   - SessionStatesRouter  — /sessions/states/
   - RecordsRouter        — /sessions/records/*
-  - InteractionsRouter   — /sessions/interactions/* and /admin/sessions/interactions/*
+  - InteractionsRouter   — /sessions/interactions/*
 """
 
 import re
@@ -41,6 +41,11 @@ from oss.src.core.sessions.states.dtos import SessionStateUpsert
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.dtos import SessionRecordEvent
 from oss.src.core.sessions.records.streaming import publish_record
+from oss.src.core.sessions.interactions.dtos import (
+    SessionInteractionCreate,
+    SessionInteractionStatus,
+    SessionInteractionTransition,
+)
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.mounts.service import SessionMountsService
@@ -69,6 +74,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionRecordResponse,
     SessionRecordsQueryResponse,
     # interactions
+    SessionInteractionCancelStaleRequest,
     SessionInteractionCreateRequest,
     SessionInteractionQueryRequest,
     SessionInteractionRespondRequest,
@@ -141,12 +147,17 @@ def _handle_session_exceptions():
 
 
 class SessionStreamsRouter:
-    """Streams sub-router — /sessions/streams/* + /admin/sessions/streams/*"""
+    """Streams sub-router — /sessions/streams/*"""
 
-    def __init__(self, *, service: SessionStreamsService) -> None:
+    def __init__(
+        self,
+        *,
+        service: SessionStreamsService,
+        interactions_service: SessionInteractionsService,
+    ) -> None:
         self._service = service
+        self._interactions_service = interactions_service
         self.router = APIRouter()
-        self.admin_router = APIRouter()
 
         # Unified collection surface on /sessions/streams/, keyed by ?session_id=.
         self.router.add_api_route(
@@ -276,6 +287,11 @@ class SessionStreamsRouter:
         await self._service.kill(
             project_id=UUID(str(project_id)),
             user_id=UUID(str(user_id)),
+            session_id=session_id,
+        )
+        # A kill orphans every still-pending gate for the session — no one will answer them.
+        await self._interactions_service.cancel_session_pending(
+            project_id=UUID(str(project_id)),
             session_id=session_id,
         )
         return {"ok": True}
@@ -452,12 +468,11 @@ class SessionStatesRouter:
 
 
 class RecordsRouter:
-    """Records sub-router — /sessions/records/* + /admin/sessions/records/*"""
+    """Records sub-router — /sessions/records/*"""
 
     def __init__(self, records_service: RecordsService):
         self.records_service = records_service
         self.router = APIRouter()
-        self.admin_router = APIRouter()
 
         self.router.add_api_route(
             "/query",
@@ -560,7 +575,7 @@ class RecordsRouter:
 
 
 class InteractionsRouter:
-    """Interactions sub-router — /sessions/interactions/* + /admin/sessions/interactions/*"""
+    """Interactions sub-router — /sessions/interactions/*"""
 
     def __init__(
         self,
@@ -574,13 +589,30 @@ class InteractionsRouter:
         self.respond_task = respond_task
 
         self.router = APIRouter()
-        self.admin_router = APIRouter()
 
+        self.router.add_api_route(
+            "/",
+            self.create_interaction,
+            methods=["POST"],
+            operation_id="create_interaction",
+        )
         self.router.add_api_route(
             "/query",
             self.query_interactions,
             methods=["POST"],
             operation_id="query_interactions",
+        )
+        self.router.add_api_route(
+            "/transition",
+            self.transition_interaction,
+            methods=["POST"],
+            operation_id="transition_interaction",
+        )
+        self.router.add_api_route(
+            "/cancel-stale",
+            self.cancel_stale_interactions,
+            methods=["POST"],
+            operation_id="cancel_stale_interactions",
         )
         self.router.add_api_route(
             "/{interaction_id}",
@@ -595,31 +627,36 @@ class InteractionsRouter:
             operation_id="respond_interaction",
         )
 
-        self.admin_router.add_api_route(
-            "/",
-            self.create_interaction,
-            methods=["POST"],
-            operation_id="create_interaction",
-        )
-        self.admin_router.add_api_route(
-            "/transition",
-            self.transition_interaction,
-            methods=["POST"],
-            operation_id="transition_interaction",
-        )
-
     @intercept_exceptions()
     async def create_interaction(
         self,
         request: Request,
         body: SessionInteractionCreateRequest,
     ) -> SessionInteractionResponse:
-        if not getattr(request.state, "admin", False):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        # The runner authenticates AS the invoke caller; project scope comes from the
+        # credential, never the body. Creating an interaction is part of running a turn.
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
 
         interaction = await self.interactions_service.create_interaction(
-            project_id=body.interaction.project_id,
-            interaction=body.interaction,
+            project_id=project_id,
+            user_id=user_id,
+            interaction=SessionInteractionCreate(
+                project_id=project_id,
+                session_id=body.session_id,
+                turn_id=body.turn_id,
+                token=body.token,
+                kind=body.kind,
+                data=body.data,
+                flags=body.flags,
+            ),
         )
         return SessionInteractionResponse(count=1, interaction=interaction)
 
@@ -629,12 +666,24 @@ class InteractionsRouter:
         request: Request,
         body: SessionInteractionTransitionRequest,
     ) -> SessionInteractionResponse:
-        if not getattr(request.state, "admin", False):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
 
         try:
             interaction = await self.interactions_service.transition_interaction(
-                transition=body.transition,
+                transition=SessionInteractionTransition(
+                    project_id=project_id,
+                    session_id=body.session_id,
+                    token=body.token,
+                    status=body.status,
+                ),
             )
         except InteractionNotFound:
             raise HTTPException(
@@ -642,6 +691,29 @@ class InteractionsRouter:
                 detail="Interaction not found or already terminal",
             )
         return SessionInteractionResponse(count=1, interaction=interaction)
+
+    @intercept_exceptions()
+    async def cancel_stale_interactions(
+        self,
+        request: Request,
+        body: SessionInteractionCancelStaleRequest,
+    ) -> dict:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        cancelled = await self.interactions_service.cancel_session_pending(
+            project_id=project_id,
+            session_id=body.session_id,
+            except_turn_id=body.turn_id,
+        )
+        return {"cancelled": cancelled}
 
     @intercept_exceptions()
     async def query_interactions(
@@ -744,33 +816,48 @@ class InteractionsRouter:
                 interaction_id=str(interaction_id),
                 answer=answer,
             )
-            return SessionInteractionResponse(count=1, interaction=interaction)
+        else:
+            references = (
+                {
+                    k: v.model_dump(mode="json")
+                    for k, v in interaction.data.references.items()
+                }
+                if interaction.data and interaction.data.references
+                else None
+            )
+            selector = (
+                interaction.data.selector.model_dump(mode="json")
+                if interaction.data and interaction.data.selector
+                else None
+            )
 
-        references = (
-            {
-                k: v.model_dump(mode="json")
-                for k, v in interaction.data.references.items()
-            }
-            if interaction.data and interaction.data.references
-            else None
-        )
-        selector = (
-            interaction.data.selector.model_dump(mode="json")
-            if interaction.data and interaction.data.selector
-            else None
-        )
+            invoke_request = WorkflowServiceRequest(
+                references=references,
+                selector=selector,
+                data=WorkflowServiceRequestData(inputs=answer),
+            )
 
-        invoke_request = WorkflowServiceRequest(
-            references=references,
-            selector=selector,
-            data=WorkflowServiceRequestData(inputs=answer),
-        )
+            await self.workflows_service.invoke_workflow(
+                project_id=project_id,
+                user_id=user_id,
+                request=invoke_request,
+            )
 
-        await self.workflows_service.invoke_workflow(
-            project_id=project_id,
-            user_id=user_id,
-            request=invoke_request,
-        )
+        # Mark it answered via the interactions API plane (distinct from a messages-plane
+        # resolution). transition_interaction only flips a still-pending row; if a concurrent
+        # messages-plane resolution already moved it off pending, the transition raises
+        # InteractionNotFound and we keep the fetched interaction.
+        try:
+            interaction = await self.interactions_service.transition_interaction(
+                transition=SessionInteractionTransition(
+                    project_id=project_id,
+                    session_id=interaction.session_id,
+                    token=interaction.token,
+                    status=SessionInteractionStatus.responded,
+                ),
+            )
+        except InteractionNotFound:
+            pass
 
         return SessionInteractionResponse(count=1, interaction=interaction)
 
@@ -884,12 +971,9 @@ class SessionsRouter:
 
     The entrypoint mounts:
       sessions_router.streams.router               → no prefix (paths include /sessions/streams/…)
-      sessions_router.streams.admin_router         → prefix /admin/sessions/streams
       sessions_router.states.router                → prefix /sessions
       sessions_router.records.router               → prefix /sessions/records
-      sessions_router.records.admin_router         → prefix /admin/sessions/records
       sessions_router.interactions.router          → prefix /sessions/interactions
-      sessions_router.interactions.admin_router    → prefix /admin/sessions/interactions
       sessions_router.mounts.router                → prefix /sessions
     """
 
@@ -904,7 +988,10 @@ class SessionsRouter:
         session_mounts_service: SessionMountsService,
         respond_task: Optional[Any] = None,
     ) -> None:
-        self.streams = SessionStreamsRouter(service=streams_service)
+        self.streams = SessionStreamsRouter(
+            service=streams_service,
+            interactions_service=interactions_service,
+        )
         self.states = SessionStatesRouter(session_states_service=states_service)
         self.records = RecordsRouter(records_service=records_service)
         self.interactions = InteractionsRouter(

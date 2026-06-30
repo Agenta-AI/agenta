@@ -440,7 +440,7 @@ describe("emitEvent", () => {
     const interaction: AgentEvent = {
       type: "interaction_request",
       id: "p1",
-      kind: "permission",
+      kind: "user_approval",
       payload: { availableReplies: ["once", "reject"] },
     };
     run.emitEvent(interaction);

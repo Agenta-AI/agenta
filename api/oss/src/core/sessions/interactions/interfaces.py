@@ -39,6 +39,15 @@ class SessionInteractionsDAOInterface(ABC):
     ) -> Optional[SessionInteraction]: ...
 
     @abstractmethod
+    async def cancel_session_pending(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        except_turn_id: Optional[str] = None,
+    ) -> int: ...
+
+    @abstractmethod
     async def query_interactions(
         self,
         *,

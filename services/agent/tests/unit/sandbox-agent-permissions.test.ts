@@ -55,7 +55,7 @@ describe("attachPermissionResponder", () => {
       {
         type: "interaction_request",
         id: "perm-1",
-        kind: "permission",
+        kind: "user_approval",
         payload: {
           toolCallId: "tool-1",
           toolCall: { toolCallId: "tool-1", name: "edit" },

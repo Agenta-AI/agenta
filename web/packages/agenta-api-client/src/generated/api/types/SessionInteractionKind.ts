@@ -3,6 +3,6 @@
 export const SessionInteractionKind = {
     UserApproval: "user_approval",
     UserInput: "user_input",
-    ToolCall: "tool_call",
+    ClientTool: "client_tool",
 } as const;
 export type SessionInteractionKind = (typeof SessionInteractionKind)[keyof typeof SessionInteractionKind];
