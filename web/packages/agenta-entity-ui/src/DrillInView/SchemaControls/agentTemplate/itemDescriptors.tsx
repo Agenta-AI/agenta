@@ -173,7 +173,7 @@ export function describeMcp(server: unknown): ItemDescriptor {
     }
 }
 
-function asObj(value: unknown): Record<string, unknown> | undefined {
+export function asObj(value: unknown): Record<string, unknown> | undefined {
     return value && typeof value === "object" && !Array.isArray(value)
         ? (value as Record<string, unknown>)
         : undefined
@@ -194,7 +194,7 @@ export function isEmbedRefSkill(skill: unknown): boolean {
 const STATIC_SKILL_SLUG_PREFIX = "__ag__"
 
 /** The slug an `@ag.embed` entry points at (a `workflow` or pinned `workflow_revision` reference). */
-function staticEmbedSlug(skill: Record<string, unknown>): string | undefined {
+export function staticEmbedSlug(skill: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
     if (!refs) return undefined
     const slug = asObj(refs.workflow)?.slug ?? asObj(refs.workflow_revision)?.slug

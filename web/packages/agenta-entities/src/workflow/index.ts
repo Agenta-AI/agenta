@@ -53,6 +53,12 @@ export {
     type HarnessCapabilitiesMap,
 } from "./state/inspectMeta"
 
+export {
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    type AgentTemplate,
+} from "./state"
+
 // ============================================================================
 // SCHEMAS & TYPES
 // ============================================================================

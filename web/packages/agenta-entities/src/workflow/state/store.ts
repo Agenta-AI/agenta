@@ -23,11 +23,17 @@ import {nestEvaluatorConfiguration, nestEvaluatorSchema} from "../../runnable/ev
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
-import type {InspectWorkflowResponse, InterfaceSchemasResponse, AppOpenApiSchemas} from "../api"
+import type {
+    InspectWorkflowResponse,
+    InterfaceSchemasResponse,
+    AppOpenApiSchemas,
+    SimpleApplicationFetchResponse,
+} from "../api"
 import {
     extractDefaultsFromSchema,
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
+    fetchSimpleApplication,
     fetchWorkflowAppOpenApiSchema,
     fetchAgTypeSchema,
     fetchWorkflowsBatch,
@@ -1095,6 +1101,59 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
             staleTime: 60_000,
         }
     }),
+)
+
+// ============================================================================
+// PLAYGROUND BUILD KIT SESSION STATE
+// ============================================================================
+
+export type AgentTemplate = Record<string, unknown>
+
+/**
+ * Fetch the simple-application envelope for one app id.
+ *
+ * The playground build-kit overlay rides on this response's
+ * `additional_context`, not on the agent-service `/inspect` response (which
+ * carries no behavior-changing meta by design).
+ */
+export const simpleApplicationQueryAtomFamily = atomFamily((applicationId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        return {
+            queryKey: ["simpleApplication", applicationId, projectId],
+            queryFn: async (): Promise<SimpleApplicationFetchResponse | null> => {
+                if (!projectId || !applicationId) return null
+                return fetchSimpleApplication(applicationId, projectId)
+            },
+            enabled: get(sessionAtom) && !!projectId && !!applicationId,
+            staleTime: 60_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: string) =>
+    atom<AgentTemplate | null>((get) => {
+        // The app id (workflow artifact id) the revision belongs to. Server data
+        // wins; fall back to the local base entity so a draft agent still resolves.
+        const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
+        const applicationId =
+            revisionData?.workflow_id ??
+            get(workflowBaseEntityAtomFamily(revisionId))?.workflow_id ??
+            null
+        if (!applicationId) return null
+
+        const appData = get(simpleApplicationQueryAtomFamily(applicationId)).data ?? null
+        const overlay =
+            appData?.additional_context?.playground_build_kit?.agent_template_overlay ?? null
+        return overlay && typeof overlay === "object" && !Array.isArray(overlay)
+            ? (overlay as AgentTemplate)
+            : null
+    }),
+)
+
+export const workflowBuildKitEnabledAtomFamily = atomFamily((_revisionId: string) =>
+    atom<boolean>(true),
 )
 
 // ============================================================================
