@@ -1220,12 +1220,6 @@ app.include_router(
 )
 
 app.include_router(
-    router=sessions.streams.admin_router,
-    prefix="/admin/sessions/streams",
-    tags=["Sessions", "Admin"],
-)
-
-app.include_router(
     router=applications.router,
     prefix="/applications",
     tags=["Applications"],
@@ -1380,12 +1374,6 @@ app.include_router(
     tags=["Sessions"],
 )
 
-app.include_router(
-    router=sessions.interactions.admin_router,
-    prefix="/admin/sessions/interactions",
-    tags=["Sessions", "Admin"],
-    include_in_schema=False,
-)
 
 app.include_router(
     router=evaluations.admin_router,
@@ -1449,12 +1437,6 @@ app.include_router(
     router=sessions.records.router,
     prefix="/sessions/records",
     tags=["Sessions"],
-)
-
-app.include_router(
-    router=sessions.records.admin_router,
-    prefix="/admin/sessions/records",
-    tags=["Sessions", "Admin"],
 )
 
 app.include_router(

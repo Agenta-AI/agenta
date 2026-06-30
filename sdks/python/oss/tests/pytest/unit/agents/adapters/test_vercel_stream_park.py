@@ -42,7 +42,7 @@ def _parked_run() -> AgentStream:
                     "event": {
                         "type": "interaction_request",
                         "id": "perm-1",
-                        "kind": "permission",
+                        "kind": "user_approval",
                         "payload": {"toolCallId": "tool-1"},
                     },
                 },
@@ -105,7 +105,7 @@ def _parked_run_with_real_args() -> AgentStream:
                     "event": {
                         "type": "interaction_request",
                         "id": "perm-1",
-                        "kind": "permission",
+                        "kind": "user_approval",
                         "payload": {
                             "toolCallId": "tool-1",
                             "toolCall": {

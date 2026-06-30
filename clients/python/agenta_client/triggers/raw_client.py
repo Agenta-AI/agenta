@@ -12,6 +12,7 @@ from ..core.request_options import RequestOptions
 from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
+from ..types.trigger_capabilities_result import TriggerCapabilitiesResult
 from ..types.trigger_catalog_event_response import TriggerCatalogEventResponse
 from ..types.trigger_catalog_events_response import TriggerCatalogEventsResponse
 from ..types.trigger_catalog_integration_response import TriggerCatalogIntegrationResponse
@@ -317,6 +318,59 @@ class RawTriggersClient:
                     TriggerCatalogEventResponse,
                     parse_obj_as(
                         type_ =TriggerCatalogEventResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def discover_triggers(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TriggerCapabilitiesResult]:
+        """
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[TriggerCapabilitiesResult]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "triggers/discover",method="POST",
+            json={
+                "use_cases": use_cases,
+                "provider": provider,
+                "limit_alternatives": limit_alternatives,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    TriggerCapabilitiesResult,
+                    parse_obj_as(
+                        type_ =TriggerCapabilitiesResult,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1761,6 +1815,59 @@ class AsyncRawTriggersClient:
                     TriggerCatalogEventResponse,
                     parse_obj_as(
                         type_ =TriggerCatalogEventResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def discover_triggers(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TriggerCapabilitiesResult]:
+        """
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[TriggerCapabilitiesResult]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "triggers/discover",method="POST",
+            json={
+                "use_cases": use_cases,
+                "provider": provider,
+                "limit_alternatives": limit_alternatives,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    TriggerCapabilitiesResult,
+                    parse_obj_as(
+                        type_ =TriggerCapabilitiesResult,  # type: ignore
                         object_ =_response.json()
                     )
                 )

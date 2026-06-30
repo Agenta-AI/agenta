@@ -61,6 +61,19 @@ class SessionInteractionsService:
             )
         return result
 
+    async def cancel_session_pending(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        except_turn_id: Optional[str] = None,
+    ) -> int:
+        return await self.interactions_dao.cancel_session_pending(
+            project_id=project_id,
+            session_id=session_id,
+            except_turn_id=except_turn_id,
+        )
+
     async def query_interactions(
         self,
         *,

@@ -34,6 +34,7 @@ import {
 import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
+import { cancelStaleInteractions } from "./sessions/interactions.ts";
 import { buildPersistingEmitter } from "./sessions/persist.ts";
 
 const PORT = Number(process.env.AGENTA_AGENT_RUNNER_PORT ?? 8765);
@@ -233,6 +234,9 @@ async function runAndStream(
     // resolved server-side from the credential, so no project_id rides the request.
     const watchdog = startAliveWatchdog(sessionId, turnId, runCredential(request));
     aliveWatchdog = watchdog;
+    // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
+    // interactions (sparing this turn's own). Best-effort, never blocks the turn.
+    void cancelStaleInteractions(sessionId, turnId, watchdog.credential);
     // Record which sandbox backs this session (best-effort) so the States tab is populated.
     void persistSandboxId(
       sessionId,

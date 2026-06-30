@@ -66,6 +66,11 @@ import {
   prepareLocalPiAssets,
 } from "./sandbox_agent/pi-assets.ts";
 import { attachPermissionResponder } from "./sandbox_agent/permissions.ts";
+import {
+  createInteraction,
+  resolveInteraction,
+  buildWorkflowReferences,
+} from "../sessions/interactions.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
 import {
   buildRunPlan,
@@ -83,6 +88,12 @@ export { toAcpMcpServers } from "./sandbox_agent/mcp.ts";
 
 function log(message: string): void {
   process.stderr.write(`[sandbox-agent] ${message}\n`);
+}
+
+/** Extract the run credential from the OTLP export headers (initial value, constant for the run). */
+function runCredential(request: AgentRunRequest): string {
+  const headers = (request.telemetry?.exporters?.otlp?.headers ?? {}) as Record<string, string>;
+  return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
 }
 
 type Log = (message: string) => void;
@@ -445,6 +456,31 @@ export async function runSandboxAgent(
       session,
       run,
       onPark,
+      onCreateInteraction: (token, toolName, toolArgs) => {
+        const cred = runCredential(request);
+        if (!cred) return;
+        // The /interactions plane only works when respond can re-invoke THIS revision, which
+        // needs at least a committed workflow_revision reference. A draft (inline config, no
+        // committed revision) can't be re-resolved, so skip create and stay messages/park-only.
+        const references = buildWorkflowReferences(request.runContext?.workflow);
+        if (!references?.workflow_revision) return;
+        void createInteraction(
+          sessionId,
+          request.turnId ?? "",
+          token,
+          "user_approval",
+          { request: { tool: toolName ?? token, args: toolArgs }, references },
+          () => cred,
+        );
+      },
+      onResolveInteraction: (token) => {
+        const cred = runCredential(request);
+        if (!cred) return;
+        // Mirror the create guard: no interaction exists for a draft, so nothing to resolve.
+        if (!buildWorkflowReferences(request.runContext?.workflow)?.workflow_revision)
+          return;
+        void resolveInteraction(sessionId, token, () => cred);
+      },
       responder,
     });
 

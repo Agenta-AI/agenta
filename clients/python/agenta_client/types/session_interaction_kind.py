@@ -2,4 +2,4 @@
 
 import typing
 
-SessionInteractionKind = typing.Union[typing.Literal["user_approval", "user_input", "tool_call"], typing.Any]
+SessionInteractionKind = typing.Union[typing.Literal["user_approval", "user_input", "client_tool"], typing.Any]

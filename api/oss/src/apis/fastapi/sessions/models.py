@@ -12,9 +12,11 @@ from oss.src.core.sessions.states.dtos import SessionState
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
-    SessionInteractionCreate,
+    SessionInteractionData,
+    SessionInteractionFlags,
+    SessionInteractionKind,
     SessionInteractionQuery,
-    SessionInteractionTransition,
+    SessionInteractionStatus,
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.shared.dtos import Windowing
@@ -114,11 +116,27 @@ class SessionRecordResponse(BaseModel):
 
 
 class SessionInteractionCreateRequest(BaseModel):
-    interaction: SessionInteractionCreate
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    turn_id: Optional[str] = None
+    token: str
+    kind: SessionInteractionKind
+    data: Optional[SessionInteractionData] = None
+    flags: SessionInteractionFlags = SessionInteractionFlags()
 
 
 class SessionInteractionTransitionRequest(BaseModel):
-    transition: SessionInteractionTransition
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    token: str
+    status: SessionInteractionStatus
+
+
+class SessionInteractionCancelStaleRequest(BaseModel):
+    # Runner-called at turn start: cancel prior turns' still-pending gates for this session,
+    # sparing the current turn's own. project_id comes from the credential (request.state).
+    session_id: str
+    turn_id: str
 
 
 class SessionInteractionQueryRequest(BaseModel):

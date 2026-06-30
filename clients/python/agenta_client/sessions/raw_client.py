@@ -12,8 +12,12 @@ from ..core.request_options import RequestOptions
 from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
+from ..types.session_interaction_data import SessionInteractionData
+from ..types.session_interaction_flags import SessionInteractionFlags
+from ..types.session_interaction_kind import SessionInteractionKind
 from ..types.session_interaction_query import SessionInteractionQuery
 from ..types.session_interaction_response import SessionInteractionResponse
+from ..types.session_interaction_status import SessionInteractionStatus
 from ..types.session_interactions_response import SessionInteractionsResponse
 from ..types.session_mount_query import SessionMountQuery
 from ..types.session_mounts_response import SessionMountsResponse
@@ -334,6 +338,68 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def create_interaction(self, *, session_id: str, token: str, kind: SessionInteractionKind, turn_id: typing.Optional[str] = OMIT, data: typing.Optional[SessionInteractionData] = OMIT, flags: typing.Optional[SessionInteractionFlags] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionInteractionResponse]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        token : str
+        
+        kind : SessionInteractionKind
+        
+        turn_id : typing.Optional[str]
+        
+        data : typing.Optional[SessionInteractionData]
+        
+        flags : typing.Optional[SessionInteractionFlags]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[SessionInteractionResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "sessions/interactions/",method="POST",
+            json={
+                "session_id": session_id,
+                "turn_id": turn_id,
+                "token": token,
+                "kind": kind,
+                "data": convert_and_respect_annotation_metadata(object_=data, annotation=typing.Optional[SessionInteractionData], direction="write"),
+                "flags": convert_and_respect_annotation_metadata(object_=flags, annotation=SessionInteractionFlags, direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SessionInteractionResponse,
+                    parse_obj_as(
+                        type_ =SessionInteractionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionInteractionsResponse]:
         """
         Parameters
@@ -367,6 +433,109 @@ class RawSessionsClient:
                     SessionInteractionsResponse,
                     parse_obj_as(
                         type_ =SessionInteractionsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def transition_interaction(self, *, session_id: str, token: str, status: SessionInteractionStatus, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionInteractionResponse]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        token : str
+        
+        status : SessionInteractionStatus
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[SessionInteractionResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "sessions/interactions/transition",method="POST",
+            json={
+                "session_id": session_id,
+                "token": token,
+                "status": status,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SessionInteractionResponse,
+                    parse_obj_as(
+                        type_ =SessionInteractionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def cancel_stale_interactions(self, *, session_id: str, turn_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Dict[str, typing.Any]]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        turn_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.Dict[str, typing.Any]]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "sessions/interactions/cancel-stale",method="POST",
+            json={
+                "session_id": session_id,
+                "turn_id": turn_id,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Dict[str, typing.Any],
+                    parse_obj_as(
+                        type_ =typing.Dict[str, typing.Any],  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1122,6 +1291,68 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    async def create_interaction(self, *, session_id: str, token: str, kind: SessionInteractionKind, turn_id: typing.Optional[str] = OMIT, data: typing.Optional[SessionInteractionData] = OMIT, flags: typing.Optional[SessionInteractionFlags] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionInteractionResponse]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        token : str
+        
+        kind : SessionInteractionKind
+        
+        turn_id : typing.Optional[str]
+        
+        data : typing.Optional[SessionInteractionData]
+        
+        flags : typing.Optional[SessionInteractionFlags]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[SessionInteractionResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "sessions/interactions/",method="POST",
+            json={
+                "session_id": session_id,
+                "turn_id": turn_id,
+                "token": token,
+                "kind": kind,
+                "data": convert_and_respect_annotation_metadata(object_=data, annotation=typing.Optional[SessionInteractionData], direction="write"),
+                "flags": convert_and_respect_annotation_metadata(object_=flags, annotation=SessionInteractionFlags, direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SessionInteractionResponse,
+                    parse_obj_as(
+                        type_ =SessionInteractionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     async def query_interactions(self, *, query: typing.Optional[SessionInteractionQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionInteractionsResponse]:
         """
         Parameters
@@ -1155,6 +1386,109 @@ class AsyncRawSessionsClient:
                     SessionInteractionsResponse,
                     parse_obj_as(
                         type_ =SessionInteractionsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def transition_interaction(self, *, session_id: str, token: str, status: SessionInteractionStatus, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionInteractionResponse]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        token : str
+        
+        status : SessionInteractionStatus
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[SessionInteractionResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "sessions/interactions/transition",method="POST",
+            json={
+                "session_id": session_id,
+                "token": token,
+                "status": status,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SessionInteractionResponse,
+                    parse_obj_as(
+                        type_ =SessionInteractionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def cancel_stale_interactions(self, *, session_id: str, turn_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Dict[str, typing.Any]]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        turn_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.Dict[str, typing.Any]]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "sessions/interactions/cancel-stale",method="POST",
+            json={
+                "session_id": session_id,
+                "turn_id": turn_id,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Dict[str, typing.Any],
+                    parse_obj_as(
+                        type_ =typing.Dict[str, typing.Any],  # type: ignore
                         object_ =_response.json()
                     )
                 )

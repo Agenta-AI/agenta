@@ -386,15 +386,16 @@ def _interaction_parts(
 ) -> Iterator[Dict[str, Any]]:
     """Project a neutral ``interaction_request`` event to Vercel stream parts.
 
-    A ``permission`` request becomes the AI SDK ``tool-approval-request`` chunk,
-    which is a strict object (only ``type``/``approvalId``/``toolCallId``) and
-    attaches to the tool part with the same ``toolCallId``. The runner normally
-    emits that tool call first; if it didn't, synthesize a tool part from the
-    request payload so the approval has something to render against.
+    The event ``kind`` is our interactions vocabulary; this adapter maps it to the AI SDK
+    wire. A ``user_approval`` request becomes the ``tool-approval-request`` chunk, which is
+    a strict object (only ``type``/``approvalId``/``toolCallId``) and attaches to the tool
+    part with the same ``toolCallId``. The runner normally emits that tool call first; if it
+    didn't, synthesize a tool part from the request payload so the approval has something to
+    render against.
     """
     kind = data.get("kind")
     payload = data.get("payload") or {}
-    if kind == "permission":
+    if kind == "user_approval":
         tool_call_id = _approval_tool_call_id(payload)
         tool_call = payload.get("toolCall")
         if tool_call_id is not None and isinstance(tool_call, dict):
@@ -434,7 +435,7 @@ def _interaction_parts(
             "toolCallId": tool_call_id,
         }
         return
-    if kind == "input":
+    if kind == "user_input":
         yield {"type": "data-input-request", "id": data.get("id"), "data": payload}
         return
     if kind == "client_tool":

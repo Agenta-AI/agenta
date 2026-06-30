@@ -14,6 +14,19 @@ export interface AttachPermissionResponderInput {
    * paused and the resume cold-replays. Fires at most once per turn (the first park wins).
    */
   onPark?: () => void;
+  /** Called on park to record the parked gate as an interaction (fire-and-forget). */
+  onCreateInteraction?: (
+    token: string,
+    toolName: string | undefined,
+    toolArgs: unknown,
+  ) => void;
+  /**
+   * Called when the runner consumes a stored decision and forwards it to the harness — the
+   * gate is resolved. Transitions the interaction (pending|responded -> resolved). Covers
+   * both planes: a `/interactions` answer (responded -> resolved) and a messages answer
+   * (pending -> resolved). Fire-and-forget.
+   */
+  onResolveInteraction?: (token: string) => void;
 }
 
 /**
@@ -27,6 +40,8 @@ export function attachPermissionResponder({
   run,
   responder,
   onPark,
+  onCreateInteraction,
+  onResolveInteraction,
 }: AttachPermissionResponderInput): void {
   session.onPermissionRequest((req: any) => {
     const id = String(req?.id ?? "");
@@ -78,7 +93,7 @@ export function attachPermissionResponder({
     run.emitEvent({
       type: "interaction_request",
       id, // ACP permission id -> Vercel approvalId
-      kind: "permission",
+      kind: "user_approval",
       payload: {
         // toolCallId of the gated tool, so the cross-turn approval reply correlates back to
         // its tool call (and the #6 resume finds it). `toolCall` is the ACP ToolCallUpdate.
@@ -98,10 +113,17 @@ export function attachPermissionResponder({
         // onto a reply. Instead signal the orchestration loop to end the turn gracefully:
         // Claude never ends a turn on an unanswered gate, so the prompt would otherwise hang.
         if (decision === "park") {
+          const toolName: string | undefined =
+            req?.toolCall?.name ?? req?.toolCall?.title ?? req?.toolCall?.kind;
+          const toolArgs: unknown =
+            req?.toolCall?.rawInput ?? req?.toolCall?.input;
+          onCreateInteraction?.(id, toolName, toolArgs);
           onPark?.();
           return;
         }
         if (!req?.id) return;
+        // A stored decision is being forwarded to the harness: the gate is resolved.
+        onResolveInteraction?.(id);
         return session.respondPermission(
           req.id,
           decisionToReply(decision, availableReplies) as any,

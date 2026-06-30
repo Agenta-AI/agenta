@@ -18,4 +18,5 @@ export interface EvaluatorRevisionCommit {
     data?: (AgentaApi.EvaluatorRevisionDataInput | null) | undefined;
     message?: (string | null) | undefined;
     revision_id?: (string | null) | undefined;
+    delta?: (AgentaApi.WorkflowRevisionDelta | null) | undefined;
 }
