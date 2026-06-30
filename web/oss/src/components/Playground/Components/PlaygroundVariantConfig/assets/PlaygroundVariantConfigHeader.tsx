@@ -2,7 +2,11 @@ import {useCallback, useMemo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
 import {isLocalDraftId} from "@agenta/entities/shared"
-import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
+import {
+    workflowMolecule,
+    workflowLatestRevisionIdAtomFamily,
+    isAgentWorkflow,
+} from "@agenta/entities/workflow"
 import {
     createWorkflowRevisionAdapter,
     useEnrichedEvaluatorOnlyAdapter,
@@ -72,6 +76,8 @@ const PlaygroundVariantConfigHeader = ({
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
                 flags: {is_evaluator: false, is_feedback: false},
+                // Agent workflows have their own playground and aren't connectable here.
+                filterWorkflows: (w) => !isAgentWorkflow(w),
                 // App browse picker — without this the search bar would say
                 // "Search evaluator…" (the adapter's default in skip-variant
                 // mode) while the user is browsing apps.
