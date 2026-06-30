@@ -37,7 +37,7 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {message} from "@agenta/ui"
+import {HeightCollapse, message} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
 import {
     ArrowsClockwise,
@@ -799,7 +799,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                                                 </Tooltip>
                                             )}
                                         </div>
-                                        {open && (
+                                        <HeightCollapse open={open}>
                                             <div className="flex flex-col gap-0.5 px-1.5 pb-1.5 pt-1">
                                                 {group.subs.map((record) => {
                                                     const named = !!record.name?.trim()
@@ -853,7 +853,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                                                     )
                                                 })}
                                             </div>
-                                        )}
+                                        </HeightCollapse>
                                     </div>
                                 )
                             })}
