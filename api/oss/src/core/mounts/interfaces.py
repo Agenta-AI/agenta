@@ -18,6 +18,16 @@ class MountsDAOInterface(ABC):
     ) -> Mount: ...
 
     @abstractmethod
+    async def upsert_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        mount_create: MountCreate,
+    ) -> Mount: ...
+
+    @abstractmethod
     async def fetch_mount(
         self,
         *,

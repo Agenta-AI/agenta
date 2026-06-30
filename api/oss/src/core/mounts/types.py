@@ -16,6 +16,14 @@ class MountSlugConflict(MountError):
         super().__init__(message)
 
 
+class MountSlugReserved(MountError):
+    def __init__(self, slug: str = "slug"):
+        super().__init__(
+            f"The slug prefix '__ag__' is reserved; choose a different slug than '{slug}'."
+        )
+        self.slug = slug
+
+
 class MountImmutableField(MountError):
     def __init__(self, field: str = "field"):
         super().__init__(f"Mount field '{field}' is immutable after creation.")

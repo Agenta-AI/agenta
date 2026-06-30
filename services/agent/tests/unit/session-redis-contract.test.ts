@@ -20,11 +20,13 @@ import { dirname, join } from "node:path";
 
 import {
   ALIVE_TTL_SECONDS,
+  RUNNING_TTL_SECONDS,
   ATTACHED_TTL_SECONDS,
   OWNER_TTL_SECONDS,
   HEARTBEAT_INTERVAL_SECONDS,
   HEARTBEAT_WRITE_THRESHOLD_SECONDS,
   aliveKey,
+  runningKey,
   attachedKey,
   ownerKey,
   displacedChannel,
@@ -37,14 +39,12 @@ import {
 } from "../../src/sessions/contract.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const FIXTURE_PATH = join(
-  here,
-  "../fixtures/sessions/redis_contract.json",
-);
+const FIXTURE_PATH = join(here, "../fixtures/sessions/redis_contract.json");
 
 interface RedisContractFixture {
   ttls: {
     alive: number;
+    running: number;
     attached: number;
     owner: number;
     heartbeat_interval: number;
@@ -52,6 +52,7 @@ interface RedisContractFixture {
   };
   keys: {
     alive_example: string;
+    running_example: string;
     attached_example: string;
     owner_example: string;
     displaced_channel_example: string;
@@ -77,6 +78,9 @@ describe("session Redis contract: TTLs", () => {
   it("alive TTL matches golden", () => {
     assert.equal(ALIVE_TTL_SECONDS, fixture.ttls.alive);
   });
+  it("running TTL matches golden", () => {
+    assert.equal(RUNNING_TTL_SECONDS, fixture.ttls.running);
+  });
   it("attached TTL matches golden", () => {
     assert.equal(ATTACHED_TTL_SECONDS, fixture.ttls.attached);
   });
@@ -97,6 +101,9 @@ describe("session Redis contract: TTLs", () => {
 describe("session Redis contract: key builders", () => {
   it("aliveKey matches golden", () => {
     assert.equal(aliveKey(SESSION_EXAMPLE), fixture.keys.alive_example);
+  });
+  it("runningKey matches golden", () => {
+    assert.equal(runningKey(SESSION_EXAMPLE), fixture.keys.running_example);
   });
   it("attachedKey matches golden", () => {
     assert.equal(attachedKey(SESSION_EXAMPLE), fixture.keys.attached_example);

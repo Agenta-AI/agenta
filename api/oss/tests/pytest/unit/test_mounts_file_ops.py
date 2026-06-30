@@ -6,13 +6,10 @@ Two layers:
    delete + file-vs-folder distinction, against an in-memory fake that
    implements the MountStorage interface.
 
-Why a fake and not moto: moto's botocore-based mock is incompatible with
-aiobotocore's async response reads (it returns sync bytes where aiobotocore
-awaits), so a moto-backed test of the real adapter fails on infra mismatch,
-not on our logic. The fake exercises all service-side logic (key namespacing,
-marker hiding, cascade, file-vs-folder); the real aioboto3 adapter is thin and
-mirrors the demo's verified S3 calls. Live SeaweedFS coverage lands in the
-acceptance suite against the docker-compose stack.
+The fake exercises all service-side logic (key namespacing, marker hiding,
+cascade, file-vs-folder); the real miniopy-async adapter is thin. Live
+SeaweedFS coverage lands in the acceptance suite against the docker-compose
+stack.
 """
 
 from typing import List, Tuple
@@ -20,7 +17,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.mounts.dtos import Mount, MountData
+from oss.src.core.mounts.dtos import Mount
 from oss.src.core.mounts.service import MountsService, validate_file_path
 from oss.src.core.mounts.types import (
     MountFileNotFound,
@@ -74,7 +71,9 @@ class FakeMountStorage:
         # {bucket: {key: bytes}}
         self._store: dict[str, dict[str, bytes]] = {}
 
-    async def list_objects(self, *, bucket: str, prefix: str) -> List[Tuple[str, int]]:
+    async def list_objects_v2(
+        self, *, bucket: str, prefix: str
+    ) -> List[Tuple[str, int]]:
         b = self._store.get(bucket, {})
         return [(k, len(v)) for k, v in b.items() if k.startswith(prefix)]
 
@@ -98,12 +97,11 @@ class FakeMountStorage:
         return n
 
     async def delete_prefix(self, *, bucket: str, prefix: str) -> int:
-        objects = await self.list_objects(bucket=bucket, prefix=prefix)
+        objects = await self.list_objects_v2(bucket=bucket, prefix=prefix)
         return await self.delete_keys(bucket=bucket, keys=[k for k, _ in objects])
 
 
 _BUCKET = "agenta-test"
-_PREFIX = "sessions/abc123/cwd"
 
 
 class _StubDAO:
@@ -119,7 +117,6 @@ def _make_mount() -> Mount:
         id=uuid4(),
         project_id=uuid4(),
         slug="m",
-        data=MountData(bucket=_BUCKET, prefix=_PREFIX),
     )
 
 
@@ -127,6 +124,7 @@ def _make_service(mount: Mount) -> Tuple[MountsService, UUID, UUID]:
     service = MountsService(
         mounts_dao=_StubDAO(mount),
         mount_storage=FakeMountStorage(),
+        bucket=_BUCKET,
     )
     return service, mount.project_id, mount.id
 
@@ -172,7 +170,8 @@ class TestMountFileOpsRoundtrip:
             project_id=pid, mount_id=mid, path="notes.txt", content=b"x"
         )
         stored_keys = list(service.mount_storage._store[_BUCKET].keys())
-        assert stored_keys == [f"{_PREFIX}/notes.txt"]
+        # Key is derived from identity: <project_id>/<mount_id>/<path>.
+        assert stored_keys == [f"{pid}/{mid}/notes.txt"]
 
     async def test_create_folder_hidden_from_files_listing(self):
         mount = _make_mount()

@@ -19,13 +19,19 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
-import { assembleBody, callDirect, directCallUrl } from "./direct.ts";
+import {
+  assembleBody,
+  callDirect,
+  deepDelete,
+  directCallUrl,
+  pathParamNames,
+} from "./direct.ts";
 import type {
   ResolvedToolSpec,
   RunContext,
   ToolCallbackContext,
 } from "../protocol.ts";
-import type { PermissionPolicy } from "../responder.ts";
+import type { ClientToolOutcome, PermissionPolicy } from "../responder.ts";
 
 export const RELAY_REQ_SUFFIX = ".req.json";
 export const RELAY_RES_SUFFIX = ".res.json";
@@ -45,6 +51,76 @@ export interface RelayResponse {
   ok: boolean;
   text?: string;
   error?: string;
+}
+export interface ClientToolRelayRequest {
+  id: string;
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+  spec: ResolvedToolSpec;
+}
+export interface ClientToolRelay {
+  onClientTool: (request: ClientToolRelayRequest) => Promise<ClientToolOutcome>;
+  onPark?: (request: ClientToolRelayRequest) => void;
+}
+const CLIENT_TOOL_PARKED = Symbol("client-tool-parked");
+
+function objectSchema(schema: unknown): Record<string, unknown> | undefined {
+  return schema && typeof schema === "object" && !Array.isArray(schema)
+    ? (schema as Record<string, unknown>)
+    : undefined;
+}
+
+function requiredFields(schema: unknown): string[] {
+  const object = objectSchema(schema);
+  const required = object?.required;
+  return Array.isArray(required)
+    ? required.filter((field): field is string => typeof field === "string")
+    : [];
+}
+
+function specInputSchema(spec: ResolvedToolSpec): Record<string, unknown> | null | undefined {
+  return (
+    spec.inputSchema ??
+    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
+      .input_schema
+  );
+}
+
+function missingRequiredFields(
+  schema: unknown,
+  value: unknown,
+  path: string[] = [],
+): string[] {
+  const object = objectSchema(schema);
+  if (!object) return [];
+
+  const missing: string[] = [];
+  const required = requiredFields(object);
+  const record = objectSchema(value);
+  for (const field of required) {
+    if (!record || record[field] === undefined || record[field] === null) {
+      missing.push([...path, field].join("."));
+    }
+  }
+
+  const properties = objectSchema(object.properties);
+  if (!properties || !record) return missing;
+  for (const [field, childSchema] of Object.entries(properties)) {
+    if (record[field] !== undefined && record[field] !== null) {
+      missing.push(...missingRequiredFields(childSchema, record[field], [...path, field]));
+    }
+  }
+  return missing;
+}
+
+function assertRequiredArguments(spec: ResolvedToolSpec, params: unknown): void {
+  const missing = missingRequiredFields(specInputSchema(spec), params);
+  if (missing.length === 0) return;
+  throw new Error(
+    `Tool '${spec.name}' missing required argument(s): ${missing.join(", ")}. ` +
+      "Retry the tool call with those argument fields populated.",
+  );
 }
 
 /** Make a tool-call id safe to use as a filename (and bounded). */
@@ -126,7 +202,31 @@ async function executeRelayedTool(
   callback: ToolCallbackContext | undefined,
   policy: PermissionPolicy,
   runContext: RunContext | undefined,
-): Promise<string> {
+  clientToolRelay: ClientToolRelay | undefined,
+): Promise<string | typeof CLIENT_TOOL_PARKED> {
+  assertRequiredArguments(spec, req.args);
+  if (spec.kind === "client") {
+    if (!clientToolRelay) {
+      throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
+    }
+    const toolCallId = req.toolCallId;
+    const request = {
+      id: toolCallId,
+      toolCallId,
+      toolName: spec.name,
+      input: req.args,
+      spec,
+    };
+    const decision = await clientToolRelay.onClientTool(request);
+    if (decision === "park") {
+      clientToolRelay.onPark?.(request);
+      return CLIENT_TOOL_PARKED;
+    }
+    if (decision === "deny") {
+      return `Client tool '${spec.name}' was denied.`;
+    }
+    return JSON.stringify(decision.output ?? {});
+  }
   // Layer 3 enforcement (S3b): gate the call on the spec's permission before it runs.
   // `deny` returns a refusal string (not a throw) so the harness folds it into the tool
   // result and the model loop continues. `ask`/unset degrade to the headless policy.
@@ -137,9 +237,6 @@ async function executeRelayedTool(
     }
     // ask/unset that the headless policy refused. TODO(S5): surface ask to HITL.
     return `Tool '${spec.name}' requires approval; denied in headless mode.`;
-  }
-  if (spec.kind === "client") {
-    throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
   }
   if (spec.kind === "code") {
     return runCodeTool(spec.runtime, spec.code ?? "", spec.env, req.args);
@@ -153,8 +250,14 @@ async function executeRelayedTool(
   // `callRef`, so this is checked before the gateway fallback. `runContext` fills the
   // `call.context` bindings server-side (direct-call tools, Phase 3a), hidden from the model.
   if (spec.call) {
-    const url = directCallUrl(callback.endpoint, spec.call);
     const body = assembleBody(spec.call, req.args, runContext);
+    const url = directCallUrl(callback.endpoint, spec.call, body);
+    // Path params were just substituted into the URL from this same body; strip them so a
+    // POST handler whose request model expects the identifier only in the route (e.g.
+    // `/api/triggers/schedules/{id}/stop`) does not also receive `id` in the JSON payload.
+    for (const name of pathParamNames(spec.call.path)) {
+      deepDelete(body, name);
+    }
     return callDirect(spec.call.method, url, callback.authorization, body);
   }
   // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.
@@ -180,6 +283,7 @@ export function startToolRelay(
   callback: ToolCallbackContext | undefined,
   policy: PermissionPolicy,
   runContext?: RunContext,
+  clientToolRelay?: ClientToolRelay,
 ): { stop: () => Promise<void> } {
   let active = true;
   const seen = new Set<string>();
@@ -200,7 +304,9 @@ export function startToolRelay(
         callback,
         policy,
         runContext,
+        clientToolRelay,
       );
+      if (text === CLIENT_TOOL_PARKED) return;
       res = { ok: true, text };
     } catch (err) {
       res = { ok: false, error: err instanceof Error ? err.message : String(err) };

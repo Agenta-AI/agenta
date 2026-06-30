@@ -25,12 +25,14 @@ from oss.src.dbs.redis.sessions.contract import (
     HEARTBEAT_WRITE_THRESHOLD_SECONDS,
     OWNER_TTL_SECONDS,
     RELEASE_IF_OWNER_LUA,
+    RUNNING_TTL_SECONDS,
     SESSION_ID_MAX_LEN,
     alive_key,
     attached_key,
     displaced_channel,
     make_displacement_payload,
     owner_key,
+    running_key,
     validate_session_id,
 )
 
@@ -62,6 +64,10 @@ def test_alive_ttl(fixture):
     assert ALIVE_TTL_SECONDS == fixture["ttls"]["alive"]
 
 
+def test_running_ttl(fixture):
+    assert RUNNING_TTL_SECONDS == fixture["ttls"]["running"]
+
+
 def test_attached_ttl(fixture):
     assert ATTACHED_TTL_SECONDS == fixture["ttls"]["attached"]
 
@@ -88,6 +94,10 @@ def test_heartbeat_write_threshold(fixture):
 
 def test_alive_key(fixture):
     assert alive_key(_SESSION_EXAMPLE) == fixture["keys"]["alive_example"]
+
+
+def test_running_key(fixture):
+    assert running_key(_SESSION_EXAMPLE) == fixture["keys"]["running_example"]
 
 
 def test_attached_key(fixture):

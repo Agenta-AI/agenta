@@ -10,14 +10,15 @@ from oss.src.core.shared.dtos import Reference, Selector, Status
 class SessionInteractionKind(str, Enum):
     user_approval = "user_approval"
     user_input = "user_input"
-    tool_call = "tool_call"
+    client_tool = "client_tool"
 
 
 class SessionInteractionStatus(str, Enum):
-    pending = "pending"
-    resolved = "resolved"
-    denied = "denied"
-    cancelled = "cancelled"
+    # Lifecycle state only — NOT the verdict (approve/deny lives in the answer content).
+    pending = "pending"  # awaiting a reaction
+    responded = "responded"  # reacted to via the interactions API plane
+    resolved = "resolved"  # reacted to via the messages plane
+    cancelled = "cancelled"  # runner abandoned the gate; no one is waiting on the token
 
 
 class SessionInteractionData(BaseModel):
@@ -44,7 +45,7 @@ class SessionInteraction(BaseModel):
     #
     project_id: Optional[UUID] = None
     session_id: str
-    run_id: Optional[str] = None
+    turn_id: Optional[str] = None
     token: str
     kind: SessionInteractionKind
     status: Optional[Status] = None
@@ -55,7 +56,7 @@ class SessionInteraction(BaseModel):
 class SessionInteractionCreate(BaseModel):
     project_id: UUID
     session_id: str
-    run_id: Optional[str] = None
+    turn_id: Optional[str] = None
     token: str
     kind: SessionInteractionKind
     data: Optional[SessionInteractionData] = None
@@ -71,7 +72,7 @@ class SessionInteractionTransition(BaseModel):
 
 class SessionInteractionQuery(BaseModel):
     session_id: Optional[str] = None
-    run_id: Optional[str] = None
+    turn_id: Optional[str] = None
     kind: Optional[SessionInteractionKind] = None
     status: Optional[SessionInteractionStatus] = None
     actionable_only: bool = False

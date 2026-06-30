@@ -8,7 +8,6 @@ Kept in its own module so it composes into the workflow registration with a one-
 change and stays out of the handler logic.
 """
 
-from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
 from agenta.sdk.utils.types import build_agent_v0_default
 
 _SCHEMA = "https://json-schema.org/draft/2020-12/schema"
@@ -37,22 +36,9 @@ AGENT_INPUTS_SCHEMA = {
 # catalog type keeps the typed tools/mcps shape in one place; this schema only carries the default the
 # playground pre-fills. The agent handler passes `parameters` verbatim to `AgentTemplate.from_params`,
 # which reads the template at `parameters.agent` (so a tool is at `parameters.agent.tools`).
-# Reserved slug of the static default skill, served from code by the StaticWorkflowCatalog
-# (api/oss/src/core/workflows/static_catalog.py), never the database. The default config
-# references it by stable slug through an @ag.embed; the embed resolver inlines the catalogue's
-# SkillTemplate (at the canonical parameters.skill selector) before the runner sees it. The
-# `__ag__` prefix is reserved: a user cannot author or shadow it. This replaces both
-# AGENTA_FORCED_SKILLS and the old per-project skill seeder. Single source: the SDK constant.
-_DEFAULT_SKILL_SLUG = GETTING_STARTED_WITH_AGENTA_SLUG
-
-# The service default = the shared builder (single source, in the SDK) plus the two service-only
-# choices: the static default skill (inlined from the reserved slug) and the declared Layer-2
-# sandbox boundary the playground pre-fills. The SDK builtin interface uses the same builder
-# without these, so a new default field changes one place.
-_DEFAULT_AGENT_TEMPLATE = build_agent_v0_default(
-    skill_slug=_DEFAULT_SKILL_SLUG,
-    include_sandbox_permission=True,
-)
+# The published default stays bare. The playground build kit is served as read-only inspect/fetch
+# context and applied only to playground runs; it is not part of the committed agent template.
+_DEFAULT_AGENT_TEMPLATE = build_agent_v0_default()
 
 AGENT_TEMPLATE_SCHEMA = {
     "type": "object",

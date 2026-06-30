@@ -1,13 +1,15 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.triggers.dtos import (
     TriggerCatalogEvent,
     TriggerCatalogEventDetails,
     TriggerCatalogIntegration,
+    TriggerCapabilitiesResult,
     TriggerCatalogProvider,
+    TriggerProviderKind,
     TriggerConnection,
     TriggerConnectionCreate,
     TriggerDelivery,
@@ -61,6 +63,27 @@ class TriggerCatalogEventsResponse(BaseModel):
     total: int = 0
     cursor: Optional[str] = None
     events: List[TriggerCatalogEvent] = Field(default_factory=list)
+
+
+class TriggerDiscoveryQuery(BaseModel):
+    """Request body for ``POST /triggers/discover``."""
+
+    use_cases: List[str]
+    provider: str = TriggerProviderKind.COMPOSIO.value
+    limit_alternatives: int = Field(default=3, ge=0)
+
+    @field_validator("use_cases", mode="before")
+    @classmethod
+    def _require_use_cases(cls, value: Any) -> List[str]:
+        if not isinstance(value, list):
+            raise ValueError("use_cases must be a list of non-empty fragments")
+        items = [str(v).strip() for v in value if str(v).strip()]
+        if not items:
+            raise ValueError("use_cases must contain at least one non-empty fragment")
+        return items
+
+
+TriggerDiscoveryResponse = TriggerCapabilitiesResult
 
 
 # ---------------------------------------------------------------------------

@@ -23,13 +23,3 @@ class SessionStatesDAOInterface(ABC):
         session_id: str,
         upsert: SessionStateUpsert,
     ) -> Optional[SessionState]: ...
-
-    @abstractmethod
-    async def set_sandbox_id(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        session_id: str,
-        sandbox_id: Optional[str],
-    ) -> Optional[SessionState]: ...

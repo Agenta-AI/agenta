@@ -4,7 +4,7 @@ import type * as AgentaApi from "../index.js";
 
 export interface SessionInteractionQuery {
     session_id?: (string | null) | undefined;
-    run_id?: (string | null) | undefined;
+    turn_id?: (string | null) | undefined;
     kind?: (AgentaApi.SessionInteractionKind | null) | undefined;
     status?: (AgentaApi.SessionInteractionStatus | null) | undefined;
     actionable_only?: boolean | undefined;

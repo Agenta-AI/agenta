@@ -1,6 +1,7 @@
 {
   "ttls": {
     "alive": 3600,
+    "running": 3600,
     "attached": 60,
     "owner": 120,
     "heartbeat_interval": 30,
@@ -8,6 +9,7 @@
   },
   "keys": {
     "alive_example": "alive:session:sess-123",
+    "running_example": "running:session:sess-123",
     "attached_example": "attached:session:sess-123",
     "owner_example": "owner:session:sess-123",
     "displaced_channel_example": "displaced:session:sess-123"

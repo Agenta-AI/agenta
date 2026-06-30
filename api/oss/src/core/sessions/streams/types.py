@@ -26,13 +26,13 @@ class SessionStreamAlreadyExists(SessionStreamError):
         super().__init__(self.message)
 
 
-class SessionRunInUse(SessionStreamError):
-    """Raised when a run is already alive and force=False."""
+class SessionTurnInUse(SessionStreamError):
+    """Raised when a session is already alive and force=False (a turn is in use)."""
 
     def __init__(self, session_id: str, liveness: dict):
         self.session_id = session_id
         self.liveness = liveness
-        self.message = f"Session '{session_id}' already has an active run."
+        self.message = f"Session '{session_id}' already has an active turn."
         super().__init__(self.message)
 
 

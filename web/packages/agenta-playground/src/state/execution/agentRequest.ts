@@ -24,12 +24,22 @@
  *  - `project_id` / `application_id` ride the URL QUERY (never the body), and
  *    `project_id` only travels alongside auth — mirroring `executionItems.ts`.
  */
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    workflowMolecule,
+    type AgentTemplate,
+} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
+import {withBuildKitOverlay} from "./buildKitOverlay"
 import {agentChannelModeAtom} from "./channelMode"
 import {executionHeadersAtom} from "./webWorkerIntegration"
+
+// Re-exported so existing consumers keep importing it from the request builder; the merge
+// implementation now lives in `buildKitOverlay.ts`.
+export {applyBuildKitOverlay} from "./buildKitOverlay"
 
 export interface AgentRequest {
     invocationUrl: string
@@ -306,10 +316,17 @@ export async function buildAgentRequest(
         | undefined
     // The execution sections (`harness`/`runner`/`sandbox`) are nested in the template at
     // `parameters.agent`. Default them, never overriding values the resolved config carries.
-    const parameters = pruneBlankEntries(withAgentRunDefaults(config ?? {})) as Record<
-        string,
-        unknown
-    >
+    const buildKitEnabled = store.get(workflowBuildKitEnabledAtomFamily(entityId)) as boolean
+    const agentTemplateOverlay = store.get(
+        workflowAgentTemplateOverlayAtomFamily(entityId),
+    ) as AgentTemplate | null
+    const parameters = pruneBlankEntries(
+        withBuildKitOverlay(
+            withAgentRunDefaults(config ?? {}) as Record<string, unknown>,
+            agentTemplateOverlay,
+            buildKitEnabled,
+        ),
+    ) as Record<string, unknown>
 
     const entity = store.get(workflowMolecule.selectors.data(entityId)) as
         | RevisionLike

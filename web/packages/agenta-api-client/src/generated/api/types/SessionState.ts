@@ -12,7 +12,7 @@ export interface SessionState {
     project_id?: (string | null) | undefined;
     /** Bare session correlator (not an FK). */
     session_id: string;
-    /** Opaque SDK SessionRecord stored as JSON. */
+    /** Opaque SDK session state stored as JSON. */
     data?: (Record<string, unknown> | null) | undefined;
     /** Remote sandbox id — the single source of truth resume pointer. */
     sandbox_id?: (string | null) | undefined;

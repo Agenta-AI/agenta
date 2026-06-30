@@ -120,6 +120,7 @@ export {
     sessionsAtomFamily,
     activeSessionsAtomFamily,
     sessionAtomFamily,
+    backendSessionIdAtomFamily,
     // Step atoms
     stepsByIdAtomFamily,
     stepIdsAtomFamily,
@@ -351,7 +352,12 @@ export {
 } from "./displayedEntities"
 
 // Agent-lane request builder (bypasses buffered-fetch execution; useChat streams).
-export {buildAgentRequest, buildAgentReferences, type AgentRequest} from "./agentRequest"
+export {
+    applyBuildKitOverlay,
+    buildAgentRequest,
+    buildAgentReferences,
+    type AgentRequest,
+} from "./agentRequest"
 // Stream vs batch response channel for the agent lane (read by buildAgentRequest's Accept header).
 export {agentChannelModeAtom, type AgentChannelMode} from "./channelMode"
 // Transport negotiation: try stream, fall back to batch on 406, error gracefully otherwise.

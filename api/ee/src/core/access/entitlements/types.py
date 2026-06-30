@@ -54,7 +54,7 @@ class Counter(str, Enum):
     TRACES_RETRIEVED = "traces_retrieved"
     CREDITS_CONSUMED = "credits_consumed"
     EVENTS_INGESTED = "events_ingested"
-    TRANSCRIPTS_INGESTED = "transcripts_ingested"
+    RECORDS_INGESTED = "records_ingested"
 
 
 class Gauge(str, Enum):
@@ -367,7 +367,7 @@ DEFAULT_ENTITLEMENTS = {
                 retention=Retention.MONTHLY,
                 period=Period.MONTHLY,
             ),
-            Counter.TRANSCRIPTS_INGESTED: Quota(
+            Counter.RECORDS_INGESTED: Quota(
                 retention=Retention.MONTHLY,
                 period=Period.MONTHLY,
             ),
@@ -459,7 +459,7 @@ DEFAULT_ENTITLEMENTS = {
                 retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
             ),
-            Counter.TRANSCRIPTS_INGESTED: Quota(
+            Counter.RECORDS_INGESTED: Quota(
                 retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
             ),
@@ -551,7 +551,7 @@ DEFAULT_ENTITLEMENTS = {
                 retention=Retention.YEARLY,
                 period=Period.MONTHLY,
             ),
-            Counter.TRANSCRIPTS_INGESTED: Quota(
+            Counter.RECORDS_INGESTED: Quota(
                 retention=Retention.YEARLY,
                 period=Period.MONTHLY,
             ),
@@ -638,7 +638,7 @@ DEFAULT_ENTITLEMENTS = {
             Counter.EVENTS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.TRANSCRIPTS_INGESTED: Quota(
+            Counter.RECORDS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
         },
@@ -676,7 +676,7 @@ DEFAULT_ENTITLEMENTS = {
             Counter.EVENTS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.TRANSCRIPTS_INGESTED: Quota(
+            Counter.RECORDS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
         },
@@ -718,7 +718,7 @@ CONSTRAINTS = {
             Counter.TRACES_RETRIEVED,
             Counter.CREDITS_CONSUMED,
             Counter.EVENTS_INGESTED,
-            Counter.TRANSCRIPTS_INGESTED,
+            Counter.RECORDS_INGESTED,
         ],
     },
 }

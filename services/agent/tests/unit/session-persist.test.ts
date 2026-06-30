@@ -1,5 +1,5 @@
 /**
- * Unit tests for producer-driven transcript persistence (sessions/persist.ts).
+ * Unit tests for producer-driven record persistence (sessions/persist.ts).
  *
  * Verifies:
  *  - events are POSTed to the ingest endpoint in order
@@ -40,7 +40,7 @@ describe("buildPersistingEmitter", () => {
     const live: unknown[] = [];
     const { emit, flush } = buildPersistingEmitter(
       "sess-1",
-      "proj-1",
+      () => "Secret t",
       (e) => live.push(e),
     );
 
@@ -57,7 +57,9 @@ describe("buildPersistingEmitter", () => {
 
   it("coalesces message_start/delta/end into a single persisted message", async () => {
     const live: unknown[] = [];
-    const { emit, flush } = buildPersistingEmitter("sess-2", "proj-2", (e) =>
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-2",
+      () => "Secret t", (e) =>
       live.push(e),
     );
 
@@ -78,7 +80,7 @@ describe("buildPersistingEmitter", () => {
   });
 
   it("persists done and tool events as-is", async () => {
-    const { emit, flush } = buildPersistingEmitter("sess-3", "proj-3");
+    const { emit, flush } = buildPersistingEmitter("sess-3", () => "Secret t");
 
     emit({ type: "tool_call", name: "search", input: { q: "test" } });
     emit({ type: "done", stopReason: "end_turn" });
@@ -92,7 +94,7 @@ describe("buildPersistingEmitter", () => {
   });
 
   it("event_index increments monotonically across events", async () => {
-    const { emit, flush } = buildPersistingEmitter("sess-4", "proj-4");
+    const { emit, flush } = buildPersistingEmitter("sess-4", () => "Secret t");
 
     emit({ type: "message", text: "a" });
     emit({ type: "message", text: "b" });
@@ -112,7 +114,7 @@ describe("drainPersist", () => {
   });
 
   it("waits for all queued events before resolving", async () => {
-    const { emit, flush } = buildPersistingEmitter("sess-drain", "proj-drain");
+    const { emit, flush } = buildPersistingEmitter("sess-drain", () => "Secret t");
     emit({ type: "message", text: "x" });
     emit({ type: "done" });
     await flush(); // same as drainPersist internally

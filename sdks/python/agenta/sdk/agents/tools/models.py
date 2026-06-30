@@ -317,7 +317,7 @@ class ToolCall(BaseModel):
     instead of routing through the shared ``/tools/call`` gateway. A spec carries ``call`` (direct)
     XOR ``call_ref`` (gateway), never both.
 
-    - ``method`` is restricted to ``GET`` / ``POST`` (the runner is a constrained dispatcher,
+    - ``method`` is restricted to ``GET`` / ``POST`` / ``DELETE`` (the runner is a constrained dispatcher,
       never an arbitrary HTTP client).
     - ``path`` is an absolute path from the Agenta ORIGIN; the runner derives that origin from the
       run's ``toolCallback.endpoint``, so a tool can never reach a non-Agenta host.
@@ -335,7 +335,7 @@ class ToolCall(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
-    method: Literal["GET", "POST"]
+    method: Literal["GET", "POST", "DELETE"]
     path: str = Field(min_length=1)
     body: Optional[Dict[str, Any]] = None
     context: Optional[Dict[str, str]] = None

@@ -426,7 +426,7 @@ class TestUIMessageStream:
                 {
                     "type": "interaction_request",
                     "id": "perm_1",
-                    "kind": "permission",
+                    "kind": "user_approval",
                     "payload": {
                         "toolCallId": "call_1",
                         "availableReplies": ["once", "always", "reject"],
@@ -468,7 +468,7 @@ class TestUIMessageStream:
                 {
                     "type": "interaction_request",
                     "id": "perm_5",
-                    "kind": "permission",
+                    "kind": "user_approval",
                     "payload": {
                         "toolCallId": "call_5",
                         "availableReplies": ["once", "always", "reject"],
@@ -496,7 +496,7 @@ class TestUIMessageStream:
                 {
                     "type": "interaction_request",
                     "id": "perm_2",
-                    "kind": "permission",
+                    "kind": "user_approval",
                     "payload": {
                         "availableReplies": ["once", "reject"],
                         "toolCall": {"id": "call_9", "name": "deleteFile"},
@@ -524,7 +524,7 @@ class TestUIMessageStream:
                 {
                     "type": "interaction_request",
                     "id": "perm_1",
-                    "kind": "permission",
+                    "kind": "user_approval",
                     "payload": {
                         "toolCallId": "call_1",
                         "toolCall": {"toolCallId": "call_1", "name": "deleteFile"},

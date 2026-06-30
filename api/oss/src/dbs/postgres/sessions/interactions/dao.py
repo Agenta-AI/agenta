@@ -3,6 +3,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import select, update as sa_update
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
@@ -49,12 +50,25 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             interaction=interaction,
         )
 
-        async with self.engine.session() as session:
-            session.add(dbe)
-            await session.commit()
-            await session.refresh(dbe)
-
-        return map_interaction_dbe_to_dto(dbe)
+        try:
+            async with self.engine.session() as session:
+                session.add(dbe)
+                await session.commit()
+                await session.refresh(dbe)
+            return map_interaction_dbe_to_dto(dbe)
+        except IntegrityError:
+            # uq_session_interactions_project_session_token — idempotent create
+            async with self.engine.session() as session:
+                stmt = select(SessionInteractionDBE).where(
+                    SessionInteractionDBE.project_id == project_id,
+                    SessionInteractionDBE.session_id == interaction.session_id,
+                    SessionInteractionDBE.token == interaction.token,
+                )
+                result = await session.execute(stmt)
+                existing = result.scalar_one_or_none()
+            if existing is None:
+                raise
+            return map_interaction_dbe_to_dto(existing)
 
     async def fetch_interaction(
         self,
@@ -80,13 +94,18 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
         transition: SessionInteractionTransition,
     ) -> Optional[SessionInteraction]:
         async with self.engine.session() as session:
+            # Only non-terminal interactions transition: pending (responded|resolved|
+            # cancelled) and responded (resolved, when the runner consumes an API-plane
+            # answer). resolved/cancelled are terminal.
             stmt = (
                 sa_update(SessionInteractionDBE)
                 .where(
                     SessionInteractionDBE.project_id == transition.project_id,
                     SessionInteractionDBE.session_id == transition.session_id,
                     SessionInteractionDBE.token == transition.token,
-                    SessionInteractionDBE.status["code"].astext == "pending",
+                    SessionInteractionDBE.status["code"].astext.in_(
+                        ("pending", "responded")
+                    ),
                 )
                 .values(
                     status={"code": transition.status.value},
@@ -100,6 +119,35 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             if dbe is None:
                 return None
             return map_interaction_dbe_to_dto(dbe)
+
+    async def cancel_session_pending(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        except_turn_id: Optional[str] = None,
+    ) -> int:
+        """Cancel still-pending interactions for a session. With `except_turn_id`, spare the
+        current turn's own gates (used at turn start to cancel prior turns' unanswered gates;
+        without it, cancel all of them, e.g. on kill). Returns the count cancelled."""
+        async with self.engine.session() as session:
+            stmt = (
+                sa_update(SessionInteractionDBE)
+                .where(
+                    SessionInteractionDBE.project_id == project_id,
+                    SessionInteractionDBE.session_id == session_id,
+                    SessionInteractionDBE.status["code"].astext == "pending",
+                )
+                .values(
+                    status={"code": "cancelled"},
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            if except_turn_id is not None:
+                stmt = stmt.where(SessionInteractionDBE.turn_id != except_turn_id)
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount or 0
 
     async def query_interactions(
         self,
@@ -119,9 +167,9 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                     stmt = stmt.where(
                         SessionInteractionDBE.session_id == query.session_id,
                     )
-                if query.run_id is not None:
+                if query.turn_id is not None:
                     stmt = stmt.where(
-                        SessionInteractionDBE.run_id == query.run_id,
+                        SessionInteractionDBE.turn_id == query.turn_id,
                     )
                 if query.kind is not None:
                     stmt = stmt.where(

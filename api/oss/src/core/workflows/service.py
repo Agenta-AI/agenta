@@ -1790,6 +1790,12 @@ class WorkflowsService:
     ) -> Optional[WorkflowRevision]:
         self._reject_static_slug(workflow_revision_commit.slug)
 
+        if workflow_revision_commit.delta is not None:
+            workflow_revision_commit = await self._resolve_revision_delta(
+                project_id=project_id,
+                workflow_revision_commit=workflow_revision_commit,
+            )
+
         # A snippet (skill) is non-runnable content: strip every execution-surface field, only uri +
         # parameters survive. Holds even if a caller posts the skill uri under a normal slug.
         data = normalize_snippet_data(workflow_revision_commit.data)
@@ -1898,6 +1904,40 @@ class WorkflowsService:
         return await self._normalize_revision_for_read(
             project_id=project_id,
             revision=_workflow_revision,
+        )
+
+    async def _resolve_revision_delta(
+        self,
+        *,
+        project_id: UUID,
+        workflow_revision_commit: WorkflowRevisionCommit,
+    ) -> WorkflowRevisionCommit:
+        """Resolve a delta commit into a full-data commit against the variant's latest revision.
+
+        Applies ``delta.set`` (deep-merge) then ``delta.remove`` (dotted-path delete) onto the
+        current revision's data, returning a commit carrying the resulting ``data`` and no delta.
+        """
+        delta = workflow_revision_commit.delta
+        variant_id = (
+            workflow_revision_commit.workflow_variant_id
+            or workflow_revision_commit.variant_id
+        )
+        current = await self.fetch_workflow_revision(
+            project_id=project_id,
+            workflow_variant_ref=Reference(id=variant_id),
+            include_archived=False,
+        )
+        base = (
+            current.data.model_dump(mode="json", exclude_none=True)
+            if current and current.data
+            else {}
+        )
+        merged = _deep_merge(base, delta.set or {})
+        for path in delta.remove or []:
+            _remove_path(merged, path)
+
+        return workflow_revision_commit.model_copy(
+            update={"data": WorkflowRevisionData(**merged), "delta": None}
         )
 
     async def log_workflow_revisions(
@@ -2275,6 +2315,27 @@ class WorkflowsService:
         return (revision, resolution_info)
 
     # --------------------------------------------------------------------------
+
+
+def _deep_merge(base: dict, patch: dict) -> dict:
+    merged = dict(base)
+    for key, value in patch.items():
+        current = merged.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(current, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _remove_path(tree: dict, path: str) -> None:
+    keys = path.split(".")
+    node = tree
+    for key in keys[:-1]:
+        node = node.get(key) if isinstance(node, dict) else None
+        if not isinstance(node, dict):
+            return
+    node.pop(keys[-1], None)
 
 
 def _build_simple_workflow_data(

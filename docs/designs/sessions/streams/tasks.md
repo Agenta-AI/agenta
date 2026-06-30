@@ -68,7 +68,7 @@
 - [ ] Acceptance: start a run on replica A → cancel/steer it from a request that lands on
       replica B → it actually cancels/steers (proves shared run state, fixes SCA-1).
 - [ ] Acceptance: attach from a second client steals the view; first detaches cleanly; run
-      continues; transcript stays complete (transcripts worktree).
+      continues; record stays complete (records worktree).
 - [ ] Acceptance: kill a runner replica mid-run → orphan sweep reaps the leaked sandbox.
 - [ ] Acceptance: exceed the concurrency cap → `429`/queue, no OOM, no leaked sandbox.
 
@@ -94,7 +94,7 @@ continues server-side"). It's a **named deliverable** — two workstreams block 
 
 - **sessions-persistence**: liveness/affinity split decision; the "one runner per session"
   invariant it relies on for uncontended `record` upserts.
-- **transcripts**: detach/cancel must not break producer-driven persistence;
+- **records**: detach/cancel must not break producer-driven persistence;
   drain-before-done before any sandbox teardown. (Ordering is uuid7, not affinity-bound.)
 - **mounts**: orphan sweep kills the sandbox; the durable cwd survives for the next run.
 - **interactions**: respond = detached invoke (this worktree's capability); on run cancel the

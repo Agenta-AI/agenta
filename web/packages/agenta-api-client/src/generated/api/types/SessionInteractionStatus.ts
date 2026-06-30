@@ -2,8 +2,8 @@
 
 export const SessionInteractionStatus = {
     Pending: "pending",
+    Responded: "responded",
     Resolved: "resolved",
-    Denied: "denied",
     Cancelled: "cancelled",
 } as const;
 export type SessionInteractionStatus = (typeof SessionInteractionStatus)[keyof typeof SessionInteractionStatus];

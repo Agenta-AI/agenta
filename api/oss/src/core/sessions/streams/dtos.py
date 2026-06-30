@@ -18,6 +18,18 @@ class SessionStreamStatus(BaseModel):
     message: Optional[str] = None
 
 
+class SessionStreamFlags(BaseModel):
+    """The nest as primitive bools (alive ⊇ running ⊇ attached).
+
+    resumable (alive & !running) and reattachable (running & !attached) are
+    derived client-side, never stored.
+    """
+
+    is_alive: bool = False
+    is_running: bool = False
+    is_attached: bool = False
+
+
 class SessionStream(BaseModel):
     id: UUID
     #
@@ -30,63 +42,68 @@ class SessionStream(BaseModel):
     #
     project_id: UUID
     session_id: str
-    attached: bool = False
-    sandbox_live: bool = False
-    last_seen_at: Optional[datetime] = None
+    flags: SessionStreamFlags = SessionStreamFlags()
+    turn_id: Optional[str] = None
     status: SessionStreamStatus = SessionStreamStatus()
 
 
 class SessionStreamCreate(BaseModel):
     session_id: str
-    attached: bool = False
-    sandbox_live: bool = False
+    flags: Optional[SessionStreamFlags] = None
+    turn_id: Optional[str] = None
     status: Optional[SessionStreamStatus] = None
 
 
 class SessionStreamEdit(BaseModel):
-    attached: Optional[bool] = None
-    sandbox_live: Optional[bool] = None
-    last_seen_at: Optional[datetime] = None
+    flags: Optional[SessionStreamFlags] = None
+    turn_id: Optional[str] = None
     status: Optional[SessionStreamStatus] = None
 
 
 class SessionStreamQuery(BaseModel):
     session_id: Optional[str] = None
-    sandbox_live: Optional[bool] = None
+    is_alive: Optional[bool] = None
+    is_running: Optional[bool] = None
 
 
-class InvokeMode(str, Enum):
-    """Derived from the DATA/FORCE matrix in the design."""
+class CommandMode(str, Enum):
+    """Derived from the prompt × force matrix."""
 
     send = "send"  # prompt + no force → 409 if alive
     steer = "steer"  # prompt + force → cancel holder, run new
     cancel = "cancel"  # no prompt + no force → cancel holder
     attach = "attach"  # no prompt + force → steal attached, watch
-    detach = "detach"  # connection close → drop attached, run keeps going
 
 
-class SessionInvokeRequest(BaseModel):
+class SessionStreamCommandRequest(BaseModel):
+    """The set_session_stream edit: a state mutation over the lock/row nest.
+
+    Runs nothing itself — the runner (execution plane) is the only thing that runs.
+    """
+
     session_id: str
     prompt: Optional[str] = None
     force: bool = False
     detached: bool = False  # fire-and-forget mode
 
 
-class SessionInvokeResponse(BaseModel):
-    mode: InvokeMode
+class SessionStreamCommandResponse(BaseModel):
+    mode: CommandMode
     session_id: str
-    run_id: Optional[str] = None
+    turn_id: Optional[str] = None
+    watcher_id: Optional[str] = None
     detached: bool = False
 
 
 class SessionHeartbeatRequest(BaseModel):
     session_id: str
-    replica_id: str
-    sandbox_live: bool = True
+    replica_id: str  # the runner CONTAINER (affinity / owner key)
+    turn_id: Optional[str] = None  # the current TURN (proves alive-lock ownership)
+    is_running: bool = True
     status: Optional[SessionStreamStatus] = None
 
 
 class SessionLiveness(BaseModel):
     alive: bool
+    running: bool
     attached: bool
-    reattachable: bool

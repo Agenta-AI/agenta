@@ -1,13 +1,13 @@
 /**
- * Producer-driven transcript persistence.
+ * Producer-driven record persistence.
  *
- * The runner posts every agent event to the API's transcript-ingest endpoint
+ * The runner posts every agent event to the API's record-ingest endpoint
  * independently of any client connection. This is the "producer-driven" model:
  * persistence is decoupled from whether anyone is listening to the live stream.
  *
  * Port of the PoC sidecar's `persistChain` / `persistEvent` / `drainPersist` pattern
- * from `server.js`, adapted to POST to the new
- * `POST /admin/sessions/transcripts/ingest` endpoint instead of a raw FastAPI route.
+ * from `server.js`, adapted to POST to the `POST /sessions/records/ingest` endpoint,
+ * authenticated AS the invoke caller (the run credential).
  *
  * Design invariants:
  *  - Events for a given session persist in produced order (per-session promise chain).
@@ -26,12 +26,6 @@ function apiBase(): string {
   return process.env.AGENTA_API_URL ?? "http://localhost:8000";
 }
 
-function adminAuth(): string {
-  return process.env.AGENTA_AUTH_KEY
-    ? `Access ${process.env.AGENTA_AUTH_KEY}`
-    : (process.env.AGENTA_ADMIN_AUTH ?? "");
-}
-
 function log(msg: string): void {
   process.stderr.write(`[sessions/persist] ${msg}\n`);
 }
@@ -39,15 +33,16 @@ function log(msg: string): void {
 /** Map session_id → tail of the per-session persist chain. */
 const persistChains = new Map<string, Promise<void>>();
 
-/** Send one event to the ingest endpoint with bounded retry. */
+/** Send one event to the ingest endpoint with bounded retry. Authenticates AS the invoke
+ * caller (the run credential); project scope is resolved server-side, so none is sent. */
 async function postEvent(
   sessionId: string,
-  projectId: string,
+  auth: () => string,
   event: AgentEvent,
   eventIndex: number,
   sender: string,
 ): Promise<void> {
-  const url = `${apiBase()}/admin/sessions/transcripts/ingest`;
+  const url = `${apiBase()}/sessions/records/ingest`;
   let lastErr: unknown;
   for (let attempt = 1; attempt <= INGEST_MAX_RETRIES; attempt++) {
     try {
@@ -55,10 +50,9 @@ async function postEvent(
         method: "POST",
         headers: {
           "content-type": "application/json",
-          authorization: adminAuth(),
+          authorization: auth(),
         },
         body: JSON.stringify({
-          project_id: projectId,
           session_id: sessionId,
           event_index: eventIndex,
           sender,
@@ -67,6 +61,7 @@ async function postEvent(
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      log(`ingest OK session=${sessionId} idx=${eventIndex} type=${event.type}`);
       return;
     } catch (err) {
       lastErr = err;
@@ -85,13 +80,13 @@ async function postEvent(
  */
 export function persistEvent(
   sessionId: string,
-  projectId: string,
+  auth: () => string,
   event: AgentEvent,
   eventIndex: number,
   sender: string = "runner",
 ): void {
   const tail = (persistChains.get(sessionId) ?? Promise.resolve()).then(() =>
-    postEvent(sessionId, projectId, event, eventIndex, sender),
+    postEvent(sessionId, auth, event, eventIndex, sender),
   );
   persistChains.set(sessionId, tail);
 }
@@ -122,7 +117,7 @@ export async function drainPersist(sessionId: string): Promise<void> {
  */
 export function buildPersistingEmitter(
   sessionId: string,
-  projectId: string,
+  auth: () => string,
   liveEmit?: (event: AgentEvent) => void,
 ): {
   emit: (event: AgentEvent) => void;
@@ -158,7 +153,7 @@ export function buildPersistingEmitter(
         // Persist the coalesced message in place of the end marker.
         persistEvent(
           sessionId,
-          projectId,
+          auth,
           { type: "message", text: acc.text },
           eventIndex++,
         );
@@ -183,7 +178,7 @@ export function buildPersistingEmitter(
         coalescedMessages.delete(`thought:${event.id}`);
         persistEvent(
           sessionId,
-          projectId,
+          auth,
           { type: "thought", text: acc.text },
           eventIndex++,
         );
@@ -192,7 +187,7 @@ export function buildPersistingEmitter(
     }
 
     // All other events persist as-is.
-    persistEvent(sessionId, projectId, event, eventIndex++);
+    persistEvent(sessionId, auth, event, eventIndex++);
   };
 
   const flush = (): Promise<void> => drainPersist(sessionId);

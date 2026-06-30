@@ -16,7 +16,7 @@
       worker remain; respond fires detached from the interactions worker, NOT inline on the API
       request thread. (Triggers worker additionally owns the durable `/composio/events/` queue.)
 - [x] **Triggers delivery** = write `dispatched`/accepted at fire time (record run_id); terminal
-      outcome observable via trace/transcript. No awaiting.
+      outcome observable via trace/record. No awaiting.
 - [x] No new permissions (RUN_SESSIONS covers respond; triggers system-authored).
 
 ## 1. Runner-side: own the coordination plane (MISSING from integration — port from demo)
@@ -33,13 +33,13 @@
 
 ## 2. Runner-side: producer-driven persistence (MISSING — the biggest gap)
 
-- [ ] Runner persists every event to the transcript ingest **independently of any client
+- [ ] Runner persists every event to the record ingest **independently of any client
       connection** (port the PoC sidecar's retrying, per-session-ordered `/events` chain →
-      the transcripts Redis-Stream ingest). Today persistence is consumer-driven over the held
+      the records Redis-Stream ingest). Today persistence is consumer-driven over the held
       `/run` connection and is lost on disconnect.
-- [ ] Keep `stripReplay` + coalescing already specced in transcripts; ensure they apply on the
+- [ ] Keep `stripReplay` + coalescing already specced in records; ensure they apply on the
       producer path.
-- [ ] Acceptance: a detached run with NO client connected still produces a complete transcript.
+- [ ] Acceptance: a detached run with NO client connected still produces a complete record.
 
 ## 3. Make `_start_run` actually dispatch (MISSING — it's a hollow stub today)
 
@@ -65,7 +65,7 @@
 ## 5. Triggers delivery reconciliation
 
 - [ ] Write the delivery `dispatched`/accepted with run_id at fire time. Terminal status is NOT
-      awaited — observable via trace/transcript/stream row. Document this is the intended contract
+      awaited — observable via trace/record/stream row. Document this is the intended contract
       for triggers ("accepted" is the meaningful outcome).
 
 ## 6. Worker shape
@@ -81,7 +81,7 @@
 
 - [ ] Detached invoke returns immediately on the alive-held handshake (does not await the run);
       non-detached still streams/returns outputs.
-- [ ] Detached run persists a full transcript with no client connected (producer-driven).
+- [ ] Detached run persists a full record with no client connected (producer-driven).
 - [ ] Caller disconnect mid-run → run continues, alive held, heartbeats, ends normally.
 - [ ] Interaction respond → detached → run proceeds → resolved by runner (not by caller).
 - [ ] Trigger sub/schedule → detached → delivery `dispatched`; `is_test`/invalid unchanged.

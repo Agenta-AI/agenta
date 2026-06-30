@@ -1,8 +1,9 @@
 """Orphan sweep — SCA-6.
 
-Periodically scans session_streams for rows whose last_seen_at is stale but
-sandbox_live is True (the owning runner died mid-run). Marks each orphan as
-ended so the sandbox can be reaped.
+Periodically scans session_streams for rows whose mirror says is_alive but whose
+heartbeat (updated_at) is stale — the owning runner died mid-turn and its Redis
+alive lock has expired. Marks each orphan ended + collapses its flags so the
+sandbox can be reaped.
 
 Called from the FastAPI lifespan; runs as a background asyncio task.
 """
@@ -13,13 +14,17 @@ from datetime import datetime, timezone, timedelta
 from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
-from oss.src.core.sessions.streams.dtos import StreamStatusCode, SessionStreamStatus
+from oss.src.core.sessions.streams.dtos import (
+    SessionStreamFlags,
+    SessionStreamStatus,
+    StreamStatusCode,
+)
 
 from sqlalchemy import select
 
 log = get_module_logger(__name__)
 
-# A stream whose last_seen_at is older than this is considered orphaned.
+# A stream whose heartbeat (updated_at) is older than this is considered orphaned.
 ORPHAN_THRESHOLD_SECONDS: int = 300  # 5 minutes
 
 # How often the sweep runs.
@@ -27,14 +32,14 @@ SWEEP_INTERVAL_SECONDS: int = 60
 
 
 async def run_orphan_sweep(engine: TransactionsEngine) -> None:
-    """Single sweep pass: mark stale sandbox_live rows as ended."""
+    """Single sweep pass: mark stale is_alive rows as ended."""
     threshold = datetime.now(timezone.utc) - timedelta(seconds=ORPHAN_THRESHOLD_SECONDS)
 
     async with engine.session() as session:
         stmt = select(SessionStreamDBE).where(
             SessionStreamDBE.deleted_at.is_(None),
-            SessionStreamDBE.sandbox_live.is_(True),
-            SessionStreamDBE.last_seen_at < threshold,
+            SessionStreamDBE.flags["is_alive"].astext == "true",
+            SessionStreamDBE.updated_at < threshold,
         )
         result = await session.execute(stmt)
         orphans = result.scalars().all()
@@ -44,7 +49,9 @@ async def run_orphan_sweep(engine: TransactionsEngine) -> None:
 
         now = datetime.now(timezone.utc)
         for row in orphans:
-            row.sandbox_live = False
+            row.flags = SessionStreamFlags(
+                is_alive=False, is_running=False, is_attached=False
+            ).model_dump(mode="json")
             row.status = SessionStreamStatus(
                 code=StreamStatusCode.ended,
                 message="orphan sweep",

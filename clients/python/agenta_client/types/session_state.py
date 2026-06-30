@@ -27,7 +27,7 @@ class SessionState(UniversalBaseModel):
     
     data: typing.Optional[typing.Dict[str, typing.Any]] = pydantic.Field(default=None)
     """
-    Opaque SDK SessionRecord stored as JSON.
+    Opaque SDK session state stored as JSON.
     """
     
     sandbox_id: typing.Optional[str] = pydantic.Field(default=None)

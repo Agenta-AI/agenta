@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, AsyncIterator, Dict, Iterator, Optional
 
 from ...dtos import AgentResult
@@ -75,6 +76,7 @@ async def agent_run_to_vercel_parts(
     # Tool-call ids already surfaced as a tool part. An approval request attaches
     # to its tool part by id, so we synthesize one only when none preceded it.
     seen_tool_calls: set = set()
+    tool_names_by_id: Dict[Any, Any] = {}
 
     try:
         async for event in run:
@@ -121,6 +123,7 @@ async def agent_run_to_vercel_parts(
                 tool_call_id = data.get("id")
                 tool_name = data.get("name")
                 seen_tool_calls.add(tool_call_id)
+                tool_names_by_id[tool_call_id] = tool_name
                 yield {
                     "type": "tool-input-start",
                     "toolCallId": tool_call_id,
@@ -155,6 +158,14 @@ async def agent_run_to_vercel_parts(
                         "toolCallId": tool_call_id,
                         "output": out,
                     }
+                    committed = _committed_revision_data(
+                        tool_names_by_id.get(tool_call_id), out
+                    )
+                    if committed is not None:
+                        yield {
+                            "type": "data-committed-revision",
+                            "data": committed,
+                        }
                     if data.get("render") is not None:
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
@@ -236,6 +247,7 @@ async def agent_stream_to_vercel_stream(
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
     seen_tool_calls: set = set()
+    tool_names_by_id: Dict[Any, Any] = {}
 
     try:
         async for event in events:
@@ -282,6 +294,7 @@ async def agent_stream_to_vercel_stream(
                 tool_call_id = data.get("id")
                 tool_name = data.get("name")
                 seen_tool_calls.add(tool_call_id)
+                tool_names_by_id[tool_call_id] = tool_name
                 yield {
                     "type": "tool-input-start",
                     "toolCallId": tool_call_id,
@@ -316,6 +329,14 @@ async def agent_stream_to_vercel_stream(
                         "toolCallId": tool_call_id,
                         "output": out,
                     }
+                    committed = _committed_revision_data(
+                        tool_names_by_id.get(tool_call_id), out
+                    )
+                    if committed is not None:
+                        yield {
+                            "type": "data-committed-revision",
+                            "data": committed,
+                        }
                     if data.get("render") is not None:
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
@@ -365,15 +386,16 @@ def _interaction_parts(
 ) -> Iterator[Dict[str, Any]]:
     """Project a neutral ``interaction_request`` event to Vercel stream parts.
 
-    A ``permission`` request becomes the AI SDK ``tool-approval-request`` chunk,
-    which is a strict object (only ``type``/``approvalId``/``toolCallId``) and
-    attaches to the tool part with the same ``toolCallId``. The runner normally
-    emits that tool call first; if it didn't, synthesize a tool part from the
-    request payload so the approval has something to render against.
+    The event ``kind`` is our interactions vocabulary; this adapter maps it to the AI SDK
+    wire. A ``user_approval`` request becomes the ``tool-approval-request`` chunk, which is
+    a strict object (only ``type``/``approvalId``/``toolCallId``) and attaches to the tool
+    part with the same ``toolCallId``. The runner normally emits that tool call first; if it
+    didn't, synthesize a tool part from the request payload so the approval has something to
+    render against.
     """
     kind = data.get("kind")
     payload = data.get("payload") or {}
-    if kind == "permission":
+    if kind == "user_approval":
         tool_call_id = _approval_tool_call_id(payload)
         tool_call = payload.get("toolCall")
         if tool_call_id is not None and isinstance(tool_call, dict):
@@ -413,8 +435,38 @@ def _interaction_parts(
             "toolCallId": tool_call_id,
         }
         return
-    if kind == "input":
+    if kind == "user_input":
         yield {"type": "data-input-request", "id": data.get("id"), "data": payload}
+        return
+    if kind == "client_tool":
+        tool_call_id = payload.get("toolCallId")
+        tool_call = payload.get("toolCall")
+        if tool_call_id is None and isinstance(tool_call, dict):
+            tool_call_id = tool_call.get("id") or tool_call.get("toolCallId")
+        tool_name = payload.get("toolName")
+        if tool_name is None and isinstance(tool_call, dict):
+            tool_name = (
+                tool_call.get("name") or tool_call.get("title") or tool_call.get("kind")
+            )
+        real_input = payload.get("input")
+        if real_input is None and isinstance(tool_call, dict):
+            real_input = tool_call.get("rawInput") or tool_call.get("input")
+        if tool_call_id is not None and tool_call_id not in seen_tool_calls:
+            seen_tool_calls.add(tool_call_id)
+            yield {
+                "type": "tool-input-start",
+                "toolCallId": tool_call_id,
+                "toolName": tool_name,
+            }
+        if tool_call_id is not None:
+            yield {
+                "type": "tool-input-available",
+                "toolCallId": tool_call_id,
+                "toolName": tool_name,
+                "input": real_input,
+            }
+            if payload.get("render") is not None:
+                yield _render_part(tool_call_id, payload["render"])
         return
     yield {
         "type": "data-interaction",
@@ -452,6 +504,36 @@ def _usage_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
         for key in ("input", "output", "total", "cost")
         if data.get(key) is not None
     }
+
+
+def _committed_revision_data(tool_name: Any, output: Any) -> Optional[Dict[str, Any]]:
+    """Project a successful commit_revision tool output to the playground refresh event."""
+    if tool_name is not None and tool_name != "commit_revision":
+        return None
+
+    payload = output
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(payload, dict) or not payload.get("count"):
+        return None
+
+    revision = payload.get("workflow_revision")
+    if not isinstance(revision, dict):
+        return None
+
+    data = {
+        "variantId": revision.get("workflow_variant_id") or revision.get("variant_id"),
+        "revisionId": revision.get("id")
+        or revision.get("workflow_revision_id")
+        or revision.get("revision_id"),
+        "version": revision.get("version"),
+    }
+    if not all(data.values()):
+        return None
+    return data
 
 
 def _as_text(value: Any) -> str:

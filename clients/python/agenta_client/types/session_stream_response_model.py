@@ -8,7 +8,7 @@ from .session_stream import SessionStream
 
 
 class SessionStreamResponseModel(UniversalBaseModel):
-    stream: SessionStream
+    stream: typing.Optional[SessionStream] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import hmac
 from datetime import datetime, timezone
-from typing import Any, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 from uuid import UUID
 
 from croniter import croniter
@@ -12,13 +12,24 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.triggers.dtos import (
+    DiscoveredTriggerAlternative,
+    DiscoveredTriggerEvent,
+    TriggerCapabilitiesResult,
+    TriggerCapability,
+    TriggerCapabilityConnection,
+    TriggerCatalogEvent,
     TriggerCatalogEventDetails,
     TriggerCatalogEventsPage,
     TriggerCatalogIntegration,
     TriggerCatalogIntegrationsPage,
     TriggerCatalogProvider,
+    TriggerProviderKind,
+    TriggerConnectAffordance,
     TriggerConnection,
+    TriggerConnectionRequirement,
     TriggerConnectionCreate,
+    TriggerDiscoveryConnectionState,
+    TriggerDiscoveryGuidance,
     TriggerDelivery,
     TriggerDeliveryCreate,
     TriggerDeliveryQuery,
@@ -54,6 +65,139 @@ _ENQUEUE_TIMEOUT_SECONDS = 5.0
 
 # Seconds /subscriptions/test long-polls for a captured event before teardown.
 _TEST_TIMEOUT_SECONDS = 300
+
+_DISCOVERY_INTEGRATION_LIMIT = 10
+_DISCOVERY_EVENT_LIMIT = 8
+# Minimum distinct use-case terms a candidate must match before it can be promoted to the
+# primary (capabilities[0]) result. The candidate loaders fall back to broad, unfiltered
+# catalog pages, so a single shared generic term ("issue", "email") is not strong enough
+# evidence to surface an integration as the best match; an exact phrase hit also clears this.
+_DISCOVERY_MIN_PRIMARY_TERMS = 2
+_DISCOVERY_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "at",
+    "for",
+    "from",
+    "in",
+    "is",
+    "me",
+    "new",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "when",
+    "whenever",
+    "with",
+}
+_TRIGGER_DISCOVERY_NO_MATCH_NOTE = (
+    "No trigger event matched this use case. Try a more specific integration name "
+    "or browse the trigger catalog for available events."
+)
+
+
+def _discovery_terms(value: str) -> List[str]:
+    terms: List[str] = []
+    token = ""
+    for char in (value or "").lower():
+        if char.isalnum():
+            token += char
+            continue
+        if len(token) > 1 and token not in _DISCOVERY_STOPWORDS:
+            terms.append(token)
+        token = ""
+    if len(token) > 1 and token not in _DISCOVERY_STOPWORDS:
+        terms.append(token)
+
+    seen = set()
+    deduped: List[str] = []
+    for term in terms:
+        if term not in seen:
+            seen.add(term)
+            deduped.append(term)
+    return deduped
+
+
+def _match_signal(
+    *,
+    use_case: str,
+    event: TriggerCatalogEvent,
+    integration: TriggerCatalogIntegration,
+) -> Tuple[int, int, bool]:
+    """Score a candidate plus the evidence behind it.
+
+    Returns ``(score, matched_terms, exact_phrase)`` where ``matched_terms`` is the count of
+    distinct use-case terms that hit anywhere in the candidate and ``exact_phrase`` is whether
+    the whole use case appears verbatim. Callers gate the primary match on the evidence, not the
+    raw score, since one strongly-weighted term can score as high as two weak ones.
+    """
+    haystack = " ".join(
+        str(part or "")
+        for part in (
+            event.key,
+            event.name,
+            event.description,
+            integration.key,
+            integration.name,
+            integration.description,
+        )
+    ).lower()
+    needle = (use_case or "").strip().lower()
+    exact_phrase = bool(needle and needle in haystack)
+    score = 50 if exact_phrase else 0
+    matched_terms = 0
+    event_key = str(event.key or "").lower()
+    integration_key = str(integration.key or "").lower()
+    for term in _discovery_terms(use_case):
+        hit = False
+        if term in haystack:
+            score += 5
+            hit = True
+        if term in event_key:
+            score += 3
+            hit = True
+        if term in integration_key:
+            score += 2
+            hit = True
+        if hit:
+            matched_terms += 1
+    return score, matched_terms, exact_phrase
+
+
+def _score_trigger_match(
+    *,
+    use_case: str,
+    event: TriggerCatalogEvent,
+    integration: TriggerCatalogIntegration,
+) -> int:
+    return _match_signal(
+        use_case=use_case,
+        event=event,
+        integration=integration,
+    )[0]
+
+
+def _has_primary_evidence(
+    *,
+    use_case: str,
+    event: TriggerCatalogEvent,
+    integration: TriggerCatalogIntegration,
+) -> bool:
+    """Whether a candidate is strong enough to surface as the primary match.
+
+    Requires an exact-phrase hit or at least ``_DISCOVERY_MIN_PRIMARY_TERMS`` distinct matched
+    terms, so a single generic term shared with a broad catalog page falls to the no-match path
+    instead of promoting an arbitrary integration.
+    """
+    _score, matched_terms, exact_phrase = _match_signal(
+        use_case=use_case,
+        event=event,
+        integration=integration,
+    )
+    return exact_phrase or matched_terms >= _DISCOVERY_MIN_PRIMARY_TERMS
 
 
 class TriggersService:
@@ -182,6 +326,317 @@ class TriggersService:
             integration_key=integration_key,
             event_key=event_key,
         )
+
+    async def discover_triggers(
+        self,
+        *,
+        project_id: UUID,
+        use_cases: List[str],
+        provider_key: str = TriggerProviderKind.COMPOSIO.value,
+        limit_alternatives: int = 3,
+    ) -> TriggerCapabilitiesResult:
+        """Keyword event discovery joined with the project's connection state."""
+        capabilities: List[TriggerCapability] = []
+        states: Dict[str, TriggerConnectionRequirement] = {}
+        state_order: List[str] = []
+
+        for use_case in use_cases:
+            matches = await self._discover_events_for_use_case(
+                provider_key=provider_key,
+                use_case=use_case,
+                limit_alternatives=limit_alternatives,
+            )
+            surfaced = matches[: 1 + max(limit_alternatives, 0)]
+
+            # Require stronger evidence before promoting a candidate to the primary match:
+            # if the top candidate is only a weak/ambiguous hit, fall to the no-match path
+            # instead of surfacing an arbitrary integration as the best match.
+            if surfaced and not _has_primary_evidence(
+                use_case=use_case,
+                event=surfaced[0][1],
+                integration=surfaced[0][2],
+            ):
+                surfaced = []
+
+            for _score, event, integration in surfaced:
+                key = event.integration or integration.key
+                if key not in states:
+                    states[key] = await self._trigger_discovery_connection_state(
+                        project_id=project_id,
+                        provider_key=provider_key,
+                        integration_key=key,
+                    )
+                    state_order.append(key)
+
+            if not surfaced:
+                capabilities.append(
+                    TriggerCapability(
+                        use_case=use_case,
+                        note=_TRIGGER_DISCOVERY_NO_MATCH_NOTE,
+                    )
+                )
+                continue
+
+            _score, event, integration = surfaced[0]
+            integration_key = event.integration or integration.key
+            details = await self.get_event(
+                provider_key=provider_key,
+                integration_key=integration_key,
+                event_key=event.key,
+            )
+            detailed_event = details or TriggerCatalogEventDetails(**event.model_dump())
+            requirement = states.get(integration_key)
+            connection = None
+            if requirement is not None:
+                connection = TriggerCapabilityConnection(
+                    state=requirement.state,
+                    id=(
+                        requirement.id
+                        if requirement.state == TriggerDiscoveryConnectionState.READY
+                        else None
+                    ),
+                    slug=(
+                        requirement.slug
+                        if requirement.state == TriggerDiscoveryConnectionState.READY
+                        else None
+                    ),
+                )
+
+            capabilities.append(
+                TriggerCapability(
+                    use_case=use_case,
+                    integration=integration_key,
+                    event=DiscoveredTriggerEvent(
+                        provider=detailed_event.provider or provider_key,
+                        integration=integration_key,
+                        event_key=detailed_event.key,
+                        trigger_config=detailed_event.trigger_config,
+                        payload=detailed_event.payload,
+                        description=detailed_event.description,
+                        provider_event=detailed_event.key,
+                    ),
+                    alternatives=[
+                        DiscoveredTriggerAlternative(
+                            integration=alt_event.integration or alt_integration.key,
+                            event_key=alt_event.key,
+                            description=alt_event.description,
+                            provider_event=alt_event.key,
+                        )
+                        for _alt_score, alt_event, alt_integration in surfaced[1:]
+                    ],
+                    connection=connection,
+                )
+            )
+
+        ready = bool(capabilities) and all(
+            capability.event is not None
+            and capability.connection is not None
+            and capability.connection.state == TriggerDiscoveryConnectionState.READY
+            for capability in capabilities
+        )
+        notes = [
+            capability.note
+            for capability in capabilities
+            if capability.note is not None
+        ]
+
+        return TriggerCapabilitiesResult(
+            capabilities=capabilities,
+            connections=[states[key] for key in state_order],
+            guidance=TriggerDiscoveryGuidance(
+                plan_steps=[
+                    "Use the returned event_key and trigger_config to build a "
+                    "create_subscription request after the connection is ready.",
+                    "Map event payload fields into inputs_fields before going live.",
+                ],
+                pitfalls=[
+                    "A ready connection id is required before creating or live-testing "
+                    "a subscription.",
+                    "Catalog payloads are samples; verify provider-specific fields "
+                    "before relying on them in inputs_fields.",
+                ],
+            ),
+            ready=ready,
+            notes=notes,
+        )
+
+    async def _discover_events_for_use_case(
+        self,
+        *,
+        provider_key: str,
+        use_case: str,
+        limit_alternatives: int,
+    ) -> List[Tuple[int, TriggerCatalogEvent, TriggerCatalogIntegration]]:
+        integrations = await self._candidate_integrations(
+            provider_key=provider_key,
+            use_case=use_case,
+        )
+        event_limit = max(_DISCOVERY_EVENT_LIMIT, limit_alternatives + 1)
+        matches: List[Tuple[int, TriggerCatalogEvent, TriggerCatalogIntegration]] = []
+        seen = set()
+
+        for integration in integrations:
+            events = await self._candidate_events(
+                provider_key=provider_key,
+                integration_key=integration.key,
+                use_case=use_case,
+                limit=event_limit,
+            )
+            for event in events:
+                key = (event.integration or integration.key, event.key)
+                if key in seen:
+                    continue
+                seen.add(key)
+                score = _score_trigger_match(
+                    use_case=use_case,
+                    event=event,
+                    integration=integration,
+                )
+                # The candidate loaders fall back to unfiltered catalog pages, so drop
+                # score-0 events here rather than letting discover_triggers surface an
+                # arbitrary, unrelated event.
+                if score <= 0:
+                    continue
+                matches.append((score, event, integration))
+
+        return sorted(matches, key=lambda item: item[0], reverse=True)
+
+    async def _candidate_integrations(
+        self,
+        *,
+        provider_key: str,
+        use_case: str,
+    ) -> List[TriggerCatalogIntegration]:
+        candidates: List[TriggerCatalogIntegration] = []
+        seen = set()
+
+        async def add_page(search: Optional[str]) -> None:
+            page = await self.list_integrations(
+                provider_key=provider_key,
+                search=search,
+                limit=_DISCOVERY_INTEGRATION_LIMIT,
+            )
+            for integration in page.integrations:
+                if integration.key not in seen:
+                    seen.add(integration.key)
+                    candidates.append(integration)
+
+        await add_page(use_case)
+        for term in _discovery_terms(use_case)[:3]:
+            if len(candidates) >= _DISCOVERY_INTEGRATION_LIMIT:
+                break
+            await add_page(term)
+        if not candidates:
+            await add_page(None)
+        return candidates[:_DISCOVERY_INTEGRATION_LIMIT]
+
+    async def _candidate_events(
+        self,
+        *,
+        provider_key: str,
+        integration_key: str,
+        use_case: str,
+        limit: int,
+    ) -> List[TriggerCatalogEvent]:
+        events: List[TriggerCatalogEvent] = []
+        seen = set()
+
+        async def add_page(query: Optional[str]) -> None:
+            page = await self.list_events(
+                provider_key=provider_key,
+                integration_key=integration_key,
+                query=query,
+                limit=limit,
+            )
+            for event in page.events:
+                if event.key not in seen:
+                    seen.add(event.key)
+                    events.append(event)
+
+        await add_page(use_case)
+        for term in _discovery_terms(use_case)[:3]:
+            if len(events) >= limit:
+                break
+            await add_page(term)
+        if not events:
+            await add_page(None)
+        return events[:limit]
+
+    async def _trigger_discovery_connection_state(
+        self,
+        *,
+        project_id: UUID,
+        provider_key: str,
+        integration_key: str,
+    ) -> TriggerConnectionRequirement:
+        connections = await self.query_connections(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=integration_key,
+            is_active=None,
+        )
+        ready = next(
+            (
+                connection
+                for connection in connections
+                if connection.is_active
+                and connection.is_valid
+                and (connection.provider_connection_id or not connection.has_auth)
+            ),
+            None,
+        )
+        if ready is not None:
+            return TriggerConnectionRequirement(
+                integration=integration_key,
+                state=TriggerDiscoveryConnectionState.READY,
+                id=ready.id,
+                slug=ready.slug,
+            )
+
+        state = await self._trigger_connection_auth_state(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        existing_slugs = {
+            connection.slug for connection in connections if connection.slug
+        }
+        connect_slug = f"{integration_key}-main"
+        suffix = 2
+        while connect_slug in existing_slugs:
+            connect_slug = f"{integration_key}-main-{suffix}"
+            suffix += 1
+
+        return TriggerConnectionRequirement(
+            integration=integration_key,
+            state=state,
+            connect=TriggerConnectAffordance(
+                body={
+                    "connection": {
+                        "provider_key": provider_key,
+                        "integration_key": integration_key,
+                        "slug": connect_slug,
+                    }
+                }
+            ),
+        )
+
+    async def _trigger_connection_auth_state(
+        self,
+        *,
+        provider_key: str,
+        integration_key: str,
+    ) -> TriggerDiscoveryConnectionState:
+        integration = await self.get_integration(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        schemes = {
+            scheme.value if hasattr(scheme, "value") else str(scheme)
+            for scheme in (integration.auth_schemes if integration else []) or []
+        }
+        if "api_key" in schemes and "oauth" not in schemes:
+            return TriggerDiscoveryConnectionState.NEEDS_INPUT
+        return TriggerDiscoveryConnectionState.NEEDS_AUTH
 
     # -----------------------------------------------------------------------
     # Connections — shared `gateway_connections` rows via the shared

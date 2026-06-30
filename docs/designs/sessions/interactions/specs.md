@@ -1,6 +1,6 @@
 # Interactions (approvals & human-in-the-loop) — specs
 
-> Status: **draft for discussion**. Fifth piece alongside mounts / transcripts /
+> Status: **draft for discussion**. Fifth piece alongside mounts / records /
 > sessions-persistence / runner-scalability. Grounded in the `big-agents` branch runner
 > (`services/agent/src/responder.ts`, `protocol.ts`) and the audit
 > (`big-agents-audit/` — FUN-6, PER-4, the Gumloop comparison gap #3). Not implemented.
@@ -49,22 +49,22 @@ discriminator, not a bespoke approvals-only table we'd widen the moment elicitat
 
 Two facts collapse the consistency problem:
 
-**1. The transcript renders the question; the interaction record holds the answer-state.**
-An `interaction_request` is **already a transcript event** (transcripts worktree). A client —
+**1. The record renders the question; the interaction record holds the answer-state.**
+An `interaction_request` is **already a record event** (records worktree). A client —
 attached live, OR attaching late, OR re-opening the session — renders the conversation
-(including the question) by **replaying the transcript** (`sessions/transcripts`, eventually
+(including the question) by **replaying the record** (`sessions/records`, eventually
 also surfaced via the invoke/inspect paths). So we do **not** need the interactions table to
 *render* anything. The interactions table answers a different question: **is this request
 still actionable, and what was the answer?**
 
-- transcript = "what was asked" (append-only, replayable).
+- record = "what was asked" (append-only, replayable).
 - interaction = "what's the answer / is it still open" (mutable state machine).
 
-> Caveat (the one to keep): a replayed transcript contains `interaction_request` events from
+> Caveat (the one to keep): a replayed record contains `interaction_request` events from
 > any point in history, some long since resolved/expired. So a client renders from the
-> transcript but must **reconcile each `interaction_request` against the interactions state**
+> record but must **reconcile each `interaction_request` against the interactions state**
 > to know which are still `pending` (actionable) vs terminal (show as already-answered/dead).
-> Render from transcript; gate *actionability* on interactions.
+> Render from record; gate *actionability* on interactions.
 
 **2. The runner is the single writer of the state machine; resolution flows through `/invoke`.**
 "Resolving" an interaction is **not** a competing write to the table — it is **sending the
@@ -148,12 +148,12 @@ cross-worktree notes so it isn't lost.
 The record is **always** written `pending` when the request is raised (one source of truth),
 marked whether it was delivered in-band, and **fan-out (webhook/notify) fires only when
 detached** (or after a grace period). This is what makes "detach, then someone attaches
-later" consistent: the late attacher renders the question from the transcript and learns it's
+later" consistent: the late attacher renders the question from the record and learns it's
 still `pending` from the record — no special path, no double-send to reconcile.
 
 > **Who writes the `pending` row on raise — runner or backend-on-ingest?** Either works as
 > long as it's one of them; since the runner is the state-machine owner, the cleanest is: the
-> runner emits the `interaction_request` (→ transcript) AND posts the `pending` interaction to
+> runner emits the `interaction_request` (→ record) AND posts the `pending` interaction to
 > the backend in the same step. See tasks Open question.
 
 ## Proposed schema (core DB)
@@ -289,10 +289,10 @@ NOT `/sessions/{id}/…`; `session_id` is a filter param). Two tiers:
 - **sessions-persistence** — detached-resolve works because the decision rides `/invoke` and
   the next turn resumes (`HITLResponder` reads it). Without durable sessions it replays cold
   (PER-4) — still correct, slower.
-- **transcripts** — the `interaction_request` is a transcript event and is the **render
-  source** (replay the transcript to show the question). The interaction record is the
+- **records** — the `interaction_request` is a record event and is the **render
+  source** (replay the record to show the question). The interaction record is the
   **answer-state**, reconciled against the replayed events to know which are still actionable.
-  Don't conflate: transcript = append-only log; interaction = mutable state machine.
+  Don't conflate: record = append-only log; interaction = mutable state machine.
 - **mounts** — orthogonal.
 
 ## What we take / don't take from Gumloop
@@ -309,7 +309,7 @@ NOT `/sessions/{id}/…`; `session_id` is a filter param). Two tiers:
 
 - **Always-persist, conditional fan-out** — record always written `pending`; webhook/notify
   only when detached.
-- **Render from transcript, gate actionability on the interaction record** — no separate
+- **Render from record, gate actionability on the interaction record** — no separate
   interactions-render path.
 - **Single writer = runner, via admin-only writes.** The state-write surface is an admin
   endpoint (the runner has admin access); users can't touch it. Users get read + respond

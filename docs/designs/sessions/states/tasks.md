@@ -34,7 +34,7 @@
 ## 3. Runner persist driver (port + clean from PoC `session-persist.js`)
 
 - [ ] `makePersist()` adapter over the API: `getSession` → `/state`, `updateSession` →
-      `/state`, `listEvents` → `/transcript` (transcripts worktree), `insertEvent` no-op.
+      `/state`, `listEvents` → `/record` (records worktree), `insertEvent` no-op.
 - [ ] Wire into `services/agent` `sandbox_agent` engine so `resumeOrCreateSession` resumes
       instead of cold-creating.
 - [ ] Resume path: reconnect `sandbox_id` if alive; recreate + remount (mounts worktree) if
@@ -45,11 +45,11 @@
 - [ ] Unit: persist driver maps endpoints correctly; `insertEvent` is a no-op.
 - [ ] Integration: `session_states` DAO upsert/read against Postgres.
 - [ ] Acceptance: turn 1 creates record → turn 2 resumes (harness has prior context) →
-      kill sandbox → turn 3 recreates + resumes from durable cwd + transcript. Both editions.
+      kill sandbox → turn 3 recreates + resumes from durable cwd + record. Both editions.
 
 ## Cross-worktree dependencies
 
-- **transcripts**: `listEvents` reads `/transcripts` filtered by `session_id`. Keep that shape.
+- **records**: `listEvents` reads `/records` filtered by `session_id`. Keep that shape.
 - **mounts**: resume-after-kill relies on the durable cwd remount.
 - **runner-scalability**: liveness/affinity ownership; the "one runner per session" invariant
   that keeps `record` upserts uncontended.
@@ -58,4 +58,4 @@
 
 - Run coordination (steer/cancel/attach/detach), session→runner affinity, concurrency caps —
   all runner-scalability.
-- The transcript table itself — transcripts worktree.
+- The record table itself — records worktree.

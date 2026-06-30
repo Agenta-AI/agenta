@@ -20,7 +20,7 @@ class SessionInteraction(UniversalBaseModel):
     deleted_by_id: typing.Optional[str] = None
     project_id: typing.Optional[str] = None
     session_id: str
-    run_id: typing.Optional[str] = None
+    turn_id: typing.Optional[str] = None
     token: str
     kind: SessionInteractionKind
     status: typing.Optional[Status] = None

@@ -273,6 +273,47 @@ services:
             retries: 3
             start_period: 20s
 
+    worker-records:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../..
+            dockerfile: api/ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_records",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_records' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
     worker-events:
         # === IMAGE ================================================ #
         build:
@@ -413,7 +454,11 @@ services:
         environment:
             AGENTA_AGENT_RUNNER_PORT: "8765"
             AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
-            AGENTA_API_URL: ${AGENTA_API_URL:-}
+            # API as reached FROM this container: the compose service name over the network
+            # (http://api:8000, as the workers use), NOT the public http://localhost/api
+            # which does not resolve inside a container. Used by the OTLP tracing-export
+            # fallback AND the session heartbeat/record-persist calls.
+            AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}

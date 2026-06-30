@@ -33,6 +33,9 @@ describe("attachPermissionResponder", () => {
         seenRequests.push(request);
         return "allow";
       },
+      async onClientTool() {
+        return "deny";
+      },
     };
 
     attachPermissionResponder({
@@ -52,7 +55,7 @@ describe("attachPermissionResponder", () => {
       {
         type: "interaction_request",
         id: "perm-1",
-        kind: "permission",
+        kind: "user_approval",
         payload: {
           toolCallId: "tool-1",
           toolCall: { toolCallId: "tool-1", name: "edit" },
@@ -102,6 +105,9 @@ describe("attachPermissionResponder", () => {
         async onPermission() {
           return "park";
         },
+        async onClientTool() {
+          return "park" as const;
+        },
       },
     });
     handler?.({
@@ -137,6 +143,9 @@ describe("attachPermissionResponder", () => {
       responder: {
         async onPermission() {
           return "deny";
+        },
+        async onClientTool() {
+          return "deny" as const;
         },
       },
     });

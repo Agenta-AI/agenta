@@ -33,12 +33,7 @@ export class MountsClient {
      *
      * @example
      *     await client.mounts.createMount({
-     *         mount: {
-     *             data: {
-     *                 bucket: "bucket",
-     *                 prefix: "prefix"
-     *             }
-     *         }
+     *         mount: {}
      *     })
      */
     public createMount(
@@ -315,6 +310,75 @@ export class MountsClient {
         }
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "PUT", "/mounts/{mount_id}");
+    }
+
+    /**
+     * @param {AgentaApi.SignMountCredentialsRequest} request
+     * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.mounts.signMountCredentials({
+     *         mount_id: "mount_id"
+     *     })
+     */
+    public signMountCredentials(
+        request: AgentaApi.SignMountCredentialsRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.MountCredentialsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__signMountCredentials(request, requestOptions));
+    }
+
+    private async __signMountCredentials(
+        request: AgentaApi.SignMountCredentialsRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.MountCredentialsResponse>> {
+        const { mount_id: mountId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `mounts/${core.url.encodePathParam(mountId)}/sign`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.MountCredentialsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/mounts/{mount_id}/sign");
     }
 
     /**
@@ -615,6 +679,84 @@ export class MountsClient {
             _response.rawResponse,
             "POST",
             "/mounts/{mount_id}/files/upload",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.DownloadMountFileRequest} request
+     * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.mounts.downloadMountFile({
+     *         mount_id: "mount_id",
+     *         path: "path"
+     *     })
+     */
+    public downloadMountFile(
+        request: AgentaApi.DownloadMountFileRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__downloadMountFile(request, requestOptions));
+    }
+
+    private async __downloadMountFile(
+        request: AgentaApi.DownloadMountFileRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<unknown>> {
+        const { mount_id: mountId, path } = request;
+        const _queryParams: Record<string, unknown> = {
+            path,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `mounts/${core.url.encodePathParam(mountId)}/files/download`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/mounts/{mount_id}/files/download",
         );
     }
 

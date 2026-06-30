@@ -56,12 +56,16 @@ export {
     workflowEntityAtomFamily,
     workflowIsDirtyAtomFamily,
     workflowIsEphemeralAtomFamily,
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    type AgentTemplate,
     // Mutations
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    invalidateAgentCommittedRevisionCache,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,

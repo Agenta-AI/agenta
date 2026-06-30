@@ -18,4 +18,5 @@ export interface ApplicationRevisionCommit {
     data?: (AgentaApi.ApplicationRevisionDataInput | null) | undefined;
     message?: (string | null) | undefined;
     revision_id?: (string | null) | undefined;
+    delta?: (AgentaApi.WorkflowRevisionDelta | null) | undefined;
 }

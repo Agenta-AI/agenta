@@ -528,3 +528,22 @@ posthog:
 #         prefixes:
 #           - /api
 #           - /services
+
+# ================================================================== #
+# === mounts (durable object store for session/agent mounts) ===
+# Opt-in. When enabled with the bundled SeaweedFS, the API + sandbox-agent
+# get matching S3 credentials and the sandbox-agent pod gains FUSE for the
+# durable agent cwd. signingKey (base64 32-byte) enables in-process S3 STS
+# so the runner receives scoped, short-lived credentials (never the master key).
+# For an external store (AWS S3 / R2 / MinIO), set seaweedfs.enabled=false
+# and provide endpointUrl + accessKey/secretKey (empty endpoint = real AWS S3).
+# ================================================================== #
+# mounts:
+#   enabled: true
+#   accessKey: "replace-me"
+#   secretKey: "replace-me"
+#   signingKey: ""              # base64 32-byte; required for STS on a self-hosted store
+#   seaweedfs:
+#     enabled: true
+#     persistence:
+#       size: "10Gi"

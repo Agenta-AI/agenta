@@ -22,7 +22,7 @@ class SessionMount(UniversalBaseModel):
     id: typing.Optional[str] = None
     project_id: str
     session_id: str
-    data: MountData
+    data: typing.Optional[MountData] = None
     flags: typing.Optional[MountFlags] = None
     
     if IS_PYDANTIC_V2:

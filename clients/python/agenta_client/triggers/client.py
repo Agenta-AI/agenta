@@ -4,6 +4,7 @@ import typing
 
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
+from ..types.trigger_capabilities_result import TriggerCapabilitiesResult
 from ..types.trigger_catalog_event_response import TriggerCatalogEventResponse
 from ..types.trigger_catalog_events_response import TriggerCatalogEventsResponse
 from ..types.trigger_catalog_integration_response import TriggerCatalogIntegrationResponse
@@ -264,6 +265,38 @@ class TriggersClient:
         )
         """
         _response = self._raw_client.fetch_trigger_event(provider_key, integration_key, event_key, request_options=request_options)
+        return _response.data
+    
+    def discover_triggers(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TriggerCapabilitiesResult:
+        """
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        TriggerCapabilitiesResult
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.triggers.discover_triggers(
+            use_cases=["use_cases"],
+        )
+        """
+        _response = self._raw_client.discover_triggers(use_cases=use_cases, provider=provider, limit_alternatives=limit_alternatives, request_options=request_options)
         return _response.data
     
     def query_trigger_connections(self, *, provider_key: typing.Optional[str] = None, integration_key: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> TriggerConnectionsResponse:
@@ -1358,6 +1391,46 @@ class AsyncTriggersClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_trigger_event(provider_key, integration_key, event_key, request_options=request_options)
+        return _response.data
+    
+    async def discover_triggers(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TriggerCapabilitiesResult:
+        """
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        TriggerCapabilitiesResult
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.triggers.discover_triggers(
+                use_cases=["use_cases"],
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.discover_triggers(use_cases=use_cases, provider=provider, limit_alternatives=limit_alternatives, request_options=request_options)
         return _response.data
     
     async def query_trigger_connections(self, *, provider_key: typing.Optional[str] = None, integration_key: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> TriggerConnectionsResponse:

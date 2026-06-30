@@ -24,14 +24,10 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("project_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("attached", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column("turn_id", sa.String(), nullable=True),
         sa.Column(
-            "sandbox_live", sa.Boolean(), nullable=False, server_default=sa.false()
-        ),
-        sa.Column(
-            "last_seen_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.func.current_timestamp(),
+            "flags",
+            postgresql.JSONB(none_as_null=True),
             nullable=True,
         ),
         sa.Column(
@@ -56,7 +52,11 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("project_id", "id"),
-        sa.UniqueConstraint("session_id", name="uq_session_streams_session_id"),
+        sa.UniqueConstraint(
+            "project_id",
+            "session_id",
+            name="uq_session_streams_project_session_id",
+        ),
     )
     op.create_index(
         "ix_session_streams_project_id_created_at",
@@ -64,24 +64,15 @@ def upgrade() -> None:
         ["project_id", "created_at"],
     )
     op.create_index(
-        "ix_session_streams_session_id",
+        "ix_session_streams_project_id_session_id",
         "session_streams",
-        ["session_id"],
-    )
-    op.create_index(
-        "ix_session_streams_sandbox_live_last_seen_at",
-        "session_streams",
-        ["sandbox_live", "last_seen_at"],
+        ["project_id", "session_id"],
     )
 
 
 def downgrade() -> None:
     op.drop_index(
-        "ix_session_streams_sandbox_live_last_seen_at",
-        table_name="session_streams",
-    )
-    op.drop_index(
-        "ix_session_streams_session_id",
+        "ix_session_streams_project_id_session_id",
         table_name="session_streams",
     )
     op.drop_index(

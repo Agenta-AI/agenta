@@ -4,18 +4,19 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from oss.src.core.sessions.streams.dtos import (
-    InvokeMode,
-    SessionLiveness,
+    CommandMode,
     SessionStream,
     SessionStreamStatus,
 )
 from oss.src.core.sessions.states.dtos import SessionState
-from oss.src.core.sessions.transcripts.dtos import SessionTranscript
+from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
-    SessionInteractionCreate,
+    SessionInteractionData,
+    SessionInteractionFlags,
+    SessionInteractionKind,
     SessionInteractionQuery,
-    SessionInteractionTransition,
+    SessionInteractionStatus,
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.shared.dtos import Windowing
@@ -26,7 +27,7 @@ from oss.src.core.shared.dtos import Windowing
 # ---------------------------------------------------------------------------
 
 
-class SessionInvokeRequestModel(BaseModel):
+class SessionStreamCommandRequestModel(BaseModel):
     session_id: str
     prompt: Optional[str] = None
     force: bool = False
@@ -34,10 +35,11 @@ class SessionInvokeRequestModel(BaseModel):
 
 
 class SessionHeartbeatRequestModel(BaseModel):
-    project_id: UUID
+    # project scope comes from the caller's credential, never the body
     session_id: str
     replica_id: str
-    sandbox_live: bool = True
+    turn_id: Optional[str] = None
+    is_running: bool = True
     status: Optional[SessionStreamStatus] = None
 
 
@@ -48,22 +50,20 @@ class SessionDetachRequestModel(BaseModel):
 
 class SessionStreamQueryRequestModel(BaseModel):
     session_id: Optional[str] = None
-    sandbox_live: Optional[bool] = None
+    is_alive: Optional[bool] = None
+    is_running: Optional[bool] = None
 
 
-class SessionInvokeResponseModel(BaseModel):
-    mode: InvokeMode
+class SessionStreamCommandResponseModel(BaseModel):
+    mode: CommandMode
     session_id: str
-    run_id: Optional[str] = None
+    turn_id: Optional[str] = None
+    watcher_id: Optional[str] = None
     detached: bool = False
 
 
-class SessionLivenessResponseModel(SessionLiveness):
-    pass
-
-
 class SessionStreamResponseModel(BaseModel):
-    stream: SessionStream
+    stream: Optional[SessionStream] = None
 
 
 class SessionStreamsResponseModel(BaseModel):
@@ -84,7 +84,7 @@ class SessionStateResponse(BaseModel):
 class SessionStateUpsertRequest(BaseModel):
     data: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Opaque SDK SessionRecord to persist.",
+        description="Opaque SDK session state to persist.",
     )
     sandbox_id: Optional[str] = Field(
         default=None,
@@ -92,29 +92,22 @@ class SessionStateUpsertRequest(BaseModel):
     )
 
 
-class SessionStateSandboxIdUpsertRequest(BaseModel):
-    sandbox_id: Optional[str] = Field(
-        default=None,
-        description="Remote sandbox id. Pass null to clear.",
-    )
-
-
 # ---------------------------------------------------------------------------
-# Transcripts request/response models
+# Records request/response models
 # ---------------------------------------------------------------------------
 
 
-class SessionTranscriptQueryRequest(BaseModel):
+class SessionRecordQueryRequest(BaseModel):
     session_id: UUID
 
 
-class SessionTranscriptsQueryResponse(BaseModel):
+class SessionRecordsQueryResponse(BaseModel):
     count: int
-    transcripts: List[SessionTranscript]
+    records: List[SessionRecord]
 
 
-class SessionTranscriptResponse(BaseModel):
-    transcript: Optional[SessionTranscript] = None
+class SessionRecordResponse(BaseModel):
+    record: Optional[SessionRecord] = None
 
 
 # ---------------------------------------------------------------------------
@@ -123,11 +116,27 @@ class SessionTranscriptResponse(BaseModel):
 
 
 class SessionInteractionCreateRequest(BaseModel):
-    interaction: SessionInteractionCreate
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    turn_id: Optional[str] = None
+    token: str
+    kind: SessionInteractionKind
+    data: Optional[SessionInteractionData] = None
+    flags: SessionInteractionFlags = SessionInteractionFlags()
 
 
 class SessionInteractionTransitionRequest(BaseModel):
-    transition: SessionInteractionTransition
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    token: str
+    status: SessionInteractionStatus
+
+
+class SessionInteractionCancelStaleRequest(BaseModel):
+    # Runner-called at turn start: cancel prior turns' still-pending gates for this session,
+    # sparing the current turn's own. project_id comes from the credential (request.state).
+    session_id: str
+    turn_id: str
 
 
 class SessionInteractionQueryRequest(BaseModel):
@@ -170,13 +179,13 @@ class SessionMountsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Admin transcript ingest model
+# Admin record ingest model
 # ---------------------------------------------------------------------------
 
 
-class SessionTranscriptIngestRequest(BaseModel):
-    project_id: UUID
-    session_id: UUID
+class SessionRecordIngestRequest(BaseModel):
+    # project scope comes from the caller's credential, never the body
+    session_id: str
     event_index: Optional[int] = None
     sender: Optional[str] = None
     session_update: Optional[str] = None

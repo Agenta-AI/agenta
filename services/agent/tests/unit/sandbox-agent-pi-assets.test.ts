@@ -70,7 +70,12 @@ describe("buildPiExtensionEnv", () => {
         {
           name: "client_only",
           description: "browser fulfilled",
+          inputSchema: {
+            type: "object",
+            properties: { integration: { type: "string" } },
+          },
           kind: "client",
+          render: { kind: "connect" },
         },
       ],
     } as AgentRunRequest;
@@ -99,6 +104,17 @@ describe("buildPiExtensionEnv", () => {
         name: "safe_tool",
         description: "safe",
         inputSchema: { type: "object", properties: { x: { type: "string" } } },
+        kind: "callback",
+      },
+      {
+        name: "client_only",
+        description: "browser fulfilled",
+        inputSchema: {
+          type: "object",
+          properties: { integration: { type: "string" } },
+        },
+        kind: "client",
+        render: { kind: "connect" },
       },
     ]);
     assert.equal(JSON.stringify(specs).includes("server-secret-ref"), false);
@@ -123,6 +139,33 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.TRACEPARENT, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
+  });
+
+  it("accepts snake_case tool schemas from older Python wire payloads", () => {
+    const env = buildPiExtensionEnv(
+      {
+        customTools: [
+          {
+            name: "request_connection",
+            kind: "client",
+            input_schema: {
+              type: "object",
+              required: ["integration"],
+              properties: { integration: { type: "string" } },
+            },
+          },
+        ],
+      } as AgentRunRequest,
+      false,
+      { relayDir: "/tmp/relay" },
+    );
+
+    const specs = JSON.parse(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ?? "[]");
+    assert.deepEqual(specs[0].inputSchema, {
+      type: "object",
+      required: ["integration"],
+      properties: { integration: { type: "string" } },
+    });
   });
 
   it("carries the loaded skill names under tracing (F-029)", () => {

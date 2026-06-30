@@ -5,12 +5,7 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         mount: {
- *             data: {
- *                 bucket: "bucket",
- *                 prefix: "prefix"
- *             }
- *         }
+ *         mount: {}
  *     }
  */
 export interface MountCreateRequest {

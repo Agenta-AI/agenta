@@ -12,8 +12,7 @@ export interface SessionStream {
     deleted_by_id?: (string | null) | undefined;
     project_id: string;
     session_id: string;
-    attached?: boolean | undefined;
-    sandbox_live?: boolean | undefined;
-    last_seen_at?: (string | null) | undefined;
+    flags?: AgentaApi.SessionStreamFlags | undefined;
+    turn_id?: (string | null) | undefined;
     status?: AgentaApi.SessionStreamStatus | undefined;
 }

@@ -17,6 +17,7 @@
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
+import {z} from "zod"
 
 import {parseRevisionUri, safeParseWithLogging} from "../../shared"
 import {extractAllEndpointSchemas, type OpenAPISpec} from "../../shared/openapi"
@@ -484,6 +485,82 @@ export async function inspectWorkflow(
     )
 
     return response.data ?? {}
+}
+
+// ============================================================================
+// SIMPLE APPLICATION FETCH (carries the read-only playground build-kit overlay)
+// ============================================================================
+
+/**
+ * Response shape from `GET /simple/applications/{application_id}`.
+ *
+ * The playground build kit's `agent_template_overlay` rides here, on
+ * `additional_context` — the backend's read-only, platform-derived container on
+ * `SimpleApplicationResponse`. The agent-service `/inspect` response carries no
+ * behavior-changing meta, so the overlay is read from this app fetch instead.
+ */
+export interface SimpleApplicationFetchResponse {
+    count?: number
+    application?: Record<string, unknown> | null
+    additional_context?: {
+        playground_build_kit?: {
+            agent_template_overlay?: Record<string, unknown> | null
+        } | null
+    } | null
+}
+
+// Boundary validation for the inspect/fetch overlay. Kept permissive — the overlay is a free-form
+// `parameters.agent` subset (platform ops + `@ag.embed` refs) — but it gates the shape that reaches
+// `workflowAgentTemplateOverlayAtomFamily`, so a non-object overlay is rejected here, not downstream.
+const simpleApplicationFetchResponseSchema = z.object({
+    count: z.number().optional(),
+    application: z.record(z.string(), z.unknown()).nullable().optional(),
+    additional_context: z
+        .object({
+            playground_build_kit: z
+                .object({
+                    agent_template_overlay: z.record(z.string(), z.unknown()).nullable().optional(),
+                })
+                .nullable()
+                .optional(),
+        })
+        .nullable()
+        .optional(),
+})
+
+/**
+ * Fetch a single simple application by id.
+ *
+ * Endpoint: `GET /simple/applications/{application_id}`. Returns the app with
+ * its current variant/revision `data` merged, plus `additional_context` holding
+ * the playground-only build-kit overlay.
+ *
+ * @param applicationId - The application (workflow artifact) id
+ * @param projectId - Project ID
+ */
+export async function fetchSimpleApplication(
+    applicationId: string,
+    projectId: string,
+): Promise<SimpleApplicationFetchResponse | null> {
+    if (!projectId || !applicationId) return null
+
+    // Fern-generated client (single source of truth for the request/response
+    // shape). Its types under-declare the backend's `extra="allow"`
+    // `additional_context`, so it is read defensively below.
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    const data = await client.applications.fetchSimpleApplication(
+        {application_id: applicationId},
+        {queryParams: {project_id: projectId}},
+    )
+
+    // Validate at the boundary before the overlay reaches the atom family. Fern under-declares the
+    // backend's `extra="allow"` `additional_context`, so the local schema is the drift check.
+    const validated = safeParseWithLogging(
+        simpleApplicationFetchResponseSchema,
+        data,
+        "[fetchSimpleApplication]",
+    )
+    return (validated ?? null) as SimpleApplicationFetchResponse | null
 }
 
 // ============================================================================

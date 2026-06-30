@@ -14,6 +14,7 @@ from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
 from ..types.mount_create import MountCreate
+from ..types.mount_credentials_response import MountCredentialsResponse
 from ..types.mount_edit import MountEdit
 from ..types.mount_file_deleted_response import MountFileDeletedResponse
 from ..types.mount_file_written_response import MountFileWrittenResponse
@@ -221,6 +222,46 @@ class RawMountsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def sign_mount_credentials(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountCredentialsResponse]:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[MountCredentialsResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"mounts/{jsonable_encoder(mount_id)}/sign",method="POST",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    MountCredentialsResponse,
+                    parse_obj_as(
+                        type_ =MountCredentialsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def archive_mount(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountResponse]:
         """
         Parameters
@@ -384,6 +425,52 @@ class RawMountsClient:
                     MountFileWrittenResponse,
                     parse_obj_as(
                         type_ =MountFileWrittenResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def download_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        path : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"mounts/{jsonable_encoder(mount_id)}/files/download",method="GET",
+            params={"path": path, }
+            ,
+            request_options=request_options,)
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -732,6 +819,46 @@ class AsyncRawMountsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    async def sign_mount_credentials(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[MountCredentialsResponse]:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[MountCredentialsResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"mounts/{jsonable_encoder(mount_id)}/sign",method="POST",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    MountCredentialsResponse,
+                    parse_obj_as(
+                        type_ =MountCredentialsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     async def archive_mount(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[MountResponse]:
         """
         Parameters
@@ -895,6 +1022,52 @@ class AsyncRawMountsClient:
                     MountFileWrittenResponse,
                     parse_obj_as(
                         type_ =MountFileWrittenResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def download_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
+        """
+        Parameters
+        ----------
+        mount_id : str
+        
+        path : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"mounts/{jsonable_encoder(mount_id)}/files/download",method="GET",
+            params={"path": path, }
+            ,
+            request_options=request_options,)
+        try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
                         object_ =_response.json()
                     )
                 )
