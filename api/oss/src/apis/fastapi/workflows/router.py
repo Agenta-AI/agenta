@@ -1,3 +1,4 @@
+from inspect import isawaitable
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -1278,6 +1279,11 @@ class WorkflowsRouter:
         # Invalidate legacy caches so the registry page reflects the new revision
         await invalidate_cache(project_id=request.state.project_id)
 
+        await _emit_committed_revision_data_event(
+            request=request,
+            workflow_revision=workflow_revision,
+        )
+
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
@@ -1511,6 +1517,43 @@ class WorkflowsRouter:
         ):
             return WorkflowRevisionResponse()
 
+        workflow_revision_commit = workflow_revision_commit_request.workflow_revision
+
+        variant_id = (
+            workflow_revision_commit.workflow_variant_id
+            or workflow_revision_commit.variant_id
+        )
+        if variant_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="workflow_revision.workflow_variant_id is required when committing a workflow revision.",
+            )
+
+        # A commit carries data (full replace) or delta (ops merged onto the latest revision),
+        # never both. Empty is allowed only as the v0 seed (intentionally null data/flags/meta);
+        # once the variant has a data revision, an empty commit is rejected.
+        has_data = bool(
+            workflow_revision_commit.data
+            and workflow_revision_commit.data.model_dump(mode="json", exclude_none=True)
+        )
+        has_delta = workflow_revision_commit.delta is not None
+        if has_data and has_delta:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide either data or delta for a commit, not both.",
+            )
+        if not has_data and not has_delta:
+            current_revision = await self.workflows_service.fetch_workflow_revision(
+                project_id=UUID(request.state.project_id),
+                workflow_variant_ref=Reference(id=variant_id),
+                include_archived=False,
+            )
+            if current_revision and current_revision.data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="workflow_revision.data is required when committing a workflow revision.",
+                )
+
         workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1520,6 +1563,11 @@ class WorkflowsRouter:
 
         # Invalidate legacy caches so the registry page reflects the new revision
         await invalidate_cache(project_id=request.state.project_id)
+
+        await _emit_committed_revision_data_event(
+            request=request,
+            workflow_revision=workflow_revision,
+        )
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
@@ -1902,6 +1950,42 @@ class WorkflowsRouter:
         )
 
         return workflow_revision_resolve_response
+
+
+async def _emit_committed_revision_data_event(
+    *,
+    request: Request,
+    workflow_revision,
+) -> None:
+    if not workflow_revision:
+        return
+
+    await _emit_data_event(
+        request=request,
+        name="committed-revision",
+        data={
+            "variantId": str(workflow_revision.workflow_variant_id),
+            "revisionId": str(workflow_revision.id),
+            "version": workflow_revision.version,
+        },
+    )
+
+
+async def _emit_data_event(
+    *,
+    request: Request,
+    name: str,
+    data: dict,
+) -> None:
+    emit = getattr(request.state, "emit", None) or getattr(
+        request.state, "emit_event", None
+    )
+    if not callable(emit):
+        return
+
+    result = emit({"type": "data", "name": name, "data": data})
+    if isawaitable(result):
+        await result
 
 
 class SimpleWorkflowsRouter:

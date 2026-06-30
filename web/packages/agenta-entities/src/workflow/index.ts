@@ -53,6 +53,12 @@ export {
     type HarnessCapabilitiesMap,
 } from "./state/inspectMeta"
 
+export {
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    type AgentTemplate,
+} from "./state"
+
 // ============================================================================
 // SCHEMAS & TYPES
 // ============================================================================
@@ -230,6 +236,7 @@ export {
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    invalidateAgentCommittedRevisionCache,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,

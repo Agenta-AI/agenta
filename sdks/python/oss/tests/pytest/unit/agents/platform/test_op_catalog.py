@@ -34,11 +34,25 @@ def _resolver(connection):
 # --- catalog model ------------------------------------------------------------
 
 
-def test_catalog_ships_the_three_first_ops():
+def test_catalog_ships_platform_builder_ops():
     assert set(PLATFORM_OPS) == {
         "find_capabilities",
         "query_workflows",
         "commit_revision",
+        "find_triggers",
+        "create_schedule",
+        "create_subscription",
+        "list_schedules",
+        "list_subscriptions",
+        "list_deliveries",
+        "list_connections",
+        "test_subscription",
+        "remove_schedule",
+        "remove_subscription",
+        "pause_schedule",
+        "resume_schedule",
+        "pause_subscription",
+        "resume_subscription",
     }
 
 
@@ -191,8 +205,11 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     # the model SHOULD supply remain.
     workflow_revision = spec.input_schema["properties"]["workflow_revision"]
     assert "workflow_variant_id" not in workflow_revision["properties"]
-    assert set(workflow_revision["properties"]) == {"message", "data"}
-    assert "required" not in workflow_revision  # only the bound field was required
+    assert set(workflow_revision["properties"]) == {"message", "delta"}
+    assert workflow_revision["required"] == ["delta"]
+    delta = workflow_revision["properties"]["delta"]
+    assert set(delta["properties"]) == {"set", "remove"}
+    assert "parameters.agent" in delta["properties"]["set"]["description"]
 
 
 async def test_commit_revision_defaults_to_approval(connection):
@@ -203,6 +220,78 @@ async def test_commit_revision_defaults_to_approval(connection):
     spec = resolution.tool_specs[0]
     assert spec.needs_approval is True
     assert spec.effective_permission() == "ask"
+
+
+async def test_trigger_builder_ops_have_expected_paths_and_defaults(connection):
+    expected_paths = {
+        "find_triggers": ("POST", "/api/triggers/discover"),
+        "create_schedule": ("POST", "/api/triggers/schedules/"),
+        "create_subscription": ("POST", "/api/triggers/subscriptions/"),
+        "list_schedules": ("GET", "/api/triggers/schedules/"),
+        "list_subscriptions": ("GET", "/api/triggers/subscriptions/"),
+        "list_deliveries": ("GET", "/api/triggers/deliveries"),
+        "list_connections": ("POST", "/api/triggers/connections/query"),
+        "test_subscription": ("POST", "/api/triggers/subscriptions/test"),
+        "remove_schedule": ("DELETE", "/api/triggers/schedules/{id}"),
+        "remove_subscription": ("DELETE", "/api/triggers/subscriptions/{id}"),
+        "pause_schedule": ("POST", "/api/triggers/schedules/{id}/stop"),
+        "resume_schedule": ("POST", "/api/triggers/schedules/{id}/start"),
+        "pause_subscription": ("POST", "/api/triggers/subscriptions/{id}/stop"),
+        "resume_subscription": ("POST", "/api/triggers/subscriptions/{id}/start"),
+    }
+    gated = {
+        "create_schedule",
+        "create_subscription",
+        "test_subscription",
+        "remove_schedule",
+        "remove_subscription",
+        "pause_schedule",
+        "resume_schedule",
+        "pause_subscription",
+        "resume_subscription",
+    }
+
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op=op) for op in expected_paths]
+    )
+    specs = {spec.name: spec for spec in resolution.tool_specs}
+
+    for name, (method, path) in expected_paths.items():
+        assert specs[name].call.method == method
+        assert specs[name].call.path == path
+        if name in gated:
+            assert specs[name].needs_approval is True
+            assert specs[name].effective_permission() == "ask"
+        else:
+            assert specs[name].needs_approval is False
+            assert specs[name].effective_permission() == "allow"
+
+
+async def test_create_trigger_ops_bind_self_target_and_hide_destination(connection):
+    resolution = await _resolver(connection).resolve(
+        [
+            PlatformToolConfig(op="create_schedule"),
+            PlatformToolConfig(op="create_subscription"),
+        ]
+    )
+    specs = {spec.name: spec for spec in resolution.tool_specs}
+
+    schedule = specs["create_schedule"]
+    assert schedule.call.args_into == "schedule"
+    assert schedule.call.context == {
+        "schedule.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
+    }
+    assert "references" not in schedule.input_schema["properties"]["data"]["properties"]
+    assert "selector" not in schedule.input_schema["properties"]["data"]["properties"]
+
+    subscription = specs["create_subscription"]
+    assert subscription.call.args_into == "subscription"
+    assert subscription.call.context == {
+        "subscription.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
+    }
+    data_props = subscription.input_schema["properties"]["data"]["properties"]
+    assert "references" not in data_props
+    assert "selector" not in data_props
 
 
 async def test_config_permission_overrides_the_catalog_default(connection):

@@ -30,9 +30,16 @@ spec:
         - name: sandbox-agent
           image: {{ include "agenta.agentRunnerImage" . }}
           imagePullPolicy: {{ include "agenta.agentRunner.pullPolicy" . }}
-          {{- with $runner.securityContext }}
+          {{- /* FUSE for the durable session cwd: geesefs mounts the store prefix on-host for
+                 local sandboxes, which needs SYS_ADMIN + /dev/fuse. Only granted when mounts is
+                 on; an explicit runner.securityContext (if set) overrides this default. */ -}}
+          {{- if $runner.securityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
+            {{- toYaml $runner.securityContext | nindent 12 }}
+          {{- else if eq (include "agenta.mounts.enabled" .) "true" }}
+          securityContext:
+            capabilities:
+              add: ["SYS_ADMIN"]
           {{- end }}
           ports:
             - name: http
@@ -109,6 +116,18 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if and (eq (include "agenta.mounts.enabled" .) "true") (not $runner.securityContext) }}
+          volumeMounts:
+            - name: fuse
+              mountPath: /dev/fuse
+          {{- end }}
+      {{- if and (eq (include "agenta.mounts.enabled" .) "true") (not $runner.securityContext) }}
+      volumes:
+        - name: fuse
+          hostPath:
+            path: /dev/fuse
+            type: CharDevice
+      {{- end }}
       {{- with $runner.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

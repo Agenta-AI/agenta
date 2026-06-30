@@ -26,6 +26,8 @@ from oss.src.apis.fastapi.triggers.models import (
     TriggerDeliveriesResponse,
     TriggerDeliveryQueryRequest,
     TriggerDeliveryResponse,
+    TriggerDiscoveryQuery,
+    TriggerDiscoveryResponse,
     TriggerEventAck,
     TriggerScheduleCreateRequest,
     TriggerScheduleEditRequest,
@@ -171,6 +173,14 @@ class TriggersRouter:
             methods=["GET"],
             operation_id="fetch_trigger_event",
             response_model=TriggerCatalogEventResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/discover",
+            self.discover_triggers,
+            methods=["POST"],
+            operation_id="discover_triggers",
+            response_model=TriggerDiscoveryResponse,
             response_model_exclude_none=True,
         )
 
@@ -944,6 +954,29 @@ class TriggersRouter:
         )
 
         return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def discover_triggers(
+        self,
+        request: Request,
+        *,
+        body: TriggerDiscoveryQuery,
+    ) -> TriggerDiscoveryResponse:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        return await self.triggers_service.discover_triggers(
+            project_id=UUID(request.state.project_id),
+            use_cases=body.use_cases,
+            provider_key=body.provider,
+            limit_alternatives=body.limit_alternatives,
+        )
 
     # -----------------------------------------------------------------------
     # Trigger Subscriptions

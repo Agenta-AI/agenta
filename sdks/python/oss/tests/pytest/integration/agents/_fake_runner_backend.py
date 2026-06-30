@@ -19,6 +19,7 @@ from agenta.sdk.agents.dtos import (
     HarnessAgentTemplate,
     HarnessType,
     Message,
+    RunContext,
     TraceContext,
 )
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
@@ -55,6 +56,7 @@ class FakeRunnerSession(Session):
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]],
         trace: Optional[TraceContext],
+        run_context: Optional[RunContext],
         session_id: Optional[str],
     ) -> None:
         self._backend = backend
@@ -62,6 +64,7 @@ class FakeRunnerSession(Session):
         self._harness = harness
         self._secrets = dict(secrets or {})
         self._trace = trace
+        self._run_context = run_context
         self._session_id = session_id
 
     @property
@@ -77,6 +80,7 @@ class FakeRunnerSession(Session):
             messages=messages,
             secrets=self._secrets,
             trace=self._trace,
+            run_context=self._run_context,
             session_id=self._session_id,
         )
 
@@ -148,6 +152,7 @@ class FakeRunnerBackend(Backend):
         harness: HarnessType,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
+        run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
     ) -> FakeRunnerSession:
         return FakeRunnerSession(
@@ -156,6 +161,7 @@ class FakeRunnerBackend(Backend):
             harness=harness,
             secrets=secrets,
             trace=trace,
+            run_context=run_context,
             session_id=session_id,
         )
 

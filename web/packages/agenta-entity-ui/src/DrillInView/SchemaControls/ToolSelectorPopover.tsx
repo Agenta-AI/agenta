@@ -204,6 +204,10 @@ function buildInlineFunctionTool(_existingToolCount: number): ToolObj {
     }
 }
 
+export function shouldCloseToolSelectorAfterAdd(meta?: ToolSelectionMeta): boolean {
+    return meta?.source !== "gateway"
+}
+
 const ALL_PROVIDER_TOOLS = buildProviderToolList()
 const BUILTIN_PROVIDER_GROUPS = groupByProvider(ALL_PROVIDER_TOOLS)
 const EMPTY_SET = new Set<string>()
@@ -805,10 +809,10 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
         resetAndClose()
     }, [existingToolCount, onAddTool, resetAndClose])
 
-    const handleAddToolAndClose = useCallback(
+    const handleAddToolSelection = useCallback(
         (tool: ToolObj, meta?: ToolSelectionMeta) => {
             onAddTool(tool, meta)
-            resetAndClose()
+            if (shouldCloseToolSelectorAfterAdd(meta)) resetAndClose()
         },
         [onAddTool, resetAndClose],
     )
@@ -1001,7 +1005,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                         rightSearch={rightSearch}
                         onRightSearchChange={setRightSearch}
                         selectedTools={effectiveSelectedTools}
-                        onAddTool={handleAddToolAndClose}
+                        onAddTool={handleAddToolSelection}
                         onRemoveBuiltinTool={onRemoveBuiltinTool}
                     />
                 ) : gatewayTools?.enabled && activeGatewayConnection ? (
@@ -1011,7 +1015,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                         rightSearch={rightSearch}
                         onRightSearchChange={setRightSearch}
                         selectedToolNames={effectiveSelectedToolNames}
-                        onAddTool={handleAddToolAndClose}
+                        onAddTool={handleAddToolSelection}
                         onRemoveTool={onRemoveTool}
                         showMessage={showMessage}
                     />

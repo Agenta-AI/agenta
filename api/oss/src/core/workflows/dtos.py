@@ -298,6 +298,19 @@ class WorkflowRevisionQuery(RevisionQuery):
     flags: Optional[WorkflowRevisionQueryFlags] = None
 
 
+class WorkflowRevisionDelta(BaseModel):
+    """Delta operations on a workflow revision's data tree.
+
+    - ``set``: a partial data tree deep-merged onto the base revision's data
+      (nested dicts merge; scalars and lists replace).
+    - ``remove``: dotted key paths to delete from the data tree (e.g.
+      ``parameters.agent.tools``).
+    """
+
+    set: Optional[Dict[str, Any]] = None
+    remove: Optional[List[str]] = None
+
+
 class WorkflowRevisionCommit(
     RevisionCommit,
     WorkflowIdAlias,
@@ -306,6 +319,7 @@ class WorkflowRevisionCommit(
     flags: Optional[WorkflowFlags] = None
 
     data: Optional[WorkflowRevisionData] = None
+    delta: Optional[WorkflowRevisionDelta] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
@@ -474,3 +488,15 @@ class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
 
     flags: Optional[WorkflowCatalogFlags] = None
     data: Optional[WorkflowRevisionData] = None
+
+
+class WorkflowServiceDetachedResponse(BaseModel):
+    """Result of a detached (fire-and-forget) workflow invoke.
+
+    The run is owned by the runner once accepted; the caller never awaits completion.
+    """
+
+    run_id: str
+    accepted: bool = True
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None

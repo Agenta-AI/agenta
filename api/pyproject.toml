@@ -9,7 +9,7 @@ authors = [
 ]
 dependencies = [
     "agenta",
-    "fastapi>=0.137,<0.138",
+    "fastapi>=0.138,<0.139",
     "pydantic[email]>=2,<3",
     "uvicorn[standard]>=0.49,<0.50",
     "gunicorn>=26,<27",
@@ -30,7 +30,7 @@ dependencies = [
     "uuid-utils>=0.16,<0.17",
     "taskiq>=0.12,<0.13",
     "taskiq-redis>=1,<2",
-    "redis>=7,<8",
+    "redis>=8,<9",
     "cachetools>=7,<8",
     "supertokens-python>=0.31,<0.32",
     "openai>=2,<3",
@@ -41,6 +41,7 @@ dependencies = [
     "dnspython>=2,<3",
     "opentelemetry-proto>=1,<2",
     "croniter>=6,<7",
+    "miniopy-async>=1.21,<2",
 ]
 
 [dependency-groups]

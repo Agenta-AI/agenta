@@ -42,13 +42,14 @@ const codeSpec = (
 async function relayOnce(
   spec: ResolvedToolSpec,
   policy: "auto" | "deny",
+  args: unknown = { a: 1 },
 ): Promise<RelayResponse> {
   const dir = mkdtempSync(join(tmpdir(), "agenta-relay-disp-"));
   try {
     const id = "call-1";
     writeFileSync(
       join(dir, `${id}.req.json`),
-      JSON.stringify({ toolName: spec.name, toolCallId: id, args: { a: 1 } }),
+      JSON.stringify({ toolName: spec.name, toolCallId: id, args }),
     );
     const relay = startToolRelay(localRelayHost(), dir, [spec], undefined, policy);
     const resPath = join(dir, `${id}.res.json`);
@@ -101,9 +102,153 @@ describe("startToolRelay permission enforcement", () => {
     assert.match(res.error ?? "", /Code tools are not supported by the sidecar\./);
   });
 
+  it("rejects missing required args before executing a relayed tool", async () => {
+    const spec = {
+      ...codeSpec("needs_args", "allow"),
+      input_schema: {
+        type: "object",
+        properties: { required_value: { type: "string" } },
+        required: ["required_value"],
+      },
+    } as ResolvedToolSpec;
+    const res = await relayOnce(spec, "auto", {});
+    assert.equal(res.ok, false);
+    assert.match(res.error ?? "", /missing required argument\(s\): required_value/);
+    assert.ok(
+      !String(res.error).includes("Code tools are not supported"),
+      "validation failed before sidecar code execution",
+    );
+  });
+
   it("refuses an unset spec when the headless policy is deny", async () => {
     const res = await relayOnce(codeSpec("gated", undefined), "deny");
     assert.equal(res.ok, true);
     assert.equal(res.text, "Tool 'gated' requires approval; denied in headless mode.");
+  });
+
+  it("parks a browser-fulfilled client tool without writing a relay response", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-client-"));
+    try {
+      const id = "call-client";
+      const resPath = join(dir, `${id}.res.json`);
+      let parked = false;
+      let seenInput: unknown;
+      writeFileSync(
+        join(dir, `${id}.req.json`),
+        JSON.stringify({
+          toolName: "request_connection",
+          toolCallId: id,
+          args: { integration: "slack" },
+        }),
+      );
+      let resolveHandled: () => void = () => {};
+      const handled = new Promise<void>((resolve) => {
+        resolveHandled = resolve;
+      });
+      const relay = startToolRelay(
+          localRelayHost(),
+          dir,
+          [{ name: "request_connection", kind: "client" }],
+          undefined,
+          "auto",
+          undefined,
+          {
+            onClientTool: async (request) => {
+              seenInput = request.input;
+              return "park";
+            },
+            onPark: () => {
+              parked = true;
+              resolveHandled();
+            },
+          },
+      );
+      await handled;
+      await relay.stop();
+      assert.equal(parked, true);
+      assert.deepEqual(seenInput, { integration: "slack" });
+      assert.equal(existsSync(resPath), false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("still parks a browser-fulfilled client tool under deny permission policy", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-client-"));
+    try {
+      const id = "call-client";
+      let parked = false;
+      writeFileSync(
+        join(dir, `${id}.req.json`),
+        JSON.stringify({
+          toolName: "request_connection",
+          toolCallId: id,
+          args: { integration: "slack" },
+        }),
+      );
+      let resolveHandled: () => void = () => {};
+      const handled = new Promise<void>((resolve) => {
+        resolveHandled = resolve;
+      });
+      const relay = startToolRelay(
+        localRelayHost(),
+        dir,
+        [{ name: "request_connection", kind: "client" }],
+        undefined,
+        "deny",
+        undefined,
+        {
+          onClientTool: async () => "park",
+          onPark: () => {
+            parked = true;
+            resolveHandled();
+          },
+        },
+      );
+      await handled;
+      await relay.stop();
+      assert.equal(parked, true);
+      assert.equal(existsSync(join(dir, `${id}.res.json`)), false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("writes stored client-tool output when the browser already fulfilled it", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-client-"));
+    try {
+      const id = "call-client";
+      writeFileSync(
+        join(dir, `${id}.req.json`),
+        JSON.stringify({
+          toolName: "request_connection",
+          toolCallId: id,
+          args: { integration: "slack" },
+        }),
+      );
+      const relay = startToolRelay(
+        localRelayHost(),
+        dir,
+        [{ name: "request_connection", kind: "client" }],
+        undefined,
+        "auto",
+        undefined,
+        {
+          onClientTool: async () => ({ output: { connected: true } }),
+        },
+      );
+      const resPath = join(dir, `${id}.res.json`);
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline && !existsSync(resPath)) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      await relay.stop();
+      assert.ok(existsSync(resPath), "the relay wrote a response file");
+      const res = JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
+      assert.equal(res.ok, true);
+      assert.equal(res.text, JSON.stringify({ connected: true }));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

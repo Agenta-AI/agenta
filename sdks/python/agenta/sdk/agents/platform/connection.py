@@ -81,6 +81,12 @@ def _derive_authorization() -> Optional[str]:
     if api_key:
         return f"ApiKey {api_key}"
 
+    # Fall back to the full (scheme-tagged) credential — used verbatim. The sandbox is
+    # handed an ephemeral `Secret ...` here when no bare API key exists.
+    credentials = os.getenv("AGENTA_CREDENTIALS")
+    if credentials:
+        return credentials
+
     return None
 
 

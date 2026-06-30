@@ -1258,6 +1258,9 @@ importers:
       '@lexical/hashtag':
         specifier: ^0.46.0
         version: 0.46.0(typescript@5.9.3)
+      '@lexical/history':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
       '@lexical/html':
         specifier: ^0.46.0
         version: 0.46.0(typescript@5.9.3)

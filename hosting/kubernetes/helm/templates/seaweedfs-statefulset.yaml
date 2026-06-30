@@ -1,0 +1,127 @@
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $mounts := default dict $values.mounts -}}
+{{- $seaweedfs := default dict $mounts.seaweedfs -}}
+{{- $persistence := default dict $seaweedfs.persistence -}}
+{{- $persistenceEnabled := true -}}
+{{- if hasKey $persistence "enabled" -}}
+{{- $persistenceEnabled = $persistence.enabled -}}
+{{- end -}}
+{{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "agenta.fullname" . }}-seaweedfs
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: seaweedfs
+spec:
+  serviceName: {{ include "agenta.fullname" . }}-seaweedfs
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: seaweedfs
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: seaweedfs
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- with $seaweedfs.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: seaweedfs
+          image: {{ include "agenta.seaweedfs.image" . }}
+          imagePullPolicy: {{ include "agenta.seaweedfs.pullPolicy" . }}
+          {{- with $seaweedfs.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Generate the S3 identity file from the mounted credentials (single source of
+          # truth), then start the gateway. WEED_JWT_FILER_SIGNING_KEY doubles as the in-process
+          # S3 STS signing key so the API can mint scoped, short-lived runner credentials on the
+          # same S3 port — no separate IAM service, no master key in the runner.
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /etc/seaweedfs
+              cat > /etc/seaweedfs/s3.json <<EOF
+              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$AGENTA_MOUNTS_STORAGE_ACCESS_KEY","secretKey":"$AGENTA_MOUNTS_STORAGE_SECRET_KEY"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+              EOF
+              exec weed server -dir=/data -ip=$(hostname -i) -s3 -s3.port={{ include "agenta.seaweedfs.port" . }} -s3.config=/etc/seaweedfs/s3.json
+          ports:
+            - name: s3
+              containerPort: {{ include "agenta.seaweedfs.port" . }}
+              protocol: TCP
+          env:
+            - name: AGENTA_MOUNTS_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: AGENTA_MOUNTS_STORAGE_ACCESS_KEY
+            - name: AGENTA_MOUNTS_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: AGENTA_MOUNTS_STORAGE_SECRET_KEY
+            - name: WEED_JWT_FILER_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: AGENTA_MOUNTS_STORAGE_SIGNING_KEY
+          {{- if $persistenceEnabled }}
+          volumeMounts:
+            - name: seaweed-data
+              mountPath: /data
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /cluster/healthz
+              port: 9333
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /cluster/healthz
+              port: 9333
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          {{- with $seaweedfs.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $seaweedfs.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $seaweedfs.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $seaweedfs.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if $persistenceEnabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: seaweed-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if hasKey $persistence "storageClass" }}
+        storageClassName: {{ $persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ default "10Gi" $persistence.size }}
+  {{- end }}
+{{- end }}

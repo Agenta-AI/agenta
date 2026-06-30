@@ -66,6 +66,11 @@ import {
   prepareLocalPiAssets,
 } from "./sandbox_agent/pi-assets.ts";
 import { attachPermissionResponder } from "./sandbox_agent/permissions.ts";
+import {
+  createInteraction,
+  resolveInteraction,
+  buildWorkflowReferences,
+} from "../sessions/interactions.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
 import {
   buildRunPlan,
@@ -74,6 +79,13 @@ import {
 import { priorMessages } from "./sandbox_agent/transcript.ts";
 import { resolveRunUsage } from "./sandbox_agent/usage.ts";
 import { prepareWorkspace } from "./sandbox_agent/workspace.ts";
+import {
+  signSessionMountCredentials,
+  mountStorage,
+  mountStorageRemote,
+  unmountStorage,
+  discoverTunnelEndpoint,
+} from "./sandbox_agent/mount.ts";
 
 export {
   buildTurnText,
@@ -83,6 +95,20 @@ export { toAcpMcpServers } from "./sandbox_agent/mcp.ts";
 
 function log(message: string): void {
   process.stderr.write(`[sandbox-agent] ${message}\n`);
+}
+
+/** Extract the run credential from the OTLP export headers (initial value, constant for the run). */
+function runCredential(request: AgentRunRequest): string {
+  const headers = (request.telemetry?.exporters?.otlp?.headers ?? {}) as Record<
+    string,
+    string
+  >;
+  return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
+}
+
+/** Agenta API base for runner→API calls (heartbeat/ingest/mount-sign share this). */
+function apiBase(): string {
+  return process.env.AGENTA_API_URL ?? "http://localhost:8000";
 }
 
 type Log = (message: string) => void;
@@ -238,6 +264,10 @@ export async function runSandboxAgent(
       })
     : {};
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
+  logger(
+    `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
+      `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
+  );
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
@@ -255,6 +285,9 @@ export async function runSandboxAgent(
   // Internal gateway-tool MCP server closer (set when an internal channel is built for a non-Pi
   // harness with executable tools; a no-op otherwise). Released in the `finally`.
   let closeToolMcp: (() => Promise<void>) | undefined;
+  // Durable cwd: set to the host mountpoint once a session-owned local run geesefs-mounts its
+  // store prefix, so the `finally` can unmount it. Undefined for non-session/remote/unmounted runs.
+  let mountedCwd: string | undefined;
   let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
     ? undefined
     : {
@@ -307,6 +340,38 @@ export async function runSandboxAgent(
       plan,
       log: logger,
     });
+
+    // Durable cwd: a session-owned run mounts its store prefix at the cwd so files survive
+    // teardown. Best-effort — sign/mount failure leaves the plain ephemeral cwd and the turn
+    // proceeds. The mount lands BEFORE createSession so the session opens inside it. Local mounts
+    // on-host (scoped creds never enter agent space); remote (Daytona) mounts INSIDE the sandbox
+    // over the ngrok tunnel, where the scoped, short-lived creds are the only ones that cross.
+    const sessionForMount = request.sessionId?.trim();
+    if (sessionForMount) {
+      const cred = runCredential(request);
+      if (cred) {
+        const creds = await signSessionMountCredentials(sessionForMount, {
+          apiBase: apiBase(),
+          authorization: cred,
+          log: logger,
+        });
+        if (creds && plan.isDaytona) {
+          const endpoint = await discoverTunnelEndpoint({ log: logger });
+          if (
+            endpoint &&
+            (await mountStorageRemote(sandbox, plan.cwd, creds, {
+              endpoint,
+              log: logger,
+            }))
+          ) {
+            // Remote files live in the store; nothing on this host to unmount.
+            logger(`remote durable cwd active for session=${sessionForMount}`);
+          }
+        } else if (creds && (await mountStorage(plan.cwd, creds, { log: logger }))) {
+          mountedCwd = plan.cwd;
+        }
+      }
+    }
 
     // Sandbox-start invariant: `startSandboxAgent` must hand back a usable handle, or the
     // probe/createSession below fail with an opaque "cannot read property of undefined".
@@ -430,17 +495,48 @@ export async function runSandboxAgent(
       // raced against `parkedSignal` below so the turn ends even if this call rejects.
       void sandbox.destroySession?.(session.id).catch(() => {});
     };
+    const responder =
+      deps.responderFactory?.(request.permissionPolicy) ??
+      new HITLResponder(
+        extractApprovalDecisions(request),
+        policyFromRequest(request.permissionPolicy),
+        hasHumanSurface,
+      );
     attachPermissionResponder({
       session,
       run,
       onPark,
-      responder:
-        deps.responderFactory?.(request.permissionPolicy) ??
-        new HITLResponder(
-          extractApprovalDecisions(request),
-          policyFromRequest(request.permissionPolicy),
-          hasHumanSurface,
-        ),
+      onCreateInteraction: (token, toolName, toolArgs) => {
+        const cred = runCredential(request);
+        if (!cred) return;
+        // The /interactions plane only works when respond can re-invoke THIS revision, which
+        // needs at least a committed workflow_revision reference. A draft (inline config, no
+        // committed revision) can't be re-resolved, so skip create and stay messages/park-only.
+        const references = buildWorkflowReferences(
+          request.runContext?.workflow,
+        );
+        if (!references?.workflow_revision) return;
+        void createInteraction(
+          sessionId,
+          request.turnId ?? "",
+          token,
+          "user_approval",
+          { request: { tool: toolName ?? token, args: toolArgs }, references },
+          () => cred,
+        );
+      },
+      onResolveInteraction: (token) => {
+        const cred = runCredential(request);
+        if (!cred) return;
+        // Mirror the create guard: no interaction exists for a draft, so nothing to resolve.
+        if (
+          !buildWorkflowReferences(request.runContext?.workflow)
+            ?.workflow_revision
+        )
+          return;
+        void resolveInteraction(sessionId, token, () => cred);
+      },
+      responder,
     });
 
     if (plan.useToolRelay) {
@@ -455,6 +551,41 @@ export async function runSandboxAgent(
         plan.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
         policyFromRequest(request.permissionPolicy),
+        request.runContext,
+        {
+          onClientTool: async ({ id, toolCallId, toolName, input, spec }) => {
+            const decision = await responder.onClientTool({
+              id,
+              toolCallId,
+              toolName,
+              input,
+              raw: { spec },
+            });
+            if (decision === "park") {
+              run.emitEvent({
+                type: "interaction_request",
+                id,
+                kind: "client_tool",
+                payload: {
+                  toolCallId,
+                  toolName,
+                  input,
+                  render: spec.render,
+                  toolCall: {
+                    id: toolCallId,
+                    toolCallId,
+                    name: toolName,
+                    rawInput: input,
+                    input,
+                    kind: spec.kind,
+                  },
+                },
+              });
+            }
+            return decision;
+          },
+          onPark,
+        },
       );
     }
 
@@ -566,6 +697,9 @@ export async function runSandboxAgent(
     await closeToolMcp?.().catch(() => {});
     await sandbox?.destroySandbox().catch(() => {});
     await sandbox?.dispose().catch(() => {});
+    // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
+    // mountpoint is torn down. Best-effort (the store keeps the files regardless).
+    if (mountedCwd) await unmountStorage(mountedCwd, { log }).catch(() => {});
     await workspace?.cleanup().catch(() => {});
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
     if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });

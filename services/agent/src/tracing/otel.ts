@@ -95,10 +95,13 @@ function defaultTarget(): ExportTarget {
   // AGENTA_API_URL is the `.../api` base the rest of the platform uses.
   const base =
     process.env.AGENTA_API_URL?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
+  // Prefer the bare API key; else fall back to the full (scheme-tagged) ephemeral
+  // credential, used verbatim — `/check` hands back a `Secret ...`, not an API key.
   const apiKey = process.env.AGENTA_API_KEY || "";
+  const credentials = process.env.AGENTA_CREDENTIALS || "";
   return {
     endpoint: `${base}/otlp/v1/traces`,
-    authorization: apiKey ? `ApiKey ${apiKey}` : undefined,
+    authorization: apiKey ? `ApiKey ${apiKey}` : credentials || undefined,
   };
 }
 

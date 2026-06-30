@@ -30,7 +30,7 @@ export type DirectCall = NonNullable<ResolvedToolSpec["call"]>;
 const CTX_TOKEN_PREFIX = "$ctx.";
 
 /** Methods a direct call may use. The descriptor is untrusted, so this is an allowlist. */
-const DIRECT_CALL_METHODS = new Set(["GET", "POST"]);
+const DIRECT_CALL_METHODS = new Set(["GET", "POST", "DELETE"]);
 
 /**
  * Object keys that must never be written through a dotted path or a merge: assigning to them
@@ -117,10 +117,10 @@ export function deepMerge(
 /**
  * Resolve a `call.context` token (`"$ctx.<dotted.path>"`) against the run's `runContext` blob.
  *
- * The descriptor is untrusted, so a malformed token (one that does not start with `$ctx.`) is
- * skipped rather than trusted: it returns `undefined`. A path that does not resolve in the blob
- * (no `runContext`, a missing sub-object, or a missing key) also returns `undefined`. Only a
- * non-`undefined` resolved value is bound — `null` is a real value and binds, `undefined` does not.
+ * The descriptor is untrusted, so a malformed token (one that does not start with `$ctx.`) returns
+ * `undefined`. A path that does not resolve in the blob (no `runContext`, a missing sub-object, or
+ * a missing key) also returns `undefined`. `assembleBody` treats that as a hard binding failure so
+ * self-targeting direct calls cannot silently drop their hidden target field.
  *
  * Traversal follows ONLY own, safe keys: an unsafe segment (`__proto__`/`constructor`/`prototype`)
  * or a key inherited from the prototype chain returns `undefined`, so a crafted token can never
@@ -144,6 +144,46 @@ export function resolveCtxToken(
     cursor = cursor[part];
   }
   return cursor;
+}
+
+function readParam(source: Record<string, unknown>, path: string): unknown {
+  let cursor: unknown = source;
+  for (const part of path.split(".")) {
+    if (!part || UNSAFE_KEYS.has(part)) return undefined;
+    if (!isPlainObject(cursor)) return undefined;
+    if (!Object.prototype.hasOwnProperty.call(cursor, part)) return undefined;
+    cursor = cursor[part];
+  }
+  return cursor;
+}
+
+/**
+ * The `{name}` path-parameter tokens declared in a direct-call path (names may be dotted, e.g.
+ * `{a.b}`). Callers strip these from the POST body after they have been substituted into the URL,
+ * so an endpoint whose request model expects the identifier only in the route does not reject the
+ * leftover key (e.g. `/api/triggers/schedules/{id}/stop` must not also send `id` in the body).
+ */
+export function pathParamNames(path: unknown): string[] {
+  if (typeof path !== "string") return [];
+  const names: string[] = [];
+  for (const match of path.matchAll(/\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g)) {
+    names.push(match[1]);
+  }
+  return names;
+}
+
+function substitutePathParams(path: unknown, params: Record<string, unknown>): string {
+  if (typeof path !== "string") return String(path);
+  return path.replace(/\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g, (_match, name: string) => {
+    const value = readParam(params, name);
+    if (value === undefined || value === null) {
+      throw new Error(`direct-call path parameter '{${name}}' is missing`);
+    }
+    if (!["string", "number", "boolean"].includes(typeof value)) {
+      throw new Error(`direct-call path parameter '{${name}}' must be scalar`);
+    }
+    return encodeURIComponent(String(value));
+  });
 }
 
 /**
@@ -179,15 +219,20 @@ export function assembleBody(
   if (call.body) body = deepMerge(body, call.body);
   // 3. Run-context binding wins over everything (filled LAST). For each [bodyPath, token] in
   //    call.context, the field is owned by run context alone: first clear whatever the model's args
-  //    or the static `body` put at that path, then deep-set the resolved value. A token that does
-  //    not resolve leaves the field ABSENT (the cleared state), so a missing run-context value can
-  //    never let a model-supplied value survive in a bound field — the model-invisible guarantee.
-  //    deepDelete / deepSet are prototype-pollution-safe and reject unsafe path segments.
+  //    or the static `body` put at that path, then deep-set the resolved value. A missing binding
+  //    value fails closed instead of silently no-oping; direct calls that declare context require
+  //    that context to target the platform safely. deepDelete / deepSet are prototype-pollution-safe
+  //    and reject unsafe path segments.
   if (call.context) {
     for (const [bodyPath, token] of Object.entries(call.context)) {
       deepDelete(body, bodyPath);
       const value = resolveCtxToken(runContext, token);
-      if (value !== undefined) deepSet(body, bodyPath, value);
+      if (value === undefined) {
+        throw new Error(
+          `missing run-context value for direct-call binding '${bodyPath}'`,
+        );
+      }
+      deepSet(body, bodyPath, value);
     }
   }
   return body;
@@ -196,7 +241,7 @@ export function assembleBody(
 /**
  * Validate the descriptor and build the absolute URL to call. The `call` is untrusted input, so
  * this is the SSRF guard, and it makes NO assumption about where the Agenta API is mounted:
- *  - `method` must be on the allowlist (GET/POST);
+ *  - `method` must be on the allowlist (GET/POST/DELETE);
  *  - `path` must be a single absolute-path reference — a string starting with exactly one `/`
  *    (no scheme, no protocol-relative `//host`, no backslashes, no whitespace/CRLF, no literal
  *    `..` traversal);
@@ -211,13 +256,17 @@ export function assembleBody(
  *    the host-lock alone. Deriving the mount instead of hard-coding `/api` is what lets this work
  *    on a self-host where the API is not under `/api`.
  */
-export function directCallUrl(callbackEndpoint: string, call: DirectCall): string {
+export function directCallUrl(
+  callbackEndpoint: string,
+  call: DirectCall,
+  params: Record<string, unknown> = {},
+): string {
   if (!DIRECT_CALL_METHODS.has(call.method)) {
     throw new Error(
-      `direct-call method '${call.method}' is not allowed (GET/POST only)`,
+      `direct-call method '${call.method}' is not allowed (GET/POST/DELETE only)`,
     );
   }
-  const path = call.path;
+  const path = substitutePathParams(call.path, params);
   // A single absolute-path reference: a string starting with exactly one `/`. Rejects non-strings,
   // scheme-qualified URLs (`https://…` does not start with `/`) and protocol-relative `//host`.
   if (typeof path !== "string" || path[0] !== "/" || path[1] === "/") {
@@ -286,7 +335,7 @@ export function directCallUrl(callbackEndpoint: string, call: DirectCall): strin
  * starts emitting `call`.
  */
 export async function callDirect(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "DELETE",
   url: string,
   authorization: string | undefined,
   body: Record<string, unknown>,
@@ -309,7 +358,7 @@ export async function callDirect(
     response = await fetch(url, {
       method,
       headers,
-      // GET carries no body (fetch forbids it); POST sends the assembled JSON body.
+      // GET and DELETE carry no body; POST sends the assembled JSON body.
       body: method === "POST" ? JSON.stringify(body) : undefined,
       signal: combined,
       // Do not auto-follow redirects: a 3xx to another host would defeat the origin lock in

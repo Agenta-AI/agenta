@@ -225,6 +225,9 @@ function fakeHarness(options: FakeOptions = {}) {
       async onPermission() {
         return options.permissionDecision ?? "allow";
       },
+      async onClientTool() {
+        return "deny" as const;
+      },
     }),
   };
 
@@ -317,7 +320,7 @@ describe("runSandboxAgent orchestration", () => {
         {
           type: "interaction_request",
           id: "perm-1",
-          kind: "permission",
+          kind: "user_approval",
           payload: {
             toolCallId: "tool-1",
             toolCall: { toolCallId: "tool-1", name: "edit" },
