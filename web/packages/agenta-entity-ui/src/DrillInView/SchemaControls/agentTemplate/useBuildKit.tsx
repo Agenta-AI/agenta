@@ -149,7 +149,7 @@ export function useBuildKit({
     const [buildKitEnabled, setBuildKitEnabled] = useAtom(
         useMemo(() => workflowBuildKitEnabledAtomFamily(revisionId ?? ""), [revisionId]),
     )
-    const [buildKitExpanded, setBuildKitExpanded] = useState(true)
+    const [buildKitExpanded, setBuildKitExpanded] = useState(false)
 
     const overlayTools = useMemo(
         () => (Array.isArray(agentTemplateOverlay?.tools) ? agentTemplateOverlay.tools : []),
@@ -193,6 +193,7 @@ export function useBuildKit({
         <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-[#fcfcfa]">
             <button
                 type="button"
+                aria-expanded={buildKitExpanded}
                 onClick={() => setBuildKitExpanded((open) => !open)}
                 className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
             >
