@@ -44,6 +44,9 @@ export async function callAgentaTool(
   const combined =
     signal && typeof anyOf === "function" ? anyOf([signal, timeoutSignal]) : timeoutSignal;
 
+  const dbg = process.env.AGENTA_RUNNER_DEBUG_TOOLS ? console.error : undefined;
+  dbg?.(`[tool-call] -> ${callRef} POST ${endpoint} auth=${authorization ? "yes" : "no"}`);
+
   let response: Response;
   try {
     response = await fetch(endpoint, {
@@ -60,12 +63,14 @@ export async function callAgentaTool(
       signal: combined,
     });
   } catch (err) {
+    dbg?.(`[tool-call] !! ${callRef} transport error: ${err instanceof Error ? err.message : err}`);
     throw new Error(
       `tool call ${callRef} failed: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
   const bodyText = await response.text();
+  dbg?.(`[tool-call] <- ${callRef} HTTP ${response.status} body=${bodyText.slice(0, 300)}`);
   if (!response.ok) {
     throw new Error(
       `tool call ${callRef} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,

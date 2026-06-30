@@ -578,6 +578,8 @@ export async function runSandboxAgent(
               input,
               raw: { spec },
             });
+            if (process.env.AGENTA_RUNNER_DEBUG_TOOLS)
+              logger(`[client-tool] ${toolName} id=${toolCallId} kind=${spec.kind} decision=${typeof decision === "string" ? decision : JSON.stringify(decision).slice(0, 200)}`);
             if (decision === "park") {
               run.emitEvent({
                 type: "interaction_request",

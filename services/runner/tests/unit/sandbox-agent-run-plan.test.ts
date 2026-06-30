@@ -78,8 +78,11 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.acpAgent, "pi");
     assert.equal(result.plan.sandboxId, "local");
     assert.equal(result.plan.cwd, "/tmp/local-cwd");
-    assert.equal(result.plan.relayDir, "/tmp/local-cwd/.agenta-tools");
-    assert.equal(result.plan.usageOutPath, "/tmp/local-cwd/.agenta-usage.json");
+    // The relay dir + usage capture are ephemeral runner files kept OFF the (possibly geesefs)
+    // cwd: an ephemeral sibling whose leaf is the cwd basename.
+    assert.ok(!result.plan.relayDir.startsWith(result.plan.cwd));
+    assert.ok(result.plan.relayDir.endsWith("/agenta/relay/local-cwd"));
+    assert.equal(result.plan.usageOutPath, `${result.plan.relayDir}/.agenta-usage.json`);
     assert.equal(result.plan.prompt, " ship it ");
     assert.equal(result.plan.agentsMd, "instructions");
     assert.equal(result.plan.systemPrompt, "system");
@@ -625,7 +628,9 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(result.plan.cwd, "/tmp/agenta/mounts/proj-1/mount-abc");
-    assert.equal(result.plan.relayDir, "/tmp/agenta/mounts/proj-1/mount-abc/.agenta-tools");
+    // Relay dir is an ephemeral sibling (leaf = cwd basename), NOT inside the durable mount.
+    assert.ok(!result.plan.relayDir.startsWith(result.plan.cwd));
+    assert.ok(result.plan.relayDir.endsWith("/agenta/relay/mount-abc"));
     // createLocalCwd received the durableCwd value.
     assert.deepEqual(localCwdCalls, ["/tmp/agenta/mounts/proj-1/mount-abc"]);
   });

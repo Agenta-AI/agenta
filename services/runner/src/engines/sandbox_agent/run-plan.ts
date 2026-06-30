@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import {
   type AgentRunRequest,
@@ -267,7 +267,12 @@ export function buildRunPlan(
   }
 
   const cwd = isDaytona ? createDaytonaCwd(durableCwd) : createLocalCwd(durableCwd);
-  const relayDir = `${cwd}/.agenta-tools`;
+  // The tool-relay scratch (req/res JSON) is ephemeral runner<->child IPC, NOT durable session
+  // data — keep it OFF the geesefs-mounted cwd. A relay dir inside the mount routes every tool
+  // call through FUSE/S3, so a flaky mount surfaces as ENOTCONN on the relay file. Use an
+  // ephemeral sibling: a plain host tmp dir (local) or an in-VM dir (daytona), never the mount.
+  const relayBase = isDaytona ? "/home/sandbox/agenta/relay" : join(tmpdir(), "agenta", "relay");
+  const relayDir = join(relayBase, basename(cwd));
 
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
   // through Pi's agent-dir user scope; Claude consumes the same packages from the project-local
@@ -291,8 +296,8 @@ export function buildRunPlan(
   // confusing filesystem error inside the sandbox.
   assert(!!cwd, `buildRunPlan produced an empty cwd for harness '${harness}'`);
   assert(
-    relayDir.startsWith(cwd),
-    `relay dir '${relayDir}' is not under cwd '${cwd}'`,
+    !!relayDir && relayDir !== cwd,
+    `relay dir '${relayDir}' must be a distinct ephemeral dir, not the durable cwd`,
   );
   assert(
     isPi === (acpAgent === "pi"),
@@ -316,7 +321,9 @@ export function buildRunPlan(
       credentialMode: request.credentialMode,
       cwd,
       relayDir,
-      usageOutPath: isPi ? `${cwd}/.agenta-usage.json` : undefined,
+      // Usage capture is ephemeral runner output, not durable session data — keep it off the
+      // geesefs mount alongside the relay dir (a mount write would risk ENOTCONN).
+      usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
       toolSpecs,
       executableToolSpecs: executableToolSpecsForRun,
       useToolRelay: toolSpecs.length > 0,
