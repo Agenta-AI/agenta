@@ -57,6 +57,7 @@ class InteractionsDispatcher:
             references=references,
             selector=selector,
             data=WorkflowServiceRequestData(inputs=inputs),
+            session_id=interaction.session_id,
         )
 
         if self._dispatch_fn is not None:

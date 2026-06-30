@@ -846,6 +846,7 @@ class InteractionsRouter:
                 references=references,
                 selector=selector,
                 data=WorkflowServiceRequestData(inputs=answer),
+                session_id=interaction.session_id,
             )
 
             await self.workflows_service.invoke_workflow(
