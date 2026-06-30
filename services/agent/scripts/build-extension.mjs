@@ -1,9 +1,15 @@
 /**
- * Bundle the Agenta Pi extension into one self-contained file so its OpenTelemetry deps
- * resolve wherever Pi loads it (host, docker sidecar, Daytona snapshot). Pi only accepts
- * `.ts`/`.js` extension files, so we emit `.js` (ESM) with a default export.
+ * Bundle the Agenta in-sandbox harness assets into self-contained files so their deps resolve
+ * wherever they are loaded (host, docker sidecar, Daytona snapshot):
  *
- * Run: pnpm run build:extension  ->  dist/extensions/agenta.js
+ *   dist/extensions/agenta.js     the Pi extension (tracing + tools). Pi loads it on every run;
+ *                                 Pi only accepts `.ts`/`.js` extension files, so ESM `.js` with
+ *                                 a default export.
+ *   dist/tools/relay-mcp-stdio.js the in-sandbox stdio MCP relay shim (F-042): the Daytona tool
+ *                                 advertiser for a non-Pi harness (Claude), which has no bundled
+ *                                 extension. The harness launches it as `node relay-mcp-stdio.js`.
+ *
+ * Run: pnpm run build:extension
  */
 import { build } from "esbuild";
 import { dirname, join } from "node:path";
@@ -28,3 +34,16 @@ await build({
 });
 
 process.stderr.write("[build-extension] wrote dist/extensions/agenta.js\n");
+
+await build({
+  entryPoints: [join(root, "src/tools/relay-mcp-stdio.ts")],
+  outfile: join(root, "dist/tools/relay-mcp-stdio.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node20",
+  // No harness SDK dep; only sibling tools/* modules, which bundle in.
+  logLevel: "info",
+});
+
+process.stderr.write("[build-extension] wrote dist/tools/relay-mcp-stdio.js\n");

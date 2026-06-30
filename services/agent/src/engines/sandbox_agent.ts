@@ -65,6 +65,7 @@ import {
   buildPiExtensionEnv,
   prepareLocalPiAssets,
 } from "./sandbox_agent/pi-assets.ts";
+import { uploadRelayShimToSandbox } from "./sandbox_agent/relay-shim.ts";
 import { attachPermissionResponder } from "./sandbox_agent/permissions.ts";
 import {
   createInteraction,
@@ -214,6 +215,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   startToolRelay?: typeof startToolRelay;
   localRelayHost?: typeof localRelayHost;
   sandboxRelayHost?: typeof sandboxRelayHost;
+  uploadRelayShimToSandbox?: typeof uploadRelayShimToSandbox;
   responderFactory?: (permissionPolicy: string | undefined) => Responder;
   log?: Log;
 }
@@ -332,8 +334,18 @@ export async function runSandboxAgent(
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
     // sandbox via the filesystem API (nothing secret is baked into the image). Locally
     // these use the host filesystem and the harness's own login (PI_CODING_AGENT_DIR).
+    // The in-sandbox stdio MCP relay shim path, set only on the Daytona + non-Pi + has-tools path
+    // (F-042): a non-Pi harness in the sandbox cannot reach the loopback HTTP channel, so it gets
+    // the uploaded shim as a stdio MCP server instead. Pi delivers via its extension; local non-Pi
+    // uses the loopback HTTP channel — neither needs this.
+    let relayShimPath: string | undefined;
     if (plan.isDaytona) {
       await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
+      if (!plan.isPi && plan.executableToolSpecs.length > 0) {
+        relayShimPath = await (
+          deps.uploadRelayShimToSandbox ?? uploadRelayShimToSandbox
+        )(sandbox, plan.relayDir, logger);
+      }
     }
     workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
       sandbox,
@@ -413,6 +425,9 @@ export async function runSandboxAgent(
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
+      // The uploaded in-sandbox stdio MCP relay shim, set only on Daytona + non-Pi + has-tools
+      // (F-042); advertises the gateway tools the loopback channel cannot reach in the sandbox.
+      relayShimPath,
       log: logger,
     });
     // Close the internal gateway-tool MCP server (if one started) when the run ends.
