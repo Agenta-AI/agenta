@@ -148,6 +148,8 @@ describe("buildPiExtensionEnv", () => {
           {
             name: "request_connection",
             kind: "client",
+            // Snake-case `input_schema` is the un-normalized platform-catalog shape; cast through
+            // `unknown` since `ResolvedToolSpec` only declares camelCase `inputSchema`.
             input_schema: {
               type: "object",
               required: ["integration"],
@@ -155,7 +157,7 @@ describe("buildPiExtensionEnv", () => {
             },
           },
         ],
-      } as AgentRunRequest,
+      } as unknown as AgentRunRequest,
       false,
       { relayDir: "/tmp/relay" },
     );

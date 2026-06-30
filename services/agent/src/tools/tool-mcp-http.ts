@@ -40,6 +40,7 @@ import type { AddressInfo } from "node:net";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "./callback.ts";
 import { runResolvedTool } from "./dispatch.ts";
+import { specInputSchema } from "./spec-schema.ts";
 
 type Log = (message: string) => void;
 
@@ -98,8 +99,13 @@ async function handle(
           .map((s) => ({
             name: s.name,
             description: s.description ?? s.name,
+            // Read via the shared accessor (camelCase `inputSchema` OR snake-case
+            // `input_schema`). Reading `s.inputSchema` alone advertised an EMPTY schema for every
+            // snake-case platform-catalog tool (`request_connection`, `commit_revision`), so
+            // Claude received no argument schema — a live bug, not just a client-tool one.
             inputSchema:
-              (s.inputSchema as Record<string, unknown>) ?? EMPTY_OBJECT_SCHEMA,
+              (specInputSchema(s) as Record<string, unknown>) ??
+              EMPTY_OBJECT_SCHEMA,
           })),
       },
     };

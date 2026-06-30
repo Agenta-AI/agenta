@@ -30,6 +30,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createAgentaOtel } from "../tracing/otel.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
+import { requiredFields, specInputSchema } from "../tools/spec-schema.ts";
 
 /** Pull the Authorization value out of an OTEL_EXPORTER_OTLP_HEADERS key=value list. */
 function authorizationFromOtlpHeaders(raw?: string): string | undefined {
@@ -47,28 +48,6 @@ import { runResolvedTool } from "../tools/dispatch.ts";
 
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
-}
-
-function objectSchema(schema: unknown): Record<string, unknown> | undefined {
-  return schema && typeof schema === "object" && !Array.isArray(schema)
-    ? (schema as Record<string, unknown>)
-    : undefined;
-}
-
-function requiredFields(schema: unknown): string[] {
-  const object = objectSchema(schema);
-  const required = object?.required;
-  return Array.isArray(required)
-    ? required.filter((field): field is string => typeof field === "string")
-    : [];
-}
-
-function specInputSchema(spec: ResolvedToolSpec): Record<string, unknown> | null | undefined {
-  return (
-    spec.inputSchema ??
-    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
-      .input_schema
-  );
 }
 
 function promptSnippet(spec: ResolvedToolSpec): string {
