@@ -16,7 +16,7 @@ import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
 import {
   HITLResponder,
   PolicyResponder,
-  approvalKey,
+  parkedCallKey,
   decisionToReply,
   extractApprovalDecisions,
   policyFromRequest,
@@ -79,53 +79,53 @@ describe("decisionToReply", () => {
   });
 });
 
-describe("approvalKey", () => {
+describe("parkedCallKey", () => {
   it("binds name + args, order-independently", () => {
     assert.equal(
-      approvalKey("edit", { a: 1, b: 2 }),
-      approvalKey("edit", { b: 2, a: 1 }),
+      parkedCallKey("edit", { a: 1, b: 2 }),
+      parkedCallKey("edit", { b: 2, a: 1 }),
       "key order does not change the key",
     );
     assert.notEqual(
-      approvalKey("edit", { path: "a" }),
-      approvalKey("edit", { path: "b" }),
+      parkedCallKey("edit", { path: "a" }),
+      parkedCallKey("edit", { path: "b" }),
       "different args -> different key",
     );
     assert.notEqual(
-      approvalKey("edit", { path: "a" }),
-      approvalKey("bash", { path: "a" }),
+      parkedCallKey("edit", { path: "a" }),
+      parkedCallKey("bash", { path: "a" }),
       "different name -> different key",
     );
   });
 
   it("normalizes absent args to {} so a no-arg tool resumes", () => {
     // A no-arg tool has nothing to vary; absent/null/empty all key to the same `name#{}`.
-    assert.ok(approvalKey("edit", {}), "empty-object args -> a real key");
-    assert.equal(approvalKey("edit", undefined), approvalKey("edit", {}));
-    assert.equal(approvalKey("edit", null), approvalKey("edit", {}));
+    assert.ok(parkedCallKey("edit", {}), "empty-object args -> a real key");
+    assert.equal(parkedCallKey("edit", undefined), parkedCallKey("edit", {}));
+    assert.equal(parkedCallKey("edit", null), parkedCallKey("edit", {}));
     // But a WITH-args call never collapses to the no-arg key.
     assert.notEqual(
-      approvalKey("edit", { path: "a" }),
-      approvalKey("edit", {}),
+      parkedCallKey("edit", { path: "a" }),
+      parkedCallKey("edit", {}),
       "args present -> a different key than no-args",
     );
   });
 
   it("returns no key (fails closed) for no name or non-JSON args", () => {
     assert.equal(
-      approvalKey(undefined, { a: 1 }),
+      parkedCallKey(undefined, { a: 1 }),
       undefined,
       "no name -> no key",
     );
     // Non-JSON args fail closed (no key) rather than throwing or colliding.
     assert.equal(
-      approvalKey("edit", 10n as unknown),
+      parkedCallKey("edit", 10n as unknown),
       undefined,
       "bigint -> no key",
     );
-    assert.equal(approvalKey("edit", new Date()), undefined, "Date -> no key");
-    assert.equal(approvalKey("edit", { x: NaN }), undefined, "NaN -> no key");
-    assert.equal(approvalKey("edit", new Map()), undefined, "Map -> no key");
+    assert.equal(parkedCallKey("edit", new Date()), undefined, "Date -> no key");
+    assert.equal(parkedCallKey("edit", { x: NaN }), undefined, "NaN -> no key");
+    assert.equal(parkedCallKey("edit", new Map()), undefined, "Map -> no key");
   });
 });
 
@@ -170,7 +170,7 @@ describe("HITLResponder", () => {
     // The parked turn approved edit({path:'a.txt'}); a cold replay mints a FRESH tool-call id
     // for the SAME call, so the id no longer matches — but the name + args anchor does.
     const decisions = new Map<string, PermissionDecision>([
-      [approvalKey("edit", { path: "a.txt" })!, "allow"],
+      [parkedCallKey("edit", { path: "a.txt" })!, "allow"],
     ]);
     const responder = new HITLResponder(decisions, "auto", true);
     assert.equal(
@@ -185,7 +185,7 @@ describe("HITLResponder", () => {
     // The HITL bypass this guards against: a stored `allow` for edit({path:'a.txt'}) must NOT
     // leak to a NEW edit call with DIFFERENT args (e.g. a sensitive path). B must re-prompt.
     const decisions = new Map<string, PermissionDecision>([
-      [approvalKey("edit", { path: "a.txt" })!, "allow"],
+      [parkedCallKey("edit", { path: "a.txt" })!, "allow"],
     ]);
     const responder = new HITLResponder(decisions, "auto", true);
     // Same tool name, different args, brand-new id -> no stored match -> park (re-prompt).
@@ -198,7 +198,7 @@ describe("HITLResponder", () => {
     );
     // And argument-order does not let B slip through under A's key.
     const orderDecisions = new Map<string, PermissionDecision>([
-      [approvalKey("edit", { a: 1, b: 2 })!, "allow"],
+      [parkedCallKey("edit", { a: 1, b: 2 })!, "allow"],
     ]);
     const orderResponder = new HITLResponder(orderDecisions, "auto", true);
     assert.equal(
@@ -298,10 +298,10 @@ describe("extractApprovalDecisions", () => {
     const decisions = extractApprovalDecisions(request);
     // ONLY the name+args anchor is keyed (recovered from the correlated tool_call block).
     assert.equal(
-      decisions.get(approvalKey("edit", { path: "a.txt" })!),
+      decisions.get(parkedCallKey("edit", { path: "a.txt" })!),
       "allow",
     );
-    assert.equal(decisions.get(approvalKey("bash", { cmd: "ls" })!), "deny");
+    assert.equal(decisions.get(parkedCallKey("bash", { cmd: "ls" })!), "deny");
     // The bare tool NAME must NOT be a key (that was the HITL-bypass).
     assert.equal(decisions.has("edit"), false, "no bare-name key");
     assert.equal(decisions.has("bash"), false, "no bare-name key");

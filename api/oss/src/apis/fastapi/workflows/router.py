@@ -1,3 +1,4 @@
+from inspect import isawaitable
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -1278,6 +1279,11 @@ class WorkflowsRouter:
         # Invalidate legacy caches so the registry page reflects the new revision
         await invalidate_cache(project_id=request.state.project_id)
 
+        await _emit_committed_revision_data_event(
+            request=request,
+            workflow_revision=workflow_revision,
+        )
+
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
@@ -1520,6 +1526,11 @@ class WorkflowsRouter:
 
         # Invalidate legacy caches so the registry page reflects the new revision
         await invalidate_cache(project_id=request.state.project_id)
+
+        await _emit_committed_revision_data_event(
+            request=request,
+            workflow_revision=workflow_revision,
+        )
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
@@ -1902,6 +1913,42 @@ class WorkflowsRouter:
         )
 
         return workflow_revision_resolve_response
+
+
+async def _emit_committed_revision_data_event(
+    *,
+    request: Request,
+    workflow_revision,
+) -> None:
+    if not workflow_revision:
+        return
+
+    await _emit_data_event(
+        request=request,
+        name="committed-revision",
+        data={
+            "variantId": str(workflow_revision.workflow_variant_id),
+            "revisionId": str(workflow_revision.id),
+            "version": workflow_revision.version,
+        },
+    )
+
+
+async def _emit_data_event(
+    *,
+    request: Request,
+    name: str,
+    data: dict,
+) -> None:
+    emit = getattr(request.state, "emit", None) or getattr(
+        request.state, "emit_event", None
+    )
+    if not callable(emit):
+        return
+
+    result = emit({"type": "data", "name": name, "data": data})
+    if isawaitable(result):
+        await result
 
 
 class SimpleWorkflowsRouter:

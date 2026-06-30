@@ -10,7 +10,7 @@
  *
  * The three executor kinds (see `ResolvedToolSpec`):
  *  - `code`: advertised to harnesses, but rejected by the sidecar as unsupported.
- *  - `client`: browser-fulfilled across a turn boundary; never executed in-sandbox (throws).
+ *  - `client`: browser-fulfilled across a turn boundary; permission responder parks it.
  *  - `callback` (default): POST back through Agenta's /tools/call so the Composio key and
  *    connection auth stay server-side. On Daytona the in-sandbox process can't reach Agenta,
  *    so the call is relayed through the runner via files (see tools/relay.ts) when `relayDir`
@@ -97,7 +97,7 @@ export async function relayToolCall(
  * turns the throw into a tool-error result so the model loop continues rather than crashing.
  *
  *  - `code`   -> reject as unsupported by the sidecar, no callback/relay.
- *  - `client` → throw: browser-fulfilled, never executed in-sandbox.
+ *  - `client` → signal pending: browser-fulfilled, never executed in-sandbox.
  *  - default/`callback` → relay through the runner when `opts.relayDir` is set (Daytona),
  *    else POST directly to `opts.endpoint`.
  */
@@ -110,9 +110,10 @@ export async function runResolvedTool(
     return runCodeTool(spec.runtime, spec.code ?? "", spec.env, params, opts.signal);
   }
   if (spec.kind === "client") {
-    throw new Error(
-      `client tool '${spec.name}' is browser-fulfilled and cannot be executed in-sandbox`,
-    );
+    return JSON.stringify({
+      type: "client_tool_pending",
+      toolName: spec.name,
+    });
   }
   // callback (default): route back to Agenta's /tools/call (directly or via the Daytona relay).
   if (opts.relayDir) {

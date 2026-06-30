@@ -212,6 +212,68 @@ async def test_default_agent_skill_embed_resolves_through_static_catalog_without
 
 
 @pytest.mark.asyncio
+async def test_request_connection_tool_embed_resolves_to_client_tool_config_without_db():
+    """The reserved request_connection workflow inlines a tool *config* (``type:"client"``), so the
+    embed + ``parameters.tool`` selector yields a value the SDK coerces to a ``ClientToolConfig``.
+    Regression: a spec-shaped ``kind:"client"`` value coerced to a builtin tool instead."""
+    from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
+    from agenta.sdk.agents.tools.compat import coerce_tool_config
+    from agenta.sdk.agents.tools.models import ClientToolConfig
+
+    workflows_dao = AsyncMock()
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
+    embeds_service = EmbedsService(workflows_service=workflows_service)
+    workflows_service.embeds_service = embeds_service
+
+    revision = WorkflowRevision(
+        id=uuid4(),
+        workflow_id=uuid4(),
+        workflow_variant_id=uuid4(),
+        slug="agent-default-config",
+        data=WorkflowRevisionData(
+            parameters={
+                "agent": {
+                    "tools": [
+                        {
+                            "@ag.embed": {
+                                "@ag.references": {
+                                    "workflow": {
+                                        "slug": REQUEST_CONNECTION_WORKFLOW_SLUG
+                                    }
+                                },
+                                "@ag.selector": {"path": "parameters.tool"},
+                            }
+                        }
+                    ]
+                }
+            }
+        ),
+    )
+
+    (
+        resolved_revision,
+        resolution_info,
+    ) = await workflows_service.resolve_workflow_revision(
+        project_id=uuid4(),
+        workflow_revision=revision,
+    )
+
+    tool = resolved_revision.data.parameters["agent"]["tools"][0]
+    assert tool["type"] == "client"
+    assert tool["name"] == "request_connection"
+    # The resolved config must coerce to a client tool (not silently a builtin).
+    coerced = coerce_tool_config(tool)
+    assert isinstance(coerced, ClientToolConfig)
+    assert coerced.render == {"kind": "connect"}
+    assert resolution_info.embeds_resolved == 1
+    workflows_dao.fetch_revision.assert_not_awaited()
+    workflows_dao.fetch_artifact.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_fetch_revision_short_circuits_reserved_revision_ref_with_version():
     workflows_dao = AsyncMock()
     service = WorkflowsService(
