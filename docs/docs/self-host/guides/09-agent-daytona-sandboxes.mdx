@@ -5,7 +5,7 @@ description: Configure Daytona as the sandbox provider for self-hosted agent wor
 ---
 
 The agent runner can create Daytona sandboxes for agent runs. Configure Daytona on the
-`sandbox-agent` runner service, not on every Agenta container.
+`runner` service, not on every Agenta container.
 
 ## Configure the runner
 
@@ -33,7 +33,7 @@ Daytona runs start faster from a prepared snapshot. Agenta ships the recipe, not
 prebuilt snapshot:
 
 ```bash
-cd services/agent/sandbox-images/daytona
+cd services/runner/sandbox-images/daytona
 uv run build_snapshot.py --force
 ```
 
@@ -52,6 +52,15 @@ agentRunner:
     snapshot: agenta-sandbox-pi
     installPi: false
 ```
+
+## Store endpoint for remote sandboxes
+
+Daytona sandboxes run in the cloud and mount durable storage over the public internet. The
+store endpoint must be publicly reachable. If you run compose locally, enable the `remote`
+compose profile (ngrok tunnel). On Railway and Kubernetes the store endpoint is already
+public.
+
+See the [Store configuration reference](/self-host/configuration#store-durable-object-store).
 
 ## Related
 

@@ -49,7 +49,7 @@ All three are scoped by `session_id` (the lock keys are `<role>:session:<session
 | id | role in the nest | what it identifies | who mints it | lifetime / cardinality |
 |---|---|---|---|---|
 | `turn_id` | **alive + running** lock value | the **currently-running stream** — `turn_id ⟺ running`. One execution of the agent loop. Born when a run *starts running*, replaced when running restarts (steer), gone when running *stops* (cancel/end). **Attach does NOT mint one** — it reads the turn already running. | **whoever starts the run owns it**: the coordination plane in `_start_turn` (uuid7) for send/steer commands, OR the runner when it starts a session-owned execution-plane run (uuid4 via `randomUUID` — a turn_id is a *lock value, not a pk*, so v4 is fine; consistency with `_start_turn`'s v7 is cosmetic). | one per turn; a session sees a *sequence* of `turn_id`s. **One name everywhere** — DTOs, interactions, the wire (`turnId`), lock helpers (`run_id`/`runId` gone). **Mirrored to a `session_streams.turn_id` column** (Postgres mirror of the Redis lock value) so an attaching/fetching client reads the current turn from the row. |
-| `replica_id` | **owner** lock value (affinity) | the **runner container/process** — the *producer* side. **Distinct from `turn_id`.** | the runner, **once per process** (`AGENTA_AGENT_RUNNER_REPLICA_ID` or a uuid). | **one per container**; many turns share it. With 2+ containers each holds its own, so a control signal routes to the box running the session. |
+| `replica_id` | **owner** lock value (affinity) | the **runner container/process** — the *producer* side. **Distinct from `turn_id`.** | the runner, **once per process** (`AGENTA_RUNNER_REPLICA_ID` or a uuid). | **one per container**; many turns share it. With 2+ containers each holds its own, so a control signal routes to the box running the session. |
 | `watcher_id` | **attached** lock value | one **client socket** watching the live view — the *consumer* side. | the API in the ATTACH command (uuid7). | many over a turn's life: clients attach, detach, and get displaced on steal. NOT `token_id` (that name collides with the interaction `token`). |
 
 The nest invariant: `attached ⟹ running ⟹ alive`, i.e. a `watcher_id` only exists while a
@@ -89,7 +89,7 @@ proves the turn still owns the lock). That is what makes the design correct for 
 
 2. **`replica_id` is a distinct stable container id.** Was conflated with `turn_id` in the POC
    (`alive.ts` sent `replica_id: runId`). **Resolved**: the runner mints `REPLICA_ID` once per
-   process (`AGENTA_AGENT_RUNNER_REPLICA_ID` or a uuid) and heartbeats it *alongside* `turn_id`.
+   process (`AGENTA_RUNNER_REPLICA_ID` or a uuid) and heartbeats it *alongside* `turn_id`.
    `replica_id` drives `owner` affinity (container), `turn_id` drives `alive`/`running` (turn).
    **The design is correct for 2+ containers today** — affinity routes control signals to the
    box running the session, and the box proves its turn ownership separately. ✅

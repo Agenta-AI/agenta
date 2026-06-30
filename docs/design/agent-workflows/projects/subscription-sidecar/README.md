@@ -78,7 +78,7 @@ docker run -d \
   --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:${HOST_PORT}:8765 \
   -e PORT=8765 \
-  -e AGENTA_AGENT_RUNNER_HOST=0.0.0.0 \
+  -e AGENTA_RUNNER_HOST=0.0.0.0 \
   -e NODE_ENV=development \
   -e HOME=/home/agent \
   -e PI_CODING_AGENT_DIR=/pi-agent \
@@ -191,7 +191,7 @@ This sidecar is built so the playground can point at it via the **composite side
 config carries (`{mode, url}` → the agent config `uri` field). When that is wired:
 
 1. The agent config's `uri` resolves (server-side) to this sidecar's address.
-2. The address must be on the server-side allowlist `AGENTA_AGENT_RUNNER_URI_ALLOWLIST`
+2. The address must be on the server-side allowlist `AGENTA_RUNNER_URI_ALLOWLIST`
    (default empty = the feature is off; a disallowed `uri` fails loud, no silent fallback) —
    an SSRF / secret-exfiltration guard because `/run` bodies carry resolved secrets.
 3. A run with the `self_managed` connection mode and no resolved key reaches this sidecar, which
