@@ -22,12 +22,13 @@ export const toolIntegrationsSearchAtom = atom("")
 export const toolCatalogIntegrationsInfiniteAtom =
     atomWithInfiniteQuery<ToolCatalogIntegrationsResponse>((get) => {
         const search = get(toolIntegrationsSearchAtom)
+        const effectiveSearch = search.length >= 3 ? search : ""
 
         return {
-            queryKey: ["tools", "catalog", "integrations", DEFAULT_PROVIDER, search],
+            queryKey: ["tools", "catalog", "integrations", DEFAULT_PROVIDER, effectiveSearch],
             queryFn: async ({pageParam}) =>
                 fetchToolIntegrations(DEFAULT_PROVIDER, {
-                    search: search.length >= 3 ? search : undefined,
+                    search: effectiveSearch || undefined,
                     limit: CHUNK_SIZE,
                     cursor: (pageParam as string) || undefined,
                 }),
