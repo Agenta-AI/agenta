@@ -10,7 +10,7 @@
   
 <div align="center">
   <strong> <h1> The Open-source LLMOps Platform </h1></strong>
-  Build reliable LLM applications with prompt management, evaluation, and observability.
+  Build reliable LLM applications with prompt management, evaluation, and observability. 
 </div>
 
 
