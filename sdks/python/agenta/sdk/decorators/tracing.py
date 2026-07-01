@@ -89,8 +89,6 @@ class instrument:  # pylint: disable=invalid-name
             def astream_wrapper(*args, **kwargs):
                 self._warn_if_not_initialized(handler.__name__)
                 with tracing_context_manager(context=TracingContext.get()):
-                    # debug_otel_context("[ASYNC] [BEFORE STREAM] [BEFORE SETUP]")
-
                     self._parse_type_and_kind()
 
                     baggage_token = self._attach_baggage()
@@ -100,52 +98,46 @@ class instrument:  # pylint: disable=invalid-name
 
                     ctx = self._get_traceparent()
 
-                    # debug_otel_context("[BEFORE STREAM] [AFTER SETUP]")
+                    # Create the span and set the link EAGERLY — before returning the
+                    # generator — so ctx.link carries the trace/span ids by the time the
+                    # running normalizer stamps the streaming response (it reads the link
+                    # at handler-return, before the generator is ever iterated). Deferring
+                    # this into the generator body left streams without x-ag-trace-id.
+                    # start_span (not start_as_current_span): activation happens in the
+                    # consuming task via use_span inside the wrapper.
+                    span = ag.tracer.start_span(
+                        name=handler.__name__, kind=self.kind, context=ctx
+                    )
+                    self._set_link(span)
+                    with use_span(span, end_on_exit=False):
+                        self._pre_instrument(span, handler, *args, **kwargs)
+
+                    agen = handler(*args, **kwargs)
 
                     async def wrapped_generator():
-                        # debug_otel_context("[WITHIN STREAM] [BEFORE ATTACH]")
-
                         otel_token = otel_context.attach(captured_ctx)
-
-                        # debug_otel_context("[WITHIN STREAM] [AFTER ATTACH]")
-
                         try:
-                            with ag.tracer.start_as_current_span(
-                                name=handler.__name__,
-                                kind=self.kind,
-                                context=ctx,
-                            ) as span:
-                                self._set_link(span)
-                                self._pre_instrument(span, handler, *args, **kwargs)
-
+                            with use_span(
+                                span,
+                                end_on_exit=True,
+                                record_exception=True,
+                                set_status_on_exception=True,
+                            ):
                                 _result = []
-
-                                agen = handler(*args, **kwargs)
-
                                 try:
                                     async for chunk in agen:
                                         _result.append(chunk)
                                         yield chunk
-
                                 finally:
-                                    if all(isinstance(r, str) for r in _result):
-                                        result = "".join(_result)
-                                    elif all(isinstance(r, bytes) for r in _result):
-                                        result = b"".join(_result)
-                                    else:
-                                        result = _result
-
-                                    self._post_instrument(span, result)
-
+                                    self._post_instrument(
+                                        span, self._join_stream(_result)
+                                    )
                         finally:
-                            # debug_otel_context("[WITHIN STREAM] [BEFORE DETACH]")
-
-                            otel_context.detach(otel_token)
-
-                            # debug_otel_context("[WITHIN STREAM] [AFTER DETACH]")
+                            with suppress():
+                                otel_context.detach(otel_token)
                             self._detach_baggage(baggage_token)
 
-                return wrapped_generator()
+                    return wrapped_generator()
 
             setattr(astream_wrapper, "__has_instrument__", True)
             setattr(astream_wrapper, "__original_handler__", handler)
@@ -158,31 +150,39 @@ class instrument:  # pylint: disable=invalid-name
             def stream_wrapper(*args, **kwargs):
                 self._warn_if_not_initialized(handler.__name__)
                 with tracing_context_manager(context=TracingContext.get()):
-                    # debug_otel_context("[.SYNC] [BEFORE STREAM] [BEFORE SETUP]")
-
                     self._parse_type_and_kind()
 
                     token = self._attach_baggage()
 
+                    captured_ctx = otel_context.get_current()
+
                     ctx = self._get_traceparent()
 
+                    # Eager span + link so the streaming response carries the trace/span
+                    # ids (see the async-generator wrapper above for the full rationale).
+                    # A sync-generator handler stays SYNC here (a direct programmatic
+                    # caller iterates it with a for-loop), so it gets its own sync drain
+                    # rather than the async _wrap_returned_gen.
+                    span = ag.tracer.start_span(
+                        name=handler.__name__, kind=self.kind, context=ctx
+                    )
+                    self._set_link(span)
+                    with use_span(span, end_on_exit=False):
+                        self._pre_instrument(span, handler, *args, **kwargs)
+
+                    gen = handler(*args, **kwargs)
+
                     def wrapped_generator():
+                        otel_token = otel_context.attach(captured_ctx)
                         try:
-                            with ag.tracer.start_as_current_span(
-                                name=handler.__name__,
-                                kind=self.kind,
-                                context=ctx,
-                            ) as span:
-                                self._set_link(span)
-
-                                self._pre_instrument(span, handler, *args, **kwargs)
-
-                                _result = []
-
-                                gen = handler(*args, **kwargs)
-
+                            with use_span(
+                                span,
+                                end_on_exit=True,
+                                record_exception=True,
+                                set_status_on_exception=True,
+                            ):
+                                acc = []
                                 gen_return = None
-
                                 try:
                                     while True:
                                         try:
@@ -190,26 +190,17 @@ class instrument:  # pylint: disable=invalid-name
                                         except StopIteration as e:
                                             gen_return = e.value
                                             break
-
-                                        _result.append(chunk)
+                                        acc.append(chunk)
                                         yield chunk
-
                                 finally:
-                                    if all(isinstance(r, str) for r in _result):
-                                        result = "".join(_result)
-                                    elif all(isinstance(r, bytes) for r in _result):
-                                        result = b"".join(_result)
-                                    else:
-                                        result = _result
-
-                                    self._post_instrument(span, result)
-
+                                    self._post_instrument(span, self._join_stream(acc))
                                 return gen_return
-
                         finally:
+                            with suppress():
+                                otel_context.detach(otel_token)
                             self._detach_baggage(token)
 
-                return wrapped_generator()
+                    return wrapped_generator()
 
             setattr(stream_wrapper, "__has_instrument__", True)
             setattr(stream_wrapper, "__original_handler__", handler)

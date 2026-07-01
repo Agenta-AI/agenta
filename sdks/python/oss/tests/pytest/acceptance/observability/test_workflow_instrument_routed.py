@@ -12,16 +12,21 @@ Here `ag.init()` wires the REAL OTLP exporter, so spans an in-process `/invoke`
 emits are shipped to the running backend; we then poll the traces API and assert:
 
   - STRUCTURE: one root span named after the handler, no parent, OK status.
-  - CONTENT  : nested `ag` attribute tree — `ag.type.node == "workflow"`,
+  - CONTENT  : nested `ag` attribute tree — `ag.type.span == "workflow"`,
                `ag.data.inputs.value`, `ag.data.outputs.__default__`.
                (On READ the API un-flattens the dotted keys into a nested `ag`
                dict — see api/oss/src/core/tracing/utils/attributes.py
                `unmarshall_attributes`. So assertions here are nested, unlike the
-               dotted in-memory assertions in the programmatic test.)
+               dotted in-memory assertions in the programmatic test. The SDK writes
+               the raw attribute `ag.type.node`, but the read path normalizes span
+               type into `ag.type.span` — `AgTypeAttributes` has only `trace`/`span`,
+               no `node` — so the fetched key is `type.span`, NOT `type.node`.)
   - INVARIANCE: the span tree is the SAME regardless of Accept/format/history
                (the three negotiations change the RESPONSE, not the trace).
   - PROPAGATION: an inbound `traceparent` makes the root span a child of the
-               remote span (shared trace id, parent = remote span id).
+               remote span (shared trace id, parent = remote span id). Requires the
+               OTel middleware (mounted in `_client`) to parse the header into
+               request.state.otel — the SDK reads the parent context from there.
 
 Requires a fully running system: AGENTA_API_URL + AGENTA_AUTH_KEY (OTLP ingest +
 tracing worker + traces API). Marked `acceptance`; skipped otherwise.
@@ -76,6 +81,14 @@ def _ag(span):
     return attrs.get("ag", {}) if isinstance(attrs, dict) else {}
 
 
+def _default_output(agtree):
+    """The workflow's default output as the read path un-marshals it. A scalar/string
+    return surfaces directly as `ag.data.outputs` (NOT wrapped in `{__default__: ...}` —
+    that dotted `__default__` key is the in-memory raw-attribute shape, collapsed on
+    read). A dict/list output surfaces as-is."""
+    return (agtree.get("data") or {}).get("outputs")
+
+
 # --------------------------------------------------------------------------- #
 # In-process routed app over the REAL exporter
 # --------------------------------------------------------------------------- #
@@ -88,6 +101,13 @@ def _client(handler) -> TestClient:
         # for OTLP export come from ag.init(), not this request.
         request.state.auth = {"credentials": _CREDENTIALS[0]}
         return await call_next(request)
+
+    # Mount the REAL OTel middleware so an inbound `traceparent` is parsed into
+    # request.state.otel (the SDK reads the parent context from there). Without it the
+    # in-process app would silently drop inbound W3C context.
+    from agenta.sdk.middlewares.routing.otel import OTelMiddleware
+
+    app.add_middleware(OTelMiddleware)
 
     route("/", app=app)(handler)
     return TestClient(app)
@@ -152,9 +172,9 @@ def test_routed_batch_shape_trace(routed, shape, is_async):
     assert root.parent_id is None
 
     agtree = _ag(root)
-    assert agtree.get("type", {}).get("node") == "workflow"
+    assert agtree.get("type", {}).get("span") == "workflow"
     assert agtree.get("data", {}).get("inputs", {}).get("value") == "a"
-    assert agtree.get("data", {}).get("outputs", {}).get("__default__") == f"{shape}:a"
+    assert _default_output(agtree) == f"{shape}:a"
 
 
 # =========================================================================== #
@@ -177,17 +197,21 @@ def test_routed_stream_shape_trace(routed, is_async):
     # stream Accept -> a real SSE stream; consume it so the generator span closes.
     resp = _invoke(_client(wf), accept="text/event-stream")
     assert resp.status_code == 200
-    _ = resp.text  # drain
+    body = resp.text
+    assert "one" in body and "two" in body
+    assert "generator object" not in body
 
+    # The span + link are created eagerly (before the generator drains), so a stream
+    # surfaces `x-ag-trace-id` just like a batch response.
     trace_id = resp.headers.get("x-ag-trace-id")
-    assert trace_id
+    assert trace_id, "stream must surface x-ag-trace-id"
     fetched = _poll_trace(trace_id)
     root = _root_span(fetched.trace)
     assert root.span_name == "wf"
     agtree = _ag(root)
-    assert agtree.get("type", {}).get("node") == "workflow"
+    assert agtree.get("type", {}).get("span") == "workflow"
     # all-str chunks join into one output string (instrument generator wrapper).
-    assert agtree.get("data", {}).get("outputs", {}).get("__default__") == "onetwo"
+    assert _default_output(agtree) == "onetwo"
 
 
 # =========================================================================== #
@@ -204,7 +228,7 @@ def test_routed_trace_invariant_across_format_and_history(routed):
         return (
             root.span_name,
             root.parent_id,
-            agtree.get("type", {}).get("node"),
+            agtree.get("type", {}).get("span"),
             agtree.get("data", {}).get("inputs", {}).get("value"),
         )
 
@@ -274,7 +298,7 @@ def test_routed_agent_messages_batch_trace(routed):
     fetched = _poll_trace(resp.headers["x-ag-trace-id"])
     root = _root_span(fetched.trace)
     agtree = _ag(root)
-    assert agtree.get("type", {}).get("node") == "workflow"
+    assert agtree.get("type", {}).get("span") == "workflow"
     # the trace captured the messages envelope under ag.data.outputs.messages
     out = agtree.get("data", {}).get("outputs", {})
     msgs = out.get("messages")
@@ -292,13 +316,14 @@ def test_routed_agent_events_stream_trace(routed):
     body = resp.text
     # plain agenta SSE frames the raw {type, data} events (no vercel projection).
     assert "message_start" in body and "done" in body
+    assert "generator object" not in body
 
     fetched = _poll_trace(resp.headers["x-ag-trace-id"])
     root = _root_span(fetched.trace)
     agtree = _ag(root)
-    assert agtree.get("type", {}).get("node") == "workflow"
+    assert agtree.get("type", {}).get("span") == "workflow"
     # the generator span captured the drained event list as its output.
-    out = agtree.get("data", {}).get("outputs", {})
+    out = _default_output(agtree)
     assert out, "stream span must capture the aggregated event output"
 
 
@@ -318,7 +343,7 @@ def test_routed_agent_events_vercel_projection(routed):
     # the TRACE is unchanged by the wire projection — still a workflow root span.
     fetched = _poll_trace(resp.headers["x-ag-trace-id"])
     root = _root_span(fetched.trace)
-    assert _ag(root).get("type", {}).get("node") == "workflow"
+    assert _ag(root).get("type", {}).get("span") == "workflow"
 
 
 # =========================================================================== #
@@ -366,12 +391,12 @@ def test_routed_returned_generator_trace_records_drained_events(routed, is_async
     root = _root_span(fetched.trace)
     assert root is not None and root.span_name == "wf"
     agtree = _ag(root)
-    assert agtree.get("type", {}).get("node") == "workflow"
+    assert agtree.get("type", {}).get("span") == "workflow"
 
     # THE regression: the span output must be the drained events, never the
     # generator OBJECT's repr. Assert positively (events present) and negatively
     # (no "<async_generator object ...>" anywhere in the recorded attributes).
-    out = agtree.get("data", {}).get("outputs", {})
+    out = _default_output(agtree)
     assert out, "returned-generator span must capture the drained events"
 
     def _walk(x):
@@ -396,7 +421,7 @@ def test_routed_returned_generator_json_accept_aggregates(routed):
 
     fetched = _poll_trace(resp.headers["x-ag-trace-id"])
     root = _root_span(fetched.trace)
-    assert _ag(root).get("type", {}).get("node") == "workflow"
+    assert _ag(root).get("type", {}).get("span") == "workflow"
 
 
 def test_routed_returned_generator_raise_early_is_error_trace(routed):

@@ -22,9 +22,10 @@ Generators are traced LAZILY, not consumed up front:
 - Chunks are accumulated as they pass and, in the generator's `finally`, the joined
   result (all-str -> concatenated string, all-bytes -> bytes, else the list) is recorded
   as the span output — so the span reflects the full stream once consumption ends.
-- Batch (non-generator) handlers create the span with start_span + use_span so the span
-  can be handed off if the handler RETURNS a generator (an `async def` that returns a
-  stream). Generator functions (`yield`) use start_as_current_span inside the wrapper.
+- ALL handlers — batch and generator — create the span with start_span + use_span. The
+  span is created EAGERLY (before the handler runs / the generator drains) so it can be
+  handed off to a returned generator AND so a streaming response can surface the trace/
+  span ids (the running normalizer reads them at handler-return, before iteration).
 
 NOTE: an earlier revision of this file described a "consume-first / generator_outputs"
 strategy — that implementation no longer exists; the current behavior is the lazy one
@@ -72,10 +73,11 @@ class TestExistingFunctionality:
         self.mock_tracer.start_as_current_span.return_value.__exit__ = Mock(
             return_value=None
         )
-        # Batch (non-generator) paths use start_span + use_span so the span can be
-        # deferred/handed off to a returned generator; generator paths still use
-        # start_as_current_span. Wire both to the same mock span so the tests assert
-        # BEHAVIOR (span name/status), not which tracer method built the span.
+        # All paths — batch AND generator — create the span with start_span + use_span
+        # so the span (and its link/ids) exists eagerly, before the handler runs or the
+        # generator drains. That is what lets a streaming response carry the trace/span
+        # ids. Wire start_span to the mock span so tests assert BEHAVIOR (name/status),
+        # not the tracer method.
         self.mock_tracer.start_span.return_value = self.mock_span
 
         # Mock both tracer and tracing since they're used in different places
@@ -280,10 +282,11 @@ class TestGeneratorTracing:
         self.mock_tracer.start_as_current_span.return_value.__exit__ = Mock(
             return_value=None
         )
-        # Batch (non-generator) paths use start_span + use_span so the span can be
-        # deferred/handed off to a returned generator; generator paths still use
-        # start_as_current_span. Wire both to the same mock span so the tests assert
-        # BEHAVIOR (span name/status), not which tracer method built the span.
+        # All paths — batch AND generator — create the span with start_span + use_span
+        # so the span (and its link/ids) exists eagerly, before the handler runs or the
+        # generator drains. That is what lets a streaming response carry the trace/span
+        # ids. Wire start_span to the mock span so tests assert BEHAVIOR (name/status),
+        # not the tracer method.
         self.mock_tracer.start_span.return_value = self.mock_span
 
         # Mock both tracer and tracing since they're used in different places
@@ -315,8 +318,8 @@ class TestGeneratorTracing:
         assert results == ["first", "second", "third"]
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
-        call_args = mock_ag.tracer.start_as_current_span.call_args
+        mock_ag.tracer.start_span.assert_called_once()
+        call_args = mock_ag.tracer.start_span.call_args
         assert call_args[1]["name"] == "simple_generator"
 
         # Verify span was set to OK status
@@ -349,7 +352,7 @@ class TestGeneratorTracing:
         assert return_value == "done"
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
 
     @patch("agenta.sdk.decorators.tracing.ag")
     def test_sync_generator_empty(self, mock_ag):
@@ -370,7 +373,7 @@ class TestGeneratorTracing:
         assert results == []
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
 
     @patch("agenta.sdk.decorators.tracing.ag")
     def test_sync_generator_exception(self, mock_ag):
@@ -391,7 +394,7 @@ class TestGeneratorTracing:
             list(failing_generator())
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("agenta.sdk.decorators.tracing.ag")
@@ -417,8 +420,8 @@ class TestGeneratorTracing:
         assert results == ["async_first", "async_second", "async_third"]
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
-        call_args = mock_ag.tracer.start_as_current_span.call_args
+        mock_ag.tracer.start_span.assert_called_once()
+        call_args = mock_ag.tracer.start_span.call_args
         assert call_args[1]["name"] == "simple_async_generator"
 
         # Verify span was set to OK status
@@ -446,7 +449,7 @@ class TestGeneratorTracing:
         assert results == []
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("agenta.sdk.decorators.tracing.ag")
@@ -472,7 +475,7 @@ class TestGeneratorTracing:
                 results.append(item)
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
 
     @patch("agenta.sdk.decorators.tracing.ag")
     def test_generator_input_tracing(self, mock_ag):
@@ -493,8 +496,8 @@ class TestGeneratorTracing:
         assert results == ["test_0", "test_1", "test_2"]
 
         # Verify span was created with proper name
-        mock_ag.tracer.start_as_current_span.assert_called_once()
-        call_args = mock_ag.tracer.start_as_current_span.call_args
+        mock_ag.tracer.start_span.assert_called_once()
+        call_args = mock_ag.tracer.start_span.call_args
         assert call_args[1]["name"] == "parametrized_generator"
 
     @patch("agenta.sdk.decorators.tracing.ag")
@@ -518,7 +521,7 @@ class TestGeneratorTracing:
         assert results == expected
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
 
     def test_function_type_detection(self):
         """Test that function types are correctly detected."""
@@ -583,7 +586,7 @@ class TestGeneratorTracing:
         )
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
 
     @patch("agenta.sdk.decorators.tracing.ag")
     def test_nested_generator_calls(self, mock_ag):
@@ -609,15 +612,9 @@ class TestGeneratorTracing:
         # Verify results
         assert results == ["processed_0", "processed_1", "processed_2"]
 
-        # Verify spans were created for BOTH functions. The generator uses
-        # start_as_current_span; the nested batch helper uses start_span (three calls,
-        # one per iteration). Assert across both mechanisms rather than one method.
-        total_spans = (
-            mock_ag.tracer.start_as_current_span.call_count
-            + mock_ag.tracer.start_span.call_count
-        )
-        assert total_spans >= 2
-        assert mock_ag.tracer.start_span.call_count == 3  # helper per iteration
+        # Both the generator and the nested batch helper create spans via start_span:
+        # 1 for the generator wrapper + 3 for the helper (one per iteration) = 4.
+        assert mock_ag.tracer.start_span.call_count == 4
 
     @patch("agenta.sdk.decorators.tracing.ag")
     def test_generator_with_large_output(self, mock_ag):
@@ -640,7 +637,7 @@ class TestGeneratorTracing:
         assert results[999] == "item_999"
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
         self.mock_span.set_status.assert_called_with(status="OK", description=None)
 
     @pytest.mark.asyncio
@@ -666,7 +663,7 @@ class TestGeneratorTracing:
         assert results == ["delayed_0", "delayed_1", "delayed_2"]
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
         self.mock_span.set_status.assert_called_with(status="OK", description=None)
 
     @patch("agenta.sdk.decorators.tracing.ag")
@@ -692,7 +689,7 @@ class TestGeneratorTracing:
         assert results == expected
 
         # Verify span was created
-        mock_ag.tracer.start_as_current_span.assert_called_once()
+        mock_ag.tracer.start_span.assert_called_once()
         self.mock_span.set_status.assert_called_with(status="OK", description=None)
 
     @patch("agenta.sdk.decorators.tracing.ag")
@@ -716,8 +713,8 @@ class TestGeneratorTracing:
         assert results == expected
 
         # Verify span was created with correct parameters
-        mock_ag.tracer.start_as_current_span.assert_called_once()
-        call_args = mock_ag.tracer.start_as_current_span.call_args
+        mock_ag.tracer.start_span.assert_called_once()
+        call_args = mock_ag.tracer.start_span.call_args
         assert call_args[1]["name"] == "parameterized_generator"
 
         # Verify span was set to OK status
@@ -742,10 +739,11 @@ class TestAggregateRemoved:
         self.mock_tracer.start_as_current_span.return_value.__exit__ = Mock(
             return_value=None
         )
-        # Batch (non-generator) paths use start_span + use_span so the span can be
-        # deferred/handed off to a returned generator; generator paths still use
-        # start_as_current_span. Wire both to the same mock span so the tests assert
-        # BEHAVIOR (span name/status), not which tracer method built the span.
+        # All paths — batch AND generator — create the span with start_span + use_span
+        # so the span (and its link/ids) exists eagerly, before the handler runs or the
+        # generator drains. That is what lets a streaming response carry the trace/span
+        # ids. Wire start_span to the mock span so tests assert BEHAVIOR (name/status),
+        # not the tracer method.
         self.mock_tracer.start_span.return_value = self.mock_span
         self.mock_tracer.get_current_span.return_value = self.mock_span
         self.mock_tracing = Mock()
