@@ -298,7 +298,14 @@ class instrument:  # pylint: disable=invalid-name
 
                         # A sync def that RETURNS a generator is a stream, not a batch.
                         # Hand the span to a wrapper that drains it and records content.
-                        if isasyncgen(result) or isgenerator(result):
+                        # A sync generator stays SYNC (so `for x in fn()` still works); an
+                        # async generator uses the async wrapper.
+                        if isgenerator(result):
+                            handed_off = True
+                            return self._wrap_returned_sync_gen(
+                                result, span, captured_ctx, token
+                            )
+                        if isasyncgen(result):
                             handed_off = True
                             return self._wrap_returned_gen(
                                 result, span, captured_ctx, token
@@ -376,6 +383,38 @@ class instrument:  # pylint: disable=invalid-name
                 # activation dies with the task anyway, and crashing the teardown would
                 # mask the real error. (Thread/task-safety: span currency is per-task
                 # contextvar; this only cleans up THIS task's activation.)
+                with suppress():
+                    otel_context.detach(otel_token)
+                self._detach_baggage(baggage_token)
+
+        return wrapped()
+
+    def _wrap_returned_sync_gen(self, gen, span, captured_ctx, baggage_token):
+        """Sync counterpart of `_wrap_returned_gen`: keep a batch-path span open across a
+        RETURNED sync generator's consumption WITHOUT turning it into an async generator.
+
+        A `def` that RETURNS a sync generator lands in the sync batch wrapper. Handing it to
+        the async `_wrap_returned_gen` would change a sync caller's return type to an async
+        generator (breaking `for x in fn(): ...`). This keeps it sync.
+        """
+
+        def wrapped():
+            otel_token = otel_context.attach(captured_ctx)
+            try:
+                with use_span(
+                    span,
+                    end_on_exit=True,
+                    record_exception=True,
+                    set_status_on_exception=True,
+                ):
+                    acc = []
+                    try:
+                        for chunk in gen:
+                            acc.append(chunk)
+                            yield chunk
+                    finally:
+                        self._post_instrument(span, self._join_stream(acc))
+            finally:
                 with suppress():
                     otel_context.detach(otel_token)
                 self._detach_baggage(baggage_token)
