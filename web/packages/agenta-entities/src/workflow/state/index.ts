@@ -24,7 +24,11 @@ export {
 // HELPERS
 // ============================================================================
 
-export {deriveWorkflowTypeFromRevision} from "./helpers"
+export {
+    deriveWorkflowTypeFromRevision,
+    filterAgentWorkflows,
+    filterPromptWorkflows,
+} from "./helpers"
 
 // ============================================================================
 // STORE ATOMS

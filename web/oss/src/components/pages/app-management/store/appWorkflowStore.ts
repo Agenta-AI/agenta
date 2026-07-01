@@ -12,6 +12,7 @@ import type {InfiniteTableFetchResult} from "@agenta/entities/shared"
 import {
     deriveWorkflowTypeFromRevision,
     fetchWorkflowsBatch,
+    filterAgentWorkflows,
     parseWorkflowKeyFromUri,
     queryWorkflows,
 } from "@agenta/entities/workflow"
@@ -199,14 +200,21 @@ async function fetchArchivedAppWorkflows(meta: AppWorkflowQueryMeta) {
     const response = await queryWorkflows({
         projectId: meta.projectId,
         name: meta.searchTerm,
-        flags: {
-            ...APP_WORKFLOW_FLAGS,
-            ...(meta.agentScope ? {is_agent: true} : {}),
-        },
+        flags: APP_WORKFLOW_FLAGS,
         includeArchived: true,
     })
 
-    return response.workflows.filter(isArchivedWorkflow).sort(compareDeletedAtDesc)
+    const archivedWorkflows = response.workflows
+        .filter(isArchivedWorkflow)
+        .sort(compareDeletedAtDesc)
+
+    if (!meta.agentScope) return archivedWorkflows
+
+    const latestRevisions = await fetchWorkflowsBatch(
+        meta.projectId,
+        archivedWorkflows.map((workflow) => workflow.id),
+    )
+    return filterAgentWorkflows(archivedWorkflows, latestRevisions)
 }
 
 const skeletonDefaults: Partial<AppWorkflowRow> = {

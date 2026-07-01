@@ -136,7 +136,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
                     },
                     {
                         key: "project-evaluations-link",
-                        title: "Evaluations",
+                        title: "Evaluation runs",
                         link: `${projectURL}/evaluations`,
                         icon: <FlaskIcon size={14} />,
                         disabled: !hasProjectURL,

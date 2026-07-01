@@ -1,4 +1,4 @@
-import {queryWorkflows} from "@agenta/entities/workflow"
+import {fetchWorkflowsBatch, filterAgentWorkflows, queryWorkflows} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
@@ -30,14 +30,18 @@ const agentsWorkflowsQueryAtom = atomWithQuery((get) => {
             const response = await queryWorkflows({
                 projectId,
                 name: searchTerm,
-                flags: {is_evaluator: false, is_agent: true},
+                flags: {is_evaluator: false},
                 includeArchived: false,
                 windowing: {order: "descending"},
             })
 
-            return response.workflows
-                .filter((workflow) => !workflow.deleted_at)
-                .map(mapWorkflowToRow)
+            const workflows = response.workflows.filter((workflow) => !workflow.deleted_at)
+            const latestRevisions = await fetchWorkflowsBatch(
+                projectId,
+                workflows.map((workflow) => workflow.id),
+            )
+
+            return filterAgentWorkflows(workflows, latestRevisions).map(mapWorkflowToRow)
         },
         enabled: !!projectId,
         staleTime: 30_000,

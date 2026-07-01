@@ -1,7 +1,11 @@
 import {describe, expect, it} from "vitest"
 
 import type {Workflow} from "../../src/workflow/core"
-import {withLatestAgentFlags} from "../../src/workflow/state/helpers"
+import {
+    filterAgentWorkflows,
+    filterPromptWorkflows,
+    withLatestAgentFlags,
+} from "../../src/workflow/state/helpers"
 
 const workflow = (id: string, isAgent: boolean): Workflow =>
     ({
@@ -22,6 +26,43 @@ describe("withLatestAgentFlags", () => {
         expect(classified.map(({id, flags}) => [id, flags?.is_agent])).toEqual([
             ["prompt-1", false],
             ["agent-1", true],
+        ])
+    })
+
+    it("keeps only workflows whose latest revision is an agent", () => {
+        const artifacts = [
+            workflow("completion-1", false),
+            workflow("chat-1", false),
+            workflow("custom-1", false),
+            workflow("agent-1", false),
+            workflow("unresolved-1", false),
+        ]
+        const latestRevisions = new Map([
+            ["completion-1", workflow("completion-rev-1", false)],
+            ["chat-1", workflow("chat-rev-1", false)],
+            ["custom-1", workflow("custom-rev-1", false)],
+            ["agent-1", workflow("agent-rev-1", true)],
+        ])
+
+        expect(filterAgentWorkflows(artifacts, latestRevisions).map(({id}) => id)).toEqual([
+            "agent-1",
+        ])
+    })
+
+    it("excludes agents from prompts while retaining unresolved workflows", () => {
+        const artifacts = [
+            workflow("prompt-1", false),
+            workflow("agent-1", false),
+            workflow("unresolved-1", false),
+        ]
+        const latestRevisions = new Map([
+            ["prompt-1", workflow("prompt-rev-1", false)],
+            ["agent-1", workflow("agent-rev-1", true)],
+        ])
+
+        expect(filterPromptWorkflows(artifacts, latestRevisions).map(({id}) => id)).toEqual([
+            "prompt-1",
+            "unresolved-1",
         ])
     })
 })

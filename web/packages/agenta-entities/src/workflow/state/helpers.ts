@@ -32,6 +32,31 @@ export function withLatestAgentFlags(
 }
 
 /**
+ * Keep workflow artifacts whose latest revision is marked as an agent.
+ *
+ * Agent identity is revision-derived, so the artifact list cannot be filtered
+ * reliably with `WorkflowQuery.flags.is_agent`.
+ */
+export function filterAgentWorkflows(
+    workflows: Workflow[],
+    latestRevisions: ReadonlyMap<string, Workflow>,
+): Workflow[] {
+    return withLatestAgentFlags(workflows, latestRevisions).filter(
+        (workflow) => workflow.flags?.is_agent === true,
+    )
+}
+
+/** Keep workflow artifacts whose latest revision is not marked as an agent. */
+export function filterPromptWorkflows(
+    workflows: Workflow[],
+    latestRevisions: ReadonlyMap<string, Workflow>,
+): Workflow[] {
+    return withLatestAgentFlags(workflows, latestRevisions).filter(
+        (workflow) => workflow.flags?.is_agent !== true,
+    )
+}
+
+/**
  * Legacy evaluator keys → workflow type. Used for evaluators committed before
  * `infer_flags_from_data` populated `is_llm`/`is_match`/`is_code`/`is_hook` on
  * revisions. Keys are matched against the normalized candidate set returned by
