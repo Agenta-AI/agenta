@@ -2,122 +2,133 @@
 
 Status: **proposal for review** — no instrumentation added yet.
 
-## Purpose
+## Principle
 
-Add PostHog product analytics to the major interaction points of the **agents feature**, the
-**agent playground**, and the **agent build kit (configuration)**, to answer usage, adoption,
-discoverability, and retention questions. Today no agents-related code emits any PostHog events,
-though the PostHog client and the `usePostHogAg()` capture hook already exist.
+> **Backend-first.** If a tracker's action reaches the backend — or the backend already tracks
+> it — it goes on the **backend**. The **frontend** gets *only* interactions that never touch
+> the server (navigation, pre-commit discovery, pure UI state).
 
-The guiding principle is **not to over-instrument**: ship a lean, high-signal v1, keep event
-names self-explaining, and reserve marginal points for a later, targeted pass.
+The backend already runs a path-based analytics middleware
+([analytics.py](/api/oss/src/middlewares/analytics.py#L138)) that emits a PostHog event after
+every request, keyed on URL + method — it already captures app creation and revision commits.
+Its one blind spot: it only sees `path / method / status / request.state`, never the body, so
+it cannot tell an **agent** from a chat/completion app. The discriminator exists in the model
+(`is_agent`, [workflows/dtos.py:142](/api/oss/src/core/workflows/dtos.py#L142)) but is never
+surfaced to analytics. Closing that gap is the backbone of this plan.
 
-## Scope decisions
+## Metrics we want
 
-- **Agent-only events.** App-management events fire only when the app type is `agent`
-  (agents are one of three app types — Chat / Completion / Agent — created through the same UI).
-- **Lean v1 of 15 events** to ship; a small **Optional** funnel set held back for a v2.
-- Creation is counted on the **commit**, not the template-picker click, so abandoned picks
-  don't inflate the number.
-
-## Convention (matches existing events)
-
-- Names: `snake_case`, `object_action` — consistent with existing events such as
-  `onboarding_widget_opened` and `user_device_theme`. All new events use the `agent_` prefix.
-- Capture: `usePostHogAg().capture(name, payload)`. Payloads are flat, camelCase.
-- No typed event registry exists; events are string literals (optionally wrapped in a small
-  per-area `analytics.ts`, mirroring the onboarding widget's helper).
-
----
-
-## v1 events (ship these — 15)
-
-### Agents feature — app-management, gated to `appType === "agent"`
-
-| Event | Where it fires | Product question | Payload |
-|---|---|---|---|
-| `agent_created` | Create-commit callback, app-create branch — [WorkflowRevisionDrawerWrapper.tsx:556](/web/oss/src/components/WorkflowRevisionDrawerWrapper/index.tsx#L556) | True agent creation volume (excludes abandoned template picks) | — |
-| `agent_config_saved` | Revision commit of an existing agent — [CommitVariantChangesModal](/web/oss/src/components/Playground/Components/Modals/CommitVariantChangesModal/index.tsx) | "Finished building" milestone; iteration frequency | — |
-| `agent_playground_opened` | Open-in-playground action — [ApplicationManagementSection.tsx:88](/web/oss/src/components/pages/app-management/components/ApplicationManagementSection.tsx#L88) | List → playground discoverability / funnel | `{appId, source: "menu"}` |
-| `agent_archived` | Archive confirm — [DeleteAppModal/index.tsx:37](/web/oss/src/components/pages/app-management/modals/DeleteAppModal/index.tsx#L37) | Lifecycle / churn; single vs bulk | `{count, source: "row_menu"｜"bulk"}` |
-
-### Agent playground chat — `AgentChatSlice`
-
-| Event | Where it fires | Product question | Payload |
-|---|---|---|---|
-| `agent_message_sent` | Composer submit — [AgentChatPanel.tsx:736](/web/oss/src/components/AgentChatSlice/AgentChatPanel.tsx#L736) | Core usage / activation / retention | `{hasAttachments, queued}` |
-| `agent_tool_approval_submitted` | Approve / Deny a HITL tool — [ToolActivity.tsx:103](/web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx#L103) | HITL adoption + approval rate | `{approved}` |
-| `agent_tool_connected` | Connect-integration widget completes — [ConnectToolWidget.tsx:138](/web/oss/src/components/AgentChatSlice/components/clientTools/ConnectToolWidget.tsx#L138) | Connect-tool adoption + completion rate | `{integration, connected}` |
-
-### Agent playground — session lifecycle (signal-bearing two only)
-
-| Event | Where it fires | Product question | Payload |
-|---|---|---|---|
-| `agent_session_created` | New session (explicit) — [AgentChatPanel.tsx:1018](/web/oss/src/components/AgentChatSlice/AgentChatPanel.tsx#L1018) | Multi-session usage | — |
-| `agent_session_reopened` | Reopen from history — [SessionHistoryMenu.tsx:67](/web/oss/src/components/AgentChatSlice/components/SessionHistoryMenu.tsx#L67) | Retention — do users return to sessions? | — |
-
-### Agent build kit — `DrillInView/SchemaControls` (inherently agent-scoped)
-
-| Event | Where it fires | Product question | Payload |
-|---|---|---|---|
-| `agent_mcp_server_added` | MCP add committed — [AgentTemplateControl.tsx:195](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L195) | MCP adoption | — |
-| `agent_skill_added` | Skill add committed — [AgentTemplateControl.tsx:205](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L205) | Skill adoption | — |
-| `agent_tool_added` | Tool added — [ToolSelectorPopover.tsx](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/ToolSelectorPopover.tsx) `onAddTool` | Which tool types agents use | `{source: "builtin"｜"gateway"｜"custom"｜"workflow"}` |
-| `agent_trigger_created` | Trigger created — [TriggerManagementSection.tsx:963](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/TriggerManagementSection.tsx#L963) | Triggers adoption + type | `{triggerType: "app"｜"scheduled"}` |
-| `agent_harness_selected` | Harness selector change — [HarnessSelectControl.tsx:100](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/HarnessSelectControl.tsx#L100) | Which runtime users pick | `{harness: "pi_core"｜"pi_agenta"｜"claude"}` |
-| `agent_advanced_settings_opened` | Open advanced section — [AgentTemplateControl.tsx:395](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L395) | Advanced discoverability + self-managed vs managed | `{connectionMode: "agenta"｜"self_managed"}` |
-
----
-
-## Optional events (not in v1 — discovery / adoption funnel)
-
-Add these only when v1 shows a capability is under-adopted and we need to distinguish
-**"never discovered"** from **"discovered but too much friction."** Each captures discovery
-*intent* (opening the add surface) and is read as a funnel against its `_added` event.
-
-| Event | Where it fires | Funnel pair |
+| Metric | Owner | How |
 |---|---|---|
-| `agent_tool_picker_opened` | Tool picker opens — [AgentTemplateControl.tsx:309](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L309) | → `agent_tool_added` |
-| `agent_trigger_menu_opened` | Add-trigger menu opens — [AgentTemplateControl.tsx:385](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L385) | → `agent_trigger_created` |
-| `agent_mcp_server_add_started` | MCP add drawer opens — [AgentTemplateControl.tsx:347](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L347) | → `agent_mcp_server_added` |
-| `agent_skill_add_started` | Skill add drawer opens — [AgentTemplateControl.tsx:366](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L366) | → `agent_skill_added` |
+| Activation route | Backend (`api/`) | property on `app_created` — frontend passes the entry point in the create request |
+| Workflow created | Backend (`api/`) | `app_created` exists — add `is_agent` |
+| Agent was run | Backend (agent service / tracing) | agent runs in `services/`, not `api/` — via existing OTEL spans or new capture in the `/invoke` handler |
+| Number of messages sent | Backend (agent service / tracing) | count on the run, same path as above |
+| Which features / triggers were used | Backend (`api/`) | derive from committed agent config at commit |
 
 ---
 
-## Deliberately excluded
+## Backend events
 
-| Interaction | Why |
-|---|---|
-| Opening an already-added MCP / skill / tool / trigger (`_viewed`) | Measures revisiting adopted config, not "viewed but not used"; noisy while building. Covered by the Optional funnel if needed. |
-| Session rename / close / delete | UI hygiene; `created` + `reopened` carry the session signal. |
-| Trigger test-run in playground | Folds into triggers adoption. |
-| Open agent overview; restore; rename; search; pagination; sort | Rare or high-noise, low signal. |
-| Chat micro-interactions: switch session, stop, resend, rewind, attach/remove, queue, jump-to-latest, expand reasoning, view-trace, A/B toggle, inspector | UI affordances / dev controls. Attachment usage is folded into `agent_message_sent.hasAttachments`. |
-| Create trigger in workspace Settings | Not agent-scoped; agent triggers are covered by `agent_trigger_created`. |
-| Open the harness section | Redundant with `agent_harness_selected`, which captures the actual choice. |
+Two backend apps are involved: the **`api/`** app (where `analytics_middleware` lives) and the
+**agent service** (`services/`), which serves agent runs at `/agent/v0` and has **no PostHog
+wiring today**. Each event's owner is called out.
+**E** = already emitted (add an agent property), **N** = new.
 
-### Redundancy collapses
-- `agent_created` fires once on commit (not per dropdown click).
-- Approve + Deny → one `agent_tool_approval_submitted` with `approved`.
-- All tool sources → one `agent_tool_added` with `source`.
-- App + scheduled triggers → one `agent_trigger_created` with `triggerType`.
-- Harness captured as a selection, not a section-open.
+### `api/` app — analytics middleware + handlers
+
+| Event | State | Endpoint / trigger | Product question | Properties |
+|---|---|---|---|---|
+| `app_created` | **E** | `POST /apps` — [analytics.py:295](/api/oss/src/middlewares/analytics.py#L295) | Agent creation volume + activation route | `is_agent`, `route` (frontend-supplied, see below) |
+| `app_revision_created` | **E** | `POST /variants/configs/commit\|fork`, `PUT …/parameters` — [analytics.py:303](/api/oss/src/middlewares/analytics.py#L303) | "Finished building" milestone; iteration frequency | `is_agent`, feature counts (below) |
+| `tool_connection_created` | **N** | `POST /tools/connections/` — [tools/router.py:211](/api/oss/src/apis/fastapi/tools/router.py#L211) | Connect-tool adoption | `integration` |
+| `agent_archived` | **N** | `POST /{workflow_id}/archive` — [workflows/router.py:238](/api/oss/src/apis/fastapi/workflows/router.py#L238) | Lifecycle / churn | `is_agent`, `count` |
+
+**Feature composition (properties on `app_revision_created`, agents only).** The full agent
+config is in the committed `parameters.agent.*` payload
+([dtos.py:307](/api/oss/src/core/workflows/dtos.py#L307)), so the commit handler derives which
+features are used at commit time: `toolCount`, `mcpServerCount`, `skillCount`, `triggerCount`,
+`hasTriggers`, `harness`, `connectionMode` (`agenta` | `self_managed`).
+
+### Agent service (`services/`) — the run path
+
+Agent chat runs through the agent service `/invoke` handler
+([services/oss/src/agent/app.py](/services/oss/src/agent/app.py#L1)), mounted at `/agent/v0`
+([services/entrypoints/main.py:137](/services/entrypoints/main.py#L137)). These requests **do
+not** pass through the `api/` middleware, so they cannot be captured by adding a path there.
+
+| Event | State | Where | Product question | Properties |
+|---|---|---|---|---|
+| `agent_run` | **N** | agent `/invoke` handler | Was the agent run? core activation / retention | `is_agent`, `messageCount` |
+| `agent_tool_approval_submitted` | **N** | `tool_approvals` in the `/invoke` body | HITL adoption + approval rate | `approved` |
+
+The run already emits an **instrumented OTEL span** ([agent/tracing.py](/services/oss/src/agent/tracing.py)),
+and the `api/` middleware already tracks `spans_created` — so "agent was run" and message counts
+are *partially derivable from tracing today*. Options: (a) rely on tracing/spans for run volume
+and add explicit capture only for approval, or (b) add PostHog to the agent service and emit both
+events cleanly. Decide before building.
+
+### Backend work
+
+1. **Agent detection (`api/`).** Set `request.state.is_agent` in the create / commit / archive
+   handlers (same channel that carries `project_id` / `user_email`,
+   [auth.py:535](/api/oss/src/middlewares/auth.py#L535)); read it in the middleware and attach it
+   as a property. Without this, agent events can't be segmented from chat / completion.
+2. **Archive mapping (`api/`).** `POST /{workflow_id}/archive` is not in
+   `_get_event_name_from_path` — add it (agent-gated).
+3. **Handler-level events (`api/`).** `tool_connection_created`, activation `route`, and feature
+   composition need the request / committed body (the middleware can't see it), so they fire from
+   inside the handlers.
+4. **Run + approval (agent service).** Either lean on existing tracing/spans or add PostHog to the
+   service `/invoke` handler (no analytics there today) — see the note above.
+5. **Activation route (`api/`).** The frontend passes the entry point (empty-state CTA / dropdown
+   / template — [CreateAppDropdown](/web/oss/src/components/pages/app-management/components/CreateAppDropdown/index.tsx#L80))
+   as a `route` field in the `POST /apps` body; the handler stashes it on `request.state` and the
+   middleware attaches it to `app_created`. The route is the only frontend-supplied piece; the
+   event itself stays backend-owned.
+6. **Archived-in-playground edge.** Ensure opening an archived agent's playground does not emit a
+   misleading `agent_run`.
 
 ---
 
-## Implementation notes
+## Frontend events
 
-- **Agent-only gating:** create/save gate on commit context + resolved app type;
-  playground-open/archive resolve type via `workflowAppTypeAtomFamily(workflowId)`. Build-kit
-  events need no gating (`AgentTemplateControl` is agent-specific). Confirm the agent enum value
-  from `@agenta/entities/workflow`.
-- **Create vs save:** `agent_created` in the app-create commit branch; `agent_config_saved` on
-  the non-create commit path. Confirm the shared commit hook so the two don't double-fire.
-- **Adoption events fire on commit**, not drawer-open, so they reflect real adoption.
+Only interactions that never reach the server (verified).
+
+| Event | Where it fires | Why frontend | Payload |
+|---|---|---|---|
+| `agent_playground_opened` | Open-in-playground (navigation) — [ApplicationManagementSection.tsx:88](/web/oss/src/components/pages/app-management/components/ApplicationManagementSection.tsx#L88) | Pure `router.push`; no dedicated backend signal | `{appId, source: "menu"}` |
+| `agent_session_created` | New session tab (`+`) — [AgentChatPanel.tsx:1018](/web/oss/src/components/AgentChatSlice/AgentChatPanel.tsx#L1018) | Session tabs persist to localStorage, no backend call | — |
+
+### Optional — discovery / friction funnel (later)
+
+Add only when a backend feature-composition count shows a capability is under-adopted and we
+need to tell **"never discovered"** from **"discovered but abandoned before commit."** These
+fire on opening an add-surface (no backend request) and read as a funnel against the composition
+counts.
+
+| Event | Where it fires | Reads against |
+|---|---|---|
+| `agent_tool_picker_opened` | [AgentTemplateControl.tsx:309](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L309) | `toolCount` |
+| `agent_trigger_menu_opened` | [AgentTemplateControl.tsx:385](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L385) | `triggerCount` |
+| `agent_mcp_server_add_started` | [AgentTemplateControl.tsx:347](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L347) | `mcpServerCount` |
+| `agent_skill_add_started` | [AgentTemplateControl.tsx:366](/web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx#L366) | `skillCount` |
+
+---
+
+## Convention
+
+- **Backend:** `posthog.capture(distinct_id, event, properties)`; `snake_case` events. In `api/`,
+  properties are enriched from `request.state` (existing middleware pattern); the agent service
+  would need its own capture (none today).
+- **Frontend:** `usePostHogAg().capture(name, payload)`; `snake_case` `object_action`,
+  `agent_` prefix; flat camelCase payloads.
 
 ## Verification
 
-Set `NEXT_PUBLIC_POSTHOG_API_KEY` locally, then exercise each flow and confirm (Network tab to
-`alef.agenta.ai`, or the PostHog activity view) that exactly the 15 v1 events fire with correct
-names and payloads, that chat/completion apps fire none of the `agent_*` events (gating works),
-and that excluded interactions emit nothing.
+- **Backend:** with PostHog configured, create an agent and a chat app — `app_created` fires for
+  both but only the agent carries `is_agent: true`; commit an agent revision and confirm
+  `app_revision_created` carries the feature counts; run the agent and confirm `agent_run` with
+  `messageCount`; approve a tool, connect an integration, archive the agent.
+- **Frontend:** confirm the two FE events fire on the pure-UI actions and that none duplicate a
+  backend event.
