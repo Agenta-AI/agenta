@@ -468,7 +468,7 @@ services:
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
             # which does not resolve inside a container. Used by the OTLP tracing-export
             # fallback AND the session heartbeat/record-persist calls.
-            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000}
+            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000/api}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
