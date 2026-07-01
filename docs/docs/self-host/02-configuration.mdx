@@ -164,6 +164,7 @@ reach the sandbox, which mounts the durable prefix as its working directory.
 | `AGENTA_STORE_SECRET_KEY` | `store.secret_key` | `store.secretKey` |
 | `AGENTA_STORE_REGION` | `store.region` | `store.region` |
 | `AGENTA_STORE_BUCKET` | `store.bucket` | `store.bucket` |
+| `AGENTA_STORE_NAMESPACE` | `store.namespace` | `store.namespace` |
 | `AGENTA_STORE_SIGNING_KEY` | n/a (store-side) | `store.signingKey` |
 | `AGENTA_STORE_JWT_ISSUER` | `store.jwt_issuer` | `store.jwtIssuer` |
 | `AGENTA_STORE_JWT_PRIVATE_KEY` | `store.jwt_private_key` | `store.jwtPrivateKey` |
@@ -172,6 +173,20 @@ reach the sandbox, which mounts the durable prefix as its working directory.
 `store.seaweedfs.enabled=true` bundles a SeaweedFS StatefulSet and auto-populates
 `store.endpointUrl`. Set it to `false` and supply `store.endpointUrl` to use an external
 S3-compatible store. This toggle mirrors `postgresql.enabled`.
+
+:::note `AGENTA_STORE_NAMESPACE` — sharing one bucket across environments
+The key layout treats the store as a small database: the **bucket** is the cluster, an optional
+**namespace** is the database, the entity prefix (`mounts/`) is the table, and `<project>/<mount>`
+is the row — so a full key is `<bucket>/[<namespace>/]mounts/<project_id>/<mount_id>/...`.
+
+Leave `NAMESPACE` unset for a dedicated bucket; the key layout is then identical to a single-tenant
+store (no empty leading segment). Set it — typically to a deployment or environment id — when
+several **ephemeral environments share one bucket**. Each environment's keys are prefixed with its
+namespace, and the short-lived credentials the API signs are scoped to that namespace, so one
+environment can never read or write another's objects even though they live in the same bucket.
+The namespace narrows the credential scope; it never widens it, and it is orthogonal to the store
+backend (it works on real S3/R2 and on bundled SeaweedFS alike).
+:::
 
 :::note SeaweedFS-only STS settings (real S3/R2 ignore these)
 `SIGNING_KEY`, `JWT_ISSUER`, and `JWT_PRIVATE_KEY` configure how the **bundled SeaweedFS** serves

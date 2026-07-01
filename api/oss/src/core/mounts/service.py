@@ -88,16 +88,28 @@ class MountsService:
         self,
         *,
         mounts_dao: MountsDAOInterface,
-        mount_storage: Optional[ObjectStore] = None,
+        mounts_store: Optional[ObjectStore] = None,
         bucket: Optional[str] = None,
+        namespace: Optional[str] = None,
     ):
         self.mounts_dao = mounts_dao
-        self.mount_storage = mount_storage
+        self.mounts_store = mounts_store
         self.bucket = bucket
+        self.namespace = namespace
 
     def _storage_key(self, *, project_id: UUID, mount: Mount, path: str = "") -> str:
-        """Object-key prefix for a mount: mounts/<project_id>/<mount_id>/<path>."""
-        base = f"mounts/{project_id}/{mount.id}"
+        """Object-key prefix for a mount: [<namespace>/]mounts/<project_id>/<mount_id>/<path>.
+
+        The optional namespace is the per-deployment "database" prefix that lets ephemeral
+        environments share one bucket; it is omitted entirely when unset, so a dedicated-bucket
+        deploy keeps the byte-identical `mounts/...` layout (no empty leading segment).
+        """
+        ns = (self.namespace or "").strip("/")
+        base = (
+            f"{ns}/mounts/{project_id}/{mount.id}"
+            if ns
+            else f"mounts/{project_id}/{mount.id}"
+        )
         return f"{base}/{path.lstrip('/')}" if path else f"{base}/"
 
     async def create_mount(
@@ -265,7 +277,7 @@ class MountsService:
         The master key signs the STS request API-side and never leaves; the returned
         key pair + session token are scoped to this mount's prefix and expire in minutes.
         """
-        if self.mount_storage is None:
+        if self.mounts_store is None:
             raise MountStorageUnavailable()
 
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
@@ -273,14 +285,14 @@ class MountsService:
         # `<project_id>/<mount_id>` — the durable prefix, slug-independent (no trailing slash).
         prefix = self._storage_key(project_id=project_id, mount=mount).rstrip("/")
 
-        creds = await self.mount_storage.sign_temp_credentials(
+        creds = await self.mounts_store.sign_temp_credentials(
             bucket=bucket,
             prefix=prefix,
             duration_seconds=duration_seconds,
         )
         return MountCredentials(
-            endpoint=self.mount_storage.endpoint_url,
-            region=self.mount_storage.region,
+            endpoint=self.mounts_store.endpoint_url,
+            region=self.mounts_store.region,
             bucket=bucket,
             prefix=prefix,
             access_key=creds.access_key,
@@ -307,7 +319,7 @@ class MountsService:
             ).rstrip("/")
 
         list_prefix = prefix + "/"
-        objects = await self.mount_storage.list_objects_v2(
+        objects = await self.mounts_store.list_objects_v2(
             bucket=self._bucket(),
             prefix=list_prefix,
         )
@@ -344,7 +356,7 @@ class MountsService:
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
-        return await self.mount_storage.get_object(bucket=self._bucket(), key=key)
+        return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
 
     async def read_file(
         self,
@@ -373,7 +385,7 @@ class MountsService:
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
-        size = await self.mount_storage.put_object(
+        size = await self.mounts_store.put_object(
             bucket=self._bucket(),
             key=key,
             body=content,
@@ -394,7 +406,7 @@ class MountsService:
         # is the S3 console convention for an explicit empty folder.
         folder = path.strip("/")
         key = self._storage_key(project_id=project_id, mount=mount, path=folder) + "/"
-        await self.mount_storage.put_object(
+        await self.mounts_store.put_object(
             bucket=self._bucket(),
             key=key,
             body=b"",
@@ -419,14 +431,14 @@ class MountsService:
         folder_prefix = exact_key + "/"
         bucket = self._bucket()
 
-        objects = await self.mount_storage.list_objects_v2(
+        objects = await self.mounts_store.list_objects_v2(
             bucket=bucket,
             prefix=folder_prefix,
         )
         keys = [key for key, _ in objects]
 
         # The exact file (or the folder marker) may also exist alongside contents.
-        single = await self.mount_storage.list_objects_v2(
+        single = await self.mounts_store.list_objects_v2(
             bucket=bucket,
             prefix=exact_key,
         )
@@ -437,7 +449,7 @@ class MountsService:
         if not unique_keys:
             raise MountFileNotFound()
 
-        count = await self.mount_storage.delete_keys(
+        count = await self.mounts_store.delete_keys(
             bucket=bucket,
             keys=unique_keys,
         )

@@ -512,6 +512,7 @@ posthog:
 #   secretKey:
 #   region:
 #   bucket:
+#   namespace:  # optional key prefix to share one bucket across ephemeral envs; unset for a dedicated bucket
 #   signingKey:
 #   jwtIssuer:
 #   jwtPrivateKey:

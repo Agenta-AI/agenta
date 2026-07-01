@@ -865,6 +865,7 @@ class StoreConfig(BaseModel):
     secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
     region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
     bucket: str | None = os.getenv("AGENTA_STORE_BUCKET") or "agenta-store"
+    namespace: str | None = os.getenv("AGENTA_STORE_NAMESPACE") or None
 
     # AssumeRoleWithWebIdentity issuer (SeaweedFS only): the in-network API URL the store's OIDC
     # IAM uses to fetch our JWKS, and the RSA key signing the web-identity token. The key falls

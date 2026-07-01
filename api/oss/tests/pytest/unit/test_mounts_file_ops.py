@@ -123,7 +123,7 @@ def _make_mount() -> Mount:
 def _make_service(mount: Mount) -> Tuple[MountsService, UUID, UUID]:
     service = MountsService(
         mounts_dao=_StubDAO(mount),
-        mount_storage=FakeMountStorage(),
+        mounts_store=FakeMountStorage(),
         bucket=_BUCKET,
     )
     return service, mount.project_id, mount.id
@@ -169,7 +169,7 @@ class TestMountFileOpsRoundtrip:
         await service.write_file(
             project_id=pid, mount_id=mid, path="notes.txt", content=b"x"
         )
-        stored_keys = list(service.mount_storage._store[_BUCKET].keys())
+        stored_keys = list(service.mounts_store._store[_BUCKET].keys())
         # Key is derived from identity: mounts/<project_id>/<mount_id>/<path>.
         assert stored_keys == [f"mounts/{pid}/{mid}/notes.txt"]
 
