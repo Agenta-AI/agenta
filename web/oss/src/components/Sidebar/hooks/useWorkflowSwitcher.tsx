@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {
     nonArchivedAppWorkflowsAtom,
     nonArchivedEvaluatorsAtom,
-    nonHumanEvaluatorsAtom,
+    llmEvaluatorsAtom,
     type Workflow,
 } from "@agenta/entities/workflow"
 import type {MenuProps} from "antd"
@@ -36,15 +36,13 @@ export const useWorkflowSwitcher = () => {
     const context = useAtomValue(currentWorkflowContextAtom)
     const apps = useAtomValue(nonArchivedAppWorkflowsAtom) as readonly Workflow[]
     const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
-    const automaticEvaluators = useAtomValue(nonHumanEvaluatorsAtom) as readonly Workflow[]
+    const llmEvaluators = useAtomValue(llmEvaluatorsAtom) as readonly Workflow[]
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
     const [open, setOpen] = useState(false)
 
-    const switcherEvaluators = EVALUATOR_FULL_PAGE_NAV_ENABLED
-        ? automaticEvaluators
-        : EMPTY_WORKFLOWS
+    const switcherEvaluators = EVALUATOR_FULL_PAGE_NAV_ENABLED ? llmEvaluators : EMPTY_WORKFLOWS
 
     const workflow = useMemo<Workflow | null>(
         () =>

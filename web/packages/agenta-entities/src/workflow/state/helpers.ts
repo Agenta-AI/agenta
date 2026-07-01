@@ -271,3 +271,20 @@ export function deriveWorkflowTypeFromRevision(
 
     return "completion"
 }
+
+/**
+ * Keep evaluator artifacts whose latest revision resolves to the LLM family.
+ *
+ * The artifact list does not carry evaluator-family flags, so classification
+ * must use the latest revision. `deriveWorkflowTypeFromRevision` also preserves
+ * support for legacy LLM evaluator keys created before `is_llm` was populated.
+ */
+export function filterLlmEvaluatorWorkflows(
+    workflows: Workflow[],
+    latestRevisions: ReadonlyMap<string, Workflow>,
+): Workflow[] {
+    return workflows.filter((workflow) => {
+        const revision = latestRevisions.get(workflow.id)
+        return deriveWorkflowTypeFromRevision(revision, {isEvaluator: true}) === "llm"
+    })
+}

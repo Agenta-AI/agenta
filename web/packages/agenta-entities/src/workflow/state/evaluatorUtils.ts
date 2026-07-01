@@ -33,7 +33,7 @@ import {
 } from "../core"
 
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
-import {buildServiceUrlFromUri} from "./helpers"
+import {buildServiceUrlFromUri, filterLlmEvaluatorWorkflows} from "./helpers"
 import {
     workflowProjectIdAtom,
     workflowLocalServerDataAtomFamily,
@@ -110,6 +110,26 @@ export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
     const query = get(evaluatorsListQueryAtom)
     const refs = query.data?.refs ?? []
     return refs.filter((ref) => !ref.deleted_at) as Workflow[]
+})
+
+/**
+ * Non-archived LLM-based evaluators.
+ *
+ * Evaluator-family flags live on latest revisions rather than the artifact
+ * list, so revisions are resolved through the shared batched query atoms.
+ * Unresolved evaluators are held back until they can be classified.
+ */
+export const llmEvaluatorsAtom = atom<Workflow[]>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    const latestRevisions = new Map<string, Workflow>()
+
+    evaluators.forEach((evaluator) => {
+        if (!evaluator.id) return
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+        if (revision) latestRevisions.set(evaluator.id, revision)
+    })
+
+    return filterLlmEvaluatorWorkflows(evaluators, latestRevisions)
 })
 
 /**
