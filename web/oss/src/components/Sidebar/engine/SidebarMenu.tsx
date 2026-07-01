@@ -134,7 +134,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                 tabIndex={isInlineMode ? 0 : -1}
                                 aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.title}`}
                                 className={clsx(
-                                    "flex self-stretch w-8 shrink-0 items-center justify-center rounded text-gray-400 transition-colors",
+                                    "flex h-[22px] w-7 mr-1 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors",
                                     isInlineMode
                                         ? "hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-white/10"
                                         : "pointer-events-none",
@@ -289,6 +289,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 "!bg-transparent [&_.ant-menu-sub]:!bg-transparent",
                 "[&_.ant-menu-item]:flex [&_.ant-menu-item]:items-center",
                 "[&_.ant-menu-submenu-title]:flex [&_.ant-menu-submenu-title]:items-center",
+                "[&_.ant-menu-item]:!rounded-md [&_.ant-menu-submenu-title]:!rounded-md",
                 "[&_.ant-menu-item-icon]:!shrink-0",
                 "!border-0 [&_.ant-menu-item-divider]:!w-full [&_.ant-menu-item-divider]:!my-2",
                 {

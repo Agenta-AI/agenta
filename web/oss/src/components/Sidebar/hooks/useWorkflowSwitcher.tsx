@@ -22,8 +22,18 @@ import WorkflowIdentity from "../components/WorkflowIdentity"
 
 const EMPTY_WORKFLOWS: readonly Workflow[] = []
 
+const getWorkflowActivityTime = (workflow: Workflow) => {
+    const timestamp = workflow.updated_at ?? workflow.created_at
+    if (!timestamp) return 0
+
+    const parsedTimestamp = Date.parse(timestamp)
+    return Number.isNaN(parsedTimestamp) ? 0 : parsedTimestamp
+}
+
 export const WORKFLOW_SWITCHER_MENU_CLASS = clsx(
-    "max-h-80 overflow-y-auto !pt-0",
+    "max-h-80 overflow-y-auto !pb-2 !px-2",
+    "[&_.ant-dropdown-menu-item-group-list]:!m-0",
+    "[&_.ant-dropdown-menu-item]:!px-2",
     "[&_.ant-dropdown-menu-item-group-title]:sticky",
     "[&_.ant-dropdown-menu-item-group-title]:top-0",
     "[&_.ant-dropdown-menu-item-group-title]:z-10",
@@ -79,9 +89,14 @@ export const useWorkflowSwitcher = () => {
             }
         }
         const children = [
-            ...apps.map((entity) => toMenuItem(entity, false)),
-            ...switcherEvaluators.map((entity) => toMenuItem(entity, true)),
+            ...apps.map((entity) => ({entity, isEvaluator: false})),
+            ...switcherEvaluators.map((entity) => ({entity, isEvaluator: true})),
         ]
+            .sort(
+                (left, right) =>
+                    getWorkflowActivityTime(right.entity) - getWorkflowActivityTime(left.entity),
+            )
+            .map(({entity, isEvaluator}) => toMenuItem(entity, isEvaluator))
 
         return children.length
             ? [{key: "workflows-header", type: "group", label: "", children}]
