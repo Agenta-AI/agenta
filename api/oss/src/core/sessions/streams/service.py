@@ -47,7 +47,6 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamEdit,
     SessionStreamFlags,
     SessionStreamQuery,
-    SessionStreamStatus,
 )
 from oss.src.core.sessions.streams.types import (
     ConcurrencyCapExceeded,
@@ -275,12 +274,6 @@ class SessionStreamsService:
             session_id=request.session_id,
         )
 
-        status = request.status or (
-            SessionStreamStatus.running
-            if request.is_running
-            else SessionStreamStatus.idle
-        )
-
         if stream is None:
             stream = await self._dao.create(
                 project_id=project_id,
@@ -289,7 +282,6 @@ class SessionStreamsService:
                     session_id=request.session_id,
                     flags=flags,
                     turn_id=request.turn_id,
-                    status=status,
                 ),
             )
         else:
@@ -297,9 +289,7 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=None,
                 session_id=request.session_id,
-                stream=SessionStreamEdit(
-                    flags=flags, turn_id=request.turn_id, status=status
-                ),
+                stream=SessionStreamEdit(flags=flags, turn_id=request.turn_id),
             )
         return stream
 
@@ -363,7 +353,6 @@ class SessionStreamsService:
         await acquire_running(self._lock, session_id=session_id, turn_id=turn_id)
 
         flags = SessionStreamFlags(is_alive=True, is_running=True, is_attached=False)
-        status = SessionStreamStatus.running
         stream = await self._dao.get_by_session_id(
             project_id=project_id,
             session_id=session_id,
@@ -376,7 +365,6 @@ class SessionStreamsService:
                     session_id=session_id,
                     flags=flags,
                     turn_id=turn_id,
-                    status=status,
                 ),
             )
         else:
@@ -384,7 +372,7 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
-                stream=SessionStreamEdit(flags=flags, turn_id=turn_id, status=status),
+                stream=SessionStreamEdit(flags=flags, turn_id=turn_id),
             )
         return turn_id
 
@@ -425,6 +413,5 @@ class SessionStreamsService:
                 flags=SessionStreamFlags(
                     is_alive=False, is_running=False, is_attached=False
                 ),
-                status=SessionStreamStatus.ended,
             ),
         )

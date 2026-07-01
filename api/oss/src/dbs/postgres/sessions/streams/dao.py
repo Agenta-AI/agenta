@@ -9,7 +9,6 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamQuery,
-    SessionStreamStatus,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 
@@ -162,14 +161,14 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
         *,
         project_id: Optional[UUID] = None,
     ) -> int:
-        """Count streams whose status is 'running' (for concurrency cap check)."""
+        """Count running streams (for concurrency cap check)."""
         async with self.engine.session() as session:
             stmt = (
                 select(func.count())
                 .select_from(SessionStreamDBE)
                 .where(
                     SessionStreamDBE.deleted_at.is_(None),
-                    SessionStreamDBE.status == SessionStreamStatus.running.value,
+                    SessionStreamDBE.flags.contains({"is_running": True}),
                 )
             )
             if project_id is not None:

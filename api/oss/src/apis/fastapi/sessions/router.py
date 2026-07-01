@@ -361,7 +361,6 @@ class SessionStreamsRouter:
                 replica_id=payload.replica_id,
                 turn_id=payload.turn_id,
                 is_running=payload.is_running,
-                status=payload.status,
             ),
         )
         return SessionStreamResponseModel(stream=stream)

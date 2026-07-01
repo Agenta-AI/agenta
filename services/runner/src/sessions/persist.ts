@@ -23,7 +23,7 @@ const INGEST_MAX_RETRIES = 3;
 const INGEST_RETRY_BASE_MS = 100;
 
 function apiBase(): string {
-  return process.env.AGENTA_API_URL ?? "http://localhost:8000";
+  return process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
 }
 
 function log(msg: string): void {

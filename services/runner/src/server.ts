@@ -142,7 +142,7 @@ async function persistSandboxId(
   sandboxId: string,
   authorization: string,
 ): Promise<void> {
-  const base = process.env.AGENTA_API_URL ?? "http://localhost:8000";
+  const base = process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
   try {
     const res = await fetch(
       `${base}/sessions/states/?session_id=${encodeURIComponent(sessionId)}`,

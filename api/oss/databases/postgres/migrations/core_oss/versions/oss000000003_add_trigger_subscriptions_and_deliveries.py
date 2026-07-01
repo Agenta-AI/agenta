@@ -153,13 +153,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        "ix_trigger_schedules_active",
+        "ix_trigger_schedules_flags",
         "trigger_schedules",
-        ["project_id"],
-        unique=False,
-        postgresql_where=sa.text(
-            "(flags ->> 'is_active') = 'true' AND deleted_at IS NULL"
-        ),
+        ["flags"],
+        postgresql_using="gin",
     )
 
     # -- TRIGGER DELIVERIES -----------------------------------------------------
@@ -268,7 +265,7 @@ def downgrade() -> None:
     op.drop_table("trigger_deliveries")
 
     op.drop_index(
-        "ix_trigger_schedules_active",
+        "ix_trigger_schedules_flags",
         table_name="trigger_schedules",
     )
     op.drop_index(

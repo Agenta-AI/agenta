@@ -75,11 +75,9 @@ class TriggerScheduleDBE(Base, TriggerScheduleDBA):
             "deleted_at",
         ),
         Index(
-            "ix_trigger_schedules_active",
-            "project_id",
-            postgresql_where=text(
-                "(flags ->> 'is_active') = 'true' AND deleted_at IS NULL"
-            ),
+            "ix_trigger_schedules_flags",
+            "flags",
+            postgresql_using="gin",
         ),
     )
 
