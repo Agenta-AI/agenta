@@ -26,7 +26,7 @@ import {Switch, Tag, Tooltip, Typography} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {asObj, staticEmbedSlug, type ItemDescriptor} from "./itemDescriptors"
-import {ItemAvatar} from "./ItemRow"
+import {ItemRow} from "./ItemRow"
 
 /** Display name for an `@ag.embed` row: the overlay's sibling `name`, else the referenced
  * workflow's `name`, else undefined (callers fall back to the slug). */
@@ -35,33 +35,6 @@ function embedDisplayName(entry: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(entry["@ag.embed"])?.["@ag.references"])
     const wfName = asObj(refs?.workflow)?.name ?? asObj(refs?.workflow_revision)?.name
     return typeof wfName === "string" && wfName ? wfName : undefined
-}
-
-function ReadOnlyItemRow({descriptor}: {descriptor: ItemDescriptor}) {
-    return (
-        <div className="flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 opacity-70">
-            <ItemAvatar descriptor={descriptor} />
-            <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-xs font-medium">{descriptor.name}</div>
-                {descriptor.description ? (
-                    <Typography.Text
-                        type="secondary"
-                        className="block truncate text-xs leading-tight"
-                    >
-                        {descriptor.description}
-                    </Typography.Text>
-                ) : null}
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-                {descriptor.tags.map((tag) => (
-                    <Tag key={tag} className="m-0 text-[11px]">
-                        {tag}
-                    </Tag>
-                ))}
-                <Tag className="m-0 text-[11px]">Locked</Tag>
-            </div>
-        </div>
-    )
 }
 
 function isEmbedRefEntry(entry: unknown): entry is Record<string, unknown> {
@@ -190,7 +163,7 @@ export function useBuildKit({
     )
 
     const buildKitSection = hasBuildKitOverlay ? (
-        <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-[#fcfcfa]">
+        <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
             <button
                 type="button"
                 aria-expanded={buildKitExpanded}
@@ -237,9 +210,10 @@ export function useBuildKit({
                                 Platform tools
                             </Typography.Text>
                             {platformOverlayTools.map((tool, index) => (
-                                <ReadOnlyItemRow
+                                <ItemRow
                                     key={`build-kit-platform-tool-${index}`}
                                     descriptor={describeBuildKitPlatformTool(tool)}
+                                    locked
                                 />
                             ))}
                         </div>
@@ -250,9 +224,10 @@ export function useBuildKit({
                                 Embedded tools
                             </Typography.Text>
                             {embeddedOverlayTools.map((tool, index) => (
-                                <ReadOnlyItemRow
+                                <ItemRow
                                     key={`build-kit-embedded-tool-${index}`}
                                     descriptor={describeBuildKitEmbed(tool, "tool")}
+                                    locked
                                 />
                             ))}
                         </div>
@@ -263,9 +238,10 @@ export function useBuildKit({
                                 Embedded skills
                             </Typography.Text>
                             {embeddedOverlaySkills.map((skill, index) => (
-                                <ReadOnlyItemRow
+                                <ItemRow
                                     key={`build-kit-embedded-skill-${index}`}
                                     descriptor={describeBuildKitEmbed(skill, "skill")}
+                                    locked
                                 />
                             ))}
                         </div>
