@@ -15,8 +15,9 @@ def _make_interaction(*, with_refs=True):
         SessionInteraction,
         SessionInteractionData,
         SessionInteractionKind,
+        SessionInteractionStatus,
     )
-    from oss.src.core.shared.dtos import Reference, Status
+    from oss.src.core.shared.dtos import Reference
 
     refs = {"workflow": Reference(slug="wf-1")} if with_refs else None
     return SessionInteraction(
@@ -25,7 +26,7 @@ def _make_interaction(*, with_refs=True):
         session_id="sess-test-1",
         token="tok-abc",
         kind=SessionInteractionKind.user_input,
-        status=Status(code="pending", message="pending"),
+        status=SessionInteractionStatus.pending,
         data=SessionInteractionData(references=refs, selector=None),
     )
 
