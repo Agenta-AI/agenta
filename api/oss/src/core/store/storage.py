@@ -1,13 +1,15 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from hashlib import sha256
 from io import BytesIO
 from json import dumps
 from typing import List, Optional, Tuple
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urlparse, urlsplit
 from xml.etree import ElementTree
 
 import aiohttp
 from miniopy_async import Minio
 from miniopy_async.credentials import Credentials
+from miniopy_async.signer import sign_v4_sts
 from miniopy_async.deleteobjects import DeleteObject
 from miniopy_async.error import S3Error
 
@@ -64,11 +66,15 @@ class ObjectStore:
         access_key: Optional[str],
         secret_key: Optional[str],
         region: str = "us-east-1",
+        sts_endpoint_url: Optional[str] = None,
+        signing_key: Optional[str] = None,
     ):
         self._endpoint_url = endpoint_url
         self._access_key = access_key
         self._secret_key = secret_key
         self._region = region
+        self._sts_endpoint_url = sts_endpoint_url
+        self._signing_key = signing_key
 
     @property
     def enabled(self) -> bool:
@@ -82,16 +88,19 @@ class ObjectStore:
     def region(self) -> str:
         return self._region
 
+    @property
+    def is_seaweedfs(self) -> bool:
+        # The bundled SeaweedFS store is the only backend that signs credentials through its
+        # OIDC IAM (AssumeRoleWithWebIdentity), which requires a SIGNING_KEY. A remote
+        # S3-compatible store (AWS, MinIO) has none and uses GetFederationToken instead.
+        return bool(self._signing_key)
+
     def _host_secure(self) -> Tuple[str, bool]:
-        # miniopy-async wants a scheme-less host:port plus a `secure` flag; an empty
-        # endpoint_url means real AWS S3 (the SDK default host, always TLS).
-        if self._endpoint_url:
-            parsed = urlparse(self._endpoint_url)
-            host = parsed.netloc or parsed.path
-            secure = parsed.scheme != "http"
-        else:
-            host = "s3.amazonaws.com"
-            secure = True
+        # miniopy-async wants a scheme-less host:port plus a `secure` flag. The endpoint is
+        # always explicit (SeaweedFS defaults it in env; a remote store must set it).
+        parsed = urlparse(self._endpoint_url or "")
+        host = parsed.netloc or parsed.path
+        secure = parsed.scheme != "http"
         return host, secure
 
     def _client(self) -> Minio:
@@ -123,8 +132,11 @@ class ObjectStore:
         """Inline STS session policy scoping credentials to one mount prefix.
 
         Three statements, and the split matters:
-          - ObjRW: object verbs on `<bucket>/<prefix>/*`. Includes the multipart verbs —
-            FUSE/geesefs uploads multipart, so omitting them denies large writes.
+          - ObjRW: object verbs on `<bucket>/<prefix>/*`. `s3:PutObject` authorizes the whole
+            multipart upload flow (CreateMultipartUpload / UploadPart / CompleteMultipartUpload
+            are S3 API calls, NOT distinct IAM actions — geesefs uploads multipart, but those
+            names are invalid in an AWS policy and would be rejected). Only Abort and
+            ListMultipartUploadParts exist as their own actions.
           - BktMeta: GetBucketLocation + ListBucketMultipartUploads, UNCONDITIONED. These
             are bucket-level preflights (the S3 client issues GetBucketLocation on first use);
             they carry no `s3:prefix`, so gating them on one denies the preflight and aborts
@@ -147,10 +159,6 @@ class ObjectStore:
                             "s3:PutObject",
                             "s3:DeleteObject",
                             "s3:GetObjectAttributes",
-                            "s3:CreateMultipartUpload",
-                            "s3:UploadPart",
-                            "s3:UploadPartCopy",
-                            "s3:CompleteMultipartUpload",
                             "s3:AbortMultipartUpload",
                             "s3:ListMultipartUploadParts",
                         ],
@@ -185,18 +193,21 @@ class ObjectStore:
     ) -> Credentials:
         """STS-sign short-lived credentials scoped to `<bucket>/<prefix>/*`.
 
-        Calls `AssumeRoleWithWebIdentity` on the store's STS endpoint with a short-lived
-        RS256 web-identity token the API mints and self-signs (the store's OIDC IAM fetches
-        our public JWKS to verify it — see core/store/webidentity.py). This is the only STS
-        path SeaweedFS's OIDC IAM authorizes; `GetFederationToken` yields actionless tokens.
+        Both backends narrow a bucket-wide identity to one mount prefix with the SAME inline
+        session `Policy` (see `_scope_policy`); only the STS verb differs, because the two
+        stores authorize different ones (backend chosen by SIGNING_KEY presence, see
+        `is_seaweedfs`):
 
-        The role grants the whole bucket; the inline session `Policy` narrows the credentials
-        to this one mount prefix (effective permission = role ∩ session). One shared bucket,
-        per-mount prefix isolation — identical on SeaweedFS and real S3.
+        - SeaweedFS: the API presents a self-minted RS256 web-identity token to the store's
+          OIDC IAM via `AssumeRoleWithWebIdentity` (see core/store/webidentity.py).
+          `GetFederationToken` is unusable there — SeaweedFS returns actionless tokens.
+        - Remote S3-compatible (AWS, MinIO): the API holds S3 credentials, so it calls
+          `GetFederationToken` — SigV4-signed with those keys — against the store's STS
+          endpoint (the S3 endpoint by default; AWS splits it onto `sts.<region>.*`).
 
-        Isolation rests ENTIRELY on that session policy being present: the role is bucket-wide,
-        so a token signed without the inline policy inherits the whole bucket (every tenant's
-        mount). Fail closed — refuse to sign when the policy cannot be built for a prefix.
+        Isolation rests ENTIRELY on the session policy being present: the identity is
+        bucket-wide, so a credential signed without the inline policy inherits the whole bucket
+        (every tenant's mount). Fail closed — refuse to sign when no prefix-scoped policy exists.
         """
         if not self.enabled:
             raise MountStorageUnavailable()
@@ -207,6 +218,14 @@ class ObjectStore:
                 "Refusing to sign store credentials without a prefix-scoped session policy."
             )
 
+        if self.is_seaweedfs:
+            return await self._sign_web_identity(scope_policy, duration_seconds)
+        return await self._sign_federation_token(scope_policy, duration_seconds)
+
+    async def _sign_web_identity(
+        self, scope_policy: str, duration_seconds: int
+    ) -> Credentials:
+        """SeaweedFS path: unauthenticated `AssumeRoleWithWebIdentity` against the store endpoint."""
         host, secure = self._host_secure()
         endpoint = f"{'https' if secure else 'http'}://{host}"
         body = urlencode(
@@ -231,6 +250,63 @@ class ObjectStore:
                 if resp.status != 200:
                     raise MountStorageUnavailable(
                         f"STS AssumeRoleWithWebIdentity failed ({resp.status})."
+                    )
+
+        return _parse_sts_credentials(text)
+
+    async def _sign_federation_token(
+        self, scope_policy: str, duration_seconds: int
+    ) -> Credentials:
+        """Remote-S3 path: SigV4-signed `GetFederationToken` against the store's STS endpoint.
+
+        The STS endpoint defaults to the S3 endpoint (MinIO co-locates STS there); AWS splits
+        it onto `sts.<region>.amazonaws.com`, set via AGENTA_STORE_STS_ENDPOINT_URL. Duration is
+        clamped to STS's 900s floor. The request is signed with the store's master keys; the
+        returned credentials carry only the inline `Policy`'s permissions.
+        """
+        endpoint = (self._sts_endpoint_url or self._endpoint_url or "").rstrip("/")
+        if not endpoint:
+            raise MountStorageUnavailable(
+                "Refusing to sign: no STS or S3 endpoint configured for the remote store."
+            )
+        body = urlencode(
+            {
+                "Action": "GetFederationToken",
+                "Version": "2011-06-15",
+                "Name": webidentity.STORE_SUBJECT,
+                "DurationSeconds": str(max(duration_seconds, 900)),
+                "Policy": scope_policy,
+            }
+        )
+        payload = body.encode()
+        content_sha256 = sha256(payload).hexdigest()
+        url = urlsplit(endpoint + "/")
+        now = datetime.now(timezone.utc)
+        headers = sign_v4_sts(
+            "POST",
+            url,
+            self._region,
+            {
+                "Host": url.netloc,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-Amz-Date": now.strftime("%Y%m%dT%H%M%SZ"),
+            },
+            Credentials(
+                access_key=self._access_key,
+                secret_key=self._secret_key,
+            ),
+            content_sha256,
+            now,
+        )
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                endpoint + "/", data=payload, headers=headers
+            ) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    raise MountStorageUnavailable(
+                        f"STS GetFederationToken failed ({resp.status})."
                     )
 
         return _parse_sts_credentials(text)

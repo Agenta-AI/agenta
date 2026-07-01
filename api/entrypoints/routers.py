@@ -831,6 +831,8 @@ store = ObjectStore(
     access_key=env.store.access_key,
     secret_key=env.store.secret_key,
     region=env.store.region,
+    sts_endpoint_url=env.store.sts_endpoint_url,
+    signing_key=env.store.signing_key,
 )
 
 mounts_service = MountsService(
