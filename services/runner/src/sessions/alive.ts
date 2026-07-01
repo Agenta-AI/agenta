@@ -73,7 +73,6 @@ async function sendHeartbeat(
         replica_id: REPLICA_ID,
         turn_id: turnId,
         is_running: isRunning,
-        ...(isRunning ? {} : { status: "ended" }),
       }),
     });
     if (!res.ok) {

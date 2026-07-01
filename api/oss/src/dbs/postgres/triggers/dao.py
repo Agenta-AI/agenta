@@ -597,7 +597,7 @@ class TriggersDAO(TriggersDAOInterface):
     ) -> List[TriggerSchedule]:
         async with self.engine.session() as session:
             stmt = select(TriggerScheduleDBE).where(
-                TriggerScheduleDBE.flags["is_active"].astext == "true",
+                TriggerScheduleDBE.flags.contains({"is_active": True}),
                 TriggerScheduleDBE.deleted_at.is_(None),
             )
 
@@ -620,7 +620,7 @@ class TriggersDAO(TriggersDAOInterface):
     ) -> List[Tuple[UUID, TriggerSchedule]]:
         async with self.engine.session() as session:
             stmt = select(TriggerScheduleDBE).where(
-                TriggerScheduleDBE.flags["is_active"].astext == "true",
+                TriggerScheduleDBE.flags.contains({"is_active": True}),
                 TriggerScheduleDBE.deleted_at.is_(None),
             )
 

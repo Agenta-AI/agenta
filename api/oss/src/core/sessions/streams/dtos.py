@@ -6,13 +6,6 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
-class SessionStreamStatus(str, Enum):
-    running = "running"
-    detached = "detached"
-    idle = "idle"
-    ended = "ended"
-
-
 class SessionStreamFlags(BaseModel):
     """The nest as primitive bools (alive ⊇ running ⊇ attached).
 
@@ -47,7 +40,6 @@ class SessionStream(BaseModel):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
-    status: Optional[SessionStreamStatus] = None
 
 
 class SessionStreamCreate(BaseModel):
@@ -56,7 +48,6 @@ class SessionStreamCreate(BaseModel):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
-    status: Optional[SessionStreamStatus] = None
 
 
 class SessionStreamEdit(BaseModel):
@@ -64,7 +55,6 @@ class SessionStreamEdit(BaseModel):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
-    status: Optional[SessionStreamStatus] = None
 
 
 class SessionStreamQuery(BaseModel):
@@ -106,7 +96,6 @@ class SessionHeartbeatRequest(BaseModel):
     replica_id: str  # the runner CONTAINER (affinity / owner key)
     turn_id: Optional[str] = None  # the current TURN (proves alive-lock ownership)
     is_running: bool = True
-    status: Optional[SessionStreamStatus] = None
 
 
 class SessionLiveness(BaseModel):

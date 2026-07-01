@@ -5,7 +5,6 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     String,
     UniqueConstraint,
-    VARCHAR,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
@@ -46,9 +45,6 @@ class SessionStreamDBE(
     # alive/running lock value. Null when idle/ended. Not a pk — a token-like correlator.
     turn_id = Column(String, nullable=True)
 
-    # FSM as a root enum column (SessionStreamStatus).
-    status = Column(VARCHAR, nullable=True)
-
     __table_args__ = (
         ForeignKeyConstraint(
             ["project_id"],
@@ -70,5 +66,10 @@ class SessionStreamDBE(
             "ix_session_streams_project_id_session_id",
             "project_id",
             "session_id",
+        ),
+        Index(
+            "ix_session_streams_flags",
+            "flags",
+            postgresql_using="gin",
         ),
     )

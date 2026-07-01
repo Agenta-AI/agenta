@@ -40,7 +40,6 @@ def upgrade() -> None:
             postgresql.JSON(none_as_null=True),
             nullable=True,
         ),
-        sa.Column("status", sa.VARCHAR(), nullable=True),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -74,9 +73,19 @@ def upgrade() -> None:
         "session_streams",
         ["project_id", "session_id"],
     )
+    op.create_index(
+        "ix_session_streams_flags",
+        "session_streams",
+        ["flags"],
+        postgresql_using="gin",
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_session_streams_flags",
+        table_name="session_streams",
+    )
     op.drop_index(
         "ix_session_streams_project_id_session_id",
         table_name="session_streams",
