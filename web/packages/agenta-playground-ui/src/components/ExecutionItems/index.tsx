@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useMemo, useRef} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionController} from "@agenta/playground"
@@ -51,6 +51,33 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({
     // Agent surface is injected from OSS (package can't import the app layer).
     const AgentGenerationPanel = usePlaygroundUIOptional()?.AgentGenerationPanel
     const isExecutionLoading = runnableQuery.isPending || isChat === undefined
+
+    // Latch the agent surface so a revision switch never unmounts the live chat conversation.
+    // A switch (self-commit or the config-header picker) points `entityId` at a new revision whose
+    // flags load a beat later — `isAgent` flips false and the query goes pending, which would drop
+    // this panel to the skeleton and tear down the agent chat (aborting the live stream, losing the
+    // in-progress turn). Once an agent, we keep rendering the agent panel across that load gap so
+    // the switch is just an `entityId` prop update; we only release the latch when the entity has
+    // loaded as a definitively non-agent workflow. (Paired with the stable key in MainLayout, which
+    // keeps THIS component mounted so the latch survives the switch.)
+    const agentSurfaceRef = useRef(false)
+    if (isAgent) {
+        agentSurfaceRef.current = true
+    } else if (!runnableQuery.isPending) {
+        agentSurfaceRef.current = false
+    }
+    if (agentSurfaceRef.current && AgentGenerationPanel) {
+        // No ExecutionHeader: it self-nulls for agents (`if (isAgent) return null`), but during the
+        // switch load gap `isAgent` is momentarily false, so rendering it would flash the non-agent
+        // header + register the run-all shortcut over the agent chat. Agents own their composer.
+        return (
+            <div className="flex h-full min-h-0 w-full flex-col">
+                <div className="min-h-0 flex-1">
+                    <AgentGenerationPanel entityId={entityId} />
+                </div>
+            </div>
+        )
+    }
 
     if (isExecutionLoading) {
         return (

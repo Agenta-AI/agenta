@@ -1,5 +1,6 @@
-import {memo, useCallback, useRef, type ReactNode} from "react"
+import {memo, useCallback, useMemo, useRef, type ReactNode} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui"
 import {
     executionController,
@@ -127,6 +128,33 @@ const PlaygroundMainView = ({
 
     // Which entity IDs to render config panels for
     const configEntityIds = configEntityIdsOverride ?? layoutEntityIds
+
+    // ── Agent generation host: keep a stable key across revision switches ──
+    // The agent chat surface lives inside the generation panel below. Keying that panel by the
+    // revision id (`variantId`) tears the whole conversation down on every revision switch —
+    // whether the agent self-commits a new revision or the user picks one in the config header —
+    // which aborts the live stream ("connection lost") and drops the still-streaming turn
+    // (persistence is skipped mid-stream). Agents are single-entity (excluded from comparison),
+    // so we give the single-agent generation panel a stable key; a switch then flows through as an
+    // `entityId` prop update, not a remount, and the conversation (app/session-scoped) survives.
+    // A freshly committed revision's flags load a beat after the swap (workflowType falls back to
+    // "completion" until then), so we LATCH the agent host across that gap and only drop it once
+    // the single entity has loaded as a definitively non-agent workflow.
+    const singleEntityId =
+        !isComparisonView && layoutEntityIds.length === 1 ? layoutEntityIds[0]! : ""
+    const isSingleAgentEntity = useAtomValue(isAgentModeAtomFamily(singleEntityId))
+    const singleEntityQuery = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(singleEntityId), [singleEntityId]),
+    )
+    const agentHostRef = useRef(false)
+    if (!singleEntityId) {
+        agentHostRef.current = false
+    } else if (isSingleAgentEntity) {
+        agentHostRef.current = true
+    } else if (!singleEntityQuery.isPending) {
+        agentHostRef.current = false
+    }
+    const renderAgentGenerationHost = agentHostRef.current
 
     // The agent config panel is a compact read-only summary (editing happens in section drawers), so
     // it stays narrow (550px) instead of the prompt config's 50/50 split. The default is a fixed px
@@ -336,8 +364,22 @@ const PlaygroundMainView = ({
                             ) : isComparisonView && hasDisplayedEntities ? (
                                 <GenerationComparisonRenderer />
                             ) : (
-                                layoutEntityIds.map((variantId) =>
-                                    displayedEntities.includes(variantId) || isEvaluatorMode ? (
+                                layoutEntityIds.map((variantId) => {
+                                    // Single-agent view: a stable key so a revision switch updates
+                                    // the entityId prop instead of remounting the live conversation.
+                                    // Rendered unconditionally (not gated on `displayedEntities`) so
+                                    // it can't blink to the placeholder during the atomic id swap.
+                                    if (renderAgentGenerationHost) {
+                                        return (
+                                            <ExecutionItems
+                                                key="agent-generation-host"
+                                                entityId={variantId}
+                                                renderTestsetActions={renderTestsetActions}
+                                            />
+                                        )
+                                    }
+                                    return displayedEntities.includes(variantId) ||
+                                        isEvaluatorMode ? (
                                         <ExecutionItems
                                             key={variantId}
                                             entityId={variantId}
@@ -347,8 +389,8 @@ const PlaygroundMainView = ({
                                         <GenerationPanelPlaceholder
                                             key={`generation-placeholder-${variantId}`}
                                         />
-                                    ),
-                                )
+                                    )
+                                })
                             )}
                         </section>
                     </SplitterPanel>
