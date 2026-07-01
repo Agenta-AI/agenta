@@ -4,8 +4,10 @@ import warnings
 from functools import wraps
 from inspect import (
     getfullargspec,
+    isasyncgen,
     isasyncgenfunction,
     iscoroutinefunction,
+    isgenerator,
     isgeneratorfunction,
 )
 from itertools import chain
@@ -23,6 +25,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from opentelemetry import context as otel_context
 from opentelemetry.baggage import get_all, set_baggage
 from opentelemetry.context import attach, detach, get_current
+from opentelemetry.trace import use_span
 from pydantic import BaseModel
 
 log = get_module_logger(__name__)
@@ -225,26 +228,48 @@ class instrument:  # pylint: disable=invalid-name
 
                     token = self._attach_baggage()
 
+                    # Captured AFTER baggage attach so a returned-generator hand-off can
+                    # re-attach the SAME otel context when the wrapper is iterated in a
+                    # different task (context vars are per-task; this is what keeps the
+                    # span current — and correctly parented — during consumption).
+                    captured_ctx = otel_context.get_current()
+
                     ctx = self._get_traceparent()
 
+                    # start_span (NOT start_as_current_span): create the span WITHOUT
+                    # activating it in this task's context, so nothing leaks if we hand it
+                    # off. `use_span` activates it exactly where it should be current.
+                    span = ag.tracer.start_span(
+                        name=handler.__name__, kind=self.kind, context=ctx
+                    )
+                    handed_off = False
                     try:
-                        with ag.tracer.start_as_current_span(
-                            name=handler.__name__,
-                            kind=self.kind,
-                            context=ctx,
-                        ) as span:
+                        with use_span(
+                            span,
+                            end_on_exit=False,
+                            record_exception=True,
+                            set_status_on_exception=True,
+                        ):
                             self._set_link(span)
-
                             self._pre_instrument(span, handler, *args, **kwargs)
-
                             result = await handler(*args, **kwargs)
 
+                            # A coroutine that RETURNS a generator is a stream, not a
+                            # batch. Hand the (created, not-yet-ended) span to a wrapper
+                            # that keeps it current across consumption and records the
+                            # DRAINED content — not the generator object's repr.
+                            if isasyncgen(result) or isgenerator(result):
+                                handed_off = True
+                                return self._wrap_returned_gen(
+                                    result, span, captured_ctx, token
+                                )
+
                             self._post_instrument(span, result)
-
+                            return result
                     finally:
-                        self._detach_baggage(token)
-
-                    return result
+                        if not handed_off:
+                            span.end()
+                            self._detach_baggage(token)
 
             setattr(awrapper, "__has_instrument__", True)
             setattr(awrapper, "__original_handler__", handler)
@@ -261,26 +286,39 @@ class instrument:  # pylint: disable=invalid-name
 
                 token = self._attach_baggage()
 
+                captured_ctx = otel_context.get_current()
+
                 ctx = self._get_traceparent()
 
+                span = ag.tracer.start_span(
+                    name=handler.__name__, kind=self.kind, context=ctx
+                )
+                handed_off = False
                 try:
-                    with ag.tracer.start_as_current_span(
-                        name=handler.__name__,
-                        kind=self.kind,
-                        context=ctx,
-                    ) as span:
+                    with use_span(
+                        span,
+                        end_on_exit=False,
+                        record_exception=True,
+                        set_status_on_exception=True,
+                    ):
                         self._set_link(span)
-
                         self._pre_instrument(span, handler, *args, **kwargs)
-
                         result = handler(*args, **kwargs)
 
+                        # A sync def that RETURNS a generator is a stream, not a batch.
+                        # Hand the span to a wrapper that drains it and records content.
+                        if isasyncgen(result) or isgenerator(result):
+                            handed_off = True
+                            return self._wrap_returned_gen(
+                                result, span, captured_ctx, token
+                            )
+
                         self._post_instrument(span, result)
-
+                        return result
                 finally:
-                    self._detach_baggage(token)
-
-                return result
+                    if not handed_off:
+                        span.end()
+                        self._detach_baggage(token)
 
         setattr(wrapper, "__has_instrument__", True)
         setattr(wrapper, "__original_handler__", handler)
@@ -291,6 +329,67 @@ class instrument:  # pylint: disable=invalid-name
             self.type = "workflow"
 
         self.kind = parse_span_kind(self.type)
+
+    @staticmethod
+    def _join_stream(chunks: list):
+        """Collapse accumulated stream chunks the way the generator wrappers do:
+        all-str -> joined string, all-bytes -> joined bytes, else the list."""
+        if all(isinstance(r, str) for r in chunks):
+            return "".join(chunks)
+        if all(isinstance(r, bytes) for r in chunks):
+            return b"".join(chunks)
+        return chunks
+
+    def _wrap_returned_gen(self, gen, span, captured_ctx, baggage_token):
+        """Keep a batch-path span open across a RETURNED generator's consumption.
+
+        A `def`/`async def` that RETURNS a generator (rather than `yield`ing) is not a
+        generator function, so it lands in the batch wrapper — but its value is a stream.
+        Recording that value would stamp the generator OBJECT's repr as outputs and end the
+        span before the first item is consumed. Instead we take the (created, not-ended)
+        span and, inside this async generator, re-attach the captured otel context and
+        `use_span` it so the span is CURRENT during iteration — so nested spans created
+        mid-stream parent correctly, and it never leaks onto a sibling created after
+        invoke() returned. The span is ended (end_on_exit) and baggage detached in the
+        finally, after the drained content is recorded. Mirrors the yield-based
+        astream_wrapper contract; span currency lives in the consuming task, not the
+        (already-returned) batch wrapper's task.
+        """
+
+        async def wrapped():
+            otel_token = otel_context.attach(captured_ctx)
+            try:
+                with use_span(
+                    span,
+                    end_on_exit=True,
+                    record_exception=True,
+                    set_status_on_exception=True,
+                ):
+                    acc = []
+                    try:
+                        if isasyncgen(gen):
+                            async for chunk in gen:
+                                acc.append(chunk)
+                                yield chunk
+                        else:
+                            for chunk in gen:
+                                acc.append(chunk)
+                                yield chunk
+                    finally:
+                        self._post_instrument(span, self._join_stream(acc))
+            finally:
+                # Detach can run in a DIFFERENT context frame than the attach when the
+                # stream is closed abnormally — mid-stream raise, or the ASGI server
+                # calling aclose() from another task (StreamingResponse). OTel raises
+                # "Token created in a different Context" there. Guard it: the leaked
+                # activation dies with the task anyway, and crashing the teardown would
+                # mask the real error. (Thread/task-safety: span currency is per-task
+                # contextvar; this only cleans up THIS task's activation.)
+                with suppress():
+                    otel_context.detach(otel_token)
+                self._detach_baggage(baggage_token)
+
+        return wrapped()
 
     def _get_traceparent(self):
         context = TracingContext.get()
@@ -370,8 +469,13 @@ class instrument:  # pylint: disable=invalid-name
         self,
         token,
     ):
+        # detach can run in a different context frame than attach when a stream is
+        # closed abnormally (mid-stream raise, or ASGI aclose() from another task).
+        # OTel raises "Token created in a different Context" there; guard it so the
+        # teardown never masks the real error. The activation dies with the task.
         if token:
-            detach(token)
+            with suppress():
+                detach(token)
 
     def _pre_instrument(
         self,

@@ -319,3 +319,104 @@ def test_routed_agent_events_vercel_projection(routed):
     fetched = _poll_trace(resp.headers["x-ag-trace-id"])
     root = _root_span(fetched.trace)
     assert _ag(root).get("type", {}).get("node") == "workflow"
+
+
+# =========================================================================== #
+# RETURNED-GENERATOR shape (the agent's real `_agent` shape) against the LIVE
+# backend — the regression for the "<async_generator object ...>" trace bug.
+# `_agent` is an `async def` that RETURNS its event stream (no `yield`); these
+# tests prove the fetched trace records the DRAINED events, not the generator
+# object, once the run goes through OTLP -> worker -> traces API.
+# =========================================================================== #
+def _ret_gen_handler(is_async: bool):
+    """An async/sync def that RETURNS a generator, mirroring _agent's shape."""
+    if is_async:
+
+        async def _events():
+            yield {"type": "message_start", "data": {"id": "m"}}
+            yield {"type": "message_delta", "data": {"id": "m", "delta": "hi"}}
+            yield {"type": "done", "data": {}}
+
+        async def wf(value: str = "x"):
+            return _events()  # returns the generator; body has no `yield`
+
+    else:
+
+        def _events():
+            yield {"type": "message_start", "data": {"id": "m"}}
+            yield {"type": "done", "data": {}}
+
+        def wf(value: str = "x"):
+            return _events()
+
+    return wf
+
+
+@pytest.mark.parametrize("is_async", [True, False])
+def test_routed_returned_generator_trace_records_drained_events(routed, is_async):
+    wf = _ret_gen_handler(is_async)
+
+    resp = _invoke(_client(wf), accept="text/event-stream")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "message_start" in body and "done" in body
+    assert "generator object" not in body  # not serialized into the wire
+
+    fetched = _poll_trace(resp.headers["x-ag-trace-id"])
+    root = _root_span(fetched.trace)
+    assert root is not None and root.span_name == "wf"
+    agtree = _ag(root)
+    assert agtree.get("type", {}).get("node") == "workflow"
+
+    # THE regression: the span output must be the drained events, never the
+    # generator OBJECT's repr. Assert positively (events present) and negatively
+    # (no "<async_generator object ...>" anywhere in the recorded attributes).
+    out = agtree.get("data", {}).get("outputs", {})
+    assert out, "returned-generator span must capture the drained events"
+
+    def _walk(x):
+        if isinstance(x, dict):
+            return any(_walk(v) for v in x.values())
+        if isinstance(x, list):
+            return any(_walk(v) for v in x)
+        return isinstance(x, str) and "generator object" in x
+
+    assert not _walk(agtree), "generator object leaked into the fetched trace"
+
+
+def test_routed_returned_generator_json_accept_aggregates(routed):
+    # batch Accept on a returned-generator handler -> normalizer drains it to a
+    # batch list; the events (not the generator object) land in the response body.
+    wf = _ret_gen_handler(is_async=True)
+    resp = _invoke(_client(wf), accept="application/json", history="full")
+    assert resp.status_code == 200
+    outputs = resp.json()["data"]["outputs"]
+    assert isinstance(outputs, list) and outputs[-1]["type"] == "done"
+    assert "generator object" not in resp.text
+
+    fetched = _poll_trace(resp.headers["x-ag-trace-id"])
+    root = _root_span(fetched.trace)
+    assert _ag(root).get("type", {}).get("node") == "workflow"
+
+
+def test_routed_returned_generator_raise_early_is_error_trace(routed):
+    # raise BEFORE returning the generator -> batch error response (the primary,
+    # always-present signal). If the errored run also produced a fetchable span, it
+    # must NOT have leaked a generator repr. Span status field naming varies by
+    # client codegen, so probe it defensively rather than hard-assert its shape.
+    async def wf(value: str = "x"):
+        raise RuntimeError("boom")
+
+    resp = _invoke(_client(wf), accept="application/json")
+    assert resp.status_code == 500
+    assert resp.json()["status"]["message"] == "boom"
+
+    trace_id = resp.headers.get("x-ag-trace-id")
+    if trace_id:
+        fetched = _poll_trace(trace_id)
+        root = _root_span(fetched.trace) if fetched and fetched.trace else None
+        if root is not None:
+            # a batch raise never built a generator; nothing to leak either way.
+            status = getattr(root, "status_code", None)
+            if status is not None:
+                assert str(status).upper().find("OK") == -1, "errored span not OK"
