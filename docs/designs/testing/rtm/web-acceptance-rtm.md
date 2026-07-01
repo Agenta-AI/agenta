@@ -1468,3 +1468,91 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
+### WEB-ACC-MCP-001 - MCP server form: switching transport renders the correct fields
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Playwright title: `MCP Servers: form > switching transport between stdio and http shows the correct fields`
+
+#### Markers
+
+- Scope: `playground`, `mcp`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-MCP-002 - stdio MCP server is blocked at runtime with a clear error message
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Playwright title: `MCP Servers: runtime > stdio MCP server is refused with USER_MCP_UNSUPPORTED_MESSAGE`
+
+#### Markers
+
+- Scope: `playground`, `mcp`
+- Coverage: `light`
+- Path: `grumpy`
+- Case: `edge`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `paid`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-MCP-003 - HTTP MCP server injects external tools into the Claude Code harness
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Playwright title: `MCP Servers: runtime > HTTP MCP server tools appear in the Claude Code harness tool list`
+
+#### Markers
+
+- Scope: `playground`, `mcp`
+- Coverage: `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `paid`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-MCP-004 - Internal gateway-tool MCP delivers Agenta platform tools to the Claude Code harness
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Playwright title: `MCP Servers: gateway tools > mcp__agenta-tools__* appear in the Claude Code harness tool list`
+
+#### Markers
+
+- Scope: `playground`, `mcp`
+- Coverage: `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `paid`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
