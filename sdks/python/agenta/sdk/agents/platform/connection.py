@@ -30,11 +30,19 @@ from agenta.sdk.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 # Budget for one backend round-trip (the tool catalog/connection check, the vault fetch).
-DEFAULT_TOOLS_TIMEOUT = 5.0
+# Gateway tool resolution can call out to a provider (e.g. Composio) and exceed a few seconds,
+# so 5s was too tight and surfaced as a ReadTimeout -> failed run. Default 30s, env-overridable.
+DEFAULT_TOOLS_TIMEOUT = 30.0
 
 
 def default_timeout() -> float:
-    """The backend round-trip budget."""
+    """The backend round-trip budget (seconds). Override via AGENTA_AGENT_TOOLS_TIMEOUT."""
+    raw = os.getenv("AGENTA_AGENT_TOOLS_TIMEOUT")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
     return DEFAULT_TOOLS_TIMEOUT
 
 
@@ -80,6 +88,12 @@ def _derive_authorization() -> Optional[str]:
     api_key = os.getenv("AGENTA_API_KEY")
     if api_key:
         return f"ApiKey {api_key}"
+
+    # Fall back to the full (scheme-tagged) credential — used verbatim. The sandbox is
+    # handed an ephemeral `Secret ...` here when no bare API key exists.
+    credentials = os.getenv("AGENTA_CREDENTIALS")
+    if credentials:
+        return credentials
 
     return None
 

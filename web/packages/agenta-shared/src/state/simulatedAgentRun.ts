@@ -9,6 +9,12 @@ export interface SimulatedAgentRunRequest {
     text: string
     /** Monotonic marker so repeated runs with identical text still fire the consumer effect. */
     nonce: number
+    /**
+     * Start a FRESH chat session before sending the turn (a trigger test shouldn't append to
+     * the user's current conversation). The panel creates + activates a new session, then
+     * clears this flag so the new session's consumer sends the turn.
+     */
+    newSession?: boolean
 }
 
 /**

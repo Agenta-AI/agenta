@@ -167,14 +167,6 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
         [integrations.length, prefetchThreshold],
     )
 
-    if (isLoading && integrations.length === 0) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Spin />
-            </div>
-        )
-    }
-
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Sticky header */}
@@ -199,7 +191,11 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                 ref={scrollRef}
                 className="flex-1 overflow-y-auto overscroll-contain px-6 py-3 relative"
             >
-                {integrations.length === 0 ? (
+                {isLoading && integrations.length === 0 ? (
+                    <div className="flex items-center justify-center py-12">
+                        <Spin />
+                    </div>
+                ) : integrations.length === 0 ? (
                     <Empty description="No integrations found" />
                 ) : (
                     <div className="flex flex-col gap-2">

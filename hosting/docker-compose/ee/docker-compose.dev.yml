@@ -31,11 +31,11 @@ services:
         # === EXECUTION ============================================ #
         command: ["true"]
 
-    .sandbox-agent:
+    .runner:
         # === IMAGE ================================================ #
-        image: agenta-ee-dev-sandbox-agent:latest
+        image: agenta-ee-dev-runner:latest
         build:
-            context: ../../../services/agent
+            context: ../../../services/runner
             dockerfile: docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
@@ -142,6 +142,8 @@ services:
                 condition: service_healthy
             redis-durable:
                 condition: service_healthy
+            seaweedfs:
+                condition: service_healthy
         # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
@@ -192,6 +194,12 @@ services:
                 condition: service_healthy
         # === LIFECYCLE ============================================ #
         restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_evaluations' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
 
     worker-tracing:
         # === IMAGE ================================================ #
@@ -317,6 +325,96 @@ services:
         restart: always
         healthcheck:
             test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_triggers' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
+    worker-interactions:
+        # === IMAGE ================================================ #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ============================================ #
+        command: >
+            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            python -m entrypoints.worker_interactions
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_interactions' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
+    worker-records:
+        # === IMAGE ================================================ #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ============================================ #
+        command: >
+            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            python -m entrypoints.worker_records
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_records' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -464,8 +562,8 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            AGENTA_AGENT_RUNNER_URL: ${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
-            AGENTA_AGENT_MCP_SERVERS_ENABLED: ${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
+            AGENTA_RUNNER_URL: ${AGENTA_RUNNER_URL:-http://runner:8765}
+            AGENTA_AGENT_MCPS_ENABLED: ${AGENTA_AGENT_MCPS_ENABLED:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -473,7 +571,7 @@ services:
             - "host.docker.internal:host-gateway"
         # === ORCHESTRATION ======================================== #
         depends_on:
-            sandbox-agent:
+            runner:
                 condition: service_healthy
         # === LABELS =============================================== #
         labels:
@@ -487,16 +585,16 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
-    sandbox-agent:
+    runner:
         # === IMAGE ================================================ #
-        image: agenta-ee-dev-sandbox-agent:latest
+        image: agenta-ee-dev-runner:latest
         # === EXECUTION ============================================ #
         # No file watcher (the box's inotify limit is shared across stacks). Copy the
         # read-only mounted Pi login into a writable path so OAuth refresh stays
         # in-container. This command replaces the image CMD, so the Pi extension rebuild
         # has to live here too: dist/ is not bind-mounted and src/extensions/agenta.ts is,
         # so without this a restart keeps a stale bundle and custom tools silently stop
-        # being delivered on the sandbox-agent path. Rebuild from the mounted
+        # being delivered on the runner path. Rebuild from the mounted
         # src on start; fail loud if it cannot build rather than run a stale bundle.
         command: >
             sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
@@ -509,15 +607,17 @@ services:
         # login (mounted below), the OTLP export fallback, and the Daytona credentials
         # the runner reads for the `daytona` sandbox provider.
         environment:
-            AGENTA_AGENT_RUNNER_PORT: "8765"
+            AGENTA_RUNNER_PORT: "8765"
             # Bind on all interfaces: the co-located Python `services` container reaches the
-            # sidecar over the compose network at `sandbox-agent:8765`, so the trust-model
+            # sidecar over the compose network at `runner:8765`, so the trust-model
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
-            AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
+            AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             PI_CODING_AGENT_DIR: /pi-agent
-            # Tracing export fallback (used when a request carries no usable OTLP
-            # credential). Must be reachable from this container.
-            AGENTA_API_URL: ${AGENTA_API_URL:-}
+            # The API as reached FROM this container — by its compose service name, over the
+            # network (the same `http://api:8000` the workers use), NOT the public
+            # `http://localhost/api` (which doesn't resolve inside a container). Used by the
+            # OTLP tracing-export fallback AND the session heartbeat/record-persist calls.
+            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
@@ -528,15 +628,24 @@ services:
             AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
         # === STORAGE ============================================== #
         volumes:
-            - ../../../services/agent/src:/app/src
+            - ../../../services/runner/src:/app/src
             # The Agenta harness's forced skills are real files the runner lays into the
             # sandbox per run (resolved from /app/skills). Bind-mounted like src so edits are
             # live; the prod image bakes them with `COPY skills ./skills`.
-            - ../../../services/agent/skills:/app/skills
+            - ../../../services/runner/skills:/app/skills
             - ${HOME}/.pi/agent:/pi-agent-ro:ro
         # === NETWORK ============================================== #
         networks:
             - agenta-network
+        # === RUNTIME ============================================== #
+        # FUSE for the durable session cwd (geesefs mounts the mount prefix on-host for local
+        # sandboxes). Needs the fuse device + SYS_ADMIN; apparmor unconfined so mount(2) is allowed.
+        cap_add:
+            - SYS_ADMIN
+        devices:
+            - /dev/fuse
+        security_opt:
+            - apparmor:unconfined
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
@@ -628,6 +737,92 @@ services:
             timeout: 5s
             retries: 5
             start_period: 5s
+
+    seaweedfs:
+        # === IMAGE ================================================ #
+        # Pinned (not :latest) so the IAM/STS subsystem stays on a known-good build — it has
+        # regressed across releases (e.g. 4.13). 4.37 verified working with the config below.
+        image: chrislusf/seaweedfs:4.37
+        # === EXECUTION ============================================ #
+        # ONLY FOR SEAWEEDFS (the bundled dev store). Real S3/R2/MinIO ship their own STS/IAM
+        # and ignore all of this. Two configs, both generated from env (no committed files):
+        #  - s3.json: the master identity only (admin; the API holds these creds, never the runner).
+        #  - iam.json: the ADVANCED IAM config — the only path SeaweedFS authorizes STS credentials.
+        #    An OIDC provider points at the API's self-served JWKS; the API mints a short-lived
+        #    RS256 web-identity token and calls AssumeRoleWithWebIdentity to assume `agenta-store`,
+        #    whose policy grants the whole bucket; the API's per-request inline session policy
+        #    narrows each credential to one mount prefix (effective = role ∩ session).
+        #    GetFederationToken is NOT modelled by SeaweedFS IAM and yields actionless (denied) tokens.
+        entrypoint:
+            - sh
+            - -c
+            - |
+              cat > /etc/seaweedfs/s3.json <<EOF
+              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$${AGENTA_STORE_ACCESS_KEY}","secretKey":"$${AGENTA_STORE_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+              EOF
+              cat > /etc/seaweedfs/iam.json <<EOF
+              {"sts":{"tokenDuration":"1h","maxSessionLength":"12h","issuer":"seaweedfs-sts","signingKey":"$${AGENTA_STORE_SIGNING_KEY}"},"providers":[{"name":"agenta","type":"oidc","enabled":true,"config":{"issuer":"$${AGENTA_STORE_JWT_ISSUER}","clientId":"agenta-store","jwksUri":"$${AGENTA_STORE_JWT_ISSUER}/.well-known/jwks.json"}}],"policies":[{"name":"store-rw","document":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::$${AGENTA_STORE_BUCKET}","arn:aws:s3:::$${AGENTA_STORE_BUCKET}/*"]}]}}],"roles":[{"roleName":"agenta-store","roleArn":"arn:aws:iam::role/agenta-store","attachedPolicies":["store-rw"],"trustPolicy":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"agenta"},"Action":["sts:AssumeRoleWithWebIdentity"]}]}}]}
+              EOF
+              exec weed server -dir=/data -ip=seaweedfs -volume.max=64 -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -s3.iam.config=/etc/seaweedfs/iam.json
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            # The entrypoint bakes these into s3.json/iam.json via raw shell expansion, so unlike
+            # the API (which reads code defaults from env.py) they must be present in this service's
+            # env. Defaults live here for the bundled store the same way supertokens carries its own
+            # connection URI — a service configuring itself. Override via the env file to use S3/R2.
+            # Keys come from the env file — secrets never get a baked-in default.
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY}
+            # Non-secret store config: defaults live here for the bundled store (override via env).
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-store}
+            AGENTA_STORE_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
+            AGENTA_STORE_JWT_ISSUER: ${AGENTA_STORE_JWT_ISSUER:-http://api:8000}
+        # === STORAGE ============================================== #
+        volumes:
+            - seaweed-data:/data
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # ports:
+        #     - "8333:8333"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD-SHELL", "curl -sf http://localhost:9333/cluster/healthz >/dev/null || exit 1"]
+            interval: 5s
+            timeout: 5s
+            retries: 30
+            start_period: 5s
+
+    ngrok:
+        # === ACTIVATION =========================================== #
+        # Only for REMOTE sandboxes (Daytona/E2B): geesefs runs inside the cloud sandbox and
+        # cannot reach `seaweedfs:8333` on the compose network, so this tunnels the store to a
+        # public URL the runner discovers via the ngrok agent API (:4040/api/tunnels). Local
+        # sandboxes never tunnel — keep this profile off by default.
+        profiles:
+            - remote
+        # === IMAGE ================================================ #
+        image: ngrok/ngrok:latest
+        # === EXECUTION ============================================ #
+        # Tunnel the SeaweedFS S3 port. NGROK_AUTHTOKEN must be set in the env file.
+        command: ["http", "seaweedfs:8333", "--log", "stdout"]
+        # === CONFIGURATION ======================================== #
+        environment:
+            NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # The agent runner reads the public URL from this API (host:4040 inside the network).
+        # ports:
+        #     - "4040:4040"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        depends_on:
+            seaweedfs:
+                condition: service_healthy
 
     traefik:
         # === IMAGE ================================================ #
@@ -744,6 +939,7 @@ volumes:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:
+    seaweed-data:
     nextjs-ee-cache:
     nextjs-oss-cache:
     turbo-ee-cache:

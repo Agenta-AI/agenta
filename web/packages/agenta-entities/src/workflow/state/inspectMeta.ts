@@ -48,9 +48,10 @@ export const harnessCatalogQueryAtom = atomWithQuery<HarnessCapabilitiesMap>(() 
 
 /**
  * The per-harness capability map from the `harnesses` catalog. `null` until the catalog resolves.
- * Keyed for signature compatibility with consumers; the data itself is not revision-scoped.
+ * Keyed by the harness ref (a template's `x-ag-harness-ref` value) that selects this catalog; the
+ * catalog data itself is global, so the key only documents which ref drove the lookup.
  */
-export const harnessCapabilitiesAtomFamily = atomFamily((_revisionId: string) =>
+export const harnessCapabilitiesAtomFamily = atomFamily((_harnessRef: string) =>
     atom<HarnessCapabilitiesMap | null>((get) => {
         const query = get(harnessCatalogQueryAtom)
         return query.data ?? null

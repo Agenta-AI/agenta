@@ -16,7 +16,7 @@ from agenta.sdk.agents import AgentTemplate
 from agenta.sdk.engines.running.interfaces import agent_v0_interface
 from agenta.sdk.utils.types import build_agent_v0_default
 
-from oss.src.agent.schemas import AGENT_SCHEMAS, _DEFAULT_SKILL_SLUG
+from oss.src.agent.schemas import AGENT_SCHEMAS
 
 
 def _inspect_agent_default() -> dict:
@@ -35,50 +35,40 @@ def test_builtin_default_is_the_bare_builder():
     assert _builtin_agent_default() == build_agent_v0_default()
 
 
-def test_service_default_is_the_builder_plus_service_only_choices():
-    # The service default is the same builder plus the two service-only choices, passed as
-    # named args (not a second copy): the platform default skill and the declared sandbox boundary.
-    assert _inspect_agent_default() == build_agent_v0_default(
-        skill_slug=_DEFAULT_SKILL_SLUG,
-        include_sandbox_permission=True,
-    )
+def test_service_default_is_the_bare_builder():
+    # The playground build kit carries authoring extras; the published default stays bare.
+    assert _inspect_agent_default() == build_agent_v0_default()
 
 
 def test_inspect_default_parses_into_the_runtime_selection():
     # The default the playground pre-fills on `/inspect` must parse cleanly into the same runtime
-    # values `AgentTemplate.from_params` produces, so what the user sees is what the agent runs. The
-    # `@ag.embed` skill resolves server-side before this parse, so the config-level round-trip is
-    # asserted on the non-skill fields plus the execution selectors.
+    # values `AgentTemplate.from_params` produces, so what the user sees is what the agent runs.
     inspect_default = _inspect_agent_default()
-    no_skill = {k: v for k, v in inspect_default.items() if k != "skills"}
-    params = {"agent": no_skill}
+    params = {"agent": inspect_default}
 
     config = AgentTemplate.from_params(params)
 
     assert config.model == inspect_default["llm"]["model"]
     assert config.instructions == inspect_default["instructions"]["agents_md"]
-    assert (
-        config.sandbox_permission is not None
-    )  # the service boundary survives the parse
+    assert config.sandbox_permission is None
     assert config.harness == "pi_core"
     assert config.sandbox == "local"
     assert config.permission_policy == "auto"
 
 
-def test_service_only_extras_present_in_inspect_absent_from_builtin():
-    # The platform default skill and the sandbox boundary ride the SERVICE default (the playground
-    # pre-fill + the runtime fallback) and are intentionally ABSENT from the SDK builtin, which is
-    # the minimal harness-agnostic shape with no platform opinion. They are in both inspect and
-    # runtime via the SAME service default object, so they cannot drift between the two.
+def test_authoring_extras_absent_from_every_published_default():
+    # Platform tools, the authoring skill, and elevated sandbox permissions belong to the
+    # playground build-kit overlay, not to the published default template.
     inspect_default = _inspect_agent_default()
     builtin_default = _builtin_agent_default()
 
-    assert "permissions" in inspect_default["sandbox"]
-    assert (
-        inspect_default["skills"][0]["@ag.embed"]["@ag.references"]["workflow"]["slug"]
-        == _DEFAULT_SKILL_SLUG
-    )
+    assert inspect_default["tools"] == []
+    assert "skills" not in inspect_default
+    assert "permissions" not in inspect_default["sandbox"]
+    assert "execute_code" not in inspect_default["sandbox"]
+    assert "write_files" not in inspect_default["sandbox"]
 
+    assert builtin_default["tools"] == []
     assert "permissions" not in builtin_default["sandbox"]
     assert "skills" not in builtin_default
 

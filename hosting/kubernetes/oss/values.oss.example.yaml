@@ -174,24 +174,6 @@ agenta:
 #   target: eu
 
 # ================================================================== #
-# === agentRunner ===
-# sandbox-agent runner used by agent workflows. The services pod gets
-# AGENTA_AGENT_RUNNER_URL from this component.
-# ================================================================== #
-# agentRunner:
-#   enabled: true
-#   port: 8765
-#   provider: local
-#   enableMcp: false
-#   daytona:
-#     apiKey:
-#     apiUrl: https://app.daytona.io/api
-#     target: eu
-#     snapshot:
-#     image:
-#     installPi: false
-
-# ================================================================== #
 # docker (compose-only — no-op on Kubernetes, kept commented so this
 # file mirrors the compose env surface without affecting K8s behavior).
 # ================================================================== #
@@ -478,7 +460,13 @@ posthog:
 # workerEvents:
 #   enabled: true
 #   replicas: 1
+# workerRecords:
+#   enabled: true
+#   replicas: 1
 # workerTriggers:
+#   enabled: true
+#   replicas: 1
+# workerInteractions:
 #   enabled: true
 #   replicas: 1
 # cron:
@@ -507,6 +495,28 @@ posthog:
 #     web:
 #       path: /
 #       pathType: Prefix
+
+# ================================================================== #
+# === store — object store (AGENTA_STORE_*) ===
+# Docs: https://docs.agenta.ai/self-host/configuration#store-durable-object-store
+# ================================================================== #
+# store:
+#   endpointUrl:
+#   stsEndpointUrl:
+#   accessKey:
+#   secretKey:
+#   region:
+#   bucket:
+#   namespace:  # optional key prefix to share one bucket across ephemeral envs; unset for a dedicated bucket
+#   signingKey:
+#   jwtIssuer:
+#   jwtPrivateKey:
+#   seaweedfs:
+#     enabled: false
+#     port: 8333
+#     image:
+#       repository: chrislusf/seaweedfs
+#       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
 
 # ================================================================== #
 # === extraObjects — arbitrary Kubernetes resources ===

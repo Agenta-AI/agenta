@@ -24,9 +24,9 @@ dependencies = [
     "structlog>=26,<27",
     "opentelemetry-api>=1,<2",
     "opentelemetry-sdk>=1,<2",
-    "opentelemetry-instrumentation>=0.63b1,<0.64",
+    "opentelemetry-instrumentation>=0.64b0,<0.65",
     "opentelemetry-exporter-otlp-proto-http>=1,<2",
-    "fastapi>=0.137,<0.138",
+    "fastapi>=0.138,<0.139",
     "pyyaml>=6,<7",
     "litellm>=1,<2",
     "openai>=2,<3",
@@ -34,7 +34,7 @@ dependencies = [
     "mystace>=1,<2",
     "orjson>=3,<4",
     "python-jsonpath>=2,<3",
-    "daytona>=0.187,<0.188",
+    "daytona>=0.192,<0.193",
     "RestrictedPython>=8,<9",
 ]
 

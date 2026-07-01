@@ -4,9 +4,10 @@
  * The agent config panel's "Triggers" section. Lists the CURRENT agent's persisted
  * triggers — provider event subscriptions and recurring schedules — as rows, and lets
  * the user add/manage them through the existing propless, atom-driven trigger drawers
- * (`@agenta/entity-ui/gatewayTrigger`). It reuses the same hooks, ActiveToggle, and
- * "⋯" menu the workspace settings sections use; nothing about trigger CRUD is rebuilt
- * here.
+ * (`@agenta/entity-ui/gatewayTrigger`). It reuses the same hooks and "⋯" menu the
+ * workspace settings sections use; nothing about trigger CRUD is rebuilt here. In the
+ * playground, running/paused is irrelevant, so rows expose a "Run in playground" test
+ * action (status shown as a passive dot); pause/resume stays in the schedule drawer.
  *
  * Two pieces of real work live here:
  *  1. Scoping — the list hooks return every project trigger, so we filter to the agent
@@ -15,17 +16,16 @@
  *  2. Default-bind — opening a create drawer from this section pre-binds the new trigger
  *     to the current agent via `defaultReferences` (see the trigger drawer atoms).
  */
-import {type ReactNode, useCallback, useMemo} from "react"
+import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {
     describeCron,
+    getScheduleMessagePreview,
     isEntityActive,
-    isEntityValid,
-    triggerCatalogDrawerOpenAtom,
     triggerDeliveriesDrawerAtom,
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
-    queryTriggerDeliveries,
+    useTriggerCatalogIntegrations,
     useTriggerConnectionsQuery,
     useTriggerSchedule,
     useTriggerSchedules,
@@ -37,31 +37,258 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {HeightCollapse, message} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
 import {
     ArrowsClockwise,
+    CaretDown,
     CaretRight,
     Clock,
+    Flask,
     Lightning,
     ListChecks,
     PencilSimpleLine,
-    Play,
+    Plugs,
     Plus,
     Sparkle,
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, Typography, message} from "antd"
+import {Button, Dropdown, Tag, Tooltip} from "antd"
 import type {MenuProps} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
+import Image from "next/image"
 
-import ActiveToggle from "../../gatewayTrigger/components/ActiveToggle"
-import TriggerCatalogDrawer from "../../gatewayTrigger/drawers/TriggerCatalogDrawer"
+import {loadRecentSamples, waitForNewDelivery} from "../../gatewayTrigger/drawers/shared/deliveries"
+import {
+    EventSourcePicker,
+    type SampledEvent,
+} from "../../gatewayTrigger/drawers/shared/EventSourcePicker"
 import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"
 import TriggerScheduleDrawer from "../../gatewayTrigger/drawers/TriggerScheduleDrawer"
 import TriggerSubscriptionDrawer from "../../gatewayTrigger/drawers/TriggerSubscriptionDrawer"
 
 import {AddTextLink} from "./AddTextLink"
+
+// Persisted per-agent expand state for provider groups (key = `${entityId}:${providerKey}`).
+const triggerGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
+    "agenta:triggers:groups-expanded",
+    {},
+)
+
+// "SLACK_MESSAGE_REACTION_ADDED" → "Message reaction added" (drop provider prefix, title-case).
+function prettifyEventKey(key: string): string {
+    if (!key) return ""
+    const parts = key.split("_")
+    const text = (parts.length > 1 ? parts.slice(1) : parts).join(" ").toLowerCase().trim()
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : key
+}
+
+function prettifyProvider(key: string): string {
+    if (!key) return "Other"
+    return key.charAt(0).toUpperCase() + key.slice(1)
+}
+
+function ProviderLogo({logo, size = 24}: {logo?: string | null; size?: number}) {
+    if (!logo) return <Plugs size={size} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+    return (
+        <Image
+            src={logo}
+            alt=""
+            width={size}
+            height={size}
+            unoptimized
+            className="shrink-0 rounded object-contain"
+        />
+    )
+}
+
+interface ProviderGroupData {
+    key: string
+    name: string
+    logo?: string | null
+    subs: TriggerSubscription[]
+}
+
+/** A subscription rendered as a child under its provider group: dot + event + actions. */
+function SubscriptionChildRow({
+    primary,
+    primaryMuted,
+    secondary,
+    active,
+    disabled,
+    runSlot,
+    onOpen,
+    menuItems,
+}: {
+    primary: string
+    primaryMuted?: boolean
+    secondary?: string
+    active: boolean
+    disabled?: boolean
+    /** The "Run in playground" affordance (an event-source picker), supplied by the parent. */
+    runSlot: ReactNode
+    onOpen: () => void
+    menuItems: MenuProps["items"]
+}) {
+    const open = disabled ? undefined : onOpen
+    return (
+        <div
+            role="button"
+            tabIndex={disabled ? -1 : 0}
+            aria-disabled={disabled || undefined}
+            onClick={open}
+            onKeyDown={(e) => {
+                if (e.target !== e.currentTarget || !open) return
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    open()
+                }
+            }}
+            className={`group flex items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors ${
+                disabled
+                    ? "cursor-default"
+                    : "cursor-pointer hover:bg-[var(--ag-colorFillSecondary)]"
+            }`}
+        >
+            <Tooltip title={active ? "Active" : "Paused"}>
+                <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                        active
+                            ? "bg-[var(--ag-colorSuccess)]"
+                            : "bg-[var(--ag-colorTextQuaternary)]"
+                    }`}
+                />
+            </Tooltip>
+            <div className="min-w-0 flex-1">
+                <div
+                    className={`truncate text-xs font-medium ${
+                        primaryMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                    }`}
+                >
+                    {primary}
+                </div>
+                {secondary ? (
+                    <div className="truncate text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                        {secondary}
+                    </div>
+                ) : null}
+            </div>
+            <div
+                className="flex shrink-0 items-center gap-1"
+                onClick={(e) => e.stopPropagation()}
+                role="presentation"
+            >
+                {runSlot}
+                <Dropdown
+                    trigger={["click"]}
+                    styles={{root: {width: 180}}}
+                    menu={{items: menuItems}}
+                >
+                    <Button
+                        type="text"
+                        icon={<MoreOutlined />}
+                        aria-label="Open trigger actions"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </Dropdown>
+            </div>
+        </div>
+    )
+}
+
+/**
+ * The subscription row's "Run in playground" flask — opens the EventSourcePicker (wait for a
+ * new event / pick a recent delivery) so the user runs a SPECIFIC real event, instead of
+ * silently replaying whatever delivery happened to be latest.
+ */
+function SubscriptionRunPopover({
+    subscriptionId,
+    label,
+    eventKey,
+    playgroundEntityId,
+    disabled,
+}: {
+    subscriptionId: string
+    label: string
+    eventKey?: string
+    playgroundEntityId: string | null
+    disabled?: boolean
+}) {
+    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
+    const [recent, setRecent] = useState<SampledEvent[]>([])
+
+    const refresh = useCallback(async () => {
+        try {
+            setRecent(await loadRecentSamples(subscriptionId, label))
+        } catch {
+            message.error("Couldn't load recent events")
+        }
+    }, [subscriptionId, label])
+
+    const waitForEvent = useCallback(async () => {
+        let result: Awaited<ReturnType<typeof waitForNewDelivery>>
+        try {
+            result = await waitForNewDelivery(subscriptionId, label)
+        } catch {
+            message.error("Couldn't check for new events")
+            return null
+        }
+        if (!result) {
+            message.info("No event arrived yet — trigger it from the app, then try again.")
+            return null
+        }
+        setRecent(result.recent)
+        return result.sample
+    }, [subscriptionId, label])
+
+    const run = useCallback(
+        (event: SampledEvent) => {
+            if (!playgroundEntityId) {
+                message.info("Open this agent in the playground first")
+                return
+            }
+            const inputs =
+                event.payload && typeof event.payload === "object"
+                    ? (event.payload as Record<string, unknown>)
+                    : {}
+            const msg = getScheduleMessagePreview(inputs)
+            const text = msg.trim()
+                ? msg
+                : `[Triggered by ${label}${eventKey ? ` · ${eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
+                      inputs,
+                      null,
+                      2,
+                  )}\n\`\`\``
+            setPendingRun({text, nonce: Date.now(), newSession: true})
+            message.success("Running in playground")
+        },
+        [playgroundEntityId, setPendingRun, label, eventKey],
+    )
+
+    return (
+        <EventSourcePicker
+            placement="bottomRight"
+            onOpenChange={(open) => open && refresh()}
+            trigger={
+                <Tooltip title="Run in playground">
+                    <Button
+                        type="text"
+                        icon={<Flask size={16} />}
+                        aria-label="Run in playground"
+                        disabled={disabled}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </Tooltip>
+            }
+            recentEvents={recent}
+            onPick={run}
+            onWaitForEvent={waitForEvent}
+            waitHint="trigger it from the app now"
+        />
+    )
+}
 
 export interface TriggerManagementSectionProps {
     /** The open agent's revision id (the drill-in entityId). */
@@ -144,25 +371,29 @@ export function useAgentTriggers(entityId: string | null) {
     }
 }
 
-/** A trigger row: leading icon, bold name + chevron, subtitle, ActiveToggle, ⋯ menu. */
+/** A trigger row: leading status-dot icon, bold name + chevron, subtitle, run + ⋯ menu. */
 function TriggerRow({
     icon,
     name,
+    nameMuted,
+    chip,
     subtitle,
     active,
     disabled,
-    toggleDisabled,
-    onToggle,
+    runDisabled,
+    onRun,
     onOpen,
     menuItems,
 }: {
-    icon: React.ReactNode
+    icon: ReactNode
     name: string
+    nameMuted?: boolean
+    chip?: ReactNode
     subtitle: string
     active: boolean
     disabled?: boolean
-    toggleDisabled?: boolean
-    onToggle: (next: boolean) => Promise<void>
+    runDisabled?: boolean
+    onRun: () => void
     onOpen: () => void
     menuItems: MenuProps["items"]
 }) {
@@ -176,7 +407,7 @@ function TriggerRow({
             onClick={open}
             onKeyDown={(e) => {
                 // Only the row itself activates — keyboard events bubbling up from the
-                // toggle or ⋯ menu must not also open the drawer.
+                // run button or ⋯ menu must not also open the drawer.
                 if (e.target !== e.currentTarget || !open) return
                 if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
@@ -185,34 +416,58 @@ function TriggerRow({
             }}
             className={`group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:border-[var(--ag-colorBorder)]"}`}
         >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]">
-                {icon}
-            </span>
+            <Tooltip title={active ? "Active" : "Paused"}>
+                <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]">
+                    {icon}
+                    <span
+                        className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-solid border-[var(--ag-colorBgContainer)] ${
+                            active
+                                ? "bg-[var(--ag-colorSuccess)]"
+                                : "bg-[var(--ag-colorTextQuaternary)]"
+                        }`}
+                    />
+                </span>
+            </Tooltip>
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1 truncate text-xs font-medium">
-                    <span className="truncate">{name}</span>
+                <div className="flex items-center gap-1.5">
+                    <span
+                        className={`truncate text-xs font-medium ${
+                            nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                        }`}
+                    >
+                        {name}
+                    </span>
                     <CaretRight
                         size={12}
                         className="shrink-0 text-[var(--ag-colorTextSecondary)]"
                     />
+                    {chip ? (
+                        <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] text-[var(--ag-colorTextSecondary)]">
+                            {chip}
+                        </span>
+                    ) : null}
                 </div>
-                <Typography.Text type="secondary" className="block truncate text-xs leading-tight">
+                <div className="mt-0.5 line-clamp-2 max-w-prose text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                     {subtitle}
-                </Typography.Text>
+                </div>
             </div>
             <div
                 className="flex shrink-0 items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
                 role="presentation"
             >
-                <ActiveToggle
-                    active={active}
-                    onToggle={onToggle}
-                    disabled={toggleDisabled}
-                    activatedMessage="Trigger resumed"
-                    pausedMessage="Trigger paused"
-                    errorMessage="Failed to update trigger"
-                />
+                <Tooltip title="Run in playground">
+                    <Button
+                        type="text"
+                        icon={<Flask size={16} />}
+                        aria-label="Run in playground"
+                        disabled={runDisabled}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onRun()
+                        }}
+                    />
+                </Tooltip>
                 <Dropdown
                     trigger={["click"]}
                     styles={{root: {width: 180}}}
@@ -235,59 +490,78 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
         useAgentTriggers(entityId)
 
     const {connections} = useTriggerConnectionsQuery()
+    const {integrations} = useTriggerCatalogIntegrations()
+    const [groupsExpanded, setGroupsExpanded] = useAtom(triggerGroupsExpandedAtom)
+
+    // Subscriptions grouped by provider (connection.integration_key); name/logo from the
+    // catalog when loaded, else a prettified key + plug icon.
+    const providerGroups = useMemo<ProviderGroupData[]>(() => {
+        const connById = new Map(connections.map((c) => [c.id, c] as const))
+        const intgByKey = new Map(integrations.map((i) => [i.key, i] as const))
+        const groups = new Map<string, ProviderGroupData>()
+        for (const sub of scopedSubscriptions) {
+            const conn = connById.get(sub.connection_id)
+            const providerKey = conn?.integration_key || "other"
+            let group = groups.get(providerKey)
+            if (!group) {
+                const intg = intgByKey.get(providerKey)
+                group = {
+                    key: providerKey,
+                    name: intg?.name || prettifyProvider(providerKey),
+                    logo: intg?.logo,
+                    subs: [],
+                }
+                groups.set(providerKey, group)
+            }
+            group.subs.push(sub)
+        }
+        return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
+    }, [scopedSubscriptions, connections, integrations])
+
+    const isGroupOpen = useCallback(
+        (group: ProviderGroupData) =>
+            groupsExpanded[`${entityId}:${group.key}`] ?? group.subs.length === 1,
+        [groupsExpanded, entityId],
+    )
+    const toggleGroup = useCallback(
+        (group: ProviderGroupData) => {
+            const k = `${entityId}:${group.key}`
+            setGroupsExpanded((prev) => ({...prev, [k]: !(prev[k] ?? group.subs.length === 1)}))
+        },
+        [entityId, setGroupsExpanded],
+    )
     const {
-        setActive: setSubscriptionActive,
         remove: removeSubscription,
         refresh: refreshSubscription,
         revoke: revokeSubscription,
     } = useTriggerSubscription()
-    const {setActive: setScheduleActive, remove: removeSchedule} = useTriggerSchedule()
+    const {remove: removeSchedule} = useTriggerSchedule()
 
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId ?? ""))
 
-    // Row "Run in playground": replay the trigger's latest captured delivery (a real
-    // event) into the agent's active chat session. A fired trigger only runs
-    // server-side, so this is how you observe it in the playground. No delivery yet
-    // → tell the user to Test first.
-    const runInPlayground = useCallback(
-        async (args: {
-            kind: "subscription" | "schedule"
-            id: string
-            label: string
-            eventKey?: string
-        }) => {
+    // A schedule (cron) has no external event to replay — simulate it with its own
+    // configured inputs, exactly like the schedule drawer's "Run in playground".
+    const simulateSchedule = useCallback(
+        (record: TriggerSchedule) => {
             if (!entityId) {
                 message.info("Open this agent in the playground first")
                 return
             }
-            try {
-                const {deliveries} = await queryTriggerDeliveries(
-                    args.kind === "subscription"
-                        ? {subscription_id: args.id}
-                        : {schedule_id: args.id},
-                )
-                const hit = deliveries.find(
-                    (d) => d.data?.inputs && Object.keys(d.data.inputs).length > 0,
-                )
-                if (!hit?.data?.inputs) {
-                    message.info(
-                        "No captured events yet — open the trigger and Test to capture one",
-                    )
-                    return
-                }
-                const text = `[Triggered by ${args.label}${args.eventKey ? ` · ${args.eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
-                    hit.data.inputs,
-                    null,
-                    2,
-                )}\n\`\`\``
-                setPendingRun({text, nonce: Date.now()})
-                message.success("Running in playground")
-            } catch {
-                message.error("Couldn't load the trigger's events")
-            }
+            const msg = getScheduleMessagePreview(record.data?.inputs_fields)
+            const label = record.name?.trim() || "Scheduled run"
+            const cron = record.data?.schedule
+            const text = msg.trim()
+                ? msg
+                : `[Scheduled run · ${label}${cron ? ` (${cron})` : ""}]\n\`\`\`json\n${JSON.stringify(
+                      record.data?.inputs_fields ?? {},
+                      null,
+                      2,
+                  )}\n\`\`\``
+            setPendingRun({text, nonce: Date.now(), newSession: true})
+            message.success("Running in playground")
         },
         [entityId, setPendingRun],
     )
@@ -301,13 +575,6 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
     )
 
     // ---- subscription actions ----
-    const handleSubscriptionToggle = useCallback(
-        (record: TriggerSubscription) => async (next: boolean) => {
-            if (!record.id) return
-            await setSubscriptionActive(record.id, next)
-        },
-        [setSubscriptionActive],
-    )
     const subscriptionMenu = useCallback(
         (record: TriggerSubscription): MenuProps["items"] => [
             {
@@ -321,21 +588,6 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                             owner: {kind: "subscription", id: record.id},
                             name: record.name ?? undefined,
                             playgroundEntityId: entityId ?? undefined,
-                        })
-                },
-            },
-            {
-                key: "run-in-playground",
-                label: "Run in playground",
-                icon: <Play size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    if (record.id)
-                        runInPlayground({
-                            kind: "subscription",
-                            id: record.id,
-                            label: record.name || record.data?.event_key || "trigger",
-                            eventKey: record.data?.event_key ?? undefined,
                         })
                 },
             },
@@ -411,19 +663,11 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
             refreshSubscription,
             revokeSubscription,
             removeSubscription,
-            runInPlayground,
             disabled,
         ],
     )
 
     // ---- schedule actions ----
-    const handleScheduleToggle = useCallback(
-        (record: TriggerSchedule) => async (next: boolean) => {
-            if (!record.id) return
-            await setScheduleActive(record.id, next)
-        },
-        [setScheduleActive],
-    )
     const scheduleMenu = useCallback(
         (record: TriggerSchedule): MenuProps["items"] => [
             {
@@ -437,21 +681,6 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                             owner: {kind: "schedule", id: record.id},
                             name: record.name ?? undefined,
                             playgroundEntityId: entityId ?? undefined,
-                        })
-                },
-            },
-            {
-                key: "run-in-playground",
-                label: "Run in playground",
-                icon: <Play size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    if (record.id)
-                        runInPlayground({
-                            kind: "schedule",
-                            id: record.id,
-                            label: record.name || "schedule",
-                            eventKey: record.data?.event_key ?? undefined,
                         })
                 },
             },
@@ -488,7 +717,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 },
             },
         ],
-        [openDeliveries, openScheduleDrawer, removeSchedule, runInPlayground, entityId, disabled],
+        [openDeliveries, openScheduleDrawer, removeSchedule, entityId, disabled],
     )
 
     return (
@@ -504,69 +733,191 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                     </span>
                 ) : null
             ) : (
-                <div className="flex flex-col gap-2">
-                    {scopedSchedules.map((record) => {
-                        const cron = record.data?.schedule
-                        return (
-                            <TriggerRow
-                                key={`schedule-${record.id}`}
-                                icon={<Clock size={15} />}
-                                name={record.name || record.id || "Schedule"}
-                                subtitle={cron ? describeCron(cron) : "Recurring schedule"}
-                                active={isEntityActive(record)}
-                                disabled={disabled}
-                                toggleDisabled={disabled || !record.id}
-                                onToggle={handleScheduleToggle(record)}
-                                onOpen={() =>
-                                    record.id &&
-                                    openScheduleDrawer({
-                                        scheduleId: record.id,
-                                        playgroundEntityId: entityId ?? undefined,
-                                    })
-                                }
-                                menuItems={scheduleMenu(record)}
-                            />
-                        )
-                    })}
-                    {scopedSubscriptions.map((record) => {
-                        const subtitle =
-                            record.description ||
-                            record.data?.event_key ||
-                            connectionLabel(record.connection_id) ||
-                            "App subscription"
-                        return (
-                            <TriggerRow
-                                key={`subscription-${record.id}`}
-                                icon={<Lightning size={15} />}
-                                name={record.name || record.id || "Subscription"}
-                                subtitle={subtitle}
-                                active={isEntityActive(record)}
-                                disabled={disabled}
-                                toggleDisabled={disabled || !record.id || !isEntityValid(record)}
-                                onToggle={handleSubscriptionToggle(record)}
-                                onOpen={() =>
-                                    record.id &&
-                                    openSubscriptionDrawer({
-                                        subscriptionId: record.id,
-                                        playgroundEntityId: entityId ?? undefined,
-                                    })
-                                }
-                                menuItems={subscriptionMenu(record)}
-                            />
-                        )
-                    })}
+                <div className="flex flex-col gap-3">
+                    {/* App triggers — grouped by provider (subscriptions first). */}
+                    {providerGroups.length > 0 && (
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-1.5 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                <span>App triggers</span>
+                                <Tag
+                                    bordered
+                                    className="m-0 !px-1.5 !text-[10px] font-normal leading-[16px]"
+                                >
+                                    {scopedSubscriptions.length}
+                                </Tag>
+                            </div>
+                            {providerGroups.map((group) => {
+                                const open = isGroupOpen(group)
+                                const activeCount = group.subs.filter(isEntityActive).length
+                                return (
+                                    <div
+                                        key={group.key}
+                                        className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]"
+                                    >
+                                        <div
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-expanded={open}
+                                            onClick={() => toggleGroup(group)}
+                                            onKeyDown={(e) => {
+                                                if (e.target !== e.currentTarget) return
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault()
+                                                    toggleGroup(group)
+                                                }
+                                            }}
+                                            className="flex cursor-pointer items-center gap-2.5 bg-[var(--ag-colorFillQuaternary)] px-3 py-2 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
+                                        >
+                                            {open ? (
+                                                <CaretDown
+                                                    size={12}
+                                                    className="shrink-0 text-[var(--ag-colorTextSecondary)]"
+                                                />
+                                            ) : (
+                                                <CaretRight
+                                                    size={12}
+                                                    className="shrink-0 text-[var(--ag-colorTextSecondary)]"
+                                                />
+                                            )}
+                                            <ProviderLogo logo={group.logo} size={24} />
+                                            <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                                                {group.name}
+                                            </span>
+                                            <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                                {activeCount} active · {group.subs.length} total
+                                            </span>
+                                            {!disabled && (
+                                                <Tooltip title={`Add ${group.name} trigger`}>
+                                                    <Button
+                                                        type="text"
+                                                        icon={<Plus size={16} />}
+                                                        aria-label={`Add ${group.name} trigger`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            openSubscriptionDrawer({
+                                                                defaultReferences,
+                                                                defaultBoundLabel,
+                                                                playgroundEntityId:
+                                                                    entityId ?? undefined,
+                                                                integrationKey: group.key,
+                                                                integrationName: group.name,
+                                                            })
+                                                        }}
+                                                    />
+                                                </Tooltip>
+                                            )}
+                                        </div>
+                                        <HeightCollapse open={open}>
+                                            <div className="flex flex-col gap-0.5 px-1.5 pb-1.5 pt-1">
+                                                {group.subs.map((record) => {
+                                                    const named = !!record.name?.trim()
+                                                    const eventLabel = prettifyEventKey(
+                                                        record.data?.event_key ?? "",
+                                                    )
+                                                    const primary = named
+                                                        ? (record.name as string)
+                                                        : eventLabel || "Untitled subscription"
+                                                    const secondary = named
+                                                        ? eventLabel || undefined
+                                                        : connectionLabel(record.connection_id) ||
+                                                          record.description ||
+                                                          undefined
+                                                    return (
+                                                        <SubscriptionChildRow
+                                                            key={`subscription-${record.id}`}
+                                                            primary={primary}
+                                                            primaryMuted={!named && !eventLabel}
+                                                            secondary={secondary}
+                                                            active={isEntityActive(record)}
+                                                            disabled={disabled}
+                                                            runSlot={
+                                                                <SubscriptionRunPopover
+                                                                    subscriptionId={record.id ?? ""}
+                                                                    label={
+                                                                        record.name ||
+                                                                        eventLabel ||
+                                                                        "trigger"
+                                                                    }
+                                                                    eventKey={
+                                                                        record.data?.event_key ??
+                                                                        undefined
+                                                                    }
+                                                                    playgroundEntityId={entityId}
+                                                                    disabled={
+                                                                        disabled || !record.id
+                                                                    }
+                                                                />
+                                                            }
+                                                            onOpen={() =>
+                                                                record.id &&
+                                                                openSubscriptionDrawer({
+                                                                    subscriptionId: record.id,
+                                                                    playgroundEntityId:
+                                                                        entityId ?? undefined,
+                                                                })
+                                                            }
+                                                            menuItems={subscriptionMenu(record)}
+                                                        />
+                                                    )
+                                                })}
+                                            </div>
+                                        </HeightCollapse>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+
+                    {/* Schedules — flat (no provider), listed last. */}
+                    {scopedSchedules.length > 0 && (
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-1.5 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                <span>Schedules</span>
+                                <Tag
+                                    bordered
+                                    className="m-0 !px-1.5 !text-[10px] font-normal leading-[16px]"
+                                >
+                                    {scopedSchedules.length}
+                                </Tag>
+                            </div>
+                            {scopedSchedules.map((record) => {
+                                const cron = record.data?.schedule
+                                const named = !!record.name?.trim()
+                                const message = getScheduleMessagePreview(
+                                    record.data?.inputs_fields,
+                                )
+                                return (
+                                    <TriggerRow
+                                        key={`schedule-${record.id}`}
+                                        icon={<Clock size={15} />}
+                                        name={named ? (record.name as string) : "Untitled schedule"}
+                                        nameMuted={!named}
+                                        chip={cron ? describeCron(cron) : undefined}
+                                        subtitle={message || "No message set"}
+                                        active={isEntityActive(record)}
+                                        disabled={disabled}
+                                        runDisabled={disabled || !record.id}
+                                        onRun={() => simulateSchedule(record)}
+                                        onOpen={() =>
+                                            record.id &&
+                                            openScheduleDrawer({
+                                                scheduleId: record.id,
+                                                playgroundEntityId: entityId ?? undefined,
+                                            })
+                                        }
+                                        menuItems={scheduleMenu(record)}
+                                    />
+                                )
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
 
             {/* Propless, atom-driven drawers — mounted once; they manage their own
-                visibility (and the catalog renders its own connect flow internally).
-                When a subscription/schedule is created from here it default-binds to
-                this agent. */}
-            <TriggerCatalogDrawer
-                defaultReferences={defaultReferences}
-                defaultBoundLabel={defaultBoundLabel}
-                playgroundEntityId={entityId ?? undefined}
-            />
+                visibility. App browsing + connecting now happens inside the subscription
+                drawer (no separate catalog drawer in the playground). When a
+                subscription/schedule is created here it default-binds to this agent. */}
             <TriggerSubscriptionDrawer />
             <TriggerScheduleDrawer />
             <TriggerDeliveriesDrawer />
@@ -590,7 +941,7 @@ export function AddTriggerDropdown({
     trigger?: ReactNode
 }) {
     const {defaultReferences, defaultBoundLabel} = useAgentTriggers(entityId)
-    const openCatalog = useSetAtom(triggerCatalogDrawerOpenAtom)
+    const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
 
     const items: MenuProps["items"] = useMemo(
@@ -609,7 +960,12 @@ export function AddTriggerDropdown({
                 key: "app",
                 label: "App trigger",
                 icon: <Lightning size={16} />,
-                onClick: () => openCatalog(true),
+                onClick: () =>
+                    openSubscriptionDrawer({
+                        defaultReferences,
+                        defaultBoundLabel,
+                        playgroundEntityId: entityId ?? undefined,
+                    }),
             },
             {
                 key: "schedule",
@@ -623,7 +979,13 @@ export function AddTriggerDropdown({
                     }),
             },
         ],
-        [openCatalog, openScheduleDrawer, defaultReferences, defaultBoundLabel, entityId],
+        [
+            openSubscriptionDrawer,
+            openScheduleDrawer,
+            defaultReferences,
+            defaultBoundLabel,
+            entityId,
+        ],
     )
 
     return (

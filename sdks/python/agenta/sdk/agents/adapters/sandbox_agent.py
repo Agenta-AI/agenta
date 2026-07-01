@@ -134,7 +134,7 @@ class SandboxAgentBackend(Backend):
         url: Optional[str] = None,
         command: Optional[Sequence[str]] = None,
         cwd: Optional[str] = None,
-        timeout: float = float(os.getenv("AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS", "180")),
+        timeout: float = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180")),
     ) -> None:
         self._sandbox = sandbox
         self._url = url

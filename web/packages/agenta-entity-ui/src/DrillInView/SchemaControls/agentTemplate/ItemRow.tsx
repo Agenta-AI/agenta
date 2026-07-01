@@ -3,6 +3,7 @@
  * tool/MCP/skill row, and the richer instructions-file row. All are dumb — they render an
  * {@link ItemDescriptor} and call back on open/remove; the section owners hold the state.
  */
+import {cn} from "@agenta/ui/styles"
 import {CaretRight, Trash} from "@phosphor-icons/react"
 import {Tag, Typography} from "antd"
 
@@ -23,30 +24,45 @@ export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
 /**
  * A config-item row (a tool or MCP server): type avatar, name + description, type tags, and a
  * chevron. The whole row opens the item drawer; remove appears on hover.
+ *
+ * `locked` renders a read-only variant (muted fill, a "Locked" tag, no chevron/remove and no
+ * interaction) — used for platform-owned items that can be shown but not edited, e.g. the
+ * playground build kit. Passing no `onEdit` also makes the row non-interactive.
  */
 export function ItemRow({
     descriptor,
     onEdit,
     onRemove,
     disabled,
+    locked,
 }: {
     descriptor: ItemDescriptor
-    onEdit: () => void
+    onEdit?: () => void
     onRemove?: () => void
     disabled?: boolean
+    locked?: boolean
 }) {
+    const interactive = Boolean(onEdit) && !locked
     return (
         <div
-            role="button"
-            tabIndex={0}
-            onClick={onEdit}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    onEdit()
-                }
-            }}
-            className="group flex cursor-pointer items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
+            role={interactive ? "button" : undefined}
+            tabIndex={interactive ? 0 : undefined}
+            onClick={interactive ? onEdit : undefined}
+            onKeyDown={
+                interactive
+                    ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              onEdit?.()
+                          }
+                      }
+                    : undefined
+            }
+            className={cn(
+                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors",
+                interactive && "cursor-pointer hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+                locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
+            )}
         >
             <ItemAvatar descriptor={descriptor} />
             <div className="min-w-0 flex-1">
@@ -66,7 +82,8 @@ export function ItemRow({
                         {tag}
                     </Tag>
                 ))}
-                {onRemove && !disabled ? (
+                {locked ? <Tag className="m-0 text-[11px]">Locked</Tag> : null}
+                {onRemove && !disabled && !locked ? (
                     <button
                         type="button"
                         aria-label="Remove"
@@ -79,7 +96,9 @@ export function ItemRow({
                         <Trash size={14} />
                     </button>
                 ) : null}
-                <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                {interactive ? (
+                    <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                ) : null}
             </div>
         </div>
     )

@@ -42,7 +42,7 @@ def _parked_run() -> AgentStream:
                     "event": {
                         "type": "interaction_request",
                         "id": "perm-1",
-                        "kind": "permission",
+                        "kind": "user_approval",
                         "payload": {"toolCallId": "tool-1"},
                     },
                 },
@@ -105,7 +105,7 @@ def _parked_run_with_real_args() -> AgentStream:
                     "event": {
                         "type": "interaction_request",
                         "id": "perm-1",
-                        "kind": "permission",
+                        "kind": "user_approval",
                         "payload": {
                             "toolCallId": "tool-1",
                             "toolCall": {
@@ -152,4 +152,168 @@ async def test_parked_tool_call_refreshes_real_args_on_approval() -> None:
     # The approval still attaches to the same tool-call id and the stream drains cleanly.
     approval = next(p for p in parts if p["type"] == "tool-approval-request")
     assert approval["toolCallId"] == "tool-1"
+    assert parts[-1]["type"] == "finish"
+
+
+def _commit_revision_run() -> AgentStream:
+    return AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-commit-1",
+                        "name": "commit_revision",
+                        "input": {},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_result",
+                        "id": "tool-commit-1",
+                        "output": (
+                            '{"count":1,"workflow_revision":{'
+                            '"workflow_variant_id":"variant-1",'
+                            '"id":"revision-1",'
+                            '"version":"4"'
+                            "}}"
+                        ),
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "stop"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "stop",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+
+
+def _commit_revision_result_only_run() -> AgentStream:
+    return AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_result",
+                        "id": "tool-commit-1",
+                        "output": (
+                            '{"count":1,"workflow_revision":{'
+                            '"workflow_variant_id":"variant-1",'
+                            '"id":"revision-1",'
+                            '"version":"4"'
+                            "}}"
+                        ),
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "stop"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "stop",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_commit_revision_tool_result_emits_refresh_data_part() -> None:
+    parts = [part async for part in agent_run_to_vercel_parts(_commit_revision_run())]
+
+    committed = next(p for p in parts if p["type"] == "data-committed-revision")
+    assert committed["data"] == {
+        "variantId": "variant-1",
+        "revisionId": "revision-1",
+        "version": "4",
+    }
+
+
+@pytest.mark.asyncio
+async def test_commit_revision_result_only_emits_refresh_data_part() -> None:
+    parts = [
+        part
+        async for part in agent_run_to_vercel_parts(_commit_revision_result_only_run())
+    ]
+
+    committed = next(p for p in parts if p["type"] == "data-committed-revision")
+    assert committed["data"] == {
+        "variantId": "variant-1",
+        "revisionId": "revision-1",
+        "version": "4",
+    }
+
+
+def _parked_client_tool_run() -> AgentStream:
+    return AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "interaction_request",
+                        "id": "client-tool-1",
+                        "kind": "client_tool",
+                        "payload": {
+                            "toolCallId": "tool-client-1",
+                            "toolName": "request_connection",
+                            "input": {"integration": "slack"},
+                            "render": {"kind": "connect"},
+                        },
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "paused"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "paused",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_parked_client_tool_emits_unsettled_tool_part() -> None:
+    parts = [
+        part async for part in agent_run_to_vercel_parts(_parked_client_tool_run())
+    ]
+
+    inputs = [p for p in parts if p.get("type") == "tool-input-available"]
+    assert inputs == [
+        {
+            "type": "tool-input-available",
+            "toolCallId": "tool-client-1",
+            "toolName": "request_connection",
+            "input": {"integration": "slack"},
+        }
+    ]
+    assert {
+        "type": "data-render",
+        "data": {
+            "toolCallId": "tool-client-1",
+            "render": {"kind": "connect"},
+        },
+    } in parts
+    assert not any(p.get("type") == "tool-output-available" for p in parts)
     assert parts[-1]["type"] == "finish"

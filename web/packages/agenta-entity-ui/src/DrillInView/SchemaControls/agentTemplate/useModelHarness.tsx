@@ -10,7 +10,16 @@ import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Check, Cube, EyeSlash, Key, Lightbulb, ShieldCheck, Warning} from "@phosphor-icons/react"
+import {
+    CaretRight,
+    Check,
+    Cube,
+    EyeSlash,
+    Key,
+    Lightbulb,
+    ShieldCheck,
+    Warning,
+} from "@phosphor-icons/react"
 import {Select, Switch, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -34,21 +43,22 @@ import {HarnessSelectControl} from "../HarnessSelectControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {enumLabel} from "./agentTemplateUtils"
+import {useBuildKit} from "./useBuildKit"
 
 export function useModelHarness({
     schema,
     config,
     onChange,
-    revisionId,
     disabled,
     withTooltip,
+    revisionId,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
-    revisionId: string | null
     disabled?: boolean
     withTooltip?: boolean
+    revisionId?: string | null
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
@@ -105,12 +115,19 @@ export function useModelHarness({
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
     const connection = useMemo(() => connectionFromConfig(llm), [llm])
 
-    // Per-harness capability map from the `/inspect` response meta, keyed by the open revision.
-    // Null when inspect hasn't resolved or the agent didn't publish it (older agents / standalone),
-    // in which case the connectionUtils helpers fall back permissively.
-    const capabilities = useAtomValue(
-        useMemo(() => harnessCapabilitiesAtomFamily(revisionId ?? ""), [revisionId]),
+    // Harness capability map, resolved from the schema's declared `x-ag-harness-ref` on the harness
+    // `kind` field (its target is the `harnesses` catalog). The ref is what opts this field into
+    // catalog-driven capabilities: we only apply the map when the schema declares it, otherwise the
+    // connectionUtils helpers fall back to a permissive, unfiltered picker. The catalog itself is
+    // global, so the ref string also keys the atom.
+    const harnessRef = (harnessProps.kind as Record<string, unknown> | undefined)?.[
+        "x-ag-harness-ref"
+    ]
+    const harnessRefKey = typeof harnessRef === "string" && harnessRef ? harnessRef : null
+    const capabilitiesFromCatalog = useAtomValue(
+        useMemo(() => harnessCapabilitiesAtomFamily(harnessRefKey ?? ""), [harnessRefKey]),
     )
+    const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
 
     // The project's stored connections (read-only) for the connection picker. The transformed vault
     // list surfaces custom-provider connections as {type, name, provider}; the resolver matches a
@@ -242,12 +259,27 @@ export function useModelHarness({
 
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     const hasClaudePermissions = harnessValue === "claude"
+
+    // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
+    // sandbox-permission keys the overlay overrides for the user's own permission control below.
+    const {hasBuildKitOverlay, buildKitSection, permissionOverrideHint} = useBuildKit({
+        revisionId,
+        sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
+        disabled,
+    })
+
+    // Collapsed-by-default state for each advanced group (independent; multiple can be open).
+    const [authExpanded, setAuthExpanded] = useState(false)
+    const [execExpanded, setExecExpanded] = useState(false)
+    const [permsExpanded, setPermsExpanded] = useState(false)
+
     const hasAdvanced = Boolean(
         props.llm || // Authentication lives in Advanced now
         sandboxProps.kind ||
         sandboxProps.permissions ||
         runnerProps.interactions ||
-        hasClaudePermissions,
+        hasClaudePermissions ||
+        hasBuildKitOverlay,
     )
 
     // The Model picker (inspect-filtered when available, else the schema catalog).
@@ -666,104 +698,208 @@ export function useModelHarness({
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     const advancedControls = (
         <>
+            {buildKitSection}
+
             {authControls ? (
-                <div>
-                    <div className="mb-0.5 flex items-center gap-1.5">
+                <div
+                    className={cn(
+                        "rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]",
+                        hasBuildKitOverlay && "mt-0",
+                    )}
+                >
+                    <button
+                        type="button"
+                        aria-expanded={authExpanded}
+                        onClick={() => setAuthExpanded((open) => !open)}
+                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
+                    >
                         <Key size={15} className="text-[var(--ag-c-586673,#586673)]" />
                         <span className="text-[13px] font-medium">Authentication</span>
-                    </div>
-                    <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
-                        Where the model credential comes from when this agent runs.
-                    </p>
-                    <div className="ml-[22px]">{authControls}</div>
+                        {!authExpanded ? (
+                            <span className="ml-auto text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                {props.llm
+                                    ? connection.mode === "agenta"
+                                        ? "Agenta-managed"
+                                        : "Self-managed"
+                                    : ""}
+                            </span>
+                        ) : (
+                            <span className="ml-auto" />
+                        )}
+                        <CaretRight
+                            size={14}
+                            className={cn(
+                                "text-[var(--ag-c-97A4B0,#97a4b0)] transition-transform",
+                                authExpanded && "rotate-90",
+                            )}
+                        />
+                    </button>
+                    {authExpanded ? (
+                        <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 pb-3 pt-2.5">
+                            <p className="mb-2.5 text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                Where the model credential comes from when this agent runs.
+                            </p>
+                            {authControls}
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
 
             {hasExecutionGroup ? (
-                <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-4">
-                    <div className="mb-0.5 flex items-center gap-1.5">
+                <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
+                    <button
+                        type="button"
+                        aria-expanded={execExpanded}
+                        onClick={() => setExecExpanded((open) => !open)}
+                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
+                    >
                         <Cube size={15} className="text-[var(--ag-c-586673,#586673)]" />
                         <span className="text-[13px] font-medium">Execution environment</span>
-                    </div>
-                    <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
-                        Where the agent&apos;s tools and code run, and what that sandbox may touch.
-                    </p>
-                    <div className="ml-[22px] flex flex-col gap-2.5">
-                        {sandboxProps.kind && (
-                            <EnumSelectControl
-                                schema={sandboxProps.kind}
-                                label="Sandbox"
-                                value={(sandbox.kind as string | null) ?? null}
-                                onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
-                                withTooltip={withTooltip}
-                                disabled={disabled}
-                            />
+                        {!execExpanded ? (
+                            <span className="ml-auto text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                {sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : ""}
+                            </span>
+                        ) : (
+                            <span className="ml-auto" />
                         )}
-                        {sandboxProps.permissions ? (
-                            <SandboxPermissionControl
-                                value={
-                                    (sandbox.permissions as Record<string, unknown> | null) ?? null
-                                }
-                                onChange={(v) =>
-                                    setSection("sandbox", {...sandbox, permissions: v})
-                                }
-                                disabled={disabled}
-                            />
-                        ) : null}
-                    </div>
+                        <CaretRight
+                            size={14}
+                            className={cn(
+                                "text-[var(--ag-c-97A4B0,#97a4b0)] transition-transform",
+                                execExpanded && "rotate-90",
+                            )}
+                        />
+                    </button>
+                    {execExpanded ? (
+                        <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 pb-3 pt-2.5">
+                            <p className="mb-2.5 text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                Where the agent&apos;s tools and code run, and what that sandbox may
+                                touch.
+                            </p>
+                            <div className="flex flex-col gap-2.5">
+                                {sandboxProps.kind && (
+                                    <EnumSelectControl
+                                        schema={sandboxProps.kind}
+                                        label="Sandbox"
+                                        value={(sandbox.kind as string | null) ?? null}
+                                        onChange={(v) =>
+                                            setSection("sandbox", {...sandbox, kind: v})
+                                        }
+                                        withTooltip={withTooltip}
+                                        disabled={disabled}
+                                    />
+                                )}
+                                {sandboxProps.permissions ? (
+                                    <div className="flex flex-col gap-1.5">
+                                        {permissionOverrideHint}
+                                        <SandboxPermissionControl
+                                            value={
+                                                (sandbox.permissions as Record<
+                                                    string,
+                                                    unknown
+                                                > | null) ?? null
+                                            }
+                                            onChange={(v) =>
+                                                setSection("sandbox", {
+                                                    ...sandbox,
+                                                    permissions: v,
+                                                })
+                                            }
+                                            disabled={disabled}
+                                        />
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
 
             {hasPermissionsGroup ? (
-                <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-4">
-                    <div className="mb-0.5 flex items-center gap-1.5">
+                <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
+                    <button
+                        type="button"
+                        aria-expanded={permsExpanded}
+                        onClick={() => setPermsExpanded((open) => !open)}
+                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
+                    >
                         <ShieldCheck size={15} className="text-[var(--ag-c-586673,#586673)]" />
                         <span className="text-[13px] font-medium">Permissions</span>
-                    </div>
-                    <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
-                        What the agent may do on its own before it must ask.
-                    </p>
-                    <div className="ml-[22px] flex flex-col gap-2.5">
-                        {headlessSchema ? (
-                            isPiHarness ? (
-                                <div className="flex items-center gap-1.5 text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                    <EyeSlash size={13} />
-                                    Permission policy isn&apos;t used by the Pi harness.
-                                </div>
-                            ) : (
-                                <EnumSelectControl
-                                    schema={headlessSchema}
-                                    label="Permission policy"
-                                    value={headlessValue}
-                                    onChange={(v) =>
-                                        setSection("runner", {
-                                            ...runner,
-                                            interactions: {...runnerInteractions, headless: v},
-                                        })
-                                    }
-                                    withTooltip={withTooltip}
-                                    disabled={disabled}
-                                />
-                            )
-                        ) : null}
-                        {hasClaudePermissions ? (
-                            <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-1.5">
-                                    <Typography.Text className="text-xs font-medium">
-                                        Claude permissions
-                                    </Typography.Text>
-                                    <span className="rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
-                                        Claude harness
-                                    </span>
-                                </div>
-                                <ClaudePermissionsControl
-                                    value={claudePermissions}
-                                    onChange={setClaudePermissions}
-                                    disabled={disabled}
-                                />
+                        {!permsExpanded ? (
+                            <span className="ml-auto text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                Auto
+                            </span>
+                        ) : (
+                            <span className="ml-auto" />
+                        )}
+                        <CaretRight
+                            size={14}
+                            className={cn(
+                                "text-[var(--ag-c-97A4B0,#97a4b0)] transition-transform",
+                                permsExpanded && "rotate-90",
+                            )}
+                        />
+                    </button>
+                    {permsExpanded ? (
+                        <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 pb-3 pt-2.5">
+                            <p className="mb-2.5 text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                What the agent may do on its own before it must ask.
+                            </p>
+                            <div className="flex flex-col gap-2.5">
+                                {headlessSchema ? (
+                                    isPiHarness ? (
+                                        <div className="flex items-center gap-1.5 text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                            <EyeSlash size={13} />
+                                            Permission policy isn&apos;t used by the Pi harness.
+                                        </div>
+                                    ) : (
+                                        <EnumSelectControl
+                                            schema={headlessSchema}
+                                            label="Permission policy"
+                                            value={headlessValue}
+                                            onChange={(v) =>
+                                                setSection("runner", {
+                                                    ...runner,
+                                                    interactions: {
+                                                        ...runnerInteractions,
+                                                        headless: v,
+                                                    },
+                                                })
+                                            }
+                                            withTooltip={withTooltip}
+                                            disabled={disabled}
+                                        />
+                                    )
+                                ) : null}
+                                {hasClaudePermissions ? (
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                            <Typography.Text className="text-xs font-medium">
+                                                Claude permissions
+                                            </Typography.Text>
+                                            <span className="rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                                                Claude harness
+                                            </span>
+                                        </div>
+                                        <ClaudePermissionsControl
+                                            value={claudePermissions}
+                                            onChange={setClaudePermissions}
+                                            disabled={disabled}
+                                            // Mode options + labels come from the harness `permissions`
+                                            // sub-schema (`default_mode` enum) so they follow the template.
+                                            modeSchema={
+                                                (
+                                                    harnessProps.permissions?.properties as
+                                                        | Record<string, SchemaProperty>
+                                                        | undefined
+                                                )?.default_mode
+                                            }
+                                        />
+                                    </div>
+                                ) : null}
                             </div>
-                        ) : null}
-                    </div>
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
         </>

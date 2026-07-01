@@ -17,8 +17,13 @@ export const triggerSchedulesQueryAtom = atomWithQuery<TriggerSchedulesResponse>
 export const useTriggerSchedules = () => {
     const query = useAtomValue(triggerSchedulesQueryAtom)
 
+    // Newest first. The /schedules/query body exposes no ordering option, so this is
+    // done once here in the hook rather than per-render in consumers.
     const schedules = useMemo<TriggerSchedule[]>(
-        () => query.data?.schedules ?? [],
+        () =>
+            [...(query.data?.schedules ?? [])].sort((a, b) =>
+                (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+            ),
         [query.data?.schedules],
     )
 

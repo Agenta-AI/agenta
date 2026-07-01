@@ -28,6 +28,7 @@ import {
     type MessageUsageMetrics,
 } from "../assets/trace"
 
+import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
 
 const {Text} = Typography
@@ -48,10 +49,15 @@ interface AgentMessageProps {
     /** This is the last message AND the conversation is streaming — i.e. the one being
      * generated right now. Only it shows the loading state; settled turns never do. */
     isStreaming?: boolean
+    /** This is the last message in the conversation. A parked client tool only lands on the last
+     * turn, so the unknown-client-tool fallback only arms there (see `isClientToolPart`). */
+    isLastMessage?: boolean
     /** Stable across renders (parent passes a `useCallback`'d handler) so the `memo()` below
      * isn't defeated — the message to rewind to is passed in, not closed over per render. */
     onRewind: (message: UIMessage) => void
     onApprovalResponse: (args: {id: string; approved: boolean}) => void
+    /** Settle a parked client tool (#4920) — the dispatcher calls this from a widget. */
+    onClientToolOutput: ClientToolOutputHandler
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
      * run of "no response" bubbles down to the first one. */
     precededByEmptyAssistant?: boolean
@@ -164,8 +170,10 @@ const avatarFor = (isUser: boolean) => (
 const AgentMessage = ({
     message,
     isStreaming = false,
+    isLastMessage = false,
     onRewind,
     onApprovalResponse,
+    onClientToolOutput,
     precededByEmptyAssistant = false,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -240,9 +248,16 @@ const AgentMessage = ({
     type RenderItem =
         | {kind: "part"; part: UIMessage["parts"][number]; index: number}
         | {kind: "tools"; parts: ToolUIPart[]; index: number}
+        | {kind: "clientTool"; part: ToolUIPart; index: number}
     const renderItems: RenderItem[] = []
     message.parts.forEach((part, i) => {
         if (isToolPart(part.type)) {
+            // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
+            // into the "Used N tools" group — so it breaks any current tool run.
+            if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage})) {
+                renderItems.push({kind: "clientTool", part: part as ToolUIPart, index: i})
+                return
+            }
             const last = renderItems[renderItems.length - 1]
             if (last && last.kind === "tools") last.parts.push(part as ToolUIPart)
             else renderItems.push({kind: "tools", parts: [part as ToolUIPart], index: i})
@@ -320,6 +335,15 @@ const AgentMessage = ({
                         />
                     )
                 }
+                if (item.kind === "clientTool") {
+                    return (
+                        <ClientToolPart
+                            key={`${message.id}-clienttool-${item.part.toolCallId || item.index}`}
+                            part={item.part}
+                            onOutput={onClientToolOutput}
+                        />
+                    )
+                }
                 return renderLeafPart(item.part, item.index)
             })}
 
@@ -368,9 +392,10 @@ const AgentMessage = ({
             defaultBody
         )
 
-    // Control toolbar — an X `Actions` row that FLOATS over the bubble's bottom edge. It is
-    // absolutely positioned (out of flow), so it adds no height: bubbles sit tight with no
-    // reserved lane, and revealing it only fades opacity — no layout shift either way.
+    // Control toolbar — an X `Actions` row that sits in a reserved lane BELOW the bubble (the
+    // `pb-7` on the row), so it never overlays the last content line and never reaches the next
+    // turn. The lane is always present (stable height), so revealing it only fades opacity — no
+    // layout shift either way (the scroll engineering is sensitive to hover-driven reflow).
     // `pointer-events-none` while hidden keeps the invisible buttons unclickable. `Actions`
     // items carry no `disabled`, so the busy guard lives in the handlers: `onRewind` →
     // `handleRewind` early-returns while a stream is in flight (copy / view-trace are always
@@ -418,13 +443,13 @@ const AgentMessage = ({
         </>
     )
 
-    // `group relative` → the floating toolbar reveals on hover/focus of the whole message row
-    // and anchors to the bubble without consuming layout space. The row is a flex that
-    // justifies the (width-capped) bubble to its side, so the opposite side keeps whitespace —
-    // agent bubbles hug the left, user bubbles the right, neither spans the full column.
+    // `group relative` → the toolbar reveals on hover/focus of the whole message row and anchors
+    // to the reserved lane (`pb-7`) at the row's bottom. The row is a flex that justifies the
+    // (width-capped) bubble to its side, so the opposite side keeps whitespace — agent bubbles hug
+    // the left, user bubbles the right, neither spans the full column.
     return (
         <div
-            className={`group relative flex items-start ${isUser ? "justify-end" : "justify-start"}`}
+            className={`group relative flex items-start pb-7 ${isUser ? "justify-end" : "justify-start"}`}
         >
             <Bubble<React.ReactNode>
                 placement={isUser ? "end" : "start"}
@@ -442,7 +467,7 @@ const AgentMessage = ({
                 content={body}
             />
             <div
-                className={`absolute top-full z-10 flex -translate-y-1/2 items-center gap-1 rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated px-1 shadow-sm ${
+                className={`absolute bottom-0 z-10 flex items-center gap-1 rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated px-1 shadow-sm ${
                     isUser ? "right-2" : "left-10"
                 } ${toolbarReveal}`}
             >

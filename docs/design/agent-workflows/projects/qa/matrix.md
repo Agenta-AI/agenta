@@ -442,7 +442,7 @@ silent-drop observability gap is F-015.
 ## Live run results — SDK / API surface (2026-06-25)
 
 Run against `localhost:8280` (compose project `agenta-ee-dev-wp-b2-rendering`, `services` →
-`AGENTA_AGENT_RUNNER_URL=http://sandbox-agent:8765`, so the service path is E2 sandbox-agent
+`AGENTA_RUNNER_URL=http://sandbox-agent:8765`, so the service path is E2 sandbox-agent
 local), commit `51e4c9e8e7`. The `examples/python/hotel_agent/draft/.env` API key
 (`N1twS5YQ`) is bound to the **hotel-agent** project (`019e8df5-635d-…`, OpenAI key only) — NOT
 the Default project, as the 2026-06-25 re-run corrected (see F-019). The `?project_id` on
@@ -498,8 +498,8 @@ E2 sandbox-agent local. Key: the hotel-agent `.env` API key (OpenAI-only vault, 
 
 **Wire-contract changes since the prior pass:** (1) the `sandbox` per-run field is GONE — the
 sidecar provider (local/daytona) is configured by the sidecar's OWN env; an optional `uri` routes
-to a sidecar, allowlist-gated by `AGENTA_AGENT_RUNNER_URI_ALLOWLIST` (default empty = off; E2 just
-uses the env-var `AGENTA_AGENT_RUNNER_URL` fallback). (2) the `code` tool wire field is `script`
+to a sidecar, allowlist-gated by `AGENTA_RUNNER_URI_ALLOWLIST` (default empty = off; E2 just
+uses the env-var `AGENTA_RUNNER_URL` fallback). (2) the `code` tool wire field is `script`
 (+`input_schema`), NOT `code`/`parameters` — the old shape 500s at config validation. (3) http MCP
 is now ENABLED and stdio DISABLED-fail-loud — but ONLY on the Claude branch (F-032).
 

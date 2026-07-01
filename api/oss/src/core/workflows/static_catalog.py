@@ -15,11 +15,21 @@ user cannot author or shadow it, and resolution never falls through to Postgres.
 """
 
 from typing import Any, Dict, Optional, Tuple
-from uuid import UUID, uuid5
+from uuid import UUID, uuid5, NAMESPACE_DNS
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
+    BUILD_YOUR_FIRST_APP_SKILL,
+    BUILD_YOUR_FIRST_APP_SLUG,
+    DISCOVER_AND_WIRE_TOOLS_SKILL,
+    DISCOVER_AND_WIRE_TOOLS_SLUG,
     GETTING_STARTED_WITH_AGENTA_SKILL,
     GETTING_STARTED_WITH_AGENTA_SLUG,
+    SET_UP_TRIGGERS_SKILL,
+    SET_UP_TRIGGERS_SLUG,
+)
+from agenta.sdk.agents.platform.workflow import (
+    REQUEST_CONNECTION_TOOL_NAME,
+    REQUEST_CONNECTION_WORKFLOW_SLUG,
 )
 from agenta.sdk.agents.skills.models import SkillTemplate
 from agenta.sdk.engines.running.utils import (
@@ -45,10 +55,10 @@ __all__ = [
     "StaticWorkflowCatalog",
 ]
 
-# Fixed namespace UUID for deterministic UUIDv5 ids. Stable across instances and restarts so a
-# static workflow keeps the same artifact / variant / revision ids everywhere. Do not change it:
-# the ids are derived from it, and changing it would silently re-key every static workflow.
-_STATIC_NAMESPACE_UUID = UUID("a6e6b3f2-2c4a-5f3a-9b6f-0a1b2c3d4e5f")
+# Deterministic UUIDv5 namespace: the stable project-wide root (uuid5(NAMESPACE_DNS, "agenta"))
+# sub-namespaced under "catalog". Stable across instances/restarts so a static workflow keeps the
+# same artifact / variant / revision ids everywhere. Changing it re-keys every static workflow.
+_STATIC_NAMESPACE_UUID = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "catalog")
 
 
 # ---------------------------------------------------------------------------
@@ -78,12 +88,77 @@ def _skill_revision(skill_template: SkillTemplate) -> WorkflowRevision:
     )
 
 
+def _client_tool_revision() -> WorkflowRevision:
+    return WorkflowRevision(
+        name="Request connection",
+        description="Ask the user to connect an external account.",
+        data=WorkflowRevisionData(
+            uri="client:tool:request_connection:v0",
+            parameters={
+                # A tool config (the ``tools`` field holds configs, discriminated by ``type``),
+                # not a resolved spec (``kind``): the embed inlines this at ``parameters.tool`` and
+                # the SDK coerces it to a ``ClientToolConfig`` -> ``ClientToolSpec``.
+                "tool": {
+                    "type": "client",
+                    "name": REQUEST_CONNECTION_TOOL_NAME,
+                    "description": "Request a connection from the user.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "integration": {
+                                "type": "string",
+                                "description": "The external integration key the user should connect, for example 'slack' or 'github'.",
+                            },
+                            "slug": {
+                                "type": "string",
+                                "description": "Optional stable connection slug to create or reuse. Defaults to the integration key.",
+                            },
+                            "mode": {
+                                "type": "string",
+                                "enum": ["oauth", "api_key"],
+                                "description": "Connection flow to request. Defaults to 'oauth'.",
+                            },
+                        },
+                        "required": ["integration"],
+                        "additionalProperties": False,
+                    },
+                    "render": {"kind": "connect"},
+                }
+            },
+        ),
+    )
+
+
 # Each entry: a reserved slug -> {latest: <ver>, versions: {<ver>: WorkflowRevision}}.
 _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
     GETTING_STARTED_WITH_AGENTA_SLUG: {
         "latest": "v1",
         "versions": {
             "v1": _skill_revision(GETTING_STARTED_WITH_AGENTA_SKILL),
+        },
+    },
+    REQUEST_CONNECTION_WORKFLOW_SLUG: {
+        "latest": "v1",
+        "versions": {
+            "v1": _client_tool_revision(),
+        },
+    },
+    BUILD_YOUR_FIRST_APP_SLUG: {
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(BUILD_YOUR_FIRST_APP_SKILL),
+        },
+    },
+    DISCOVER_AND_WIRE_TOOLS_SLUG: {
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(DISCOVER_AND_WIRE_TOOLS_SKILL),
+        },
+    },
+    SET_UP_TRIGGERS_SLUG: {
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(SET_UP_TRIGGERS_SKILL),
         },
     },
 }

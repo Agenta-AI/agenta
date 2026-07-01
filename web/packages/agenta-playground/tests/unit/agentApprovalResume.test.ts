@@ -27,6 +27,22 @@ const assistantWithTool = (state: string, approved?: boolean) => ({
     ],
 })
 
+/** A parked client tool (e.g. `request_connection`): no approval, `providerExecuted` falsy. */
+const assistantWithClientTool = (state: string, output?: unknown) => ({
+    id: "a1",
+    role: "assistant",
+    parts: [
+        {type: "step-start"},
+        {
+            type: "tool-request_connection",
+            toolCallId: "call_c",
+            state,
+            input: {integration: "github"},
+            ...(output === undefined ? {} : {output}),
+        },
+    ],
+})
+
 describe("agentShouldResumeAfterApproval", () => {
     it("RESUMES on a deny-only decision (the F-036 dead-end fix)", () => {
         const messages = [user("do it"), assistantWithTool("approval-responded", false)]
@@ -114,6 +130,125 @@ describe("agentShouldResumeAfterApproval", () => {
 
     it("does NOT resume when there are no messages", () => {
         expect(agentShouldResumeAfterApproval({messages: []})).toBe(false)
+    })
+
+    it("RESUMES when a parked client tool is fulfilled (output-available)", () => {
+        const messages = [
+            user("connect github"),
+            assistantWithClientTool("output-available", {
+                connected: true,
+                integration: "github",
+                slug: "github-main",
+            }),
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
+    it("RESUMES when a client tool settles as a failure (cancel/abandon/error)", () => {
+        const messages = [
+            user("connect github"),
+            assistantWithClientTool("output-error", undefined),
+        ]
+        // output-error counts as settled even with no `output` payload (errorText path).
+        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
+    it("does NOT resume while a client tool is still parked (input-available)", () => {
+        const messages = [user("connect github"), assistantWithClientTool("input-available")]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("does NOT resume while a client tool is still streaming its input", () => {
+        const messages = [user("connect github"), assistantWithClientTool("input-streaming")]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("resumes when a fulfilled client tool sits alongside a responded approval", () => {
+        const messages = [
+            user("do it then connect"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_1",
+                        state: "approval-responded",
+                        input: {path: "/x"},
+                        approval: {id: "perm_1", approved: true},
+                    },
+                    {
+                        type: "tool-request_connection",
+                        toolCallId: "call_c",
+                        state: "output-available",
+                        input: {integration: "github"},
+                        output: {connected: true, integration: "github", slug: "github-main"},
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
+    it("does NOT resume when a fulfilled client tool sits beside an unsettled sibling", () => {
+        const messages = [
+            user("connect both"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-request_connection",
+                        toolCallId: "call_c",
+                        state: "output-available",
+                        input: {integration: "github"},
+                        output: {connected: true, integration: "github", slug: "github-main"},
+                    },
+                    {
+                        type: "tool-request_connection",
+                        toolCallId: "call_d",
+                        state: "input-available",
+                        input: {integration: "slack"},
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("does NOT resume for a settled SERVER tool (the read-skill / Aloha-loop regression)", () => {
+        // A server tool the agent ran itself (e.g. the `read` skill auto-loaded each turn) settles
+        // to output-available with providerExecuted falsy and no approval — but it is NOT a client
+        // tool (no render.kind, not a known client-tool name). It must not trigger a resume, or
+        // every tool-using turn auto-resends forever.
+        const messages = [
+            user("Aloha"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-read",
+                        toolCallId: "call_read_1",
+                        state: "output-available",
+                        input: {},
+                        output: "---\nname: agenta-getting-started\n---\n",
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("does NOT resume for an APPROVED tool that ran (output-available WITH approval)", () => {
+        // An approval-gated tool that was approved and then produced output keeps its `approval`
+        // field. It is not a parked client tool — the turn already continued — so it must not be
+        // read as a client-tool result (else the queue gate, which composes this, holds forever).
+        const messages = [user("do it"), assistantWithTool("output-available", true)]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
     })
 
     it("ignores provider-executed tool parts when deciding completeness", () => {

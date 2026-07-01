@@ -36,8 +36,17 @@ export interface ClaudePermissionsControlProps {
     disabled?: boolean
     /** Additional CSS classes */
     className?: string
+    /**
+     * The `default_mode` field schema (its `enum` + `title`/`description`). When provided, the mode
+     * option set and the field label/description follow the template schema instead of the
+     * hardcoded fallback, so a backend mode change propagates without editing this control. The enum
+     * may sit directly on the node or, for an `Optional[Literal]`, inside `anyOf`.
+     */
+    modeSchema?: {enum?: unknown; anyOf?: unknown; title?: unknown; description?: unknown} | null
 }
 
+// FE display copy per mode value. The set of values is the schema's `default_mode` enum (passed via
+// `modeSchema`); this only supplies the friendlier label, falling back to the raw value.
 const MODE_OPTIONS: {value: ClaudePermissionMode; label: string}[] = [
     {value: "default", label: "Default (prompt on each gated tool)"},
     {value: "acceptEdits", label: "Accept edits (auto-accept file edits)"},
@@ -74,8 +83,37 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
     onChange,
     disabled = false,
     className,
+    modeSchema,
 }: ClaudePermissionsControlProps) {
     const current = useMemo(() => readValue(value), [value])
+
+    // The mode option set comes from the schema's `default_mode` enum when available (FE labels by
+    // value, falling back to the raw value); otherwise the hardcoded MODE_OPTIONS. The field
+    // label/description likewise prefer the schema's title/description.
+    const modeOptions = useMemo(() => {
+        // The enum is on the node for a bare Literal, or inside `anyOf` for an `Optional[Literal]`
+        // (`anyOf: [{enum:[...]}, {type:"null"}]`).
+        const direct = Array.isArray(modeSchema?.enum) ? (modeSchema!.enum as unknown[]) : null
+        const fromAnyOf = Array.isArray(modeSchema?.anyOf)
+            ? (modeSchema!.anyOf as {enum?: unknown}[]).find((a) => Array.isArray(a?.enum))?.enum
+            : null
+        const en = (direct ?? fromAnyOf) as unknown[] | null | undefined
+        if (Array.isArray(en) && en.length) {
+            const labelOf = (v: string) => MODE_OPTIONS.find((o) => o.value === v)?.label ?? v
+            return en
+                .filter((v): v is string => typeof v === "string")
+                .map((v) => ({value: v as ClaudePermissionMode, label: labelOf(v)}))
+        }
+        return MODE_OPTIONS
+    }, [modeSchema])
+    const modeLabel =
+        typeof modeSchema?.title === "string" && modeSchema.title
+            ? modeSchema.title
+            : "Permission mode"
+    const modeDescription =
+        typeof modeSchema?.description === "string" && modeSchema.description
+            ? modeSchema.description
+            : "Claude Code's default permission mode for this headless run."
 
     // Compose the full permissions object, overriding one slice. `default_mode` is only written
     // when set so an author who only edits rules never emits a null mode.
@@ -100,15 +138,11 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
 
     return (
         <div className={cn("flex flex-col gap-2", className)}>
-            <LabeledField
-                label="Permission mode"
-                description="Claude Code's default permission mode for this headless run."
-                withTooltip
-            >
+            <LabeledField label={modeLabel} description={modeDescription} withTooltip>
                 <Select<ClaudePermissionMode>
                     value={current.defaultMode ?? undefined}
                     onChange={(v) => write({defaultMode: v ?? null})}
-                    options={MODE_OPTIONS}
+                    options={modeOptions}
                     disabled={disabled}
                     placeholder="Claude default"
                     allowClear

@@ -24,6 +24,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
@@ -37,8 +38,8 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Tabs, Tag, Tooltip, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {Button, Tabs, Tooltip, Typography} from "antd"
+import {useAtomValue, useStore} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
@@ -122,17 +123,30 @@ export function AgentTemplateControl({
     // is restored on Cancel, giving the same draft-then-save feel as the item drawers.
     const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
     const sectionSnapshot = useRef<Record<string, unknown> | null>(null)
+    // Snapshot + restore for the build-kit enabled atom (lives outside config; needs separate tracking).
+    const store = useStore()
+    const revisionIdRef = useRef<string | null>(null)
+    const buildKitEnabledSnapshot = useRef<boolean | null>(null)
     const openSectionDrawer = useCallback(
         (key: "model-harness" | "advanced") => {
             sectionSnapshot.current = value ?? {}
+            buildKitEnabledSnapshot.current = store.get(
+                workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
+            )
             setOpenSection(key)
         },
-        [value],
+        [value, store],
     )
     const cancelSection = useCallback(() => {
         if (sectionSnapshot.current) onChange(sectionSnapshot.current)
+        if (buildKitEnabledSnapshot.current !== null) {
+            store.set(
+                workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
+                buildKitEnabledSnapshot.current,
+            )
+        }
         setOpenSection(null)
-    }, [onChange])
+    }, [onChange, store])
     const saveSection = useCallback(() => setOpenSection(null), [])
 
     // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
@@ -153,13 +167,14 @@ export function AgentTemplateControl({
     // useModelHarness) and bound-trigger scoping both key off it.
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
+    revisionIdRef.current = revisionId
     // Triggers bound to this agent (for the section count badge). The section body and the header
     // add-dropdown derive scoping from the same hook.
     const {count: triggerCount} = useAgentTriggers(revisionId)
 
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
-    const mh = useModelHarness({schema, config, onChange, revisionId, disabled, withTooltip})
+    const mh = useModelHarness({schema, config, onChange, disabled, withTooltip, revisionId})
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
@@ -204,6 +219,22 @@ export function AgentTemplateControl({
     const hasMcp = Boolean(props.mcps)
     const hasSkills = Boolean(props.skills)
 
+    // Per-field section headers read their label from the template schema (`props.<field>.title`),
+    // so a field rename propagates without editing this file; the literal is a fallback. Composite
+    // sections (Model & harness, Advanced) and Triggers keep their FE labels, and icons aren't in
+    // the schema.
+    //
+    // Guard: schema-gen emits the wrapper class name as `title` for single nested-model fields
+    // (e.g. `instructions` -> "_InstructionsSchema"), so reject leading-underscore titles and fall
+    // back to the literal. List fields (tools/mcps/skills) carry real titles and pass through.
+    const fieldTitle = useCallback(
+        (field: string, fallback: string): string => {
+            const t = (props[field] as {title?: unknown} | undefined)?.title
+            return typeof t === "string" && t.trim() && !t.startsWith("_") ? t : fallback
+        },
+        [props],
+    )
+
     // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
     // drive the same add flow.
     const toolSelectorProps = {
@@ -242,7 +273,7 @@ export function AgentTemplateControl({
         hasInstructions && {
             key: "instructions",
             icon: <FileText size={16} />,
-            title: "Instructions",
+            title: fieldTitle("instructions", "Instructions"),
             summary: countSummary(1, "file"),
             // The + is inert until the backend stores multiple instruction files; the section is
             // already a list so it lights up with no rework when that lands.
@@ -272,7 +303,7 @@ export function AgentTemplateControl({
         hasTools && {
             key: "tools",
             icon: <Wrench size={16} />,
-            title: "Tools",
+            title: fieldTitle("tools", "Tools"),
             summary: countSummary(tools.length, "tool"),
             extra: !disabled ? (
                 <ToolSelectorPopover
@@ -311,7 +342,7 @@ export function AgentTemplateControl({
         hasMcp && {
             key: "mcp",
             icon: <Plugs size={16} />,
-            title: "MCP servers",
+            title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
@@ -330,7 +361,7 @@ export function AgentTemplateControl({
         hasSkills && {
             key: "skills",
             icon: <GraduationCap size={16} />,
-            title: "Skills",
+            title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
@@ -349,16 +380,7 @@ export function AgentTemplateControl({
         {
             key: "triggers",
             icon: <Lightning size={16} />,
-            title: (
-                <span className="inline-flex items-center gap-2">
-                    Triggers
-                    {triggerCount > 0 ? (
-                        <Tag className="m-0 font-normal" bordered>
-                            {triggerCount}
-                        </Tag>
-                    ) : null}
-                </span>
-            ),
+            title: "Triggers",
             summary: countSummary(triggerCount, "trigger"),
             extra: !disabled ? <AddTriggerDropdown entityId={revisionId} /> : undefined,
             defaultOpen: triggerCount > 0,

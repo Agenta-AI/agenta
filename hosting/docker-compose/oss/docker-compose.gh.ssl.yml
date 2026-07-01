@@ -122,6 +122,12 @@ services:
                 condition: service_healthy
         # === LIFECYCLE ============================================ #
         restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_evaluations' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
 
     worker-tracing:
         # === IMAGE ================================================ #
@@ -243,6 +249,88 @@ services:
             retries: 3
             start_period: 20s
 
+    worker-interactions:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_interactions",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-gh-ssl-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_interactions' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
+    worker-records:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../..
+            dockerfile: api/oss/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_records",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-gh-ssl-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_records' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
     worker-events:
         # === IMAGE ================================================ #
         build:
@@ -357,8 +445,14 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/services
-            - AGENTA_AGENT_RUNNER_URL=${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
-            - AGENTA_AGENT_MCP_SERVERS_ENABLED=${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
+            - AGENTA_RUNNER_URL=${AGENTA_RUNNER_URL:-http://runner:8765}
+            - AGENTA_AGENT_MCPS_ENABLED=${AGENTA_AGENT_MCPS_ENABLED:-false}
+            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
+            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
+            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
+            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-}
+            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
+            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
@@ -366,7 +460,7 @@ services:
             - "host.docker.internal:host-gateway"
         # === ORCHESTRATION ======================================== #
         depends_on:
-            sandbox-agent:
+            runner:
                 condition: service_healthy
         # === LABELS =============================================== #
         labels:
@@ -382,16 +476,20 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
-    sandbox-agent:
+    runner:
         # === IMAGE ================================================ #
         build:
-            context: ../../../services/agent
+            context: ../../../services/runner
             dockerfile: docker/Dockerfile
         # === CONFIGURATION ======================================== #
         environment:
-            AGENTA_AGENT_RUNNER_PORT: "8765"
-            AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
-            AGENTA_API_URL: ${AGENTA_API_URL:-}
+            AGENTA_RUNNER_PORT: "8765"
+            AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
+            # API as reached FROM this container: the compose service name over the network
+            # (http://api:8000, as the workers use), NOT the public http://localhost/api
+            # which does not resolve inside a container. Used by the OTLP tracing-export
+            # fallback AND the session heartbeat/record-persist calls.
+            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
@@ -403,6 +501,14 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
+        # === RUNTIME ============================================== #
+        # FUSE for geesefs mounts (local sandbox cwd). Mirrors docker-compose.gh.yml.
+        cap_add:
+            - SYS_ADMIN
+        devices:
+            - /dev/fuse
+        security_opt:
+            - apparmor:unconfined
         # === LABELS =============================================== #
         labels:
             - "traefik.enable=false"

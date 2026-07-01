@@ -21,6 +21,7 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {PanelSessionInspectorButton} from "@/oss/components/SessionInspector"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
@@ -307,11 +308,18 @@ const PlaygroundMainView = ({
                                     <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[99] bg-[var(--ag-c-FFFFFF)]" />
 
                                     {layoutEntityIds.map((variantId) => (
-                                        <GenerationComparisonOutputHeader
+                                        <div
                                             key={variantId}
-                                            entityId={variantId}
-                                            className="!min-w-[400px] flex-1 shrink-0"
-                                        />
+                                            className="relative !min-w-[400px] flex-1 shrink-0"
+                                        >
+                                            <GenerationComparisonOutputHeader
+                                                entityId={variantId}
+                                                className="w-full"
+                                            />
+                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[6]">
+                                                <PanelSessionInspectorButton entityId={variantId} />
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             ) : null}
