@@ -128,6 +128,8 @@ export interface WorkflowReferencePayload {
     version?: string
     /** Environment slug; environment axis only. */
     environment?: string
+    /** Tool description the model sees (defaults to the workflow's own description). */
+    description?: string
 }
 
 /** A single role-tagged prompt message (for a `messages`-kind config part). */

@@ -6,7 +6,8 @@
  * content panel split off by a left border. Matches the "Exposed as" field and `SectionRail` content
  * edge, so stacked fields in a detail panel share one vertical separator.
  *
- * Styling uses antd semantic tokens (`--ag-color*`) only — dark-safe.
+ * The content is capped at `max-w-prose` so inputs in a section panel keep a readable width instead
+ * of stretching the full drawer. Styling uses antd semantic tokens (`--ag-color*`) only — dark-safe.
  */
 import type {ReactNode} from "react"
 
@@ -27,7 +28,7 @@ export function RailField({label, align = "top", children}: RailFieldProps) {
             >
                 {label}
             </div>
-            <div className="flex min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
+            <div className="flex min-w-0 max-w-prose flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
                 {children}
             </div>
         </div>

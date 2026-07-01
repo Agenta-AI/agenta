@@ -97,7 +97,7 @@ export function useAgentTools({
                     ? {environment: payload.environment}
                     : {}),
                 name: wf?.name || payload.slug,
-                description: wf?.description ?? wf?.name ?? "",
+                description: payload.description ?? wf?.description ?? wf?.name ?? "",
                 input_schema: inputSchema ?? {type: "object", properties: {}},
             }
             onChange({...latest, tools: [...latestTools, referenceTool]})

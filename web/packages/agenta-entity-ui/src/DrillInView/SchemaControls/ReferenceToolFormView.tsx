@@ -19,8 +19,8 @@ import {
     type WorkflowReferenceBridge,
     type WorkflowReferenceUI,
 } from "@agenta/ui/drill-in"
-import {GitBranch, TreeStructure} from "@phosphor-icons/react"
-import {Spin} from "antd"
+import {GitBranch, Info, TreeStructure} from "@phosphor-icons/react"
+import {Input, Spin} from "antd"
 import {atom, useSetAtom} from "jotai"
 
 import {RailField} from "../../drawers/shared/RailField"
@@ -138,17 +138,19 @@ function ReferenceBindingEditor({
     )
 }
 
-/** Read-only binding summary shown when the workflow-reference bridge isn't available. */
-function ReadOnlyBinding({tool}: {tool: Record<string, unknown>}) {
-    const byEnv = tool.ref_by === "environment"
-    const target = byEnv
-        ? typeof tool.environment === "string"
+/** One-line summary of the current binding (collapsed section preview + read-only fallback). */
+function bindingSummary(tool: Record<string, unknown>): string {
+    if (tool.ref_by === "environment") {
+        return typeof tool.environment === "string"
             ? `Deployed in ${tool.environment}`
             : "A deployed environment"
-        : typeof tool.version === "string"
-          ? `Pinned to v${tool.version}`
-          : "Latest revision"
-    return <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">{target}</p>
+    }
+    return typeof tool.version === "string" ? `Pinned to v${tool.version}` : "Latest revision"
+}
+
+/** Read-only binding summary shown when the workflow-reference bridge isn't available. */
+function ReadOnlyBinding({tool}: {tool: Record<string, unknown>}) {
+    return <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">{bindingSummary(tool)}</p>
 }
 
 export function ReferenceToolFormView({value, onChange, disabled}: ReferenceToolFormViewProps) {
@@ -165,23 +167,34 @@ export function ReferenceToolFormView({value, onChange, disabled}: ReferenceTool
         [workflowReference, slug],
     )
 
+    const setDescription = (next: string) => onChange({...tool, description: next})
+
     return (
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4">
             <div className="flex flex-col gap-4">
-                <RailField label="Exposed as" align="center">
-                    <div className="flex w-fit max-w-full items-center gap-1 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] py-0.5 pl-2.5 pr-1 font-mono text-xs text-[var(--ag-colorText)]">
-                        <span className="truncate">{slug}</span>
-                        <CopyButton text={slug} buttonText={null} icon type="text" />
-                    </div>
-                </RailField>
-
-                {description ? (
-                    <RailField label="Description">
-                        <p className="m-0 max-w-prose text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
-                            {description}
-                        </p>
+                <ConfigAccordionSection
+                    size="compact"
+                    collapsible={false}
+                    icon={<Info size={15} />}
+                    title="Details"
+                >
+                    <RailField label="Exposed as" align="center">
+                        <div className="flex w-fit max-w-full items-center gap-1 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] py-0.5 pl-2.5 pr-1 font-mono text-xs text-[var(--ag-colorText)]">
+                            <span className="truncate">{slug}</span>
+                            <CopyButton text={slug} buttonText={null} icon type="text" />
+                        </div>
                     </RailField>
-                ) : null}
+
+                    <RailField label="Description">
+                        <Input.TextArea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            autoSize={{minRows: 2, maxRows: 6}}
+                            placeholder="What this tool does and when the agent should call it"
+                            disabled={disabled}
+                        />
+                    </RailField>
+                </ConfigAccordionSection>
 
                 <ConfigAccordionSection
                     size="compact"
@@ -197,10 +210,11 @@ export function ReferenceToolFormView({value, onChange, disabled}: ReferenceTool
 
                 <ConfigAccordionSection
                     size="compact"
-                    collapsible={false}
                     noDivider
                     icon={<GitBranch size={15} />}
                     title="Reference by"
+                    summary={bindingSummary(tool)}
+                    summaryCollapsedOnly
                 >
                     {workflowReference?.enabled && !disabled ? (
                         <ReferenceBindingEditor

@@ -151,6 +151,8 @@ export function WorkflowReferenceSelector({
     const [bindMode, setBindMode] = useState<"revision" | "environment">("revision")
     const [version, setVersion] = useState<string | undefined>(undefined)
     const [environment, setEnvironment] = useState<string | undefined>(undefined)
+    // Tool description the model sees — defaults to the workflow's own, editable before adding.
+    const [description, setDescription] = useState("")
     const [inputSchema, setInputSchema] = useState<Record<string, unknown> | null>(null)
     const [outputSchema, setOutputSchema] = useState<Record<string, unknown> | null>(null)
     const [schemaLoading, setSchemaLoading] = useState(false)
@@ -183,6 +185,7 @@ export function WorkflowReferenceSelector({
         setEnvironment(undefined)
         setSchemaTab("inputs")
         setConfigPartKey(null)
+        setDescription(selected?.description ?? "")
     }, [selected?.id])
 
     // Resolve the selected workflow's input + output schemas for the Schema section.
@@ -321,6 +324,7 @@ export function WorkflowReferenceSelector({
             refBy: bindMode === "revision" ? "variant" : "environment",
             version: bindMode === "revision" ? version : undefined,
             environment: bindMode === "environment" ? environment : undefined,
+            description: description.trim() || undefined,
         })
         onClose()
     }
@@ -453,14 +457,9 @@ export function WorkflowReferenceSelector({
                                     </span>
                                     <TypeBadge type={selected.type} label={selected.typeLabel} />
                                 </div>
-                                {selected.description ? (
-                                    <p className="m-0 mt-1.5 max-w-prose text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
-                                        {selected.description}
-                                    </p>
-                                ) : null}
 
-                                {/* Exposed-as: a root-level field (no section chrome), 2-panel to
-                                    align with the sections' [rail | content] rhythm below. */}
+                                {/* Exposed-as + Description: root-level fields (no section chrome),
+                                    2-panel to align with the sections' [rail | content] rhythm below. */}
                                 <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] py-3">
                                     <div className="box-border w-[116px] shrink-0 px-2.5 pt-1 text-xs text-[var(--ag-colorTextSecondary)]">
                                         Exposed as
@@ -475,6 +474,21 @@ export function WorkflowReferenceSelector({
                                                 type="text"
                                             />
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] py-3">
+                                    <div className="box-border w-[116px] shrink-0 px-2.5 pt-1 text-xs text-[var(--ag-colorTextSecondary)]">
+                                        Description
+                                    </div>
+                                    <div className="flex min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
+                                        <Input.TextArea
+                                            className="max-w-prose"
+                                            value={description}
+                                            onChange={(e) => setDescription(e.target.value)}
+                                            autoSize={{minRows: 2, maxRows: 6}}
+                                            placeholder="What this tool does and when the agent should call it"
+                                        />
                                     </div>
                                 </div>
 
