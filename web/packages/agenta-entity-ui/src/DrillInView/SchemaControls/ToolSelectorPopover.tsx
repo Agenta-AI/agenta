@@ -67,6 +67,12 @@ export interface ToolSelectionMeta {
     toolLabel?: string
     integrationKey?: string
     connectionSlug?: string
+    /**
+     * Open the tool config editor instead of adding immediately (append on Save). Set when a
+     * gateway action's input schema couldn't be resolved, so the user defines the parameters in
+     * the editor rather than getting a silent schema-less tool. Transient — not persisted.
+     */
+    needsConfig?: boolean
 }
 
 export interface ToolSelectorPopoverProps {

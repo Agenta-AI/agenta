@@ -61,6 +61,12 @@ export interface ConfigItemDrawerProps {
     width?: number
     /** Read-only mode: disables the toggle and the Save action. */
     disabled?: boolean
+    /**
+     * Full-bleed body: drops the default 16px padding and makes the body a full-height flex column
+     * so a form can lay out its own edge-to-edge master/detail (e.g. the tool parameter editor).
+     * The JSON view keeps its padding regardless. @default false
+     */
+    contentFlush?: boolean
 }
 
 export function ConfigItemDrawer({
@@ -81,8 +87,11 @@ export function ConfigItemDrawer({
     jsonOnly = false,
     width = 600,
     disabled = false,
+    contentFlush = false,
 }: ConfigItemDrawerProps) {
     const effectiveView = jsonOnly ? "json" : view
+    // Flush layout only helps the form; keep the JSON editor padded and independently scrollable.
+    const flushForm = contentFlush && effectiveView === "form"
 
     return (
         <EnhancedDrawer
@@ -144,9 +153,25 @@ export function ConfigItemDrawer({
                     </div>
                 </div>
             }
-            styles={{body: {padding: 16}}}
+            styles={{
+                body: flushForm
+                    ? {
+                          padding: 0,
+                          height: "100%",
+                          display: "flex",
+                          flexDirection: "column",
+                          overflow: "hidden",
+                      }
+                    : {padding: 16},
+            }}
         >
-            {effectiveView === "form" ? form : json}
+            {effectiveView === "form" ? (
+                form
+            ) : contentFlush ? (
+                <div className="h-full overflow-auto p-4">{json}</div>
+            ) : (
+                json
+            )}
         </EnhancedDrawer>
     )
 }

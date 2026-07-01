@@ -9,8 +9,10 @@ import {parseGatewayFunctionName, type ToolObj} from "../toolUtils"
 
 /** How a config-item row presents itself: avatar, name + description, and type tags. */
 export interface ItemDescriptor {
-    /** Primary label (rendered monospace). */
+    /** Primary label (rendered monospace unless `monoName` is false). */
     name: string
+    /** Render the name as prose, not monospace (e.g. a humanized connected-app action). @default mono */
+    monoName?: boolean
     /** Secondary description line. */
     description?: string
     /** Avatar monogram, used when no `icon` is given. */
@@ -73,9 +75,68 @@ export function isFunctionTool(tool: unknown): boolean {
     return Boolean(fn && typeof fn === "object")
 }
 
+/** Whether a tool is a `type:"reference"` workflow tool (#4860) — edited via its own detail view. */
+export function isReferenceTool(tool: unknown): boolean {
+    return Boolean(asObj(tool)?.type === "reference")
+}
+
 /** Two-char monogram, title-cased ("gmail" -> "Gm", "zendesk" -> "Ze"). */
 export function monogram(value: string): string {
     return (value.charAt(0).toUpperCase() + (value.charAt(1) ?? "")).trim() || "?"
+}
+
+/** Uppercase the first character (leaves the rest untouched). */
+function capitalizeFirst(value: string): string {
+    return value ? value.charAt(0).toUpperCase() + value.slice(1) : value
+}
+
+// Whole-word tokens kept uppercase when humanizing an action key (GitHub/Composio actions are
+// littered with these). Everything else is sentence-cased.
+const ACTION_ACRONYMS = new Set([
+    "API",
+    "URL",
+    "URI",
+    "ID",
+    "PR",
+    "CI",
+    "CD",
+    "SSO",
+    "SSH",
+    "IP",
+    "DNS",
+    "SLA",
+    "SMS",
+    "PDF",
+    "CSV",
+    "JSON",
+    "HTTP",
+    "HTTPS",
+    "SDK",
+    "UUID",
+    "GPG",
+    "OAUTH",
+    "2FA",
+    "MFA",
+])
+
+/**
+ * Turn a provider action key into a readable label: `ADD_ASSIGNEES_TO_AN_ISSUE` → "Add assignees to
+ * an issue". Sentence-cased, common acronyms kept uppercase. Used for connected-app tool rows, whose
+ * stored `function.name` is the slug (the friendly catalog name isn't persisted).
+ */
+export function humanizeActionKey(key: string): string {
+    const words = key
+        .toLowerCase()
+        .split(/[_\s]+/)
+        .filter(Boolean)
+    if (words.length === 0) return key
+    return words
+        .map((word, index) => {
+            const upper = word.toUpperCase()
+            if (ACTION_ACRONYMS.has(upper)) return upper
+            return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word
+        })
+        .join(" ")
 }
 
 /** Classify a tool into its row avatar / name / description / type tags. */
@@ -113,9 +174,16 @@ export function describeTool(tool: unknown): ItemDescriptor {
     // Third-party / gateway tool: tools__provider__integration__action__connection.
     const gateway = fnName ? parseGatewayFunctionName(fnName) : null
     if (gateway) {
+        // Some action keys repeat the integration (GITHUB_ADD_...) — drop it; the group header
+        // already names the app. Then humanize the key into a readable label.
+        const intgPrefix = `${gateway.integration.toUpperCase()}_`
+        const actionKey = gateway.action.toUpperCase().startsWith(intgPrefix)
+            ? gateway.action.slice(intgPrefix.length)
+            : gateway.action
         return {
-            name: gateway.action,
-            description,
+            name: humanizeActionKey(actionKey),
+            monoName: false,
+            description: description ? capitalizeFirst(description) : undefined,
             mono: monogram(gateway.integration),
             color: "#1c2c3d",
             tags: [gateway.integration],

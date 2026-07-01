@@ -41,22 +41,25 @@ export function useAgentTools({
 
     const handleAddTool = useCallback(
         (tool: ToolObj, meta?: ToolSelectionMeta) => {
+            // `needsConfig` is a transient routing flag — never persist it in the tool metadata.
+            const {needsConfig, ...toolMeta} = meta ?? ({} as ToolSelectionMeta)
+            const hasMeta = Object.keys(toolMeta).length > 0
             const next =
-                meta && tool && typeof tool === "object" && !Array.isArray(tool)
+                hasMeta && tool && typeof tool === "object" && !Array.isArray(tool)
                     ? {
                           ...(tool as Record<string, unknown>),
                           agenta_metadata: {
                               ...(((tool as Record<string, unknown>).agenta_metadata as
                                   | Record<string, unknown>
                                   | undefined) ?? {}),
-                              ...meta,
+                              ...toolMeta,
                           },
                       }
                     : tool
-            // A custom (inline function) tool starts blank — edit it in a create drawer and only
-            // append on Save, so a half-filled tool never lands in the config. Builtin/gateway
-            // tools arrive complete (and gateway is multi-select), so add those straight away.
-            if (meta?.source === "custom") {
+            // Open the config editor (append only on Save) for a custom tool, or a gateway action
+            // whose input schema couldn't be resolved — so a half-filled/schema-less tool never
+            // lands silently. Complete gateway tools add straight away (gateway is multi-select).
+            if (toolMeta.source === "custom" || needsConfig) {
                 openCreate("tool", next as Record<string, unknown>, "form")
                 return
             }

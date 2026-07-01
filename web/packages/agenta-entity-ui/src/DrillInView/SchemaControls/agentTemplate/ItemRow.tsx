@@ -50,7 +50,13 @@ export function ItemRow({
         >
             <ItemAvatar descriptor={descriptor} />
             <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-xs font-medium">{descriptor.name}</div>
+                <div
+                    className={`truncate text-xs font-medium ${
+                        descriptor.monoName === false ? "" : "font-mono"
+                    }`}
+                >
+                    {descriptor.name}
+                </div>
                 {descriptor.description ? (
                     <Typography.Text
                         type="secondary"
@@ -66,6 +72,78 @@ export function ItemRow({
                         {tag}
                     </Tag>
                 ))}
+                {onRemove && !disabled ? (
+                    <button
+                        type="button"
+                        aria-label="Remove"
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onRemove()
+                        }}
+                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-[var(--ag-c-FF4D4F,#ff4d4f)] group-hover:opacity-100"
+                    >
+                        <Trash size={14} />
+                    </button>
+                ) : null}
+                <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+            </div>
+        </div>
+    )
+}
+
+/**
+ * A compact child row for an item nested under a provider group (e.g. a connected-app tool inside its
+ * app group): borderless, name + description, hover-remove + chevron. Mirrors the trigger section's
+ * subscription child rows so tools and triggers read the same. The provider is shown by the group
+ * header, so no avatar/tags here.
+ */
+export function ItemChildRow({
+    descriptor,
+    onEdit,
+    onRemove,
+    disabled,
+}: {
+    descriptor: ItemDescriptor
+    onEdit: () => void
+    onRemove?: () => void
+    disabled?: boolean
+}) {
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onEdit}
+            onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onEdit()
+                }
+            }}
+            className="group flex cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
+        >
+            <div className="min-w-0 flex-1">
+                <div
+                    className={`truncate text-xs font-medium ${
+                        descriptor.monoName === false ? "" : "font-mono"
+                    }`}
+                >
+                    {descriptor.name}
+                </div>
+                {descriptor.description ? (
+                    <Typography.Text
+                        type="secondary"
+                        className="block truncate text-[11px] leading-snug"
+                    >
+                        {descriptor.description}
+                    </Typography.Text>
+                ) : null}
+            </div>
+            <div
+                className="flex shrink-0 items-center gap-1.5"
+                onClick={(e) => e.stopPropagation()}
+                role="presentation"
+            >
                 {onRemove && !disabled ? (
                     <button
                         type="button"
