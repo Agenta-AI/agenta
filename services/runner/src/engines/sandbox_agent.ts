@@ -109,7 +109,7 @@ function runCredential(request: AgentRunRequest): string {
 
 /** Agenta API base for runner→API calls (heartbeat/ingest/mount-sign share this). */
 function apiBase(): string {
-  return process.env.AGENTA_API_URL ?? "http://localhost:8000";
+  return process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
 }
 
 type Log = (message: string) => void;

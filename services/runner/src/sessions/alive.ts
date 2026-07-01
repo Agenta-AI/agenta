@@ -35,7 +35,7 @@ import { refreshCredential } from "./auth.ts";
 
 /** Where the Agenta API lives. */
 function apiBase(): string {
-  return process.env.AGENTA_API_URL ?? "http://localhost:8000";
+  return process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
 }
 
 /** Refresh the run credential every Nth heartbeat (well inside the ~15-min token TTL). */
@@ -73,7 +73,7 @@ async function sendHeartbeat(
         replica_id: REPLICA_ID,
         turn_id: turnId,
         is_running: isRunning,
-        ...(isRunning ? {} : { status: { code: "ended" } }),
+        ...(isRunning ? {} : { status: "ended" }),
       }),
     });
     if (!res.ok) {
