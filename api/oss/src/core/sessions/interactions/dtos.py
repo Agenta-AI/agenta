@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from oss.src.core.shared.dtos import Reference, Selector, Status
+from oss.src.core.shared.dtos import Reference, Selector
 
 
 class SessionInteractionKind(str, Enum):
@@ -33,6 +33,11 @@ class SessionInteractionFlags(BaseModel):
     delivered_webhook: bool = False
 
 
+class SessionInteractionQueryFlags(BaseModel):
+    delivered_in_band: Optional[bool] = None
+    delivered_webhook: Optional[bool] = None
+
+
 class SessionInteraction(BaseModel):
     id: Optional[UUID] = None
     #
@@ -48,9 +53,11 @@ class SessionInteraction(BaseModel):
     turn_id: Optional[str] = None
     token: str
     kind: SessionInteractionKind
-    status: Optional[Status] = None
+    status: Optional[SessionInteractionStatus] = None
     data: Optional[SessionInteractionData] = None
     flags: SessionInteractionFlags = SessionInteractionFlags()
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 class SessionInteractionCreate(BaseModel):
@@ -61,6 +68,8 @@ class SessionInteractionCreate(BaseModel):
     kind: SessionInteractionKind
     data: Optional[SessionInteractionData] = None
     flags: SessionInteractionFlags = SessionInteractionFlags()
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 class SessionInteractionTransition(BaseModel):
@@ -75,4 +84,5 @@ class SessionInteractionQuery(BaseModel):
     turn_id: Optional[str] = None
     kind: Optional[SessionInteractionKind] = None
     status: Optional[SessionInteractionStatus] = None
+    flags: Optional[SessionInteractionQueryFlags] = None
     actionable_only: bool = False

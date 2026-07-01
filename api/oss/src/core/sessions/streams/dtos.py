@@ -1,21 +1,16 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
 
 
-class StreamStatusCode(str, Enum):
+class SessionStreamStatus(str, Enum):
     running = "running"
     detached = "detached"
     idle = "idle"
     ended = "ended"
-
-
-class SessionStreamStatus(BaseModel):
-    code: Optional[StreamStatusCode] = None
-    message: Optional[str] = None
 
 
 class SessionStreamFlags(BaseModel):
@@ -28,6 +23,12 @@ class SessionStreamFlags(BaseModel):
     is_alive: bool = False
     is_running: bool = False
     is_attached: bool = False
+
+
+class SessionStreamQueryFlags(BaseModel):
+    is_alive: Optional[bool] = None
+    is_running: Optional[bool] = None
+    is_attached: Optional[bool] = None
 
 
 class SessionStream(BaseModel):
@@ -43,27 +44,32 @@ class SessionStream(BaseModel):
     project_id: UUID
     session_id: str
     flags: SessionStreamFlags = SessionStreamFlags()
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
-    status: SessionStreamStatus = SessionStreamStatus()
+    status: Optional[SessionStreamStatus] = None
 
 
 class SessionStreamCreate(BaseModel):
     session_id: str
     flags: Optional[SessionStreamFlags] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
     status: Optional[SessionStreamStatus] = None
 
 
 class SessionStreamEdit(BaseModel):
     flags: Optional[SessionStreamFlags] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
     status: Optional[SessionStreamStatus] = None
 
 
 class SessionStreamQuery(BaseModel):
     session_id: Optional[str] = None
-    is_alive: Optional[bool] = None
-    is_running: Optional[bool] = None
+    flags: Optional[SessionStreamQueryFlags] = None
 
 
 class CommandMode(str, Enum):

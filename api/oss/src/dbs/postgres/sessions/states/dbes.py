@@ -12,7 +12,10 @@ from oss.src.dbs.postgres.shared.dbas import (
     IdentifierDBA,
     ProjectScopeDBA,
     DataDBA,
+    FlagsDBA,
     LifecycleDBA,
+    MetaDBA,
+    TagsDBA,
 )
 
 
@@ -21,6 +24,9 @@ class SessionStateDBE(
     ProjectScopeDBA,
     IdentifierDBA,
     DataDBA,
+    FlagsDBA,
+    TagsDBA,
+    MetaDBA,
     LifecycleDBA,
 ):
     __tablename__ = "session_states"
@@ -37,7 +43,6 @@ class SessionStateDBE(
             "session_id",
             name="uq_session_states_project_session_id",
         ),
-        Index("ix_session_states_project_id", "project_id"),
         Index("ix_session_states_project_id_session_id", "project_id", "session_id"),
     )
 

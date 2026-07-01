@@ -31,6 +31,9 @@ def upgrade() -> None:
             postgresql.JSON(astext_type=sa.Text()),
             nullable=True,
         ),
+        sa.Column("flags", postgresql.JSONB(none_as_null=True), nullable=True),
+        sa.Column("tags", postgresql.JSONB(none_as_null=True), nullable=True),
+        sa.Column("meta", postgresql.JSON(none_as_null=True), nullable=True),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -52,12 +55,6 @@ def upgrade() -> None:
     )
 
     op.create_index(
-        "ix_session_states_project_id",
-        "session_states",
-        ["project_id"],
-        unique=False,
-    )
-    op.create_index(
         "ix_session_states_project_id_session_id",
         "session_states",
         ["project_id", "session_id"],
@@ -69,5 +66,4 @@ def downgrade() -> None:
     op.drop_index(
         "ix_session_states_project_id_session_id", table_name="session_states"
     )
-    op.drop_index("ix_session_states_project_id", table_name="session_states")
     op.drop_table("session_states")

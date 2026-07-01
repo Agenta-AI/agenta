@@ -9,7 +9,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamQuery,
-    StreamStatusCode,
+    SessionStreamStatus,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 
@@ -98,16 +98,12 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             )
             if filter.session_id is not None:
                 stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
-            if filter.is_alive is not None:
-                stmt = stmt.where(
-                    SessionStreamDBE.flags["is_alive"].astext
-                    == ("true" if filter.is_alive else "false")
+            if filter.flags is not None:
+                flags_filter = filter.flags.model_dump(
+                    exclude_none=True, exclude_unset=True
                 )
-            if filter.is_running is not None:
-                stmt = stmt.where(
-                    SessionStreamDBE.flags["is_running"].astext
-                    == ("true" if filter.is_running else "false")
-                )
+                if flags_filter:
+                    stmt = stmt.where(SessionStreamDBE.flags.contains(flags_filter))
             stmt = stmt.order_by(SessionStreamDBE.created_at.desc())
             result = await session.execute(stmt)
             dbes = result.scalars().all()
@@ -173,8 +169,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                 .select_from(SessionStreamDBE)
                 .where(
                     SessionStreamDBE.deleted_at.is_(None),
-                    SessionStreamDBE.status["code"].astext
-                    == StreamStatusCode.running.value,
+                    SessionStreamDBE.status == SessionStreamStatus.running.value,
                 )
             )
             if project_id is not None:

@@ -103,12 +103,10 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                     SessionInteractionDBE.project_id == transition.project_id,
                     SessionInteractionDBE.session_id == transition.session_id,
                     SessionInteractionDBE.token == transition.token,
-                    SessionInteractionDBE.status["code"].astext.in_(
-                        ("pending", "responded")
-                    ),
+                    SessionInteractionDBE.status.in_(("pending", "responded")),
                 )
                 .values(
-                    status={"code": transition.status.value},
+                    status=transition.status.value,
                     updated_at=datetime.now(timezone.utc),
                 )
                 .returning(SessionInteractionDBE)
@@ -136,10 +134,10 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                 .where(
                     SessionInteractionDBE.project_id == project_id,
                     SessionInteractionDBE.session_id == session_id,
-                    SessionInteractionDBE.status["code"].astext == "pending",
+                    SessionInteractionDBE.status == "pending",
                 )
                 .values(
-                    status={"code": "cancelled"},
+                    status="cancelled",
                     updated_at=datetime.now(timezone.utc),
                 )
             )
@@ -177,9 +175,16 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                     )
                 if query.status is not None:
                     stmt = stmt.where(
-                        SessionInteractionDBE.status["code"].astext
-                        == query.status.value,
+                        SessionInteractionDBE.status == query.status.value,
                     )
+                if query.flags is not None:
+                    flags_filter = query.flags.model_dump(
+                        exclude_none=True, exclude_unset=True
+                    )
+                    if flags_filter:
+                        stmt = stmt.where(
+                            SessionInteractionDBE.flags.contains(flags_filter),
+                        )
                 if query.actionable_only:
                     from sqlalchemy import text  # noqa: PLC0415
 

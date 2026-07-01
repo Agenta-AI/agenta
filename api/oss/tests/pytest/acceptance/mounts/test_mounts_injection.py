@@ -49,7 +49,9 @@ class TestSessionMountSign:
         assert mount["session_id"] == session_id
 
         # Credentials are prefix-scoped to THIS mount, never the bucket root.
-        assert creds["prefix"] == f"{mount['project_id']}/{mount['id']}"
+        # The key layout is [<namespace>/]mounts/<project_id>/<mount_id>; assert the
+        # mount-scoped tail without coupling to the deployment namespace prefix.
+        assert creds["prefix"].endswith(f"mounts/{mount['project_id']}/{mount['id']}")
         assert creds["access_key"]
         assert creds["secret_key"]
         assert creds["bucket"]
@@ -105,7 +107,7 @@ class TestMountSign:
         assert resp.status_code == 200, resp.text
 
         creds = resp.json()["credentials"]
-        assert creds["prefix"] == f"{mount['project_id']}/{mount['id']}"
+        assert creds["prefix"].endswith(f"mounts/{mount['project_id']}/{mount['id']}")
 
     def test_sign_missing_mount_returns_404(self, authed_api):
         resp = authed_api("POST", f"/mounts/{uuid4()}/sign")

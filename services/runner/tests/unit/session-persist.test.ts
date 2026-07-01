@@ -51,8 +51,8 @@ describe("buildPersistingEmitter", () => {
     assert.deepEqual(live[0], { type: "message", text: "hello" });
     assert.equal(postedBodies.length, 1);
     const body = postedBodies[0] as Record<string, unknown>;
-    assert.equal(body["session_update"], "message");
-    assert.equal(body["event_index"], 0);
+    assert.equal(body["record_type"], "message");
+    assert.equal(body["record_index"], 0);
   });
 
   it("coalesces message_start/delta/end into a single persisted message", async () => {
@@ -74,7 +74,7 @@ describe("buildPersistingEmitter", () => {
     // Persist sees only one coalesced message.
     assert.equal(postedBodies.length, 1);
     const body = postedBodies[0] as Record<string, unknown>;
-    const payload = body["payload"] as Record<string, unknown>;
+    const payload = body["attributes"] as Record<string, unknown>;
     assert.equal(payload["type"], "message");
     assert.equal(payload["text"], "hello");
   });
@@ -88,12 +88,12 @@ describe("buildPersistingEmitter", () => {
 
     assert.equal(postedBodies.length, 2);
     const types = (postedBodies as Array<Record<string, unknown>>).map(
-      (b) => (b["payload"] as Record<string, unknown>)["type"],
+      (b) => (b["attributes"] as Record<string, unknown>)["type"],
     );
     assert.deepEqual(types, ["tool_call", "done"]);
   });
 
-  it("event_index increments monotonically across events", async () => {
+  it("record_index increments monotonically across events", async () => {
     const { emit, flush } = buildPersistingEmitter("sess-4", () => "Secret t");
 
     emit({ type: "message", text: "a" });
@@ -102,7 +102,7 @@ describe("buildPersistingEmitter", () => {
     await flush();
 
     const indices = (postedBodies as Array<Record<string, unknown>>).map(
-      (b) => b["event_index"],
+      (b) => b["record_index"],
     );
     assert.deepEqual(indices, [0, 1, 2]);
   });
