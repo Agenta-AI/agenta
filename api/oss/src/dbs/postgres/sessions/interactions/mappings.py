@@ -7,8 +7,8 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionData,
     SessionInteractionFlags,
     SessionInteractionKind,
+    SessionInteractionStatus,
 )
-from oss.src.core.shared.dtos import Status
 from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE
 
 
@@ -29,13 +29,15 @@ def map_interaction_dto_to_dbe_create(
         token=interaction.token,
         kind=interaction.kind.value,
         #
-        status={"code": "pending"},
+        status=SessionInteractionStatus.pending.value,
         #
         data=interaction.data.model_dump(mode="json", exclude_none=True)
         if interaction.data
         else None,
         #
         flags=interaction.flags.model_dump(),
+        tags=interaction.tags,
+        meta=interaction.meta,
     )
 
 
@@ -58,9 +60,11 @@ def map_interaction_dbe_to_dto(
         token=dbe.token,
         kind=SessionInteractionKind(dbe.kind),
         #
-        status=Status.model_validate(dbe.status) if dbe.status else Status(),
+        status=SessionInteractionStatus(dbe.status) if dbe.status else None,
         #
         data=SessionInteractionData.model_validate(dbe.data) if dbe.data else None,
         #
         flags=SessionInteractionFlags(**(dbe.flags or {})),
+        tags=dbe.tags,
+        meta=dbe.meta,
     )

@@ -86,12 +86,14 @@ def coalesce_events(
     """Coalesce chunk events and drop empty agent messages.
 
     Rules (ported from PoC ``streamSession``):
-    1. Consecutive ``agent_message_chunk`` events are folded into a single
-       ``agent_message`` event whose text is the concatenation of all chunk
+    1. Consecutive ``agent_message_chunk`` records are folded into a single
+       ``agent_message`` record whose text is the concatenation of all chunk
        texts.
     2. A standalone ``agent_message`` whose content is empty (no text, or
        text == "") is dropped.  These are emitted by some harnesses as a
        sentinel before chunks start and would shadow the assembled message.
+
+    Records are dicts keyed by ``record_type`` with the body under ``attributes``.
     """
     result: List[Dict[str, Any]] = []
     chunk_buffer: List[Dict[str, Any]] = []
@@ -100,16 +102,18 @@ def coalesce_events(
         if not chunk_buffer:
             return
         combined_text = "".join(
-            c.get("payload", {}).get("text", "") or ""
+            c.get("attributes", {}).get("text", "") or ""
             for c in chunk_buffer
-            if isinstance(c.get("payload"), dict)
+            if isinstance(c.get("attributes"), dict)
         )
         if combined_text:
             base = chunk_buffer[0].copy()
-            base["session_update"] = "agent_message"
-            base["payload"] = {
+            base["record_type"] = "agent_message"
+            base["attributes"] = {
                 **(
-                    {} if not isinstance(base.get("payload"), dict) else base["payload"]
+                    {}
+                    if not isinstance(base.get("attributes"), dict)
+                    else base["attributes"]
                 ),
                 "text": combined_text,
             }
@@ -117,7 +121,7 @@ def coalesce_events(
         chunk_buffer.clear()
 
     for event in events:
-        update = event.get("session_update", "")
+        update = event.get("record_type", "")
 
         if update == "agent_message_chunk":
             chunk_buffer.append(event)
@@ -127,8 +131,8 @@ def coalesce_events(
         _flush_chunks()
 
         if update == "agent_message":
-            payload = event.get("payload") or {}
-            text = payload.get("text", "") if isinstance(payload, dict) else ""
+            attributes = event.get("attributes") or {}
+            text = attributes.get("text", "") if isinstance(attributes, dict) else ""
             if not text:
                 # drop empty sentinel agent_message
                 continue

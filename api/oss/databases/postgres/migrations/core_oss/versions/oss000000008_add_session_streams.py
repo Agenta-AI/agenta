@@ -31,10 +31,16 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column(
-            "status",
+            "tags",
             postgresql.JSONB(none_as_null=True),
             nullable=True,
         ),
+        sa.Column(
+            "meta",
+            postgresql.JSON(none_as_null=True),
+            nullable=True,
+        ),
+        sa.Column("status", sa.VARCHAR(), nullable=True),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),

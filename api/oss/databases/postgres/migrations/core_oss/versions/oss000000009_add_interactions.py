@@ -26,9 +26,11 @@ def upgrade() -> None:
         sa.Column("turn_id", sa.String(), nullable=True),
         sa.Column("token", sa.String(), nullable=False),
         sa.Column("kind", sa.String(), nullable=False),
-        sa.Column("status", postgresql.JSONB(none_as_null=True), nullable=True),
+        sa.Column("status", sa.VARCHAR(), nullable=True),
         sa.Column("data", postgresql.JSON(none_as_null=True), nullable=True),
         sa.Column("flags", postgresql.JSONB(none_as_null=True), nullable=True),
+        sa.Column("tags", postgresql.JSONB(none_as_null=True), nullable=True),
+        sa.Column("meta", postgresql.JSON(none_as_null=True), nullable=True),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -50,9 +52,9 @@ def upgrade() -> None:
         ),
     )
     op.create_index(
-        "ix_session_interactions_project_id_created_at",
+        "ix_session_interactions_project_id_id",
         "session_interactions",
-        ["project_id", "created_at"],
+        ["project_id", "id"],
     )
     op.create_index(
         "ix_session_interactions_project_id_session_id",
@@ -68,9 +70,7 @@ def upgrade() -> None:
         "ix_session_interactions_pending",
         "session_interactions",
         ["project_id"],
-        postgresql_where=sa.text(
-            "(status->>'code') = 'pending' AND deleted_at IS NULL"
-        ),
+        postgresql_where=sa.text("status = 'pending' AND deleted_at IS NULL"),
     )
 
 
@@ -82,7 +82,7 @@ def downgrade() -> None:
         table_name="session_interactions",
     )
     op.drop_index(
-        "ix_session_interactions_project_id_created_at",
+        "ix_session_interactions_project_id_id",
         table_name="session_interactions",
     )
     op.drop_table("session_interactions")

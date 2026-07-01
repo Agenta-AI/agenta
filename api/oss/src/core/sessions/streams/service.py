@@ -48,7 +48,6 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamFlags,
     SessionStreamQuery,
     SessionStreamStatus,
-    StreamStatusCode,
 )
 from oss.src.core.sessions.streams.types import (
     ConcurrencyCapExceeded,
@@ -276,10 +275,10 @@ class SessionStreamsService:
             session_id=request.session_id,
         )
 
-        status = request.status or SessionStreamStatus(
-            code=StreamStatusCode.running
+        status = request.status or (
+            SessionStreamStatus.running
             if request.is_running
-            else StreamStatusCode.idle
+            else SessionStreamStatus.idle
         )
 
         if stream is None:
@@ -364,7 +363,7 @@ class SessionStreamsService:
         await acquire_running(self._lock, session_id=session_id, turn_id=turn_id)
 
         flags = SessionStreamFlags(is_alive=True, is_running=True, is_attached=False)
-        status = SessionStreamStatus(code=StreamStatusCode.running)
+        status = SessionStreamStatus.running
         stream = await self._dao.get_by_session_id(
             project_id=project_id,
             session_id=session_id,
@@ -426,6 +425,6 @@ class SessionStreamsService:
                 flags=SessionStreamFlags(
                     is_alive=False, is_running=False, is_attached=False
                 ),
-                status=SessionStreamStatus(code=StreamStatusCode.ended),
+                status=SessionStreamStatus.ended,
             ),
         )

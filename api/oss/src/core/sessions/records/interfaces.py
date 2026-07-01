@@ -19,7 +19,7 @@ class RecordsDAOInterface:
         self,
         *,
         project_id: UUID,
-        session_id: UUID,
+        session_id: str,
     ) -> List[SessionRecord]:
         raise NotImplementedError
 
@@ -27,6 +27,6 @@ class RecordsDAOInterface:
         self,
         *,
         project_id: UUID,
-        event_id: UUID,
+        record_id: UUID,
     ) -> Optional[SessionRecord]:
         raise NotImplementedError

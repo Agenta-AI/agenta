@@ -50,7 +50,7 @@ class RecordsDAO(RecordsDAOInterface):
         self,
         *,
         project_id: UUID,
-        session_id: UUID,
+        session_id: str,
     ) -> List[SessionRecord]:
         async with self.engine.session() as session:
             stmt = (
@@ -59,7 +59,7 @@ class RecordsDAO(RecordsDAOInterface):
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
                 )
-                .order_by(RecordDBE.id.asc())
+                .order_by(RecordDBE.record_id.asc())
             )
 
             dbes = (await session.execute(stmt)).scalars().all()
@@ -69,12 +69,12 @@ class RecordsDAO(RecordsDAOInterface):
         self,
         *,
         project_id: UUID,
-        event_id: UUID,
+        record_id: UUID,
     ) -> Optional[SessionRecord]:
         async with self.engine.session() as session:
             stmt = select(RecordDBE).where(
                 RecordDBE.project_id == project_id,
-                RecordDBE.id == event_id,
+                RecordDBE.record_id == record_id,
             )
 
             dbe = (await session.execute(stmt)).scalars().first()

@@ -1,4 +1,4 @@
-from oss.src.core.sessions.states.dtos import SessionState
+from oss.src.core.sessions.states.dtos import SessionState, SessionStateFlags
 from oss.src.dbs.postgres.sessions.states.dbes import SessionStateDBE
 
 
@@ -9,6 +9,11 @@ def dbe_to_dto(dbe: SessionStateDBE) -> SessionState:
         session_id=dbe.session_id,
         data=dbe.data,
         sandbox_id=dbe.sandbox_id,
+        flags=SessionStateFlags.model_validate(dbe.flags)
+        if dbe.flags
+        else SessionStateFlags(),
+        tags=dbe.tags,
+        meta=dbe.meta,
         created_at=dbe.created_at,
         updated_at=dbe.updated_at,
         deleted_at=dbe.deleted_at,
