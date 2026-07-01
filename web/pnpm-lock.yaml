@@ -983,6 +983,9 @@ importers:
       react:
         specifier: '>=18.0.0'
         version: 19.2.6
+      react-dom:
+        specifier: '>=18.0.0'
+        version: 19.2.6(react@19.2.6)
       uuid:
         specifier: ^11.1.1
         version: 11.1.1
