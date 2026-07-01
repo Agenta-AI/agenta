@@ -540,6 +540,8 @@ function ItemsView<I, T, C>({
                     <div className="flex flex-col gap-2">
                         {items.map((item, i) => {
                             const state = config.itemTrailing?.(activeConn ?? null, item) ?? "add"
+                            // A pending add or a missing connection must not fire another pick.
+                            const pickDisabled = state === "pending" || !activeConn
                             const categories = adapter.item.categories?.(item)
                             const itemDescription = adapter.item.description?.(item)
                             return (
@@ -552,10 +554,12 @@ function ItemsView<I, T, C>({
                                         />
                                     )}
                                     <Card
-                                        hoverable
-                                        className="cursor-pointer"
+                                        hoverable={!pickDisabled}
+                                        className={
+                                            pickDisabled ? "cursor-not-allowed" : "cursor-pointer"
+                                        }
                                         size="small"
-                                        onClick={() => handlePick(item)}
+                                        onClick={pickDisabled ? undefined : () => handlePick(item)}
                                     >
                                         <div className="flex items-start gap-2">
                                             <div className="flex min-w-0 flex-1 flex-col gap-0.5">

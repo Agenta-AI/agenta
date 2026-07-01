@@ -42,6 +42,40 @@ interface Props {
     playgroundEntityId?: string
 }
 
+// The integration handed to the connect flow may be synthesized from a connection (only key/name,
+// no auth_schemes). Resolve the full catalog integration by key so the connect drawer has real auth
+// modes; fall back to the passed one if it isn't in the loaded catalog.
+function TriggerConnectFlow({
+    integration,
+    handlers,
+    onConnectionCreated,
+}: {
+    integration: TriggerCatalogIntegration
+    handlers: {onClose: () => void; onSuccess: () => void}
+    onConnectionCreated?: () => void
+}) {
+    const {integrations} = useTriggerCatalogIntegrations()
+    const full =
+        (integration.auth_schemes?.length ? integration : null) ??
+        integrations.find((i) => i.key === integration.key) ??
+        integration
+    return (
+        <TriggerConnectDrawer
+            open
+            integrationKey={full.key}
+            integrationName={full.name}
+            integrationLogo={full.logo ?? undefined}
+            integrationDescription={full.description ?? undefined}
+            authSchemes={full.auth_schemes ?? []}
+            onClose={handlers.onClose}
+            onSuccess={() => {
+                handlers.onSuccess()
+                onConnectionCreated?.()
+            }}
+        />
+    )
+}
+
 const integrationAccessors = {
     key: (i: TriggerCatalogIntegration) => i.key,
     name: (i: TriggerCatalogIntegration) => i.name,
@@ -163,18 +197,10 @@ export default function TriggerCatalogDrawer({
                     connectionId: conn.id ?? undefined,
                 }),
             renderConnect: (integration, handlers) => (
-                <TriggerConnectDrawer
-                    open
-                    integrationKey={integration.key}
-                    integrationName={integration.name}
-                    integrationLogo={integration.logo ?? undefined}
-                    integrationDescription={integration.description ?? undefined}
-                    authSchemes={integration.auth_schemes ?? []}
-                    onClose={handlers.onClose}
-                    onSuccess={() => {
-                        handlers.onSuccess()
-                        onConnectionCreated?.()
-                    }}
+                <TriggerConnectFlow
+                    integration={integration}
+                    handlers={handlers}
+                    onConnectionCreated={onConnectionCreated}
                 />
             ),
         }

@@ -90,6 +90,9 @@ export function useAgentTools({
                 type: "reference",
                 ref_by: payload.refBy,
                 slug: payload.slug,
+                ...(payload.refBy === "variant" && payload.variant
+                    ? {variant_id: payload.variant}
+                    : {}),
                 ...(payload.refBy === "variant" && payload.version
                     ? {version: payload.version}
                     : {}),

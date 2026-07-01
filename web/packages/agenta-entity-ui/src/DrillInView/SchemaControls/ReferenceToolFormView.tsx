@@ -80,14 +80,25 @@ function ReferenceBindingEditor({
     const [environment, setEnvironment] = useState<string | undefined>(
         typeof tool.environment === "string" ? tool.environment : undefined,
     )
+    // Selected variant id — kept even when following its latest (no pinned version).
+    const [variant, setVariant] = useState<string | undefined>(
+        typeof tool.variant_id === "string" ? tool.variant_id : undefined,
+    )
 
     const {environments, isLoading} = bridge.useWorkflowEnvironments(workflow)
 
     // Rebuild the reference tool from the current binding, clearing the now-irrelevant axis field.
-    const commit = (mode: "revision" | "environment", ver?: string, env?: string) => {
+    const commit = (
+        mode: "revision" | "environment",
+        ver?: string,
+        env?: string,
+        varId?: string,
+    ) => {
         const next = {...tool}
         if (mode === "revision") {
             next.ref_by = "variant"
+            if (varId) next.variant_id = varId
+            else delete next.variant_id
             if (ver) next.version = ver
             else delete next.version
             delete next.environment
@@ -96,6 +107,7 @@ function ReferenceBindingEditor({
             if (env) next.environment = env
             else delete next.environment
             delete next.version
+            delete next.variant_id
         }
         onChange(next)
     }
@@ -105,7 +117,7 @@ function ReferenceBindingEditor({
             bindMode={bindMode}
             onBindModeChange={(mode) => {
                 setBindMode(mode)
-                commit(mode, version, environment)
+                commit(mode, version, environment, variant)
             }}
             revisionAdapter={editReferenceRevisionAdapter}
             revisionPlaceholder={version ? `v${version}` : "Latest revision"}
@@ -113,8 +125,10 @@ function ReferenceBindingEditor({
                 const isRevision =
                     Boolean(sel.metadata.variantId) && sel.id !== sel.metadata.variantId
                 const ver = isRevision ? String(sel.metadata.revision) : undefined
+                const varId = sel.metadata.variantId ? String(sel.metadata.variantId) : undefined
                 setVersion(ver)
-                commit("revision", ver, environment)
+                setVariant(varId)
+                commit("revision", ver, environment, varId)
             }}
             revisionHint="Pin one variant + revision, or pick a variant to follow its latest."
             envOptions={environments.map((env) => ({value: env.slug, label: env.name || env.slug}))}

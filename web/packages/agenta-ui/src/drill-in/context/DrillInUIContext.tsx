@@ -124,7 +124,10 @@ export interface WorkflowEnvironmentUI {
 export interface WorkflowReferencePayload {
     slug: string
     refBy: "variant" | "environment"
-    /** Pinned workflow revision version; variant axis only, omitted = latest. */
+    /** Selected variant id; variant axis only. Kept so "follow a variant's latest" (no pinned
+     * version) still identifies which variant to follow — without it the reference is ambiguous. */
+    variant?: string
+    /** Pinned workflow revision version; variant axis only, omitted = follow the variant's latest. */
     version?: string
     /** Environment slug; environment axis only. */
     environment?: string

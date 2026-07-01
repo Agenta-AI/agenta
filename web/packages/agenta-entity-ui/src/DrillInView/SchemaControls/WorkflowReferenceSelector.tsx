@@ -150,6 +150,8 @@ export function WorkflowReferenceSelector({
     // bindMode mirrors RunVersionField: "revision" (pin a variant+revision) | "environment" (deployed).
     const [bindMode, setBindMode] = useState<"revision" | "environment">("revision")
     const [version, setVersion] = useState<string | undefined>(undefined)
+    // Selected variant id — kept even when following its latest (no pinned version).
+    const [variant, setVariant] = useState<string | undefined>(undefined)
     const [environment, setEnvironment] = useState<string | undefined>(undefined)
     // Tool description the model sees — defaults to the workflow's own, editable before adding.
     const [description, setDescription] = useState("")
@@ -182,6 +184,7 @@ export function WorkflowReferenceSelector({
     useEffect(() => {
         setBindMode("revision")
         setVersion(undefined)
+        setVariant(undefined)
         setEnvironment(undefined)
         setSchemaTab("inputs")
         setConfigPartKey(null)
@@ -248,6 +251,8 @@ export function WorkflowReferenceSelector({
     const handleRevisionSelect = (sel: WorkflowRevisionSelectionResult) => {
         const isRevision = Boolean(sel.metadata.variantId) && sel.id !== sel.metadata.variantId
         setVersion(isRevision ? String(sel.metadata.revision) : undefined)
+        // Keep the variant either way, so following its latest still identifies the variant.
+        setVariant(sel.metadata.variantId ? String(sel.metadata.variantId) : undefined)
     }
 
     // List items carry no type (capability flags live on the revision URI), so the bridge resolves
@@ -322,6 +327,7 @@ export function WorkflowReferenceSelector({
         onSelect({
             slug: selected.slug,
             refBy: bindMode === "revision" ? "variant" : "environment",
+            variant: bindMode === "revision" ? variant : undefined,
             version: bindMode === "revision" ? version : undefined,
             environment: bindMode === "environment" ? environment : undefined,
             description: description.trim() || undefined,
