@@ -215,9 +215,12 @@ const AgentMessage = ({
     // error on the message's OWN trace; read it so the bubble can render as a failure.
     const ownSummary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? null))
     const traceError = ownSummary.error
-    // Timestamp uses the run's real start: own trace for an assistant turn, the paired turn trace for
-    // a user turn (shares the same cached atom, so no extra fetch). Falls back to the client stamp.
-    const timeSummary = useAtomValue(traceDataSummaryAtomFamily((traceId || turnTraceId) ?? null))
+    // Timestamp uses the run's real start. An assistant turn already has `ownSummary`; only a user
+    // turn needs the paired turn's trace, so read that second (no-op when null) atom only then.
+    const pairedSummary = useAtomValue(
+        traceDataSummaryAtomFamily(!traceId && turnTraceId ? turnTraceId : null),
+    )
+    const timeSummary = traceId ? ownSummary : pairedSummary
     const messageTime = parseTraceTime(timeSummary.rootSpan?.start_time) ?? createdAt
     // A failure can reach us two ways: recorded on the trace (backend), or stamped onto the turn
     // FE-side from the useChat stream error (AgentChatPanel). Prefer whichever is present.

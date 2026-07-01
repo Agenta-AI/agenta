@@ -1089,7 +1089,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 config pane instead of snapping. Clipped while collapsed; `inert` drops it from tab
                 order + a11y when hidden. */}
             <div
-                className="h-full shrink-0 overflow-hidden transition-[width] duration-[240ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+                className="h-full shrink-0 overflow-hidden motion-safe:transition-[width] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
                 style={{width: chatMaximized ? RAIL_WIDTH : 0}}
                 inert={!chatMaximized}
             >
@@ -1105,7 +1105,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                     // bar would be an empty 48px strip. Collapse its height to 0 — animated to match
                     // the rail/config panes — rather than leaving dead space or snapping it away.
                     <div
-                        className="shrink-0 overflow-hidden transition-[height] duration-[240ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+                        className="shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
                         style={{height: chatMaximized ? 0 : 48}}
                     >
                         <SessionTagBar

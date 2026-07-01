@@ -246,13 +246,12 @@ export const persistSessionMessagesAtom = atom(
     },
 )
 
-/** Per-message first-seen timestamp (ms), keyed by message id. `UIMessage`s carry no time and user
- * turns get no server metadata, so we stamp it locally when a message first appears; persisted so a
- * reloaded session keeps its times. */
-export const messageCreatedAtMapAtom = atomWithStorage<Record<string, number>>(
-    "agenta:agent-message-created-at",
-    {},
-)
+/** Per-message first-seen timestamp (ms), keyed by message id — an in-memory FALLBACK only. The
+ * authoritative time is the turn's trace `start_time`; this just covers turns with no trace yet (e.g.
+ * a just-sent user message). Deliberately NOT persisted: it's transient UI state, so keeping it out
+ * of localStorage avoids an unbounded, lifecycle-unmanaged store (no per-delete pruning to maintain).
+ */
+export const messageCreatedAtMapAtom = atom<Record<string, number>>({})
 
 /** One message's stamped timestamp; a row repaints only when ITS id is stamped, not on every stamp. */
 export const messageCreatedAtAtomFamily = atomFamily((id: string) =>

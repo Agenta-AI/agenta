@@ -170,12 +170,23 @@ const SessionRail = ({activeId, className}: SessionRailProps) => {
         history.forEach((s) => seenRef.current.add(s.id))
     }, [history])
 
-    // Deleting keeps the row mounted for the exit animation, THEN removes it from history.
+    // Deleting keeps the row mounted for the exit animation, THEN removes it from history. The
+    // pending timers are tracked so an unmount mid-animation (e.g. revision switch) clears them
+    // instead of firing `deleteSession` against a stale scope afterwards.
     const [leavingIds, setLeavingIds] = useState<ReadonlySet<string>>(() => new Set())
+    const deleteTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+    useEffect(
+        () => () => {
+            deleteTimersRef.current.forEach((t) => clearTimeout(t))
+            deleteTimersRef.current.clear()
+        },
+        [],
+    )
     const handleDelete = useCallback(
         (id: string) => {
             setLeavingIds((prev) => new Set(prev).add(id))
-            setTimeout(() => {
+            const timer = setTimeout(() => {
+                deleteTimersRef.current.delete(id)
                 deleteSession(id)
                 setLeavingIds((prev) => {
                     const next = new Set(prev)
@@ -183,6 +194,7 @@ const SessionRail = ({activeId, className}: SessionRailProps) => {
                     return next
                 })
             }, 220)
+            deleteTimersRef.current.set(id, timer)
         },
         [deleteSession],
     )

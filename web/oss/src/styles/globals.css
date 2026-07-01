@@ -154,18 +154,22 @@ body {
     opacity: 0.4 !important;
 }
 
-/* Build/Chat mode transition: ease the panels' flex-basis (config → 0, chat → full) instead of
-   snapping. Only applied via `-animated`, which MainLayout removes during an active drag so
-   resizing stays 1:1 with the cursor. */
-.playground-splitter-animated .ant-splitter-panel {
-    transition: flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1);
+/* Build/Chat mode transitions: ease the panels' flex-basis (config → 0, chat → full) and fade the
+   inert split bar instead of snapping. `-animated` is added by MainLayout only around a toggle (off
+   during drag, so resizing stays 1:1). Gated on `prefers-reduced-motion` for parity with the rail's
+   `motion-safe:` animations. */
+@media (prefers-reduced-motion: no-preference) {
+    .playground-splitter-animated .ant-splitter-panel {
+        transition: flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .playground-splitter .ant-splitter-bar {
+        transition: opacity 200ms ease;
+    }
 }
 
-/* Full-screen chat: the config panel is 0-width and driven by the header Build/Chat switch, so
-   fade the (now inert) split bar out rather than snapping it away. */
-.playground-splitter .ant-splitter-bar {
-    transition: opacity 200ms ease;
-}
+/* Full-screen chat: hide the (now inert) split bar. End state stays unguarded so the bar is hidden
+   even under reduced motion — only the fade above is motion-gated. */
 .playground-splitter-collapsed .ant-splitter-bar {
     opacity: 0;
     pointer-events: none;
