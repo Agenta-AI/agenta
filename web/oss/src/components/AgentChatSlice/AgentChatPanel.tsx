@@ -228,6 +228,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // Teardown for the in-flight smooth scroll (removes its listeners + fallback timer).
     const pinCleanupRef = useRef<(() => void) | null>(null)
 
+    // `useChat` pins its `Chat` (and thus this transport) for the life of the session `id`; it is
+    // NOT recreated when `entityId` changes (only on an `id` change). So the request builder must
+    // read the CURRENT entity through a ref — capturing `entityId` by value would send every turn
+    // with the revision that was displayed when the session first mounted, even after a switch or a
+    // self-commit. Reading `entityIdRef.current` at send time keeps runs on the live revision.
+    const entityIdRef = useRef(entityId)
+    entityIdRef.current = entityId
+
     // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
     // placeholder that `prepareSendMessagesRequest` overrides per request.
     const transport = useMemo(
@@ -235,7 +243,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             new AgentChatTransport({
                 api: "",
                 prepareSendMessagesRequest: async ({messages, id}) => {
-                    const req = await buildAgentRequest(entityId, messages, {
+                    const req = await buildAgentRequest(entityIdRef.current, messages, {
                         sessionId: id ?? sessionId,
                     })
                     if (!req) {
@@ -246,7 +254,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
             }),
-        [entityId, sessionId],
+        [sessionId],
     )
 
     const {
