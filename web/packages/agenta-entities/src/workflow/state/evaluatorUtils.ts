@@ -28,6 +28,7 @@ import type {Workflow} from "../core"
 import {
     buildWorkflowUri,
     hasFullPagePlaygroundUX,
+    isOnlineCapableEvaluator,
     parseWorkflowKeyFromUri,
     resolveOutputSchemaProperties,
 } from "../core"
@@ -188,6 +189,38 @@ export const nonHumanEvaluatorsAtom = atom<Workflow[]>((get) => {
         const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
         if (!revision) return false
         return !revision.flags?.is_feedback
+    })
+})
+
+/**
+ * Non-archived **non-deterministic** evaluators — automatic evaluators that
+ * support online (live) evaluation, i.e. the same set offered by the "create
+ * online evaluation" drawer. Human (`is_feedback`) evaluators are excluded, and
+ * the rest are narrowed via `isOnlineCapableEvaluator` (custom / code / hook /
+ * llm families, with a legacy evaluator-key fallback), so the sidebar workflow
+ * switcher surfaces only auto evaluators whose output is non-deterministic (as
+ * opposed to deterministic matchers like exact match).
+ *
+ * The classifying flags / uri live on the latest revision, not the parent
+ * artifact, so it's resolved per-evaluator from the batched + cached latest
+ * revision. An evaluator whose revision hasn't resolved yet is held back until
+ * it can be classified.
+ */
+export const nonDeterministicEvaluatorsAtom = atom<Workflow[]>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    return evaluators.filter((evaluator) => {
+        if (!evaluator.id) return false
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+        if (!revision) return false
+        // Human evaluators can carry is_custom too, so exclude them explicitly
+        // before the capability check — only automatic evaluators qualify.
+        if (revision.flags?.is_feedback) return false
+        return isOnlineCapableEvaluator({
+            flags: revision.flags as Record<string, unknown> | null,
+            data: revision.data as {uri?: string | null} | null,
+            meta: revision.meta as Record<string, unknown> | null,
+            slug: revision.slug ?? evaluator.slug ?? null,
+        })
     })
 })
 

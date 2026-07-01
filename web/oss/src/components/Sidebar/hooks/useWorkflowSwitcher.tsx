@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {
     nonArchivedAppWorkflowsAtom,
     nonArchivedEvaluatorsAtom,
-    llmEvaluatorsAtom,
+    nonDeterministicEvaluatorsAtom,
     type Workflow,
 } from "@agenta/entities/workflow"
 import type {MenuProps} from "antd"
@@ -31,28 +31,25 @@ const getWorkflowActivityTime = (workflow: Workflow) => {
 }
 
 export const WORKFLOW_SWITCHER_MENU_CLASS = clsx(
-    "max-h-80 overflow-y-auto !pb-2 !px-2",
-    "[&_.ant-dropdown-menu-item-group-list]:!m-0",
+    "max-h-80 overflow-y-auto !py-2 !px-2",
     "[&_.ant-dropdown-menu-item]:!px-2",
-    "[&_.ant-dropdown-menu-item-group-title]:sticky",
-    "[&_.ant-dropdown-menu-item-group-title]:top-0",
-    "[&_.ant-dropdown-menu-item-group-title]:z-10",
-    "[&_.ant-dropdown-menu-item-group-title]:!bg-[var(--ant-color-bg-elevated)]",
-    "[&_.ant-dropdown-menu-item-group-title]:!text-[var(--ant-color-text-secondary)]",
-    "[&_.ant-dropdown-menu-item-group-title]:!pb-2",
 )
 
 export const useWorkflowSwitcher = () => {
     const context = useAtomValue(currentWorkflowContextAtom)
     const apps = useAtomValue(nonArchivedAppWorkflowsAtom) as readonly Workflow[]
     const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
-    const llmEvaluators = useAtomValue(llmEvaluatorsAtom) as readonly Workflow[]
+    const nonDeterministicEvaluators = useAtomValue(
+        nonDeterministicEvaluatorsAtom,
+    ) as readonly Workflow[]
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
     const [open, setOpen] = useState(false)
 
-    const switcherEvaluators = EVALUATOR_FULL_PAGE_NAV_ENABLED ? llmEvaluators : EMPTY_WORKFLOWS
+    const switcherEvaluators = EVALUATOR_FULL_PAGE_NAV_ENABLED
+        ? nonDeterministicEvaluators
+        : EMPTY_WORKFLOWS
 
     const workflow = useMemo<Workflow | null>(
         () =>
@@ -98,9 +95,7 @@ export const useWorkflowSwitcher = () => {
             )
             .map(({entity, isEvaluator}) => toMenuItem(entity, isEvaluator))
 
-        return children.length
-            ? [{key: "workflows-header", type: "group", label: "", children}]
-            : []
+        return children
     }, [apps, switcherEvaluators, workflowId])
 
     const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
