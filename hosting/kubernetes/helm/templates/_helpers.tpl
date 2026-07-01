@@ -877,6 +877,10 @@ imagePullSecrets:
   value: {{ default "us-east-1" $store.region | quote }}
 - name: AGENTA_STORE_BUCKET
   value: {{ default "agenta-store" $store.bucket | quote }}
+{{- if $store.namespace }}
+- name: AGENTA_STORE_NAMESPACE
+  value: {{ $store.namespace | quote }}
+{{- end }}
 - name: AGENTA_STORE_ACCESS_KEY
   valueFrom:
     secretKeyRef:

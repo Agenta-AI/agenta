@@ -1,5 +1,23 @@
 const GENERATOR_REPR = /^<(?:async_)?generator object/
 
+const normalizeMessageContent = (content: unknown): string => {
+    if (content === null || content === undefined) return ""
+    if (typeof content === "string") return content
+
+    try {
+        const serialized = JSON.stringify(content)
+        return serialized === undefined ? String(content) : serialized
+    } catch {
+        return String(content)
+    }
+}
+
+const normalizeMessages = (messages: any[]): {role: string; content: string}[] =>
+    messages.map((message) => ({
+        role: message.role,
+        content: normalizeMessageContent(message.content),
+    }))
+
 /**
  * A streamed agent run's ROOT span returns a generator, so its `outputs` is the generator
  * object's repr (`<async_generator object ... at 0x...>`), not the reply — the span is closed
@@ -30,36 +48,37 @@ export const extractTraceData = (trace: any) => {
     const messages: {role: string; content: string}[] = []
 
     // Handle Inputs
-    if (inputs) {
+    if (inputs !== null && inputs !== undefined) {
         if (Array.isArray(inputs.messages)) {
-            messages.push(...inputs.messages.map((m: any) => ({role: m.role, content: m.content})))
+            messages.push(...normalizeMessages(inputs.messages))
         } else if (Array.isArray(inputs.prompt)) {
-            messages.push(...inputs.prompt.map((m: any) => ({role: m.role, content: m.content})))
+            messages.push(...normalizeMessages(inputs.prompt))
         } else {
-            const content = inputs.message || inputs.input || JSON.stringify(inputs)
+            const content = inputs.message ?? inputs.input ?? inputs
             messages.push({
                 role: "user",
-                content: typeof content === "string" ? content : JSON.stringify(content),
+                content: normalizeMessageContent(content),
             })
         }
     }
 
     // Handle Outputs
-    if (outputs) {
+    if (outputs !== null && outputs !== undefined) {
         if (typeof outputs === "string") {
             // The agent span's output is the assistant's reply text — render it directly.
             messages.push({role: "assistant", content: outputs})
         } else if (Array.isArray(outputs.completion)) {
-            messages.push(
-                ...outputs.completion.map((m: any) => ({role: m.role, content: m.content})),
-            )
-        } else if (outputs.role && outputs.content) {
-            messages.push({role: outputs.role, content: outputs.content})
+            messages.push(...normalizeMessages(outputs.completion))
+        } else if (outputs.role && outputs.content !== undefined) {
+            messages.push({
+                role: outputs.role,
+                content: normalizeMessageContent(outputs.content),
+            })
         } else {
-            const content = outputs.message || outputs.output || JSON.stringify(outputs)
+            const content = outputs.message ?? outputs.output ?? outputs
             messages.push({
                 role: "assistant",
-                content: typeof content === "string" ? content : JSON.stringify(content),
+                content: normalizeMessageContent(content),
             })
         }
     }

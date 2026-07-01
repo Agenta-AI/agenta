@@ -93,10 +93,15 @@ class _UpsertDAO:
         return None
 
 
-def _make_service():
+def _make_service(namespace=None):
     dao = _UpsertDAO()
     storage = _FakeStorage()
-    service = MountsService(mounts_dao=dao, mount_storage=storage, bucket=_BUCKET)
+    service = MountsService(
+        mounts_dao=dao,
+        mounts_store=storage,
+        bucket=_BUCKET,
+        namespace=namespace,
+    )
     return service, dao, storage
 
 
@@ -169,6 +174,35 @@ class TestSignMountCredentials:
         assert creds.prefix == f"mounts/{pid}/{mount.id}"
         assert creds.bucket == _BUCKET
 
+    async def test_namespace_prefixes_the_signed_scope(self):
+        # A store namespace ("database") carves the shared bucket: the STS scope, and thus the
+        # signed credential, is anchored at <namespace>/mounts/<pid>/<mid> — the mount row stays
+        # the leaf, so isolation is unchanged, only qualified one level deeper.
+        service, _, storage = _make_service(namespace="env-ephemeral-42")
+        pid, uid = uuid4(), uuid4()
+        mount = await service.get_or_create_session_cwd(
+            project_id=pid, user_id=uid, session_id="sess-1"
+        )
+
+        creds = await service.sign_mount_credentials(project_id=pid, mount_id=mount.id)
+
+        expected = f"env-ephemeral-42/mounts/{pid}/{mount.id}"
+        assert storage.signed_with["prefix"] == expected
+        assert creds.prefix == expected
+
+    async def test_no_namespace_keeps_byte_identical_layout(self):
+        # Unset namespace must not introduce an empty leading segment (no "/mounts/...").
+        service, _, storage = _make_service(namespace=None)
+        pid, uid = uuid4(), uuid4()
+        mount = await service.get_or_create_session_cwd(
+            project_id=pid, user_id=uid, session_id="sess-1"
+        )
+
+        await service.sign_mount_credentials(project_id=pid, mount_id=mount.id)
+
+        assert storage.signed_with["prefix"] == f"mounts/{pid}/{mount.id}"
+        assert not storage.signed_with["prefix"].startswith("/")
+
     async def test_returns_scoped_not_master_credentials(self):
         service, _, _ = _make_service()
         pid, uid = uuid4(), uuid4()
@@ -199,7 +233,7 @@ class TestSignMountCredentials:
 
     async def test_unavailable_without_storage(self):
         dao = _UpsertDAO()
-        service = MountsService(mounts_dao=dao, mount_storage=None, bucket=_BUCKET)
+        service = MountsService(mounts_dao=dao, mounts_store=None, bucket=_BUCKET)
         pid, uid = uuid4(), uuid4()
         mount = await dao.upsert_mount(
             project_id=pid,
