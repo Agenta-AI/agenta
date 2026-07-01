@@ -302,3 +302,137 @@ class TestStoragePolicyScope:
         assert creds.session_token == "scoped-token"
         # The scoped key is NOT the master key.
         assert creds.access_key != _MASTER_KEY
+
+
+# ---------------------------------------------------------------------------
+# STS backend fork (storage layer): remote AWS S3 vs bundled SeaweedFS
+# ---------------------------------------------------------------------------
+
+
+class _CapturingPost:
+    """Stand-in for aiohttp.ClientSession that captures the one POST and returns fixed XML."""
+
+    def __init__(self, xml: str):
+        self._xml = xml
+        self.url = None
+        self.data = None
+        self.headers = None
+
+    def post(self, url, data=None, headers=None):
+        self.url = url
+        self.data = data.decode() if isinstance(data, (bytes, bytearray)) else data
+        self.headers = headers
+        capturer = self
+
+        class _Resp:
+            status = 200
+
+            async def text(self):
+                return capturer._xml
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+        return _Resp()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+
+_STS_XML = (
+    '<?xml version="1.0"?>'
+    '<GetFederationTokenResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">'
+    "<GetFederationTokenResult><Credentials>"
+    "<AccessKeyId>ASIASCOPED</AccessKeyId>"
+    "<SecretAccessKey>scoped-secret</SecretAccessKey>"
+    "<SessionToken>scoped-token</SessionToken>"
+    "<Expiration>2026-06-30T08:00:00Z</Expiration>"
+    "</Credentials></GetFederationTokenResult></GetFederationTokenResponse>"
+)
+
+
+@pytest.mark.asyncio
+class TestStsBackendFork:
+    async def test_remote_s3_uses_signed_get_federation_token(self, monkeypatch):
+        import oss.src.core.store.storage as storage_mod
+        from oss.src.core.store.storage import ObjectStore
+
+        # No signing key => remote S3; explicit STS endpoint (AWS split host).
+        store = ObjectStore(
+            endpoint_url="https://s3.eu-central-1.amazonaws.com",
+            sts_endpoint_url="https://sts.eu-central-1.amazonaws.com",
+            access_key=_MASTER_KEY,
+            secret_key=_MASTER_SECRET,
+            region="eu-central-1",
+        )
+        assert store.is_seaweedfs is False
+
+        cap = _CapturingPost(_STS_XML)
+        monkeypatch.setattr(storage_mod.aiohttp, "ClientSession", lambda: cap)
+
+        creds = await store.sign_temp_credentials(
+            bucket=_BUCKET, prefix="ns/mounts/p/m", duration_seconds=900
+        )
+
+        # Posts to the configured STS endpoint, GetFederationToken, SigV4-signed with the key.
+        assert cap.url == "https://sts.eu-central-1.amazonaws.com/"
+        assert "Action=GetFederationToken" in cap.data
+        assert "Policy=" in cap.data
+        assert cap.headers["Authorization"].startswith("AWS4-HMAC-SHA256 Credential=")
+        assert "/eu-central-1/sts/aws4_request" in cap.headers["Authorization"]
+        # Scoped creds returned, not the master key.
+        assert creds.access_key == "ASIASCOPED"
+        assert creds.access_key != _MASTER_KEY
+
+    async def test_remote_s3_sts_defaults_to_s3_endpoint(self, monkeypatch):
+        import oss.src.core.store.storage as storage_mod
+        from oss.src.core.store.storage import ObjectStore
+
+        # No sts_endpoint_url => STS posts to the S3 endpoint (MinIO co-locates it).
+        store = ObjectStore(
+            endpoint_url="http://minio:9000",
+            access_key=_MASTER_KEY,
+            secret_key=_MASTER_SECRET,
+            region="us-east-1",
+        )
+        cap = _CapturingPost(_STS_XML)
+        monkeypatch.setattr(storage_mod.aiohttp, "ClientSession", lambda: cap)
+
+        await store.sign_temp_credentials(
+            bucket=_BUCKET, prefix="mounts/p/m", duration_seconds=60
+        )
+        assert cap.url == "http://minio:9000/"
+        assert "Action=GetFederationToken" in cap.data
+        assert "DurationSeconds=900" in cap.data
+
+    async def test_seaweedfs_uses_web_identity_against_endpoint(self, monkeypatch):
+        import oss.src.core.store.storage as storage_mod
+        from oss.src.core.store.storage import ObjectStore
+
+        # Signing key present => bundled SeaweedFS.
+        store = ObjectStore(
+            endpoint_url="http://seaweedfs:8333",
+            access_key=_MASTER_KEY,
+            secret_key=_MASTER_SECRET,
+            signing_key="dummy-signing-key",
+        )
+        assert store.is_seaweedfs is True
+
+        cap = _CapturingPost(_STS_XML)
+        monkeypatch.setattr(storage_mod.aiohttp, "ClientSession", lambda: cap)
+
+        await store.sign_temp_credentials(
+            bucket=_BUCKET, prefix="mounts/p/m", duration_seconds=900
+        )
+
+        # Web-identity, unauthenticated, posted to the store endpoint (not AWS STS).
+        assert cap.url == "http://seaweedfs:8333/"
+        assert "Action=AssumeRoleWithWebIdentity" in cap.data
+        assert "WebIdentityToken=" in cap.data
+        assert "Authorization" not in (cap.headers or {})
