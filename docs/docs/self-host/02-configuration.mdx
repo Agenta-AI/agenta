@@ -150,22 +150,26 @@ The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
 
 Backs the durable working directory for sessions and agents. Files written by an agent run
 survive sandbox teardown and reappear in the next turn. The store is disabled until `ACCESS_KEY`
-and `SECRET_KEY` are set. Point these at any S3-compatible store (AWS S3, Cloudflare R2, MinIO,
-or the bundled SeaweedFS); an empty endpoint URL means real AWS S3.
+and `SECRET_KEY` are set. Point these at any S3-compatible store: the bundled SeaweedFS, AWS S3,
+or MinIO. `ENDPOINT_URL` is always explicit (SeaweedFS defaults it to `http://seaweedfs:8333`; a
+remote store must set it).
 
-The API holds the master credentials and never passes them to the runner. At run start, the API
-mints short-lived, prefix-scoped credentials (S3 STS `AssumeRoleWithWebIdentity`) and only those
-reach the sandbox, which mounts the durable prefix as its working directory.
+The API holds the master credentials and never passes them to the runner. At run start it mints
+short-lived, prefix-scoped credentials and only those reach the sandbox, which mounts the durable
+prefix as its working directory. The STS mechanism depends on the backend (see the two-backend
+note below): bundled SeaweedFS uses `AssumeRoleWithWebIdentity`; a remote S3 store uses
+`GetFederationToken`.
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_STORE_ENDPOINT_URL` | `store.endpoint_url` | `store.endpointUrl` (auto-populated when `store.seaweedfs.enabled=true`) |
+| `AGENTA_STORE_STS_ENDPOINT_URL` | `store.sts_endpoint_url` | `store.stsEndpointUrl` |
 | `AGENTA_STORE_ACCESS_KEY` | `store.access_key` | `store.accessKey` |
 | `AGENTA_STORE_SECRET_KEY` | `store.secret_key` | `store.secretKey` |
 | `AGENTA_STORE_REGION` | `store.region` | `store.region` |
 | `AGENTA_STORE_BUCKET` | `store.bucket` | `store.bucket` |
 | `AGENTA_STORE_NAMESPACE` | `store.namespace` | `store.namespace` |
-| `AGENTA_STORE_SIGNING_KEY` | n/a (store-side) | `store.signingKey` |
+| `AGENTA_STORE_SIGNING_KEY` | `store.signing_key` | `store.signingKey` |
 | `AGENTA_STORE_JWT_ISSUER` | `store.jwt_issuer` | `store.jwtIssuer` |
 | `AGENTA_STORE_JWT_PRIVATE_KEY` | `store.jwt_private_key` | `store.jwtPrivateKey` |
 | — | — | `store.seaweedfs.enabled` |
@@ -185,19 +189,31 @@ several **ephemeral environments share one bucket**. Each environment's keys are
 namespace, and the short-lived credentials the API signs are scoped to that namespace, so one
 environment can never read or write another's objects even though they live in the same bucket.
 The namespace narrows the credential scope; it never widens it, and it is orthogonal to the store
-backend (it works on real S3/R2 and on bundled SeaweedFS alike).
+backend (it works on remote S3 and on bundled SeaweedFS alike).
 :::
 
-:::note SeaweedFS-only STS settings (real S3/R2 ignore these)
-`SIGNING_KEY`, `JWT_ISSUER`, and `JWT_PRIVATE_KEY` configure how the **bundled SeaweedFS** serves
-S3 STS in-process — real AWS S3 and R2 serve STS natively and ignore all three. SeaweedFS authorizes
-scoped credentials only through its OIDC IAM engine: the API acts as the OIDC issuer, mints a
-short-lived RS256 *web-identity* token, and serves the matching public JWKS at
-`/.well-known/jwks.json`; SeaweedFS fetches that JWKS to verify the token on each
-`AssumeRoleWithWebIdentity` call.
+:::note Two STS backends (selected by `SIGNING_KEY` presence)
+The API narrows the master credentials to one mount prefix per run with an inline session policy.
+How it signs that scoped credential depends on the backend, and the backend is chosen by whether
+`AGENTA_STORE_SIGNING_KEY` is set — not by the endpoint:
+
+- **`SIGNING_KEY` set → bundled SeaweedFS.** SeaweedFS authorizes scoped credentials only through
+  its OIDC IAM engine: the API acts as the OIDC issuer, mints a short-lived RS256 *web-identity*
+  token, and serves the matching public JWKS at `/.well-known/jwks.json`; SeaweedFS fetches that
+  JWKS to verify the token on each `AssumeRoleWithWebIdentity` call.
+- **`SIGNING_KEY` unset → remote S3-compatible store (AWS S3, MinIO).** The API already holds S3
+  credentials, so it signs a `GetFederationToken` request (SigV4) with them — no OIDC provider, no
+  role. Cloudflare R2 is **not** supported: it does not implement AWS STS `GetFederationToken`.
+
+`AGENTA_STORE_STS_ENDPOINT_URL` is the STS endpoint for the remote-S3 path. It defaults to the S3
+endpoint (MinIO co-locates STS there); set it only when the store splits STS onto another host —
+AWS: `https://sts.<region>.amazonaws.com`. It is ignored on the SeaweedFS path.
+
+The SeaweedFS-only settings (`SIGNING_KEY`, `JWT_ISSUER`, `JWT_PRIVATE_KEY`):
 
 - `AGENTA_STORE_SIGNING_KEY` — base64 of exactly 32 bytes; the HMAC key SeaweedFS signs its own STS
-  session tokens with (`head -c 32 /dev/urandom | base64`).
+  session tokens with (`head -c 32 /dev/urandom | base64`). Its presence also selects the SeaweedFS
+  backend, so leave it unset for a remote S3 store.
 - `AGENTA_STORE_JWT_ISSUER` — the in-network API URL SeaweedFS fetches the JWKS from (e.g.
   `http://api:8000`).
 - `AGENTA_STORE_JWT_PRIVATE_KEY` — a stable RSA private key (PKCS#8 PEM) the API signs the
@@ -214,7 +230,7 @@ docker-compose this is wired automatically.
 A local sandbox mounts durable storage on the runner host against the in-network store. A
 **remote** sandbox mounts from inside the cloud sandbox, so the store endpoint must be publicly
 reachable. Enable the `ngrok` tunnel (the compose `remote` profile) or point
-`AGENTA_STORE_ENDPOINT_URL` at a public S3/R2 URL. Only the scoped, short-lived credentials ever
+`AGENTA_STORE_ENDPOINT_URL` at a public S3 URL. Only the scoped, short-lived credentials ever
 cross into a remote sandbox.
 :::
 

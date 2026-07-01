@@ -182,7 +182,7 @@ See [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
 
 Files written during an agent run are stored here and remounted automatically on the next turn, so agent workspaces survive sandbox teardown.
 
-The `store.seaweedfs.enabled` Helm toggle controls whether the chart bundles a SeaweedFS StatefulSet or points `store.endpointUrl` at an external store. This mirrors the `postgresql.enabled` pattern. An empty endpoint URL means real AWS S3.
+The `store.seaweedfs.enabled` Helm toggle controls whether the chart bundles a SeaweedFS StatefulSet or points `store.endpointUrl` at an external store. This mirrors the `postgresql.enabled` pattern. The endpoint URL is always explicit; a remote S3-compatible store (AWS, MinIO) must set it.
 
 Per-deployment default:
 - Dev compose: SeaweedFS container bundled.
