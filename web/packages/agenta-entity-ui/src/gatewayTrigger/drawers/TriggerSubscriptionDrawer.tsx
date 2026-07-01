@@ -25,6 +25,7 @@ import {
     useTriggerSubscription,
     useTriggerSubscriptions,
     type SubscriptionDrawerState,
+    type TriggerCatalogEvent,
     type TriggerCatalogIntegration,
     type TriggerConnection,
     type TriggerSubscription,
@@ -36,7 +37,7 @@ import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
 import {appWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
-import {message, ScrollSentinel} from "@agenta/ui"
+import {message} from "@agenta/ui"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Editor} from "@agenta/ui/editor"
@@ -45,25 +46,29 @@ import {
     FlowArrow,
     GitBranch,
     Lightning,
-    MagnifyingGlass,
     PencilSimple,
-    Plugs,
     Plus,
     Tag,
 } from "@phosphor-icons/react"
 import {Button, Form, Input, Modal, Spin, Tooltip, Typography} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
-import Image from "next/image"
 
+import {AppLogo} from "../../drawers/shared/CatalogAppCard"
+import {CatalogChooser} from "../../drawers/shared/CatalogChooser"
+import {DrawerFooter} from "../../drawers/shared/DrawerFooter"
+import {
+    DraftListRow,
+    EntityListRow,
+    MasterDetailRail,
+    isDraftId,
+} from "../../drawers/shared/MasterDetailRail"
+import {useDraftMasterDetail} from "../../drawers/shared/useDraftMasterDetail"
 import SchemaForm, {type SchemaFormHandle} from "../../gatewayTool/components/SchemaForm"
 import {createWorkflowRevisionAdapter, type WorkflowRevisionSelectionResult} from "../../selection"
 
 import {loadRecentSamples, waitForNewDelivery} from "./shared/deliveries"
 import {EventSourcePicker, type SampledEvent} from "./shared/EventSourcePicker"
 import {RunVersionField, buildRunVersionReferences} from "./shared/RunVersionField"
-import {TriggerDrawerFooter} from "./shared/TriggerDrawerFooter"
-import {DraftListRow, EntityListRow, TriggerListRail, isDraftId} from "./shared/TriggerListRail"
-import {useDraftMasterDetail} from "./shared/useDraftMasterDetail"
 import TriggerConnectDrawer from "./TriggerConnectDrawer"
 
 // How many unsaved drafts can exist at once (config knob; see schedule drawer).
@@ -300,7 +305,7 @@ function SubscriptionDrawerContent({
 }
 
 // ---------------------------------------------------------------------------
-// SubscriptionsList — master-detail left rail (reuses TriggerListRail).
+// SubscriptionsList — master-detail left rail (reuses MasterDetailRail).
 // ---------------------------------------------------------------------------
 
 function SubscriptionsList({
@@ -351,7 +356,7 @@ function SubscriptionsList({
         })
 
     return (
-        <TriggerListRail
+        <MasterDetailRail
             newLabel="New trigger"
             onNew={onNew}
             canCreate={canCreate}
@@ -386,7 +391,7 @@ function SubscriptionsList({
                     />
                 )
             })}
-        </TriggerListRail>
+        </MasterDetailRail>
     )
 }
 
@@ -1046,7 +1051,7 @@ function SubscriptionForm({
                 </Form>
             </div>
 
-            <TriggerDrawerFooter
+            <DrawerFooter
                 enabled={enabled}
                 onEnabledChange={setEnabled}
                 onCancel={onClose}
@@ -1077,21 +1082,6 @@ function SubscriptionForm({
 
 function connectionName(conn: TriggerConnection | undefined): string {
     return conn?.name || conn?.slug || conn?.integration_key || ""
-}
-
-// An app's logo (catalog `integration.logo`), with a neutral plug fallback.
-function AppLogo({logo, size = 20}: {logo?: string | null; size?: number}) {
-    if (!logo) return <Plugs size={size} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
-    return (
-        <Image
-            src={logo}
-            alt=""
-            width={size}
-            height={size}
-            unoptimized
-            className="shrink-0 rounded object-contain"
-        />
-    )
 }
 
 // SourceField (in the section): the CHOSEN source as a 2-panel summary (source on the
@@ -1222,10 +1212,46 @@ function SourceBrowsePage({
     )
 }
 
-// SourceChooser — your connected accounts on the left (only when you have any), and a grid
-// of larger app cards filling the right (popular by default, searchable across all). The
-// right is always populated — no dead empty state. Selecting an app/account drills into its
-// events (or a connect invite), with an "← All apps" return.
+// Catalog data wrappers (custom hooks) adapting the trigger catalog hooks to CatalogChooser's shape.
+function useTriggerIntegrationsList() {
+    const r = useTriggerCatalogIntegrations()
+    return {
+        integrations: r.integrations,
+        hasNextPage: r.hasNextPage,
+        isFetchingNextPage: r.isFetchingNextPage,
+        isLoading: r.isLoading,
+        requestMore: r.requestMore,
+        setSearch: r.setSearch,
+    }
+}
+
+function useTriggerEventList(integrationKey: string) {
+    const r = useTriggerCatalogEvents(integrationKey)
+    return {
+        items: r.events,
+        isLoading: r.isLoading,
+        hasNextPage: r.hasNextPage,
+        isFetchingNextPage: r.isFetchingNextPage,
+        requestMore: r.requestMore,
+        setSearch: r.setSearch,
+    }
+}
+
+// Composio marks superseded events with a "DEPRECATED: use X instead." description prefix (there's
+// no structured flag) — surface it as a badge so the user avoids picking a dead event.
+function isDeprecatedEvent(description?: string | null): boolean {
+    return /^\s*deprecated\b/i.test(description ?? "")
+}
+
+// Drop the redundant trailing "Trigger" from a catalog event name ("Reaction Added Trigger" →
+// "Reaction Added") — we're already in a "Choose a trigger" context.
+function cleanEventName(name?: string | null): string | undefined {
+    if (!name) return undefined
+    return name.replace(/\s+trigger$/i, "").trim() || name
+}
+
+// SourceChooser — connected-accounts rail + 2-column app grid + app detail. Shared with the tools
+// catalog via the generic CatalogChooser; the events leaf picks an event -> onPick(connId, eventKey).
 function SourceChooser({
     connections,
     defaultIntegrationKey,
@@ -1235,447 +1261,53 @@ function SourceChooser({
     defaultIntegrationKey?: string
     onPick: (connectionId: string, eventKey: string) => void
 }) {
-    const {integrations, hasNextPage, isFetchingNextPage, isLoading, requestMore, setSearch} =
-        useTriggerCatalogIntegrations()
-    const byKey = useMemo(() => {
-        const m = new Map<string, TriggerCatalogIntegration>()
-        integrations.forEach((i) => m.set(i.key, i))
-        return m
-    }, [integrations])
-    const connectedKeys = useMemo(
-        () => new Set(connections.map((c) => c.integration_key)),
-        [connections],
-    )
-
-    const [searchInput, setSearchInput] = useState("")
-    useEffect(() => {
-        const t = setTimeout(() => setSearch(searchInput), 250)
-        return () => clearTimeout(t)
-    }, [searchInput, setSearch])
-    const searching = searchInput.trim().length > 0
-    // The grid shows every app with infinite scroll (the catalog returns popular ones first);
-    // searching filters the list server-side.
-    const gridItems = integrations
-
-    // Selection is a specific connection (an account) or an integration (browse). Null = the
-    // app grid (the default — never an empty panel). A `defaultIntegrationKey` (e.g. opened via
-    // a provider group's "+") drills straight into that provider.
-    const [selected, setSelected] = useState<{kind: "conn" | "intg"; id: string} | null>(
-        defaultIntegrationKey ? {kind: "intg", id: defaultIntegrationKey} : null,
-    )
-    // Callback-ref state for the grid's scroll container, so ScrollSentinel can observe
-    // against it (a ref wouldn't re-render the sentinel once the element mounts).
-    const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null)
-    // Resolve to a connection: a chosen account directly, or — for a chosen integration —
-    // its first connection if one exists. So once a connect completes and the list refetches,
-    // the right panel flips from the connect invite to that account's events automatically.
-    const selectedConn =
-        selected?.kind === "conn"
-            ? connections.find((c) => c.id === selected.id)
-            : selected?.kind === "intg"
-              ? connections.find((c) => c.integration_key === selected.id)
-              : undefined
-    const selectedIntegration = selectedConn
-        ? byKey.get(selectedConn.integration_key)
-        : selected?.kind === "intg"
-          ? byKey.get(selected.id)
-          : undefined
-    const [connectIntegration, setConnectIntegration] = useState<TriggerCatalogIntegration | null>(
-        null,
-    )
-
-    const hasConnections = connections.length > 0
-
     return (
-        <div className="flex h-full min-h-[260px] gap-3">
-            {hasConnections && (
-                <div className="flex w-[220px] shrink-0 flex-col gap-0.5 overflow-y-auto">
-                    <div className="px-1 pb-1 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                        Your connections
-                    </div>
-                    {connections.map((c) => {
-                        const app = byKey.get(c.integration_key)
-                        const appName = app?.name ?? c.integration_key
-                        // Lead with the connection's own name so multiple accounts of the
-                        // same provider are distinct.
-                        const account = c.name?.trim()
-                        return (
-                            <AppRailItem
-                                key={c.id ?? c.integration_key}
-                                active={selected?.kind === "conn" && selected.id === c.id}
-                                logo={app?.logo}
-                                name={account || appName}
-                                sub={account ? appName : undefined}
-                                connected
-                                onClick={() => c.id && setSelected({kind: "conn", id: c.id})}
-                            />
-                        )
-                    })}
-                </div>
-            )}
-
-            <div
-                className={`flex min-h-0 min-w-0 flex-1 flex-col ${
-                    hasConnections
-                        ? "border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3"
-                        : ""
-                }`}
-            >
-                {selected ? (
-                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                        <button
-                            type="button"
-                            onClick={() => setSelected(null)}
-                            className="mb-2 flex cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
-                        >
-                            <ArrowLeft size={13} /> All apps
-                        </button>
-                        {selectedConn ? (
-                            <>
-                                <ConnectionDetail
-                                    connection={selectedConn}
-                                    integration={selectedIntegration}
-                                />
-                                <div className="mb-1 mt-2 flex items-center justify-between gap-2">
-                                    <Typography.Text
-                                        type="secondary"
-                                        className="!text-[11px] leading-snug"
-                                    >
-                                        Choose an event
-                                    </Typography.Text>
-                                    {selectedIntegration && (
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setConnectIntegration(selectedIntegration)
-                                            }
-                                            className="cursor-pointer border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorPrimary)] hover:underline"
-                                        >
-                                            + Connect another account
-                                        </button>
-                                    )}
-                                </div>
-                                <ConnectionEventList
-                                    integrationKey={selectedConn.integration_key}
-                                    onPick={(ek) => onPick(selectedConn.id as string, ek)}
-                                />
-                            </>
-                        ) : (
-                            <ConnectInvite
-                                integration={selectedIntegration}
-                                onConnect={() =>
-                                    selectedIntegration &&
-                                    setConnectIntegration(selectedIntegration)
-                                }
-                            />
-                        )}
-                    </div>
-                ) : (
-                    <>
-                        <Input
-                            allowClear
-                            placeholder="Search apps…"
-                            prefix={
-                                <MagnifyingGlass
-                                    size={13}
-                                    className="text-[var(--ag-colorTextTertiary)]"
-                                />
-                            }
-                            value={searchInput}
-                            onChange={(e) => setSearchInput(e.target.value)}
-                        />
-                        <div className="mb-1 mt-2 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                            {searching ? "Search results" : "All apps"}
-                        </div>
-                        <div
-                            ref={setGridEl}
-                            className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
-                        >
-                            {gridItems.map((i) => (
-                                <AppCard
-                                    key={i.key}
-                                    logo={i.logo}
-                                    name={i.name}
-                                    description={i.description}
-                                    categories={i.categories}
-                                    actionsCount={i.actions_count}
-                                    connected={connectedKeys.has(i.key)}
-                                    onClick={() => setSelected({kind: "intg", id: i.key})}
-                                />
-                            ))}
-                            {!isLoading && gridItems.length === 0 && (
-                                <div className="col-span-full py-6 text-center text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                    {searching
-                                        ? `No apps match “${searchInput}”.`
-                                        : "No apps found."}
-                                </div>
-                            )}
-                            {/* IntersectionObserver prefetch, observed against the grid's own
-                                scroll container with a big bottom margin so it loads the next
-                                page well before the user reaches the bottom. Re-fires after each
-                                fetch (effect depends on isFetching), filling short grids too. */}
-                            <div className="col-span-full">
-                                {(isLoading || isFetchingNextPage) && (
-                                    <div className="flex justify-center py-3">
-                                        <Spin size="small" />
-                                    </div>
-                                )}
-                                <ScrollSentinel
-                                    onVisible={requestMore}
-                                    hasMore={hasNextPage}
-                                    isFetching={isFetchingNextPage}
-                                    root={gridEl}
-                                    rootMargin="0px 0px 1600px 0px"
-                                />
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
-
-            {connectIntegration && (
+        <CatalogChooser<TriggerCatalogIntegration, TriggerCatalogEvent, TriggerConnection>
+            connections={connections}
+            defaultIntegrationKey={defaultIntegrationKey}
+            isConnectionActive={isConnectionActive}
+            useIntegrations={useTriggerIntegrationsList}
+            useItems={useTriggerEventList}
+            integration={{
+                key: (i) => i.key,
+                name: (i) => i.name,
+                logo: (i) => i.logo,
+                description: (i) => i.description,
+                categories: (i) => i.categories,
+                actionsCount: (i) => i.actions_count,
+            }}
+            connection={{
+                id: (c) => c.id ?? undefined,
+                name: (c) => c.name ?? undefined,
+                slug: (c) => c.slug ?? undefined,
+                integrationKey: (c) => c.integration_key,
+                connectedAt: (c) =>
+                    c.created_at ? dayjs(c.created_at).format("MMM D, YYYY") : undefined,
+            }}
+            item={{
+                key: (e) => e.key,
+                name: (e) => cleanEventName(e.name),
+                description: (e) => e.description ?? undefined,
+                categories: (e) => e.categories ?? undefined,
+                deprecated: (e) => isDeprecatedEvent(e.description),
+            }}
+            itemsLabel="Choose an event"
+            itemsSearchPlaceholder="Search events"
+            emptyItemsText="No events for this app"
+            onPickItem={(conn, event) => conn.id && onPick(conn.id, event.key)}
+            renderConnect={(integration, h) => (
                 <TriggerConnectDrawer
-                    open={!!connectIntegration}
-                    integrationKey={connectIntegration.key}
-                    integrationName={connectIntegration.name}
-                    integrationLogo={connectIntegration.logo ?? undefined}
-                    integrationDescription={connectIntegration.description ?? undefined}
-                    authSchemes={connectIntegration.auth_schemes ?? []}
-                    onClose={() => setConnectIntegration(null)}
-                    onSuccess={() => setConnectIntegration(null)}
+                    open
+                    integrationKey={integration.key}
+                    integrationName={integration.name}
+                    integrationLogo={integration.logo ?? undefined}
+                    integrationDescription={integration.description ?? undefined}
+                    authSchemes={integration.auth_schemes ?? []}
+                    onClose={h.onClose}
+                    onSuccess={h.onSuccess}
                 />
             )}
-        </div>
-    )
-}
-
-// A larger app card for the discover grid: logo + name (+ connected hint).
-function AppCard({
-    logo,
-    name,
-    description,
-    categories,
-    actionsCount,
-    connected,
-    onClick,
-}: {
-    logo?: string | null
-    name: string
-    description?: string | null
-    categories?: string[]
-    actionsCount?: number | null
-    connected?: boolean
-    onClick: () => void
-}) {
-    const shownCategories = (categories ?? []).filter(Boolean).slice(0, 2)
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className="group flex h-full min-h-[112px] cursor-pointer flex-col gap-2 rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-transparent p-3 text-left hover:border-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorFillQuaternary)]"
-        >
-            <div className="flex items-center gap-2.5">
-                <AppLogo logo={logo} size={28} />
-                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <span className="truncate text-xs font-medium">{name}</span>
-                    {connected && (
-                        <Tooltip title="Connected">
-                            <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
-                        </Tooltip>
-                    )}
-                </div>
-            </div>
-            {description ? (
-                <p className="m-0 line-clamp-2 text-[11px] leading-snug text-[var(--ag-colorTextSecondary)]">
-                    {description}
-                </p>
-            ) : (
-                <span className="flex-1" />
-            )}
-            <div className="mt-auto flex items-center gap-1.5">
-                {shownCategories.map((cat) => (
-                    <span
-                        key={cat}
-                        className="truncate rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-0.5 text-[10px] capitalize leading-none text-[var(--ag-colorTextSecondary)]"
-                    >
-                        {cat}
-                    </span>
-                ))}
-                {typeof actionsCount === "number" && actionsCount > 0 && (
-                    <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-[var(--ag-colorTextTertiary)]">
-                        <Lightning size={11} weight="fill" />
-                        {actionsCount}
-                    </span>
-                )}
-            </div>
-        </button>
-    )
-}
-
-// Richer detail for a connected app: account label, status, and connected date.
-function ConnectionDetail({
-    connection,
-    integration,
-}: {
-    connection: TriggerConnection
-    integration?: TriggerCatalogIntegration
-}) {
-    const active = isConnectionActive(connection)
-    const account = connection.name || connection.slug || ""
-    const connectedAt = connection.created_at
-        ? dayjs(connection.created_at).format("MMM D, YYYY")
-        : ""
-    return (
-        <div className="flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorder)] px-3 py-2">
-            <AppLogo logo={integration?.logo} size={20} />
-            <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-medium">
-                    {integration?.name ?? connection.integration_key}
-                </div>
-                <div className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
-                    {account || connection.integration_key}
-                    {connectedAt ? ` · connected ${connectedAt}` : ""}
-                </div>
-            </div>
-            <span
-                className={`inline-flex shrink-0 items-center gap-1 text-[11px] ${
-                    active ? "text-[var(--ag-colorSuccess)]" : "text-[var(--ag-colorTextTertiary)]"
-                }`}
-            >
-                <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                        active
-                            ? "bg-[var(--ag-colorSuccess)]"
-                            : "bg-[var(--ag-colorTextQuaternary)]"
-                    }`}
-                />
-                {active ? "Active" : "Inactive"}
-            </span>
-        </div>
-    )
-}
-
-function AppRailItem({
-    active,
-    logo,
-    name,
-    sub,
-    connected,
-    onClick,
-}: {
-    active: boolean
-    logo?: string | null
-    name: string
-    sub?: string
-    connected?: boolean
-    onClick: () => void
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={`flex w-full cursor-pointer items-center gap-2 rounded border-0 px-2 py-1.5 text-left ${
-                active
-                    ? "bg-[var(--ag-colorPrimaryBg)]"
-                    : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
-            }`}
-        >
-            <AppLogo logo={logo} size={18} />
-            <span className="min-w-0 flex-1">
-                <span
-                    className={`block truncate text-xs ${
-                        active
-                            ? "font-medium text-[var(--ag-colorPrimary)]"
-                            : "text-[var(--ag-colorText)]"
-                    }`}
-                >
-                    {name}
-                </span>
-                {sub && (
-                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
-                        {sub}
-                    </span>
-                )}
-            </span>
-            {connected && (
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
-            )}
-        </button>
-    )
-}
-
-// Invite to connect a not-yet-connected app (logo + name + blurb + connect CTA).
-function ConnectInvite({
-    integration,
-    onConnect,
-}: {
-    integration?: TriggerCatalogIntegration
-    onConnect: () => void
-}) {
-    return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-6 text-center">
-            <AppLogo logo={integration?.logo} size={32} />
-            <div className="text-xs font-medium">{integration?.name ?? "This app"}</div>
-            {integration?.description && (
-                <div className="max-w-[280px] text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
-                    {integration.description}
-                </div>
-            )}
-            <Button type="primary" onClick={onConnect}>
-                Connect {integration?.name ?? "app"}
-            </Button>
-        </div>
-    )
-}
-
-function ConnectionEventList({
-    integrationKey,
-    onPick,
-}: {
-    integrationKey: string
-    onPick: (eventKey: string) => void
-}) {
-    const {events, isLoading, hasNextPage, requestMore} = useTriggerCatalogEvents(integrationKey)
-    if (isLoading && events.length === 0) {
-        return (
-            <div className="flex justify-center py-3">
-                <Spin size="small" />
-            </div>
-        )
-    }
-    if (events.length === 0) {
-        return (
-            <div className="px-3 py-2 text-[11px] text-[var(--ag-colorTextTertiary)]">
-                No events for this app
-            </div>
-        )
-    }
-    return (
-        <div className="flex max-h-[220px] flex-col gap-0.5 overflow-y-auto p-1">
-            {events.map((ev) => (
-                <button
-                    key={ev.key}
-                    type="button"
-                    onClick={() => onPick(ev.key)}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-1.5 text-left hover:bg-[var(--ag-colorFillSecondary)]"
-                >
-                    <Lightning size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
-                    <span className="min-w-0 flex-1 truncate text-[12.5px]">
-                        {ev.name || ev.key}
-                    </span>
-                    <Plus size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
-                </button>
-            ))}
-            {hasNextPage && (
-                <button
-                    type="button"
-                    onClick={requestMore}
-                    className="flex w-full cursor-pointer border-0 bg-transparent px-2 py-1.5 text-left text-[12px] text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillSecondary)]"
-                >
-                    Load more…
-                </button>
-            )}
-        </div>
+        />
     )
 }
 

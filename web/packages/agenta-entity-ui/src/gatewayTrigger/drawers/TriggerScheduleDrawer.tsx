@@ -35,13 +35,18 @@ import {CalendarBlank, ChatText, Clock, GitBranch, Play, Tag} from "@phosphor-ic
 import {Button, DatePicker, Form, Input, Modal, Popover, Spin, Tooltip, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {DrawerFooter} from "../../drawers/shared/DrawerFooter"
+import {
+    DraftListRow,
+    EntityListRow,
+    MasterDetailRail,
+    isDraftId,
+} from "../../drawers/shared/MasterDetailRail"
+import {useDraftMasterDetail} from "../../drawers/shared/useDraftMasterDetail"
 import {createWorkflowRevisionAdapter, type WorkflowRevisionSelectionResult} from "../../selection"
 
 import {ScheduleBuilderField} from "./ScheduleBuilderField"
 import {RunVersionField, buildRunVersionReferences} from "./shared/RunVersionField"
-import {TriggerDrawerFooter} from "./shared/TriggerDrawerFooter"
-import {DraftListRow, EntityListRow, TriggerListRail, isDraftId} from "./shared/TriggerListRail"
-import {useDraftMasterDetail} from "./shared/useDraftMasterDetail"
 
 // Weekly (Monday 09:00 UTC) so the builder opens on the Weekly cadence by default.
 const DEFAULT_CRON = "0 9 * * 1"
@@ -301,7 +306,7 @@ function SchedulesList({
         })
 
     return (
-        <TriggerListRail
+        <MasterDetailRail
             newLabel="New schedule"
             onNew={onNew}
             canCreate={canCreate}
@@ -332,7 +337,7 @@ function SchedulesList({
                     onRemove={s.id ? () => confirmDeleteSchedule(s) : undefined}
                 />
             ))}
-        </TriggerListRail>
+        </MasterDetailRail>
     )
 }
 
@@ -850,7 +855,7 @@ function ScheduleForm({
                 </Form>
             </div>
 
-            <TriggerDrawerFooter
+            <DrawerFooter
                 enabled={enabled}
                 onEnabledChange={setEnabled}
                 onCancel={onClose}
