@@ -1,25 +1,28 @@
+import {querySessionRecords} from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
+import {getDefaultStore} from "jotai"
+
+import {transcriptToMessages} from "./transcriptToMessages"
 
 /**
  * Server-side hydration seam for a session's conversation.
  *
- * Today this returns `null`: the agent service wires a `NoopSessionStore`, so the backend does
- * NOT own message history — the only record of a conversation's content is this browser's
- * localStorage (`sessionMessagesAtom`). So opening a session from a deep link / observability
- * trace can only render content for sessions that originated in THIS browser.
+ * The durable Sessions API (PR #4916) persists every ACP `AgentEvent` to an append-only
+ * record log; `queryRecords` is the replay source. This maps those events to v6 `UIMessage[]`
+ * (see `transcriptToMessages`) so opening a session from a deep link / observability trace
+ * renders a conversation this browser never ran.
  *
- * When the backend gains a real `SessionStore` (DB-backed message history), wire the call here:
- *
- *   POST {AGENT_SERVICE}/services/agent/v0/load-session
- *        ?project_id=<projectId>&application_id=<appId>
- *        body: { session_id }
- *   → returns the stored turns; map them to v6 `UIMessage[]` (reuse the vercel messages
- *     adapter's shape) and return them here. The caller writes them into `sessionMessagesAtom`
- *     before opening the tab, so the conversation seeds from server history.
- *
- * Returning `null` means "no server history available" — the caller falls back to whatever is
- * already in localStorage.
+ * Returns `null` when there is no server history (project scope missing, request failed, or
+ * the record log is empty — e.g. the ingest worker isn't running locally). The caller then
+ * falls back to whatever is already in localStorage.
  */
-export const loadSessionMessages = async (_sessionId: string): Promise<UIMessage[] | null> => {
-    return null
+export const loadSessionMessages = async (sessionId: string): Promise<UIMessage[] | null> => {
+    const projectId = getDefaultStore().get(projectIdAtom)
+    if (!projectId) return null
+
+    const records = await querySessionRecords({sessionId, projectId})
+    if (!records || records.length === 0) return null
+
+    return transcriptToMessages(records)
 }

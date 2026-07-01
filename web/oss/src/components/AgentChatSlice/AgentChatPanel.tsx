@@ -27,6 +27,7 @@ import {
     validateIncoming,
 } from "./assets/attachments"
 import {filesToParts} from "./assets/files"
+import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import AgentMessage from "./components/AgentMessage"
 import type {ClientToolOutputHandler} from "./components/clientTools"
@@ -274,6 +275,30 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // Hybrid history: localStorage holds only the session INDEX (id/title); the durable
+    // conversation CONTENT lives in the backend record log. Cache-first — when this tab opens
+    // with no locally-cached messages (a session this browser never ran, or after a storage
+    // clear), hydrate once from the server (`queryRecords` → v6 messages) and seed the cache.
+    // Locally-cached sessions skip the fetch entirely, so there's no regression for own runs.
+    const hydratedRef = useRef(false)
+    useEffect(() => {
+        if (hydratedRef.current || initialMessages.length > 0) return
+        hydratedRef.current = true
+        let cancelled = false
+        loadSessionMessages(sessionId).then((msgs) => {
+            if (cancelled || !msgs || msgs.length === 0) return
+            // Restored history must render settled (no live fade-in) and pinned to the bottom.
+            msgs.forEach((m) => seenIdsRef.current.add(m.id))
+            armBottomRef.current = true
+            setMessages(msgs)
+            persistMessages({id: sessionId, messages: msgs})
+        })
+        return () => {
+            cancelled = true
+        }
+        // Seed once per mounted session tab; `sessionId` is stable for this instance.
+    }, [sessionId])
 
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
