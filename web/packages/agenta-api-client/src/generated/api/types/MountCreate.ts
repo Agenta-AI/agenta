@@ -8,4 +8,6 @@ export interface MountCreate {
     slug?: (string | null) | undefined;
     session_id?: (string | null) | undefined;
     flags?: AgentaApi.MountFlags | undefined;
+    tags?: (Record<string, unknown> | null) | undefined;
+    meta?: (Record<string, unknown> | null) | undefined;
 }

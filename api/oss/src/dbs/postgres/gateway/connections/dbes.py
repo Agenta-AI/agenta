@@ -57,6 +57,11 @@ class ConnectionDBE(
             "provider_key",
             "integration_key",
         ),
+        Index(
+            "ix_gateway_connections_flags",
+            "flags",
+            postgresql_using="gin",
+        ),
     )
 
     provider_key = Column(

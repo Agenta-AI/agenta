@@ -6,7 +6,6 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamFlags,
-    SessionStreamStatus,
 )
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 
@@ -25,7 +24,6 @@ def map_stream_dto_to_dbe_create(
         tags=stream.tags,
         meta=stream.meta,
         turn_id=stream.turn_id,
-        status=stream.status.value if stream.status else None,
     )
 
 
@@ -49,7 +47,6 @@ def map_stream_dbe_to_dto(
         else SessionStreamFlags(),
         tags=stream_dbe.tags,
         meta=stream_dbe.meta,
-        status=SessionStreamStatus(stream_dbe.status) if stream_dbe.status else None,
     )
 
 
@@ -68,5 +65,3 @@ def map_stream_dto_to_dbe_edit(
         stream_dbe.meta = stream.meta
     if stream.turn_id is not None:
         stream_dbe.turn_id = stream.turn_id
-    if stream.status is not None:
-        stream_dbe.status = stream.status.value

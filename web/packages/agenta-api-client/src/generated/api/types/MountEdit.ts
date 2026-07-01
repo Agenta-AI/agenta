@@ -7,4 +7,6 @@ export interface MountEdit {
     description?: (string | null) | undefined;
     id?: (string | null) | undefined;
     flags?: AgentaApi.MountFlags | undefined;
+    tags?: (Record<string, unknown> | null) | undefined;
+    meta?: (Record<string, unknown> | null) | undefined;
 }

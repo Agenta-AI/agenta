@@ -5,6 +5,7 @@ import typing
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .session_interaction_kind import SessionInteractionKind
+from .session_interaction_query_flags import SessionInteractionQueryFlags
 from .session_interaction_status import SessionInteractionStatus
 
 
@@ -13,6 +14,7 @@ class SessionInteractionQuery(UniversalBaseModel):
     turn_id: typing.Optional[str] = None
     kind: typing.Optional[SessionInteractionKind] = None
     status: typing.Optional[SessionInteractionStatus] = None
+    flags: typing.Optional[SessionInteractionQueryFlags] = None
     actionable_only: typing.Optional[bool] = None
     
     if IS_PYDANTIC_V2:

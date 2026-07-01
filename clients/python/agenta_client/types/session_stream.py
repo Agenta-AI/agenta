@@ -6,7 +6,6 @@ import typing
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .session_stream_flags import SessionStreamFlags
-from .session_stream_status import SessionStreamStatus
 
 
 class SessionStream(UniversalBaseModel):
@@ -20,8 +19,9 @@ class SessionStream(UniversalBaseModel):
     project_id: str
     session_id: str
     flags: typing.Optional[SessionStreamFlags] = None
+    tags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     turn_id: typing.Optional[str] = None
-    status: typing.Optional[SessionStreamStatus] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

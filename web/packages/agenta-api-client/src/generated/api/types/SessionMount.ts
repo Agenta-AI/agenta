@@ -17,4 +17,6 @@ export interface SessionMount {
     session_id: string;
     data?: AgentaApi.MountData | undefined;
     flags?: AgentaApi.MountFlags | undefined;
+    tags?: (Record<string, unknown> | null) | undefined;
+    meta?: (Record<string, unknown> | null) | undefined;
 }

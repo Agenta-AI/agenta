@@ -8,8 +8,9 @@
  */
 export interface SessionRecordIngestRequest {
     session_id: string;
-    event_index?: number | null;
-    sender?: string | null;
-    session_update?: string | null;
-    payload?: Record<string, unknown> | null;
+    record_index?: number | null;
+    timestamp?: string | null;
+    record_type?: string | null;
+    record_source?: string | null;
+    attributes?: Record<string, unknown> | null;
 }
