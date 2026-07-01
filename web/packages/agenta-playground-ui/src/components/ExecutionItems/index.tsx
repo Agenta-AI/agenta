@@ -67,13 +67,11 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({
         agentSurfaceRef.current = false
     }
     if (agentSurfaceRef.current && AgentGenerationPanel) {
+        // No ExecutionHeader: it self-nulls for agents (`if (isAgent) return null`), but during the
+        // switch load gap `isAgent` is momentarily false, so rendering it would flash the non-agent
+        // header + register the run-all shortcut over the agent chat. Agents own their composer.
         return (
             <div className="flex h-full min-h-0 w-full flex-col">
-                <ExecutionHeader
-                    entityId={entityId}
-                    renderTestsetActions={renderTestsetActions}
-                    onRepeatCountChange={onRepeatCountChange}
-                />
                 <div className="min-h-0 flex-1">
                     <AgentGenerationPanel entityId={entityId} />
                 </div>
