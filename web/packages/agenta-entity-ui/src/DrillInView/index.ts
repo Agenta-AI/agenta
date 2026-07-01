@@ -111,9 +111,12 @@ export type {
     GatewayToolsBridge,
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
+    WorkflowReferenceType,
     WorkflowRevisionUI,
     WorkflowEnvironmentUI,
     WorkflowReferencePayload,
+    WorkflowConfigPart,
+    WorkflowConfigPayload,
 } from "@agenta/ui/drill-in"
 
 // Core Types
