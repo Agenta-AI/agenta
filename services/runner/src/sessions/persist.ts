@@ -54,10 +54,11 @@ async function postEvent(
         },
         body: JSON.stringify({
           session_id: sessionId,
-          event_index: eventIndex,
-          sender,
-          session_update: event.type,
-          payload: event,
+          record_index: eventIndex,
+          timestamp: new Date().toISOString(),
+          record_source: sender,
+          record_type: event.type,
+          attributes: event,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -108,8 +109,8 @@ export async function drainPersist(sessionId: string): Promise<void> {
 
 /**
  * Build an emitter that persists every event via the ingest chain AND calls the
- * original emitter (for live streaming). Returns a stateful counter so event_index
- * increments monotonically per session.
+ * original emitter (for live streaming). Returns a stateful counter so record_index
+ * increments monotonically per session (a stable ordinal; the DB orders by record_id).
  *
  * The `stripReplay` filter coalesces the delta family (message_start / message_delta
  * / message_end) into a single `message` event for storage; the raw deltas are

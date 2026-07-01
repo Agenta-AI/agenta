@@ -6,6 +6,10 @@ from pydantic import BaseModel, Field
 from oss.src.core.shared.dtos import Lifecycle
 
 
+class SessionStateFlags(BaseModel):
+    pass
+
+
 class SessionState(Lifecycle):
     id: Optional[UUID] = Field(default=None, description="Own uuid7 pk (state_id).")
     project_id: Optional[UUID] = Field(default=None)
@@ -18,6 +22,9 @@ class SessionState(Lifecycle):
         default=None,
         description="Remote sandbox id — the single source of truth resume pointer.",
     )
+    flags: SessionStateFlags = Field(default_factory=SessionStateFlags)
+    tags: Optional[Dict[str, Any]] = Field(default=None)
+    meta: Optional[Dict[str, Any]] = Field(default=None)
 
 
 class SessionStateUpsert(BaseModel):

@@ -23,13 +23,14 @@ def upgrade() -> None:
     op.create_table(
         "records",
         sa.Column("project_id", sa.UUID(), nullable=False),
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("session_id", sa.UUID(), nullable=False),
-        sa.Column("event_index", sa.Integer(), nullable=True),
-        sa.Column("sender", sa.String(), nullable=True),
-        sa.Column("session_update", sa.String(), nullable=True),
+        sa.Column("record_id", sa.UUID(), nullable=False),
+        sa.Column("session_id", sa.String(), nullable=False),
+        sa.Column("record_index", sa.Integer(), nullable=True),
+        sa.Column("timestamp", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("record_type", sa.String(), nullable=True),
+        sa.Column("record_source", sa.String(), nullable=True),
         sa.Column(
-            "payload",
+            "attributes",
             postgresql.JSONB(none_as_null=True, astext_type=sa.Text()),
             nullable=True,
         ),
@@ -44,46 +45,25 @@ def upgrade() -> None:
         sa.Column("created_by_id", sa.UUID(), nullable=True),
         sa.Column("updated_by_id", sa.UUID(), nullable=True),
         sa.Column("deleted_by_id", sa.UUID(), nullable=True),
-        sa.PrimaryKeyConstraint("project_id", "id"),
+        sa.PrimaryKeyConstraint("project_id", "record_id"),
     )
 
     op.create_index(
-        "ix_records_project_id",
+        "ix_records_project_id_session_id_record_id",
         "records",
-        ["project_id"],
+        ["project_id", "session_id", "record_id"],
         unique=False,
     )
     op.create_index(
-        "ix_records_project_id_session_id",
+        "ix_records_attributes_gin",
         "records",
-        ["project_id", "session_id"],
-        unique=False,
-    )
-    op.create_index(
-        "ix_records_project_id_id",
-        "records",
-        ["project_id", "id"],
-        unique=False,
-    )
-    op.create_index(
-        "ix_records_project_id_session_id_id",
-        "records",
-        ["project_id", "session_id", "id"],
-        unique=False,
-    )
-    op.create_index(
-        "ix_records_payload_gin",
-        "records",
-        ["payload"],
+        ["attributes"],
         unique=False,
         postgresql_using="gin",
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_records_payload_gin", table_name="records")
-    op.drop_index("ix_records_project_id_session_id_id", table_name="records")
-    op.drop_index("ix_records_project_id_id", table_name="records")
-    op.drop_index("ix_records_project_id_session_id", table_name="records")
-    op.drop_index("ix_records_project_id", table_name="records")
+    op.drop_index("ix_records_attributes_gin", table_name="records")
+    op.drop_index("ix_records_project_id_session_id_record_id", table_name="records")
     op.drop_table("records")

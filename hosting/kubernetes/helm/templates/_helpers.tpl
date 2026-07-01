@@ -873,10 +873,18 @@ imagePullSecrets:
   {{- else }}
   value: {{ default "" $store.endpointUrl | quote }}
   {{- end }}
+{{- if $store.stsEndpointUrl }}
+- name: AGENTA_STORE_STS_ENDPOINT_URL
+  value: {{ $store.stsEndpointUrl | quote }}
+{{- end }}
 - name: AGENTA_STORE_REGION
   value: {{ default "us-east-1" $store.region | quote }}
 - name: AGENTA_STORE_BUCKET
   value: {{ default "agenta-store" $store.bucket | quote }}
+{{- if $store.namespace }}
+- name: AGENTA_STORE_NAMESPACE
+  value: {{ $store.namespace | quote }}
+{{- end }}
 - name: AGENTA_STORE_ACCESS_KEY
   valueFrom:
     secretKeyRef:
@@ -887,11 +895,13 @@ imagePullSecrets:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
       key: AGENTA_STORE_SECRET_KEY
+{{- if $store.signingKey }}
 - name: AGENTA_STORE_SIGNING_KEY
   valueFrom:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
       key: AGENTA_STORE_SIGNING_KEY
+{{- end }}
 {{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
 - name: AGENTA_STORE_JWT_ISSUER
   value: {{ default (printf "http://%s-api:%v" (include "agenta.fullname" .) (include "agenta.api.port" .)) $store.jwtIssuer | quote }}

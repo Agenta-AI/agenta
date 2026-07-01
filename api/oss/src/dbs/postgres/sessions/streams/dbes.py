@@ -5,6 +5,7 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     String,
     UniqueConstraint,
+    VARCHAR,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
@@ -12,13 +13,20 @@ from oss.src.dbs.postgres.shared.dbas import (
     FlagsDBA,
     IdentifierDBA,
     LifecycleDBA,
+    MetaDBA,
     ProjectScopeDBA,
-    StatusDBA,
+    TagsDBA,
 )
 
 
 class SessionStreamDBE(
-    Base, IdentifierDBA, ProjectScopeDBA, LifecycleDBA, FlagsDBA, StatusDBA
+    Base,
+    IdentifierDBA,
+    ProjectScopeDBA,
+    LifecycleDBA,
+    FlagsDBA,
+    TagsDBA,
+    MetaDBA,
 ):
     """Ephemeral run/liveness facet for a session — the durable mirror of the
     Redis nest (alive ⊇ running ⊇ attached).
@@ -37,6 +45,9 @@ class SessionStreamDBE(
     # Current turn (uuid7 minted by the service); the Postgres mirror of the Redis
     # alive/running lock value. Null when idle/ended. Not a pk — a token-like correlator.
     turn_id = Column(String, nullable=True)
+
+    # FSM as a root enum column (SessionStreamStatus).
+    status = Column(VARCHAR, nullable=True)
 
     __table_args__ = (
         ForeignKeyConstraint(

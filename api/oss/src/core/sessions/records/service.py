@@ -23,7 +23,7 @@ class RecordsService:
         self,
         *,
         project_id: UUID,
-        session_id: UUID,
+        session_id: str,
     ) -> List[SessionRecord]:
         return await self.records_dao.get_records(
             project_id=project_id,
@@ -34,9 +34,9 @@ class RecordsService:
         self,
         *,
         project_id: UUID,
-        event_id: UUID,
+        record_id: UUID,
     ) -> Optional[SessionRecord]:
         return await self.records_dao.get_event(
             project_id=project_id,
-            event_id=event_id,
+            record_id=record_id,
         )

@@ -105,27 +105,17 @@ redisDurable:
     size: "5Gi"
 
 # ================================================================== #
-# store — object-storage config (AGENTA_STORE_*).
-# Covers file mounts, session artifacts, and SeaweedFS wiring.
-# Set store.seaweedfs.enabled=true to deploy the bundled SeaweedFS; leave it
-# false and set endpointUrl/accessKey/secretKey to use an external S3-compatible
-# store (AWS S3, R2, MinIO). This mirrors postgresql.enabled.
-# accessKey/secretKey are the only required values for an external store.
-# signingKey/jwtIssuer/jwtPrivateKey are SeaweedFS-only (real S3/R2 serve STS
-# natively and ignore them):
-#   - signingKey: base64 of exactly 32 bytes (head -c 32 /dev/urandom | base64).
-#   - jwtIssuer: in-cluster API URL SeaweedFS fetches the JWKS from; defaults to
-#     http://<release>-api:<api.port> when unset.
-#   - jwtPrivateKey: a STABLE RSA PEM (PKCS#8) the API signs its web-identity token
-#     with — required so every API replica shares one key
-#     (openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048).
+# store — object store (AGENTA_STORE_*).
+# Docs: https://docs.agenta.ai/self-host/configuration#store-durable-object-store
 # ================================================================== #
 # store:
 #   endpointUrl:
+#   stsEndpointUrl:
 #   accessKey:
 #   secretKey:
 #   region:
 #   bucket:
+#   namespace:  # optional key prefix ("database") to share one bucket across ephemeral envs; unset for a dedicated bucket
 #   signingKey:
 #   jwtIssuer:
 #   jwtPrivateKey:

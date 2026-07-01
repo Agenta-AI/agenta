@@ -27,6 +27,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionHeartbeatRequest,
     SessionStreamCommandRequest,
     SessionStreamQuery,
+    SessionStreamQueryFlags,
 )
 from oss.src.core.sessions.streams.types import (
     ConcurrencyCapExceeded,
@@ -387,8 +388,10 @@ class SessionStreamsRouter:
             project_id=project_id,
             filter=SessionStreamQuery(
                 session_id=payload.session_id,
-                is_alive=payload.is_alive,
-                is_running=payload.is_running,
+                flags=SessionStreamQueryFlags(
+                    is_alive=payload.is_alive,
+                    is_running=payload.is_running,
+                ),
             ),
         )
         return SessionStreamsResponseModel(count=len(streams), streams=streams)
@@ -495,7 +498,7 @@ class RecordsRouter:
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
-            "/{event_id}",
+            "/{record_id}",
             self.get_record_event,
             methods=["GET"],
             operation_id="get_record_event",
@@ -539,7 +542,7 @@ class RecordsRouter:
     async def get_record_event(
         self,
         request: Request,
-        event_id: UUID,
+        record_id: UUID,
     ) -> Union[SessionRecordResponse, JSONResponse]:
         if not await check_action_access(
             user_uid=request.state.user_id,
@@ -550,7 +553,7 @@ class RecordsRouter:
 
         record = await self.records_service.get_event(
             project_id=UUID(request.state.project_id),
-            event_id=event_id,
+            record_id=record_id,
         )
         return SessionRecordResponse(record=record)
 
@@ -574,12 +577,13 @@ class RecordsRouter:
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),
             record_event=SessionRecordEvent(
-                session_id=UUID(body.session_id),
+                session_id=body.session_id,
                 project_id=UUID(project_id),
-                event_index=body.event_index,
-                sender=body.sender,
-                session_update=body.session_update,
-                payload=body.payload,
+                record_index=body.record_index,
+                timestamp=body.timestamp,
+                record_type=body.record_type,
+                record_source=body.record_source,
+                attributes=body.attributes,
             ),
         )
         return {"ok": True}
@@ -667,6 +671,8 @@ class InteractionsRouter:
                 kind=body.kind,
                 data=body.data,
                 flags=body.flags,
+                tags=body.tags,
+                meta=body.meta,
             ),
         )
         return SessionInteractionResponse(count=1, interaction=interaction)
@@ -808,7 +814,10 @@ class InteractionsRouter:
                 detail="Interaction not found",
             )
 
-        if interaction.status and interaction.status.code != "pending":
+        if (
+            interaction.status
+            and interaction.status != SessionInteractionStatus.pending
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Interaction is no longer pending",

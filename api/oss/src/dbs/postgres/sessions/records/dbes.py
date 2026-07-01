@@ -14,19 +14,16 @@ class RecordDBE(
     __tablename__ = "records"
 
     __table_args__ = (
-        PrimaryKeyConstraint("project_id", "id"),
-        Index("ix_records_project_id", "project_id"),
-        Index("ix_records_project_id_session_id", "project_id", "session_id"),
-        Index("ix_records_project_id_id", "project_id", "id"),
+        PrimaryKeyConstraint("project_id", "record_id"),
         Index(
-            "ix_records_project_id_session_id_id",
+            "ix_records_project_id_session_id_record_id",
             "project_id",
             "session_id",
-            "id",
+            "record_id",
         ),
         Index(
-            "ix_records_payload_gin",
-            "payload",
+            "ix_records_attributes_gin",
+            "attributes",
             postgresql_using="gin",
         ),
     )

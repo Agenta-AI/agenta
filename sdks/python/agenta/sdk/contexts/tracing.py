@@ -1,4 +1,5 @@
-from typing import Optional
+from copy import deepcopy
+from typing import Any, Optional
 from contextvars import ContextVar, Token
 from contextlib import contextmanager
 
@@ -6,6 +7,8 @@ from pydantic import BaseModel
 
 
 class TracingContext(BaseModel):
+    # `traceparent` holds an OTel `Context` (an immutable dict subclass that raises on
+    # __setitem__), so it is NOT deep-copyable — see __deepcopy__ below.
     traceparent: Optional[dict] = None
     baggage: Optional[dict] = None
     #
@@ -28,6 +31,19 @@ class TracingContext(BaseModel):
     link: Optional[dict] = None
     #
     session_id: Optional[str] = None
+
+    def __deepcopy__(self, memo: Optional[dict] = None) -> "TracingContext":
+        # An inbound `traceparent` is an OTel `Context` — immutable, so deepcopy's
+        # reconstruction (y[key] = value) raises ValueError. It is a read-only parent
+        # carrier, so share the reference and deep-copy the rest. `memo` is optional
+        # because Pydantic's model_copy(deep=True) calls __deepcopy__() with no args.
+        if memo is None:
+            memo = {}
+        clone: dict[str, Any] = {}
+        for field in type(self).model_fields:
+            value = getattr(self, field)
+            clone[field] = value if field == "traceparent" else deepcopy(value, memo)
+        return type(self)(**clone)
 
     @classmethod
     def get(cls) -> "TracingContext":

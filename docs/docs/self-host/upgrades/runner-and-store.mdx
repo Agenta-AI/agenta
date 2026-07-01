@@ -90,15 +90,17 @@ existing self-hosted Agenta deployment that predates the runner and store featur
    sign with the same key or SeaweedFS's cached JWKS desyncs and STS fails intermittently.
    Generate it with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`.
 
-   To point at an external S3-compatible store instead (real S3/R2 serve STS natively, so no
-   `signingKey`/`jwtPrivateKey` are needed):
+   To point at a remote S3-compatible store instead (AWS S3, MinIO), leave `signingKey`
+   unset — its absence selects the `GetFederationToken` path, so no `jwtPrivateKey` is needed.
+   Set `stsEndpointUrl` only for AWS, which splits STS onto its own host:
 
    ```yaml
    store:
      enabled: true
      seaweedfs:
        enabled: false
-     endpointUrl: https://your-store-endpoint
+     endpointUrl: https://s3.<region>.amazonaws.com
+     stsEndpointUrl: https://sts.<region>.amazonaws.com
      accessKey: <access-key>
      secretKey: <secret-key>
    ```

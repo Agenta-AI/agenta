@@ -865,6 +865,17 @@ class StoreConfig(BaseModel):
     secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
     region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
     bucket: str | None = os.getenv("AGENTA_STORE_BUCKET") or "agenta-store"
+    namespace: str | None = os.getenv("AGENTA_STORE_NAMESPACE") or None
+
+    # STS endpoint for the GetFederationToken path (non-SeaweedFS stores). Defaults to the S3
+    # endpoint (MinIO co-locates STS there); override only when the store splits STS onto
+    # another host (AWS: https://sts.<region>.amazonaws.com).
+    sts_endpoint_url: str | None = os.getenv("AGENTA_STORE_STS_ENDPOINT_URL") or None
+
+    # Backend selector: SIGNING_KEY present => bundled SeaweedFS (STS via OIDC/web-identity);
+    # absent => remote S3-compatible store (STS via GetFederationToken). Also passed to the
+    # bundled SeaweedFS as its STS HMAC key; the API only reads it to pick the signing path.
+    signing_key: str | None = os.getenv("AGENTA_STORE_SIGNING_KEY") or None
 
     # AssumeRoleWithWebIdentity issuer (SeaweedFS only): the in-network API URL the store's OIDC
     # IAM uses to fetch our JWKS, and the RSA key signing the web-identity token. The key falls

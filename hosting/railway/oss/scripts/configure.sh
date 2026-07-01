@@ -266,7 +266,8 @@ main() {
     unset_vars api AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
 
     set_optional_vars api \
-        "COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}"
+        "COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}" \
+        "AGENTA_STORE_NAMESPACE=${AGENTA_STORE_NAMESPACE:-}"
 
     # The bundled store's entrypoint reads these to generate s3.json + iam.json. JWT_ISSUER is
     # the API URL its OIDC IAM fetches the JWKS from (it does NOT hold the private key).

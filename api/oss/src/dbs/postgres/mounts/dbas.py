@@ -6,8 +6,10 @@ from oss.src.dbs.postgres.shared.dbas import (
     HeaderDBA,
     IdentifierDBA,
     LifecycleDBA,
+    MetaDBA,
     ProjectScopeDBA,
     SlugDBA,
+    TagsDBA,
 )
 
 
@@ -19,6 +21,8 @@ class MountDBA(
     HeaderDBA,
     DataDBA,
     FlagsDBA,
+    TagsDBA,
+    MetaDBA,
 ):
     __abstract__ = True
 
