@@ -21,7 +21,7 @@ const STATUS_META: Record<SessionRunStatus, {dot: string; pulse: boolean; title:
 
 /** A session's run-state dot. Subscribes to just that session's status atom so a streaming
  * conversation repaints only its own dot, never the whole bar. */
-const SessionStatusDot = ({sessionId}: {sessionId: string}) => {
+export const SessionStatusDot = ({sessionId}: {sessionId: string}) => {
     const status = useAtomValue(sessionStatusAtomFamily(sessionId))
     const meta = STATUS_META[status]
     return (
@@ -111,6 +111,9 @@ export interface SessionTagBarProps {
     onRename: (id: string, title: string) => void
     /** Right-aligned extras (e.g. the session-history menu). */
     extra?: React.ReactNode
+    /** Show the inline session pills + add button. Off in full-screen mode, where the vertical
+     * SessionRail owns the session list and this bar keeps only the right-aligned extras. */
+    showSessions?: boolean
 }
 
 /**
@@ -127,33 +130,38 @@ const SessionTagBar = ({
     onClose,
     onRename,
     extra,
+    showSessions = true,
 }: SessionTagBarProps) => {
     const closable = sessions.length > 1
     return (
         <div className="flex h-[48px] shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {sessions.map((session, index) => (
-                    <SessionTag
-                        key={session.id}
-                        session={session}
-                        index={index}
-                        active={session.id === activeId}
-                        closable={closable}
-                        onSelect={() => onSelect(session.id)}
-                        onClose={() => onClose(session.id)}
-                        onRename={(title) => onRename(session.id, title)}
-                    />
-                ))}
-                <Tooltip title="New session">
-                    <Button
-                        type="text"
-                        aria-label="New session"
-                        icon={<Plus size={14} />}
-                        onClick={onAdd}
-                        className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                    />
-                </Tooltip>
-            </div>
+            {showSessions ? (
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {sessions.map((session, index) => (
+                        <SessionTag
+                            key={session.id}
+                            session={session}
+                            index={index}
+                            active={session.id === activeId}
+                            closable={closable}
+                            onSelect={() => onSelect(session.id)}
+                            onClose={() => onClose(session.id)}
+                            onRename={(title) => onRename(session.id, title)}
+                        />
+                    ))}
+                    <Tooltip title="New session">
+                        <Button
+                            type="text"
+                            aria-label="New session"
+                            icon={<Plus size={14} />}
+                            onClick={onAdd}
+                            className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
+                        />
+                    </Tooltip>
+                </div>
+            ) : (
+                <div className="min-w-0 flex-1" />
+            )}
             {extra && <div className="flex shrink-0 items-center gap-1">{extra}</div>}
         </div>
     )

@@ -246,6 +246,52 @@ export const persistSessionMessagesAtom = atom(
     },
 )
 
+/** Per-message first-seen timestamp (ms), keyed by message id. `UIMessage`s carry no time and user
+ * turns get no server metadata, so we stamp it locally when a message first appears; persisted so a
+ * reloaded session keeps its times. */
+export const messageCreatedAtMapAtom = atomWithStorage<Record<string, number>>(
+    "agenta:agent-message-created-at",
+    {},
+)
+
+/** One message's stamped timestamp; a row repaints only when ITS id is stamped, not on every stamp. */
+export const messageCreatedAtAtomFamily = atomFamily((id: string) =>
+    selectAtom(messageCreatedAtMapAtom, (map) => map[id]),
+)
+
+/** Stamp `now` on any of the given message ids not yet recorded (their first appearance). */
+export const stampMessagesCreatedAtAtom = atom(null, (get, set, ids: string[]) => {
+    const map = get(messageCreatedAtMapAtom)
+    const missing = ids.filter((id) => !(id in map))
+    if (missing.length === 0) return
+    const now = Date.now()
+    set(messageCreatedAtMapAtom, {
+        ...map,
+        ...Object.fromEntries(missing.map((id) => [id, now])),
+    })
+})
+
+/** Compact "just now / 2m / 3h / 5d ago" stamp; empty for pre-upgrade sessions (no createdAt). */
+export const timeAgo = (ts?: number): string => {
+    if (!ts) return ""
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000))
+    if (s < 60) return "just now"
+    const m = Math.round(s / 60)
+    if (m < 60) return `${m}m ago`
+    const h = Math.round(m / 60)
+    if (h < 24) return `${h}h ago`
+    return `${Math.round(h / 24)}d ago`
+}
+
+/** A coarse clock that ticks once a minute WHILE subscribed, so relative "Xm ago" stamps refresh
+ * on their own. One shared interval (started on first subscribe, cleared on last unsubscribe)
+ * instead of one per timestamp. */
+export const nowTickAtom = atom(Date.now())
+nowTickAtom.onMount = (setSelf) => {
+    const id = setInterval(() => setSelf(Date.now()), 60_000)
+    return () => clearInterval(id)
+}
+
 /** First user message text, used as the tab/history label when the session is untitled. */
 export const firstUserText = (messages: UIMessage[] | undefined): string => {
     const first = messages?.find((m) => m.role === "user")
