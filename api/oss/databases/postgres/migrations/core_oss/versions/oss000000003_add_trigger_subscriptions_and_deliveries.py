@@ -159,6 +159,14 @@ def upgrade() -> None:
         postgresql_using="gin",
     )
 
+    # gateway_connections flags GIN index (table created in a parked migration).
+    op.create_index(
+        "ix_gateway_connections_flags",
+        "gateway_connections",
+        ["flags"],
+        postgresql_using="gin",
+    )
+
     # -- TRIGGER DELIVERIES -----------------------------------------------------
     op.create_table(
         "trigger_deliveries",
@@ -242,6 +250,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_gateway_connections_flags",
+        table_name="gateway_connections",
+    )
     op.drop_index(
         "ix_trigger_deliveries_schedule_id_event_id",
         table_name="trigger_deliveries",
