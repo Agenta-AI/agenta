@@ -621,13 +621,16 @@ export function GatewayCatalogDrawer<I, T, C>({
     const [selected, setSelected] = useState<I | null>(null)
     const [connectFor, setConnectFor] = useState<I | null>(null)
 
-    // Reset navigation when closed externally (e.g. picking an item closes the drawer from the host).
+    // Reset navigation AND the shared searches when closed externally (e.g. picking an item closes
+    // the drawer from the host), matching handleClose so the next open starts clean.
     useEffect(() => {
         if (!open) {
             setSelected(null)
             setConnectFor(null)
+            adapter.setIntegrationsSearch("")
+            adapter.setItemsSearch("")
         }
-    }, [open])
+    }, [open, adapter])
 
     const handleClose = useCallback(() => {
         setSelected(null)

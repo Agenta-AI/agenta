@@ -377,6 +377,9 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         const t = setTimeout(() => setSearch(searchInput), 250)
         return () => clearTimeout(t)
     }, [searchInput, setSearch])
+    // The integrations search is a shared atom — clear it on unmount so a stale query doesn't
+    // filter the next open (mirrors the item-search cleanup above).
+    useEffect(() => () => setSearch(""), [setSearch])
     const searching = searchInput.trim().length > 0
 
     const [selected, setSelected] = useState<{kind: "conn" | "intg"; id: string} | null>(

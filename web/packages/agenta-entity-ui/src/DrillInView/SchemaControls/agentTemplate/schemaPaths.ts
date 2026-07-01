@@ -63,8 +63,10 @@ export function buildObjectSchema(
         type: "object",
         properties,
         required,
+        // Preserve any declared value (boolean OR a schema object, e.g. `{type:"string"}`); only
+        // default to strict `false` when the source object never declared it.
         additionalProperties:
-            isRecord(prev) && typeof prev.additionalProperties === "boolean"
+            isRecord(prev) && prev.additionalProperties !== undefined
                 ? prev.additionalProperties
                 : false,
     }

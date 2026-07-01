@@ -39,12 +39,14 @@ import {
 // Enum/default apply only to scalar leaves; object/array/boolean don't show those rows.
 const SCALAR_TYPES = new Set(["string", "number", "integer"])
 
-// Coerce a raw string to the parameter's JSON type; null when it can't (e.g. "abc" as a number).
+// Coerce a raw string to the parameter's JSON type; null when it can't (e.g. "abc" as a number, or
+// "1.5" as an integer — rejected rather than silently truncated).
 function coerceTo(raw: unknown, targetType: string): string | number | null {
     if (targetType === "number" || targetType === "integer") {
         const n = Number(raw)
         if (!Number.isFinite(n)) return null
-        return targetType === "integer" ? Math.trunc(n) : n
+        if (targetType === "integer" && !Number.isInteger(n)) return null
+        return n
     }
     return String(raw)
 }

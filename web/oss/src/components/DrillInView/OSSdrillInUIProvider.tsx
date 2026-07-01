@@ -267,13 +267,18 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-// A prompt-shaped config object (`{messages, template_format, llm_config, ...}`) or an agent-shaped
-// one (`{instructions, tools, skills}`). Mirrors what the playground config panel edits.
+// A prompt-shaped config (`{messages, llm_config, ...}`) or an agent-shaped one
+// (`{instructions: {agents_md}, llm, tools, skills}` — agents nest instructions and keep tools/skills
+// flat). Mirrors what the playground config panel edits.
 function isPromptLike(v: Record<string, unknown>): boolean {
     return (
         Array.isArray(v.messages) ||
         isPlainRecord(v.llm_config) ||
-        typeof v.instructions === "string"
+        isPlainRecord(v.llm) ||
+        typeof v.instructions === "string" ||
+        isPlainRecord(v.instructions) ||
+        Array.isArray(v.tools) ||
+        Array.isArray(v.skills)
     )
 }
 
@@ -300,7 +305,12 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
         })
     }
 
-    const llm = isPlainRecord(cfg.llm_config) ? cfg.llm_config : null
+    // Model config lives under `llm_config` (prompts) or `llm` (agents).
+    const llm = isPlainRecord(cfg.llm_config)
+        ? cfg.llm_config
+        : isPlainRecord(cfg.llm)
+          ? cfg.llm
+          : null
     if (llm) {
         if (typeof llm.model === "string" && llm.model) {
             parts.push({key: `${prefix}model`, label: "Model", kind: "text", content: llm.model})
@@ -315,14 +325,6 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
                 label: "Model settings",
                 kind: "json",
                 content: JSON.stringify(settings, null, 2),
-            })
-        }
-        if (Array.isArray(llm.tools) && llm.tools.length) {
-            parts.push({
-                key: `${prefix}tools`,
-                label: "Tools",
-                kind: "json",
-                content: JSON.stringify(llm.tools, null, 2),
             })
         }
         if (isPlainRecord(llm.response_format)) {
@@ -343,14 +345,39 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
             content: cfg.template_format,
         })
     }
-    if (typeof cfg.instructions === "string" && cfg.instructions.trim()) {
+
+    // Instructions: a plain string, or an agent's nested `{agents_md}` document.
+    const instructionsText =
+        typeof cfg.instructions === "string"
+            ? cfg.instructions
+            : isPlainRecord(cfg.instructions) && typeof cfg.instructions.agents_md === "string"
+              ? cfg.instructions.agents_md
+              : ""
+    if (instructionsText.trim()) {
         parts.push({
             key: `${prefix}instructions`,
             label: "Instructions",
             kind: "text",
-            content: cfg.instructions,
+            content: instructionsText,
         })
     }
+
+    // Tools live under `llm_config.tools` (prompts) or flat on the object (agents).
+    const tools =
+        llm && Array.isArray(llm.tools) && llm.tools.length
+            ? (llm.tools as unknown[])
+            : Array.isArray(cfg.tools)
+              ? (cfg.tools as unknown[])
+              : []
+    if (tools.length) {
+        parts.push({
+            key: `${prefix}tools`,
+            label: "Tools",
+            kind: "json",
+            content: JSON.stringify(tools, null, 2),
+        })
+    }
+
     if (Array.isArray(cfg.skills) && cfg.skills.length) {
         parts.push({
             key: `${prefix}skills`,
@@ -547,7 +574,10 @@ function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
                     workflowRef: {slug: workflow.slug},
                 })
                 if (!revision?.data) return null
-                // Declared input schema first (richest — carries descriptions).
+                // Declared input schema first (richest — carries descriptions), but still fold in
+                // JSONPath inputs the shared curly/jinja2 extractor drops, so a mixed template that
+                // has some declared props plus `{{$.inputs.*}}` doesn't publish an incomplete schema.
+                const recoveredKeys = extractJsonPathInputKeys(revision.data)
                 const declared = resolveWorkflowInputSchema(
                     revision.data as Parameters<typeof resolveWorkflowInputSchema>[0],
                 )
@@ -555,13 +585,12 @@ function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
                     isPlainRecord(declared?.properties) &&
                     Object.keys(declared!.properties).length > 0
                 ) {
-                    return declared
+                    return mergeInputKeys(declared as Record<string, unknown>, recoveredKeys)
                 }
                 // Fallback: the prompt template's variables (the playground's own input-port
-                // derivation — plain/dotted vars, mustache sections, nesting), plus JSONPath inputs
-                // the shared curly/jinja2 extractor drops (recovered locally for this drawer).
+                // derivation — plain/dotted vars, mustache sections, nesting) + recovered JSONPath.
                 const portSchema = portsToSchema(readWorkflowPorts(store, revision).inputPorts)
-                return mergeInputKeys(portSchema, extractJsonPathInputKeys(revision.data))
+                return mergeInputKeys(portSchema, recoveredKeys)
             },
             resolveOutputSchema: async (workflow) => {
                 if (!projectId || !workflow.slug) return null

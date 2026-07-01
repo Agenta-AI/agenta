@@ -168,7 +168,9 @@ export function ConfigItemDrawer({
             {effectiveView === "form" ? (
                 form
             ) : contentFlush ? (
-                <div className="h-full overflow-auto p-4">{json}</div>
+                // Body already provides the padding here (flushForm is false in JSON view); the
+                // wrapper only adds full-height independent scroll — no extra `p-4` (double-pad).
+                <div className="h-full overflow-auto">{json}</div>
             ) : (
                 json
             )}

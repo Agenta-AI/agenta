@@ -67,8 +67,11 @@ function Row({item, onPick}: {item: AddItemMenuItem; onPick: (item: AddItemMenuI
             ) : null}
         </button>
     )
+    // A disabled <button> swallows mouse events, so wrap it in a span for the tooltip to trigger.
     return item.disabled && item.disabledHint ? (
-        <Tooltip title={item.disabledHint}>{body}</Tooltip>
+        <Tooltip title={item.disabledHint}>
+            <span className="block cursor-not-allowed">{body}</span>
+        </Tooltip>
     ) : (
         body
     )

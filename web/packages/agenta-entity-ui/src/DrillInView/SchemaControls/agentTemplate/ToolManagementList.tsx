@@ -146,12 +146,16 @@ function GatewayGroups({
         [groups, intgByKey],
     )
 
+    // Persist expand state per entity; without an entityId, don't write to the shared atom under a
+    // colliding `null:*` key — just fall back to the default (single-group open).
     const isGroupOpen = useCallback(
-        (key: string, size: number) => expanded[`${entityId}:${key}`] ?? size === 1,
+        (key: string, size: number) =>
+            (entityId ? expanded[`${entityId}:${key}`] : undefined) ?? size === 1,
         [expanded, entityId],
     )
     const toggleGroup = useCallback(
         (key: string, size: number) => {
+            if (!entityId) return
             const k = `${entityId}:${key}`
             setExpanded((prev) => ({...prev, [k]: !(prev[k] ?? size === 1)}))
         },
