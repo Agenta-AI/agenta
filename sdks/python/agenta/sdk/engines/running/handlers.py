@@ -3041,7 +3041,7 @@ async def _mock_events(*, text="mock reply", thought=None, tool=None, **_) -> An
     yield {"type": "message_end", "data": {"id": mid}}
     yield {
         "type": "usage",
-        "data": {"promptTokens": 3, "completionTokens": 2, "totalTokens": 5},
+        "data": {"input": 3, "output": 2, "total": 5},
     }
     yield {"type": "done", "data": {"stopReason": "stop"}}
 
