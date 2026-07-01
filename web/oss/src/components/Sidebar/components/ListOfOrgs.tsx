@@ -311,7 +311,7 @@ const ListOfOrgs = ({
         <Button
             type={sharedButtonProps.type ?? "text"}
             className={clsx(
-                "flex items-center justify-between overflow-hidden h-8 transition-[width,padding,gap] duration-300 ease-in-out",
+                "flex items-center justify-between overflow-hidden h-9 transition-[width,padding,gap] duration-300 ease-in-out",
                 collapsed ? "!w-8 !p-1 gap-0" : "w-full px-1.5 py-3 gap-2",
                 sharedButtonProps.className,
             )}

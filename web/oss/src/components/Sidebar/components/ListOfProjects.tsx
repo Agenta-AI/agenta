@@ -201,15 +201,12 @@ const ListOfProjects = ({
         isOpen: boolean,
         showCaret: boolean,
         disabled?: boolean,
-        subtitle?: string,
     ) => (
         <Button
             type={sharedButtonProps.type ?? "text"}
             className={clsx(
-                "flex items-center overflow-hidden transition-[width,height,padding,gap,border-color] duration-300 ease-in-out",
-                collapsed
-                    ? "!w-8 !h-8 !p-0 justify-center gap-0"
-                    : "w-full pl-2 pr-3 py-3 h-12 justify-between gap-2 border border-solid border-gray-200",
+                "flex items-center justify-between overflow-hidden h-9 transition-[width,padding,gap] duration-300 ease-in-out",
+                collapsed ? "!w-8 !p-1 gap-0" : "w-full px-1.5 py-3 gap-2",
                 sharedButtonProps.className,
             )}
             disabled={disabled || sharedButtonProps.disabled}
@@ -218,30 +215,20 @@ const ListOfProjects = ({
             <div
                 className={clsx(
                     "flex min-w-0 items-center transition-[gap] duration-300 ease-in-out",
-                    collapsed ? "w-full justify-center gap-0" : "gap-2",
+                    collapsed ? "gap-0" : "gap-2",
                 )}
             >
-                <InitialsAvatar
-                    size={collapsed ? "small" : "middle"}
-                    name={label || placeholder}
-                    style={{transition: "width 300ms ease-in-out, height 300ms ease-in-out"}}
-                />
-                <div
+                <InitialsAvatar size="small" name={label || placeholder} />
+                <span
                     className={clsx(
-                        "flex min-w-0 flex-col overflow-hidden text-left transition-[max-width,opacity] duration-300 ease-in-out",
-                        collapsed ? "max-w-0 opacity-0" : "max-w-[150px] opacity-100",
+                        "max-w-[150px] truncate overflow-hidden transition-[max-width,opacity] duration-300 ease-in-out",
+                        collapsed ? "!max-w-0 opacity-0" : "opacity-100",
                     )}
+                    title={label || placeholder}
                     aria-hidden={collapsed}
                 >
-                    <span className="max-w-[150px] truncate" title={label || placeholder}>
-                        {label || placeholder}
-                    </span>
-                    {subtitle && (
-                        <span className="text-[10px] leading-3 text-colorTextTertiary">
-                            {subtitle}
-                        </span>
-                    )}
-                </div>
+                    {label || placeholder}
+                </span>
             </div>
             <span
                 className={clsx(
@@ -546,19 +533,11 @@ const ListOfProjects = ({
                             projectDropdownOpen,
                             true,
                             false,
-                            project?.is_default_project ? "Default" : undefined,
                         )}
                     </Dropdown>
                 ) : (
                     <div className={clsx({"flex items-center justify-center": collapsed})}>
-                        {renderSelectionButton(
-                            projectButtonLabel,
-                            "Projects",
-                            false,
-                            false,
-                            true,
-                            project?.is_default_project ? "Default" : undefined,
-                        )}
+                        {renderSelectionButton(projectButtonLabel, "Projects", false, false, true)}
                     </div>
                 )
             ) : (
