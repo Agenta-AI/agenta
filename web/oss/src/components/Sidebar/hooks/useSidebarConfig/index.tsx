@@ -34,7 +34,12 @@ import {useAppsData} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 
-import {AGENTS_SIDEBAR_KEY, PROMPTS_SIDEBAR_KEY} from "../../dynamic/registry"
+import {
+    AGENTS_SIDEBAR_KEY,
+    EVALUATORS_SIDEBAR_KEY,
+    PROMPTS_SIDEBAR_KEY,
+    TESTSETS_SIDEBAR_KEY,
+} from "../../dynamic/registry"
 import {
     injectDynamicChildren,
     useSidebarDynamicChildren,
@@ -115,14 +120,14 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 disabled: !hasProjectURL,
                 submenu: [
                     {
-                        key: "app-testsets-link",
+                        key: TESTSETS_SIDEBAR_KEY,
                         title: "Test sets",
                         link: `${projectURL}/testsets`,
                         icon: getEntityKindIcon("testset"),
                         disabled: !hasProjectURL,
                     },
                     {
-                        key: "project-evaluators-link",
+                        key: EVALUATORS_SIDEBAR_KEY,
                         title: "Evaluators",
                         link: `${projectURL}/evaluators`,
                         // isHidden: !isDemo(),

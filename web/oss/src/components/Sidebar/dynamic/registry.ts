@@ -1,7 +1,10 @@
 import {createElement} from "react"
 
+import {testsetsListAtom} from "@agenta/entities/testset"
 import {
     agentWorkflowsListQueryStateAtom,
+    evaluatorsListQueryAtom,
+    nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
 import {RobotIcon} from "@phosphor-icons/react"
@@ -9,7 +12,7 @@ import {atom} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID} from "../scopes/constants"
 
-import {gatedSidebarSource} from "./source"
+import {fromParts, gatedSidebarSource} from "./source"
 import type {
     SidebarEntity,
     SidebarEntityConfig,
@@ -17,13 +20,15 @@ import type {
     SidebarEntitySource,
 } from "./types"
 
-const DEFAULT_SIDEBAR_ENTITY_LIMIT = 3
+const DEFAULT_SIDEBAR_ENTITY_LIMIT = 5
 
 // Sidebar item keys that own a dynamic entity list. The static row in
 // `useSidebarConfig` and the registry entry below must share the same key —
 // keep the constant the single source of truth.
 export const PROMPTS_SIDEBAR_KEY = "project-prompts-link"
 export const AGENTS_SIDEBAR_KEY = "project-agents-link"
+export const TESTSETS_SIDEBAR_KEY = "app-testsets-link"
+export const EVALUATORS_SIDEBAR_KEY = "project-evaluators-link"
 
 /**
  * Turns an author config into a resolved {@link SidebarEntity}: applies open-state
@@ -69,6 +74,22 @@ const ENTITIES: SidebarEntity[] = [
         childPath: (workflow) => `/apps/${workflow.id}/overview`,
         emptyLabel: "No agents",
         showAllPath: "/agents",
+    }),
+    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, TESTSETS_SIDEBAR_KEY, {
+        kind: "testset",
+        listAtom: testsetsListAtom,
+        getLabel: (testset) => testset.name || "Untitled test set",
+        childPath: (testset) => `/testsets/${testset.id}`,
+        emptyLabel: "No test sets",
+        showAllPath: "/testsets",
+    }),
+    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, EVALUATORS_SIDEBAR_KEY, {
+        kind: "evaluator",
+        listAtom: fromParts(evaluatorsListQueryAtom, nonArchivedEvaluatorsAtom),
+        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled evaluator",
+        childPath: (workflow) => `/apps/${workflow.id}/overview`,
+        emptyLabel: "No evaluators",
+        showAllPath: "/evaluators",
     }),
 ]
 
