@@ -835,8 +835,9 @@ store = ObjectStore(
 
 mounts_service = MountsService(
     mounts_dao=mounts_dao,
-    mount_storage=store,
+    mounts_store=store,
     bucket=env.store.bucket,
+    namespace=env.store.namespace,
 )
 
 session_mounts_service = SessionMountsService(

@@ -269,6 +269,7 @@
         "secretKey":   { "type": "string", "description": "AGENTA_STORE_SECRET_KEY via Secret." },
         "region":      { "type": "string", "description": "AGENTA_STORE_REGION." },
         "bucket":      { "type": "string", "description": "AGENTA_STORE_BUCKET." },
+        "namespace":   { "type": "string", "description": "AGENTA_STORE_NAMESPACE. Optional global key prefix (\"database\") to share one bucket across ephemeral environments; unset for a dedicated bucket." },
         "signingKey":  { "type": "string", "description": "AGENTA_STORE_SIGNING_KEY via Secret. SeaweedFS-only STS signing key (base64 of 32 bytes)." },
         "jwtIssuer":   { "type": "string", "description": "AGENTA_STORE_JWT_ISSUER. SeaweedFS-only: in-cluster API URL SeaweedFS fetches the JWKS from. Defaults to http://<release>-api:<api.port>." },
         "jwtPrivateKey": { "type": "string", "description": "AGENTA_STORE_JWT_PRIVATE_KEY via Secret. SeaweedFS-only: stable RSA PEM (PKCS#8) the API signs its web-identity token with; required so all API replicas share one key." },
