@@ -17,7 +17,7 @@ Features: plain chat, `agents_md` instructions, per-request `model` override, bu
 The deployed service path is chosen by `select_backend` (`services/oss/src/agent/app.py`):
 
 - Current deployments route every service run to `SandboxAgentBackend`.
-- The `services` container reaches the runner through `AGENTA_AGENT_RUNNER_URL`.
+- The `services` container reaches the runner through `AGENTA_RUNNER_URL`.
 - Harness and sandbox come from the request body or persisted agent config.
 - Direct in-process Pi is a local/example contrast path, not a deployed-service default.
 

@@ -166,7 +166,7 @@ from taskiq_redis import RedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
-from oss.src.core.mounts.storage import MountStorage
+from oss.src.core.store.storage import ObjectStore
 from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.apis.fastapi.mounts.router import MountsRouter
 
@@ -253,6 +253,14 @@ async def lifespan(*args, **kwargs):
     validate_required_env_vars()
 
     await _triggers_broker.startup()
+
+    # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
+    # so a store outage doesn't block API startup (mounts degrade, the rest runs).
+    if env.store.bucket:
+        try:
+            await store.ensure_bucket(bucket=env.store.bucket)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Store bucket ensure failed at startup: %s", e)
 
     _orphan_sweep_task = asyncio.create_task(orphan_sweep_loop(_transactions_engine))
 
@@ -818,17 +826,18 @@ _triggers_worker = TriggersWorker(
 
 triggers_service.schedule_dispatch_task = _triggers_worker.dispatch_schedule
 
-mounts_storage = MountStorage(
-    endpoint_url=env.mounts.storage_endpoint_url,
-    access_key=env.mounts.storage_access_key,
-    secret_key=env.mounts.storage_secret_key,
-    region=env.mounts.storage_region,
+store = ObjectStore(
+    endpoint_url=env.store.endpoint_url,
+    access_key=env.store.access_key,
+    secret_key=env.store.secret_key,
+    region=env.store.region,
 )
 
 mounts_service = MountsService(
     mounts_dao=mounts_dao,
-    mount_storage=mounts_storage,
-    bucket=env.mounts.storage_bucket,
+    mounts_store=store,
+    bucket=env.store.bucket,
+    namespace=env.store.namespace,
 )
 
 session_mounts_service = SessionMountsService(
@@ -1457,6 +1466,14 @@ app.include_router(
 @app.get("/health", operation_id="health_check", tags=["Status"])
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/.well-known/jwks.json", operation_id="store_jwks", tags=["Status"])
+async def store_jwks():
+    """Public JWKS the object store's OIDC IAM fetches to verify our web-identity tokens."""
+    from oss.src.core.store import webidentity
+
+    return webidentity.jwks()
 
 
 access_router = AccessRouter()

@@ -15,10 +15,12 @@ interface Props {
     form: FormInstance
     disabled?: boolean
     jsonMode?: boolean
+    /** Render optional fields inline instead of behind an "Optional (N)" collapse. */
+    flat?: boolean
 }
 
 const SchemaForm = forwardRef<SchemaFormHandle, Props>(
-    ({schema, form, disabled, jsonMode}, ref) => {
+    ({schema, form, disabled, jsonMode, flat}, ref) => {
         const fields = useMemo(() => buildFormFieldsFromSchema(schema), [schema])
         const requiredFields = useMemo(() => fields.filter((f) => f.required), [fields])
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
@@ -118,32 +120,40 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 layout="vertical"
                 disabled={disabled}
                 requiredMark={false}
-                className="[&_.ant-form-item]:!mb-3"
+                className={
+                    flat
+                        ? "[&_.ant-form-item]:!mb-3 [&_.ant-form-item-label]:!pb-1 [&_.ant-form-item-label>label]:!h-auto [&_.ant-form-item-label>label]:!text-xs"
+                        : "[&_.ant-form-item]:!mb-3"
+                }
             >
                 {requiredFields.map((field) => (
                     <SchemaFormField key={field.name} field={field} />
                 ))}
 
-                {optionalFields.length > 0 && (
-                    <Collapse
-                        ghost
-                        size="small"
-                        className="!-mx-4 !mt-1"
-                        items={[
-                            {
-                                key: "optional",
-                                label: (
-                                    <Typography.Text type="secondary" className="text-xs">
-                                        Optional ({optionalFields.length})
-                                    </Typography.Text>
-                                ),
-                                children: optionalFields.map((field) => (
-                                    <SchemaFormField key={field.name} field={field} />
-                                )),
-                            },
-                        ]}
-                    />
-                )}
+                {flat
+                    ? optionalFields.map((field) => (
+                          <SchemaFormField key={field.name} field={field} />
+                      ))
+                    : optionalFields.length > 0 && (
+                          <Collapse
+                              ghost
+                              size="small"
+                              className="!-mx-4 !mt-1"
+                              items={[
+                                  {
+                                      key: "optional",
+                                      label: (
+                                          <Typography.Text type="secondary" className="text-xs">
+                                              Optional ({optionalFields.length})
+                                          </Typography.Text>
+                                      ),
+                                      children: optionalFields.map((field) => (
+                                          <SchemaFormField key={field.name} field={field} />
+                                      )),
+                                  },
+                              ]}
+                          />
+                      )}
             </Form>
         )
     },

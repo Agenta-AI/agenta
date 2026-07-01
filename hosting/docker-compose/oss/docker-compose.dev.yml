@@ -31,11 +31,11 @@ services:
         # === EXECUTION ============================================ #
         command: ["true"]
 
-    .sandbox-agent:
+    .runner:
         # === IMAGE ================================================ #
-        image: agenta-oss-dev-sandbox-agent:latest
+        image: agenta-oss-dev-runner:latest
         build:
-            context: ../../../services/agent
+            context: ../../../services/runner
             dockerfile: docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
@@ -120,12 +120,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -177,12 +171,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -200,6 +188,12 @@ services:
                 condition: service_healthy
         # === LIFECYCLE ============================================ #
         restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_evaluations' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
 
     worker-tracing:
         # === IMAGE ================================================ #
@@ -221,12 +215,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -265,12 +253,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -315,12 +297,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -365,12 +341,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -415,12 +385,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -465,12 +429,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -511,12 +469,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -546,12 +498,6 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Dev defaults so mounts work out of the box; must match the seaweedfs service.
-            AGENTA_MOUNTS_STORAGE_ENDPOINT_URL: ${AGENTA_MOUNTS_STORAGE_ENDPOINT_URL:-http://seaweedfs:8333}
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            AGENTA_MOUNTS_STORAGE_REGION: ${AGENTA_MOUNTS_STORAGE_REGION:-us-east-1}
-            AGENTA_MOUNTS_STORAGE_BUCKET: ${AGENTA_MOUNTS_STORAGE_BUCKET:-agenta-mounts}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -602,8 +548,8 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            AGENTA_AGENT_RUNNER_URL: ${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
-            AGENTA_AGENT_MCP_SERVERS_ENABLED: ${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
+            AGENTA_RUNNER_URL: ${AGENTA_RUNNER_URL:-http://runner:8765}
+            AGENTA_AGENT_MCPS_ENABLED: ${AGENTA_AGENT_MCPS_ENABLED:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -611,7 +557,7 @@ services:
             - "host.docker.internal:host-gateway"
         # === ORCHESTRATION ======================================== #
         depends_on:
-            sandbox-agent:
+            runner:
                 condition: service_healthy
         # === LABELS =============================================== #
         labels:
@@ -625,9 +571,9 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
-    sandbox-agent:
+    runner:
         # === IMAGE ================================================ #
-        image: agenta-oss-dev-sandbox-agent:latest
+        image: agenta-oss-dev-runner:latest
         # === EXECUTION ============================================ #
         command: >
             sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
@@ -638,17 +584,17 @@ services:
         # secret set. Tools run server-side through /tools/call; the runner only needs
         # its own port plus optional runner-scoped provider credentials.
         environment:
-            AGENTA_AGENT_RUNNER_PORT: "8765"
+            AGENTA_RUNNER_PORT: "8765"
             # Bind on all interfaces: the co-located Python `services` container reaches the
-            # sidecar over the compose network at `sandbox-agent:8765`, so the trust-model
+            # sidecar over the compose network at `runner:8765`, so the trust-model
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
-            AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
+            AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             PI_CODING_AGENT_DIR: /pi-agent
             # API as reached FROM this container: the compose service name over the network
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
             # which does not resolve inside a container. Used by the OTLP tracing-export
             # fallback AND the session heartbeat/record-persist calls.
-            AGENTA_API_URL: ${AGENTA_AGENT_API_URL:-http://api:8000}
+            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
@@ -659,8 +605,8 @@ services:
             AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
         # === STORAGE ============================================== #
         volumes:
-            - ../../../services/agent/src:/app/src
-            - ../../../services/agent/skills:/app/skills
+            - ../../../services/runner/src:/app/src
+            - ../../../services/runner/skills:/app/skills
             - ${HOME}/.pi/agent:/pi-agent-ro:ro
         # === NETWORK ============================================== #
         networks:
@@ -764,34 +710,45 @@ services:
 
     seaweedfs:
         # === IMAGE ================================================ #
-        image: chrislusf/seaweedfs:latest
+        # Pinned (not :latest) so the IAM/STS subsystem stays on a known-good build — it has
+        # regressed across releases (e.g. 4.13). 4.37 verified working with the config below.
+        image: chrislusf/seaweedfs:4.37
         # === EXECUTION ============================================ #
-        # Generate the S3 identities file from the mounts env credentials (single source of
-        # truth — no committed s3.json), then start the S3 gateway. WEED_JWT_FILER_SIGNING_KEY
-        # (a base64 32-byte key) doubles as the S3 STS signing key in-process (per SeaweedFS's
-        # own scaffold note), so AssumeRole/GetFederationToken are served on the SAME S3 port —
-        # the API mints scoped, short-lived credentials, no separate IAM container, no master key
-        # in the runner.
+        # ONLY FOR SEAWEEDFS (the bundled dev store). Real S3/R2/MinIO ship their own STS/IAM
+        # and ignore all of this. Two configs, both generated from env (no committed files):
+        #  - s3.json: the master identity only (admin; the API holds these creds, never the runner).
+        #  - iam.json: the ADVANCED IAM config — the only path SeaweedFS authorizes STS credentials.
+        #    An OIDC provider points at the API's self-served JWKS; the API mints a short-lived
+        #    RS256 web-identity token and calls AssumeRoleWithWebIdentity to assume `agenta-store`,
+        #    whose policy grants the whole bucket; the API's per-request inline session policy
+        #    narrows each credential to one mount prefix (effective = role ∩ session).
+        #    GetFederationToken is NOT modelled by SeaweedFS IAM and yields actionless (denied) tokens.
         entrypoint:
             - sh
             - -c
             - |
               cat > /etc/seaweedfs/s3.json <<EOF
-              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$${AGENTA_MOUNTS_STORAGE_ACCESS_KEY}","secretKey":"$${AGENTA_MOUNTS_STORAGE_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$${AGENTA_STORE_ACCESS_KEY}","secretKey":"$${AGENTA_STORE_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
               EOF
-              exec weed server -dir=/data -ip=seaweedfs -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+              cat > /etc/seaweedfs/iam.json <<EOF
+              {"sts":{"tokenDuration":"1h","maxSessionLength":"12h","issuer":"seaweedfs-sts","signingKey":"$${AGENTA_STORE_SIGNING_KEY}"},"providers":[{"name":"agenta","type":"oidc","enabled":true,"config":{"issuer":"$${AGENTA_STORE_JWT_ISSUER}","clientId":"agenta-store","jwksUri":"$${AGENTA_STORE_JWT_ISSUER}/.well-known/jwks.json"}}],"policies":[{"name":"store-rw","document":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::$${AGENTA_STORE_BUCKET}","arn:aws:s3:::$${AGENTA_STORE_BUCKET}/*"]}]}}],"roles":[{"roleName":"agenta-store","roleArn":"arn:aws:iam::role/agenta-store","attachedPolicies":["store-rw"],"trustPolicy":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"agenta"},"Action":["sts:AssumeRoleWithWebIdentity"]}]}}]}
+              EOF
+              exec weed server -dir=/data -ip=seaweedfs -volume.max=64 -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -s3.iam.config=/etc/seaweedfs/iam.json
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
-        # Dev defaults so mounts work out of the box even if the env file omits them.
         environment:
-            AGENTA_MOUNTS_STORAGE_ACCESS_KEY: ${AGENTA_MOUNTS_STORAGE_ACCESS_KEY:-agenta-dev}
-            AGENTA_MOUNTS_STORAGE_SECRET_KEY: ${AGENTA_MOUNTS_STORAGE_SECRET_KEY:-agenta-dev-secret}
-            # Enables in-process S3 STS. MUST be base64 that decodes to exactly 32 bytes, or
-            # SeaweedFS silently disables STS (GetFederationToken 405). The dev default below is
-            # base64("this-is-a-signing-key-for-mounts"); for real deployments generate one with
-            # `head -c 32 /dev/urandom | base64`. NOT a free-form string — `replace-me` would break it.
-            WEED_JWT_FILER_SIGNING_KEY: ${AGENTA_MOUNTS_STORAGE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
+            # The entrypoint bakes these into s3.json/iam.json via raw shell expansion, so unlike
+            # the API (which reads code defaults from env.py) they must be present in this service's
+            # env. Defaults live here for the bundled store the same way supertokens carries its own
+            # connection URI — a service configuring itself. Override via the env file to use S3/R2.
+            # Keys come from the env file — secrets never get a baked-in default.
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY}
+            # Non-secret store config: defaults live here for the bundled store (override via env).
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-store}
+            AGENTA_STORE_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
+            AGENTA_STORE_JWT_ISSUER: ${AGENTA_STORE_JWT_ISSUER:-http://api:8000}
         # === STORAGE ============================================== #
         volumes:
             - seaweed-data:/data

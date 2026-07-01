@@ -230,7 +230,7 @@ class TestSessionsMountsQuery:
 # ---------------------------------------------------------------------------
 # File ops (durable store contents)
 #
-# Require a configured object store (AGENTA_MOUNTS_STORAGE_* → SeaweedFS in the dev
+# Require a configured object store (AGENTA_STORE_* → SeaweedFS in the dev
 # stack). A 503 means the backend isn't configured in this env — skip rather
 # than fail so the suite stays green where no store is wired.
 # ---------------------------------------------------------------------------

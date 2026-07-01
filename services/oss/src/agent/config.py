@@ -39,13 +39,13 @@ class AgentTemplate:
 
 def runner_dir() -> Path:
     """Directory of the TypeScript agent runner (where the CLI command runs)."""
-    override = os.getenv("AGENTA_AGENT_RUNNER_DIR")
+    override = os.getenv("AGENTA_RUNNER_DIR")
     return Path(override) if override else _DEFAULT_AGENT_DIR
 
 
 def runner_url() -> Optional[str]:
     """HTTP URL for the deployed agent runner service, when configured."""
-    value = os.getenv("AGENTA_AGENT_RUNNER_URL")
+    value = os.getenv("AGENTA_RUNNER_URL")
     return value.strip() if value and value.strip() else None
 
 

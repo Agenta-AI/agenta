@@ -4,7 +4,7 @@ Two layers:
 1. Path-traversal rejection on file/folder paths (pure, no storage).
 2. create/upload/list/read/delete roundtrip + folder-marker hiding + cascade
    delete + file-vs-folder distinction, against an in-memory fake that
-   implements the MountStorage interface.
+   implements the ObjectStore interface.
 
 The fake exercises all service-side logic (key namespacing, marker hiding,
 cascade, file-vs-folder); the real miniopy-async adapter is thin. Live
@@ -62,7 +62,7 @@ class TestFilePathValidation:
 
 
 # ---------------------------------------------------------------------------
-# In-memory fake storage (same interface as MountStorage)
+# In-memory fake storage (same interface as ObjectStore)
 # ---------------------------------------------------------------------------
 
 
@@ -123,7 +123,7 @@ def _make_mount() -> Mount:
 def _make_service(mount: Mount) -> Tuple[MountsService, UUID, UUID]:
     service = MountsService(
         mounts_dao=_StubDAO(mount),
-        mount_storage=FakeMountStorage(),
+        mounts_store=FakeMountStorage(),
         bucket=_BUCKET,
     )
     return service, mount.project_id, mount.id
@@ -169,9 +169,9 @@ class TestMountFileOpsRoundtrip:
         await service.write_file(
             project_id=pid, mount_id=mid, path="notes.txt", content=b"x"
         )
-        stored_keys = list(service.mount_storage._store[_BUCKET].keys())
-        # Key is derived from identity: <project_id>/<mount_id>/<path>.
-        assert stored_keys == [f"{pid}/{mid}/notes.txt"]
+        stored_keys = list(service.mounts_store._store[_BUCKET].keys())
+        # Key is derived from identity: mounts/<project_id>/<mount_id>/<path>.
+        assert stored_keys == [f"mounts/{pid}/{mid}/notes.txt"]
 
     async def test_create_folder_hidden_from_files_listing(self):
         mount = _make_mount()

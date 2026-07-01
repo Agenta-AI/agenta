@@ -180,6 +180,13 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         if request.user_id:
             payload["user_id"] = request.user_id
 
+        log.debug(
+            "[composio.execute] slug=%s connected_account=%s user_id=%s",
+            composio_slug,
+            request.provider_connection_id or "(none)",
+            request.user_id or "(none)",
+        )
+
         try:
             result = await self._post(
                 f"/tools/execute/{composio_slug}",
@@ -197,6 +204,13 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
                 operation="execute",
                 detail=composio_error_detail(e),
             ) from e
+
+        log.debug(
+            "[composio.execute] slug=%s successful=%s error=%s",
+            composio_slug,
+            result.get("successful", False),
+            str(result.get("error"))[:300],
+        )
 
         return ToolExecutionResponse(
             data=result.get("data"),

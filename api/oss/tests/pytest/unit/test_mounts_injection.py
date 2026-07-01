@@ -6,7 +6,7 @@ Two layers, both against in-memory fakes:
 2. ``sign_mount_credentials`` derives the prefix-scoped policy, returns scoped temp
    credentials, and never leaks the master key.
 
-The real STS call (a signed ``GetFederationToken`` against the S3 endpoint) is covered
+The real STS call (a signed ``AssumeRoleWithWebIdentity`` against the S3 endpoint) is covered
 live against the docker-compose SeaweedFS in the acceptance suite; the fakes here exercise
 the service-side derivation (prefix, bucket, policy scope, XML parsing, master-key isolation).
 """
@@ -93,10 +93,15 @@ class _UpsertDAO:
         return None
 
 
-def _make_service():
+def _make_service(namespace=None):
     dao = _UpsertDAO()
     storage = _FakeStorage()
-    service = MountsService(mounts_dao=dao, mount_storage=storage, bucket=_BUCKET)
+    service = MountsService(
+        mounts_dao=dao,
+        mounts_store=storage,
+        bucket=_BUCKET,
+        namespace=namespace,
+    )
     return service, dao, storage
 
 
@@ -163,11 +168,40 @@ class TestSignMountCredentials:
 
         creds = await service.sign_mount_credentials(project_id=pid, mount_id=mount.id)
 
-        # Prefix is identity-derived: <project_id>/<mount_id> (slug-independent).
-        assert storage.signed_with["prefix"] == f"{pid}/{mount.id}"
+        # Prefix is identity-derived: mounts/<project_id>/<mount_id> (slug-independent).
+        assert storage.signed_with["prefix"] == f"mounts/{pid}/{mount.id}"
         assert storage.signed_with["bucket"] == _BUCKET
-        assert creds.prefix == f"{pid}/{mount.id}"
+        assert creds.prefix == f"mounts/{pid}/{mount.id}"
         assert creds.bucket == _BUCKET
+
+    async def test_namespace_prefixes_the_signed_scope(self):
+        # A store namespace ("database") carves the shared bucket: the STS scope, and thus the
+        # signed credential, is anchored at <namespace>/mounts/<pid>/<mid> — the mount row stays
+        # the leaf, so isolation is unchanged, only qualified one level deeper.
+        service, _, storage = _make_service(namespace="env-ephemeral-42")
+        pid, uid = uuid4(), uuid4()
+        mount = await service.get_or_create_session_cwd(
+            project_id=pid, user_id=uid, session_id="sess-1"
+        )
+
+        creds = await service.sign_mount_credentials(project_id=pid, mount_id=mount.id)
+
+        expected = f"env-ephemeral-42/mounts/{pid}/{mount.id}"
+        assert storage.signed_with["prefix"] == expected
+        assert creds.prefix == expected
+
+    async def test_no_namespace_keeps_byte_identical_layout(self):
+        # Unset namespace must not introduce an empty leading segment (no "/mounts/...").
+        service, _, storage = _make_service(namespace=None)
+        pid, uid = uuid4(), uuid4()
+        mount = await service.get_or_create_session_cwd(
+            project_id=pid, user_id=uid, session_id="sess-1"
+        )
+
+        await service.sign_mount_credentials(project_id=pid, mount_id=mount.id)
+
+        assert storage.signed_with["prefix"] == f"mounts/{pid}/{mount.id}"
+        assert not storage.signed_with["prefix"].startswith("/")
 
     async def test_returns_scoped_not_master_credentials(self):
         service, _, _ = _make_service()
@@ -199,7 +233,7 @@ class TestSignMountCredentials:
 
     async def test_unavailable_without_storage(self):
         dao = _UpsertDAO()
-        service = MountsService(mounts_dao=dao, mount_storage=None, bucket=_BUCKET)
+        service = MountsService(mounts_dao=dao, mounts_store=None, bucket=_BUCKET)
         pid, uid = uuid4(), uuid4()
         mount = await dao.upsert_mount(
             project_id=pid,
@@ -221,9 +255,9 @@ class TestStoragePolicyScope:
     async def test_policy_resource_targets_only_the_mount_prefix(self):
         from json import loads
 
-        from oss.src.core.mounts.storage import MountStorage
+        from oss.src.core.store.storage import ObjectStore
 
-        storage = MountStorage(
+        storage = ObjectStore(
             endpoint_url="http://seaweedfs:8333",
             access_key=_MASTER_KEY,
             secret_key=_MASTER_SECRET,
@@ -249,20 +283,20 @@ class TestStoragePolicyScope:
             for r in resources
         )
 
-    async def test_parses_federation_token_xml(self):
-        from oss.src.core.mounts.storage import _parse_federation_token
+    async def test_parses_sts_credentials_xml(self):
+        from oss.src.core.store.storage import _parse_sts_credentials
 
         xml = (
             '<?xml version="1.0"?>'
-            '<GetFederationTokenResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">'
-            "<GetFederationTokenResult><Credentials>"
+            '<AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">'
+            "<AssumeRoleWithWebIdentityResult><Credentials>"
             "<AccessKeyId>ASIASCOPED</AccessKeyId>"
             "<SecretAccessKey>scoped-secret</SecretAccessKey>"
             "<SessionToken>scoped-token</SessionToken>"
             "<Expiration>2026-06-30T08:00:00Z</Expiration>"
-            "</Credentials></GetFederationTokenResult></GetFederationTokenResponse>"
+            "</Credentials></AssumeRoleWithWebIdentityResult></AssumeRoleWithWebIdentityResponse>"
         )
-        creds = _parse_federation_token(xml)
+        creds = _parse_sts_credentials(xml)
         assert creds.access_key == "ASIASCOPED"
         assert creds.secret_key == "scoped-secret"
         assert creds.session_token == "scoped-token"

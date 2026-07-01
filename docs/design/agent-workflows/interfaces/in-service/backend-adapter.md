@@ -22,7 +22,7 @@ SandboxAgentBackend(
     url=None,                         # HTTP runner URL; when set, HTTP transport
     command=None,                     # CLI command; used when url is None
     cwd=None,
-    timeout=float(os.getenv("AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS", "180")),
+    timeout=float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180")),
 )
 ```
 

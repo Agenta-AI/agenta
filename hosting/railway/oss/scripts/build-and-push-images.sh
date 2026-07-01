@@ -23,21 +23,21 @@ fi
 API_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-api:${TAG}"
 WEB_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-web:${TAG}"
 SERVICES_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-services:${TAG}"
-SANDBOX_AGENT_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-agent-runner:${TAG}"
+RUNNER_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-runner:${TAG}"
 
 printf "Building local images with tag '%s'\n" "$TAG"
 
 docker build -t "$API_IMAGE" -f "$ROOT_DIR/api/oss/docker/Dockerfile.gh" "$ROOT_DIR"
 docker build -t "$WEB_IMAGE" -f "$ROOT_DIR/web/oss/docker/Dockerfile.gh" "$ROOT_DIR/web"
 docker build -t "$SERVICES_IMAGE" -f "$ROOT_DIR/services/oss/docker/Dockerfile.gh" "$ROOT_DIR"
-docker build -t "$SANDBOX_AGENT_IMAGE" -f "$ROOT_DIR/services/agent/docker/Dockerfile" "$ROOT_DIR/services/agent"
+docker build -t "$RUNNER_IMAGE" -f "$ROOT_DIR/services/runner/docker/Dockerfile" "$ROOT_DIR/services/runner"
 
 if [ "$PUSH_IMAGES" = "true" ]; then
     printf "Pushing images to %s/%s\n" "$REGISTRY" "$NAMESPACE"
     docker push "$API_IMAGE"
     docker push "$WEB_IMAGE"
     docker push "$SERVICES_IMAGE"
-    docker push "$SANDBOX_AGENT_IMAGE"
+    docker push "$RUNNER_IMAGE"
 else
     printf "Skipping push because PUSH_IMAGES=%s\n" "$PUSH_IMAGES"
 fi
@@ -46,11 +46,11 @@ cat > "$OUTPUT_FILE" <<EOF
 export AGENTA_API_IMAGE="$API_IMAGE"
 export AGENTA_WEB_IMAGE="$WEB_IMAGE"
 export AGENTA_SERVICES_IMAGE="$SERVICES_IMAGE"
-export AGENTA_AGENT_RUNNER_IMAGE="$SANDBOX_AGENT_IMAGE"
+export AGENTA_RUNNER_IMAGE="$RUNNER_IMAGE"
 EOF
 
 printf "Wrote image exports to %s\n" "$OUTPUT_FILE"
 printf "AGENTA_API_IMAGE=%s\n" "$API_IMAGE"
 printf "AGENTA_WEB_IMAGE=%s\n" "$WEB_IMAGE"
 printf "AGENTA_SERVICES_IMAGE=%s\n" "$SERVICES_IMAGE"
-printf "AGENTA_AGENT_RUNNER_IMAGE=%s\n" "$SANDBOX_AGENT_IMAGE"
+printf "AGENTA_RUNNER_IMAGE=%s\n" "$RUNNER_IMAGE"

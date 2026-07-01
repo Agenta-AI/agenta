@@ -7,7 +7,7 @@ import {fetchTriggerIntegrations} from "../api"
 import type {TriggerCatalogIntegration, TriggerCatalogIntegrationsResponse} from "../core/types"
 
 const DEFAULT_PROVIDER = "composio"
-const CHUNK_SIZE = 10
+const CHUNK_SIZE = 30
 const PREFETCH = 2
 
 // Server-side search atom — set by the drawer, drives the query.

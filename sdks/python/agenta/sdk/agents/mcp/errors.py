@@ -36,7 +36,7 @@ class MCPDisabledError(MCPError):
         listed = ", ".join(names) if names else "(unnamed)"
         super().__init__(
             "MCP servers are disabled on this deployment "
-            "(set AGENTA_AGENT_MCP_SERVERS_ENABLED to enable them), but the request declared "
+            "(set AGENTA_AGENT_MCPS_ENABLED to enable them), but the request declared "
             f"{len(names)} MCP server(s): {listed}. Remove them or enable MCP."
         )
         self.server_names = names
