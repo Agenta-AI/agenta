@@ -72,9 +72,8 @@ services:
         labels:
             - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.api.entrypoints=web"
-            - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
-            - "traefik.http.middlewares.api-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.api.middlewares=api-strip"
+            # Do NOT strip /api: the app is mounted at /api (SCRIPT_NAME + FastAPI root_path).
+            # Forward /api/* unchanged so app-generated redirects keep the prefix.
             - "traefik.http.services.api.loadbalancer.server.port=8000"
             - "traefik.http.routers.api.service=api"
         # === LIFECYCLE ============================================ #
