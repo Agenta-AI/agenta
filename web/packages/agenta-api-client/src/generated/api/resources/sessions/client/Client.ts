@@ -1374,7 +1374,7 @@ export class SessionsClient {
      *
      * @example
      *     await client.sessions.getRecordEvent({
-     *         event_id: "event_id"
+     *         record_id: "record_id"
      *     })
      */
     public getRecordEvent(
@@ -1388,7 +1388,7 @@ export class SessionsClient {
         request: AgentaApi.GetRecordEventRequest,
         requestOptions?: SessionsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SessionRecordResponse>> {
-        const { event_id: eventId } = request;
+        const { record_id: recordId } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -1400,7 +1400,7 @@ export class SessionsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `sessions/records/${core.url.encodePathParam(eventId)}`,
+                `sessions/records/${core.url.encodePathParam(recordId)}`,
             ),
             method: "GET",
             headers: _headers,
@@ -1432,7 +1432,7 @@ export class SessionsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/sessions/records/{event_id}");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/sessions/records/{record_id}");
     }
 
     /**

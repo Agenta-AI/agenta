@@ -8,13 +8,14 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
 class SessionRecord(UniversalBaseModel):
-    id: str
+    record_id: str
     session_id: str
     project_id: str
-    event_index: typing.Optional[int] = None
-    sender: typing.Optional[str] = None
-    session_update: typing.Optional[str] = None
-    payload: typing.Optional[typing.Dict[str, typing.Any]] = None
+    record_index: typing.Optional[int] = None
+    timestamp: typing.Optional[dt.datetime] = None
+    record_type: typing.Optional[str] = None
+    record_source: typing.Optional[str] = None
+    attributes: typing.Optional[typing.Dict[str, typing.Any]] = None
     created_at: typing.Optional[dt.datetime] = None
     
     if IS_PYDANTIC_V2:
