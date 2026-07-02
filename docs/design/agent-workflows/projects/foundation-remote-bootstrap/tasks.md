@@ -21,8 +21,9 @@ File: `services/runner/src/engines/sandbox_agent/remote-assets.ts`
   `if (plan.isDaytona) { await prepareRemoteHarnessAssets(...) }`.
 - Remove the now-redundant `prepareDaytonaPiAssets` import (it is called via
   `prepareRemoteHarnessAssets`).
-- Note: `isE2b` extension will widen the guard to `isDaytona || isE2b` in the sibling
-  worktree; the seam is already ready.
+- Note: `isE2B` extension will widen the guard to `isDaytona || isE2B` in the sibling
+  worktree; the seam is already ready. Once merged, the derived `isRemoteSandbox` flag
+  becomes the eventual gate.
 
 ## T3 — Add unit tests
 

@@ -68,13 +68,14 @@ if (plan.isDaytona) {
 Replace with:
 
 ```
-if (plan.isDaytona || plan.isE2b) {
+if (plan.isDaytona || plan.isE2B) {
   await prepareRemoteHarnessAssets({ sandbox, plan, log: logger });
 }
 ```
 
-`plan.isE2b` lands in `chore/add-sandbox-e2b`; the seam is designed to accept it without
-signature changes.
+`plan.isE2B` lands in `chore/add-sandbox-e2b`; the seam is designed to accept it without
+signature changes. Once merged, the derived `isRemoteSandbox` flag added by the E2B
+branches is the eventual gate here, replacing this `isDaytona || isE2B` pair.
 
 ## No provider class hierarchy
 

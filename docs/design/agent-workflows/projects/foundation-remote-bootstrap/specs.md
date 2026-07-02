@@ -72,13 +72,14 @@ Replace the existing `if (plan.isDaytona)` block:
 -   if (plan.isDaytona) {
 -     await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
 -   }
-+   if (plan.isDaytona || (plan as any).isE2b) {
++   if (plan.isDaytona || (plan as any).isE2B) {
 +     await prepareRemoteHarnessAssets({ sandbox, plan, log: logger });
 +   }
 ```
 
-`plan.isE2b` is a future field (`chore/add-sandbox-e2b`); the cast avoids a compile error
-until that field is added to `RunPlan`. Once E2B lands the cast drops.
+`plan.isE2B` is a future field (`chore/add-sandbox-e2b`); the cast avoids a compile error
+until that field is added to `RunPlan`. Once E2B lands the cast drops, and the derived
+`isRemoteSandbox` flag added by those branches becomes the eventual gate here.
 
 ## Tests
 

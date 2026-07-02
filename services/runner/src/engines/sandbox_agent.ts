@@ -466,7 +466,7 @@ export async function runSandboxAgent(
     // On remote sandboxes, push harness credentials and Pi assets into the sandbox via
     // the filesystem API (nothing secret is baked into the image). Locally these use the
     // host filesystem and the harness's own login.
-    if (plan.isDaytona || (plan as any).isE2b) {
+    if (plan.isDaytona || (plan as any).isE2B) {
       await prepareRemoteHarnessAssets({ sandbox, plan, log: logger });
     }
 
