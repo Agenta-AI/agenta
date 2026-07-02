@@ -22,8 +22,8 @@ surfaced to analytics. Closing that gap is the backbone of this plan.
 |---|---|---|
 | Activation route | Backend (`api/`) | property on `app_created` — frontend passes the entry point in the create request |
 | Workflow created | Backend (`api/`) | `app_created` exists — add `is_agent` |
-| Agent was run | Backend (agent service / tracing) | agent runs in `services/`, not `api/` — via existing OTEL spans or new capture in the `/invoke` handler |
-| Number of messages sent | Backend (agent service / tracing) | count on the run, same path as above |
+| Agent was run | Backend (tracing) | agent runs in `services/`, not `api/` — reuse existing OTEL spans / `spans_created`, no new event |
+| Number of messages sent | Backend (tracing) | derived from the run's span / message list |
 | Which features / triggers were used | Backend (`api/`) | derive from committed agent config at commit |
 
 ---
@@ -57,16 +57,20 @@ Agent chat runs through the agent service `/invoke` handler
 ([services/entrypoints/main.py:137](/services/entrypoints/main.py#L137)). These requests **do
 not** pass through the `api/` middleware, so they cannot be captured by adding a path there.
 
+**Decision: reuse tracing for the run, add capture only for approval.** The run already emits an
+**instrumented OTEL span** ([agent/tracing.py](/services/oss/src/agent/tracing.py)) and the `api/`
+middleware already tracks `spans_created`, so "agent was run" and message counts come from
+tracing — no new run event, no new PostHog wiring in the service for that. We add PostHog only for
+the one product signal tracing doesn't cleanly express:
+
 | Event | State | Where | Product question | Properties |
 |---|---|---|---|---|
-| `agent_run` | **N** | agent `/invoke` handler | Was the agent run? core activation / retention | `is_agent`, `messageCount` |
 | `agent_tool_approval_submitted` | **N** | `tool_approvals` in the `/invoke` body | HITL adoption + approval rate | `approved` |
 
-The run already emits an **instrumented OTEL span** ([agent/tracing.py](/services/oss/src/agent/tracing.py)),
-and the `api/` middleware already tracks `spans_created` — so "agent was run" and message counts
-are *partially derivable from tracing today*. Options: (a) rely on tracing/spans for run volume
-and add explicit capture only for approval, or (b) add PostHog to the agent service and emit both
-events cleanly. Decide before building.
+| Metric | Source |
+|---|---|
+| Agent was run | existing OTEL spans / `spans_created` (no new event) |
+| Number of messages sent | derived from the run's span / message list |
 
 ### Backend work
 
@@ -79,8 +83,9 @@ events cleanly. Decide before building.
 3. **Handler-level events (`api/`).** `tool_connection_created`, activation `route`, and feature
    composition need the request / committed body (the middleware can't see it), so they fire from
    inside the handlers.
-4. **Run + approval (agent service).** Either lean on existing tracing/spans or add PostHog to the
-   service `/invoke` handler (no analytics there today) — see the note above.
+4. **Approval (agent service).** Add PostHog to the agent service `/invoke` handler (no analytics
+   there today) for `agent_tool_approval_submitted` only. Run volume + message counts come from
+   existing tracing — no new run event.
 5. **Activation route (`api/`).** The frontend passes the entry point (empty-state CTA / dropdown
    / template — [CreateAppDropdown](/web/oss/src/components/pages/app-management/components/CreateAppDropdown/index.tsx#L80))
    as a `route` field in the `POST /apps` body; the handler stashes it on `request.state` and the
@@ -128,7 +133,8 @@ counts.
 
 - **Backend:** with PostHog configured, create an agent and a chat app — `app_created` fires for
   both but only the agent carries `is_agent: true`; commit an agent revision and confirm
-  `app_revision_created` carries the feature counts; run the agent and confirm `agent_run` with
-  `messageCount`; approve a tool, connect an integration, archive the agent.
+  `app_revision_created` carries the feature counts; connect an integration, archive the agent;
+  approve a tool and confirm `agent_tool_approval_submitted`. Confirm the run itself produces
+  spans/traces (run volume is read from those, not a dedicated event).
 - **Frontend:** confirm the two FE events fire on the pure-UI actions and that none duplicate a
   backend event.
