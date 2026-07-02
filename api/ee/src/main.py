@@ -32,6 +32,8 @@ from ee.src.apis.fastapi.spans.router import SpansRetentionRouter
 from ee.src.apis.fastapi.events.router import EventsRouter, EventsRetentionRouter
 from ee.src.apis.fastapi.sessions.records.router import RecordsRetentionRouter
 from ee.src.apis.fastapi.organizations.router import router as organization_router
+from ee.src.apis.fastapi.sandboxes.router import SandboxMeteringRouter
+from ee.src.core.sandboxes.service import SandboxMeteringService
 from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
 # DBS --------------------------------------------------------------------------
@@ -93,6 +95,10 @@ subscription_service = SubscriptionsService(
     subscriptions_dao=subscriptions_dao,
 )
 
+sandboxes_service = SandboxMeteringService(
+    meters_service=meters_service,
+)
+
 # Wire entitlements module against the freshly-built services so the
 # `BillingRouter` and the entitlements helper share one instance each.
 bootstrap_entitlements_services(
@@ -107,6 +113,10 @@ access_router = AccessRouter()
 billing_router = BillingRouter(
     subscription_service=subscription_service,
     meters_service=meters_service,
+)
+
+sandboxes_router = SandboxMeteringRouter(
+    sandboxes_service=sandboxes_service,
 )
 
 spans_retention_router = SpansRetentionRouter(
@@ -168,6 +178,20 @@ def extend_main(app: FastAPI):
     app.include_router(
         router=records_retention_router.admin_router,
         prefix="/admin/records",
+        tags=["Admin"],
+        include_in_schema=False,
+    )
+
+    app.include_router(
+        router=sandboxes_router.router,
+        prefix="/webhooks/sandboxes",
+        tags=["Sandbox Metering"],
+        include_in_schema=False,
+    )
+
+    app.include_router(
+        router=sandboxes_router.admin_router,
+        prefix="/admin/sandboxes",
         tags=["Admin"],
         include_in_schema=False,
     )

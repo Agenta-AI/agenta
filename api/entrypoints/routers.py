@@ -273,6 +273,19 @@ async def lifespan(*args, **kwargs):
                 "Composio trigger webhook registration failed at startup: %s", e
             )
 
+    # Best-effort: sandbox metering degrades to unmetered E2B usage if this fails.
+    if is_ee() and env.e2b.enabled and env.e2b.webhook_url:
+        try:
+            from ee.src.main import sandboxes_service
+
+            await sandboxes_service.ensure_e2b_webhook_registered(
+                api_key=env.e2b.api_key,
+                api_url=env.e2b.api_url,
+                webhook_url=env.e2b.webhook_url,
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("E2B webhook registration failed at startup: %s", e)
+
     yield
 
     _orphan_sweep_task.cancel()

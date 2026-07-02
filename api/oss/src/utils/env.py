@@ -555,10 +555,34 @@ class CrispConfig(BaseModel):
 class DaytonaConfig(BaseModel):
     api_key: str | None = os.getenv("DAYTONA_API_KEY")
     api_url: str | None = os.getenv("DAYTONA_API_URL")
+    # Usage/aggregated metering poll (sandbox compute meters).
+    analytics_url: str | None = os.getenv("DAYTONA_ANALYTICS_URL")
+    organization_id: str | None = os.getenv("DAYTONA_ORGANIZATION_ID")
     snapshot: str | None = os.getenv("DAYTONA_SNAPSHOT")
     target: str | None = os.getenv("DAYTONA_TARGET")
 
     model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key and self.organization_id and self.analytics_url)
+
+
+# ---------------------------------------------------------------------------
+# e2b — sandbox compute metering (webhook-fed).
+# ---------------------------------------------------------------------------
+
+
+class E2BConfig(BaseModel):
+    api_key: str | None = os.getenv("E2B_API_KEY")
+    api_url: str = os.getenv("E2B_API_URL") or "https://api.e2b.app"
+    webhook_url: str | None = os.getenv("E2B_WEBHOOK_URL")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key)
 
 
 # ---------------------------------------------------------------------------
@@ -882,6 +906,12 @@ class StoreConfig(BaseModel):
     # back to a baked-in local-dev key when unset (see core/store/webidentity.py).
     jwt_private_key: str | None = os.getenv("AGENTA_STORE_JWT_PRIVATE_KEY")
     jwt_issuer: str = os.getenv("AGENTA_STORE_JWT_ISSUER") or "http://api:8000"
+
+    # Gate for the periodic storage-gauge reconcile job (EE): off by default since it
+    # walks every org's prefix via ListObjectsV2/filer-list.
+    reconcile_enabled: bool = (
+        os.getenv("AGENTA_STORE_RECONCILE_ENABLED") or "false"
+    ).lower() in _TRUTHY
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1239,6 +1269,7 @@ class EnvironSettings(BaseModel):
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
+    e2b: E2BConfig = E2BConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
