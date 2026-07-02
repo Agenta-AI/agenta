@@ -3,7 +3,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-pi-assets.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import {
   existsSync,
@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -252,6 +253,136 @@ describe("prepareLocalAgentDir", () => {
       readFileSync(join(runDir, "skills", "skill", "SKILL.md"), "utf-8"),
       "---\nname: skill\n---\n",
     );
+  });
+});
+
+describe("writeCodexAuthFile / prepareLocalCodexAssets (dir override)", () => {
+  const originalCodexDir = process.env.AGENTA_AGENT_CODEX_DIR;
+  let codexDir: string;
+  let mod: typeof import("../../src/engines/sandbox_agent/pi-assets.ts");
+
+  beforeEach(async () => {
+    codexDir = tempDir("agenta-codex-dir-test-");
+    // CODEX_DIR is read from the env at module-eval time; reset the module registry so a
+    // fresh import picks up this test's override instead of a prior test's binding.
+    process.env.AGENTA_AGENT_CODEX_DIR = codexDir;
+    vi.resetModules();
+    mod = await import("../../src/engines/sandbox_agent/pi-assets.ts");
+  });
+
+  afterEach(() => {
+    if (originalCodexDir === undefined) delete process.env.AGENTA_AGENT_CODEX_DIR;
+    else process.env.AGENTA_AGENT_CODEX_DIR = originalCodexDir;
+  });
+
+  it("respects AGENTA_AGENT_CODEX_DIR override", () => {
+    assert.equal(mod.CODEX_DIR, codexDir);
+  });
+
+  it("writes auth.json with mode 600 and OPENAI_API_KEY field", () => {
+    const created = mod.writeCodexAuthFile("sk-test-key");
+    assert.equal(created, true);
+
+    const authPath = join(codexDir, "auth.json");
+    const parsed = JSON.parse(readFileSync(authPath, "utf-8"));
+    assert.equal(parsed.OPENAI_API_KEY, "sk-test-key");
+    assert.equal(Object.keys(parsed).length, 1);
+
+    const mode = statSync(authPath).mode & 0o777;
+    assert.equal(mode, 0o600);
+  });
+
+  it("creates the dir with mode 700", () => {
+    mod.writeCodexAuthFile("sk-test-key");
+    const mode = statSync(codexDir).mode & 0o777;
+    assert.equal(mode, 0o700);
+  });
+
+  it("reports created=false and warns when auth.json already existed", () => {
+    const authPath = join(codexDir, "auth.json");
+    writeFileSync(authPath, JSON.stringify({ OPENAI_API_KEY: "sk-preexisting" }), "utf-8");
+
+    const logs: string[] = [];
+    const created = mod.writeCodexAuthFile("sk-new-key", (m) => logs.push(m));
+
+    assert.equal(created, false);
+    assert.ok(logs.some((l) => l.includes("overwriting existing")));
+    // Managed mode still overwrites (legacy behavior), just louder.
+    assert.equal(
+      JSON.parse(readFileSync(authPath, "utf-8")).OPENAI_API_KEY,
+      "sk-new-key",
+    );
+  });
+
+  it("prepareLocalCodexAssets managed: writes auth.json from OPENAI_API_KEY and reports created", () => {
+    const logs: string[] = [];
+    const created = mod.prepareLocalCodexAssets(
+      { credentialMode: "env", hasApiKey: true, secrets: { OPENAI_API_KEY: "sk-managed" } },
+      (m) => logs.push(m),
+    );
+    assert.equal(created, true);
+    assert.equal(logs.filter((l) => l.includes("not found")).length, 0);
+    assert.equal(
+      JSON.parse(readFileSync(join(codexDir, "auth.json"), "utf-8")).OPENAI_API_KEY,
+      "sk-managed",
+    );
+  });
+
+  it("prepareLocalCodexAssets managed: falls back to CODEX_API_KEY when OPENAI_API_KEY absent", () => {
+    const created = mod.prepareLocalCodexAssets({
+      credentialMode: "env",
+      hasApiKey: true,
+      secrets: { CODEX_API_KEY: "sk-codex-only" },
+    });
+    assert.equal(created, true);
+    assert.equal(
+      JSON.parse(readFileSync(join(codexDir, "auth.json"), "utf-8")).OPENAI_API_KEY,
+      "sk-codex-only",
+    );
+  });
+
+  it("prepareLocalCodexAssets managed: no write and created=false when no key is present", () => {
+    const logs: string[] = [];
+    const created = mod.prepareLocalCodexAssets(
+      { credentialMode: "env", hasApiKey: false, secrets: {} },
+      (m) => logs.push(m),
+    );
+    assert.equal(created, false);
+    assert.equal(existsSync(join(codexDir, "auth.json")), false);
+    assert.equal(logs.filter((l) => l.includes("not found")).length, 0);
+  });
+
+  it("prepareLocalCodexAssets self-managed: logs warning and returns false when auth.json is absent", () => {
+    const logs: string[] = [];
+    const created = mod.prepareLocalCodexAssets(
+      { credentialMode: "runtime_provided", hasApiKey: false, secrets: {} },
+      (m) => logs.push(m),
+    );
+    assert.equal(created, false);
+    const warnings = logs.filter((l) => l.includes("auth.json") && l.includes("not found"));
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].includes("self-managed"));
+    assert.ok(warnings[0].includes(codexDir));
+  });
+
+  it("prepareLocalCodexAssets self-managed: no warning when auth.json is already present", () => {
+    writeFileSync(join(codexDir, "auth.json"), JSON.stringify({ OPENAI_API_KEY: "sk-own" }), "utf-8");
+    const logs: string[] = [];
+    const created = mod.prepareLocalCodexAssets(
+      { credentialMode: "runtime_provided", hasApiKey: false, secrets: {} },
+      (m) => logs.push(m),
+    );
+    assert.equal(created, false);
+    assert.equal(logs.filter((l) => l.includes("not found")).length, 0);
+  });
+
+  it("prepareLocalCodexAssets self-managed: un-migrated caller (no credentialMode, no key) routes to own-login path", () => {
+    const logs: string[] = [];
+    const created = mod.prepareLocalCodexAssets(
+      { credentialMode: undefined, hasApiKey: false, secrets: {} },
+      (m) => logs.push(m),
+    );
+    assert.equal(created, false);
   });
 });
 

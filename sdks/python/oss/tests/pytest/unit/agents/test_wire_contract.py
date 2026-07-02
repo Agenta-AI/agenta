@@ -22,6 +22,7 @@ import pytest
 from agenta.sdk.agents import (
     AgentaAgentTemplate,
     ClaudeAgentTemplate,
+    CodexAgentTemplate,
     Endpoint,
     HarnessType,
     Message,
@@ -180,6 +181,25 @@ def _claude_payload():
         config=config,
         messages=[Message(role="user", content="hi")],
         secrets={"ANTHROPIC_API_KEY": "sk-ant"},
+        trace=None,
+        session_id=None,
+    )
+
+
+def _codex_payload():
+    config = CodexAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="gpt-5.5",
+        custom_tools=[dict(_CUSTOM_TOOL)],
+        tool_callback=_CALLBACK,
+        permission_policy="deny",
+    )
+    return request_to_wire(
+        harness=HarnessType.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        secrets={"OPENAI_API_KEY": "sk-test"},
         trace=None,
         session_id=None,
     )
@@ -420,6 +440,19 @@ def test_request_to_wire_claude_matches_golden(golden):
     ]
 
 
+def test_request_to_wire_codex_matches_golden(golden):
+    payload = _codex_payload()
+    assert payload == golden("run_request.codex.json")
+    assert payload["harness"] == "codex"
+    assert payload["tools"] == []
+    assert payload["permissionPolicy"] == "deny"
+    assert "systemPrompt" not in payload
+    assert "appendSystemPrompt" not in payload
+    assert "harnessFiles" not in payload
+    assert payload["customTools"][0]["permission"] == "allow"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
 def test_request_to_wire_has_no_prompt_key():
     # The serializer emits `messages` only; the TS side derives the latest turn with
     # `resolvePromptText`. This asymmetry is intentional and easy to break, so lock it.
@@ -435,8 +468,10 @@ def test_request_to_wire_has_no_prompt_key():
 def test_request_to_wire_emits_only_known_keys():
     pi = _pi_payload()
     claude = _claude_payload()
+    codex = _codex_payload()
     assert set(pi) <= KNOWN_REQUEST_KEYS
     assert set(claude) <= KNOWN_REQUEST_KEYS
+    assert set(codex) <= KNOWN_REQUEST_KEYS
     # The Pi case must actually exercise the prompt-override keys, otherwise this guard would
     # silently stop covering them.
     assert {"systemPrompt", "appendSystemPrompt"} <= set(pi)

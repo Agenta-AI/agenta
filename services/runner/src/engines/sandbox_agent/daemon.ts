@@ -73,6 +73,7 @@ function ensureExecutable(path: string): string {
 export const KNOWN_PROVIDER_ENV_VARS = [
   // Direct provider api keys (the eight vault-mapped Pi providers + the legacy aliases).
   "OPENAI_API_KEY",
+  "CODEX_API_KEY",
   "ANTHROPIC_API_KEY",
   "GEMINI_API_KEY",
   "MISTRAL_API_KEY",

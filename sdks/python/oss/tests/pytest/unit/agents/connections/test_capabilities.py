@@ -65,9 +65,12 @@ def test_claude_consumes_custom_gateway_bedrock_and_vertex():
 
 def test_capabilities_document_shape():
     doc = harness_capabilities_document()
-    assert set(doc) == {"pi_core", "pi_agenta", "claude"}
+    assert set(doc) == {"pi_core", "pi_agenta", "claude", "codex"}
     assert doc["claude"]["providers"] == ["anthropic"]
     assert doc["claude"]["model_selection"] == "alias"
+    assert doc["codex"]["providers"] == ["openai"]
+    assert doc["codex"]["deployments"] == ["direct"]
+    assert doc["codex"]["model_selection"] == "id"
     assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS)
     assert doc["pi_core"]["connection_modes"] == ["agenta", "self_managed"]
     assert doc["pi_core"]["deployments"] == ["direct"]
@@ -82,7 +85,7 @@ def test_capabilities_document_shape():
 
 def test_every_harness_publishes_a_models_map():
     doc = harness_capabilities_document()
-    for harness in ("pi_core", "pi_agenta", "claude"):
+    for harness in ("pi_core", "pi_agenta", "claude", "codex"):
         assert isinstance(doc[harness]["models"], dict)
         assert doc[harness]["models"], f"{harness} has an empty models map"
 

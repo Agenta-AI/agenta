@@ -68,7 +68,11 @@ const _requestKeysExistOnType: readonly (keyof AgentRunRequest)[] =
 void _requestKeysExistOnType;
 
 describe("wire contract: requests (vs Python golden)", () => {
-  for (const name of ["run_request.pi_core.json", "run_request.claude.json"]) {
+  for (const name of [
+    "run_request.pi_core.json",
+    "run_request.claude.json",
+    "run_request.codex.json",
+  ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
       for (const key of Object.keys(req)) {
@@ -211,6 +215,20 @@ describe("wire contract: requests (vs Python golden)", () => {
       resolveRunSessionId(req, "runner-ephemeral"),
       "runner-ephemeral",
     );
+  });
+
+  it("codex request: no Pi built-ins, no harness files, openai key", () => {
+    const req = loadGolden("run_request.codex.json") as AgentRunRequest;
+    assert.equal(req.harness, "codex");
+    assert.deepEqual(req.tools, []);
+    assert.equal(req.permissionPolicy, "deny");
+    assert.equal(req.systemPrompt, undefined);
+    assert.equal(req.appendSystemPrompt, undefined);
+    assert.equal(req.harnessFiles, undefined);
+    assert.equal(req.runContext, undefined);
+    assert.equal(req.sandboxPermission, undefined);
+    assert.ok(req.secrets?.OPENAI_API_KEY, "codex run carries OPENAI_API_KEY");
+    assert.equal(req.secrets?.ANTHROPIC_API_KEY, undefined);
   });
 });
 

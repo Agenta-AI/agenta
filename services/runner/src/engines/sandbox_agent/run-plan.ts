@@ -163,18 +163,16 @@ export function buildRunPlan(
   const harness = request.harness || "pi_core";
   const sandboxId = request.sandbox || sandboxProvider || "local";
 
-  // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude`).
-  // `pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced skills/prompt/policy) both
-  // run on the `pi` ACP agent; `claude` runs on the `claude` ACP agent. `harness` remains the
-  // selected identity for logs, traces, and user-facing errors.
+  // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude` / `codex`).
+  // `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `claude` and `codex` drive their
+  // own. `harness` stays the selected identity for logs, traces, and user-facing errors.
   const acpAgent =
     harness === "pi_core" || harness === "pi_agenta" ? "pi" : harness;
 
-  // Debug assertion: every Pi identity must resolve to the `pi` ACP agent and nothing else may.
-  // Catches a future harness-id typo (e.g. a new `pi_*` value forgotten here) at plan-build time
-  // rather than as a daemon "unknown agent" error mid-run.
+  // Debug assertion: every `pi_*` harness must resolve to the `pi` ACP agent (catches a future
+  // pi_* typo); non-pi harnesses pass through unchanged.
   assert(
-    (harness === "pi_core" || harness === "pi_agenta") === (acpAgent === "pi"),
+    harness.startsWith("pi_") === (acpAgent === "pi"),
     `harness '${harness}' resolved to ACP agent '${acpAgent}', but pi identity mapping disagrees`,
   );
 
@@ -191,7 +189,7 @@ export function buildRunPlan(
 
   const secrets = request.secrets ?? {};
   const legacyHarnessApiKeyVar =
-    acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+    acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"; // codex uses OPENAI_API_KEY
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
 

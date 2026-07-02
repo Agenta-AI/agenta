@@ -67,6 +67,17 @@ CLAUDE_MODEL_ALIASES: List[str] = [
     "haiku[1m]",
 ]
 
+# Codex selects a model by provider/id from the OpenAI family.
+CODEX_MODEL_IDS: List[str] = [
+    "gpt-5.5",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-4.5",
+    "gpt-4o",
+    "o3",
+    "o4-mini",
+]
+
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
 # ``agenta`` with no slug.)
 _ALL_MODES = ["agenta", "self_managed"]
@@ -95,8 +106,8 @@ class HarnessConnectionCapabilities(BaseModel):
       deployments.
     - ``connection_modes``: which :class:`Connection` ``mode`` values it supports
       (``["agenta", "self_managed"]``).
-    - ``model_selection``: how a model is named for the harness (``"provider/id"`` exact for Pi,
-      ``"alias"`` for Claude).
+    - ``model_selection``: how a model is named for the harness (``"provider/id"`` for multi-provider
+      Pi/OpenCode, ``"alias"`` for Claude, ``"id"`` bare for single-provider Codex).
     - ``models``: the selectable models per provider family. Pi publishes each vault provider's
       catalog ids (provider-prefixed, e.g. ``openai/gpt-...``); Claude publishes its alias set
       under ``anthropic``. The frontend renders the harness-filtered model picker straight from
@@ -131,6 +142,13 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         connection_modes=list(_ALL_MODES),
         model_selection="alias",
         models={"anthropic": list(CLAUDE_MODEL_ALIASES)},
+    ),
+    "codex": HarnessConnectionCapabilities(
+        providers=["openai"],
+        deployments=["direct"],
+        connection_modes=list(_ALL_MODES),
+        model_selection="id",
+        models={"openai": list(CODEX_MODEL_IDS)},
     ),
 }
 

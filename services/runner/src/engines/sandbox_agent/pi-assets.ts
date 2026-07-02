@@ -9,7 +9,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
@@ -263,6 +263,75 @@ export async function uploadSkillsToSandbox(
       log(`skill upload skipped for ${skill.name}: ${(err as Error).message}`);
     }
   }
+}
+
+/**
+ * Codex's auth dir. Defaults to `~/.codex` (the codex CLI's own default); overridable per
+ * deployment/run so a managed run never has to share the runner's shared persistent home
+ * with a self-managed user's own `auth.json` (mirrors `PI_CODING_AGENT_DIR`).
+ */
+export const CODEX_DIR = process.env.AGENTA_AGENT_CODEX_DIR ?? join(homedir(), ".codex");
+
+/**
+ * Write `<CODEX_DIR>/auth.json` for a managed codex run so the codex CLI can read its key
+ * as a file (env alone is insufficient). The field name is always `OPENAI_API_KEY`; the
+ * source may be `OPENAI_API_KEY` (preferred) or `CODEX_API_KEY` (fallback) — both resolve
+ * to the same file field.
+ *
+ * The dir is created `0700` and the file `0600` (default umask would otherwise leave the
+ * key world-readable). Returns whether this call created the file (it did not already
+ * exist), so the caller knows whether it is safe to delete in its `finally`.
+ */
+export function writeCodexAuthFile(apiKey: string, log: Log = () => {}): boolean {
+  const path = join(CODEX_DIR, "auth.json");
+  const preexisting = existsSync(path);
+  if (preexisting) {
+    log(
+      `codex managed: overwriting existing ${path} (set AGENTA_AGENT_CODEX_DIR to avoid clobbering a self-managed login)`,
+    );
+  }
+  try {
+    mkdirSync(CODEX_DIR, { recursive: true, mode: 0o700 });
+    writeFileSync(path, JSON.stringify({ OPENAI_API_KEY: apiKey }), {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
+  } catch (err) {
+    log(`codex auth.json write skipped: ${(err as Error).message}`);
+    return false;
+  }
+  return !preexisting;
+}
+
+/**
+ * Prepare local codex credentials for both modes. Returns whether this call wrote (created)
+ * `auth.json`, so the run's `finally` can remove it — only when this run created it, never
+ * when a file already existed.
+ *
+ * Managed (`credentialMode="env"`): writes `<CODEX_DIR>/auth.json` from the resolved key
+ * (`OPENAI_API_KEY` preferred, `CODEX_API_KEY` as fallback source; field name is always
+ * `OPENAI_API_KEY`).
+ * Self-managed (`runtime_provided`): the user's own `<CODEX_DIR>/auth.json` already lives in
+ * homedir and the daemon inherits HOME from the sidecar, so the file is found without a
+ * copy. This function verifies it is present and logs a warning when it is not so a missing
+ * login surfaces before the run fails inside the daemon.
+ */
+export function prepareLocalCodexAssets(
+  plan: { credentialMode?: string; hasApiKey: boolean; secrets: Record<string, string> },
+  log: Log = () => {},
+): boolean {
+  const ownLogin =
+    plan.credentialMode === "runtime_provided" ||
+    (!plan.credentialMode && !plan.hasApiKey);
+  if (ownLogin) {
+    const authPath = join(CODEX_DIR, "auth.json");
+    if (!existsSync(authPath)) {
+      log(`codex self-managed: ${authPath} not found; run may fail`);
+    }
+    return false;
+  }
+  const key = plan.secrets.OPENAI_API_KEY ?? plan.secrets.CODEX_API_KEY;
+  return key ? writeCodexAuthFile(key, log) : false;
 }
 
 /** Recursively upload a host directory tree into a sandbox path via the FS API. */
