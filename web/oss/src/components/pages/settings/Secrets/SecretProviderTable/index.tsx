@@ -3,8 +3,8 @@ import {useMemo, useState} from "react"
 import {useVaultSecret} from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
 import {LLMIconMap} from "@agenta/ui"
-import {GearSix, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Table, Tag, Typography} from "antd"
+import {ArrowClockwise, GearSix, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {Button, Table, Tag, Tooltip, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 
 import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
@@ -13,7 +13,7 @@ import DeleteProviderModal from "@/oss/components/ModelRegistry/Modals/DeletePro
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
-    const {customRowSecrets, secrets, loading} = useVaultSecret()
+    const {customRowSecrets, secrets, loading, mutate} = useVaultSecret()
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isConfigProviderOpen, setIsConfigProviderOpen] = useState(false)
     const [selectedProvider, setSelectedProvider] = useState<LlmProvider | null>(null)
@@ -148,13 +148,13 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
             {
                 title: <GearSix size={16} />,
                 key: "key",
-                width: 85,
+                width: 96,
                 fixed: "right",
                 align: "center",
                 render: (_, record) => {
                     if ((!isCustom && record.key) || isCustom) {
                         return (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
                                 <Button
                                     onClick={(e) => {
                                         e.stopPropagation()
@@ -194,21 +194,36 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
     return (
         <>
             <section className="flex flex-col gap-2">
+                {/* Standard's label is a disabled pill so both sections' header rows match height. */}
                 <div className="flex items-center gap-2">
-                    <Typography.Text className="text-sm font-medium">
-                        {isCustom ? "Custom providers" : "Standard providers"}
-                    </Typography.Text>
-
-                    {isCustom && (
+                    {isCustom ? (
                         <Button
                             icon={<Plus size={14} />}
                             type="primary"
                             size="small"
                             onClick={() => setIsConfigProviderOpen(true)}
                         >
-                            Create
+                            Custom Provider
+                        </Button>
+                    ) : (
+                        <Button
+                            size="small"
+                            disabled
+                            className="!bg-transparent !text-[var(--ant-color-text-secondary)] !cursor-default"
+                        >
+                            Standard providers
                         </Button>
                     )}
+                    <Tooltip title="Reload providers">
+                        <Button
+                            icon={<ArrowClockwise size={14} />}
+                            type="text"
+                            size="small"
+                            aria-label="Reload providers"
+                            loading={loading}
+                            onClick={mutate}
+                        />
+                    </Tooltip>
                 </div>
                 <Table
                     className="ph-no-capture"

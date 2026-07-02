@@ -1,0 +1,173 @@
+# Service To Agent Runner
+
+The `/run` contract is the spine of the agent stack. The Python service builds a request,
+the Node runner executes a turn, and the runner returns a result or a stream of events.
+Everything else in this folder hangs off this contract. It is also the most pinned one: the
+TypeScript types in `protocol.ts` are mirrored by hand in `wire.py`, and shared golden
+fixtures byte-check the serialization. A field cannot move on one side alone.
+
+In deployed containers the transport is HTTP to the sidecar. In local source checkouts it
+can be a CLI subprocess that takes the same JSON on stdin. Both transports carry the same
+payload, so the request shape is the contract and the transport is an implementation detail.
+
+The field-by-field narrative of `/run` (and the public `/invoke` and `/messages` surfaces it
+serves) lives in [Protocol](../../documentation/protocol.md). This page owns the review lens:
+what crosses the boundary, what can break, and what to check when a field moves.
+
+## Transports
+
+- HTTP: `POST /run` on the sidecar, JSON body.
+- HTTP streaming: same route with `Accept: application/x-ndjson`.
+- CLI: JSON request on stdin, JSON result on stdout.
+- CLI streaming: the `--stream` flag, NDJSON on stdout.
+
+## The request
+
+`AgentRunRequest` is built by `request_to_wire(...)` in `wire.py` and typed in
+`protocol.ts`. Every field is optional on the wire; the runner fills defaults. The fields
+group by job:
+
+```jsonc
+{
+  // agent + placement
+  "harness":  "pi_core",                 // "pi_core" | "pi_agenta" | "claude"; selects the ACP agent (no engine selector)
+  "sandbox":  "local",                   // "local" | "daytona"
+  "sessionId": "sess_ab12...",           // external id; cold runtime still gets full history
+
+  // instructions
+  "agentsMd":           "...",           // AGENTS.md text, injected as instructions
+  "systemPrompt":       "...",           // Pi only: replace the base prompt
+  "appendSystemPrompt": "...",           // Pi only: append without replacing
+
+  // model + connection (see service-to-vault-and-tool-providers.md)
+  "model":          "openai/gpt-5.5",
+  "provider":       "openai",            // present only for a structured model_ref
+  "connection":     { "mode": "agenta", "slug": "..." },
+  "deployment":     "direct",            // direct | azure | bedrock | vertex | custom
+  "endpoint":       { "baseUrl": "...", "apiVersion": "...", "region": "...", "headers": {} },
+  "credentialMode": "env",               // env | runtime_provided | none
+  "secrets":        { "OPENAI_API_KEY": "..." },   // the only vault-key channel on the wire
+
+  // turn
+  "messages": [ /* neutral ChatMessage[] */ ],  // the only turn channel; the runner derives the latest user turn (no separate `prompt` field on the wire)
+
+  // tools + skills (see runner-to-tool-callback.md, runner-to-mcp-server.md)
+  "tools":        [ "read", "edit" ],    // built-in tool names
+  "customTools":  [ /* ResolvedToolSpec[]; a callback spec carries `call_ref` (gateway) XOR an optional `call` direct-call descriptor — plumbing only, see runner-to-tool-callback.md */ ],
+  "toolCallback": { "endpoint": "...", "authorization": "..." },  // required if customTools set
+  "mcpServers":   [ /* McpServerConfig[] */ ],
+  "skills":       [ /* inline skill packages */ ],
+
+  // policy + files
+  "permissionPolicy":  "auto",           // "auto" | "deny"
+  "sandboxPermission": { /* Layer 2 boundary; network enforced on Daytona, see sandbox-permission.md */ },
+  "harnessFiles":      [ { "path": ".claude/settings.json", "content": "..." } ],
+
+  // tracing, grouped by role (see service-and-runner-trace-export.md)
+  "context":   { "propagation": { "traceparent": "...", "baggage": null } },  // per-call W3C trace-context propagation
+  "telemetry": {                                                               // operator-owned exporter config + capture policy
+    "capture":   { "content": { "enabled": true } },                          // capture policy (default on)
+    "exporters": { "otlp": { "endpoint": "...", "headers": { "authorization": "..." } } }  // destination + credential
+  },
+
+  // run context — the run's own identity, refreshed per turn (direct-call tools, Phase 3a)
+  "runContext": {                          // omitted when the run has no own identity to bind
+    "workflow": {
+      "artifact": { "id": "...", "slug": "..." },              // the workflow
+      "variant":  { "id": "...", "slug": "..." },              // the variant
+      "revision": { "id": "...", "slug": "...", "version": "..." },
+      "is_draft": false                                        // committed revision vs playground draft
+    },
+    "trace": { "trace_id": "...", "span_id": "..." }
+  }
+}
+```
+
+`runContext` is the run's own context (its trace + workflow identity), filled by the service in
+`app.py` from `run_context()` (`tracing.py`) and refreshed each turn. It is consumed ONLY by a
+tool's `call.context` binding at dispatch: the runner fills the bound request fields from this blob
+server-side, hidden from the model (see `runner-to-tool-callback.md`). `workflow` mirrors the
+platform's three workflow entities — `artifact` / `variant` / `revision`, each an `{id, slug,
+version}` reference — and `is_draft` says whether the run targets a committed revision or a
+playground draft. The conversation id is NOT carried here; it rides the top-level `sessionId`. The
+inner keys are deliberately snake_case — they are the binding namespace a `call.context` value
+(`"$ctx.<dotted.path>"`, e.g. `"$ctx.workflow.variant.id"`) addresses, not the wire's usual
+camelCase. Omitted when there is no identity to bind, so a run that needs no binding stays
+byte-identical.
+
+The run's tracing inputs ride the wire grouped by role rather than in one `trace` bucket (they
+mixed four roles: per-call propagation, exporter config, exporter credential, and capture policy).
+`context.propagation` carries the per-call W3C trace-context headers (`traceparent` / `baggage`, kept
+verbatim) that nest the run under the caller's `/invoke` span. `telemetry` carries the
+operator-owned config: `capture.content.enabled` is the capture policy, and `exporters.otlp` is the
+OTLP destination with the credential nested under the standard `authorization` header. Both come
+from one service-side capture (`trace_context()` in `tracing.py`) and are both `null` when the run
+has no trace context. Note `context` (telemetry propagation, consumed by the runner's OTLP exporter)
+is distinct from `runContext` (the run's own resource identity, consumed by tool `call.context`
+binding); they are different roles with different consumers and are kept separate.
+
+Two splits matter for back-compat. `provider` and `connection` appear only when the model
+arrives as a structured `model_ref`; a plain string like `"gpt-5.5"` leaves them off so the
+wire stays byte-identical to the old shape. And `secrets` is the only vault-key channel on
+the runner wire. `endpoint` carries non-secret connection config, and
+`ResolvedConnection.to_wire()` never emits `env`.
+
+## The result
+
+`AgentRunResult`, parsed by `result_from_wire(...)`. `ok: false` raises in Python.
+
+```jsonc
+{
+  "ok":           true,
+  "output":       "final assistant text",     // what the playground renders
+  "messages":     [ /* structured assistant messages */ ],
+  "events":       [ /* event log; empty on the streaming path */ ],
+  "usage":        { "input": 0, "output": 0, "total": 0, "cost": 0 },
+  "stopReason":   "end_turn",
+  "capabilities": { /* HarnessCapabilities, probed */ },
+  "sessionId":    "sess_...",                  // carried forward to the next turn
+  "model":        "openai/gpt-5.5",
+  "traceId":      "hex...",                     // present when a traceparent was passed
+  "error":        null                          // set when ok is false
+}
+```
+
+## Streaming
+
+The streaming transports emit one JSON object per line. Each event is flushed as it is
+built; the run ends with exactly one terminal `result` record.
+
+```jsonc
+{ "kind": "event",  "event":  { "type": "message_delta", "id": "m1", "delta": "Hi" } }
+{ "kind": "result", "result": { "ok": true, "output": "Hi" } }
+```
+
+On the streaming path the terminal result's `events` array is empty, because the events
+already went out live. A consumer that reads events off the result will get nothing on this
+path; it must read them from the stream. A stream that ends without a `result` record is an
+error.
+
+## Owned by
+
+- `services/agent/src/protocol.ts`: the TypeScript request, result, and event types.
+- `sdks/python/agenta/sdk/agents/utils/wire.py`: the Python serializer that mirrors them.
+- `sdks/python/agenta/sdk/agents/utils/ts_runner.py`: HTTP and subprocess transport.
+- `services/agent/src/server.ts` and `cli.ts`: the runner-side HTTP and CLI entrypoints.
+
+## Watch for when changing
+
+- **Any wire field, event kind, capability flag, tool field, or stream record.** Change one
+  and you change the contract.
+- **The byte-for-byte back-compat splits.** A plain string `model` must keep `provider` and
+  `connection` off the wire, or the golden fixtures break.
+- **Streaming versus batch divergence.** Events ride the stream live and never echo in the
+  terminal result.
+- **Error and cancellation behavior.** HTTP maps `>= 400` to a runtime error; the CLI uses
+  exit codes. HTTP streaming wires an `AbortSignal` to client disconnect; the CLI has none.
+
+## Required test updates
+
+- Python wire contract tests under `sdks/python/oss/tests/pytest/unit/agents/`.
+- TypeScript wire contract tests under `services/agent/tests/unit/`.
+- Golden fixtures under `sdks/python/oss/tests/pytest/unit/agents/golden/`. These pin the
+  exact bytes, so regenerate and review the diff deliberately.

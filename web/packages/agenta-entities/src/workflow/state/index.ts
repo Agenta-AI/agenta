@@ -11,6 +11,16 @@
 export {workflowMolecule, type WorkflowMolecule} from "./molecule"
 
 // ============================================================================
+// INSPECT META (per-harness capability map from `/inspect` meta)
+// ============================================================================
+
+export {
+    harnessCapabilitiesAtomFamily,
+    type HarnessCapabilities,
+    type HarnessCapabilitiesMap,
+} from "./inspectMeta"
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 
@@ -46,12 +56,16 @@ export {
     workflowEntityAtomFamily,
     workflowIsDirtyAtomFamily,
     workflowIsEphemeralAtomFamily,
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    type AgentTemplate,
     // Mutations
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    invalidateAgentCommittedRevisionCache,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,

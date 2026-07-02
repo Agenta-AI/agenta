@@ -23,6 +23,7 @@ from pydantic import (
 from agenta.sdk.models.shared import (
     TraceID,
     SpanID,
+    SessionID,
     Link,
     Identifier,
     Slug,
@@ -76,6 +77,8 @@ class WorkflowFlags(BaseModel):
     is_code: bool = False
     is_match: bool = False
     is_feedback: bool = False
+    is_agent: bool = False
+    is_skill: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -85,6 +88,8 @@ class WorkflowFlags(BaseModel):
     has_script: bool = False
     ## function
     has_handler: bool = False
+    # slug-derived
+    is_static: bool = False
     # user-defined
     is_application: bool = False
     is_evaluator: bool = False
@@ -103,6 +108,8 @@ class WorkflowQueryFlags(BaseModel):
     is_code: Optional[bool] = None
     is_match: Optional[bool] = None
     is_feedback: Optional[bool] = None
+    is_agent: Optional[bool] = None
+    is_skill: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
@@ -112,10 +119,34 @@ class WorkflowQueryFlags(BaseModel):
     has_script: Optional[bool] = None
     ## function
     has_handler: Optional[bool] = None
+    # slug-derived
+    is_static: Optional[bool] = None
     # user-defined
     is_application: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_snippet: Optional[bool] = None
+
+
+class WorkflowInvokeRequestFlags(BaseModel):
+    """Per-call command directives on an invoke request.
+
+    These are *commands* (what this invoke call should do), categorically
+    distinct from the entity descriptor flags (``WorkflowFlags`` /
+    ``WorkflowQueryFlags``, which describe what a workflow *is*). All boolean;
+    ``None`` means unset
+    (read as ``False``, but kept tri-state so "unset" stays distinguishable).
+
+    - ``stream``  — stream the output (generator); else aggregate to a batch.
+    - ``history`` — batch output holds the full message list; else just the last.
+    - ``control`` — take over / attach to an existing run (vs run a turn).
+    - ``resolve`` — resolve embeds/parameters server-side (defaults on); a
+      pre-existing request directive, kept here so all per-call flags are typed.
+    """
+
+    stream: Optional[bool] = None
+    history: Optional[bool] = None
+    control: Optional[bool] = None
+    resolve: Optional[bool] = None
 
 
 class WorkflowRevisionData(BaseModel):
@@ -214,7 +245,7 @@ class WorkflowRequestData(BaseModel):
     outputs: Optional[Any] = None
 
 
-# back-compat alias
+# alias
 WorkflowServiceRequestData = WorkflowRequestData
 
 
@@ -222,8 +253,14 @@ class WorkflowServiceResponseData(BaseModel):
     outputs: Optional[Any] = None
 
 
-class WorkflowBaseRequest(Metadata):
+class WorkflowBaseRequest(Metadata, SessionID):
     version: Optional[str] = "2025.07.14"
+
+    # ``flags`` stays the loose dict from ``Metadata`` (the request boundary is
+    # intentionally dict-ish, forgiving). Per-call COMMAND directives carried in it
+    # — ``stream`` / ``history`` / ``control`` / ``resolve`` — are described and
+    # parsed by ``WorkflowInvokeRequestFlags`` in the running layer; it is the typed
+    # accessor, not the wire type.
 
     references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None
     links: Optional[Dict[str, Union[Link, Dict[str, Any]]]] = None
@@ -232,6 +269,8 @@ class WorkflowBaseRequest(Metadata):
 
     secrets: Optional[Dict[str, Any]] = None
     credentials: Optional[str] = None
+
+    # ``session_id`` is contributed by the SessionID mixin.
 
     @model_validator(mode="before")
     def _coerce_nested_models(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -262,8 +301,11 @@ class WorkflowInvokeRequest(WorkflowBaseRequest):
 WorkflowServiceRequest = WorkflowInvokeRequest
 
 
-class WorkflowInspectRequest(Metadata):
+class WorkflowInspectRequest(Metadata, SessionID):
     version: Optional[str] = "2025.07.14"
+
+    # ``session_id`` is contributed by the SessionID mixin — at the same level as
+    # on the invoke request, so inspect can be scoped to a session too.
 
     revision: Optional[Dict[str, Any]] = None
 
@@ -286,10 +328,48 @@ class WorkflowInspectRequest(Metadata):
 WorkflowServiceInspectRequest = WorkflowInspectRequest
 
 
-class WorkflowBaseResponse(TraceID, SpanID):
+class WorkflowInspectResponse(Metadata, SessionID):
+    """The ``/inspect`` response: the resolved workflow revision, plus a ready-made request.
+
+    ``/inspect`` is a public edge — it tells a client which form to render and which inputs,
+    parameters, and outputs a workflow has. On main, ``/inspect`` returned a whole
+    ``WorkflowInvokeRequest`` AS the response; this model makes the response explicit while
+    keeping that request available, demoted to a field:
+
+    - ``revision`` is a :class:`WorkflowRevision`, UNMODIFIED. Its ``data`` is the
+      :class:`WorkflowRevisionData`, so the schemas live where they always do, at
+      ``response.revision.data.schemas`` — never lifted out, never reshaped.
+    - ``request`` is the ready-made :class:`WorkflowInvokeRequest` (what main used to return as
+      the whole response). A client that wants a prepared request reads ``response.request``;
+      a client that wants the revision reads ``response.revision``. Neither is derived from or
+      mutates the other.
+
+    ``revision.data.schemas.outputs`` is a plain JSON Schema — never keyed by output surface.
+    ``session_id`` (from the SessionID mixin) is set when the inspect is session-scoped.
+    """
+
+    version: Optional[str] = "2025.07.14"
+
+    # Loose dicts at the wire boundary, like ``WorkflowRequestData.revision`` /
+    # ``WorkflowInspectRequest.revision`` (move to typed later, consistently across all of them):
+    #   ``revision`` carries a ``WorkflowRevision`` shape  -> schemas at ``revision.data.schemas``
+    #   ``request``  carries a ``WorkflowInvokeRequest`` shape (the ready-made request)
+    revision: Optional[dict] = None
+    request: Optional[dict] = None
+
+
+# back-compat alias
+WorkflowServiceInspectResponse = WorkflowInspectResponse
+
+
+class WorkflowBaseResponse(TraceID, SpanID, SessionID):
     version: Optional[str] = "2025.07.14"
 
     status: Optional[WorkflowServiceStatus] = WorkflowServiceStatus()
+
+    # ``session_id`` (from the SessionID mixin) is the resolved session id, minted or
+    # echoed by the running normalizer, alongside ``trace_id`` / ``span_id``. ``None``
+    # when no session is in play.
 
 
 # back-compat alias

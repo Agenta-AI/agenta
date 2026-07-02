@@ -1,6 +1,6 @@
 # /agenta/sdk/middlewares/running/normalizer.py
 import inspect
-from typing import Any, Dict, Callable, Union
+from typing import Any, Dict, Callable, Optional, Union
 from inspect import isawaitable, isasyncgen, isgenerator
 from traceback import format_exception
 from uuid import UUID
@@ -9,12 +9,14 @@ from uuid import UUID
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
     WorkflowServiceStatus,
-    WorkflowServiceRequestData,
+    WorkflowRequestData,
     WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
+    WorkflowInvokeRequestFlags,
 )
+from agenta.sdk.models.shared import resolve_session_id
 from agenta.sdk.engines.running.errors import ErrorStatus
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.contexts.tracing import TracingContext
@@ -33,7 +35,7 @@ class NormalizerMiddleware:
        keyword arguments for the workflow handler function by:
        - Mapping request data fields to handler function parameters
        - Extracting inputs from request.data.inputs and mapping them to function parameters
-       - Handling special parameters like 'request' and WorkflowServiceRequestData fields
+       - Handling special parameters like 'request' and WorkflowRequestData fields
        - Supporting **kwargs expansion for additional fields
 
     2. **Response Normalization**: Transforms handler function results into standardized
@@ -49,9 +51,7 @@ class NormalizerMiddleware:
     while maintaining structured request/response formats at the service boundary.
     """
 
-    DATA_FIELDS = set(("request",)) | set(
-        WorkflowServiceRequestData.model_fields.keys()
-    )
+    DATA_FIELDS = set(("request",)) | set(WorkflowRequestData.model_fields.keys())
 
     async def _normalize_request(
         self,
@@ -66,8 +66,10 @@ class NormalizerMiddleware:
         1. If parameter name is 'request': passes the entire WorkflowServiceRequest
         2. If parameter name matches DATA_FIELDS (like 'inputs', 'outputs', 'parameters'):
            extracts that field from request.data
-        3. If parameter is **kwargs: includes all unconsumed DATA_FIELDS
-        4. Otherwise: looks up the parameter name in request.data.inputs dict
+        3. If parameter name is a supported top-level request field like 'session_id':
+           extracts that field from the request envelope
+        4. If parameter is **kwargs: includes all unconsumed DATA_FIELDS
+        5. Otherwise: looks up the parameter name in request.data.inputs dict
 
         Args:
             request: The workflow service request containing inputs and data
@@ -95,6 +97,10 @@ class NormalizerMiddleware:
                 )
                 consumed.add(name)
 
+            elif name == "session_id":
+                normalized[name] = request.session_id
+                consumed.add(name)
+
             elif param.kind == inspect.Parameter.VAR_KEYWORD:
                 if request.data:
                     for f in self.DATA_FIELDS - consumed:
@@ -111,101 +117,120 @@ class NormalizerMiddleware:
 
         return normalized
 
+    @staticmethod
+    def _correlation_ids():
+        """trace_id / span_id (from the span link) + session_id — all off the
+        TracingContext, the single source for response correlation ids."""
+        trace_id = None
+        span_id = None
+        session_id = None
+        ctx = TracingContext.get()
+        # session_id is read independently of the trace/span link so a malformed
+        # link can never drop it from the response.
+        session_id = ctx.session_id
+        with suppress():
+            link = ctx.link or {}
+            _trace_id = link.get("trace_id") if link else None  # in int format
+            _span_id = link.get("span_id") if link else None  # in int format
+            if isinstance(_trace_id, int):
+                trace_id = UUID(int=_trace_id).hex
+            if isinstance(_span_id, int):
+                span_id = UUID(int=_span_id).hex[16:]
+        return trace_id, span_id, session_id
+
     async def _normalize_response(
         self,
         result: Any,
+        flags: Optional[WorkflowInvokeRequestFlags] = None,
     ) -> Union[
         WorkflowServiceBatchResponse,
         WorkflowServiceStreamResponse,
     ]:
+        flags = flags or WorkflowInvokeRequestFlags()
+
         if isawaitable(result):
             result = await result
 
+        trace_id, span_id, session_id = self._correlation_ids()
+
+        # Already a typed response — pass through, stamp the correlation ids.
         if isinstance(
             result, (WorkflowServiceBatchResponse, WorkflowServiceStreamResponse)
         ):
-            trace_id = None
-            span_id = None
-
-            with suppress():
-                link = (TracingContext.get().link) or {}
-
-                _trace_id = link.get("trace_id") if link else None  # in int format
-                _span_id = link.get("span_id") if link else None  # in int format
-
-                trace_id = UUID(int=_trace_id).hex if _trace_id else None
-                span_id = UUID(int=_span_id).hex[16:] if _span_id else None
-
             result.trace_id = trace_id
             result.span_id = span_id
-
+            result.session_id = session_id
             return result
 
+        # Generator handlers (sync or async) yield events. The per-call `stream`
+        # flag decides the representation: stream -> pass through; otherwise drain
+        # and aggregate into a batch (`history` sets full list vs last only). The
+        # default (flags unset) keeps a generator a stream — back-compat.
+        if isasyncgen(result) or isgenerator(result):
+            if flags.stream is False:
+                items = await self._drain(result)
+                outputs = items if flags.history else items[-1:]
+                return WorkflowServiceBatchResponse(
+                    data=WorkflowServiceResponseData(outputs=outputs),
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    session_id=session_id,
+                )
+
+            iterator = self._async_iterator(result)
+            return WorkflowServiceStreamResponse(
+                generator=iterator,
+                trace_id=trace_id,
+                span_id=span_id,
+                session_id=session_id,
+            )
+
+        # Direct (non-generator) return. Full-vs-last is a property of a `messages` list, so
+        # apply it when the handler returned the `{messages: [...]}` envelope (agent v0's
+        # `outputs.messages`) — the same `history` trim the generator-drain path does above.
+        # A single message / string / scalar (chat, completion, evaluators) has no `messages`
+        # field and passes through untouched. The handler owns its output shape; the normalizer
+        # only honors history once it sees a `messages` list.
+        outputs = result
+        if isinstance(result, dict) and isinstance(result.get("messages"), list):
+            msgs = result["messages"]
+            outputs = {**result, "messages": msgs if flags.history else msgs[-1:]}
+
+        return WorkflowServiceBatchResponse(
+            data=WorkflowServiceResponseData(outputs=outputs),
+            trace_id=trace_id,
+            span_id=span_id,
+            session_id=session_id,
+        )
+
+    @staticmethod
+    def _async_iterator(result):
+        """Wrap a sync or async generator as a no-arg async-generator factory."""
         if isasyncgen(result):
 
             async def iterator():
                 async for item in result:
                     yield item
 
-            trace_id = None
-            span_id = None
-
-            with suppress():
-                link = (TracingContext.get().link) or {}
-
-                _trace_id = link.get("trace_id") if link else None  # in int format
-                _span_id = link.get("span_id") if link else None  # in int format
-
-                trace_id = UUID(int=_trace_id).hex if _trace_id else None
-                span_id = UUID(int=_span_id).hex[16:] if _span_id else None
-
-            return WorkflowServiceStreamResponse(
-                generator=iterator,
-                trace_id=trace_id,
-                span_id=span_id,
-            )
-
-        if isgenerator(result):
+        else:
 
             async def iterator():
                 for item in result:
                     yield item
 
-            trace_id = None
-            span_id = None
+        return iterator
 
-            with suppress():
-                link = (TracingContext.get().link) or {}
-
-                _trace_id = link.get("trace_id") if link else None  # in int format
-                _span_id = link.get("span_id") if link else None  # in int format
-
-                trace_id = UUID(int=_trace_id).hex if _trace_id else None
-                span_id = UUID(int=_span_id).hex[16:] if _span_id else None
-
-            return WorkflowServiceStreamResponse(
-                generator=iterator,
-                trace_id=trace_id,
-                span_id=span_id,
-            )
-
-        trace_id = None
-        span_id = None
-
-        with suppress():
-            link = (TracingContext.get().link) or {}
-
-            _trace_id = link.get("trace_id") if link else None  # in int format
-            _span_id = link.get("span_id") if link else None  # in int format
-
-            trace_id = UUID(int=_trace_id).hex if _trace_id else None
-            span_id = UUID(int=_span_id).hex[16:] if _span_id else None
-
-        return WorkflowServiceBatchResponse(
-            data=WorkflowServiceResponseData(outputs=result),
-            trace_id=trace_id,
-            span_id=span_id,
-        )
+    @staticmethod
+    async def _drain(result) -> list:
+        """Consume a sync or async generator fully into a list."""
+        items: list = []
+        if isasyncgen(result):
+            async for item in result:
+                items.append(item)
+        else:
+            for item in result:
+                items.append(item)
+        return items
 
     async def _normalize_exception(
         self,
@@ -243,22 +268,13 @@ class NormalizerMiddleware:
                 stacktrace=stacktrace,
             )
 
-        trace_id = None
-        span_id = None
-
-        with suppress():
-            link = (TracingContext.get().link) or {}
-
-            _trace_id = link.get("trace_id") if link else None  # in int format
-            _span_id = link.get("span_id") if link else None  # in int format
-
-            trace_id = UUID(int=_trace_id).hex if _trace_id else None
-            span_id = UUID(int=_span_id).hex[16:] if _span_id else None
+        trace_id, span_id, session_id = self._correlation_ids()
 
         error_response = WorkflowServiceBatchResponse(
             status=error_status,
             trace_id=trace_id,
             span_id=span_id,
+            session_id=session_id,
         )
 
         log.warning(
@@ -283,16 +299,36 @@ class NormalizerMiddleware:
         if not handler:
             raise RuntimeError("NormalizerMiddleware: no handler set in context")
 
-        kwargs = await self._normalize_request(request, handler)
+        # Resolve session_id ONCE, before the handler runs (mint when absent). Put
+        # it on the TracingContext via a SCOPED set (copy + token reset) — never
+        # mutate the shared context instance in place, or it leaks across invokes.
+        # It is the single source the response constructors read correlation ids
+        # from; the handler also sees it on the request, and it lands on the span.
+        session_id = resolve_session_id(request.session_id)
+        request.session_id = session_id
 
+        scoped = TracingContext.get().model_copy(deep=True)
+        scoped.session_id = session_id
+        token = TracingContext.set(scoped)
         try:
-            response = handler(**kwargs)
+            if session_id:
+                import agenta as ag
 
-            normalized = await self._normalize_response(response)
+                if ag.tracing is not None:
+                    ag.tracing.store_session(session_id=session_id)
 
-        except Exception as exception:
-            normalized = await self._normalize_exception(exception)
+            kwargs = await self._normalize_request(request, handler)
+
+            flags = WorkflowInvokeRequestFlags(**(request.flags or {}))
+
+            try:
+                response = handler(**kwargs)
+
+                normalized = await self._normalize_response(response, flags=flags)
+
+            except Exception as exception:
+                normalized = await self._normalize_exception(exception)
 
             return normalized
-
-        return normalized
+        finally:
+            TracingContext.reset(token)

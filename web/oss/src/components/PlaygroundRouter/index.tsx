@@ -11,7 +11,7 @@ import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 const PlaygroundLoadingShell = () => {
     return (
-        <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
+        <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
             <div
                 className={`flex items-center justify-between gap-4 px-2.5 py-2 ${bgColors.active}`}
             >

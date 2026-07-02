@@ -54,10 +54,12 @@ _PUBLIC_ENDPOINTS = (
     "/health",
     "/docs",
     "/openapi.json",
+    "/.well-known/jwks.json",
     # API
     "/api/health",
     "/api/docs",
     "/api/openapi.json",
+    "/api/.well-known/jwks.json",
     # SUPERTOKENS
     "/auth",
     "/api/auth",
@@ -69,6 +71,11 @@ _PUBLIC_ENDPOINTS = (
     "/api/tools/connections/callback",
     "/preview/tools/connections/callback",
     "/api/preview/tools/connections/callback",
+    # TRIGGERS — inbound provider events arrive from Composio with no auth token
+    "/triggers/composio/events/",
+    "/api/triggers/composio/events/",
+    "/preview/triggers/composio/events/",
+    "/api/preview/triggers/composio/events/",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"

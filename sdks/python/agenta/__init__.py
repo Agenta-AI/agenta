@@ -52,6 +52,21 @@ from .sdk.utils.costs import calculate_token_usage  # noqa: F401
 from .sdk.utils.logging import get_module_logger  # noqa: F401
 from .sdk.utils.preinit import PreInitObject  # noqa: F401
 
+# Agent runtime (the agents subsystem). `Message` is intentionally not re-exported here:
+# `agenta.Message` already names the prompt message type; import the agents one from
+# `agenta.sdk.agents` when needed.
+from .sdk.agents import (  # noqa: F401
+    AgentaHarness,
+    AgentTemplate,
+    ClaudeHarness,
+    Environment,
+    LocalBackend,
+    PiHarness,
+    SandboxAgentBackend,
+    SessionConfig,
+    make_harness,
+)
+
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
 
 types = client_types

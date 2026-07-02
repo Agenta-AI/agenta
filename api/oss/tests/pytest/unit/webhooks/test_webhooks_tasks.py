@@ -5,11 +5,14 @@ Pure logic, no network or database involved.
 
 from unittest.mock import patch
 
-from oss.src.core.webhooks.delivery import (
+from agenta.sdk.utils.resolvers import (
     MAX_RESOLVE_DEPTH,
+    resolve_target_fields,
+)
+
+from oss.src.core.webhooks.delivery import (
     NON_OVERRIDABLE_HEADERS,
     _merge_headers,
-    resolve_payload_fields,
 )
 from oss.src.core.webhooks.types import (
     EVENT_CONTEXT_FIELDS,
@@ -35,18 +38,18 @@ _MOCK_CONTEXT = {
     "scope": {"project_id": "proj-1"},
 }
 
-_RESOLVE_PATH = "oss.src.core.webhooks.delivery.resolve_json_selector"
+_RESOLVE_PATH = "agenta.sdk.utils.resolvers.resolve_json_selector"
 
 
 # ---------------------------------------------------------------------------
-# resolve_payload_fields
+# resolve_target_fields
 # ---------------------------------------------------------------------------
 
 
-class TestResolvePayloadFields:
+class TestResolveTargetFields:
     def test_dict_recurses_into_values(self):
         with patch(_RESOLVE_PATH, side_effect=lambda expr, ctx: f"resolved:{expr}"):
-            result = resolve_payload_fields(
+            result = resolve_target_fields(
                 {"key": "$.event.event_id"},
                 _MOCK_CONTEXT,
             )
@@ -54,7 +57,7 @@ class TestResolvePayloadFields:
 
     def test_list_recurses_into_items(self):
         with patch(_RESOLVE_PATH, side_effect=lambda expr, ctx: f"resolved:{expr}"):
-            result = resolve_payload_fields(
+            result = resolve_target_fields(
                 ["$.event.event_id", "$.scope.project_id"],
                 _MOCK_CONTEXT,
             )
@@ -65,12 +68,12 @@ class TestResolvePayloadFields:
 
     def test_primitive_delegates_to_resolve_json_selector(self):
         with patch(_RESOLVE_PATH, return_value="abc123") as mock_resolve:
-            result = resolve_payload_fields("$.event.event_id", _MOCK_CONTEXT)
+            result = resolve_target_fields("$.event.event_id", _MOCK_CONTEXT)
         assert result == "abc123"
         mock_resolve.assert_called_once_with("$.event.event_id", _MOCK_CONTEXT)
 
     def test_depth_exceeds_limit_returns_none(self):
-        result = resolve_payload_fields(
+        result = resolve_target_fields(
             "$.event.event_id",
             _MOCK_CONTEXT,
             _depth=MAX_RESOLVE_DEPTH + 1,
@@ -79,7 +82,7 @@ class TestResolvePayloadFields:
 
     def test_depth_at_limit_still_resolves(self):
         with patch(_RESOLVE_PATH, return_value="ok"):
-            result = resolve_payload_fields(
+            result = resolve_target_fields(
                 "$.event.event_id",
                 _MOCK_CONTEXT,
                 _depth=MAX_RESOLVE_DEPTH,
@@ -88,7 +91,7 @@ class TestResolvePayloadFields:
 
     def test_resolve_error_returns_none(self):
         with patch(_RESOLVE_PATH, side_effect=ValueError("bad selector")):
-            result = resolve_payload_fields("$.bad[", _MOCK_CONTEXT)
+            result = resolve_target_fields("$.bad[", _MOCK_CONTEXT)
         assert result is None
 
     def test_error_leaf_in_dict_does_not_affect_other_keys(self):
@@ -98,7 +101,7 @@ class TestResolvePayloadFields:
             return "good"
 
         with patch(_RESOLVE_PATH, side_effect=side_effect):
-            result = resolve_payload_fields(
+            result = resolve_target_fields(
                 {"ok": "$.event.event_id", "bad": "$.bad["},
                 _MOCK_CONTEXT,
             )
@@ -106,14 +109,14 @@ class TestResolvePayloadFields:
 
     def test_dollar_selector_resolves_full_context(self):
         with patch(_RESOLVE_PATH, return_value=_MOCK_CONTEXT) as mock_resolve:
-            result = resolve_payload_fields("$", _MOCK_CONTEXT)
+            result = resolve_target_fields("$", _MOCK_CONTEXT)
         assert result == _MOCK_CONTEXT
         mock_resolve.assert_called_once_with("$", _MOCK_CONTEXT)
 
     def test_nested_dict_depth_tracking(self):
         # Three levels deep should still work (depth starts at 0)
         with patch(_RESOLVE_PATH, return_value="leaf"):
-            result = resolve_payload_fields(
+            result = resolve_target_fields(
                 {"a": {"b": {"c": "$.event.event_id"}}},
                 _MOCK_CONTEXT,
             )

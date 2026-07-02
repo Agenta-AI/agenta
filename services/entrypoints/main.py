@@ -39,10 +39,10 @@ from oss.src.managed import (
     custom_code_app,
     custom_hook_app,
     custom_mock_app,
-    custom_config_app,
 )
 from oss.src.chat import chat_v0_app
 from oss.src.completion import completion_v0_app
+from oss.src.agent import agent_v0_app
 from entrypoints.legacy import register_legacy_routes
 
 
@@ -134,6 +134,7 @@ async def health():
 
 app.mount("/chat/v0", chat_v0_app)
 app.mount("/completion/v0", completion_v0_app)
+app.mount("/agent/v0", agent_v0_app)
 
 register_legacy_routes(
     app=app,
@@ -142,7 +143,6 @@ register_legacy_routes(
     target_version="v0",
 )
 #
-app.mount("/config/v0", custom_config_app)
 app.mount("/code/v0", custom_code_app)
 app.mount("/hook/v0", custom_hook_app)
 app.mount("/mock/v0", custom_mock_app)

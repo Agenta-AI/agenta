@@ -21,7 +21,7 @@
         "@agenta/oss": "link:oss",
         "@eslint/eslintrc": "^3.3.5",
         "@eslint/js": "^9.39.4",
-        "@lexical/eslint-plugin": "^0.40.0",
+        "@lexical/eslint-plugin": "^0.46.0",
         "@next/eslint-plugin-next": "15.5.18",
         "@typescript-eslint/eslint-plugin": "^8.61.0",
         "@typescript-eslint/parser": "^8.61.0",

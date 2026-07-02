@@ -16,10 +16,13 @@ SOURCE_COMPOSE_FILE="${RAILWAY_SOURCE_COMPOSE_FILE:-$(railway_source_compose_fil
 WEB_IMAGE="${AGENTA_WEB_IMAGE:-ghcr.io/agenta-ai/agenta-web:latest}"
 API_IMAGE="${AGENTA_API_IMAGE:-ghcr.io/agenta-ai/agenta-api:latest}"
 SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-ghcr.io/agenta-ai/agenta-services:latest}"
+RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-ghcr.io/agenta-ai/agenta-runner:latest}"
 SUPERTOKENS_IMAGE="${SUPERTOKENS_IMAGE:-$(require_compose_service_image "$SOURCE_COMPOSE_FILE" "supertokens")}"
 REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE")}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-$(require_compose_service_image "$SOURCE_COMPOSE_FILE" "postgres")}"
 GATEWAY_IMAGE="${AGENTA_GATEWAY_IMAGE:-}"
+# Pin a 4.37-era SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases.
+SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.37}"
 
 require_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -146,10 +149,14 @@ main() {
     add_service_image web "$WEB_IMAGE"
     add_service_image api "$API_IMAGE"
     add_service_image services "$SERVICES_IMAGE"
+    add_service_image runner "$RUNNER_IMAGE"
     add_service_image worker-evaluations "$API_IMAGE"
     add_service_image worker-tracing "$API_IMAGE"
     add_service_image worker-webhooks "$API_IMAGE"
     add_service_image worker-events "$API_IMAGE"
+    add_service_image worker-interactions "$API_IMAGE"
+    add_service_image worker-records "$API_IMAGE"
+    add_service_image worker-triggers "$API_IMAGE"
     add_service_image cron "$API_IMAGE"
     add_service_image alembic "$API_IMAGE"
     add_service_image supertokens "$SUPERTOKENS_IMAGE"
@@ -159,6 +166,9 @@ main() {
 
     add_service_image redis "$REDIS_IMAGE"
     ensure_volume redis /data
+
+    add_service_image seaweedfs "$SEAWEEDFS_IMAGE"
+    ensure_volume seaweedfs /data
 
     railway_call domain --service gateway --json >/dev/null 2>&1 || true
 

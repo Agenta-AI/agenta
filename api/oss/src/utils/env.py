@@ -514,6 +514,12 @@ class ComposioConfig(BaseModel):
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
     api_url: str = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+    # Dev: when set, unknown-trigger drops log at WARNING instead of INFO.
+    webhook_target: str | None = os.getenv("COMPOSIO_WEBHOOK_TARGET")
+    # Override the registered webhook URL. Composio requires public HTTPS; in dev
+    # (http://localhost) the tunnel delivers over WebSocket, so this only needs to
+    # be a valid public HTTPS placeholder to mint the subscription's secret.
+    webhook_url: str | None = os.getenv("COMPOSIO_WEBHOOK_URL")
 
     @property
     def enabled(self) -> bool:
@@ -836,6 +842,63 @@ class LoopsConfig(BaseModel):
     def enabled(self) -> bool:
         """Loops enabled if API key present"""
         return bool(self.api_key)
+
+
+# ---------------------------------------------------------------------------
+# store — shared S3-compatible object store
+# ---------------------------------------------------------------------------
+
+
+class StoreConfig(BaseModel):
+    """Shared S3-compatible object store credentials.
+
+    Dev points at SeaweedFS; prod points at real S3 / R2 — same code path.
+    """
+
+    # Everything except the keys/secrets carries a dev default in code (mirrors RedisConfig):
+    # the bundled SeaweedFS store works zero-config, and a self-hosted deploy that uses it
+    # inherits the same values; only ACCESS_KEY / SECRET_KEY must be supplied.
+    endpoint_url: str | None = (
+        os.getenv("AGENTA_STORE_ENDPOINT_URL") or "http://seaweedfs:8333"
+    )
+    access_key: str | None = os.getenv("AGENTA_STORE_ACCESS_KEY")
+    secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
+    region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
+    bucket: str | None = os.getenv("AGENTA_STORE_BUCKET") or "agenta-store"
+    namespace: str | None = os.getenv("AGENTA_STORE_NAMESPACE") or None
+
+    # STS endpoint for the GetFederationToken path (non-SeaweedFS stores). Defaults to the S3
+    # endpoint (MinIO co-locates STS there); override only when the store splits STS onto
+    # another host (AWS: https://sts.<region>.amazonaws.com).
+    sts_endpoint_url: str | None = os.getenv("AGENTA_STORE_STS_ENDPOINT_URL") or None
+
+    # Backend selector: SIGNING_KEY present => bundled SeaweedFS (STS via OIDC/web-identity);
+    # absent => remote S3-compatible store (STS via GetFederationToken). Also passed to the
+    # bundled SeaweedFS as its STS HMAC key; the API only reads it to pick the signing path.
+    signing_key: str | None = os.getenv("AGENTA_STORE_SIGNING_KEY") or None
+
+    # AssumeRoleWithWebIdentity issuer (SeaweedFS only): the in-network API URL the store's OIDC
+    # IAM uses to fetch our JWKS, and the RSA key signing the web-identity token. The key falls
+    # back to a baked-in local-dev key when unset (see core/store/webidentity.py).
+    jwt_private_key: str | None = os.getenv("AGENTA_STORE_JWT_PRIVATE_KEY")
+    jwt_issuer: str = os.getenv("AGENTA_STORE_JWT_ISSUER") or "http://api:8000"
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.access_key and self.secret_key)
+
+
+# ---------------------------------------------------------------------------
+# mounts
+# ---------------------------------------------------------------------------
+
+
+class MountsConfig(BaseModel):
+    """Mounts-domain config. Store credentials live in StoreConfig."""
+
+    model_config = ConfigDict(extra="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -1179,12 +1242,14 @@ class EnvironSettings(BaseModel):
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
+    mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
+    store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
 

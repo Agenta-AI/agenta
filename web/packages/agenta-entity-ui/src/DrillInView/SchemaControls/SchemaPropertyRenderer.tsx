@@ -19,6 +19,7 @@ import {formatLabel} from "@agenta/ui/drill-in"
 import {Typography} from "antd"
 import clsx from "clsx"
 
+import {AgentTemplateControl} from "./AgentTemplateControl"
 import {BooleanToggleControl} from "./BooleanToggleControl"
 import {CodeEditorControl} from "./CodeEditorControl"
 import {EnumSelectControl} from "./EnumSelectControl"
@@ -95,6 +96,7 @@ function getControlType(
     | "grouped_choice"
     | "feedback_config"
     | "fields_tags_editor"
+    | "agent-template"
     | "hidden"
     | "unknown" {
     if (forceType) return forceType
@@ -124,6 +126,9 @@ function getControlType(
     }
     if (xAgTypeRef === "code" || xAgType === "code") {
         return "code"
+    }
+    if (xAgTypeRef === "agent-template" || xAgType === "agent-template") {
+        return "agent-template"
     }
 
     // When schema is null, fall back to value-based detection
@@ -417,6 +422,22 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     value={value as unknown[] | null}
                     onChange={(v) => onChange(v)}
                     description={tooltipDesc}
+                    disabled={disabled}
+                    className={className}
+                />
+            )
+
+        case "agent-template":
+            // Render the whole agent config (instructions, model, tools, runtime) as one
+            // composite control that reuses the model selector, tool picker, and enums.
+            return (
+                <AgentTemplateControl
+                    schema={resolvedSchema}
+                    label={displayLabel}
+                    value={value as Record<string, unknown> | null}
+                    onChange={(v) => onChange(v)}
+                    description={tooltipDesc}
+                    withTooltip={withTooltip}
                     disabled={disabled}
                     className={className}
                 />

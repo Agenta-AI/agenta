@@ -55,6 +55,7 @@
  * - Types and helpers
  */
 export * from "./InfiniteVirtualTable"
+export {MarkdownPreview, type MarkdownPreviewProps} from "./MarkdownPreview"
 
 // ============================================================================
 // COMPONENTS
@@ -192,6 +193,8 @@ export {
     Editor,
     EditorProvider,
     DiffView,
+    MarkdownToolbar,
+    type MarkdownToolbarProps,
     preloadEditorPlugins,
     // Re-exports from Lexical
     useLexicalComposerContext,

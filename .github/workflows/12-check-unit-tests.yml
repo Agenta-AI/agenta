@@ -316,3 +316,194 @@ jobs:
           files: services/oss/tests/results/junit.xml
           check_name: Application services Unit Test Results
           comment_mode: off
+
+  run-runner-tests:
+    # The agent runner (services/runner) is a standalone Node/pnpm package, not part of the
+    # Python services suite above. It runs its own vitest unit tests plus a tsc typecheck gate.
+    # No "has_tests" guard on purpose: this suite is established, so a missing/empty suite must
+    # FAIL the job (vitest exits non-zero on no test files), not silently skip it.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-runner-pnpm-${{ hashFiles('services/runner/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-runner-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (tsc --noEmit, src + tests + config)
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm run typecheck
+
+      # The code-tool unit test spawns python3 and node end-to-end; both are preinstalled on
+      # ubuntu runners (node is also set up above), so no setup-python step is needed.
+      - name: Run agent runner unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm run test:unit
+
+      - name: Publish agent runner unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: services/runner/tests/results/junit-unit.xml
+          check_name: Agent Runner Unit Test Results
+          comment_mode: off
+
+  run-runner-integration-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-runner-pnpm-${{ hashFiles('services/runner/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-runner-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm install --frozen-lockfile
+
+      - name: Run agent runner integration tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm run test:integration
+
+      - name: Publish agent runner integration test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: services/runner/tests/results/junit-integration.xml
+          check_name: Agent Runner Integration Test Results
+          comment_mode: off
+
+  run-runner-acceptance-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-runner-pnpm-${{ hashFiles('services/runner/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-runner-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm install --frozen-lockfile
+
+      - name: Run agent runner acceptance tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm run test:acceptance
+
+      - name: Publish agent runner acceptance test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: services/runner/tests/results/junit-acceptance.xml
+          check_name: Agent Runner Acceptance Test Results
+          comment_mode: off

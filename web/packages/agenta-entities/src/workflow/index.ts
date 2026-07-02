@@ -46,6 +46,19 @@ export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./stat
 
 export {deriveWorkflowTypeFromRevision} from "./state/helpers"
 
+// Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
+export {
+    harnessCapabilitiesAtomFamily,
+    type HarnessCapabilities,
+    type HarnessCapabilitiesMap,
+} from "./state/inspectMeta"
+
+export {
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    type AgentTemplate,
+} from "./state"
+
 // ============================================================================
 // SCHEMAS & TYPES
 // ============================================================================
@@ -223,6 +236,7 @@ export {
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    invalidateAgentCommittedRevisionCache,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,

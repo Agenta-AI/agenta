@@ -19,6 +19,7 @@ NO_CACHE=false  # Default to using cache
 PULL_ENABLED=  # Stage-dependent default applied after parsing: gh→true, dev→false
 NUKE=false  # Default to not nuking volumes
 DOWN=false  # Default to up; --down only stops containers
+WITH_TUNNEL=true  # Composio trigger-event tunnel; disable with --no-tunnel
 
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -57,6 +58,10 @@ show_usage() {
     echo "Network:"
     echo "  --ssl                   Use SSL proxy stage (requires --image gh)"
     echo "  --nginx                 Use nginx proxy (default: traefik)"
+    echo ""
+    echo "Triggers:"
+    echo "  --no-tunnel             Disable the Composio trigger-event tunnel"
+    echo "                          (use when the host has a public ingress URL)"
     echo ""
     echo "Miscellaneous:"
     echo "  --help                  Show this help message and exit"
@@ -228,6 +233,9 @@ while [[ "$#" -gt 0 ]]; do
         --nuke)
             NUKE=true
             ;;
+        --no-tunnel)
+            WITH_TUNNEL=false
+            ;;
         --down)
             DOWN=true
             ;;
@@ -315,6 +323,16 @@ else
     ENV_FILE_PATH="./hosting/docker-compose/$LICENSE/$ENV_FILE"
 fi
 
+# F-037 guard: fail loud when the resolved env file is missing instead of letting Compose
+# silently fall back to its `${ENV_FILE:-./.env.<license>.<stage>}` default. The committed
+# default holds port-80 / no-port URLs, so a typo'd or absent env file produces a stack whose
+# web container 404s every `/api` call (same class as F-020) with no obvious cause. Catch it here.
+if [[ ! -f "$ENV_FILE_PATH" ]]; then
+    error_exit "Env file not found: $ENV_FILE_PATH
+Refusing to start: Docker Compose would silently fall back to its built-in default
+(port-80 / no-port URLs), which makes every web '/api' call 404 with no obvious cause.
+Pass an existing --env-file (e.g. --env-file .env.$LICENSE.$STAGE.local) or create the file."
+fi
 
 # Export the ENV_FILE to the environment
 export ENV_FILE="$ENV_FILE"
@@ -330,6 +348,10 @@ if $WITH_NGINX; then
     COMPOSE_CMD+=" --profile with-nginx"
 else
     COMPOSE_CMD+=" --profile with-traefik"
+fi
+
+if $WITH_TUNNEL; then
+    COMPOSE_CMD+=" --profile with-tunnel"
 fi
 
 if $NO_CACHE; then
@@ -348,7 +370,7 @@ fi
 echo "Stopping existing Docker containers..."
 
 # Include all profiles to ensure clean shutdown
-SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile with-traefik down"
+SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile with-traefik --profile with-tunnel down"
 
 if $NUKE; then
     SHUTDOWN_CMD+=" --volumes"

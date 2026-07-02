@@ -63,7 +63,6 @@ from agenta.sdk.engines.running.errors import (
     MatchV0Error,
     CodeV0Error,
     MockV0Error,
-    ConfigV0Error,
     FeedbackV0Error,
 )
 
@@ -2938,27 +2937,6 @@ async def code_v0(
     )
 
 
-@instrument()
-@instrument()
-async def config_v0(
-    request: Optional[Data] = None,
-    revision: Optional[Data] = None,
-    inputs: Optional[Data] = None,
-    parameters: Optional[Data] = None,
-    outputs: Optional[Union[Data, str]] = None,
-    trace: Optional[Data] = None,
-    testcase: Optional[Data] = None,
-) -> Any:
-    """
-    Interface-only handler for agenta:custom:config:v0.
-
-    Configurations are not directly invocable.
-    """
-    raise ConfigV0Error(
-        message="agenta:custom:config:v0 is not runnable.",
-    )
-
-
 # ---------------------------------------------------------------------------
 # mock_v0 — deterministic, LLM-free, sandbox-free workflow for testing
 # ---------------------------------------------------------------------------
@@ -3029,10 +3007,52 @@ async def _mock_delay(*, seconds=0.1, then="pass", inputs=None, **kwargs) -> Any
     return behavior(inputs=inputs, **kwargs)
 
 
+def _mock_messages(*, text="mock reply", **_) -> Any:
+    # Agent batch-role: the canonical agent v0 `{messages: [...]}` envelope —
+    # what `/invoke` returns when draining the streaming turn (see _agent_batch).
+    return {"messages": [{"role": "assistant", "content": str(text)}]}
+
+
+async def _mock_events(*, text="mock reply", thought=None, tool=None, **_) -> Any:
+    # Agent stream-role: yields the live agenta event stream as `{type, data}` —
+    # the same wire `_agent_event_stream` emits (AgentStream's AgentEvents). Routing
+    # projects these to vercel/sse per `x-ag-messages-format`. Canonical event types:
+    # message_start/message_delta/message_end, thought_*, tool_call/tool_result,
+    # usage, done (see adapters/vercel/stream.py).
+    mid = "msg-1"
+    if thought:
+        rid = "reason-1"
+        yield {"type": "thought_start", "data": {"id": rid}}
+        yield {"type": "thought_delta", "data": {"id": rid, "delta": str(thought)}}
+        yield {"type": "thought_end", "data": {"id": rid}}
+    if tool:
+        tcid = "tool-1"
+        yield {
+            "type": "tool_call",
+            "data": {"id": tcid, "name": str(tool), "input": {}},
+        }
+        yield {
+            "type": "tool_result",
+            "data": {"id": tcid, "output": "ok"},
+        }
+    yield {"type": "message_start", "data": {"id": mid}}
+    for piece in str(text).split(" "):
+        yield {"type": "message_delta", "data": {"id": mid, "delta": piece + " "}}
+    yield {"type": "message_end", "data": {"id": mid}}
+    yield {
+        "type": "usage",
+        "data": {"input": 3, "output": 2, "total": 5},
+    }
+    yield {"type": "done", "data": {"stopReason": "stop"}}
+
+
 MOCK_V0_BEHAVIORS = {
     # app-role
     "echo": _mock_echo,
     "static": _mock_static,
+    # agent-role (big-agents `/invoke` shapes)
+    "messages": _mock_messages,
+    "events": _mock_events,
     # evaluator-role
     "pass": _mock_pass,
     "fail": _mock_fail,

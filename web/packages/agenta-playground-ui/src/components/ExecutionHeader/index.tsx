@@ -49,6 +49,11 @@ const ExecutionHeader = ({
 }: ExecutionHeaderProps) => {
     const isComparisonView = !entityId
     const isChatMode = useAtomValue(executionController.selectors.isChatMode) ?? false
+    // Per-entity agent detection: an agent panel owns its own composer, so the
+    // shell's fan-out controls (Clear / Run all) don't apply — hide them.
+    const isAgent = useAtomValue(
+        useMemo(() => executionController.selectors.isAgentMode(entityId ?? ""), [entityId]),
+    )
 
     const headerDataSelector = useMemo(
         () =>
@@ -88,7 +93,10 @@ const ExecutionHeader = ({
     const runTests = () => runAll(entityId ? {entityId} : undefined)
     const canRun = !isChatMode || !isComparisonView || canRunAllChat
 
-    useRunAllShortcut({isRunning, canRun, onRun: runTests})
+    // Agent panels run from the composer (the header is hidden for them, `if (isAgent) return null`
+    // below). This hook is registered before that early return, so gate it on `!isAgent` too — else
+    // ⌘/Ctrl+Enter still fires runAll in agent mode.
+    useRunAllShortcut({isRunning, canRun: !isAgent && canRun, onRun: runTests})
 
     const runAllTooltip = hasEvaluators
         ? "Run the prompt and evaluators on all test cases."
@@ -96,6 +104,10 @@ const ExecutionHeader = ({
 
     const showCollapseToggle = !isComparisonView
     // const showRunOptions = !isComparisonView && entityId
+
+    // The agent panel owns its own chat composer and has no generation rows, so this execution
+    // header (a "Chat" label + collapse toggle + run controls) serves no purpose in agent mode.
+    if (isAgent) return null
 
     return (
         <div
@@ -152,36 +164,43 @@ const ExecutionHeader = ({
             </div>
 
             <div className="flex items-center gap-2">
-                <Tooltip title="Clear all">
-                    <Button size="small" onClick={() => clearAll()} disabled={isRunning}>
-                        Clear
-                    </Button>
-                </Tooltip>
-
-                {renderTestsetActions?.({entityId, resultCount, isRunning})}
-
-                {!isRunning ? (
-                    <div className="flex">
-                        <Tooltip title={`${runAllTooltip} (Ctrl+Enter / ⌘+Enter)`}>
-                            <RunButton
-                                isRunAll
-                                type="primary"
-                                onClick={() => runTests()}
-                                disabled={isRunning || !canRun}
-                                // style={showRunOptions ? {borderRadius: "6px 0 0 6px"} : undefined}
-                            />
-                        </Tooltip>
-                        {/* {showRunOptions && entityId && (
-                            <RunOptionsPopover
-                                isRunning={isRunning}
-                                entityId={entityId}
-                                onRepeatCountChange={onRepeatCountChange}
-                            />
-                        )} */}
-                    </div>
-                ) : (
-                    <RunButton isCancel onClick={() => cancelAll()} className="flex" />
+                {/* Agent entities drive their run from the panel composer, so the
+                    shell's Clear / Run all / Cancel controls are hidden. */}
+                {!isAgent && (
+                    <Tooltip title="Clear all">
+                        <Button size="small" onClick={() => clearAll()} disabled={isRunning}>
+                            Clear
+                        </Button>
+                    </Tooltip>
                 )}
+
+                {/* Testset wiring drives testcase-row runs; the agent lane runs from the panel
+                    composer and has no rows, so the testset connector doesn't apply to agents. */}
+                {!isAgent && renderTestsetActions?.({entityId, resultCount, isRunning})}
+
+                {!isAgent &&
+                    (!isRunning ? (
+                        <div className="flex">
+                            <Tooltip title={`${runAllTooltip} (Ctrl+Enter / ⌘+Enter)`}>
+                                <RunButton
+                                    isRunAll
+                                    type="primary"
+                                    onClick={() => runTests()}
+                                    disabled={isRunning || !canRun}
+                                    // style={showRunOptions ? {borderRadius: "6px 0 0 6px"} : undefined}
+                                />
+                            </Tooltip>
+                            {/* {showRunOptions && entityId && (
+                                <RunOptionsPopover
+                                    isRunning={isRunning}
+                                    entityId={entityId}
+                                    onRepeatCountChange={onRepeatCountChange}
+                                />
+                            )} */}
+                        </div>
+                    ) : (
+                        <RunButton isCancel onClick={() => cancelAll()} className="flex" />
+                    ))}
             </div>
         </div>
     )

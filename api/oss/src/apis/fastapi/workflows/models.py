@@ -10,6 +10,7 @@ from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.workflows.dtos import (
     #
     WorkflowCatalogType,
+    WorkflowCatalogHarness,
     WorkflowCatalogTemplate,
     WorkflowCatalogPreset,
     #
@@ -497,6 +498,28 @@ class WorkflowCatalogTypesResponse(BaseModel):
     types: List[WorkflowCatalogType] = Field(
         default_factory=list,
         description="Shared JSON Schema fragments shipped with the product.",
+    )
+
+
+class WorkflowCatalogHarnessResponse(BaseModel):
+    count: int = Field(
+        default=0,
+        description="`1` when a harness record is returned, `0` when not found.",
+    )
+    harness: Optional[WorkflowCatalogHarness] = Field(
+        default=None,
+        description="A harness record referenced by a template's harness field via `x-ag-harness-ref`.",
+    )
+
+
+class WorkflowCatalogHarnessesResponse(BaseModel):
+    count: int = Field(
+        default=0,
+        description="Number of harness records available.",
+    )
+    harnesses: List[WorkflowCatalogHarness] = Field(
+        default_factory=list,
+        description="Harness records shipped with the product (each carries its `capabilities`).",
     )
 
 

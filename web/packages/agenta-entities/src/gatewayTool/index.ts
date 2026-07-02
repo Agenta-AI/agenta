@@ -53,18 +53,18 @@ export {isConnectionActive, isConnectionValid} from "./core"
 // ---------------------------------------------------------------------------
 
 export {
-    createConnection,
+    createToolConnection,
     deleteToolConnection,
     executeToolCall,
-    fetchActionDetail,
-    fetchActions,
-    fetchConnection,
-    fetchIntegrationDetail,
-    fetchIntegrations,
-    fetchProviders,
+    fetchToolActionDetail,
+    fetchToolActions,
+    fetchToolConnection,
+    fetchToolIntegrationDetail,
+    fetchToolIntegrations,
+    fetchToolProviders,
     getToolsClient,
     projectScopedRequest,
-    queryConnections,
+    queryToolConnections,
     refreshToolConnection,
     revokeToolConnection,
 } from "./api"
@@ -75,12 +75,12 @@ export {
 
 export {
     actionSearchAtom,
-    catalogDrawerOpenAtom,
     catalogSearchAtom,
     connectionDrawerAtom,
-    executionDrawerAtom,
     selectedCatalogActionAtom,
     selectedCatalogIntegrationAtom,
+    toolCatalogDrawerOpenAtom,
+    toolExecutionDrawerAtom,
 } from "./state"
 export type {ConnectionDrawerState, ExecutionDrawerState} from "./state"
 
@@ -89,25 +89,25 @@ export type {ConnectionDrawerState, ExecutionDrawerState} from "./state"
 // ---------------------------------------------------------------------------
 
 export {
-    actionDetailQueryFamily,
-    actionsSearchAtom,
     buildToolSlug,
-    catalogActionsInfiniteFamily,
-    catalogIntegrationsInfiniteAtom,
-    connectionQueryAtomFamily,
-    connectionsQueryAtom,
-    integrationConnectionsAtomFamily,
-    integrationDetailQueryFamily,
-    integrationsSearchAtom,
-    useActionDetail,
-    useCatalogActions,
-    useCatalogIntegrations,
-    useConnectionActions,
-    useConnectionQuery,
-    useConnectionsQuery,
-    useIntegrationConnections,
-    useIntegrationDetail,
+    toolActionDetailQueryFamily,
+    toolActionsSearchAtom,
+    toolCatalogActionsInfiniteFamily,
+    toolCatalogIntegrationsInfiniteAtom,
+    toolConnectionQueryAtomFamily,
+    toolConnectionsQueryAtom,
+    toolIntegrationConnectionsAtomFamily,
+    toolIntegrationDetailQueryFamily,
+    toolIntegrationsSearchAtom,
+    useToolActionDetail,
+    useToolCatalogActions,
+    useToolCatalogIntegrations,
+    useToolConnectionActions,
+    useToolConnectionQuery,
+    useToolConnectionsQuery,
     useToolExecution,
+    useToolIntegrationConnections,
+    useToolIntegrationDetail,
 } from "./hooks"
 
 // ---------------------------------------------------------------------------

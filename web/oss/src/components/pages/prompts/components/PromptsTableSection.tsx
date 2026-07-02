@@ -92,6 +92,23 @@ export const PromptsTableSection = ({
                             onOpenNewPrompt("completion")
                         },
                     },
+                    {
+                        key: "new_prompt_agent",
+                        label: (
+                            <span className="inline-flex items-center gap-2">
+                                {getAppTypeIcon("agent")}
+                                <span>Agent</span>
+                            </span>
+                        ),
+                        onClick: ({
+                            domEvent,
+                        }: {
+                            domEvent: React.MouseEvent | React.KeyboardEvent
+                        }) => {
+                            domEvent.stopPropagation()
+                            onOpenNewPrompt("agent")
+                        },
+                    },
                 ],
             },
             {

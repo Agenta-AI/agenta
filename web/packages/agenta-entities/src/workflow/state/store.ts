@@ -12,7 +12,7 @@
  */
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
-import {createBatchFetcher} from "@agenta/shared/utils"
+import {createBatchFetcher, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
 import {atom, type Getter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -23,11 +23,17 @@ import {nestEvaluatorConfiguration, nestEvaluatorSchema} from "../../runnable/ev
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
-import type {InspectWorkflowResponse, InterfaceSchemasResponse, AppOpenApiSchemas} from "../api"
+import type {
+    InspectWorkflowResponse,
+    InterfaceSchemasResponse,
+    AppOpenApiSchemas,
+    SimpleApplicationFetchResponse,
+} from "../api"
 import {
     extractDefaultsFromSchema,
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
+    fetchSimpleApplication,
     fetchWorkflowAppOpenApiSchema,
     fetchAgTypeSchema,
     fetchWorkflowsBatch,
@@ -1039,26 +1045,51 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
 
+        // A builtin-agent DRAFT (not yet committed, so it has no server data) still needs inspect.
+        // The agent service publishes `harness_capabilities` (the provider + model catalog) per
+        // SERVICE, not per committed revision — `inspectWorkflow` keys on uri + serviceUrl, never a
+        // revision id. `invocationUrl` already derives the draft's builtin uri/url from the LOCAL
+        // entity (which is why a draft agent can be invoked before creation); mirror that here so the
+        // model picker resolves from inspect pre-creation instead of showing an empty catalog.
+        // Scoped to agents: a non-agent draft keeps its server-only behavior unchanged.
+        const localEntity = serverData ? null : get(workflowBaseEntityAtomFamily(revisionId))
+        const localIsAgent = localEntity?.flags?.is_agent ?? false
+        const localData = localIsAgent ? localEntity : null
+
         // Use stored URI, or derive one from builtin service URL pattern
-        const storedUri = serverData?.data?.uri ?? null
-        const storedUrl = serverData?.data?.url ?? null
+        const storedUri = serverData?.data?.uri ?? localData?.data?.uri ?? null
+        const storedUrl = serverData?.data?.url ?? localData?.data?.url ?? null
         const derivedServiceType = storedUri ? null : resolveServiceTypeFromUrl(storedUrl)
         const uri = storedUri ?? (derivedServiceType ? buildWorkflowUri(derivedServiceType) : null)
         // Service URL: prefer stored url, fall back to building from URI
         const serviceUrl = storedUrl ?? buildServiceUrlFromUri(uri)
 
-        // Skip inspect when the revision has no service endpoint (has_url: false)
-        const hasUrl = serverData?.flags?.has_url ?? true
+        // Skip inspect when the revision has no service endpoint (has_url: false). A builtin-agent
+        // DRAFT reports has_url: false (nothing is deployed yet), but its service URL is always
+        // derivable from the builtin uri (same URL `invocationUrl` invokes), so the capability
+        // catalog is still reachable — don't let the deploy-state flag gate it.
+        const hasUrl =
+            serverData?.flags?.has_url ??
+            (localIsAgent ? true : (localData?.flags?.has_url ?? true))
 
         // Skip inspect when the revision already carries all schemas inline.
         // The merge step (workflowEntityAtomFamily) gives server schemas
         // precedence, so fetching inspect would be redundant.
+        // Exception: an agent publishes its per-harness capabilities ONLY in the inspect
+        // response `meta` (harness_capabilities), never in the stored schemas — so the agent
+        // playground's model picker needs inspect even when the schemas are inline.
         const serverSchemas = serverData?.data?.schemas
+        const isAgent = serverData?.flags?.is_agent ?? false
         const hasAllSchemas =
             !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
 
         const isEnabled =
-            get(sessionAtom) && !!projectId && !!uri && !!serviceUrl && hasUrl && !hasAllSchemas
+            get(sessionAtom) &&
+            !!projectId &&
+            !!uri &&
+            !!serviceUrl &&
+            hasUrl &&
+            (isAgent || !hasAllSchemas)
 
         return {
             queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],
@@ -1070,6 +1101,59 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
             staleTime: 60_000,
         }
     }),
+)
+
+// ============================================================================
+// PLAYGROUND BUILD KIT SESSION STATE
+// ============================================================================
+
+export type AgentTemplate = Record<string, unknown>
+
+/**
+ * Fetch the simple-application envelope for one app id.
+ *
+ * The playground build-kit overlay rides on this response's
+ * `additional_context`, not on the agent-service `/inspect` response (which
+ * carries no behavior-changing meta by design).
+ */
+export const simpleApplicationQueryAtomFamily = atomFamily((applicationId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        return {
+            queryKey: ["simpleApplication", applicationId, projectId],
+            queryFn: async (): Promise<SimpleApplicationFetchResponse | null> => {
+                if (!projectId || !applicationId) return null
+                return fetchSimpleApplication(applicationId, projectId)
+            },
+            enabled: get(sessionAtom) && !!projectId && !!applicationId,
+            staleTime: 60_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: string) =>
+    atom<AgentTemplate | null>((get) => {
+        // The app id (workflow artifact id) the revision belongs to. Server data
+        // wins; fall back to the local base entity so a draft agent still resolves.
+        const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
+        const applicationId =
+            revisionData?.workflow_id ??
+            get(workflowBaseEntityAtomFamily(revisionId))?.workflow_id ??
+            null
+        if (!applicationId) return null
+
+        const appData = get(simpleApplicationQueryAtomFamily(applicationId)).data ?? null
+        const overlay =
+            appData?.additional_context?.playground_build_kit?.agent_template_overlay ?? null
+        return overlay && typeof overlay === "object" && !Array.isArray(overlay)
+            ? (overlay as AgentTemplate)
+            : null
+    }),
+)
+
+export const workflowBuildKitEnabledAtomFamily = atomFamily((_revisionId: string) =>
+    atom<boolean>(true),
 )
 
 // ============================================================================
@@ -1535,22 +1619,22 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         let resolvedParams: Record<string, unknown> | null | undefined = null
 
         // (a) Inspect — primary source for any workflow with a URI.
-        // Returns interface.schemas.{inputs, parameters, outputs} directly.
+        // The `WorkflowInspectResponse.revision` is a WorkflowRevision (unmodified), so the
+        // resolved interface lives at `revision.data.schemas.{inputs, parameters, outputs}` and
+        // the resolved parameters at `revision.data.parameters`. `outputs` is a plain schema
+        // (the agent's is an object with a `messages` field), never keyed by output surface.
         const inspectQuery = get(workflowInspectAtomFamily(workflowId))
         const inspectData = inspectQuery.data ?? null
         if (inspectData) {
-            const inspectSchemas = inspectData.revision?.schemas ?? inspectData.interface?.schemas
+            const inspectRevisionData = inspectData.revision?.data
+            const inspectSchemas = inspectRevisionData?.schemas
             if (inspectSchemas) {
                 resolvedInputs = inspectSchemas.inputs
                 resolvedOutputs = inspectSchemas.outputs
                 resolvedParameters = inspectSchemas.parameters
             }
             resolvedParams =
-                (inspectData.revision?.parameters as Record<string, unknown> | undefined) ??
-                ((inspectData.configuration as Record<string, unknown> | undefined)?.parameters as
-                    | Record<string, unknown>
-                    | undefined) ??
-                null
+                (inspectRevisionData?.parameters as Record<string, unknown> | undefined) ?? null
         }
 
         // (b) OpenAPI fallback — only for legacy custom apps without URI.
@@ -1821,8 +1905,10 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
                 })
             }
 
-            // Sort all object keys recursively (handles json_schema property order)
-            return sortObjectKeys(normalized)
+            // Sort all object keys recursively (handles json_schema property order), and drop
+            // present-but-empty collections so an add-then-remove (`skills: []` vs an absent key)
+            // isn't a false-positive dirty. Applied to both sides, so real changes still register.
+            return sortObjectKeys(stripEmptyCollectionsDeep(normalized))
         }
 
         // Server schemas.parameters stays flat for evaluators while the entity
@@ -2199,10 +2285,13 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
             is_code: false,
             is_match: false,
             is_feedback: false,
+            is_agent: false,
+            is_skill: false,
             is_chat: isChat,
             has_url: false,
             has_script: false,
             has_handler: false,
+            is_static: false,
             is_application: false,
             is_evaluator: isEvaluator,
             is_snippet: false,
@@ -2444,4 +2533,26 @@ export function invalidateWorkflowRevisionsByVariantCache(
         // queryClientAtom may not be initialized yet
     }
     store.set(workflowRevisionsQueryAtomFamily(variantId))
+}
+
+/**
+ * Refresh the playground's read-only views after the agent commits a new revision of itself
+ * (#4920 — Application 1). A commit lands a new revision, so this invalidates both the
+ * latest-revision query (the config panel + section drawers re-read the new config) and the inspect
+ * query (harness-capabilities / any inspect-derived view).
+ *
+ * Fired on the one-way `data-committed-revision` stream signal (which the backend emits in BOTH the
+ * gated approval path and the direct `needs_approval=false` path), not on approval — so a single
+ * emit point covers both. The payload's ids aren't needed: a prefix invalidation refetches every
+ * active observer, which is exactly the set the playground has mounted.
+ */
+export function invalidateAgentCommittedRevisionCache(options?: StoreOptions) {
+    const store = getStore(options)
+    try {
+        const qc = store.get(queryClientAtom)
+        qc.invalidateQueries({queryKey: ["workflows", "latestRevision"], exact: false})
+        qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false})
+    } catch {
+        // queryClientAtom may not be initialized yet
+    }
 }

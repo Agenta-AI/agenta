@@ -23,6 +23,7 @@ baseline.
 - `web/` - web wrapper image and runtime config
 - `api/` - api wrapper image with explicit gunicorn command
 - `services/` - services wrapper image with explicit gunicorn command
+- `runner/` - agent runner image
 - `redis/` - redis wrapper to ensure volume permissions are writable
 - `worker-evaluations/` - Taskiq worker image for evaluations
 - `worker-tracing/` - tracing ingestion worker image
@@ -35,7 +36,7 @@ baseline.
 - `scripts/deploy-gateway.sh` - deploy gateway image from local Dockerfile
 - `scripts/smoke.sh` - quick health checks
 - `scripts/upgrade.sh` - run full in-place upgrade flow
-- `scripts/build-and-push-images.sh` - build local `api/web/services` images and push tags
+- `scripts/build-and-push-images.sh` - build local `api/web/services/runner` images and push tags
 - `scripts/deploy-from-images.sh` - deploy Railway services from explicit image tags
 - `scripts/preview-create-or-update.sh` - create or update a PR-scoped preview project
 - `scripts/preview-destroy.sh` - delete a PR-scoped preview project
@@ -119,6 +120,7 @@ Optional reliability knobs for fresh projects:
 - `RAILWAY_ALEMBIC_MAX_ATTEMPTS` (default `3`)
 
 `deploy-from-images.sh` redeploys Postgres and Redis before running Alembic, then retries Alembic on failure to reduce first-deploy race conditions.
+It also deploys `runner` before `services` and configures `AGENTA_RUNNER_URL` to the runner's private Railway URL.
 
 ## Preview Lifecycle Scripts
 
@@ -209,7 +211,7 @@ The API image defaults to docker-compose hostnames for Redis (`redis-durable:638
 
 First deploys on Railway take longer because Docker layer caches are cold. Deploy now relies mostly on readiness polling in smoke checks instead of fixed sleeps, so slower starts are less likely to fail prematurely.
 
-For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`buildcache-shared`) plus PR-scoped tags (`buildcache-pr-<number>`). It also builds API, web, and services images in parallel matrix jobs. This keeps repeated PR builds fast and also improves first builds on new PRs by reusing layers from previous runs. Manual workflow dispatches without a PR number use `manual-<sha>` image tags and skip deploy.
+For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`buildcache-shared`) plus PR-scoped tags (`buildcache-pr-<number>`). It also builds API, web, services, and runner images in parallel matrix jobs. This keeps repeated PR builds fast and also improves first builds on new PRs by reusing layers from previous runs. Manual workflow dispatches without a PR number use `manual-<sha>` image tags and skip deploy.
 
 ### SDK source in preview builds
 

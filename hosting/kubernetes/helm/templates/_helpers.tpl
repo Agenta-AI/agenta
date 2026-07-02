@@ -61,6 +61,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.services).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
+{{- define "agenta.agentRunner.enabled" -}}
+{{- $v := (default dict .Values.agentRunner).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
 {{- define "agenta.supertokens.enabled" -}}
 {{- $v := (default dict (include "agenta.values" . | fromYaml).supertokens).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -85,6 +89,25 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.redisDurable).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
+{{- /* Store (durable object store). Opt-in: off unless store.enabled=true. */ -}}
+{{- define "agenta.store.enabled" -}}
+{{- $v := (default dict .Values.store).enabled -}}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+{{- /* Bundle SeaweedFS as the store backend (only when store is on AND not external). */ -}}
+{{- define "agenta.seaweedfs.enabled" -}}
+{{- $mounts := default dict .Values.store -}}
+{{- if eq (include "agenta.store.enabled" .) "true" -}}
+{{- $v := (default dict $mounts.seaweedfs).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- else }}false{{- end }}
+{{- end }}
+{{- define "agenta.seaweedfs.image" -}}
+{{- $img := default dict (default dict (default dict .Values.store).seaweedfs).image -}}
+{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "4.37" $img.tag) -}}
+{{- end }}
+{{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
+{{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
 {{- define "agenta.workerEvaluations.enabled" -}}
 {{- $v := (default dict .Values.workerEvaluations).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -101,6 +124,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.workerEvents).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
+{{- define "agenta.workerTriggers.enabled" -}}
+{{- $v := (default dict .Values.workerTriggers).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+{{- define "agenta.workerRecords.enabled" -}}
+{{- $v := (default dict .Values.workerRecords).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+{{- define "agenta.workerInteractions.enabled" -}}
+{{- $v := (default dict .Values.workerInteractions).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
 {{- define "agenta.ingress.enabled" -}}
 {{- $v := (default dict .Values.ingress).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -112,6 +147,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.replicas" -}}{{ default 1 (default dict .Values.api).replicas }}{{- end }}
 {{- define "agenta.web.replicas" -}}{{ default 1 (default dict .Values.web).replicas }}{{- end }}
 {{- define "agenta.services.replicas" -}}{{ default 1 (default dict .Values.services).replicas }}{{- end }}
+{{- define "agenta.agentRunner.replicas" -}}{{ default 1 (default dict .Values.agentRunner).replicas }}{{- end }}
 {{- define "agenta.supertokens.replicas" -}}{{ default 1 (default dict (include "agenta.values" . | fromYaml).supertokens).replicas }}{{- end }}
 {{- /* cron runs supercronic, which doesn't coordinate across replicas:
        N replicas = every scheduled job fires N times. Hard-set to 1.
@@ -121,6 +157,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.workerTracing.replicas" -}}{{ default 1 (default dict .Values.workerTracing).replicas }}{{- end }}
 {{- define "agenta.workerWebhooks.replicas" -}}{{ default 1 (default dict .Values.workerWebhooks).replicas }}{{- end }}
 {{- define "agenta.workerEvents.replicas" -}}{{ default 1 (default dict .Values.workerEvents).replicas }}{{- end }}
+{{- define "agenta.workerTriggers.replicas" -}}{{ default 1 (default dict .Values.workerTriggers).replicas }}{{- end }}
+{{- define "agenta.workerRecords.replicas" -}}{{ default 1 (default dict .Values.workerRecords).replicas }}{{- end }}
+{{- define "agenta.workerInteractions.replicas" -}}{{ default 1 (default dict .Values.workerInteractions).replicas }}{{- end }}
 
 {{/* ================================================================
    Workers (gunicorn worker count, default 2).
@@ -134,6 +173,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.port" -}}{{ default 8000 (default dict .Values.api).port }}{{- end }}
 {{- define "agenta.web.port" -}}{{ default 3000 (default dict .Values.web).port }}{{- end }}
 {{- define "agenta.services.port" -}}{{ default 80 (default dict .Values.services).port }}{{- end }}
+{{- define "agenta.agentRunner.port" -}}{{ default 8765 (default dict .Values.agentRunner).port }}{{- end }}
 {{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict (include "agenta.values" . | fromYaml).supertokens).port }}{{- end }}
 {{- define "agenta.redisVolatile.port" -}}{{ default 6379 (default dict .Values.redisVolatile).port }}{{- end }}
 {{- define "agenta.redisDurable.port" -}}{{ default 6381 (default dict .Values.redisDurable).port }}{{- end }}
@@ -144,6 +184,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.api).image).pullPolicy }}{{- end }}
 {{- define "agenta.web.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.web).image).pullPolicy }}{{- end }}
 {{- define "agenta.services.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.services).image).pullPolicy }}{{- end }}
+{{- define "agenta.agentRunner.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.agentRunner).image).pullPolicy }}{{- end }}
 {{- define "agenta.supertokens.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (include "agenta.values" . | fromYaml).supertokens).image).pullPolicy }}{{- end }}
 {{- define "agenta.redisVolatile.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.redisVolatile).image).pullPolicy }}{{- end }}
 {{- define "agenta.redisDurable.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.redisDurable).image).pullPolicy }}{{- end }}
@@ -275,6 +316,44 @@ ghcr.io/agenta-ai/agenta-services
 {{- define "agenta.servicesImage" -}}
 {{- $img := default dict (default dict .Values.services).image -}}
 {{ include "agenta.servicesImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{- define "agenta.agentRunnerImageRepository" -}}
+{{- $img := default dict (default dict .Values.agentRunner).image -}}
+{{- if $img.repository -}}
+{{- $img.repository -}}
+{{- else -}}
+ghcr.io/agenta-ai/agenta-runner
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.agentRunnerImage" -}}
+{{- $img := default dict (default dict .Values.agentRunner).image -}}
+{{ include "agenta.agentRunnerImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{- define "agenta.agentRunner.serviceName" -}}
+{{ include "agenta.fullname" . }}-runner
+{{- end }}
+
+{{- define "agenta.agentRunner.url" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if $runner.externalUrl -}}
+{{- $runner.externalUrl -}}
+{{- else if eq (include "agenta.agentRunner.enabled" .) "true" -}}
+http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agentRunner.port" . }}
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.agentRunner.servicesEnv" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- $url := include "agenta.agentRunner.url" . -}}
+{{- if $url }}
+- name: AGENTA_RUNNER_URL
+  value: {{ $url | quote }}
+{{- end }}
+- name: AGENTA_AGENT_MCPS_ENABLED
+  value: {{ default false $runner.enableMcp | quote }}
 {{- end }}
 
 {{/* ================================================================
@@ -786,6 +865,55 @@ imagePullSecrets:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
       key: AGENTA_CRYPT_KEY
+{{- if eq (include "agenta.store.enabled" .) "true" }}
+{{- $store := default dict .Values.store }}
+- name: AGENTA_STORE_ENDPOINT_URL
+  {{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+  value: {{ printf "http://%s-seaweedfs:%v" (include "agenta.fullname" .) (include "agenta.seaweedfs.port" .) | quote }}
+  {{- else }}
+  value: {{ default "" $store.endpointUrl | quote }}
+  {{- end }}
+{{- if $store.stsEndpointUrl }}
+- name: AGENTA_STORE_STS_ENDPOINT_URL
+  value: {{ $store.stsEndpointUrl | quote }}
+{{- end }}
+- name: AGENTA_STORE_REGION
+  value: {{ default "us-east-1" $store.region | quote }}
+- name: AGENTA_STORE_BUCKET
+  value: {{ default "agenta-store" $store.bucket | quote }}
+{{- if $store.namespace }}
+- name: AGENTA_STORE_NAMESPACE
+  value: {{ $store.namespace | quote }}
+{{- end }}
+- name: AGENTA_STORE_ACCESS_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_STORE_ACCESS_KEY
+- name: AGENTA_STORE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_STORE_SECRET_KEY
+{{- if $store.signingKey }}
+- name: AGENTA_STORE_SIGNING_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_STORE_SIGNING_KEY
+{{- end }}
+{{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+- name: AGENTA_STORE_JWT_ISSUER
+  value: {{ default (printf "http://%s-api:%v" (include "agenta.fullname" .) (include "agenta.api.port" .)) $store.jwtIssuer | quote }}
+{{- if $store.jwtPrivateKey }}
+- name: AGENTA_STORE_JWT_PRIVATE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_STORE_JWT_PRIVATE_KEY
+{{- end }}
+{{- end }}
+{{- end }}
 {{- if $rv.password }}
 - name: REDIS_VOLATILE_PASSWORD
   valueFrom:

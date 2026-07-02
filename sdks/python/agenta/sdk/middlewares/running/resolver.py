@@ -591,22 +591,30 @@ class ResolverMiddleware:
             _merge_tracing_selector(retrieval_selector)
             revision = hydrated_revision or existing_revision
 
-        # Resolve embeds in parameters if enabled (via flags.resolve)
+        if not request.data:
+            request.data = WorkflowRequestData()
+
+        # Resolve @ag.embed references in the parameters that actually drive the handler.
+        # The effective source is the inline `request.data.parameters` when the caller sent
+        # them (the playground running an unsaved config — `revision` is None there), otherwise
+        # the revision's. Handle each source explicitly and write back only what was resolved.
+        # The embed resolver walks arrays, so an `@ag.embed` inside `parameters.skills[i]`
+        # resolves on either path.
         resolve_flag = (request.flags or {}).get("resolve", True)
-        if (
-            resolve_flag
-            and revision
-            and revision.parameters
-            and _has_embed_markers(revision.parameters)
-        ):
-            try:
-                resolved_params = await resolve_embeds(
+
+        if request.data.parameters:
+            if resolve_flag and _has_embed_markers(request.data.parameters):
+                request.data.parameters = await resolve_embeds(
+                    parameters=request.data.parameters,
+                    credentials=ctx.credentials or request.credentials,
+                )
+        elif revision and revision.parameters:
+            if resolve_flag and _has_embed_markers(revision.parameters):
+                revision.parameters = await resolve_embeds(
                     parameters=revision.parameters,
                     credentials=ctx.credentials or request.credentials,
                 )
-                revision.parameters = resolved_params
-            except Exception:
-                raise
+            request.data.parameters = revision.parameters
 
         # Keep a handler the decorator already installed (local handler or remote
         # forwarder); only resolve from the URI registry for pure URI dispatch.
@@ -630,12 +638,6 @@ class ResolverMiddleware:
             else None
         )
         ctx.handler = handler
-
-        if not request.data:
-            request.data = WorkflowRequestData()
-
-        if revision:
-            request.data.parameters = request.data.parameters or revision.parameters
 
         TracingContext.get().parameters = request.data.parameters
 

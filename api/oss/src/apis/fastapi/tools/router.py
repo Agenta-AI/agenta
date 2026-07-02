@@ -1,4 +1,5 @@
 import html as html_lib
+from inspect import isawaitable
 import json
 import re
 from datetime import datetime, timezone
@@ -28,6 +29,11 @@ from oss.src.apis.fastapi.tools.models import (
     ToolConnectionsResponse,
     #
     ToolCallResponse,
+    #
+    ToolResolveRequest,
+    ToolResolveResponse,
+    #
+    CapabilitiesQuery,
 )
 
 from oss.src.core.shared.dtos import Status
@@ -39,22 +45,45 @@ from oss.src.core.tools.dtos import (
     ToolCall,
     ToolResult,
     ToolResultData,
+    #
+    CapabilitiesResult,
+)
+from oss.src.core.tools.discovery import (
+    AGENTA_TOOL_CALL_REF_PREFIX,
+    FIND_CAPABILITIES_OP,
+    parse_find_capabilities_arguments,
 )
 from oss.src.core.tools.exceptions import (
+    ActionNotFoundError,
     AdapterError,
     ConnectionInactiveError,
     ConnectionInvalidError,
     ConnectionNotFoundError,
+    DiscoveryUnsupportedError,
+    ProviderNotFoundError,
+    ToolSlugInvalidError,
 )
 from oss.src.core.tools.service import (
     ToolsService,
 )
-from oss.src.core.tools.utils import decode_oauth_state
+from oss.src.core.gateway.connections.utils import decode_oauth_state
+from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.dtos import (
+    WorkflowServiceRequest,
+    WorkflowServiceRequestData,
+)
+from oss.src.core.shared.dtos import Reference
 from oss.src.utils.env import env
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+
+# A workflow referenced as an agent tool (a ``type:"reference"`` tool) carries this call_ref
+# prefix. Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
+# {action}.{connection}``): the callback encodes the targeting axis + identity —
+# ``workflow.variant.{slug}[.{version}]`` or ``workflow.environment.{environment}.{slug}``.
+_WORKFLOW_CALL_REF_PREFIX = "workflow."
 
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
 
@@ -62,25 +91,41 @@ log = get_module_logger(__name__)
 
 
 def handle_adapter_exceptions():
-    """Convert only upstream 401 AdapterError failures to 424 Failed Dependency."""
+    """Map provider/adapter failures to HTTP, surfacing the upstream detail.
+
+    Unknown providers → 404. Any upstream failure (Composio 4xx such as a
+    rejected argument set, or a malformed response) → 424 carrying the
+    provider's own message so the client can show it instead of a generic 500.
+    A true upstream 5xx → 502.
+    """
 
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except ProviderNotFoundError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e),
+                ) from e
             except AdapterError as e:
+                detail = e.detail or e.message
                 cause = e.__cause__
-                if not (
-                    isinstance(cause, httpx.HTTPStatusError)
+                upstream_status = (
+                    cause.response.status_code
+                    if isinstance(cause, httpx.HTTPStatusError)
                     and cause.response is not None
-                    and cause.response.status_code == status.HTTP_401_UNAUTHORIZED
-                ):
-                    raise
-
+                    else None
+                )
+                if upstream_status is not None and upstream_status >= 500:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=detail,
+                    ) from e
                 raise HTTPException(
                     status_code=status.HTTP_424_FAILED_DEPENDENCY,
-                    detail=e.message,
+                    detail=detail,
                 ) from e
 
         return wrapper
@@ -93,8 +138,13 @@ class ToolsRouter:
         self,
         *,
         tools_service: ToolsService,
+        workflows_service: Optional[WorkflowsService] = None,
     ):
         self.tools_service = tools_service
+        # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
+        # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
+        # Optional so a deployment that wires only the tools service still serves gateway tools.
+        self.workflows_service = workflows_service
 
         self.router = APIRouter()
 
@@ -204,6 +254,22 @@ class ToolsRouter:
         )
 
         # --- Tool operations ---
+        self.router.add_api_route(
+            "/resolve",
+            self.resolve_tools,
+            methods=["POST"],
+            operation_id="resolve_tools",
+            response_model=ToolResolveResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/discover",
+            self.discover_capabilities,
+            methods=["POST"],
+            operation_id="discover_tool_capabilities",
+            response_model=CapabilitiesResult,
+            response_model_exclude_none=True,
+        )
         self.router.add_api_route(
             "/call",
             self.call_tool,
@@ -355,19 +421,19 @@ class ToolsRouter:
         if cached:
             return cached
 
-        integrations, next_cursor, total = await self.tools_service.list_integrations(
+        page = await self.tools_service.list_integrations(
             provider_key=provider_key,
             search=search,
             sort_by=sort_by,
             limit=limit,
             cursor=cursor,
         )
-        items = list(integrations)
+        items = list(page.integrations)
 
         response = ToolCatalogIntegrationsResponse(
             count=len(items),
-            total=total,
-            cursor=next_cursor,
+            total=page.total,
+            cursor=page.next_cursor,
             integrations=items,
         )
 
@@ -478,7 +544,7 @@ class ToolsRouter:
         if cached:
             return cached
 
-        actions, next_cursor, total = await self.tools_service.list_actions(
+        page = await self.tools_service.list_actions(
             provider_key=provider_key,
             integration_key=integration_key,
             query=query,
@@ -488,7 +554,7 @@ class ToolsRouter:
         )
         items = []
 
-        for action in actions:
+        for action in page.actions:
             if full_details:
                 # Call route handler to benefit from cache reuse
                 action_response = await self.get_action(
@@ -509,8 +575,8 @@ class ToolsRouter:
 
         response = ToolCatalogActionsResponse(
             count=len(items),
-            total=total,
-            cursor=next_cursor,
+            total=page.total,
+            cursor=page.next_cursor,
             actions=items,
         )
 
@@ -795,7 +861,9 @@ class ToolsRouter:
                 ),
             )
 
-        # Decode HMAC-signed state to recover project scope.
+        # Decode HMAC-signed state to recover project scope. Activation is
+        # project-scoped, so a missing/invalid state is fatal — we never activate
+        # without a resolved project_id.
         project_id: Optional[UUID] = None
         if state:
             payload = decode_oauth_state(state, secret_key=env.agenta.crypt_key)
@@ -808,6 +876,15 @@ class ToolsRouter:
                     log.warning("OAuth callback state missing or invalid project_id")
         else:
             log.warning("OAuth callback received without state token")
+
+        if project_id is None:
+            return HTMLResponse(
+                status_code=400,
+                content=_oauth_card(
+                    success=False,
+                    error="Connection could not be activated. Please try again.",
+                ),
+            )
 
         # Activate the connection — this is the critical path.
         conn = None
@@ -872,6 +949,82 @@ class ToolsRouter:
 
     @intercept_exceptions()
     @handle_adapter_exceptions()
+    async def resolve_tools(
+        self,
+        request: Request,
+        *,
+        body: ToolResolveRequest,
+    ) -> ToolResolveResponse:
+        """Resolve an agent's tool references into model-ready specs.
+
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        """
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        try:
+            resolution = await self.tools_service.resolve_tools(
+                project_id=UUID(request.state.project_id),
+                tools=body.tools,
+            )
+        except ConnectionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+        except ConnectionInactiveError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ConnectionInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ToolSlugInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ActionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+
+        return ToolResolveResponse(
+            count=len(resolution.builtins) + len(resolution.custom),
+            builtins=resolution.builtins,
+            custom=resolution.custom,
+        )
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def discover_capabilities(
+        self,
+        request: Request,
+        *,
+        body: CapabilitiesQuery,
+    ) -> CapabilitiesResult:
+        """Discover the tools that fit a set of use cases, translated to Agenta terms.
+
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        """
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        try:
+            return await self.tools_service.discover_capabilities(
+                project_id=UUID(request.state.project_id),
+                use_cases=body.use_cases,
+                provider_key=body.provider,
+                limit_alternatives=body.limit_alternatives,
+            )
+        except DiscoveryUnsupportedError as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
     async def call_tool(
         self,
         request: Request,
@@ -886,6 +1039,24 @@ class ToolsRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
+
+        # Route by the call_ref prefix: a referenced-workflow (@ag.reference) tool carries a
+        # ``workflow.{slug}[.{version}]`` call_ref and runs a workflow revision server-side; a
+        # Composio gateway tool carries the 5-segment ``tools.*`` slug and runs via the adapter.
+        call_ref = body.data.function.name.replace("__", ".")
+        if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
+            return await self._call_workflow_tool(request=request, body=body)
+        if call_ref.startswith(AGENTA_TOOL_CALL_REF_PREFIX):
+            # Reserved discovery tools expose per-project connection state, so gate them
+            # with VIEW_TOOLS at the boundary on top of the outer RUN_TOOLS check.
+            has_view_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TOOLS,
+            )
+            if not has_view_permission:
+                raise FORBIDDEN_EXCEPTION
+            return await self._call_agenta_tool(request=request, body=body)
 
         # Parse tool slug — accept both dot and double-underscore formats.
         # Double-underscore is used for LLM function names where dots are forbidden.
@@ -914,39 +1085,12 @@ class ToolsRouter:
         connection_slug = slug_parts[4]
 
         try:
-            connections = await self.tools_service.query_connections(
+            connection = await self.tools_service.resolve_connection_by_slug(
                 project_id=UUID(request.state.project_id),
                 provider_key=provider_key,
                 integration_key=integration_key,
+                connection_slug=connection_slug,
             )
-
-            connection = next(
-                (c for c in connections if c.slug == connection_slug), None
-            )
-
-            if not connection:
-                raise ConnectionNotFoundError(
-                    connection_slug=connection_slug,
-                    provider_key=provider_key,
-                    integration_key=integration_key,
-                )
-
-            if not connection.is_active:
-                raise ConnectionInactiveError(connection_id=connection_slug)
-
-            if not connection.is_valid:
-                raise ConnectionInvalidError(
-                    connection_slug=connection_slug,
-                    detail="Please refresh the connection.",
-                )
-
-            if not connection.provider_connection_id:
-                raise ConnectionNotFoundError(
-                    connection_slug=connection_slug,
-                    provider_key=provider_key,
-                    integration_key=integration_key,
-                )
-
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
         except ConnectionInactiveError as e:
@@ -1001,6 +1145,245 @@ class ToolsRouter:
         )
 
         return ToolCallResponse(call=result)
+
+    async def _call_agenta_tool(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """Run a reserved ``tools.agenta.*`` platform tool. v1 op: find_capabilities.
+
+        Routed here from ``call_tool`` by the ``tools.agenta.`` prefix (so the reserved
+        tool is out of the Composio 5-segment namespace). Project scope comes from the
+        run's caller auth, exactly like the gateway path.
+        """
+        call_ref = body.data.function.name.replace("__", ".")
+        op = call_ref[len(AGENTA_TOOL_CALL_REF_PREFIX) :]
+        if op != FIND_CAPABILITIES_OP:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unknown Agenta tool: {call_ref}",
+            )
+
+        arguments = body.data.function.arguments
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError as e:
+                log.warning(
+                    "Failed to parse find_capabilities arguments as JSON: %s", e
+                )
+                arguments = {}
+        elif not isinstance(arguments, dict):
+            arguments = {}
+
+        use_cases, provider, limit_alternatives = parse_find_capabilities_arguments(
+            arguments
+        )
+        if not use_cases:
+            raise HTTPException(
+                status_code=400,
+                detail="find_capabilities requires at least one use_case",
+            )
+
+        try:
+            result = await self.tools_service.discover_capabilities(
+                project_id=UUID(request.state.project_id),
+                use_cases=use_cases,
+                provider_key=provider,
+                limit_alternatives=limit_alternatives,
+            )
+        except DiscoveryUnsupportedError as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
+
+        tool_result = ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=json.dumps(result.model_dump(mode="json", exclude_none=True)),
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_OK",
+            ),
+        )
+        return ToolCallResponse(call=tool_result)
+
+    @staticmethod
+    def _validate_slug_segments(*, segments: List[str]) -> None:
+        """Reject any call_ref segment with characters outside the safe slug allowlist."""
+        for segment in segments:
+            if not _SLUG_SEGMENT_RE.fullmatch(segment):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid characters in workflow tool segment: {segment!r}",
+                )
+
+    async def _call_workflow_tool(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """Execute a workflow referenced as an agent tool (``type:"reference"``) server-side.
+
+        The model's call routes here via a ``workflow.{axis}.*`` call_ref. We parse the targeting
+        axis, invoke the selected workflow revision with the model's arguments as ``inputs``, and
+        return its outputs as the tool result. Connections/secrets the workflow needs stay
+        server-side (auth is minted from the caller's project + user), the same safety shape a
+        gateway tool has.
+
+        Grammar (after the ``workflow.`` prefix):
+
+        - ``variant.{slug}`` / ``variant.{slug}.{version}`` — the workflow's latest revision by
+          slug, or a pinned revision. Mapped to the ``workflow`` reference family.
+        - ``environment.{environment}.{slug}`` — whatever revision is deployed in ``environment``
+          for the workflow ``slug``. Mapped to the ``environment`` + ``workflow`` families (the
+          environment selects the revision via the derived ``{slug}.revision`` key)."""
+        if self.workflows_service is None:
+            raise HTTPException(
+                status_code=501,
+                detail="Workflow tools are not enabled on this deployment.",
+            )
+
+        invalid_call_ref = HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid workflow tool call_ref: {body.data.function.name}. "
+                "Expected: workflow.variant.{slug}[.{version}] or "
+                "workflow.environment.{environment}.{slug}"
+            ),
+        )
+
+        remainder = body.data.function.name.replace("__", ".")[
+            len(_WORKFLOW_CALL_REF_PREFIX) :
+        ]
+        parts = remainder.split(".")
+        axis = parts[0] if parts else ""
+        operands = parts[1:]
+
+        if axis == "variant":
+            # ``variant.{slug}`` (latest) or ``variant.{slug}.{version}`` (pinned).
+            if len(operands) not in (1, 2):
+                raise invalid_call_ref
+            slug = operands[0]
+            version = operands[1] if len(operands) == 2 else None
+            segments = [slug] + ([version] if version else [])
+            self._validate_slug_segments(segments=segments)
+            references = {"workflow": Reference(slug=slug, version=version)}
+        elif axis == "environment":
+            # ``environment.{environment}.{slug}`` — the environment pins the revision; the
+            # workflow ref supplies the ``{slug}.revision`` selector key the env lookup needs.
+            if len(operands) != 2:
+                raise invalid_call_ref
+            environment, slug = operands
+            self._validate_slug_segments(segments=[environment, slug])
+            references = {
+                "environment": Reference(slug=environment),
+                "workflow": Reference(slug=slug),
+            }
+        else:
+            raise invalid_call_ref
+
+        # Normalise arguments — the LLM may send them as a JSON string.
+        arguments = body.data.function.arguments
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError as e:
+                log.warning("Failed to parse workflow tool arguments as JSON: %s", e)
+                arguments = {}
+        elif not isinstance(arguments, dict):
+            arguments = {}
+
+        invoke_request = WorkflowServiceRequest(
+            references=references,
+            data=WorkflowServiceRequestData(inputs=arguments),
+        )
+
+        try:
+            response = await self.workflows_service.invoke_workflow(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                request=invoke_request,
+            )
+        except Exception as e:
+            log.error("Workflow tool invocation failed", exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Workflow tool '{slug}' invocation failed.",
+            ) from e
+
+        status_code = response.status.code if response.status else 200
+        successful = status_code is not None and 200 <= status_code < 300
+        outputs = response.data.outputs if response.data else None
+        message = (
+            None
+            if successful
+            else (response.status.message if response.status else None)
+        )
+
+        if successful:
+            await _emit_committed_revision_data_event_from_outputs(
+                request=request,
+                outputs=outputs,
+            )
+
+        result = ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=json.dumps(outputs),
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_OK" if successful else "STATUS_CODE_ERROR",
+                message=message,
+            ),
+        )
+
+        return ToolCallResponse(call=result)
+
+
+async def _emit_committed_revision_data_event_from_outputs(
+    *,
+    request: Request,
+    outputs: object,
+) -> None:
+    if not isinstance(outputs, dict):
+        return
+
+    data = {
+        "variantId": outputs.get("variantId") or outputs.get("variant_id"),
+        "revisionId": outputs.get("revisionId") or outputs.get("revision_id"),
+        "version": outputs.get("version"),
+    }
+    if not all(data.values()):
+        return
+
+    await _emit_data_event(
+        request=request,
+        name="committed-revision",
+        data=data,
+    )
+
+
+async def _emit_data_event(
+    *,
+    request: Request,
+    name: str,
+    data: dict,
+) -> None:
+    emit = getattr(request.state, "emit", None) or getattr(
+        request.state, "emit_event", None
+    )
+    if not callable(emit):
+        return
+
+    result = emit({"type": "data", "name": name, "data": data})
+    if isawaitable(result):
+        await result
 
 
 # ---------------------------------------------------------------------------

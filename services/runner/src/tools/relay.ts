@@ -1,0 +1,344 @@
+/**
+ * Daytona tool relay.
+ *
+ * Tool child processes do not receive private resolved specs, executable code, scoped env,
+ * callback endpoints, or callback auth. They receive only public tool metadata plus this
+ * relay directory, then ask the runner to execute each call.
+ *
+ * The runner CAN reach Agenta (it resolved the tools and holds the callback), and it can
+ * reach the sandbox filesystem over the daemon API. So tool calls are relayed through the
+ * runner via files in a sandbox dir:
+ *
+ *   child:  write `<id>.req.json` {toolName, args} ──▶ poll `<id>.res.json`
+ *   runner: poll the dir, read `<id>.req.json` ──▶ execute private spec in memory
+ *           ──▶ write `<id>.res.json`
+ *
+ * The same loop supports local filesystem relays and Daytona sandbox filesystem relays.
+ */
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+
+import { callAgentaTool } from "./callback.ts";
+import { runCodeTool } from "./code.ts";
+import {
+  assembleBody,
+  callDirect,
+  deepDelete,
+  directCallUrl,
+  pathParamNames,
+} from "./direct.ts";
+import type {
+  ResolvedToolSpec,
+  RunContext,
+  ToolCallbackContext,
+} from "../protocol.ts";
+import type { ClientToolOutcome, PermissionPolicy } from "../responder.ts";
+
+export const RELAY_REQ_SUFFIX = ".req.json";
+export const RELAY_RES_SUFFIX = ".res.json";
+export const RELAY_POLL_MS = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_POLLING ?? 300,
+);
+export const RELAY_TIMEOUT_MS = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_TIMEOUT ?? 60000,
+);
+
+export interface RelayRequest {
+  toolName: string;
+  toolCallId: string;
+  args: unknown;
+}
+export interface RelayResponse {
+  ok: boolean;
+  text?: string;
+  error?: string;
+}
+export interface ClientToolRelayRequest {
+  id: string;
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+  spec: ResolvedToolSpec;
+}
+export interface ClientToolRelay {
+  onClientTool: (request: ClientToolRelayRequest) => Promise<ClientToolOutcome>;
+  onPark?: (request: ClientToolRelayRequest) => void;
+}
+const CLIENT_TOOL_PARKED = Symbol("client-tool-parked");
+
+function objectSchema(schema: unknown): Record<string, unknown> | undefined {
+  return schema && typeof schema === "object" && !Array.isArray(schema)
+    ? (schema as Record<string, unknown>)
+    : undefined;
+}
+
+function requiredFields(schema: unknown): string[] {
+  const object = objectSchema(schema);
+  const required = object?.required;
+  return Array.isArray(required)
+    ? required.filter((field): field is string => typeof field === "string")
+    : [];
+}
+
+function specInputSchema(spec: ResolvedToolSpec): Record<string, unknown> | null | undefined {
+  return (
+    spec.inputSchema ??
+    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
+      .input_schema
+  );
+}
+
+function missingRequiredFields(
+  schema: unknown,
+  value: unknown,
+  path: string[] = [],
+): string[] {
+  const object = objectSchema(schema);
+  if (!object) return [];
+
+  const missing: string[] = [];
+  const required = requiredFields(object);
+  const record = objectSchema(value);
+  for (const field of required) {
+    if (!record || record[field] === undefined || record[field] === null) {
+      missing.push([...path, field].join("."));
+    }
+  }
+
+  const properties = objectSchema(object.properties);
+  if (!properties || !record) return missing;
+  for (const [field, childSchema] of Object.entries(properties)) {
+    if (record[field] !== undefined && record[field] !== null) {
+      missing.push(...missingRequiredFields(childSchema, record[field], [...path, field]));
+    }
+  }
+  return missing;
+}
+
+function assertRequiredArguments(spec: ResolvedToolSpec, params: unknown): void {
+  const missing = missingRequiredFields(specInputSchema(spec), params);
+  if (missing.length === 0) return;
+  throw new Error(
+    `Tool '${spec.name}' missing required argument(s): ${missing.join(", ")}. ` +
+      "Retry the tool call with those argument fields populated.",
+  );
+}
+
+/** Make a tool-call id safe to use as a filename (and bounded). */
+export function sanitizeRelayId(id: string): string {
+  return id.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 120) || "tool";
+}
+
+export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Layer 3 enforcement (S3b): resolve a resolved-tool spec's `permission` to a concrete
+ * runner-side decision. `allow` runs, `deny` never runs; `ask` and an UNSET permission
+ * degrade to the run's headless `permissionPolicy` (`auto` -> allow, `deny` -> deny).
+ *
+ * Resolved tools (code / gateway-callback) run runner-side via the relay, harness-agnostic, so
+ * this is where their permission is enforced (Claude builtins are enforced at Layer 1 via
+ * .claude/settings.json instead). Surfacing an `ask` to a live human is the cross-turn HITL
+ * path (S5); here `ask` is a headless run, so it collapses onto the policy.
+ */
+export function resolvePermission(
+  permission: string | undefined,
+  policy: PermissionPolicy,
+): "allow" | "deny" {
+  if (permission === "allow") return "allow";
+  if (permission === "deny") return "deny";
+  // `ask` or unset: headless, so defer to the run policy.
+  // TODO(S5): surface ask to HITL instead of collapsing onto permissionPolicy.
+  return policy === "deny" ? "deny" : "allow";
+}
+
+export interface RelayHost {
+  list: (dir: string) => Promise<string[]>;
+  read: (path: string) => Promise<string>;
+  write: (path: string, contents: string) => Promise<void>;
+}
+
+/** Relay host for child processes running on the same filesystem as the runner. */
+export function localRelayHost(): RelayHost {
+  return {
+    list: async (dir) => {
+      if (!existsSync(dir)) return [];
+      return readdirSync(dir);
+    },
+    read: async (path) => readFileSync(path, "utf-8"),
+    write: async (path, contents) => {
+      mkdirSync(path.slice(0, path.lastIndexOf("/")), { recursive: true });
+      writeFileSync(path, contents, "utf-8");
+    },
+  };
+}
+
+/** Relay host for child processes running inside a Daytona sandbox. */
+export function sandboxRelayHost(sandbox: any): RelayHost {
+  return {
+    list: async (dir) => {
+      const ls = await sandbox.runProcess({
+        command: "ls",
+        args: ["-1", dir],
+        timeoutMs: 10_000,
+      });
+      return String(ls?.stdout ?? "")
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    },
+    read: async (path) => {
+      const bytes = await sandbox.readFsFile({ path });
+      return typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+    },
+    write: async (path, contents) => {
+      await sandbox.writeFsFile({ path }, contents);
+    },
+  };
+}
+
+async function executeRelayedTool(
+  spec: ResolvedToolSpec,
+  req: RelayRequest,
+  callback: ToolCallbackContext | undefined,
+  policy: PermissionPolicy,
+  runContext: RunContext | undefined,
+  clientToolRelay: ClientToolRelay | undefined,
+): Promise<string | typeof CLIENT_TOOL_PARKED> {
+  assertRequiredArguments(spec, req.args);
+  if (spec.kind === "client") {
+    if (!clientToolRelay) {
+      throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
+    }
+    const toolCallId = req.toolCallId;
+    const request = {
+      id: toolCallId,
+      toolCallId,
+      toolName: spec.name,
+      input: req.args,
+      spec,
+    };
+    const decision = await clientToolRelay.onClientTool(request);
+    if (decision === "park") {
+      clientToolRelay.onPark?.(request);
+      return CLIENT_TOOL_PARKED;
+    }
+    if (decision === "deny") {
+      return `Client tool '${spec.name}' was denied.`;
+    }
+    return JSON.stringify(decision.output ?? {});
+  }
+  // Layer 3 enforcement (S3b): gate the call on the spec's permission before it runs.
+  // `deny` returns a refusal string (not a throw) so the harness folds it into the tool
+  // result and the model loop continues. `ask`/unset degrade to the headless policy.
+  const decision = resolvePermission(spec.permission, policy);
+  if (decision === "deny") {
+    if (spec.permission === "deny") {
+      return `Tool '${spec.name}' is denied by policy.`;
+    }
+    // ask/unset that the headless policy refused. TODO(S5): surface ask to HITL.
+    return `Tool '${spec.name}' requires approval; denied in headless mode.`;
+  }
+  if (spec.kind === "code") {
+    return runCodeTool(spec.runtime, spec.code ?? "", spec.env, req.args);
+  }
+  if (!callback?.endpoint) {
+    throw new Error(`missing toolCallback endpoint for '${spec.name}'`);
+  }
+  // Direct-call tools (reference / platform): the host makes the call directly so the sandbox
+  // child still sends only name + args. The origin is bound to the run's own callback endpoint
+  // and the run's authorization is reused (see tools/direct.ts). A spec carries `call` XOR
+  // `callRef`, so this is checked before the gateway fallback. `runContext` fills the
+  // `call.context` bindings server-side (direct-call tools, Phase 3a), hidden from the model.
+  if (spec.call) {
+    const body = assembleBody(spec.call, req.args, runContext);
+    const url = directCallUrl(callback.endpoint, spec.call, body);
+    // Path params were just substituted into the URL from this same body; strip them so a
+    // POST handler whose request model expects the identifier only in the route (e.g.
+    // `/api/triggers/schedules/{id}/stop`) does not also receive `id` in the JSON payload.
+    for (const name of pathParamNames(spec.call.path)) {
+      deepDelete(body, name);
+    }
+    return callDirect(spec.call.method, url, callback.authorization, body);
+  }
+  // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.
+  return callAgentaTool(
+    callback.endpoint,
+    callback.authorization,
+    spec.callRef ?? "",
+    req.toolCallId,
+    req.args,
+  );
+}
+
+/**
+ * Runner-side relay loop. Polls the sandbox relay dir for request files, executes each
+ * against the private spec in memory, and writes the response file
+ * the in-sandbox extension is waiting on. Returns `stop()` to end the loop and drain any
+ * in-flight executions; call it once the prompt resolves.
+ */
+export function startToolRelay(
+  host: RelayHost,
+  relayDir: string,
+  specs: ResolvedToolSpec[],
+  callback: ToolCallbackContext | undefined,
+  policy: PermissionPolicy,
+  runContext?: RunContext,
+  clientToolRelay?: ClientToolRelay,
+): { stop: () => Promise<void> } {
+  let active = true;
+  const seen = new Set<string>();
+  const inflight: Promise<void>[] = [];
+  const specsByName = new Map(specs.map((spec) => [spec.name, spec]));
+
+  const handle = async (reqName: string): Promise<void> => {
+    const id = reqName.slice(0, -RELAY_REQ_SUFFIX.length);
+    let res: RelayResponse;
+    try {
+      const raw = await host.read(`${relayDir}/${reqName}`);
+      const req = JSON.parse(raw) as RelayRequest;
+      const spec = specsByName.get(req.toolName);
+      if (!spec) throw new Error(`unknown tool '${req.toolName}'`);
+      const text = await executeRelayedTool(
+        spec,
+        { ...req, toolCallId: req.toolCallId ?? id },
+        callback,
+        policy,
+        runContext,
+        clientToolRelay,
+      );
+      if (text === CLIENT_TOOL_PARKED) return;
+      res = { ok: true, text };
+    } catch (err) {
+      res = { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+    try {
+      await host.write(`${relayDir}/${id}${RELAY_RES_SUFFIX}`, JSON.stringify(res));
+    } catch {
+      // The extension will time out and surface a tool error; nothing else to do here.
+    }
+  };
+
+  const loop = (async () => {
+    while (active) {
+      try {
+        const names = await host.list(relayDir);
+        for (const name of names) {
+          if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
+          seen.add(name);
+          inflight.push(handle(name));
+        }
+      } catch {
+        // Transient (dir not created yet, or a poll raced sandbox teardown): retry.
+      }
+      await sleep(RELAY_POLL_MS);
+    }
+    await Promise.allSettled(inflight);
+  })();
+
+  return {
+    stop: async () => {
+      active = false;
+      await loop.catch(() => {});
+    },
+  };
+}

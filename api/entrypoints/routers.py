@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 import time
 
 import agenta as ag
@@ -77,6 +78,7 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.events.service import EventsService
+from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
@@ -87,6 +89,7 @@ from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
+from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.environments.service import EnvironmentsService
@@ -124,6 +127,7 @@ from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
+from oss.src.apis.fastapi.sessions.router import SessionsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.core.annotations.service import AnnotationsService
@@ -132,14 +136,58 @@ from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
+from oss.src.dbs.postgres.sessions.states.dbes import SessionStateDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.states.dao import SessionStatesDAO
+from oss.src.core.sessions.states.service import SessionStatesService
+
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
-from oss.src.dbs.postgres.tools.dao import ToolsDAO
+from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
+from oss.src.core.gateway.connections.providers.composio import (
+    ComposioConnectionsAdapter,
+)
+from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
+from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.gateway.catalog.providers.composio import ComposioCatalogAdapter
+from oss.src.core.gateway.catalog.registry import CatalogGatewayRegistry
+from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.dbs.postgres.triggers.dao import TriggersDAO
+from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
+from oss.src.core.triggers.registry import TriggersGatewayRegistry
+from oss.src.core.triggers.service import TriggersService
+from oss.src.apis.fastapi.triggers.router import TriggersRouter
+from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
+from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
+from taskiq_redis import RedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
+from oss.src.dbs.postgres.mounts.dao import MountsDAO
+from oss.src.core.mounts.service import MountsService
+from oss.src.core.store.storage import ObjectStore
+from oss.src.core.sessions.mounts.service import SessionMountsService
+from oss.src.apis.fastapi.mounts.router import MountsRouter
+
+# Session streams
+from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
+from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
+from oss.src.dbs.redis.shared.engine import get_lock_engine
+
+# Interactions
+from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
+    InteractionsDispatcher,
+)
+from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
+
+# Records DAO (analytics DB)
+from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 
 
 from oss.src.routers import (
@@ -204,9 +252,40 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
 
+    await _triggers_broker.startup()
+
+    # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
+    # so a store outage doesn't block API startup (mounts degrade, the rest runs).
+    if env.store.bucket:
+        try:
+            await store.ensure_bucket(bucket=env.store.bucket)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Store bucket ensure failed at startup: %s", e)
+
+    _orphan_sweep_task = asyncio.create_task(orphan_sweep_loop(_transactions_engine))
+
+    # Best-effort: ingestion re-resolves on demand if this fails.
+    if env.composio.enabled:
+        try:
+            await triggers_service.ensure_webhook_registered()
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "Composio trigger webhook registration failed at startup: %s", e
+            )
+
     yield
 
+    _orphan_sweep_task.cancel()
+
+    await _triggers_broker.shutdown()
+
     for adapter in _composio_adapters.values():
+        await adapter.close()
+
+    for adapter in _composio_connections_adapters.values():
+        await adapter.close()
+
+    for adapter in _composio_triggers_adapters.values():
         await adapter.close()
 
     await _transactions_engine.close()
@@ -303,8 +382,27 @@ _OPENAPI_TAGS = [
     },
     # --
     {
+        "name": "Triggers",
+        "description": "Inbound provider event triggers and their watchable event catalog.",
+    },
+    # --
+    {
+        "name": "Sessions",
+        "description": "Agent sessions — runner coordination (invoke/cancel/steer/attach/detach/heartbeat/liveness), state persistence (durable SDK state and sandbox resume pointer), records, and streams.",
+    },
+    {
+        "name": "Interactions",
+        "description": "Human-in-the-loop interaction requests raised by running agents — approvals, inputs, and tool confirmations.",
+    },
+    # --
+    {
         "name": "Folders",
         "description": "Organize applications and other resources into folder hierarchies.",
+    },
+    # --
+    {
+        "name": "Mounts",
+        "description": "Durable object-store mounts for agent working directories.",
     },
     # --
     # {
@@ -322,6 +420,7 @@ _OPENAPI_TAGS = [
     },
     # --
     # Billing inserted here by EE (extend_app_schema)
+    # --
     # --
     {
         "name": "Admin",
@@ -402,6 +501,7 @@ webhooks_dao = WebhooksDAO(engine=_transactions_engine)
 
 tracing_dao = TracingDAO(engine=_analytics_engine)
 events_dao = EventsDAO(engine=_analytics_engine)
+records_dao = RecordsDAO(engine=_analytics_engine)  # analytics DB
 
 testcases_dao = BlobsDAO(
     engine=_transactions_engine,
@@ -438,8 +538,10 @@ environments_dao = GitDAO(
 
 evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
 folders_dao = FoldersDAO(engine=_transactions_engine)
+session_streams_dao = SessionStreamsDAO(engine=_transactions_engine)
 
-tools_dao = ToolsDAO(engine=_transactions_engine)
+connections_dao = ConnectionsDAO(engine=_transactions_engine)
+mounts_dao = MountsDAO(engine=_transactions_engine)
 
 # SERVICES ---------------------------------------------------------------------
 
@@ -464,6 +566,10 @@ tracing_service = TracingService(
 
 events_service = EventsService(
     events_dao=events_dao,
+)
+
+records_service = RecordsService(
+    records_dao=records_dao,
 )
 
 
@@ -493,8 +599,16 @@ folders_service = FoldersService(
     folders_dao=folders_dao,
 )
 
+_lock_engine = get_lock_engine()
+
+session_streams_service = SessionStreamsService(
+    streams_dao=session_streams_dao,
+    lock_engine=_lock_engine,
+)
+
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
+    static_catalog=StaticWorkflowCatalog(),
 )
 
 environments_service = EnvironmentsService(
@@ -574,6 +688,39 @@ simple_queues_service = SimpleQueuesService(
     simple_evaluations_service=simple_evaluations_service,
 )
 
+# Connections adapter + service (owns gateway_connections; consumed by tools)
+_composio_connections_adapters = {}
+if env.composio.enabled:
+    _composio_connections_adapters["composio"] = ComposioConnectionsAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+connections_adapter_registry = ConnectionsGatewayRegistry(
+    adapters=_composio_connections_adapters,
+)
+
+connections_service = ConnectionsService(
+    connections_dao=connections_dao,
+    adapter_registry=connections_adapter_registry,
+)
+
+# Shared catalog adapter + service (providers + integrations; tools AND triggers)
+_composio_catalog_adapters = {}
+if env.composio.enabled:
+    _composio_catalog_adapters["composio"] = ComposioCatalogAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+catalog_adapter_registry = CatalogGatewayRegistry(
+    adapters=_composio_catalog_adapters,
+)
+
+catalog_service = CatalogService(
+    adapter_registry=catalog_adapter_registry,
+)
+
 # Tools adapter + service
 _composio_adapters = {}
 if env.composio.enabled:
@@ -589,8 +736,114 @@ tools_adapter_registry = ToolsGatewayRegistry(
 )
 
 tools_service = ToolsService(
-    tools_dao=tools_dao,
+    connections_service=connections_service,
+    catalog_service=catalog_service,
     adapter_registry=tools_adapter_registry,
+)
+
+# Triggers adapter + service
+_composio_triggers_adapters = {}
+if env.composio.enabled:
+    _composio_triggers_adapters["composio"] = ComposioTriggersAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+triggers_adapter_registry = TriggersGatewayRegistry(
+    adapters=_composio_triggers_adapters,
+)
+
+triggers_dao = TriggersDAO(engine=_transactions_engine)
+
+interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
+
+interactions_service = SessionInteractionsService(
+    interactions_dao=interactions_dao,
+)
+
+triggers_service = TriggersService(
+    adapter_registry=triggers_adapter_registry,
+    catalog_service=catalog_service,
+    triggers_dao=triggers_dao,
+    connections_service=connections_service,
+    workflows_service=workflows_service,
+)
+
+
+# Detached workflow start: hand the run to the runner and return on the started handshake
+# (no awaiting the run). Shared by both detached consumers (triggers + interactions respond).
+async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+    result = await workflows_service.invoke_workflow_detached(
+        project_id=project_id,
+        user_id=user_id,
+        request=request,
+    )
+    return result.run_id
+
+
+# Producer side of the interactions pipeline: the respond route enqueues
+# `interactions.respond` tasks here; entrypoints/worker_interactions.py consumes them.
+_interactions_broker = RedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:interactions",
+    consumer_group_name="api-interactions-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_interactions_dispatcher = InteractionsDispatcher(
+    workflows_service=workflows_service,
+    interactions_service=interactions_service,
+    dispatch_fn=_dispatch_detached_run,
+)
+
+_interactions_worker = InteractionsWorker(
+    broker=_interactions_broker,
+    dispatcher=_interactions_dispatcher,
+)
+
+# Producer side of the inbound dispatch pipeline: the ingress route enqueues
+# `triggers.dispatch` tasks here; entrypoints/worker_triggers.py consumes them.
+_triggers_broker = RedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:triggers",
+    consumer_group_name="api-triggers-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_triggers_dispatcher = TriggersDispatcher(
+    triggers_dao=triggers_dao,
+    workflows_service=workflows_service,
+    dispatch_fn=_dispatch_detached_run,
+)
+
+_triggers_worker = TriggersWorker(
+    broker=_triggers_broker,
+    dispatcher=_triggers_dispatcher,
+    triggers_dao=triggers_dao,
+)
+
+triggers_service.schedule_dispatch_task = _triggers_worker.dispatch_schedule
+
+store = ObjectStore(
+    endpoint_url=env.store.endpoint_url,
+    access_key=env.store.access_key,
+    secret_key=env.store.secret_key,
+    region=env.store.region,
+    sts_endpoint_url=env.store.sts_endpoint_url,
+    signing_key=env.store.signing_key,
+)
+
+mounts_service = MountsService(
+    mounts_dao=mounts_dao,
+    mounts_store=store,
+    bucket=env.store.bucket,
+    namespace=env.store.namespace,
+)
+
+session_mounts_service = SessionMountsService(
+    mounts_service=mounts_service,
 )
 
 _t_services_done = time.perf_counter() - _t_services
@@ -705,6 +958,12 @@ simple_queues = SimpleQueuesRouter(
 
 tools = ToolsRouter(
     tools_service=tools_service,
+    workflows_service=workflows_service,
+)
+
+triggers = TriggersRouter(
+    triggers_service=triggers_service,
+    dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
 simple_traces = SimpleTracesRouter(
@@ -729,11 +988,34 @@ invocations = InvocationsRouter(
     invocations_service=invocations_service,
 )
 
+mounts = MountsRouter(
+    mounts_service=mounts_service,
+)
+
 # AI SERVICES ------------------------------------------------------------------
 
 ai_services_service = AIServicesService.from_env()
 ai_services = AIServicesRouter(
     ai_services_service=ai_services_service,
+)
+
+# SESSION STATES ---------------------------------------------------------------
+
+session_states_dao = SessionStatesDAO(engine=_transactions_engine)
+
+session_states_service = SessionStatesService(
+    session_states_dao=session_states_dao,
+)
+
+sessions = SessionsRouter(
+    streams_service=session_streams_service,
+    states_service=session_states_service,
+    records_service=records_service,
+    interactions_service=interactions_service,
+    workflows_service=workflows_service,
+    session_mounts_service=session_mounts_service,
+    mounts_service=mounts_service,
+    respond_task=_interactions_worker.respond_interaction,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------
@@ -946,6 +1228,11 @@ app.include_router(
 )
 
 app.include_router(
+    router=sessions.streams.router,
+    tags=["Sessions"],
+)
+
+app.include_router(
     router=applications.router,
     prefix="/applications",
     tags=["Applications"],
@@ -1075,6 +1362,33 @@ app.include_router(
 )
 
 app.include_router(
+    router=triggers.router,
+    prefix="/triggers",
+    tags=["Triggers"],
+)
+
+app.include_router(
+    router=triggers.router,
+    prefix="/preview/triggers",
+    tags=["Triggers"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=triggers.admin_router,
+    prefix="/admin/triggers",
+    tags=["Triggers", "Admin"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=sessions.interactions.router,
+    prefix="/sessions/interactions",
+    tags=["Sessions"],
+)
+
+
+app.include_router(
     router=evaluations.admin_router,
     prefix="/admin/evaluations",
     tags=["Evaluations", "Admin"],
@@ -1121,15 +1435,47 @@ app.include_router(
 )
 
 app.include_router(
+    router=mounts.router,
+    prefix="/mounts",
+    tags=["Mounts"],
+)
+
+app.include_router(
+    router=sessions.mounts.router,
+    prefix="/sessions",
+    tags=["Sessions"],
+)
+
+app.include_router(
+    router=sessions.records.router,
+    prefix="/sessions/records",
+    tags=["Sessions"],
+)
+
+app.include_router(
     router=platform_admin_accounts.router,
     prefix="/admin",
     tags=["Admin"],
+)
+
+app.include_router(
+    router=sessions.states.router,
+    prefix="/sessions",
+    tags=["Sessions"],
 )
 
 
 @app.get("/health", operation_id="health_check", tags=["Status"])
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/.well-known/jwks.json", operation_id="store_jwks", tags=["Status"])
+async def store_jwks():
+    """Public JWKS the object store's OIDC IAM fetches to verify our web-identity tokens."""
+    from oss.src.core.store import webidentity
+
+    return webidentity.jwks()
 
 
 access_router = AccessRouter()

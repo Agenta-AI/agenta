@@ -23,7 +23,7 @@ class DefaultPlan(str, Enum):
 
 # Permission slugs that the OWNER role always implies. `"*"` is the wildcard
 # permission recognized by `permissions.py`. The `RequiredRole` enum itself now
-# lives in `ee.src.core.access.permissions.types`.
+# lives in `oss.src.core.access.permissions.types`.
 OWNER_PERMISSIONS: list[str] = ["*"]
 
 
@@ -54,6 +54,7 @@ class Counter(str, Enum):
     TRACES_RETRIEVED = "traces_retrieved"
     CREDITS_CONSUMED = "credits_consumed"
     EVENTS_INGESTED = "events_ingested"
+    RECORDS_INGESTED = "records_ingested"
 
 
 class Gauge(str, Enum):
@@ -69,8 +70,9 @@ class Retention(int, Enum):
     EPHEMERAL = 0  # instant
     HOURLY = 60  # 1 hour = 60 minutes
     DAILY = 1440  # 24 hours = 1 day = 1440 minutes
+    WEEKLY = 10080  # 7 days = 168 hours = 10080 minutes
     MONTHLY = 44640  # 31 days = 744 hours = 44640 minutes
-    QUARTERLY = 131040  # 91 days = 2184 hours = 131040 minutes
+    QUARTERLY = 132480  # 92 days = 2208 hours = 132480 minutes
     YEARLY = 525600  # 365 days = 8760 hours = 525600 minutes
 
 
@@ -192,7 +194,7 @@ DEFAULT_CATALOG = [
         "description": "Great for hobby projects and POCs.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_HOBBY.value,
-        "retention": Retention.MONTHLY.value,
+        "retention": Retention.WEEKLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -205,7 +207,7 @@ DEFAULT_CATALOG = [
             "20 evaluations/month",
             "5k traces/month",
             "2 seats included",
-            "30 days retention period",
+            "1 week retention period",
             "Community support via Github",
         ],
     },
@@ -214,27 +216,12 @@ DEFAULT_CATALOG = [
         "description": "For production projects.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_PRO.value,
-        "retention": Retention.QUARTERLY.value,
+        "retention": Retention.MONTHLY.value,
         "price": {
             "base": {
                 "type": "flat",
                 "currency": "USD",
-                "amount": 49.00,
-            },
-            "users": {
-                "type": "tiered",
-                "currency": "USD",
-                "tiers": [
-                    {
-                        "limit": 3,
-                        "amount": 0.00,
-                    },
-                    {
-                        "limit": 10,
-                        "amount": 20.00,
-                        "rate": 1,
-                    },
-                ],
+                "amount": 29.00,
             },
             "traces": {
                 "type": "tiered",
@@ -255,8 +242,8 @@ DEFAULT_CATALOG = [
             "Unlimited prompts",
             "Unlimited evaluations",
             "10k traces / month included then $5 for every 10k",
-            "3 seats included then $20 per seat",
-            "90 days retention period",
+            "Unlimited seats",
+            "1 month retention period",
             "In-app support",
         ],
     },
@@ -265,12 +252,12 @@ DEFAULT_CATALOG = [
         "description": "For scale, security, and support.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_BUSINESS.value,
-        "retention": Retention.YEARLY.value,
+        "retention": Retention.QUARTERLY.value,
         "price": {
             "base": {
                 "type": "flat",
                 "currency": "USD",
-                "amount": 399.00,
+                "amount": 299.00,
             },
             "traces": {
                 "type": "tiered",
@@ -298,7 +285,7 @@ DEFAULT_CATALOG = [
             "HIPAA BAA [soon]",
             "Private Slack Channel",
             "Business SLA",
-            "365 days retention period",
+            "1 quarter retention period",
         ],
     },
     {
@@ -348,7 +335,7 @@ DEFAULT_ENTITLEMENTS = {
             Counter.TRACES_INGESTED: Quota(
                 free=5_000,
                 limit=5_000,
-                retention=Retention.MONTHLY,
+                retention=Retention.WEEKLY,
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
@@ -363,7 +350,11 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.EVENTS_INGESTED: Quota(
-                retention=Retention.MONTHLY,
+                retention=Retention.WEEKLY,
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                retention=Retention.WEEKLY,
                 period=Period.MONTHLY,
             ),
         },
@@ -436,7 +427,7 @@ DEFAULT_ENTITLEMENTS = {
             ),
             Counter.TRACES_INGESTED: Quota(
                 free=10_000,
-                retention=Retention.QUARTERLY,
+                retention=Retention.MONTHLY,
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
@@ -451,14 +442,16 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.EVENTS_INGESTED: Quota(
-                retention=Retention.QUARTERLY,
+                retention=Retention.MONTHLY,
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                retention=Retention.MONTHLY,
                 period=Period.MONTHLY,
             ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
-                free=3,
-                limit=10,
                 strict=True,
             ),
         },
@@ -524,7 +517,7 @@ DEFAULT_ENTITLEMENTS = {
             ),
             Counter.TRACES_INGESTED: Quota(
                 free=1_000_000,
-                retention=Retention.YEARLY,
+                retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
@@ -539,7 +532,11 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.EVENTS_INGESTED: Quota(
-                retention=Retention.YEARLY,
+                retention=Retention.QUARTERLY,
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
             ),
         },
@@ -625,6 +622,9 @@ DEFAULT_ENTITLEMENTS = {
             Counter.EVENTS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
+            Counter.RECORDS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -660,6 +660,9 @@ DEFAULT_ENTITLEMENTS = {
             Counter.EVENTS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
+            Counter.RECORDS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -676,7 +679,6 @@ DEFAULT_ENTITLEMENTS = {
 # name to report under (`REPORTS[key]`).
 REPORTS: dict[str, str] = {
     Counter.TRACES_INGESTED.value: "traces",
-    Gauge.USERS.value: "users",
 }
 
 CONSTRAINTS = {
@@ -699,6 +701,7 @@ CONSTRAINTS = {
             Counter.TRACES_RETRIEVED,
             Counter.CREDITS_CONSUMED,
             Counter.EVENTS_INGESTED,
+            Counter.RECORDS_INGESTED,
         ],
     },
 }

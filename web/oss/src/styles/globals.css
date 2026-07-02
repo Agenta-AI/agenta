@@ -104,10 +104,9 @@ body {
     transition: none;
 }
 
-/* It aligns the settings icon in the table column  */
+/* Center the gear/settings icon in the fixed-right action column header. */
 .ant-table-cell-fix-right-first svg {
-    display: flex;
-    justify-content: center;
+    display: block;
     margin: 0 auto;
 }
 
@@ -117,6 +116,63 @@ body {
 .playground-splitter .ant-splitter-bar::before,
 .playground-splitter .ant-splitter-bar::after {
     z-index: 100;
+}
+
+/* Splitter handle look & feel.
+   antd derives the dragger hover/active fill and the collapse pill from `colorPrimary`,
+   which is a loud yellow (#f2f25c) in dark mode. Retone every interactive surface to
+   neutral `--ag-colorFill*` tokens (they adapt to light/dark) so the handle reads as a
+   quiet grip, not a brand-colored highlight. */
+.playground-splitter .ant-splitter-bar-dragger::before {
+    background: var(--ag-colorFillQuaternary) !important;
+}
+.playground-splitter .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::before {
+    background: var(--ag-colorFillTertiary) !important;
+}
+.playground-splitter .ant-splitter-bar-dragger-active::before {
+    background: var(--ag-colorFillSecondary) !important;
+}
+/* Grip line — a calm neutral border tone instead of the default heavy fill. */
+.playground-splitter .ant-splitter-bar-dragger::after {
+    background: var(--ag-colorBorder) !important;
+}
+/* Collapse (< / >) pill: neutral hover/active, subtle rest border for affordance. */
+.playground-splitter .ant-splitter-bar-collapse-bar {
+    border: 1px solid var(--ag-colorBorderSecondary);
+}
+.playground-splitter
+    .ant-splitter-bar-collapse-bar:hover:not(.ant-splitter-bar-collapse-bar-customize) {
+    background: var(--ag-colorFillSecondary) !important;
+}
+.playground-splitter
+    .ant-splitter-bar-collapse-bar:active:not(.ant-splitter-bar-collapse-bar-customize) {
+    background: var(--ag-colorFill) !important;
+}
+/* Lazy-drag preview ghost: neutral instead of a yellow wash. */
+.playground-splitter .ant-splitter-bar-preview {
+    background: var(--ag-colorFill) !important;
+    opacity: 0.4 !important;
+}
+
+/* Build/Chat mode transitions: ease the panels' flex-basis (config → 0, chat → full) and fade the
+   inert split bar instead of snapping. `-animated` is added by MainLayout only around a toggle (off
+   during drag, so resizing stays 1:1). Gated on `prefers-reduced-motion` for parity with the rail's
+   `motion-safe:` animations. */
+@media (prefers-reduced-motion: no-preference) {
+    .playground-splitter-animated .ant-splitter-panel {
+        transition: flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .playground-splitter .ant-splitter-bar {
+        transition: opacity 200ms ease;
+    }
+}
+
+/* Full-screen chat: hide the (now inert) split bar. End state stays unguarded so the bar is hidden
+   even under reduced motion — only the fade above is motion-gated. */
+.playground-splitter-collapsed .ant-splitter-bar {
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* Ensure onboarding overlay stays above modals */
@@ -381,7 +437,7 @@ body {
 
 .org-domains-table .ant-table,
 .org-providers-table .ant-table,
-.automations-table .ant-table {
+.webhooks-table .ant-table {
     table-layout: fixed;
 }
 
@@ -392,8 +448,8 @@ body {
     width: 5%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(1),
-.automations-table .ant-table-tbody > tr > td:nth-child(1) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(1),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(1) {
     width: 18%;
 }
 
@@ -404,8 +460,8 @@ body {
     width: 20%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(2),
-.automations-table .ant-table-tbody > tr > td:nth-child(2) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(2),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(2) {
     width: 12%;
 }
 
@@ -416,8 +472,8 @@ body {
     width: 30%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(3),
-.automations-table .ant-table-tbody > tr > td:nth-child(3) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(3),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(3) {
     width: 26%;
 }
 
@@ -428,18 +484,18 @@ body {
     width: 20%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(4),
-.automations-table .ant-table-tbody > tr > td:nth-child(4) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(4),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(4) {
     width: 20%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(5),
-.automations-table .ant-table-tbody > tr > td:nth-child(5) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(5),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(5) {
     width: 12%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(6),
-.automations-table .ant-table-tbody > tr > td:nth-child(6) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(6),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(6) {
     width: 12%;
 }
 

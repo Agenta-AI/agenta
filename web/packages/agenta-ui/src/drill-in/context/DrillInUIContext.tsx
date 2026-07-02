@@ -85,6 +85,126 @@ export interface GatewayToolsBridge {
     }>
 }
 
+/** Coarse workflow kind for the reference list's badge + filter chips. Derived by the provider from
+ * the workflow's role/capability flags. `evaluator` covers all evaluator workflows (code/match/llm/…)
+ * so they read as evaluators rather than falling through to `custom`. */
+export type WorkflowReferenceType = "agent" | "chat" | "completion" | "custom" | "evaluator"
+
+export interface WorkflowReferenceUI {
+    id: string
+    slug: string
+    name?: string
+    description?: string
+    /** Workflow kind for badge/filter display; omitted when the provider can't classify it. */
+    type?: WorkflowReferenceType
+    /** Finer-grained badge text overriding the generic type label (e.g. an evaluator's kind
+     * "Exact Match" instead of "evaluator"). `type` still drives the badge color + filter chip. */
+    typeLabel?: string
+}
+
+/** A selectable revision of a referenced workflow, for the variant-axis "pin a version" picker. */
+export interface WorkflowRevisionUI {
+    /** The version identifier emitted as `ReferenceToolConfig.version` (e.g. "3"). */
+    version: string
+    /** Optional label (commit message / name) shown next to the version. */
+    label?: string
+}
+
+/** A deployment environment a workflow can be referenced through (the environment axis). */
+export interface WorkflowEnvironmentUI {
+    slug: string
+    name?: string
+}
+
+/**
+ * What the WorkflowReferenceSelector emits when the author confirms a reference. Mirrors the
+ * backend `ReferenceToolConfig`: an axis, the workflow slug, then either a pinned version
+ * (variant axis) or an environment (environment axis).
+ */
+export interface WorkflowReferencePayload {
+    slug: string
+    refBy: "variant" | "environment"
+    /** Selected variant id; variant axis only. Kept so "follow a variant's latest" (no pinned
+     * version) still identifies which variant to follow — without it the reference is ambiguous. */
+    variant?: string
+    /** Pinned workflow revision version; variant axis only, omitted = follow the variant's latest. */
+    version?: string
+    /** Environment slug; environment axis only. */
+    environment?: string
+    /** Tool description the model sees (defaults to the workflow's own description). */
+    description?: string
+}
+
+/** A single role-tagged prompt message (for a `messages`-kind config part). */
+export interface WorkflowConfigMessage {
+    role: string
+    content: string
+}
+
+/** One part of a referenced workflow's configuration, shown in the Configuration section's rail
+ * (e.g. the prompt "Messages", a "Model", a custom workflow's "handler.py", an agent's "Instructions"). */
+export interface WorkflowConfigPart {
+    key: string
+    label: string
+    /** How to render: "code" (read-only editor), "text" (plain), "json" (pretty JSON), "messages"
+     * (role-tagged message list from `messages`). */
+    kind: "code" | "text" | "json" | "messages"
+    content: string
+    /** Highlighting language when `kind` is "code" (e.g. "python", "typescript"). */
+    language?: string
+    /** Role-tagged messages when `kind` is "messages". */
+    messages?: WorkflowConfigMessage[]
+}
+
+/** A referenced workflow's type-specific configuration for the Configuration section. */
+export interface WorkflowConfigPayload {
+    parts: WorkflowConfigPart[]
+}
+
+/**
+ * Bridge for the "reference a workflow as a tool" source in the tool selector (#4860).
+ * OSS supplies the project's workflows plus resolvers for a workflow's input schema, its
+ * revisions (variant axis), and its environments (environment axis); the selector emits a
+ * `type:"reference"` tools[] entry that the backend runs server-side as a callback tool.
+ * Parallels {@link GatewayToolsBridge}.
+ */
+export interface WorkflowReferenceBridge {
+    enabled: boolean
+    workflows: WorkflowReferenceUI[]
+    workflowsLoading: boolean
+    /** Resolve the referenced workflow's input JSON-schema to pre-fill the tool's `input_schema`.
+     * Returns null when unavailable; the caller falls back to an empty object schema. */
+    resolveInputSchema: (workflow: WorkflowReferenceUI) => Promise<Record<string, unknown> | null>
+    /** Resolve the workflow's output JSON-schema for the Schema section's Outputs tab.
+     * Optional; when absent or resolving null, the Outputs tab is hidden. */
+    resolveOutputSchema?: (workflow: WorkflowReferenceUI) => Promise<Record<string, unknown> | null>
+    /** Resolve the workflow's type-specific configuration (code / prompt / agent) for the
+     * Configuration section. Optional; when absent or resolving null, the section is hidden. */
+    resolveConfigPayload?: (workflow: WorkflowReferenceUI) => Promise<WorkflowConfigPayload | null>
+    /** List a workflow's revisions for the variant-axis "pin a version" picker. */
+    useWorkflowRevisions: (workflow: WorkflowReferenceUI | null) => {
+        revisions: WorkflowRevisionUI[]
+        isLoading: boolean
+    }
+    /** List a workflow's deployment environments for the environment axis. */
+    useWorkflowEnvironments: (workflow: WorkflowReferenceUI | null) => {
+        environments: WorkflowEnvironmentUI[]
+        isLoading: boolean
+    }
+    /**
+     * Resolve the reference type (agent/chat/completion/custom) for a batch of workflows.
+     * List items carry only role flags — the capability flags that determine type live on the
+     * revision URI — so type can't be derived synchronously from a list item. This reads each
+     * workflow's latest-revision URI (cached) and returns a slug→type map + a loading flag.
+     */
+    useWorkflowTypes: (workflows: WorkflowReferenceUI[]) => {
+        typeBySlug: Record<string, WorkflowReferenceType | undefined>
+        /** Finer-grained badge text per slug (e.g. an evaluator's kind), overriding the type label. */
+        labelBySlug?: Record<string, string | undefined>
+        loading: boolean
+    }
+}
+
 /**
  * Interface for injectable UI components
  */
@@ -191,6 +311,9 @@ export interface DrillInUIComponents {
 
     /** Gateway tools integration for the tool selector */
     gatewayTools?: GatewayToolsBridge
+
+    /** Workflow-as-tool reference integration for the tool selector (#4860) */
+    workflowReference?: WorkflowReferenceBridge
 
     /**
      * Lexical editor context hook

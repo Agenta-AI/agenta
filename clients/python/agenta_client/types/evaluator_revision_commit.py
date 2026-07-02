@@ -8,6 +8,7 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
 from .evaluator_flags import EvaluatorFlags
 from .evaluator_revision_data_input import EvaluatorRevisionDataInput
+from .workflow_revision_delta import WorkflowRevisionDelta
 
 
 class EvaluatorRevisionCommit(UniversalBaseModel):
@@ -26,6 +27,7 @@ class EvaluatorRevisionCommit(UniversalBaseModel):
     data: typing.Optional[EvaluatorRevisionDataInput] = None
     message: typing.Optional[str] = None
     revision_id: typing.Optional[str] = None
+    delta: typing.Optional[WorkflowRevisionDelta] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

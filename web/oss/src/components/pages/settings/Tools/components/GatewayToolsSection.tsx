@@ -1,11 +1,11 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
-    useConnectionsQuery,
-    useConnectionActions,
-    catalogDrawerOpenAtom,
-    executionDrawerAtom,
-    fetchConnection,
+    fetchToolConnection,
+    toolCatalogDrawerOpenAtom,
+    toolExecutionDrawerAtom,
+    useToolConnectionActions,
+    useToolConnectionsQuery,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {
@@ -14,7 +14,7 @@ import {
     ToolExecutionDrawer,
 } from "@agenta/entity-ui/gatewayTool"
 import {MoreOutlined} from "@ant-design/icons"
-import {ArrowClockwise, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
+import {ArrowClockwise, GearSix, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Table, Tag, Tooltip, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
@@ -24,11 +24,11 @@ import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 export default function GatewayToolsSection() {
-    const {connections, isLoading, refetch} = useConnectionsQuery()
+    const {connections, isLoading, refetch} = useToolConnectionsQuery()
     const {handleDelete, handleRefresh, handleRevoke, invalidateConnections} =
-        useConnectionActions()
-    const setCatalogOpen = useSetAtom(catalogDrawerOpenAtom)
-    const setExecutionDrawer = useSetAtom(executionDrawerAtom)
+        useToolConnectionActions()
+    const setCatalogOpen = useSetAtom(toolCatalogDrawerOpenAtom)
+    const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
     const [reloading, setReloading] = useState(false)
 
     const reloadAll = useCallback(async () => {
@@ -39,7 +39,7 @@ export default function GatewayToolsSection() {
                 connections
                     .map((c) => c.id)
                     .filter((id): id is string => typeof id === "string")
-                    .map((id) => fetchConnection(id)),
+                    .map((id) => fetchToolConnection(id)),
             )
             invalidateConnections()
         } finally {
@@ -82,7 +82,7 @@ export default function GatewayToolsSection() {
                         // Poll the individual connection endpoint which checks
                         // Composio for status and updates is_valid in the DB.
                         try {
-                            await fetchConnection(connectionId)
+                            await fetchToolConnection(connectionId)
                         } catch {
                             /* best-effort */
                         }
@@ -225,7 +225,7 @@ export default function GatewayToolsSection() {
                     value ? formatDay({date: value, outputFormat: "YYYY-MM-DD HH:mm"}) : "-",
             },
             {
-                title: "",
+                title: <GearSix size={16} />,
                 key: "actions",
                 width: 48,
                 fixed: "right",
@@ -296,10 +296,6 @@ export default function GatewayToolsSection() {
         <>
             <section className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                    <Typography.Text className="text-sm font-medium">
-                        Third-party tool integrations
-                    </Typography.Text>
-
                     <Button
                         icon={<Plus size={14} />}
                         type="primary"

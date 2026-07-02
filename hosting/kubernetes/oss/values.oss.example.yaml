@@ -460,6 +460,15 @@ posthog:
 # workerEvents:
 #   enabled: true
 #   replicas: 1
+# workerRecords:
+#   enabled: true
+#   replicas: 1
+# workerTriggers:
+#   enabled: true
+#   replicas: 1
+# workerInteractions:
+#   enabled: true
+#   replicas: 1
 # cron:
 #   enabled: true
 #   replicas: 1
@@ -486,6 +495,28 @@ posthog:
 #     web:
 #       path: /
 #       pathType: Prefix
+
+# ================================================================== #
+# === store — object store (AGENTA_STORE_*) ===
+# Docs: https://docs.agenta.ai/self-host/configuration#store-durable-object-store
+# ================================================================== #
+# store:
+#   endpointUrl:
+#   stsEndpointUrl:
+#   accessKey:
+#   secretKey:
+#   region:
+#   bucket:
+#   namespace:  # optional key prefix to share one bucket across ephemeral envs; unset for a dedicated bucket
+#   signingKey:
+#   jwtIssuer:
+#   jwtPrivateKey:
+#   seaweedfs:
+#     enabled: false
+#     port: 8333
+#     image:
+#       repository: chrislusf/seaweedfs
+#       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
 
 # ================================================================== #
 # === extraObjects — arbitrary Kubernetes resources ===

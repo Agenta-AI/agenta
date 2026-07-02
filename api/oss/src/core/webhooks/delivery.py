@@ -8,7 +8,7 @@ from uuid import UUID
 
 import httpx
 
-from agenta.sdk.utils.resolvers import resolve_json_selector
+from agenta.sdk.utils.resolvers import resolve_target_fields
 
 from oss.src.core.webhooks.types import (
     EVENT_CONTEXT_FIELDS,
@@ -22,8 +22,6 @@ from oss.src.utils.crypting import decrypt
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
-
-MAX_RESOLVE_DEPTH = 10
 
 NON_OVERRIDABLE_HEADERS = {
     "content-type",
@@ -92,29 +90,6 @@ def _merge_headers(
     return merged
 
 
-def resolve_payload_fields(
-    fields: Any,
-    context: Dict[str, Any],
-    *,
-    _depth: int = 0,
-) -> Any:
-    if _depth > MAX_RESOLVE_DEPTH:
-        return None
-    if isinstance(fields, dict):
-        return {
-            k: resolve_payload_fields(v, context, _depth=_depth + 1)
-            for k, v in fields.items()
-        }
-    if isinstance(fields, list):
-        return [
-            resolve_payload_fields(item, context, _depth=_depth + 1) for item in fields
-        ]
-    try:
-        return resolve_json_selector(fields, context)
-    except Exception:
-        return None
-
-
 def prepare_webhook_request(
     *,
     project_id: UUID,
@@ -147,7 +122,7 @@ def prepare_webhook_request(
     }
 
     resolved_fields = payload_fields if payload_fields is not None else "$"
-    payload = resolve_payload_fields(resolved_fields, context)
+    payload = resolve_target_fields(resolved_fields, context)
 
     base_data = WebhookDeliveryData(
         event_type=typed_event_type,

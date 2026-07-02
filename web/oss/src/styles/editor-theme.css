@@ -776,3 +776,150 @@ pre::-webkit-scrollbar-thumb {
 .dark .editor-tokenAttr {
     color: #79c0ff;
 }
+
+/* ------------------------------------------------------------------------- *
+ * Document prose ("Option B — comfortable")
+ *
+ * Scoped to the Markdown document editors (Instructions / Skill) via the
+ * `md-prose` wrapper, so the shared editor theme used by the prompt and chat
+ * editors stays as-is. Uses antd semantic tokens (`--ant-color-*`) so it adapts
+ * to dark mode automatically; placed last so equal-specificity rules win over
+ * the `.dark` overrides above. Covers both the edit and read-only preview panes
+ * (both render through this Lexical editor).
+ * ------------------------------------------------------------------------- */
+.md-prose .editor-paragraph {
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+.md-prose .editor-heading-h1,
+.md-prose .editor-heading-h2,
+.md-prose .editor-heading-h3,
+.md-prose .editor-heading-h4,
+.md-prose .editor-heading-h5,
+.md-prose .editor-heading-h6 {
+    color: var(--ant-color-text);
+    font-weight: 600;
+    line-height: 1.3;
+    margin-top: 18px;
+    margin-bottom: 6px;
+}
+.md-prose .editor-heading-h1 {
+    font-size: 20px;
+}
+.md-prose .editor-heading-h2 {
+    font-size: 16px;
+}
+.md-prose .editor-heading-h3 {
+    font-size: 14px;
+}
+.md-prose .editor-heading-h4,
+.md-prose .editor-heading-h5,
+.md-prose .editor-heading-h6 {
+    font-size: 13px;
+    color: var(--ant-color-text-secondary);
+}
+
+/* Lists — the shared theme gives ol/ul different left margins and 8px-tall items, so the
+   two list kinds indent inconsistently. Normalize both to one padding and tight items. */
+.md-prose .editor-list-ol,
+.md-prose .editor-list-ul {
+    margin: 8px 0;
+    padding-left: 22px;
+}
+.md-prose .editor-list-item {
+    margin: 3px 0;
+}
+.md-prose .editor-nested-list-item {
+    margin: 0;
+    list-style-type: none;
+}
+/* Per-depth markers for nested lists, matching the Lexical playground: ordered cycles
+   1 → A → a → I → i, unordered • → ◦ → ▪. Lexical DOM-nests indented items (the wrapper li
+   carries `editor-nested-list-item`, which is marker-less above), so descendant `ol ol` /
+   `ul ul` selectors pick the right style per level. Scoped to the rendered document view. */
+.md-prose .editor-input:not(.markdown-view) ol.editor-list-ol {
+    list-style-type: decimal;
+}
+.md-prose .editor-input:not(.markdown-view) ol.editor-list-ol ol.editor-list-ol {
+    list-style-type: upper-alpha;
+}
+.md-prose .editor-input:not(.markdown-view) ol.editor-list-ol ol.editor-list-ol ol.editor-list-ol {
+    list-style-type: lower-alpha;
+}
+.md-prose
+    .editor-input:not(.markdown-view)
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol {
+    list-style-type: upper-roman;
+}
+.md-prose
+    .editor-input:not(.markdown-view)
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol
+    ol.editor-list-ol {
+    list-style-type: lower-roman;
+}
+.md-prose .editor-input:not(.markdown-view) ul.editor-list-ul {
+    list-style-type: disc;
+}
+.md-prose .editor-input:not(.markdown-view) ul.editor-list-ul ul.editor-list-ul {
+    list-style-type: circle;
+}
+.md-prose
+    .editor-input:not(.markdown-view)
+    ul.editor-list-ul
+    ul.editor-list-ul
+    ul.editor-list-ul {
+    list-style-type: square;
+}
+.md-prose .editor-quote {
+    font-size: 13px;
+    font-style: italic;
+    color: var(--ant-color-text-secondary);
+    border-left: 3px solid var(--ant-color-border);
+    margin-left: 2px;
+    padding-left: 14px;
+}
+.md-prose .editor-text-code {
+    background-color: var(--ant-color-fill-tertiary);
+    border: 0.5px solid var(--ant-color-border-secondary);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 86%;
+}
+/* The shared `.editor-inner:not(.code-editor) .editor-code` rule (specificity 0-3-0) sets an 8px
+   padding + light fill and would beat a plain `.md-prose .editor-code` (0-2-0). Scope this to the
+   rendered input (`:not(.markdown-view)`, so source view is untouched) to reach 0-4-0 and win. */
+/* Hide the editor's built-in uppercase language label (globals.css renders it via
+   `::after content: attr(data-highlight-language)`, specificity 0-5-1) on document code blocks —
+   the CodeBlockLanguageMenu supplies an interactive picker in its place. Needs 0-6-1 to win. */
+.md-prose
+    .editor-inner:not(.code-editor)
+    .editor-input:not(.markdown-view)
+    .editor-code::after {
+    content: none;
+}
+.md-prose .editor-input:not(.markdown-view) .editor-code {
+    display: block;
+    position: relative;
+    background-color: var(--ant-color-fill-quaternary);
+    border: 0.5px solid var(--ant-color-border-secondary);
+    border-radius: 8px;
+    /* Extra top padding leaves room for the floating language picker pinned to the block's top. */
+    padding: 40px 14px 12px;
+    margin: 10px 0;
+    font-family: Menlo, Consolas, Monaco, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    tab-size: 2;
+    overflow-x: auto;
+}
+.md-prose .editor-link {
+    color: var(--ant-color-primary);
+    text-decoration: underline;
+}
