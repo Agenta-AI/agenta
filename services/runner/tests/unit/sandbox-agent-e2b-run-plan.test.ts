@@ -149,4 +149,58 @@ describe("buildRunPlan — E2B sandbox", () => {
 
     assert.equal(result.ok, true);
   });
+
+  it("sets isClaude=true and isE2B=true for claude harness on e2b", () => {
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      { createE2BCwd: () => "/root/work/agenta-claude" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.isClaude, true);
+    assert.equal(result.plan.isPi, false);
+    assert.equal(result.plan.isE2B, true);
+    assert.equal(result.plan.isRemoteSandbox, true);
+    assert.equal(result.plan.acpAgent, "claude");
+    assert.equal(result.plan.cwd, "/root/work/agenta-claude");
+  });
+
+  it("sets isClaude=false for pi_core harness on e2b", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      { createE2BCwd: () => "/root/work/agenta-pi" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.isClaude, false);
+    assert.equal(result.plan.isPi, true);
+    assert.equal(result.plan.isE2B, true);
+    assert.equal(result.plan.isRemoteSandbox, true);
+  });
+
+  it("refuses a restricted-network claude-on-e2b run", () => {
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+        sandboxPermission: { network: { mode: "off" }, enforcement: "strict" },
+      } as AgentRunRequest,
+      { createE2BCwd: () => "/root/work/agenta-claude" },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /not enforceable on the e2b sandbox/);
+  });
 });

@@ -57,7 +57,10 @@ import {
   createCookieFetch,
   prepareDaytonaPiAssets,
 } from "./sandbox_agent/daytona.ts";
-import { prepareE2BPiAssets } from "./sandbox_agent/e2b.ts";
+import {
+  prepareE2BPiAssets,
+  prepareE2BClaudeAssets,
+} from "./sandbox_agent/e2b.ts";
 import {
   extendE2BSandboxTimeout,
   startE2BKeepalive,
@@ -230,6 +233,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   discoverTunnelEndpoint?: typeof discoverTunnelEndpoint;
   responderFactory?: (permissionPolicy: string | undefined) => Responder;
   prepareE2BPiAssets?: typeof prepareE2BPiAssets;
+  prepareE2BClaudeAssets?: typeof prepareE2BClaudeAssets;
   startE2BKeepalive?: typeof startE2BKeepalive;
   extendE2BSandboxTimeout?: typeof extendE2BSandboxTimeout;
   log?: Log;
@@ -490,6 +494,11 @@ export async function runSandboxAgent(
       await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
     } else if (plan.isE2B) {
       await (deps.prepareE2BPiAssets ?? prepareE2BPiAssets)({
+        sandbox,
+        plan,
+        log: logger,
+      });
+      await (deps.prepareE2BClaudeAssets ?? prepareE2BClaudeAssets)({
         sandbox,
         plan,
         log: logger,

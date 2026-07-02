@@ -1026,3 +1026,114 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     ]);
   });
 });
+
+describe("Claude-on-E2B orchestration", () => {
+  it("calls prepareE2BClaudeAssets (injected) and prepareE2BPiAssets (injected) on E2B", async () => {
+    const { calls, deps } = fakeHarness({ cwd: "/root/work/agenta-e2b-fake" });
+
+    const piAssetsCalls: unknown[] = [];
+    const claudeAssetsCalls: unknown[] = [];
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello from e2b" }],
+        secrets: { ANTHROPIC_API_KEY: "sk-test" },
+        credentialMode: "env",
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      {
+        ...deps,
+        createE2BCwd: () => "/root/work/agenta-e2b-fake",
+        prepareE2BPiAssets: async (input: any) => { piAssetsCalls.push(input); },
+        prepareE2BClaudeAssets: async (input: any) => { claudeAssetsCalls.push(input); },
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(piAssetsCalls.length, 1, "prepareE2BPiAssets called once");
+    assert.equal(claudeAssetsCalls.length, 1, "prepareE2BClaudeAssets called once");
+    const claudePlan = (claudeAssetsCalls[0] as any).plan;
+    assert.equal(claudePlan.isClaude, true);
+    assert.equal(claudePlan.credentialMode, "env");
+  });
+
+  it("uses the sandbox fs API for workspace on E2B (not local fs)", async () => {
+    const { calls, deps } = fakeHarness({ cwd: "/root/work/agenta-e2b-fake" });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+        harnessFiles: [{ path: ".claude/settings.json", content: '{"permissions":{}}' }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      {
+        ...deps,
+        createE2BCwd: () => "/root/work/agenta-e2b-fake",
+        prepareE2BPiAssets: async () => {},
+        prepareE2BClaudeAssets: async () => {},
+      },
+    );
+
+    assert.equal(result.ok, true);
+    // prepareWorkspace plan carries isRemoteSandbox=true
+    assert.equal(calls.workspacePlan?.isRemoteSandbox, true);
+  });
+
+  it("tears down the sandbox after a claude-on-e2b run", async () => {
+    const { calls, deps } = fakeHarness({ cwd: "/root/work/agenta-e2b-fake" });
+
+    await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      {
+        ...deps,
+        createE2BCwd: () => "/root/work/agenta-e2b-fake",
+        prepareE2BPiAssets: async () => {},
+        prepareE2BClaudeAssets: async () => {},
+      },
+    );
+
+    assert.equal(calls.sandboxDestroyed, 1, "sandbox is torn down after the run");
+    assert.equal(calls.sandboxDisposed, 1);
+    assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("daemon env carries ANTHROPIC_API_KEY via secrets on a managed e2b run", async () => {
+    const { calls, deps } = fakeHarness({ cwd: "/root/work/agenta-e2b-fake" });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+        secrets: { ANTHROPIC_API_KEY: "sk-live" },
+        credentialMode: "env",
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      {
+        ...deps,
+        createE2BCwd: () => "/root/work/agenta-e2b-fake",
+        prepareE2BPiAssets: async () => {},
+        prepareE2BClaudeAssets: async () => {},
+      },
+    );
+
+    assert.equal(result.ok, true);
+    // Provider args[1] is the env dict built by buildDaemonEnv + secrets applied.
+    // The fake buildDaemonEnv returns {}; the engine applies secrets on top.
+    // providerArgs[4] is the secrets passed to buildSandboxProvider.
+    assert.deepEqual(calls.providerArgs[4], { ANTHROPIC_API_KEY: "sk-live" });
+  });
+});
