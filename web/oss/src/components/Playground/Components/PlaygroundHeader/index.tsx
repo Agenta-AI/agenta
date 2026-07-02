@@ -51,6 +51,7 @@ import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {currentWorkflowAtom, currentWorkflowContextAtom} from "@/oss/state/workflow"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
+import AgentRevisionSelector from "../AgentRevisionSelector"
 import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
@@ -569,15 +570,21 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                         </Dropdown>
                     ) : null}
                     {isAgentWorkflow ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                             <Tooltip title="Agent">
                                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
                                     <Robot size={15} weight="fill" />
                                 </span>
                             </Tooltip>
-                            <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+                            <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
                                 {currentWorkflow?.name || "Agent"}
                             </Typography>
+                            {rootEntityId ? (
+                                <>
+                                    <Divider orientation="vertical" className="!mx-1 h-5" />
+                                    <AgentRevisionSelector variantId={rootEntityId} />
+                                </>
+                            ) : null}
                         </div>
                     ) : (
                         <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
