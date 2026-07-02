@@ -700,8 +700,8 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    // sandboxId, env, binaryPath, piExtEnv, secrets, sandboxPermission
-    assert.deepEqual(calls.providerArgs[5], sandboxPermission);
+    // sandboxId, acpAgent, env, binaryPath, piExtEnv, secrets, sandboxPermission
+    assert.deepEqual(calls.providerArgs[6], sandboxPermission);
   });
 
   it("passes cancellation signals into SandboxAgent.start", async () => {
@@ -739,7 +739,7 @@ describe("runSandboxAgent orchestration", () => {
     // Managed run -> clear-then-apply: buildDaemonEnv is asked to clear the inherited provider env.
     assert.deepEqual(calls.daemonOptions, { clearProviderEnv: true });
     // The env handed to buildSandboxProvider carries only the resolved key + the custom base url.
-    const env = calls.providerArgs[1] as Record<string, string>;
+    const env = calls.providerArgs[2] as Record<string, string>;
     assert.equal(env.ANTHROPIC_API_KEY, "resolved");
     assert.equal(env.ANTHROPIC_BASE_URL, "https://claude-gw.example/v1");
     assert.equal(env.ANTHROPIC_MODEL, undefined);
@@ -763,7 +763,7 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    const env = calls.providerArgs[1] as Record<string, string>;
+    const env = calls.providerArgs[2] as Record<string, string>;
     // The Tool-Search toggle is Claude-specific: a Pi run must not carry it.
     assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
   });
@@ -787,7 +787,7 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    const env = calls.providerArgs[1] as Record<string, string>;
+    const env = calls.providerArgs[2] as Record<string, string>;
     assert.equal(env.CLAUDE_CODE_USE_BEDROCK, "1");
     assert.equal(env.AWS_ACCESS_KEY_ID, "AKIA");
     assert.equal(env.AWS_REGION, "us-east-1");
@@ -820,7 +820,7 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    const env = calls.providerArgs[1] as Record<string, string>;
+    const env = calls.providerArgs[2] as Record<string, string>;
     assert.equal(env.CLAUDE_CODE_USE_VERTEX, "1");
     assert.equal(env.GOOGLE_CLOUD_PROJECT, "proj");
     assert.equal(env.ANTHROPIC_MODEL, "claude-sonnet-4");
@@ -843,7 +843,7 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     // runtime_provided -> keep the harness's own inherited env (do not clear).
     assert.deepEqual(calls.daemonOptions, { clearProviderEnv: false });
-    const env = calls.providerArgs[1] as Record<string, string>;
+    const env = calls.providerArgs[2] as Record<string, string>;
     assert.equal(env.ANTHROPIC_BASE_URL, undefined);
   });
 });

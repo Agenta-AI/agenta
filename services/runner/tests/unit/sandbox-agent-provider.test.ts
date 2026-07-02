@@ -109,7 +109,7 @@ describe("daytonaAutoStopMinutes (leak backstop)", () => {
 describe("buildDaytonaCreate (leak backstop on the create object)", () => {
   it("carries a positive auto-stop interval + ephemeral by default (self-reaps a leak)", () => {
     delete process.env[AUTOSTOP_ENV];
-    const create = buildDaytonaCreate({}, {}, undefined);
+    const create = buildDaytonaCreate("pi", {}, {}, undefined);
     // ephemeral auto-deletes ON STOP; a non-zero auto-stop is what makes a leaked sandbox stop.
     assert.equal(create.ephemeral, true);
     assert.equal(create.autoStopInterval, DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
@@ -121,7 +121,7 @@ describe("buildDaytonaCreate (leak backstop on the create object)", () => {
 
   it("carries the env-configured auto-stop interval", () => {
     process.env[AUTOSTOP_ENV] = "42";
-    const create = buildDaytonaCreate({}, {}, undefined);
+    const create = buildDaytonaCreate("pi", {}, {}, undefined);
     assert.equal(create.autoStopInterval, 42);
     assert.equal(create.ephemeral, true);
   });

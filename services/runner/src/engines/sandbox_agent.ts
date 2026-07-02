@@ -55,6 +55,7 @@ import { createAcpFetch } from "./sandbox_agent/acp-fetch.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./sandbox_agent/daemon.ts";
 import {
   createCookieFetch,
+  prepareDaytonaOpencodeAssets,
   prepareDaytonaPiAssets,
 } from "./sandbox_agent/daytona.ts";
 import { conciseError } from "./sandbox_agent/errors.ts";
@@ -211,6 +212,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   createCookieFetch?: typeof createCookieFetch;
   createAcpFetch?: typeof createAcpFetch;
   prepareWorkspace?: typeof prepareWorkspace;
+  prepareDaytonaOpencodeAssets?: typeof prepareDaytonaOpencodeAssets;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
   startToolRelay?: typeof startToolRelay;
@@ -441,6 +443,7 @@ export async function runSandboxAgent(
     sandbox = await startSandboxAgent({
       sandbox: (deps.buildSandboxProvider ?? buildSandboxProvider)(
         plan.sandboxId,
+        plan.acpAgent,
         env,
         binaryPath,
         piExtEnv,
@@ -465,11 +468,17 @@ export async function runSandboxAgent(
     // normal exit so it is never double-deleted.
     if (sandbox) inFlightSandboxes.add(sandbox);
 
-    // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
-    // sandbox via the filesystem API (nothing secret is baked into the image). Locally
-    // these use the host filesystem and the harness's own login (PI_CODING_AGENT_DIR).
+    // On Daytona, prepare harness-specific remote assets before createSession. Pi uploads its
+    // auth fallback, extension bundle, skills, and installs the CLI. Opencode needs no uploads
+    // (daemon auto-installs the binary; provider key rides the create env); the call is a named
+    // seam that logs the arch override when set and folds cleanly onto the foundation bootstrap.
     if (plan.isDaytona) {
       await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
+      await (deps.prepareDaytonaOpencodeAssets ?? prepareDaytonaOpencodeAssets)({
+        sandbox,
+        plan,
+        log: logger,
+      });
     }
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
