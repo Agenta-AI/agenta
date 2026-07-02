@@ -73,6 +73,7 @@ from oss.src.apis.fastapi.workflows.models import (
     SimpleWorkflowsResponse,
 )
 from oss.src.apis.fastapi.shared.utils import (
+    agent_feature_analytics_props,
     compute_next_windowing,
 )
 from oss.src.apis.fastapi.workflows.utils import (
@@ -821,6 +822,12 @@ class WorkflowsRouter:
         # Invalidate legacy caches so the registry/apps list reflects the change
         await invalidate_cache(project_id=request.state.project_id)
 
+        # Analytics: apps and snippets share this route, so the app_archived event carries the role
+        # flags to keep it filterable (the artifact has no is_agent — that's a revision flag).
+        if workflow and workflow.flags:
+            request.state.is_application = bool(workflow.flags.is_application)
+            request.state.is_snippet = bool(workflow.flags.is_snippet)
+
         workflow_response = WorkflowResponse(
             count=1 if workflow else 0,
             workflow=workflow,
@@ -1568,6 +1575,20 @@ class WorkflowsRouter:
             request=request,
             workflow_revision=workflow_revision,
         )
+
+        # Analytics: segment the app_revision_created event by role (apps vs snippets, which share
+        # this route) and agent-ness, and — for agents — its committed feature composition (the
+        # middleware attaches these request.state props). This is the route the frontend commits
+        # through (POST /workflows/revisions/commit).
+        if workflow_revision and workflow_revision.flags:
+            request.state.is_application = bool(workflow_revision.flags.is_application)
+            request.state.is_snippet = bool(workflow_revision.flags.is_snippet)
+            request.state.is_agent = bool(workflow_revision.flags.is_agent)
+            if request.state.is_agent and workflow_revision.data:
+                for _prop, _value in agent_feature_analytics_props(
+                    workflow_revision.data.parameters
+                ).items():
+                    setattr(request.state, _prop, _value)
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,

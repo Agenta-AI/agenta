@@ -6,6 +6,7 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {SessionInspectorButton} from "@/oss/components/SessionInspector"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {useChatScopeKey} from "../state/scope"
 import {
@@ -151,6 +152,11 @@ const SessionRail = ({activeId, className}: SessionRailProps) => {
     const resolvedActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
     const openSession = useSetAtom(openSessionAtomFamily(scope))
     const addSession = useSetAtom(addSessionAtomFamily(scope))
+    const posthog = usePostHogAg()
+    const handleAddSession = useCallback(() => {
+        posthog?.capture("agent_session_created")
+        addSession()
+    }, [posthog, addSession])
     const deleteSession = useSetAtom(deleteSessionAtomFamily(scope))
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
 
@@ -219,7 +225,7 @@ const SessionRail = ({activeId, className}: SessionRailProps) => {
                         type="text"
                         aria-label="New session"
                         icon={<Plus size={14} />}
-                        onClick={() => addSession()}
+                        onClick={handleAddSession}
                         className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
                     />
                 </Tooltip>

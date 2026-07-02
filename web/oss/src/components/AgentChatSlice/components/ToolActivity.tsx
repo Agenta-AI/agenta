@@ -13,6 +13,8 @@ import {
 import type {ToolUIPart} from "ai"
 import {Button, Typography} from "antd"
 
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+
 const {Text} = Typography
 
 /** Friendly name for a tool part. `dynamic-tool` carries the name on `toolName`; the typed
@@ -97,9 +99,11 @@ const ApprovalButtons = ({
     // `approval-responded` (which removes the buttons). Not tied to conversation `busy` —
     // an approval can only appear mid-stream, so gating on busy would disable it the whole turn.
     const [responding, setResponding] = useState(false)
+    const posthog = usePostHogAg()
     const respond = (approved: boolean) => {
         if (responding) return
         setResponding(true)
+        posthog?.capture("agent_tool_approval_submitted", {approved})
         onApprovalResponse({id: approvalId, approved})
     }
     return (
