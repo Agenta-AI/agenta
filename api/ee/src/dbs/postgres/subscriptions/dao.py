@@ -59,6 +59,18 @@ class SubscriptionsDAO(SubscriptionsDAOInterface):
 
             return subscription_dto
 
+    async def list_active(
+        self,
+    ) -> list[SubscriptionDTO]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(SubscriptionDBE).where(
+                    SubscriptionDBE.active == True,  # noqa: E712
+                )
+            )
+            dbes = result.scalars().all()
+            return [map_dbe_to_dto(dbe) for dbe in dbes]
+
     async def update(
         self,
         *,

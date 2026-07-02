@@ -222,12 +222,12 @@ for typical size. No provider integration, no new mechanism. Unit = **count**
 Structurally different: a **gauge** (level), not a counter. `Gauge.USERS` is the
 template. Caps now; billing/retention later.
 
-- [ ] Add `Gauge.STORAGE_BYTES = "storage_bytes"` to `entitlements/types.py`,
+- [ ] Add `Gauge.BYTES = "bytes"` to `entitlements/types.py`,
   mirror into `Meters`. Decide org-scope only vs also project-scope gauge.
 - [ ] Mount-layout prerequisite: ensure the S3/SeaweedFS path convention encodes
   `org/project` prefix so stored size is attributable to a `MeterScope` without
   per-file bookkeeping.
-- [ ] Incremental deltas: on mount write `check_entitlements(key=Gauge.STORAGE_BYTES,
+- [ ] Incremental deltas: on mount write `check_entitlements(key=Gauge.BYTES,
   delta=+bytes, scope=org[/project])`; on delete `delta=-bytes`. Gauge `value` =
   live total.
 - [ ] Periodic reconcile job (mirror the Daytona poll/lock pattern): read
@@ -241,7 +241,7 @@ template. Caps now; billing/retention later.
 - [ ] Provider/scope toggle + `is_ee()` gating on the reconcile job, mirroring
   Phase 1.
 - [ ] Billing (defer until volume justifies): add
-  `Gauge.STORAGE_BYTES.value: "storage"` to `REPORTS` + per-plan `"storage"`
+  `Gauge.BYTES.value: "storage"` to `REPORTS` + per-plan `"storage"`
   price. `report()` syncs gauges as absolute quantity (`Subscription.modify`) —
   no change.
 - [ ] Retention (later): a sweep deleting old mount data emits negative deltas;

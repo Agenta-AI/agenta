@@ -115,6 +115,27 @@ async def fetch_projects_by_workspace(
         return result.scalars().all()
 
 
+async def fetch_projects_by_organization(
+    organization_id: str,
+) -> List[ProjectDB]:
+    """
+    Retrieve all projects that belong to an organization ordered by creation date.
+    Args:
+        organization_id (str): Organization identifier.
+    Returns:
+        List[ProjectDB]: Projects scoped to the organization.
+    """
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        result = await session.execute(
+            select(ProjectDB)
+            .filter(ProjectDB.organization_id == uuid.UUID(organization_id))
+            .order_by(ProjectDB.created_at.asc())
+        )
+        return result.scalars().all()
+
+
 async def get_project_by_workspace(
     workspace_id: str,
     *,
