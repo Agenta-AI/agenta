@@ -63,10 +63,18 @@ Codex is OpenAI-locked. The capabilities table publishes the known model ids und
 `openai` provider family (`gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, etc.). The runner passes the
 requested model to the session and reports whichever model the harness actually used.
 
+## Daytona (remote) sandbox support
+
+Supported. `prepareDaytonaCodexAssets` provisions `auth.json` into the remote sandbox at
+`DAYTONA_CODEX_DIR` before `createSession`, mirroring `prepareDaytonaPiAssets`. Both
+credential modes are covered: managed (`credentialMode="env"`) writes the resolved
+`OPENAI_API_KEY`/`CODEX_API_KEY` directly; self-managed (`runtime_provided`) uploads the
+runner's own local `auth.json` into the sandbox. The codex binary itself needs no explicit
+install step — the daemon auto-installs it on `createSession({ agent: "codex" })`.
+
 ## What is deferred
 
 - Static permission/config files (the `~/.codex/config.toml` or equivalent). When Codex gates
   tools at runtime, mirror the Claude `wire_harness_files` approach with a `codex_settings.py`
   equivalent.
-- Daytona (remote) sandbox support. Remote Codex is a matrix-fill item; the credential upload
-  path would mirror `prepareDaytonaPiAssets` for the codex auth file.
+- E2B sandbox support: see the codex-on-E2B branch.

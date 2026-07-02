@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { createAcpFetch } from "./acp-fetch.ts";
@@ -90,6 +91,85 @@ export async function uploadPiAuthToSandbox(sandbox: any, log: Log = () => {}): 
     }
   } catch (err) {
     log(`pi auth upload skipped: ${(err as Error).message}`);
+  }
+}
+
+/** In-sandbox codex config dir on common Daytona images (daemon runs as user `sandbox`). */
+export const DAYTONA_CODEX_DIR =
+  process.env.AGENTA_AGENT_SANDBOX_CODEX_DIR ?? "/home/sandbox/.codex";
+
+/**
+ * Write the codex auth file into a Daytona sandbox.
+ *
+ * Managed mode: the resolved `apiKey` is written directly as `{"OPENAI_API_KEY":"..."}`.
+ * Self-managed mode: the caller passes `undefined` and we fall back to the local
+ * `~/.codex/auth.json` (mirroring `uploadPiAuthToSandbox` for the runtime_provided path).
+ * Best-effort: failures are logged but do not abort the run.
+ *
+ * NOTE: This is the codex-specific remote path that mirrors the local `writeCodexAuthFile`
+ * in pi-assets.ts. When a generic remote-bootstrap seam lands (the "foundation" worktree),
+ * this can fold into that abstraction.
+ */
+export async function uploadCodexAuthToSandbox(
+  sandbox: any,
+  apiKey: string | undefined,
+  log: Log = () => {},
+): Promise<void> {
+  try {
+    await sandbox.mkdirFs({ path: DAYTONA_CODEX_DIR });
+    if (apiKey) {
+      await sandbox.writeFsFile(
+        { path: `${DAYTONA_CODEX_DIR}/auth.json` },
+        JSON.stringify({ OPENAI_API_KEY: apiKey }),
+      );
+      return;
+    }
+    // Self-managed fallback: upload the local ~/.codex/auth.json when it exists.
+    const localAuth = join(homedir(), ".codex", "auth.json");
+    if (existsSync(localAuth)) {
+      await sandbox.writeFsFile(
+        { path: `${DAYTONA_CODEX_DIR}/auth.json` },
+        readFileSync(localAuth, "utf-8"),
+      );
+    }
+  } catch (err) {
+    log(`codex auth upload skipped: ${(err as Error).message}`);
+  }
+}
+
+export interface PrepareDaytonaCodexAssetsInput {
+  sandbox: any;
+  plan: Pick<RunPlan, "acpAgent" | "hasApiKey" | "credentialMode" | "secrets">;
+  log?: Log;
+}
+
+/**
+ * Push codex credentials into a Daytona sandbox.
+ *
+ * Managed (`credentialMode="env"`): writes `auth.json` from the resolved `OPENAI_API_KEY`.
+ * Self-managed (`runtime_provided`): uploads the runner's own `~/.codex/auth.json` when the
+ * credential is runtime-provided (mirrors `shouldUploadOwnLogin` for Pi).
+ * The daemon already auto-installs the codex binary on `createSession`, so we only need to
+ * provision credentials.
+ *
+ * Returns immediately for non-codex runs.
+ */
+export async function prepareDaytonaCodexAssets({
+  sandbox,
+  plan,
+  log = () => {},
+}: PrepareDaytonaCodexAssetsInput): Promise<void> {
+  if (plan.acpAgent !== "codex") return;
+
+  const resolvedKey = plan.secrets.OPENAI_API_KEY ?? plan.secrets.CODEX_API_KEY;
+  if (plan.credentialMode === "env" && resolvedKey) {
+    await uploadCodexAuthToSandbox(sandbox, resolvedKey, log);
+    return;
+  }
+  // Self-managed (runtime_provided) or un-migrated (no credentialMode, no api key): upload
+  // the runner's own login — same `shouldUploadOwnLogin` gate as Pi.
+  if (shouldUploadOwnLogin(plan)) {
+    await uploadCodexAuthToSandbox(sandbox, undefined, log);
   }
 }
 
