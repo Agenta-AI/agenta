@@ -4,7 +4,11 @@ import {
     extractApiErrorMessage,
     preserveResponseStatus,
 } from "../../src/utils/extractApiErrorMessage"
-import {stripAgentaMetadataDeep, stripEnhancedWrappers} from "../../src/utils/valueExtraction"
+import {
+    stripAgentaMetadataDeep,
+    stripEmptyCollectionsDeep,
+    stripEnhancedWrappers,
+} from "../../src/utils/valueExtraction"
 
 // ---------------------------------------------------------------------------
 // extractApiErrorMessage
@@ -113,6 +117,44 @@ describe("stripAgentaMetadataDeep", () => {
         expect(stripAgentaMetadataDeep("hello")).toBe("hello")
         expect(stripAgentaMetadataDeep(42)).toBe(42)
         expect(stripAgentaMetadataDeep(null)).toBeNull()
+    })
+})
+
+// ---------------------------------------------------------------------------
+// stripEmptyCollectionsDeep
+// ---------------------------------------------------------------------------
+
+describe("stripEmptyCollectionsDeep", () => {
+    it("makes a present-but-empty array compare equal to an absent key", () => {
+        // The QA repro: add then remove a skill leaves `skills: []`; it must normalize to the same
+        // shape as a config that never had the key, so both sides of the dirty diff match.
+        const added = {agent: {llm: {model: "opus"}, skills: []}}
+        const never = {agent: {llm: {model: "opus"}}}
+        expect(stripEmptyCollectionsDeep(added)).toEqual(stripEmptyCollectionsDeep(never))
+        expect(stripEmptyCollectionsDeep(added)).toEqual({agent: {llm: {model: "opus"}}})
+    })
+
+    it("drops empty arrays and empty objects recursively", () => {
+        expect(
+            stripEmptyCollectionsDeep({tools: [], mcps: [], harness: {permissions: {}}}),
+        ).toEqual({})
+    })
+
+    it("keeps non-empty collections (never hides a real change)", () => {
+        const input = {agent: {tools: [{type: "web_search"}], harness: {kind: "claude"}}}
+        expect(stripEmptyCollectionsDeep(input)).toEqual(input)
+    })
+
+    it("preserves array elements and order (only object keys are dropped)", () => {
+        expect(stripEmptyCollectionsDeep({list: [1, 2, 3]})).toEqual({list: [1, 2, 3]})
+        // Empty-object elements inside an array are preserved (dropping them would shift indices).
+        expect(stripEmptyCollectionsDeep({list: [{a: 1}, {}]})).toEqual({list: [{a: 1}, {}]})
+    })
+
+    it("returns primitives and null unchanged", () => {
+        expect(stripEmptyCollectionsDeep("x")).toBe("x")
+        expect(stripEmptyCollectionsDeep(0)).toBe(0)
+        expect(stripEmptyCollectionsDeep(null)).toBeNull()
     })
 })
 
