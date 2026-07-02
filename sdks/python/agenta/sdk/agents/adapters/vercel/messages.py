@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from agenta.sdk.utils.logging import get_module_logger
+
 from ...dtos import AgentResult, ContentBlock, Message
+
+log = get_module_logger(__name__)
 
 TOOL_APPROVAL_REQUEST = "tool-approval-request"
 TOOL_APPROVAL_RESPONSE = "tool-approval-response"
@@ -155,6 +159,18 @@ def _tool_part_blocks(part: Dict[str, Any], ptype: str) -> List[ContentBlock]:
         # `extractApprovalDecisions` resolves the parked gate.
         approved = _approval_decision(part, state)
         if approved is not None:
+            # INGRESS side of the HITL key: the inline decision the FE round-tripped, folded into
+            # the `{approved}` envelope the runner's extractApprovalDecisions keys by name+args.
+            _input = part.get("input")
+            log.info(
+                "[HITL] ingress approval-responded id=%s name=%s approved=%s input_keys=%s",
+                tool_call_id,
+                tool_name,
+                approved,
+                list(_input.keys())
+                if isinstance(_input, dict)
+                else type(_input).__name__,
+            )
             blocks.append(
                 ContentBlock(
                     type="tool_result",

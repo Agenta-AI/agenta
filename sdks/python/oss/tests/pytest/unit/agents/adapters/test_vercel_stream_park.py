@@ -155,6 +155,70 @@ async def test_parked_tool_call_refreshes_real_args_on_approval() -> None:
     assert parts[-1]["type"] == "finish"
 
 
+def _parked_run_with_spec_name() -> AgentStream:
+    """A parked turn whose tracing ``tool_call`` surfaced the drift-prone ACP display name
+    (``Terminal``), while the approval request carries the resolved spec's STABLE canonical name
+    (``Bash``). The egress must key the FE part on the spec name so the cross-turn resume key
+    matches the runner's live re-raised gate (which also prefers ``spec.name``)."""
+    return AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-1",
+                        "name": "Terminal",  # ACP title/kind — varies across turns
+                        "input": {},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "interaction_request",
+                        "id": "perm-1",
+                        "kind": "user_approval",
+                        "payload": {
+                            "toolCallId": "tool-1",
+                            "toolCall": {
+                                "id": "tool-1",
+                                "title": "Terminal",
+                                "kind": "execute",
+                                "spec": {"name": "Bash"},
+                                "rawInput": {"cmd": "ls"},
+                            },
+                        },
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "paused"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "paused",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_approval_refreshes_part_with_stable_spec_name() -> None:
+    """The approval refresh re-keys the parked part on the resolved spec name (stable across
+    cold-replay turns), not the drift-prone ACP title/kind the tracing tool_call surfaced."""
+    parts = [
+        part async for part in agent_run_to_vercel_parts(_parked_run_with_spec_name())
+    ]
+    inputs = [p for p in parts if p.get("type") == "tool-input-available"]
+    # The refreshing emit from the approval request names the tool by its stable spec name.
+    assert inputs[-1]["toolName"] == "Bash"
+    assert inputs[-1]["input"] == {"cmd": "ls"}
+
+
 def _commit_revision_run() -> AgentStream:
     return AgentStream(
         _records(
@@ -317,3 +381,59 @@ async def test_parked_client_tool_emits_unsettled_tool_part() -> None:
     } in parts
     assert not any(p.get("type") == "tool-output-available" for p in parts)
     assert parts[-1]["type"] == "finish"
+
+
+def _plain_tool_call_with_raw_input() -> AgentStream:
+    """A non-gated tool call where the runner surfaced the real args under ``rawInput`` (the ACP
+    field) and left the plain ``input`` empty — the common shape behind tool logs showing ``{}``
+    for tools that never go through an approval refresh."""
+    return AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-1",
+                        "name": "read_file",
+                        "input": {},
+                        "rawInput": {"path": "memory://users/self/profile.md"},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_result",
+                        "id": "tool-1",
+                        "output": {"ok": True},
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "stop"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "stop",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_plain_tool_call_prefers_raw_input() -> None:
+    """A non-gated tool call projects its real args from ``rawInput`` when the runner leaves the
+    plain ``input`` empty. Without this, only approval-gated tools recovered their args (via the
+    approval refresh) and every other tool log rendered ``{}``."""
+    parts = [
+        part
+        async for part in agent_run_to_vercel_parts(_plain_tool_call_with_raw_input())
+    ]
+
+    inputs = [p for p in parts if p.get("type") == "tool-input-available"]
+    assert len(inputs) == 1
+    assert inputs[0]["input"] == {"path": "memory://users/self/profile.md"}

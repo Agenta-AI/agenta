@@ -5,9 +5,13 @@ from __future__ import annotations
 import json
 from typing import Any, AsyncIterator, Dict, Iterator, Optional
 
+from agenta.sdk.utils.logging import get_module_logger
+
 from ...dtos import AgentResult
 from ...streaming import AgentStream
 from .messages import TOOL_APPROVAL_REQUEST
+
+log = get_module_logger(__name__)
 
 
 # The AI SDK UI message stream (`ai@6`) validates the `finish` frame's
@@ -133,7 +137,10 @@ async def agent_run_to_vercel_parts(
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
-                    "input": data.get("input"),
+                    # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
+                    # plain `input` empty on some tool-call paths — mirrors the approval /
+                    # client-tool reads in `_interaction_parts` so every path shows real args.
+                    "input": data.get("rawInput") or data.get("input"),
                 }
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
@@ -304,7 +311,10 @@ async def agent_stream_to_vercel_stream(
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
-                    "input": data.get("input"),
+                    # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
+                    # plain `input` empty on some tool-call paths — mirrors the approval /
+                    # client-tool reads in `_interaction_parts` so every path shows real args.
+                    "input": data.get("rawInput") or data.get("input"),
                 }
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
@@ -399,10 +409,23 @@ def _interaction_parts(
         tool_call_id = _approval_tool_call_id(payload)
         tool_call = payload.get("toolCall")
         if tool_call_id is not None and isinstance(tool_call, dict):
-            tool_name = (
-                tool_call.get("name") or tool_call.get("title") or tool_call.get("kind")
-            )
+            # Prefer the STABLE resolved spec name over the drift-prone ACP title/kind so the
+            # part the FE persists (and folds back on resume) keys the same as the live re-raised
+            # gate (responder.ts `permissionToolName`). Otherwise the cross-turn key silently
+            # stops matching and the gate re-parks every turn (the HITL resume loop).
+            tool_name = _approval_tool_name(tool_call)
             real_input = tool_call.get("rawInput") or tool_call.get("input")
+            # EGRESS side of the HITL key: what name+args the FE persists on the approval part
+            # (and folds back on resume). Compare to the runner's live `[HITL] gate` identity.
+            log.info(
+                "[HITL] egress approval-request id=%s name=%s spec=%s input_keys=%s",
+                tool_call_id,
+                tool_name,
+                (_tool_spec_of(tool_call) or {}).get("name"),
+                list(real_input.keys())
+                if isinstance(real_input, dict)
+                else type(real_input).__name__,
+            )
             if tool_call_id not in seen_tool_calls:
                 # The runner parked without first surfacing the tool call, so
                 # synthesize a tool part for the approval to render against.
@@ -419,10 +442,11 @@ def _interaction_parts(
                     "input": real_input,
                 }
             elif real_input:
-                # The tool call was already surfaced, often with empty input on a
-                # cold-replay resume. The approval request carries the real args, so
-                # re-emit `tool-input-available` to refresh the parked call's input
-                # instead of persisting `{}` (HITL approve-empty-input bug).
+                # The tool call was already surfaced (often by the tracing tool_call event, whose
+                # name is the ACP title/kind, and often with empty input on a cold-replay resume).
+                # Re-emit `tool-input-available` to refresh BOTH the stable `toolName` and the real
+                # args, instead of persisting the drift-prone name + `{}` input (HITL
+                # approve-empty-input / name-drift bug).
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
@@ -486,6 +510,33 @@ def _render_part(tool_call_id: Any, render: Any) -> Dict[str, Any]:
         "type": "data-render",
         "data": {"toolCallId": tool_call_id, "render": render},
     }
+
+
+def _tool_spec_of(tool_call: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The resolved agenta tool spec attached to an ACP tool call, under any of its aliases."""
+    for key in ("spec", "toolSpec", "resolvedTool", "tool"):
+        spec = tool_call.get(key)
+        if isinstance(spec, dict):
+            return spec
+    return None
+
+
+def _approval_tool_name(tool_call: Dict[str, Any]) -> Optional[Any]:
+    """The gated tool's name for the cross-turn resume key.
+
+    Prefer the resolved spec's canonical ``name`` — STABLE across cold-replay turns — over the
+    ACP display fields (``title``/``kind``), which the harness can vary between the park turn and
+    the re-raise. The runner's ``permissionToolName`` (responder.ts) uses the same precedence, so
+    the stored key (this name, folded back on resume) and the live re-raised key agree. Falls back
+    to ``name -> title -> kind`` when no spec is resolved (unchanged behavior).
+    """
+    spec = _tool_spec_of(tool_call)
+    return (
+        (spec or {}).get("name")
+        or tool_call.get("name")
+        or tool_call.get("title")
+        or tool_call.get("kind")
+    )
 
 
 def _approval_tool_call_id(payload: Dict[str, Any]) -> Optional[Any]:
