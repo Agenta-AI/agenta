@@ -7,7 +7,7 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .session_interaction_data import SessionInteractionData
 from .session_interaction_flags import SessionInteractionFlags
 from .session_interaction_kind import SessionInteractionKind
-from .status import Status
+from .session_interaction_status import SessionInteractionStatus
 
 
 class SessionInteraction(UniversalBaseModel):
@@ -23,9 +23,11 @@ class SessionInteraction(UniversalBaseModel):
     turn_id: typing.Optional[str] = None
     token: str
     kind: SessionInteractionKind
-    status: typing.Optional[Status] = None
+    status: typing.Optional[SessionInteractionStatus] = None
     data: typing.Optional[SessionInteractionData] = None
     flags: typing.Optional[SessionInteractionFlags] = None
+    tags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

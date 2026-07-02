@@ -29,13 +29,16 @@ import {
 } from "./assets/attachments"
 import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
+import {getMessageTraceId} from "./assets/trace"
 import AgentMessage from "./components/AgentMessage"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import QueuedMessages from "./components/QueuedMessages"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
+import SessionRail from "./components/SessionRail"
 import SessionTagBar from "./components/SessionTagBar"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
+import {chatPanelMaximizedAtom} from "./state/panelLayout"
 import {useChatScopeKey} from "./state/scope"
 import {
     type SessionRunStatus,
@@ -48,6 +51,7 @@ import {
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
     setSessionStatusAtom,
+    stampMessagesCreatedAtAtom,
 } from "./state/sessions"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
@@ -61,6 +65,12 @@ const TOP_FADE_PX = 28
 /** Top-edge fade for the message scroll area: transparent at the very top, fully opaque by
  * TOP_FADE_PX. Applied as a CSS mask so the content itself fades (correct in any theme). */
 const TOP_FADE_MASK = `linear-gradient(to bottom, transparent 0, #000 ${TOP_FADE_PX}px)`
+/** Centered reading column for the chat body. Caps line length / bubble width so a wide (maximized)
+ * panel doesn't sprawl into oversized bubbles and over-spaced turns; freed side space is whitespace. */
+const CHAT_COLUMN = "mx-auto w-full max-w-[880px]"
+/** Full-screen session rail width. The rail slides between this and 0 (rather than mounting) so the
+ * Build/Chat transition stays cohesive with the config pane's animated collapse. */
+const RAIL_WIDTH = 248
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -171,7 +181,7 @@ const MessageRow = ({
     return (
         <div
             data-mid={mid}
-            className={`flex flex-col gap-1 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out ${
+            className={`${CHAT_COLUMN} flex flex-col gap-1 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out ${
                 shown || !enter ? "opacity-100" : "motion-safe:opacity-0"
             }`}
         >
@@ -183,6 +193,7 @@ const MessageRow = ({
 const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
+    const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
 
@@ -229,6 +240,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // Teardown for the in-flight smooth scroll (removes its listeners + fallback timer).
     const pinCleanupRef = useRef<(() => void) | null>(null)
 
+    // `useChat` pins its `Chat` (and thus this transport) for the life of the session `id`; it is
+    // NOT recreated when `entityId` changes (only on an `id` change). So the request builder must
+    // read the CURRENT entity through a ref — capturing `entityId` by value would send every turn
+    // with the revision that was displayed when the session first mounted, even after a switch or a
+    // self-commit. Reading `entityIdRef.current` at send time keeps runs on the live revision.
+    const entityIdRef = useRef(entityId)
+    entityIdRef.current = entityId
+
     // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
     // placeholder that `prepareSendMessagesRequest` overrides per request.
     const transport = useMemo(
@@ -236,7 +255,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             new AgentChatTransport({
                 api: "",
                 prepareSendMessagesRequest: async ({messages, id}) => {
-                    const req = await buildAgentRequest(entityId, messages, {
+                    const req = await buildAgentRequest(entityIdRef.current, messages, {
                         sessionId: id ?? sessionId,
                     })
                     if (!req) {
@@ -247,7 +266,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
             }),
-        [entityId, sessionId],
+        [sessionId],
     )
 
     const {
@@ -420,6 +439,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         if (status === "streaming") return
         persistMessages({id: sessionId, messages})
     }, [messages, status, sessionId, persistMessages])
+
+    // Stamp a first-seen timestamp on any newly-appeared message (user + assistant).
+    useEffect(() => {
+        stampMessagesCreatedAt(messages.map((m) => m.id))
+    }, [messages, stampMessagesCreatedAt])
 
     // ── #4920 Application 1: refresh the config on a committed revision ──
     // When the agent commits a new revision of itself, the backend emits a one-way
@@ -813,6 +837,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         // Don't mutate seenIdsRef here — that runs during render (unsafe under StrictMode's double
         // invoke). Marking happens in an effect after commit.
         const enter = !seenIdsRef.current.has(message.id)
+        // A user turn has no trace of its own; borrow the paired (next) assistant turn's trace so its
+        // timestamp dates from the run, not this browser's first-seen stamp.
+        const turnTraceId =
+            message.role === "user" && messages[index + 1]
+                ? getMessageTraceId(messages[index + 1])
+                : undefined
         return (
             <MessageRow key={message.id} mid={message.id} enter={enter}>
                 <AgentMessage
@@ -825,6 +855,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     precededByEmptyAssistant={
                         index > 0 && isEmptyAssistantTurn(messages[index - 1])
                     }
+                    turnTraceId={turnTraceId}
                 />
                 {/* Waiting indicator stays inside the last message so the reserve keeps it on-screen. */}
                 {isLast && status === "submitted" && message.role !== "assistant" && (
@@ -938,7 +969,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 the composer's send button (it becomes a spinning Stop button), so there's no
                 separate "Streaming…" row. */}
             {(hitlPending || queued.length > 0) && (
-                <div className="flex items-center justify-between gap-2 px-3 pb-2">
+                <div className={`${CHAT_COLUMN} flex items-center justify-between gap-2 px-3 pb-2`}>
                     {queued.length > 0 ? (
                         <QueuedMessages
                             queued={queued}
@@ -955,47 +986,51 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             )}
 
             {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
-                `mx-3 mb-3` insets it to match the message padding + session-bar gutter (the panel
-                root has no padding so the session bar can align with the config header). */}
-            <RichChatInput
-                ref={richInputRef}
-                className="mx-3 mb-3"
-                onSubmit={handleSubmit}
-                placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                onPasteFile={(pasted) => addFiles(Array.from(pasted))}
-                sendForceEnabled={files.length > 0}
-                streaming={busy}
-                onStop={handleStop}
-                prefix={
-                    // Attach button is gated until the agent service is ready for inline
-                    // file parts (big-agents d4b119af26); paste / drag-to-add still work.
-                    <Tooltip
-                        title={
-                            atMax ? `Up to ${limits.maxCount} files` : "Attach files coming soon"
-                        }
-                    >
-                        <Button
-                            type="text"
-                            icon={<Paperclip size={16} />}
-                            disabled={true}
-                            onClick={() => setAttachmentsOpen((open) => !open)}
-                            aria-label="Attach files"
-                        />
-                    </Tooltip>
-                }
-                header={
-                    <HeightCollapse open={attachmentsOpen || files.length > 0}>
-                        <ComposerAttachments
-                            files={files}
-                            rejections={rejections}
-                            limits={limits}
-                            onAdd={addFiles}
-                            onRemove={removeFile}
-                            onDismissRejections={() => setRejections([])}
-                        />
-                    </HeightCollapse>
-                }
-            />
+                Wrapper `px-3` keeps the session-bar gutter; the input centers on CHAT_COLUMN so it
+                aligns with the (also centered) message column when the panel is wide. */}
+            <div className="px-3">
+                <RichChatInput
+                    ref={richInputRef}
+                    className={`${CHAT_COLUMN} mb-3`}
+                    onSubmit={handleSubmit}
+                    placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                    onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                    sendForceEnabled={files.length > 0}
+                    streaming={busy}
+                    onStop={handleStop}
+                    prefix={
+                        // Attach button is gated until the agent service is ready for inline
+                        // file parts (big-agents d4b119af26); paste / drag-to-add still work.
+                        <Tooltip
+                            title={
+                                atMax
+                                    ? `Up to ${limits.maxCount} files`
+                                    : "Attach files coming soon"
+                            }
+                        >
+                            <Button
+                                type="text"
+                                icon={<Paperclip size={16} />}
+                                disabled={true}
+                                onClick={() => setAttachmentsOpen((open) => !open)}
+                                aria-label="Attach files"
+                            />
+                        </Tooltip>
+                    }
+                    header={
+                        <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                            <ComposerAttachments
+                                files={files}
+                                rejections={rejections}
+                                limits={limits}
+                                onAdd={addFiles}
+                                onRemove={removeFile}
+                                onDismissRejections={() => setRejections([])}
+                            />
+                        </HeightCollapse>
+                    }
+                />
+            </div>
         </div>
     )
 }
@@ -1020,6 +1055,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const closeSession = useSetAtom(closeSessionAtomFamily(scope))
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
+    const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     const posthog = usePostHogAg()
 
     // Explicit user "new session" (the tab bar +), distinct from the bootstrap/trigger adds below.
@@ -1056,27 +1092,48 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     }, [pendingRun, addSession, setPendingRun])
 
     return (
-        <div className="flex h-full min-h-0 w-full flex-col">
+        <div className="flex h-full min-h-0 w-full flex-row">
+            {/* Rail stays mounted and slides (width 0↔RAIL_WIDTH) so it animates in lockstep with the
+                config pane instead of snapping. Clipped while collapsed; `inert` drops it from tab
+                order + a11y when hidden. */}
+            <div
+                className="h-full shrink-0 overflow-hidden motion-safe:transition-[width] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                style={{width: chatMaximized ? RAIL_WIDTH : 0}}
+                inert={!chatMaximized}
+            >
+                <SessionRail activeId={activeId} className="h-full w-[248px]" />
+            </div>
             <Tabs
                 animated={false}
                 className="flex min-h-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
                 activeKey={activeId}
                 onChange={setActiveSession}
                 renderTabBar={() => (
-                    <SessionTagBar
-                        sessions={sessions}
-                        activeId={activeId}
-                        onSelect={setActiveSession}
-                        onAdd={handleAddSession}
-                        onClose={closeSession}
-                        onRename={(id, title) => renameSession({id, title})}
-                        extra={
-                            <>
-                                <SessionInspectorButton sessionId={activeId ?? null} />
-                                <SessionHistoryMenu />
-                            </>
-                        }
-                    />
+                    // Chat mode has no inline session controls (they live in the SessionRail), so the
+                    // bar would be an empty 48px strip. Collapse its height to 0 — animated to match
+                    // the rail/config panes — rather than leaving dead space or snapping it away.
+                    <div
+                        className="shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                        style={{height: chatMaximized ? 0 : 48}}
+                    >
+                        <SessionTagBar
+                            sessions={sessions}
+                            activeId={activeId}
+                            onSelect={setActiveSession}
+                            onAdd={handleAddSession}
+                            onClose={closeSession}
+                            onRename={(id, title) => renameSession({id, title})}
+                            showSessions={!chatMaximized}
+                            extra={
+                                chatMaximized ? undefined : (
+                                    <>
+                                        <SessionInspectorButton sessionId={activeId ?? null} />
+                                        <SessionHistoryMenu />
+                                    </>
+                                )
+                            }
+                        />
+                    </div>
                 )}
                 items={sessions.map((session) => ({
                     key: session.id,

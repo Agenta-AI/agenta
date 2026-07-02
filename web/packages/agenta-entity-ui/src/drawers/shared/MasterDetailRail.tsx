@@ -121,11 +121,11 @@ export function EntityListRow({
 }
 
 /**
- * The master-detail left rail shared by the schedule + subscription drawers: a "New …"
+ * Master-detail left rail shared across entity config drawers (triggers + tools): a "New …"
  * button on top and a scrollable list of rows below. Rows (drafts + entities) are
  * composed by the caller from {@link DraftListRow} / {@link EntityListRow}.
  */
-export function TriggerListRail({
+export function MasterDetailRail({
     newLabel,
     onNew,
     canCreate,

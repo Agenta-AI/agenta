@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionStream,
-    SessionStreamStatus,
 )
 from oss.src.core.sessions.states.dtos import SessionState
 from oss.src.core.sessions.records.dtos import SessionRecord
@@ -40,7 +39,6 @@ class SessionHeartbeatRequestModel(BaseModel):
     replica_id: str
     turn_id: Optional[str] = None
     is_running: bool = True
-    status: Optional[SessionStreamStatus] = None
 
 
 class SessionDetachRequestModel(BaseModel):

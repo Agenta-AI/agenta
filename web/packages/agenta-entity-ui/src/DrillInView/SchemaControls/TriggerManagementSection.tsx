@@ -37,30 +37,28 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {HeightCollapse, message} from "@agenta/ui"
+import {message} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
 import {
     ArrowsClockwise,
-    CaretDown,
     CaretRight,
     Clock,
     Flask,
     Lightning,
     ListChecks,
     PencilSimpleLine,
-    Plugs,
     Plus,
     Sparkle,
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Tag, Tooltip} from "antd"
+import {Button, Dropdown, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
-import Image from "next/image"
 
 import {captureEntityUiEvent} from "../../analytics"
+import {AddItemMenu, type AddItemGroup} from "../../drawers/shared/AddItemMenu"
 import {loadRecentSamples, waitForNewDelivery} from "../../gatewayTrigger/drawers/shared/deliveries"
 import {
     EventSourcePicker,
@@ -71,6 +69,7 @@ import TriggerScheduleDrawer from "../../gatewayTrigger/drawers/TriggerScheduleD
 import TriggerSubscriptionDrawer from "../../gatewayTrigger/drawers/TriggerSubscriptionDrawer"
 
 import {AddTextLink} from "./AddTextLink"
+import {CollapsibleProviderGroup, SubSectionHeader} from "./sectionGroups"
 
 // Persisted per-agent expand state for provider groups (key = `${entityId}:${providerKey}`).
 const triggerGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
@@ -89,20 +88,6 @@ function prettifyEventKey(key: string): string {
 function prettifyProvider(key: string): string {
     if (!key) return "Other"
     return key.charAt(0).toUpperCase() + key.slice(1)
-}
-
-function ProviderLogo({logo, size = 24}: {logo?: string | null; size?: number}) {
-    if (!logo) return <Plugs size={size} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
-    return (
-        <Image
-            src={logo}
-            alt=""
-            width={size}
-            height={size}
-            unoptimized
-            className="shrink-0 rounded object-contain"
-        />
-    )
 }
 
 interface ProviderGroupData {
@@ -738,132 +723,84 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                     {/* App triggers — grouped by provider (subscriptions first). */}
                     {providerGroups.length > 0 && (
                         <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-1.5 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                <span>App triggers</span>
-                                <Tag
-                                    bordered
-                                    className="m-0 !px-1.5 !text-[10px] font-normal leading-[16px]"
-                                >
-                                    {scopedSubscriptions.length}
-                                </Tag>
-                            </div>
+                            <SubSectionHeader
+                                label="App triggers"
+                                count={scopedSubscriptions.length}
+                            />
                             {providerGroups.map((group) => {
                                 const open = isGroupOpen(group)
                                 const activeCount = group.subs.filter(isEntityActive).length
                                 return (
-                                    <div
+                                    <CollapsibleProviderGroup
                                         key={group.key}
-                                        className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]"
+                                        logo={group.logo}
+                                        name={group.name}
+                                        countText={`${activeCount} active · ${group.subs.length} total`}
+                                        open={open}
+                                        onToggle={() => toggleGroup(group)}
+                                        onAdd={
+                                            !disabled
+                                                ? () =>
+                                                      openSubscriptionDrawer({
+                                                          defaultReferences,
+                                                          defaultBoundLabel,
+                                                          playgroundEntityId: entityId ?? undefined,
+                                                          integrationKey: group.key,
+                                                          integrationName: group.name,
+                                                      })
+                                                : undefined
+                                        }
+                                        addLabel={`Add ${group.name} trigger`}
                                     >
-                                        <div
-                                            role="button"
-                                            tabIndex={0}
-                                            aria-expanded={open}
-                                            onClick={() => toggleGroup(group)}
-                                            onKeyDown={(e) => {
-                                                if (e.target !== e.currentTarget) return
-                                                if (e.key === "Enter" || e.key === " ") {
-                                                    e.preventDefault()
-                                                    toggleGroup(group)
-                                                }
-                                            }}
-                                            className="flex cursor-pointer items-center gap-2.5 bg-[var(--ag-colorFillQuaternary)] px-3 py-2 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
-                                        >
-                                            {open ? (
-                                                <CaretDown
-                                                    size={12}
-                                                    className="shrink-0 text-[var(--ag-colorTextSecondary)]"
-                                                />
-                                            ) : (
-                                                <CaretRight
-                                                    size={12}
-                                                    className="shrink-0 text-[var(--ag-colorTextSecondary)]"
-                                                />
-                                            )}
-                                            <ProviderLogo logo={group.logo} size={24} />
-                                            <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                                                {group.name}
-                                            </span>
-                                            <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                                {activeCount} active · {group.subs.length} total
-                                            </span>
-                                            {!disabled && (
-                                                <Tooltip title={`Add ${group.name} trigger`}>
-                                                    <Button
-                                                        type="text"
-                                                        icon={<Plus size={16} />}
-                                                        aria-label={`Add ${group.name} trigger`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            openSubscriptionDrawer({
-                                                                defaultReferences,
-                                                                defaultBoundLabel,
-                                                                playgroundEntityId:
-                                                                    entityId ?? undefined,
-                                                                integrationKey: group.key,
-                                                                integrationName: group.name,
-                                                            })
-                                                        }}
-                                                    />
-                                                </Tooltip>
-                                            )}
-                                        </div>
-                                        <HeightCollapse open={open}>
-                                            <div className="flex flex-col gap-0.5 px-1.5 pb-1.5 pt-1">
-                                                {group.subs.map((record) => {
-                                                    const named = !!record.name?.trim()
-                                                    const eventLabel = prettifyEventKey(
-                                                        record.data?.event_key ?? "",
-                                                    )
-                                                    const primary = named
-                                                        ? (record.name as string)
-                                                        : eventLabel || "Untitled subscription"
-                                                    const secondary = named
-                                                        ? eventLabel || undefined
-                                                        : connectionLabel(record.connection_id) ||
-                                                          record.description ||
-                                                          undefined
-                                                    return (
-                                                        <SubscriptionChildRow
-                                                            key={`subscription-${record.id}`}
-                                                            primary={primary}
-                                                            primaryMuted={!named && !eventLabel}
-                                                            secondary={secondary}
-                                                            active={isEntityActive(record)}
-                                                            disabled={disabled}
-                                                            runSlot={
-                                                                <SubscriptionRunPopover
-                                                                    subscriptionId={record.id ?? ""}
-                                                                    label={
-                                                                        record.name ||
-                                                                        eventLabel ||
-                                                                        "trigger"
-                                                                    }
-                                                                    eventKey={
-                                                                        record.data?.event_key ??
-                                                                        undefined
-                                                                    }
-                                                                    playgroundEntityId={entityId}
-                                                                    disabled={
-                                                                        disabled || !record.id
-                                                                    }
-                                                                />
+                                        {group.subs.map((record) => {
+                                            const named = !!record.name?.trim()
+                                            const eventLabel = prettifyEventKey(
+                                                record.data?.event_key ?? "",
+                                            )
+                                            const primary = named
+                                                ? (record.name as string)
+                                                : eventLabel || "Untitled subscription"
+                                            const secondary = named
+                                                ? eventLabel || undefined
+                                                : connectionLabel(record.connection_id) ||
+                                                  record.description ||
+                                                  undefined
+                                            return (
+                                                <SubscriptionChildRow
+                                                    key={`subscription-${record.id}`}
+                                                    primary={primary}
+                                                    primaryMuted={!named && !eventLabel}
+                                                    secondary={secondary}
+                                                    active={isEntityActive(record)}
+                                                    disabled={disabled}
+                                                    runSlot={
+                                                        <SubscriptionRunPopover
+                                                            subscriptionId={record.id ?? ""}
+                                                            label={
+                                                                record.name ||
+                                                                eventLabel ||
+                                                                "trigger"
                                                             }
-                                                            onOpen={() =>
-                                                                record.id &&
-                                                                openSubscriptionDrawer({
-                                                                    subscriptionId: record.id,
-                                                                    playgroundEntityId:
-                                                                        entityId ?? undefined,
-                                                                })
+                                                            eventKey={
+                                                                record.data?.event_key ?? undefined
                                                             }
-                                                            menuItems={subscriptionMenu(record)}
+                                                            playgroundEntityId={entityId}
+                                                            disabled={disabled || !record.id}
                                                         />
-                                                    )
-                                                })}
-                                            </div>
-                                        </HeightCollapse>
-                                    </div>
+                                                    }
+                                                    onOpen={() =>
+                                                        record.id &&
+                                                        openSubscriptionDrawer({
+                                                            subscriptionId: record.id,
+                                                            playgroundEntityId:
+                                                                entityId ?? undefined,
+                                                        })
+                                                    }
+                                                    menuItems={subscriptionMenu(record)}
+                                                />
+                                            )
+                                        })}
+                                    </CollapsibleProviderGroup>
                                 )
                             })}
                         </div>
@@ -872,15 +809,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                     {/* Schedules — flat (no provider), listed last. */}
                     {scopedSchedules.length > 0 && (
                         <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-1.5 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                <span>Schedules</span>
-                                <Tag
-                                    bordered
-                                    className="m-0 !px-1.5 !text-[10px] font-normal leading-[16px]"
-                                >
-                                    {scopedSchedules.length}
-                                </Tag>
-                            </div>
+                            <SubSectionHeader label="Schedules" count={scopedSchedules.length} />
                             {scopedSchedules.map((record) => {
                                 const cron = record.data?.schedule
                                 const named = !!record.name?.trim()
@@ -945,39 +874,49 @@ export function AddTriggerDropdown({
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
 
-    const items: MenuProps["items"] = useMemo(
+    // Shares the tools add-menu's row treatment (AddItemMenu). A trigger is always a NEW trigger of
+    // some kind, so the tools' "add existing / create new" split doesn't apply — one "Add new"
+    // section (kept labelled for visual consistency with the tools popover) lists the trigger types.
+    const groups: AddItemGroup[] = useMemo(
         () => [
             {
-                key: "ai",
-                label: (
-                    <Tooltip title="Coming soon">
-                        <span>Create with AI</span>
-                    </Tooltip>
-                ),
-                icon: <Sparkle size={16} />,
-                disabled: true,
-            },
-            {
-                key: "app",
-                label: "App trigger",
-                icon: <Lightning size={16} />,
-                onClick: () =>
-                    openSubscriptionDrawer({
-                        defaultReferences,
-                        defaultBoundLabel,
-                        playgroundEntityId: entityId ?? undefined,
-                    }),
-            },
-            {
-                key: "schedule",
-                label: "Scheduled trigger",
-                icon: <Clock size={16} />,
-                onClick: () =>
-                    openScheduleDrawer({
-                        defaultReferences,
-                        defaultBoundLabel,
-                        playgroundEntityId: entityId ?? undefined,
-                    }),
+                label: "Add new",
+                items: [
+                    {
+                        key: "app",
+                        icon: <Lightning size={17} />,
+                        title: "App trigger",
+                        subtitle: "React to an event from a connected app",
+                        opensDrawer: true,
+                        onSelect: () =>
+                            openSubscriptionDrawer({
+                                defaultReferences,
+                                defaultBoundLabel,
+                                playgroundEntityId: entityId ?? undefined,
+                            }),
+                    },
+                    {
+                        key: "schedule",
+                        icon: <Clock size={17} />,
+                        title: "Scheduled trigger",
+                        subtitle: "Run on a recurring schedule",
+                        opensDrawer: true,
+                        onSelect: () =>
+                            openScheduleDrawer({
+                                defaultReferences,
+                                defaultBoundLabel,
+                                playgroundEntityId: entityId ?? undefined,
+                            }),
+                    },
+                    {
+                        key: "ai",
+                        icon: <Sparkle size={17} />,
+                        title: "Create with AI",
+                        subtitle: "Describe it and let AI set it up",
+                        disabled: true,
+                        disabledHint: "Coming soon",
+                    },
+                ],
             },
         ],
         [
@@ -990,24 +929,22 @@ export function AddTriggerDropdown({
     )
 
     return (
-        <Dropdown
-            trigger={["click"]}
-            menu={{items}}
-            styles={{root: {width: 200}}}
-            onOpenChange={(open) => {
-                if (open) captureEntityUiEvent("agent_trigger_menu_opened")
-            }}
-        >
-            {trigger ?? (
-                <Tooltip title="Add trigger">
-                    <Button
-                        type="text"
-                        icon={<Plus size={16} />}
-                        aria-label="Add trigger"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                </Tooltip>
-            )}
-        </Dropdown>
+        <AddItemMenu
+            groups={groups}
+            ariaLabel="Add trigger"
+            onOpen={() => captureEntityUiEvent("agent_trigger_menu_opened")}
+            trigger={
+                trigger ?? (
+                    <Tooltip title="Add trigger">
+                        <Button
+                            type="text"
+                            icon={<Plus size={16} />}
+                            aria-label="Add trigger"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </Tooltip>
+                )
+            }
+        />
     )
 }

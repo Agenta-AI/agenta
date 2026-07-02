@@ -13,6 +13,7 @@ export interface SessionStream {
     project_id: string;
     session_id: string;
     flags?: AgentaApi.SessionStreamFlags | undefined;
+    tags?: (Record<string, unknown> | null) | undefined;
+    meta?: (Record<string, unknown> | null) | undefined;
     turn_id?: (string | null) | undefined;
-    status?: AgentaApi.SessionStreamStatus | undefined;
 }

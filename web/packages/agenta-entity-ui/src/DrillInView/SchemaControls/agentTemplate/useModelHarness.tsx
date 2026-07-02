@@ -263,7 +263,7 @@ export function useModelHarness({
     // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
     // sandbox-permission keys the overlay overrides for the user's own permission control below.
     const {hasBuildKitOverlay, buildKitSection, permissionOverrideHint} = useBuildKit({
-        revisionId,
+        revisionId: revisionId ?? null,
         sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
         disabled,
     })

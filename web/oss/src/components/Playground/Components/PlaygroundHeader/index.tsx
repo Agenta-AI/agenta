@@ -30,6 +30,7 @@ import {
     Button,
     Divider,
     Dropdown,
+    Segmented,
     Space,
     Tag,
     Tooltip,
@@ -41,6 +42,7 @@ import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
+import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
@@ -213,6 +215,12 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         ),
     )
     const showEvalActions = !isAgentWorkflow
+
+    // Build/Chat mode: "chat" maximizes the chat pane (config hidden, session rail shown); "build"
+    // is the 2-panel edit view. The boolean maximize atom is the single source of truth (also read
+    // by MainLayout + the chat panel), surfaced here as a persistent, labeled mode switch.
+    const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
 
     // Agent playground settings (page-level): config-panel layout + stream/batch response channel.
     // These were previously buried in a config item's kebab; they're global, so they live here.
@@ -684,18 +692,29 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                         </>
                     )}
                     {isAgentWorkflow && (
-                        <Dropdown
-                            trigger={["click"]}
-                            placement="bottomRight"
-                            styles={{root: {width: 180}}}
-                            menu={{items: settingsMenuItems}}
-                        >
-                            <Button
-                                type="text"
-                                icon={<GearSix size={16} />}
-                                aria-label="Playground settings"
+                        <>
+                            <Segmented
+                                aria-label="Playground mode"
+                                value={chatMaximized ? "chat" : "build"}
+                                onChange={(value) => setChatMaximized(value === "chat")}
+                                options={[
+                                    {label: "Build", value: "build"},
+                                    {label: "Chat", value: "chat"},
+                                ]}
                             />
-                        </Dropdown>
+                            <Dropdown
+                                trigger={["click"]}
+                                placement="bottomRight"
+                                styles={{root: {width: 180}}}
+                                menu={{items: settingsMenuItems}}
+                            >
+                                <Button
+                                    type="text"
+                                    icon={<GearSix size={16} />}
+                                    aria-label="Playground settings"
+                                />
+                            </Dropdown>
+                        </>
                     )}
                 </div>
             </div>

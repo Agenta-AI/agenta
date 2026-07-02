@@ -15,7 +15,9 @@ export interface SessionInteraction {
     turn_id?: (string | null) | undefined;
     token: string;
     kind: AgentaApi.SessionInteractionKind;
-    status?: (AgentaApi.Status | null) | undefined;
+    status?: (AgentaApi.SessionInteractionStatus | null) | undefined;
     data?: (AgentaApi.SessionInteractionData | null) | undefined;
     flags?: AgentaApi.SessionInteractionFlags | undefined;
+    tags?: (Record<string, unknown> | null) | undefined;
+    meta?: (Record<string, unknown> | null) | undefined;
 }

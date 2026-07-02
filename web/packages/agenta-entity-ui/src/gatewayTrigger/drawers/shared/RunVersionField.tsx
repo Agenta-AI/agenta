@@ -1,5 +1,6 @@
-import {Button, Select, Typography} from "antd"
+import {Select, Typography} from "antd"
 
+import {SectionRail} from "../../../drawers/shared/SectionRail"
 import {
     createWorkflowRevisionAdapter,
     EntityPicker,
@@ -100,64 +101,44 @@ export function RunVersionField({
     railWidth?: string
 }) {
     return (
-        <div className="flex gap-3">
-            <div className={`flex ${railWidth} shrink-0 flex-col gap-0.5`}>
-                {(
-                    [
-                        {value: "revision", label: "Pinned"},
-                        {value: "environment", label: "Deployed"},
-                    ] as const
-                ).map((m) => {
-                    const active = bindMode === m.value
-                    return (
-                        <Button
-                            key={m.value}
-                            type="text"
-                            block
-                            onClick={() => onBindModeChange(m.value)}
-                            className={`!h-8 !justify-start !px-2.5 !text-xs ${
-                                active
-                                    ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
-                                    : "!text-[var(--ag-colorTextSecondary)]"
-                            }`}
-                        >
-                            {m.label}
-                        </Button>
-                    )
-                })}
-            </div>
-
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                {bindMode === "revision" ? (
-                    <>
-                        <Typography.Text type="secondary" className="!text-[11px] leading-snug">
-                            {revisionHint}
-                        </Typography.Text>
-                        <EntityPicker<WorkflowRevisionSelectionResult>
-                            variant="popover-cascader"
-                            adapter={revisionAdapter}
-                            onSelect={onRevisionSelect}
-                            className="!flex w-full max-w-prose !justify-between"
-                            placeholder={revisionPlaceholder}
-                        />
-                    </>
-                ) : (
-                    <>
-                        <Typography.Text type="secondary" className="!text-[11px] leading-snug">
-                            {envHint}
-                        </Typography.Text>
-                        <Select
-                            placeholder="Select an environment"
-                            className="w-full max-w-prose"
-                            value={environmentSlug ?? undefined}
-                            onChange={onEnvironmentChange}
-                            loading={envLoading}
-                            options={envOptions}
-                            notFoundContent={envNotFound}
-                        />
-                    </>
-                )}
-            </div>
-        </div>
+        <SectionRail
+            items={[
+                {value: "revision", label: "Pinned"},
+                {value: "environment", label: "Deployed"},
+            ]}
+            value={bindMode}
+            onChange={(v) => onBindModeChange(v as RunVersionBindMode)}
+            railWidth={railWidth}
+        >
+            {bindMode === "revision" ? (
+                <>
+                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                        {revisionHint}
+                    </Typography.Text>
+                    <EntityPicker<WorkflowRevisionSelectionResult>
+                        variant="popover-cascader"
+                        adapter={revisionAdapter}
+                        onSelect={onRevisionSelect}
+                        className="!flex w-full max-w-prose !justify-between"
+                        placeholder={revisionPlaceholder}
+                    />
+                </>
+            ) : (
+                <>
+                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                        {envHint}
+                    </Typography.Text>
+                    <Select
+                        placeholder="Select an environment"
+                        className="w-full max-w-prose"
+                        value={environmentSlug ?? undefined}
+                        onChange={onEnvironmentChange}
+                        loading={envLoading}
+                        options={envOptions}
+                        notFoundContent={envNotFound}
+                    />
+                </>
+            )}
+        </SectionRail>
     )
 }

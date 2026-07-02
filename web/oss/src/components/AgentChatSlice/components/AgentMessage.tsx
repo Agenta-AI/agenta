@@ -7,6 +7,7 @@ import {
     ArrowUUpLeft,
     Brain,
     CaretRight,
+    Clock,
     Copy,
     Robot,
     TreeStructure,
@@ -14,7 +15,7 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
-import {Avatar, Typography} from "antd"
+import {Avatar, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
@@ -27,11 +28,33 @@ import {
     getMessageUsage,
     type MessageUsageMetrics,
 } from "../assets/trace"
+import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
 
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
 
 const {Text} = Typography
+
+/** A trace span's `start_time` (ISO string / epoch) → ms, or undefined if absent/unparseable. */
+const parseTraceTime = (value: unknown): number | undefined => {
+    if (value == null) return undefined
+    const ms = new Date(value as string | number).getTime()
+    return Number.isFinite(ms) ? ms : undefined
+}
+
+/** Relative "just now / 5m ago / 2h ago" message stamp; subscribes to the minute tick so it stays
+ * fresh, and shows the exact date/time on hover. */
+const MessageTimestamp = ({createdAt}: {createdAt: number}) => {
+    useAtomValue(nowTickAtom)
+    return (
+        <Tooltip title={new Date(createdAt).toLocaleString()}>
+            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-[11px] text-colorTextTertiary">
+                <Clock size={12} />
+                {timeAgo(createdAt)}
+            </span>
+        </Tooltip>
+    )
+}
 
 /** Cost / tokens / latency for a message, read from its trace (same data + component the
  * playground and trace drawer use). */
@@ -61,6 +84,9 @@ interface AgentMessageProps {
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
      * run of "no response" bubbles down to the first one. */
     precededByEmptyAssistant?: boolean
+    /** The turn's trace id for a USER message (its paired assistant's trace) — lets the user turn
+     * borrow the run's real start time so it dates from the trace, not this browser's first-seen. */
+    turnTraceId?: string
 }
 
 const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
@@ -175,15 +201,27 @@ const AgentMessage = ({
     onApprovalResponse,
     onClientToolOutput,
     precededByEmptyAssistant = false,
+    turnTraceId,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
+    // Client-stamped first-seen time — only a fallback: it back-dates history to load time. The
+    // trace's real start time (own trace, or the paired turn trace for a user turn) is authoritative.
+    const createdAt = useAtomValue(messageCreatedAtAtomFamily(message.id))
     // A failed run (e.g. a quota error the runner swallowed into an empty turn) lands as an
-    // error on the trace; read it so the bubble can render as a failure.
-    const traceError = useAtomValue(traceDataSummaryAtomFamily(traceId ?? null)).error
+    // error on the message's OWN trace; read it so the bubble can render as a failure.
+    const ownSummary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? null))
+    const traceError = ownSummary.error
+    // Timestamp uses the run's real start. An assistant turn already has `ownSummary`; only a user
+    // turn needs the paired turn's trace, so read that second (no-op when null) atom only then.
+    const pairedSummary = useAtomValue(
+        traceDataSummaryAtomFamily(!traceId && turnTraceId ? turnTraceId : null),
+    )
+    const timeSummary = traceId ? ownSummary : pairedSummary
+    const messageTime = parseTraceTime(timeSummary.rootSpan?.start_time) ?? createdAt
     // A failure can reach us two ways: recorded on the trace (backend), or stamped onto the turn
     // FE-side from the useChat stream error (AgentChatPanel). Prefer whichever is present.
     const runError = getMessageRunError(message)
@@ -413,11 +451,24 @@ const AgentMessage = ({
         onItemClick: () => onRewind(message),
     }
 
+    const timestamp = messageTime ? <MessageTimestamp createdAt={messageTime} /> : null
+
     const toolbar = isUser ? (
-        <Actions variant="borderless" items={[rewindAction]} />
+        <>
+            {timestamp}
+            <Actions variant="borderless" items={[rewindAction]} />
+        </>
     ) : (
         <>
-            {traceId && <TraceMetrics traceId={traceId} usage={usage} />}
+            {timestamp}
+            {/* Show run metrics (tokens/cost, + latency when traced). Usage is stamped on the
+                settled message itself, so surface it even on the no-trace playground path instead
+                of leaving the turn with no data. */}
+            {traceId ? (
+                <TraceMetrics traceId={traceId} usage={usage} />
+            ) : usage ? (
+                <ExecutionMetricsDisplay metrics={usage} size="small" />
+            ) : null}
             <Actions
                 variant="borderless"
                 items={[

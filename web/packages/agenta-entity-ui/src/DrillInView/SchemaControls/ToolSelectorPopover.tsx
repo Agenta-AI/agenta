@@ -67,6 +67,12 @@ export interface ToolSelectionMeta {
     toolLabel?: string
     integrationKey?: string
     connectionSlug?: string
+    /**
+     * Open the tool config editor instead of adding immediately (append on Save). Set when a
+     * gateway action's input schema couldn't be resolved, so the user defines the parameters in
+     * the editor rather than getting a silent schema-less tool. Transient — not persisted.
+     */
+    needsConfig?: boolean
 }
 
 export interface ToolSelectorPopoverProps {
@@ -94,8 +100,6 @@ export interface ToolSelectorPopoverProps {
     /** When provided, the "Reference a workflow" section shows and its `+` calls this (the host opens
      * a workflow-selector drawer). Without it the section is hidden. */
     onReferenceWorkflow?: () => void
-    /** Called when the picker opens. Callers can use this for interaction analytics. */
-    onOpen?: () => void
 }
 
 // ============================================================================
@@ -745,7 +749,6 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     gatewayTools: gatewayToolsProp,
     trigger,
     onReferenceWorkflow,
-    onOpen,
 }: ToolSelectorPopoverProps) {
     const {showMessage, gatewayTools: gatewayToolsFromContext, workflowReference} = useDrillInUI()
 
@@ -1042,7 +1045,6 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                     resetAndClose()
                     return
                 }
-                onOpen?.()
                 setOpen(true)
             }}
             trigger={["click"]}

@@ -3,14 +3,15 @@ import type {ReactNode} from "react"
 import {Button, Divider, Switch} from "antd"
 
 /**
- * Shared footer for the trigger config drawers (schedule + subscription): an Active
- * toggle on the left, and Cancel / [run slot] / Save on the right. The run affordance
- * differs per trigger kind (a preview popover for schedules, an event-source popover for
- * subscriptions), so it is passed in as a slot rather than baked in.
+ * Shared footer for entity config drawers (triggers: schedule + subscription; tools: integration
+ * + reference). Cancel / [run slot] / Save on the right; the left side is an Active toggle when
+ * `onEnabledChange` is supplied (triggers), otherwise an optional `left` slot or empty (tools).
+ * The run affordance differs per surface, so it is passed in as a slot rather than baked in.
  */
-export function TriggerDrawerFooter({
+export function DrawerFooter({
     enabled,
     onEnabledChange,
+    left,
     onCancel,
     run,
     isMutating,
@@ -18,8 +19,11 @@ export function TriggerDrawerFooter({
     submitLabel,
     onSubmit,
 }: {
-    enabled: boolean
-    onEnabledChange: (value: boolean) => void
+    /** When `onEnabledChange` is provided, render an Active toggle on the left. */
+    enabled?: boolean
+    onEnabledChange?: (value: boolean) => void
+    /** Left-side content when there's no Active toggle. */
+    left?: ReactNode
     onCancel: () => void
     /** Optional run-in-playground affordance (playground only). */
     run?: ReactNode
@@ -33,8 +37,16 @@ export function TriggerDrawerFooter({
             <Divider className="!m-0" />
             <div className="flex shrink-0 items-center justify-between gap-2 px-6 py-3">
                 <div className="flex items-center gap-2">
-                    <Switch checked={enabled} onChange={onEnabledChange} />
-                    <span className="text-xs text-[var(--ag-colorTextSecondary)]">Active</span>
+                    {onEnabledChange ? (
+                        <>
+                            <Switch checked={enabled} onChange={onEnabledChange} />
+                            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+                                Active
+                            </span>
+                        </>
+                    ) : (
+                        left
+                    )}
                 </div>
                 <div className="flex items-center gap-2">
                     <Button onClick={onCancel}>Cancel</Button>
