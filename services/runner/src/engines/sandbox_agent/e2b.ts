@@ -100,6 +100,75 @@ export async function uploadPiAuthToE2BSandbox(
   }
 }
 
+/** In-sandbox Claude config dir (daemon runs as root in the E2B template). */
+export const E2B_CLAUDE_DIR =
+  process.env.AGENTA_AGENT_SANDBOX_CLAUDE_DIR ?? "/root/.claude";
+
+/**
+ * Explicit allow-list of `~/.claude` files needed for the own-login (`runtime_provided`)
+ * path. Only `.credentials.json` — the OAuth/subscription login store (see
+ * docs/design/agent-workflows/projects/subscription-sidecar/README.md) — is required; Claude
+ * Code reads it via `$HOME` / `CLAUDE_CONFIG_DIR`. `settings.json` is deliberately excluded:
+ * the run's own rendered `.claude/settings.json` is already written into the sandbox from
+ * `harnessFiles` by `prepareWorkspace`, and that rendered copy must win over the host user's
+ * settings. Uploading the whole directory (previous behavior) over-shared `.mcp.json` (other
+ * services' MCP tokens), `settings.json` (env secrets/hooks), `history.jsonl`, and caches.
+ */
+const CLAUDE_OWN_LOGIN_ALLOWLIST = [".credentials.json"] as const;
+
+/**
+ * Upload the Claude own-login credentials from the host into an E2B sandbox. Best-effort per
+ * file: an allow-listed file that is absent or unreadable is logged and skipped, it never
+ * aborts the others. Only called when `credentialMode === "runtime_provided"` (own-login path).
+ */
+export async function uploadClaudeAuthToE2BSandbox(
+  sandbox: any,
+  log: Log = () => {},
+): Promise<void> {
+  const localDir = process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME ?? "", ".claude");
+  if (!existsSync(localDir)) return;
+  try {
+    await sandbox.mkdirFs({ path: E2B_CLAUDE_DIR });
+  } catch (err) {
+    log(`claude auth upload skipped: ${(err as Error).message}`);
+    return;
+  }
+  for (const name of CLAUDE_OWN_LOGIN_ALLOWLIST) {
+    const filePath = join(localDir, name);
+    if (!existsSync(filePath)) {
+      log(`claude auth upload: ${name} not found in ${localDir}, skipping`);
+      continue;
+    }
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      await sandbox.writeFsFile({ path: `${E2B_CLAUDE_DIR}/${name}` }, content);
+      log(`claude auth upload: uploaded ${name}`);
+    } catch (err) {
+      log(`claude auth upload failed for ${name}: ${(err as Error).message}`);
+    }
+  }
+}
+
+export interface PrepareE2BClaudeAssetsInput {
+  sandbox: any;
+  plan: Pick<RunPlan, "isClaude" | "credentialMode" | "hasApiKey">;
+  log?: Log;
+}
+
+/**
+ * Push the Claude own-login credentials into an E2B sandbox when running under
+ * `runtime_provided` credential mode. Managed-key runs need no file upload: the key arrives
+ * via `buildE2BCreate` envs. Pi assets are handled separately by `prepareE2BPiAssets`.
+ */
+export async function prepareE2BClaudeAssets({
+  sandbox,
+  plan,
+  log = () => {},
+}: PrepareE2BClaudeAssetsInput): Promise<void> {
+  if (!plan.isClaude) return;
+  if (shouldUploadOwnLogin(plan)) await uploadClaudeAuthToE2BSandbox(sandbox, log);
+}
+
 export interface PrepareE2BPiAssetsInput {
   sandbox: any;
   plan: Pick<

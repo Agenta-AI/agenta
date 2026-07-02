@@ -52,6 +52,7 @@ export interface RunPlan {
   acpAgent: string;
   sandboxId: string;
   isPi: boolean;
+  isClaude: boolean;
   isDaytona: boolean;
   isE2B: boolean;
   /** True for any remote sandbox (`isDaytona || isE2B`); use for remoteness-only checks. */
@@ -201,6 +202,7 @@ export function buildRunPlan(
   }
 
   const isPi = acpAgent === "pi";
+  const isClaude = acpAgent === "claude";
   const isDaytona = sandboxId === "daytona";
   const isE2B = sandboxId === "e2b";
   const isRemoteSandbox = isDaytona || isE2B;
@@ -339,6 +341,7 @@ export function buildRunPlan(
       acpAgent,
       sandboxId,
       isPi,
+      isClaude,
       isDaytona,
       isE2B,
       isRemoteSandbox,
