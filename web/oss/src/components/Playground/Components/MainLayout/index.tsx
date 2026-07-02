@@ -281,6 +281,9 @@ const PlaygroundMainView = ({
                 <Splitter
                     key={`${splitterKey}-splitter`}
                     className={clsx("h-full playground-splitter", {
+                        // Agent mode has no collapse pill (Build/Chat lives in the header), so the
+                        // drag handle needs its own discoverability treatment (a visible grip).
+                        "playground-splitter-agent": isAgentConfig,
                         "playground-splitter-collapsed": configCollapsed,
                         "playground-splitter-animated": animateSplit,
                     })}

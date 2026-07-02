@@ -154,6 +154,60 @@ body {
     opacity: 0.4 !important;
 }
 
+/* Agent playground: the collapse pill is disabled (Build/Chat switch lives in the header), so the
+   drag handle is the ONLY resize affordance and must be discoverable on its own. Render a persistent
+   centered grip on the divider — neutral at rest, then an accent TINT + taller on hover/drag — so it
+   reads as a draggable handle without turning into a loud bar. Geometry is fully specified so it
+   doesn't depend on antd's default pseudo-element placement. */
+.playground-splitter-agent .ant-splitter-bar-dragger::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 50% !important;
+    right: auto !important;
+    width: 2px !important;
+    height: auto !important;
+    border-radius: 0 !important;
+    transform: translateX(-50%) !important;
+    background: var(--ag-colorBorderSecondary) !important;
+}
+.playground-splitter-agent .ant-splitter-bar-dragger::after {
+    content: "" !important;
+    position: absolute !important;
+    top: 50% !important;
+    bottom: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    width: 4px !important;
+    height: 24px !important;
+    border-radius: 9999px !important;
+    transform: translate(-50%, -50%) !important;
+    background: var(--ag-colorTextTertiary) !important;
+    transition:
+        background 150ms ease,
+        opacity 150ms ease,
+        height 150ms ease;
+}
+/* Hover + active: the full-height DIVIDER only strengthens to a neutral border tone — a long line in
+   the accent colour reads as too loud. The small GRIP takes the accent (`colorPrimary`), softened to a
+   TINT via opacity so it stays a clear-but-quiet handle in both themes (the tinted-primary border
+   token blended into the dark divider; the full colour was too strong). `:not(-active)` mirrors the
+   base `.playground-splitter` hover rule's specificity so we win the tie by source order — otherwise
+   that base rule would swap the divider to a faint fill on hover (the fade). */
+.playground-splitter-agent
+    .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::before,
+.playground-splitter-agent .ant-splitter-bar-dragger-active::before {
+    background: var(--ag-colorBorder) !important;
+}
+.playground-splitter-agent
+    .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::after,
+.playground-splitter-agent .ant-splitter-bar-dragger-active::after {
+    height: 36px !important;
+    background: var(--ag-colorPrimary) !important;
+    opacity: 0.7 !important;
+}
+
 /* Build/Chat mode transitions: ease the panels' flex-basis (config → 0, chat → full) and fade the
    inert split bar instead of snapping. `-animated` is added by MainLayout only around a toggle (off
    during drag, so resizing stays 1:1). Gated on `prefers-reduced-motion` for parity with the rail's
