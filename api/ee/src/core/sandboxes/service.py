@@ -56,10 +56,10 @@ class SandboxMeteringService:
         scope = MeterScope(organization_id=org_id)
 
         meter_deltas: list[tuple[Counter, int]] = [
-            (Counter.SANDBOX_VCPU_CORE_SECONDS, usage.vcpu_seconds),
-            (Counter.SANDBOX_VMEM_GIBI_SECONDS, usage.ram_gib_seconds),
-            (Counter.SANDBOX_DISK_GIBI_SECONDS, usage.disk_gib_seconds),
-            (Counter.SANDBOX_VGPU_CORE_SECONDS, usage.gpu_seconds),
+            (Counter.SANDBOX_CPU_SECONDS, usage.vcpu_seconds),
+            (Counter.SANDBOX_RAM_SECONDS, usage.ram_gib_seconds),
+            (Counter.SANDBOX_SSD_SECONDS, usage.disk_gib_seconds),
+            (Counter.SANDBOX_GPU_SECONDS, usage.gpu_seconds),
         ]
 
         for counter, delta in meter_deltas:
