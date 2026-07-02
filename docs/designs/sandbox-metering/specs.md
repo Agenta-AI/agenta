@@ -453,11 +453,11 @@ Counters accumulate monotonically over a billing period and reset; a gauge is a
 **down on delete**. The only existing gauge is `Gauge.USERS`, and it is the
 template:
 
-- **New gauge:** `Gauge.STORAGE_BYTES = "storage_bytes"` (mirror into `Meters`).
+- **New gauge:** `Gauge.BYTES = "bytes"` (mirror into `Meters`).
   Consider a second gauge keyed at project scope if per-project caps are needed
   (`MeterScope` already supports `project_id` under `organization_id`).
 - **Delta semantics:** adjust the gauge by **signed delta** the same way USERS
-  does (`check_entitlements(key=Gauge.STORAGE_BYTES, delta=+bytes)` on write,
+  does (`check_entitlements(key=Gauge.BYTES, delta=+bytes)` on write,
   `delta=-bytes` on delete). The meter `value` is the live total. Stripe sync
   (`report()`) already treats gauges as **absolute quantity** via
   `Subscription.modify` — correct for "current GB stored."
@@ -481,7 +481,7 @@ template:
   gate here (unlike sandbox compute's post-hoc cost): check the gauge before
   accepting an upload.
 - **Billing:** negligible per-GiB early; defer `REPORTS`/Stripe until volume
-  justifies it. Add `Gauge.STORAGE_BYTES.value: "storage"` to `REPORTS` + a
+  justifies it. Add `Gauge.BYTES.value: "storage"` to `REPORTS` + a
   per-plan `"storage"` price when ready — no mechanism change.
 - **Retention:** later. A retention sweep that deletes old mount data simply
   emits negative deltas (and the periodic reconcile corrects any drift).

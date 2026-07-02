@@ -46,7 +46,7 @@ simplest scheme — plain 3-letter resource tokens, no unit token:
 | `SANDBOX_SSD_SECONDS`   | `sandbox_ssd_seconds`   |
 | `SANDBOX_GPU_SECONDS`   | `sandbox_gpu_seconds`   |
 
-Plus `Gauge.STORAGE_BYTES` (`storage_bytes`) — the storage-size gauge, distinct from
+Plus `Gauge.BYTES` (`bytes`) — the storage-size gauge, distinct from
 `SANDBOX_SSD_SECONDS` (sandbox disk *compute-time*, not stored bytes). Applied
 consistently to: `Counter` enum, `Meters` mirror, `DEFAULT_ENTITLEMENTS` quotas,
 `CONSTRAINTS`, the `ee0000000004` migration's enum labels, and the sandboxes service's
@@ -57,7 +57,7 @@ list; the code is the source of truth.
 
 ## Entitlements (measurement only)
 
-- `Counter.SANDBOX_{CPU,RAM,SSD,GPU}_SECONDS` and `Gauge.STORAGE_BYTES` added.
+- `Counter.SANDBOX_{CPU,RAM,SSD,GPU}_SECONDS` and `Gauge.BYTES` added.
 - Every plan (`HOBBY`, `PRO`, `BUSINESS`, `AGENTA_AI`, `SELF_HOSTED_ENTERPRISE`) gets a
   non-blocking `Quota(period=Period.MONTHLY)` for each sandbox counter — no
   `free`/`limit`/`strict`, so `check_entitlements` records but never blocks.
@@ -68,7 +68,7 @@ list; the code is the source of truth.
   PRO 5 GiB free / 10 GiB limit (strict), BUSINESS 50 GiB free only (strict, no hard
   limit). AGENTA_AI and SELF_HOSTED_ENTERPRISE get no storage cap (unlimited, matching
   their existing unlimited-everything pattern).
-- `CONSTRAINTS[BLOCKED][GAUGES]` gained `Gauge.STORAGE_BYTES`; `CONSTRAINTS[READ_ONLY][COUNTERS]`
+- `CONSTRAINTS[BLOCKED][GAUGES]` gained `Gauge.BYTES`; `CONSTRAINTS[READ_ONLY][COUNTERS]`
   gained the 4 sandbox counters (same treatment as every other counter).
 - **`REPORTS` is untouched** — still `{Counter.TRACES_INGESTED.value: "traces"}`. No
   Stripe line items, no billing wiring for sandboxes or storage.
@@ -93,7 +93,7 @@ existing S3-compatible client:
 - `env.py`: added one field, `StoreConfig.reconcile_enabled`
   (`AGENTA_STORE_RECONCILE_ENABLED`, default `false`). No new top-level config class.
 - `storage/service.py` (delta tracking + `reconcile_org_storage`) needed no changes —
-  it already only touched `Gauge.STORAGE_BYTES` / `Meters.STORAGE_BYTES` via
+  it already only touched `Gauge.BYTES` / `Meters.BYTES` via
   `check_entitlements`, no direct env access.
 
 ## Migration
@@ -102,7 +102,7 @@ existing S3-compatible client:
 `down_revision = "ee0000000003"` (the current head — `add_records_ingested_meter`).
 Appends 5 enum labels to `meters_type` via `ALTER TYPE ... ADD VALUE IF NOT EXISTS`:
 `SANDBOX_CPU_SECONDS`, `SANDBOX_RAM_SECONDS`, `SANDBOX_SSD_SECONDS`,
-`SANDBOX_GPU_SECONDS`, `STORAGE_BYTES` (uppercase Python-enum-member-name labels, matching
+`SANDBOX_GPU_SECONDS`, `BYTES` (uppercase Python-enum-member-name labels, matching
 the existing `SQLEnum(Meters, name="meters_type")` convention — verified against
 `ee0000000002`'s `CREATE TYPE` and `ee0000000003`). `downgrade()` is a no-op (Postgres
 can't drop enum labels), matching `ee0000000003`. Chain

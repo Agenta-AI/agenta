@@ -39,7 +39,7 @@ class Meters(str, Enum):
     SANDBOX_CREDITS = Counter.SANDBOX_CREDITS.value
     # GAUGES
     USERS = Gauge.USERS.value
-    STORAGE_BYTES = Gauge.STORAGE_BYTES.value
+    BYTES = Gauge.BYTES.value
 
 
 class MeterScope(BaseModel):

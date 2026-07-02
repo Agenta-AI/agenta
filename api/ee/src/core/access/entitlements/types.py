@@ -69,7 +69,7 @@ class Counter(str, Enum):
 
 class Gauge(str, Enum):
     USERS = "users"
-    STORAGE_BYTES = "storage_bytes"
+    BYTES = "bytes"
 
 
 class Constraint(str, Enum):
@@ -409,7 +409,7 @@ DEFAULT_ENTITLEMENTS = {
                 limit=2,
                 strict=True,
             ),
-            Gauge.STORAGE_BYTES: Quota(
+            Gauge.BYTES: Quota(
                 free=1_073_741_824,
                 limit=1_073_741_824,
                 strict=True,
@@ -532,7 +532,7 @@ DEFAULT_ENTITLEMENTS = {
             Gauge.USERS: Quota(
                 strict=True,
             ),
-            Gauge.STORAGE_BYTES: Quota(
+            Gauge.BYTES: Quota(
                 free=5_368_709_120,
                 limit=10_737_418_240,
                 strict=True,
@@ -655,7 +655,7 @@ DEFAULT_ENTITLEMENTS = {
             Gauge.USERS: Quota(
                 strict=True,
             ),
-            Gauge.STORAGE_BYTES: Quota(
+            Gauge.BYTES: Quota(
                 free=53_687_091_200,
                 strict=True,
             ),
@@ -868,7 +868,7 @@ CONSTRAINTS = {
         ],
         Tracker.GAUGES: [
             Gauge.USERS,
-            Gauge.STORAGE_BYTES,
+            Gauge.BYTES,
         ],
     },
     Constraint.READ_ONLY: {

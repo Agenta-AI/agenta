@@ -1,4 +1,4 @@
-"""add sandbox compute + storage_bytes meters to meters_type
+"""add sandbox compute + bytes meters to meters_type
 
 Revision ID: ee0000000004
 Revises: ee0000000003
@@ -29,7 +29,7 @@ def upgrade() -> None:
     op.execute(
         "ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_GPU_CORE_SECONDS'"
     )
-    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'STORAGE_BYTES'")
+    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'BYTES'")
 
 
 def downgrade() -> None:

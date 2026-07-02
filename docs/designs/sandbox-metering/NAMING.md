@@ -12,7 +12,7 @@ Scheme: `SANDBOX_<RESOURCE>_<UNIT>_SECONDS` — plain resource token + unit toke
 - Plain hardware resource names (CPU/RAM/SSD/GPU). Unit token: `CORE` =
   per-core-second (compute), `GIBI` = per-GiB-second (SI gibi = 2^30) for
   memory/disk. `SSD` = sandbox disk compute-time (allocated disk x time).
-- Storage GAUGE is separate: `Gauge.STORAGE_BYTES` (`storage_bytes`) — persisted
+- Storage GAUGE is separate: `Gauge.BYTES` (`bytes`) — persisted
   bytes at rest, distinct from `SANDBOX_SSD_GIBI_SECONDS`.
 - Track C per-dimension credit meters mirror the resource+unit tokens
   (`SANDBOX_CPU_CORE_CREDITS`, `SANDBOX_RAM_GIBI_CREDITS`,

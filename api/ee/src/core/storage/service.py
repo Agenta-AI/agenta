@@ -28,7 +28,7 @@ async def record_storage_delta(
 
         scope = MeterScope(organization_id=org_id)
         allowed, _, _ = await check_entitlements(
-            key=Gauge.STORAGE_BYTES,
+            key=Gauge.BYTES,
             delta=delta_bytes,
             scope=scope,
         )
@@ -66,7 +66,7 @@ async def reconcile_org_storage(
 
         meters = await _meters_service().fetch(
             scope=scope,
-            key=Meters.STORAGE_BYTES,
+            key=Meters.BYTES,
             period=period,
         )
         current = (meters[0].value if meters else 0) or 0
@@ -76,7 +76,7 @@ async def reconcile_org_storage(
             return
 
         await check_entitlements(
-            key=Gauge.STORAGE_BYTES,
+            key=Gauge.BYTES,
             delta=delta,
             scope=scope,
             period=period,

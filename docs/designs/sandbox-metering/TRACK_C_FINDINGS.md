@@ -114,7 +114,7 @@ resolves any `REPORTS`-listed key generically.
 Confirmed at runtime: `REPORTS == {'traces_ingested': 'traces',
 'sandbox_credits': 'sandbox_credits'}`.
 
-Storage (`Gauge.STORAGE_BYTES`) stays out of `REPORTS`, unchanged from
+Storage (`Gauge.BYTES`) stays out of `REPORTS`, unchanged from
 Track B — deferred per that track's findings.
 
 ## Pricing slots
