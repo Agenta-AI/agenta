@@ -12,7 +12,7 @@
  */
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
-import {createBatchFetcher} from "@agenta/shared/utils"
+import {createBatchFetcher, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
 import {atom, type Getter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -1955,8 +1955,10 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
                 })
             }
 
-            // Sort all object keys recursively (handles json_schema property order)
-            return sortObjectKeys(normalized)
+            // Sort all object keys recursively (handles json_schema property order), and drop
+            // present-but-empty collections so an add-then-remove (`skills: []` vs an absent key)
+            // isn't a false-positive dirty. Applied to both sides, so real changes still register.
+            return sortObjectKeys(stripEmptyCollectionsDeep(normalized))
         }
 
         // Server schemas.parameters stays flat for evaluators while the entity

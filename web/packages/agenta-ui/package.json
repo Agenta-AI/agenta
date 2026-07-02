@@ -17,6 +17,7 @@
         "./table": "./src/InfiniteVirtualTable/index.ts",
         "./table/paginated": "./src/InfiniteVirtualTable/paginated/index.ts",
         "./editor": "./src/Editor/index.ts",
+        "./diff": "./src/Editor/utils/diffUtils.ts",
         "./shared-editor": "./src/SharedEditor/index.ts",
         "./rich-chat-input": "./src/RichChatInput/index.ts",
         "./chat-message": "./src/ChatMessage/index.ts",

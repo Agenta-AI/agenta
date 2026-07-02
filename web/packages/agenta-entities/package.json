@@ -37,6 +37,7 @@
         "./appRevision/snapshotAdapter": "./src/appRevision/snapshotAdapter.ts",
         "./workflow": "./src/workflow/index.ts",
         "./workflow/state": "./src/workflow/state/index.ts",
+        "./workflow/commitDiff": "./src/workflow/commitDiff/index.ts",
         "./workflow/snapshotAdapter": "./src/workflow/snapshotAdapter.ts",
         "./loadable": "./src/loadable/index.ts",
         "./runnable": "./src/runnable/index.ts",
