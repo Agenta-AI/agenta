@@ -75,16 +75,18 @@ async def record_usage_credits(
             (Counter.SANDBOX_GPU_CORE_CREDITS, Dimension.GPU, gpu_seconds)
         )
 
-    total_credits = Decimal("0")
+    # The total is the sum of the per-dimension millicredits actually written,
+    # not a re-truncation of the exact credit sum. This keeps SANDBOX_CREDITS
+    # exactly reconcilable against the per-dimension breakdown meters (a dim that
+    # rounds to 0 millicredits contributes 0 to both the meter and the total).
+    total_millicredits = 0
     for counter, dimension, units in dimension_pairs:
         credits = to_credits(provider=provider, dimension=dimension, raw_units=units)
-        total_credits += credits
-        if credits <= Decimal("0"):
-            continue
         # Store as millicredits to preserve sub-credit precision in the int field.
         millicredits = int(credits * _MILLICREDITS)
         if millicredits <= 0:
             continue
+        total_millicredits += millicredits
         try:
             await check_entitlements(
                 key=counter,
@@ -100,10 +102,6 @@ async def record_usage_credits(
                 exc_info=True,
             )
 
-    if total_credits <= Decimal("0"):
-        return
-
-    total_millicredits = int(total_credits * _MILLICREDITS)
     if total_millicredits <= 0:
         return
 
