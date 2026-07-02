@@ -24,6 +24,7 @@
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
 import { rmSync } from "node:fs";
+import { join } from "node:path";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
 
@@ -63,6 +64,7 @@ import { applyModel } from "./sandbox_agent/model.ts";
 import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
+  CODEX_DIR,
   prepareLocalCodexAssets,
   prepareLocalPiAssets,
 } from "./sandbox_agent/pi-assets.ts";
@@ -356,8 +358,10 @@ export async function runSandboxAgent(
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
   // Codex reads ~/.codex/auth.json as a FILE (env alone is insufficient); provision it for local runs.
+  // Only delete it in the finally when this run created it (never delete a pre-existing file).
+  let codexAuthWritten = false;
   if (plan.acpAgent === "codex" && !plan.isDaytona) {
-    prepareLocalCodexAssets(plan, logger);
+    codexAuthWritten = prepareLocalCodexAssets(plan, logger);
   }
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
@@ -866,6 +870,10 @@ export async function runSandboxAgent(
     await workspace?.cleanup().catch(() => {});
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
     if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });
+    // Only remove the codex auth file this run created; a pre-existing file (self-managed,
+    // or a prior managed write in a shared, non-overridden CODEX_DIR) is left alone.
+    if (codexAuthWritten)
+      rmSync(join(CODEX_DIR, "auth.json"), { force: true });
     // Remove the per-run skills temp root the materializer created (success or error).
     plan.skillsCleanup();
   }
