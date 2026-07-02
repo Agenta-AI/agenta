@@ -190,10 +190,15 @@ export interface SessionMcpServers {
  *     MCP server that delivers the run's resolved gateway/callback tools to the harness. Carries
  *     only public metadata; execution relays server-side. RESTORED — but advertised over a
  *     loopback (`127.0.0.1`) URL, so it is LOCAL-ONLY. On Daytona the harness runs IN the sandbox,
- *     where `127.0.0.1` is the sandbox's loopback, not the runner's, so the channel is SKIPPED and
- *     the tools reach the harness through the file relay instead (the relay loop already works on
- *     Daytona; gateway-tool-mcp open question 3). This honors the #4844 decision: HTTP advertisement
- *     for local, file relay for Daytona.
+ *     where `127.0.0.1` is the sandbox's loopback, not the runner's, so the channel is SKIPPED.
+ *     For a non-Pi harness this means NO delivery path exists (F1, audit finding): the file relay
+ *     has a sandbox-side writer only inside Pi's bundled extension
+ *     (`extensions/agenta.ts` `registerTools`), which no other harness loads — a claim this
+ *     function used to log unconditionally, which was FALSE for non-Pi harnesses. `run-plan.ts`
+ *     (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`) now refuses that combination before a session is ever
+ *     built, so this function should never see non-Pi + Daytona + tools. The log below stays
+ *     Pi-only anyway, as a defense against a future gate bypass: it must never again claim a
+ *     delivery that isn't happening.
  *  2. USER MCP capability (`toAcpMcpServers`): the user's own declared servers — stdio DISABLED,
  *     http delivered (#4834). UNCHANGED on every sandbox: a user http MCP is a REMOTE url the
  *     harness dials directly (not a runner loopback), so it stays reachable from a Daytona sandbox.
@@ -224,13 +229,16 @@ export async function buildSessionMcpServers({
 
   // Layer 1: INTERNAL gateway-tool channel (do not merge with the user gate below). LOCAL ONLY:
   // its advertised URL is a runner loopback (`127.0.0.1`), unreachable from a remote Daytona
-  // sandbox where the harness runs. On Daytona, skip the loopback HTTP advertisement and let the
-  // file relay deliver the tools (the relay loop polls the sandbox filesystem; see the Daytona
-  // tool relay in `engines/sandbox_agent.ts`).
+  // sandbox where the harness runs. On Daytona, skip the loopback HTTP advertisement.
   const internal = isDaytona
     ? { servers: [], close: async () => {} }
     : await buildToolMcpServers(toolSpecs, relayDir, log);
-  if (isDaytona && toolSpecs.length > 0) {
+  // Only Pi has a sandbox-side file-relay writer (its bundled extension); this line runs after
+  // the `isPi` early-return above, so it is dead for a harness that could actually claim relay
+  // delivery. Kept as a defense-in-depth check — a future change to the early-return above must
+  // not resurrect the F1 false log ("delivered via the file relay" for a harness with no relay
+  // writer). `run-plan.ts` refuses this combination before it ever reaches here.
+  if (isDaytona && toolSpecs.length > 0 && isPi) {
     log(
       `daytona: ${toolSpecs.length} gateway tool(s) delivered via the file relay, not a ` +
         `loopback MCP URL (unreachable from the sandbox)`,

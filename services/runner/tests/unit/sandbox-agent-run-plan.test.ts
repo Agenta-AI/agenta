@@ -238,9 +238,13 @@ describe("buildRunPlan", () => {
   });
 
   it("rejects a strict restricted-network Daytona run with a runner-host tool", () => {
+    // Pi (not claude): a non-Pi harness with tools on Daytona is now refused earlier and
+    // unconditionally by the F1 remote-tools gate (no delivery path exists at all), which would
+    // otherwise mask this network-boundary-bypass gate. Pi tools ride its native extension, so
+    // Pi is exempt from the F1 gate and still exercises this Layer-2 network check.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -262,10 +266,10 @@ describe("buildRunPlan", () => {
     // The Python service always fills enforcement="strict", but a DIRECT runner caller may omit
     // it. The wire schema defaults it to "strict", so an omitted value must rebuff a runner-host
     // tool on a restricted-network Daytona run the same as an explicit "strict" — only an
-    // explicit "best_effort" opts out.
+    // explicit "best_effort" opts out. Pi (see note above): exempt from the F1 remote-tools gate.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -284,10 +288,11 @@ describe("buildRunPlan", () => {
 
   it("lets best_effort opt out of the runner-host-tool guard (LOW-6 contrast)", () => {
     // The explicit opt-out: best_effort accepts that the network boundary is not a hard
-    // guarantee, so the same restricted-network Daytona run with a host tool is allowed.
+    // guarantee, so the same restricted-network Daytona run with a host tool is allowed. Pi (see
+    // note above): exempt from the F1 remote-tools gate.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -411,6 +416,94 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, true);
   });
 
+  describe("remote-tools gate (F1: non-Pi harness x remote sandbox x tools)", () => {
+    it("refuses claude x daytona x tools (no delivery path exists)", () => {
+      // F1, audit finding: the internal tool-MCP is loopback-only (unreachable from inside the
+      // sandbox), and the file-relay fallback has a sandbox-side writer only inside Pi's bundled
+      // extension. Before this gate the run proceeded, silently dropped every tool, and returned
+      // ok:true. Refuse up front, before any cwd/sandbox is created.
+      let created = false;
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+        } as AgentRunRequest,
+        {
+          createDaytonaCwd: () => {
+            created = true;
+            return "/home/sandbox/agenta-fixed";
+          },
+        },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /non-Pi harness on a remote \(daytona\) sandbox/);
+      assert.match(result.error, /docs\/design\/agent-workflows\/projects\/remote-tools-delivery\//);
+      assert.equal(created, false, "fails before any cwd is created (up-front gate)");
+    });
+
+    it("allows claude x daytona x NO tools", () => {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+        } as AgentRunRequest,
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+
+    it("allows pi x daytona x tools (the file relay works for Pi)", () => {
+      const result = buildRunPlan(
+        {
+          harness: "pi_agenta",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+        } as AgentRunRequest,
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+
+    it("allows claude x local x tools (the loopback MCP channel is reachable)", () => {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "/tmp/local-cwd" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+
+    it("allows claude x daytona x client-only tools (browser-fulfilled, not routed through the channel)", () => {
+      // `client` tools are excluded from `executableToolSpecsForRun` — they are fulfilled by the
+      // browser across a turn boundary and were never advertised over the internal tool-MCP
+      // channel (`tool-mcp-http.ts` `tools/list` filters them out too), so they carry no F1 gap.
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "request_connection", kind: "client" }],
+        } as AgentRunRequest,
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+  });
+
   it("errors on any run carrying a code tool (code execution removed, fail loud)", () => {
     // Code tools were removed for security (F-010). The run is refused up-front so the failure
     // surfaces as a non-success result (ok:false) rather than being laundered into a 200 reply
@@ -480,9 +573,12 @@ describe("buildRunPlan", () => {
   });
 
   it("allows a best_effort restricted-network Daytona run with a runner-host tool", () => {
+    // Pi (not claude): see the note on the "rejects a strict restricted-network..." test above —
+    // a non-Pi harness with tools on Daytona is refused unconditionally by the F1 gate before
+    // this Layer-2 network check ever runs.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],

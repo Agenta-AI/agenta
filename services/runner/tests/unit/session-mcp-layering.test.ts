@@ -211,6 +211,27 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     );
   });
 
+  it("(Daytona, non-Pi) never logs the file-relay delivery claim (F1: it would be false)", async () => {
+    // F1: a non-Pi harness has no sandbox-side file-relay writer (only Pi's bundled extension has
+    // one), so claiming "delivered via the file relay" here would be false. `run-plan.ts` now
+    // refuses this combination before a session is built, but this pins the log itself as a
+    // defense-in-depth: it must never make that claim for a non-Pi harness.
+    const logs: string[] = [];
+    await build({
+      isPi: false,
+      isDaytona: true,
+      capabilities: mcpCapable,
+      harness: "claude",
+      toolSpecs: [gatewayTool],
+      relayDir,
+      log: (message) => logs.push(message),
+    });
+    assert.ok(
+      !logs.some((line) => line.includes("delivered via the file relay")),
+      "must not claim file-relay delivery for a harness with no relay writer",
+    );
+  });
+
   it("(Daytona) a user http MCP is STILL delivered (remote url, not a runner loopback)", async () => {
     // The Daytona guard is scoped to the INTERNAL loopback channel only. A user http MCP is a
     // remote url the harness dials directly, so it stays reachable from the sandbox and must be

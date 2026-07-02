@@ -42,6 +42,24 @@ export const FILESYSTEM_UNSUPPORTED_MESSAGE =
   "Filesystem sandbox policy is not implemented (no backend applies a filesystem jail); " +
   "remove sandbox_permission.filesystem.";
 
+/**
+ * A non-Pi harness (MCP-only tool delivery) on a remote (Daytona) sandbox cannot receive
+ * gateway/custom tools at all today (F1, audit finding): the internal tool-MCP channel is a
+ * runner-loopback (`127.0.0.1`) HTTP server, unreachable from inside the sandbox, so
+ * `buildSessionMcpServers` skips it on Daytona; the fallback path (the file relay) has a
+ * sandbox-side writer ONLY inside Pi's bundled extension (`extensions/agenta.ts`
+ * `registerTools`), which no other harness loads. Before this gate, the run proceeded anyway,
+ * `mcp.ts` logged a false "delivered via the file relay", and the harness silently received
+ * zero tools with `ok:true` (the silent-tool-drop bug). Refuse loud instead, mirroring the
+ * other not-implemented gates above.
+ */
+export const REMOTE_TOOLS_UNSUPPORTED_MESSAGE =
+  "Tools are not supported for a non-Pi harness on a remote (daytona) sandbox: the internal " +
+  "tool-MCP channel is loopback-only (unreachable from inside the sandbox), and there is no " +
+  "in-sandbox relay client for this harness (only Pi's bundled extension writes the file " +
+  "relay). Run on the local sandbox, use the Pi harness, or remove the tools. Tracked in " +
+  "docs/design/agent-workflows/projects/remote-tools-delivery/.";
+
 export interface RunPlan {
   harness: string;
   acpAgent: string;
@@ -242,6 +260,17 @@ export function buildRunPlan(
   // tools are gated — keep the wire shape, but the delivery is not supported.
   if (hasStdioMcpServer(request.mcpServers)) {
     return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
+  }
+
+  // F1 (audit finding, silent-tool-drop): a non-Pi harness on a remote (Daytona) sandbox has NO
+  // working delivery path for gateway/custom tools. The internal tool-MCP is loopback-only
+  // (unreachable from inside the sandbox), and the file-relay fallback has a sandbox-side writer
+  // only inside Pi's bundled extension. Before this gate the run proceeded, silently dropped
+  // every tool, and still returned `ok:true`. Refuse up front, the way the other not-implemented
+  // gates above do. `executableToolSpecsForRun` excludes `client` tools (browser-fulfilled, never
+  // routed through this channel), matching what the internal MCP channel actually advertises.
+  if (!isPi && isDaytona && executableToolSpecsForRun.length > 0) {
+    return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
   }
 
   // Layer 2: even on Daytona, code/gateway tools run on the RUNNER HOST via the relay, not
