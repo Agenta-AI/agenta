@@ -36,6 +36,7 @@ import {
 import {
   HITLResponder,
   extractApprovalDecisions,
+  nonConvergingToolNames,
   policyFromRequest,
   type Responder,
 } from "../responder.ts";
@@ -649,14 +650,31 @@ export async function runSandboxAgent(
     };
     const responder =
       deps.responderFactory?.(request.permissionPolicy) ??
-      new HITLResponder(
-        extractApprovalDecisions(request),
-        policyFromRequest(request.permissionPolicy),
-        hasHumanSurface,
-      );
+      (() => {
+        const decisions = extractApprovalDecisions(request);
+        const looping = nonConvergingToolNames(request);
+        // Dump the STORED side of the HITL resume: the decision keys the transcript folded and any
+        // tools flagged as non-converging. Compare against the runner's `[HITL] gate ...` lines
+        // (the LIVE re-raised keys) to see exactly what drifted.
+        if (hasHumanSurface) {
+          logger(
+            `[HITL] resume state: humanSurface=${hasHumanSurface} ` +
+              `decisions=${JSON.stringify([...decisions.entries()])} ` +
+              `looping=${JSON.stringify([...looping])}`,
+          );
+        }
+        return new HITLResponder(
+          decisions,
+          policyFromRequest(request.permissionPolicy),
+          hasHumanSurface,
+          looping,
+          logger,
+        );
+      })();
     attachPermissionResponder({
       session,
       run,
+      log: logger,
       onPark,
       onCreateInteraction: (token, toolName, toolArgs) => {
         const cred = runCredential(request);

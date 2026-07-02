@@ -14,6 +14,8 @@ export interface AttachPermissionResponderInput {
    * paused and the resume cold-replays. Fires at most once per turn (the first park wins).
    */
   onPark?: () => void;
+  /** Diagnostic sink for the raw ACP permission ground truth (name/spec/args the harness sends). */
+  log?: (msg: string) => void;
   /** Called on park to record the parked gate as an interaction (fire-and-forget). */
   onCreateInteraction?: (
     token: string,
@@ -40,6 +42,7 @@ export function attachPermissionResponder({
   run,
   responder,
   onPark,
+  log,
   onCreateInteraction,
   onResolveInteraction,
 }: AttachPermissionResponderInput): void {
@@ -47,6 +50,28 @@ export function attachPermissionResponder({
     const id = String(req?.id ?? "");
     const availableReplies: string[] = req?.availableReplies ?? [];
     const toolCall = req?.toolCall;
+    // GROUND TRUTH: exactly what the harness hands us for this gate — the resolved spec (and its
+    // stable name) if any, the drift-prone display fields, and the arg shape. This is the earliest
+    // and most authoritative HITL log; everything downstream keys off these fields.
+    if (log) {
+      const spec =
+        toolCall?.spec ?? toolCall?.toolSpec ?? toolCall?.resolvedTool ?? toolCall?.tool;
+      const args = toolCall?.rawInput ?? toolCall?.input;
+      log(
+        `[HITL] ACP permission id=${id} ` +
+          JSON.stringify({
+            toolCallId: toolCall?.toolCallId,
+            specName: spec && typeof spec === "object" ? spec.name : undefined,
+            specKind: spec && typeof spec === "object" ? spec.kind : undefined,
+            name: toolCall?.name,
+            title: toolCall?.title,
+            kind: toolCall?.kind,
+            argKeys:
+              args && typeof args === "object" ? Object.keys(args) : typeof args,
+            availableReplies,
+          }),
+      );
+    }
     // The harness raises a permission request before running ANY gated tool. We branch on the
     // tool's resolved spec: a `kind: "client"` tool is not really a sandbox permission gate — it
     // is a tool whose execution belongs to the browser (e.g. `request_connection`, which renders a
