@@ -12,7 +12,7 @@ import {HeightCollapse} from "@agenta/ui"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
-import {ArrowDown, Paperclip, UploadSimple} from "@phosphor-icons/react"
+import {ArrowDown, Paperclip, TreeStructure, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
@@ -38,6 +38,7 @@ import QueuedMessages from "./components/QueuedMessages"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionRail from "./components/SessionRail"
 import SessionTagBar from "./components/SessionTagBar"
+import TurnInspector from "./components/TurnInspector/TurnInspector"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
 import {useChatScopeKey} from "./state/scope"
@@ -54,6 +55,7 @@ import {
     setSessionStatusAtom,
     stampMessagesCreatedAtAtom,
 } from "./state/sessions"
+import {turnInspectorAtom} from "./state/turnInspector"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
  * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
@@ -200,6 +202,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
+    const openTurnInspector = useSetAtom(turnInspectorAtom)
+    const buildMode = !useAtomValue(chatPanelMaximizedAtom)
 
     const [files, setFiles] = useState<UploadFile[]>([])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
@@ -902,6 +906,18 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         </Button>
                     </div>
                 )}
+                {buildMode && message.role === "assistant" && (
+                    <button
+                        type="button"
+                        onClick={() =>
+                            openTurnInspector({sessionId, assistantMessageId: message.id})
+                        }
+                        className="flex w-fit cursor-pointer items-center gap-1 self-start rounded border-0 bg-transparent px-1 py-0.5 text-xs text-colorTextTertiary transition-colors hover:text-colorPrimary"
+                    >
+                        <TreeStructure size={12} />
+                        Inspect turn
+                    </button>
+                )}
             </MessageRow>
         )
     }
@@ -916,6 +932,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         >
             {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
             {modalContextHolder}
+            <TurnInspector />
             {isDragging && (
                 <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
                     <UploadSimple size={26} className="text-colorPrimary" />
