@@ -80,26 +80,73 @@ const StatusIcon = ({state}: {state: string}) => {
     return <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
 }
 
-/** One tool's row: name, derived one-line summary, status. Used in both modes. The Approve/Deny
- * action lives in the persistent ApprovalDock (composer region), so a gate here is just marked
- * "Awaiting approval" rather than carrying the buttons that used to scroll away with the turn. */
-const ToolRow = ({part, live}: {part: ToolUIPart; live: boolean}) => {
+/** Pretty-print a tool input/output value for the Build-mode step log: a string as-is, anything
+ * else as indented JSON. Never throws — the raw payload also lives in the trace drawer. */
+const formatValue = (value: unknown): string => {
+    if (typeof value === "string") return value
+    try {
+        return JSON.stringify(value, null, 2)
+    } catch {
+        return String(value)
+    }
+}
+
+/** One labeled monospace block (input / output / error) in the Build-mode step log. Capped in
+ * height with its own scroll so a large payload can't blow up the transcript. */
+const IOBlock = ({label, value, danger}: {label: string; value: string; danger?: boolean}) => (
+    <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="font-mono text-[10px] text-colorTextTertiary">{label}</span>
+        <pre
+            className={`m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug ${
+                danger
+                    ? "bg-[var(--ant-color-error-bg)] !text-colorErrorText"
+                    : "bg-colorFillTertiary text-colorTextSecondary"
+            }`}
+        >
+            {value}
+        </pre>
+    </div>
+)
+
+/** One tool's row: name + status, plus (in Build's `detailed` step log) the tool's input and its
+ * output/error as monospace blocks. Chat mode keeps the quiet one-line summary. The Approve/Deny
+ * action lives in the persistent ApprovalDock, so a gate here is just marked "Awaiting approval". */
+const ToolRow = ({
+    part,
+    live,
+    detailed = false,
+}: {
+    part: ToolUIPart
+    live: boolean
+    detailed?: boolean
+}) => {
     const name = partToolName(part)
     const state = part.state as string
-    const summary = rowSummary(part)
     const running = !isSettled(state) && state !== "approval-requested"
-    // The line after the name: an awaiting-approval marker, a live "running…", or the settled
-    // one-line output summary.
+    // The line after the name: an awaiting-approval marker, a live "running…", the settled one-line
+    // summary (Chat), or a short status word (Build shows the full output block below instead).
     const midText =
         state === "approval-requested"
             ? "Awaiting approval"
             : live && running
               ? "running…"
-              : summary
+              : detailed
+                ? state === "output-error"
+                    ? "failed"
+                    : state === "output-denied"
+                      ? "denied"
+                      : null
+                : rowSummary(part)
+
+    const input = (part as {input?: unknown}).input
+    const output = (part as {output?: unknown}).output
+    const errorText = (part as {errorText?: string}).errorText
+    const hasIO =
+        detailed && (input != null || state === "output-available" || errorText !== undefined)
 
     return (
-        <div className="flex min-w-0 items-center gap-2 py-1">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-col py-1">
+            <div className="flex min-w-0 items-center gap-2">
                 <StatusIcon state={state} />
                 <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
                     {name}
@@ -114,6 +161,17 @@ const ToolRow = ({part, live}: {part: ToolUIPart; live: boolean}) => {
                     </Text>
                 ) : null}
             </div>
+
+            {hasIO ? (
+                <div className="mt-1 flex min-w-0 flex-col gap-1.5 pl-[21px]">
+                    {input != null ? <IOBlock label="input" value={formatValue(input)} /> : null}
+                    {errorText !== undefined ? (
+                        <IOBlock label="error" value={errorText} danger />
+                    ) : state === "output-available" && output != null ? (
+                        <IOBlock label="output" value={formatValue(output)} />
+                    ) : null}
+                </div>
+            ) : null}
         </div>
     )
 }
@@ -123,22 +181,30 @@ interface ToolActivityProps {
     parts: ToolUIPart[]
     /** This turn is the one being generated right now. */
     isStreaming?: boolean
+    /** Build mode: render the full step log (per-tool input + output/error inline), instead of the
+     * calm collapsed "Used N tools" summary Chat mode shows. */
+    detailed?: boolean
     /** Open the turn's trace drawer (full input/output). Absent if the turn has no trace yet. */
     onViewTrace?: () => void
 }
 
 /**
- * Renders a group of tool calls inside an agent turn. Two modes:
- *  - **Live** (streaming + a tool still in flight): a left-gutter timeline, always shown, so
- *    you watch each tool fire. An `approval-requested` tool is marked "Awaiting approval"; the
- *    Approve/Deny action lives in the persistent ApprovalDock above the composer.
- *  - **Settled**: a single quiet "Used N tools" line; click to expand the per-tool list with
- *    one-line output summaries and a "View full trace" link.
+ * Renders a group of tool calls inside an agent turn. Three modes:
+ *  - **Build step log** (`detailed`): a left-gutter timeline of every tool with its input and
+ *    output/error as monospace blocks — the power-user view, scoped to Build mode.
+ *  - **Live** (streaming + a tool still in flight, Chat mode): the same gutter but one-line rows,
+ *    so you watch each tool fire.
+ *  - **Chat settled**: a single quiet "Used N tools" line; click to expand a one-line-summary list.
  *
- * Output is summarised to one line per tool; the raw input/output lives in the trace drawer.
- * The FE only renders tool calls — it never executes them.
+ * An `approval-requested` tool is marked "Awaiting approval" in every mode; the Approve/Deny action
+ * lives in the persistent ApprovalDock. The FE only renders tool calls — it never executes them.
  */
-const ToolActivity = ({parts, isStreaming = false, onViewTrace}: ToolActivityProps) => {
+const ToolActivity = ({
+    parts,
+    isStreaming = false,
+    detailed = false,
+    onViewTrace,
+}: ToolActivityProps) => {
     const anyUnsettled = parts.some((p) => !isSettled(p.state as string))
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
@@ -147,13 +213,28 @@ const ToolActivity = ({parts, isStreaming = false, onViewTrace}: ToolActivityPro
     // Keep the gate visible in-context: force the list open whenever one is awaiting approval.
     const expanded = open || approvalPending
 
-    // ---- Live: the gutter timeline (always visible while tools are in flight) ----
-    if (live) {
+    // ---- Build step log (detailed) OR live streaming: the gutter timeline, always visible ----
+    if (detailed || live) {
         return (
             <div className="flex min-w-0 flex-col border-0 border-l-2 border-solid border-colorBorderSecondary pl-3">
                 {parts.map((part, i) => (
-                    <ToolRow key={`${part.toolCallId || part.type}-${i}`} part={part} live />
+                    <ToolRow
+                        key={`${part.toolCallId || part.type}-${i}`}
+                        part={part}
+                        live={live}
+                        detailed={detailed}
+                    />
                 ))}
+                {detailed && onViewTrace ? (
+                    <button
+                        type="button"
+                        onClick={onViewTrace}
+                        className="mt-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-0 py-0.5 text-xs text-colorPrimary transition-colors hover:underline"
+                    >
+                        <ArrowSquareOut size={12} />
+                        View full trace
+                    </button>
+                ) : null}
             </div>
         )
     }

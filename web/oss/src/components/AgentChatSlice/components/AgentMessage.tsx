@@ -28,6 +28,7 @@ import {
     getMessageUsage,
     type MessageUsageMetrics,
 } from "../assets/trace"
+import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
 
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
@@ -95,13 +96,22 @@ const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynam
  * "streaming"`) it auto-expands so the thoughts stream live; once done it auto-collapses to a
  * "Thought" toggle — click to re-expand. A manual toggle sticks (we stop auto-driving it).
  */
-const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) => {
-    const [expanded, setExpanded] = useState(streaming)
+const ReasoningPart = ({
+    text,
+    streaming,
+    detailed = false,
+}: {
+    text: string
+    streaming: boolean
+    detailed?: boolean
+}) => {
+    // Build mode (`detailed`) keeps reasoning expanded as a step in the log; Chat auto-collapses it.
+    const [expanded, setExpanded] = useState(streaming || detailed)
     const userToggled = useRef(false)
 
     useEffect(() => {
-        if (!userToggled.current) setExpanded(streaming)
-    }, [streaming])
+        if (!userToggled.current) setExpanded(streaming || detailed)
+    }, [streaming, detailed])
 
     return (
         <div className="flex flex-col">
@@ -203,6 +213,9 @@ const AgentMessage = ({
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
+    // Build vs Chat: Build (config panel open, not maximized) shows the full step log — per-tool
+    // input/output/error + expanded reasoning; Chat keeps the calm collapsed summary.
+    const detailed = !useAtomValue(chatPanelMaximizedAtom)
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
@@ -330,6 +343,7 @@ const AgentMessage = ({
                     key={partKey}
                     text={reasoning.text}
                     streaming={reasoning.state === "streaming"}
+                    detailed={detailed}
                 />
             )
         }
@@ -373,6 +387,7 @@ const AgentMessage = ({
                             key={`${message.id}-tools-${item.index}`}
                             parts={item.parts}
                             isStreaming={isStreaming}
+                            detailed={detailed}
                             onViewTrace={onViewTrace}
                         />
                     )
