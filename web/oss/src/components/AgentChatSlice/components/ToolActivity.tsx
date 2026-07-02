@@ -143,34 +143,62 @@ const ToolRow = ({
     const errorText = (part as {errorText?: string}).errorText
     const hasIO =
         detailed && (input != null || state === "output-available" || errorText !== undefined)
+    // Each detailed step collapses on its own — Build's step log can get long. Default expanded.
+    const [open, setOpen] = useState(true)
+
+    const header = (
+        <>
+            <StatusIcon state={state} />
+            <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
+                {name}
+            </Text>
+            {midText ? (
+                <Text
+                    type={state === "output-error" ? "danger" : "secondary"}
+                    className="!text-xs min-w-0 truncate"
+                    title={typeof midText === "string" ? midText : undefined}
+                >
+                    {midText}
+                </Text>
+            ) : null}
+        </>
+    )
 
     return (
         <div className="flex min-w-0 flex-col py-1">
-            <div className="flex min-w-0 items-center gap-2">
-                <StatusIcon state={state} />
-                <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
-                    {name}
-                </Text>
-                {midText ? (
-                    <Text
-                        type={state === "output-error" ? "danger" : "secondary"}
-                        className="!text-xs min-w-0 truncate"
-                        title={typeof midText === "string" ? midText : undefined}
-                    >
-                        {midText}
-                    </Text>
-                ) : null}
-            </div>
+            {hasIO ? (
+                <button
+                    type="button"
+                    onClick={() => setOpen((o) => !o)}
+                    aria-expanded={open}
+                    className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
+                >
+                    <CaretRight
+                        size={11}
+                        weight="bold"
+                        className={`shrink-0 text-colorTextTertiary transition-transform ${
+                            open ? "rotate-90" : ""
+                        }`}
+                    />
+                    {header}
+                </button>
+            ) : (
+                <div className="flex min-w-0 items-center gap-2">{header}</div>
+            )}
 
             {hasIO ? (
-                <div className="mt-1 flex min-w-0 flex-col gap-1.5 pl-[21px]">
-                    {input != null ? <IOBlock label="input" value={formatValue(input)} /> : null}
-                    {errorText !== undefined ? (
-                        <IOBlock label="error" value={errorText} danger />
-                    ) : state === "output-available" && output != null ? (
-                        <IOBlock label="output" value={formatValue(output)} />
-                    ) : null}
-                </div>
+                <HeightCollapse open={open}>
+                    <div className="mt-1 flex min-w-0 flex-col gap-1.5 pl-[21px]">
+                        {input != null ? (
+                            <IOBlock label="input" value={formatValue(input)} />
+                        ) : null}
+                        {errorText !== undefined ? (
+                            <IOBlock label="error" value={errorText} danger />
+                        ) : state === "output-available" && output != null ? (
+                            <IOBlock label="output" value={formatValue(output)} />
+                        ) : null}
+                    </div>
+                </HeightCollapse>
             ) : null}
         </div>
     )
