@@ -19,6 +19,7 @@ import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {SessionInspectorButton} from "@/oss/components/SessionInspector"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
@@ -1055,6 +1056,13 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    const posthog = usePostHogAg()
+
+    // Explicit user "new session" (the tab bar +), distinct from the bootstrap/trigger adds below.
+    const handleAddSession = useCallback(() => {
+        posthog?.capture("agent_session_created")
+        addSession()
+    }, [posthog, addSession])
 
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode.
@@ -1112,7 +1120,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                             sessions={sessions}
                             activeId={activeId}
                             onSelect={setActiveSession}
-                            onAdd={addSession}
+                            onAdd={handleAddSession}
                             onClose={closeSession}
                             onRename={(id, title) => renameSession({id, title})}
                             showSessions={!chatMaximized}

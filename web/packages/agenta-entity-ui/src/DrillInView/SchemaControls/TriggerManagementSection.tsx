@@ -57,6 +57,7 @@ import type {MenuProps} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import {captureEntityUiEvent} from "../../analytics"
 import {AddItemMenu, type AddItemGroup} from "../../drawers/shared/AddItemMenu"
 import {loadRecentSamples, waitForNewDelivery} from "../../gatewayTrigger/drawers/shared/deliveries"
 import {
@@ -931,6 +932,7 @@ export function AddTriggerDropdown({
         <AddItemMenu
             groups={groups}
             ariaLabel="Add trigger"
+            onOpen={() => captureEntityUiEvent("agent_trigger_menu_opened")}
             trigger={
                 trigger ?? (
                     <Tooltip title="Add trigger">
