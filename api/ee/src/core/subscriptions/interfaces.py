@@ -54,3 +54,9 @@ class SubscriptionsDAOInterface:
         - Optional[SubscriptionDTO]: The updated subscription if found, else None.
         """
         raise NotImplementedError
+
+    async def list_active(
+        self,
+    ) -> list[SubscriptionDTO]:
+        """Return all active subscriptions (active=True)."""
+        raise NotImplementedError

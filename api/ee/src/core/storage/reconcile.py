@@ -13,7 +13,7 @@ async def run_storage_reconcile(
 ) -> None:
     """Iterate over all active orgs and reconcile their storage gauge.
 
-    Gated on is_ee() + env.agenta.storage.reconcile_enabled.
+    Gated on is_ee() + env.store.reconcile_enabled.
     """
     from oss.src.utils.common import is_ee
     from oss.src.utils.env import env
@@ -22,13 +22,13 @@ async def run_storage_reconcile(
         log.debug("[storage] reconcile skipped (not EE)")
         return
 
-    if not env.agenta.storage.reconcile_enabled:
+    if not env.store.reconcile_enabled:
         log.debug(
-            "[storage] reconcile skipped (AGENTA_STORAGE_RECONCILE_ENABLED not set)"
+            "[storage] reconcile skipped (AGENTA_STORE_RECONCILE_ENABLED not set)"
         )
         return
 
-    if not env.agenta.storage.enabled:
+    if not env.store.enabled:
         log.debug("[storage] reconcile skipped (no storage provider configured)")
         return
 

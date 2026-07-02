@@ -214,6 +214,18 @@ class BillingRouter:
             methods=["POST"],
         )
 
+        self.admin_router.add_api_route(
+            "/storage/reconcile",
+            self.reconcile_storage,
+            methods=["POST"],
+        )
+
+        self.admin_router.add_api_route(
+            "/storage/reconcile/unlock",
+            self.unlock_reconcile_storage,
+            methods=["POST"],
+        )
+
     async def _reset_organization_flags(self, organization_id: str) -> None:
         organization = await db_manager.get_organization(organization_id)
         if not organization:
@@ -1151,6 +1163,114 @@ class BillingRouter:
             )
 
         log.info("[report] [unlock] No lock found")
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "noop", "released": False},
+        )
+
+    @intercept_exceptions()
+    async def reconcile_storage(
+        self,
+    ):
+        log.info("[storage] [reconcile] [endpoint] Trigger")
+
+        LOCK_TTL = 3600  # 1 hour
+
+        try:
+            lock_owner = await acquire_lock(
+                namespace="meters:storage:reconcile",
+                key={},
+                ttl=LOCK_TTL,
+                strict=True,
+            )
+
+            if not lock_owner:
+                log.info("[storage] [reconcile] [endpoint] Skipped (ongoing)")
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "skipped"},
+                )
+
+            async def _renew_lock():
+                return await renew_lock(
+                    namespace="meters:storage:reconcile",
+                    key={},
+                    ttl=LOCK_TTL,
+                    owner=lock_owner,
+                )
+
+            try:
+                from ee.src.core.storage.reconcile import run_storage_reconcile
+
+                await run_storage_reconcile(renew=_renew_lock)
+
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "success"},
+                )
+
+            except Exception:
+                log.error(
+                    "[storage] [reconcile] [endpoint] Failed",
+                    exc_info=True,
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    content={"status": "error", "message": "Reconcile failed"},
+                )
+
+            finally:
+                released = await release_lock(
+                    namespace="meters:storage:reconcile",
+                    key={},
+                    owner=lock_owner,
+                )
+                if released:
+                    log.info("[storage] [reconcile] [endpoint] Lock released")
+                else:
+                    log.warn(
+                        "[storage] [reconcile] [endpoint] Lock release skipped (expired/lost)"
+                    )
+
+        except Exception:
+            log.error(
+                "[storage] [reconcile] [endpoint] Fatal error",
+                exc_info=True,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"status": "error", "message": "Fatal error"},
+            )
+
+    @intercept_exceptions()
+    async def unlock_reconcile_storage(
+        self,
+    ):
+        log.warn("[storage] [reconcile] [unlock] Trigger")
+
+        try:
+            released = await release_lock(
+                namespace="meters:storage:reconcile",
+                key={},
+                strict=True,
+            )
+        except Exception:
+            log.error(
+                "[storage] [reconcile] [unlock] Failed to release lock", exc_info=True
+            )
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"status": "error", "message": "Lock backend error"},
+            )
+
+        if released:
+            log.warn("[storage] [reconcile] [unlock] Lock force-released")
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"status": "success", "released": True},
+            )
+
+        log.info("[storage] [reconcile] [unlock] No lock found")
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={"status": "noop", "released": False},

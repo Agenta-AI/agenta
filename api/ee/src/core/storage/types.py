@@ -1,11 +1,3 @@
-from enum import Enum
-
-
-class StorageProvider(str, Enum):
-    S3 = "s3"
-    SEAWEEDFS = "seaweedfs"
-
-
 class StorageError(Exception):
     pass
 
