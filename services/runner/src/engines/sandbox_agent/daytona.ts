@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { createAcpFetch } from "./acp-fetch.ts";
@@ -138,6 +139,75 @@ export async function prepareDaytonaPiAssets({
     );
   }
   if (DAYTONA_PI_INSTALL) await installPiInSandbox(sandbox, log);
+}
+
+/** In-sandbox Claude config dir on common Daytona images (daemon runs as user `sandbox`). */
+export const DAYTONA_CLAUDE_DIR =
+  process.env.AGENTA_AGENT_SANDBOX_CLAUDE_DIR ?? "/home/sandbox/.claude";
+
+/**
+ * Explicit allow-list of `~/.claude` files needed for the own-login (`runtime_provided`)
+ * path. Only `.credentials.json` -- the OAuth/subscription login store -- is required; Claude
+ * Code reads it via `$HOME` / `CLAUDE_CONFIG_DIR`. `settings.json` is deliberately excluded:
+ * the run's own rendered `.claude/settings.json` is already written into the sandbox from
+ * `harnessFiles` by `prepareWorkspace`, and that rendered copy must win over the host user's
+ * settings. Mirrors the E2B allow-list exactly (`e2b.ts` `CLAUDE_OWN_LOGIN_ALLOWLIST`); never
+ * a directory scan, which would over-share `.mcp.json`, `history.jsonl`, and caches.
+ */
+const CLAUDE_OWN_LOGIN_ALLOWLIST = [".credentials.json"] as const;
+
+/**
+ * Upload the Claude own-login credentials from the host into a Daytona sandbox. Best-effort
+ * per file: an allow-listed file that is absent or unreadable is logged and skipped, it never
+ * aborts the others. Only called when `credentialMode === "runtime_provided"` (own-login path).
+ */
+export async function uploadClaudeAuthToSandbox(
+  sandbox: any,
+  log: Log = () => {},
+): Promise<void> {
+  const localDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
+  if (!existsSync(localDir)) return;
+  try {
+    await sandbox.mkdirFs({ path: DAYTONA_CLAUDE_DIR });
+  } catch (err) {
+    log(`claude auth upload skipped: ${(err as Error).message}`);
+    return;
+  }
+  for (const name of CLAUDE_OWN_LOGIN_ALLOWLIST) {
+    const filePath = join(localDir, name);
+    if (!existsSync(filePath)) {
+      log(`claude auth upload: ${name} not found in ${localDir}, skipping`);
+      continue;
+    }
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      await sandbox.writeFsFile({ path: `${DAYTONA_CLAUDE_DIR}/${name}` }, content);
+      log(`claude auth upload: uploaded ${name}`);
+    } catch (err) {
+      log(`claude auth upload failed for ${name}: ${(err as Error).message}`);
+    }
+  }
+}
+
+export interface PrepareDaytonaClaudeAssetsInput {
+  sandbox: any;
+  plan: Pick<RunPlan, "acpAgent" | "credentialMode" | "hasApiKey">;
+  log?: Log;
+}
+
+/**
+ * Push the Claude own-login credentials into a Daytona sandbox when running under
+ * `runtime_provided` credential mode. Managed-key runs need no file upload: the key arrives
+ * via `daytonaEnvVars`. `harnessFiles` (`.claude/settings.json`) and the claude binary are
+ * handled elsewhere (`prepareWorkspace`, daemon auto-install respectively).
+ */
+export async function prepareDaytonaClaudeAssets({
+  sandbox,
+  plan,
+  log = () => {},
+}: PrepareDaytonaClaudeAssetsInput): Promise<void> {
+  if (plan.acpAgent !== "claude") return;
+  if (shouldUploadOwnLogin(plan)) await uploadClaudeAuthToSandbox(sandbox, log);
 }
 
 /**

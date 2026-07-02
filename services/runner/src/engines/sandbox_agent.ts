@@ -55,6 +55,7 @@ import { createAcpFetch } from "./sandbox_agent/acp-fetch.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./sandbox_agent/daemon.ts";
 import {
   createCookieFetch,
+  prepareDaytonaClaudeAssets,
   prepareDaytonaPiAssets,
 } from "./sandbox_agent/daytona.ts";
 import { conciseError } from "./sandbox_agent/errors.ts";
@@ -470,6 +471,7 @@ export async function runSandboxAgent(
     // these use the host filesystem and the harness's own login (PI_CODING_AGENT_DIR).
     if (plan.isDaytona) {
       await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
+      await prepareDaytonaClaudeAssets({ sandbox, plan, log: logger });
     }
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
