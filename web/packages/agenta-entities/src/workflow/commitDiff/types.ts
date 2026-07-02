@@ -70,8 +70,11 @@ export interface ChangeSection {
 
 /** Normalized view of an agent's `parameters`, resolved across the 3 schema shapes. */
 export interface NormalizedTool {
+    /** Canonical, collision-free identity (see `agentItemIdentity`) — the diff map key. */
     key: string
     label: string
+    /** Technical name shown in the detail view: function name / reference slug / builtin type. */
+    rawKey?: string
     /** e.g. "Gmail" — provider/integration, when derivable from a gateway name. */
     source?: string
     description: string
@@ -79,6 +82,10 @@ export interface NormalizedTool {
     paramsJson: string
     /** The raw parameters object, for field-level diffing. */
     params: Record<string, unknown>
+    /** Stable-stringified whole tool — edit detection across all tool subtypes (incl. nameless). */
+    fingerprint: string
+    /** A function-call tool (`function.name`); only these get field-level diffs. */
+    isFunction: boolean
 }
 
 export interface AgentConfigView {

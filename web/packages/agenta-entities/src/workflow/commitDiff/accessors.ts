@@ -8,6 +8,7 @@
  * Pure and dependency-free so it can be unit-tested against fixtures for each shape.
  */
 import {parseGatewayToolName} from "./gatewayName"
+import {agentItemIdentity} from "./identity"
 import type {AgentConfigView, NormalizedTool} from "./types"
 
 /** Scalar config keys surfaced as "Advanced parameters". */
@@ -63,21 +64,75 @@ function coerceContent(content: unknown): string {
     return JSON.stringify(content)
 }
 
-function normalizeTool(raw: unknown): NormalizedTool | null {
+/**
+ * Normalize one tool entry. Every tool subtype is surfaced (nothing dropped): function/gateway
+ * tools keyed by name, workflow-reference tools by slug, builtin/platform tools by type — so a
+ * builtin or reference tool added/removed/edited still shows in the Tools diff. Field-level detail
+ * only applies to function tools; the rest rely on `fingerprint` (the whole-tool hash) for edits.
+ */
+function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
     if (!isObj(raw)) return null
-    const fn = isObj(raw.function) ? raw.function : raw
-    const name = typeof fn.name === "string" ? fn.name : undefined
-    if (!name) return null
-    const description = typeof fn.description === "string" ? fn.description : ""
-    const params = isObj(fn.parameters) ? fn.parameters : {}
-    const parsed = parseGatewayToolName(name)
+    const key = agentItemIdentity("tool", raw, index)
+    const fingerprint = stableStringify(raw)
+    const fn = isObj(raw.function) ? raw.function : undefined
+    const fnName = fn && typeof fn.name === "string" ? fn.name : undefined
+
+    // Function / gateway tool.
+    if (fnName) {
+        const parsed = parseGatewayToolName(fnName)
+        const params = isObj(fn?.parameters) ? (fn?.parameters as Record<string, unknown>) : {}
+        return {
+            key,
+            label: parsed.label,
+            rawKey: fnName,
+            source: parsed.source,
+            description: typeof fn?.description === "string" ? fn.description : "",
+            params,
+            paramsJson: stableStringify(params),
+            fingerprint,
+            isFunction: true,
+        }
+    }
+
+    // Workflow-reference tool (#4860) — keyed by the slug it targets.
+    if (raw.type === "reference") {
+        const slug = typeof raw.slug === "string" ? raw.slug : undefined
+        return {
+            key,
+            label: slug || "Workflow tool",
+            rawKey: slug,
+            description: "",
+            params: {},
+            paramsJson: "{}",
+            fingerprint,
+            isFunction: false,
+        }
+    }
+
+    // Builtin / platform tool (`{type:"web_search"}`, `{type:"platform", op}`) — a bare type.
+    if (typeof raw.type === "string" && raw.type) {
+        const op = typeof raw.op === "string" ? raw.op : undefined
+        return {
+            key,
+            label: parseGatewayToolName(op || raw.type).label,
+            rawKey: op ? `${raw.type}:${op}` : raw.type,
+            description: "",
+            params: {},
+            paramsJson: "{}",
+            fingerprint,
+            isFunction: false,
+        }
+    }
+
+    // Unrecognized shape — surface it (positional key) rather than silently drop it.
     return {
-        key: name,
-        label: parsed.label,
-        source: parsed.source,
-        description,
-        params,
-        paramsJson: stableStringify(params),
+        key,
+        label: "Tool",
+        description: "",
+        params: {},
+        paramsJson: "{}",
+        fingerprint,
+        isFunction: false,
     }
 }
 
@@ -114,7 +169,9 @@ export function readAgentConfig(parameters: unknown): AgentConfigView {
     const instructions = agentsMd ?? instrStr ?? messageInstructions
 
     const toolsRaw = firstArray(agent?.tools, llmConfig?.tools, p.tools, llm0?.tools, prompt?.tools)
-    const tools = toolsRaw.map(normalizeTool).filter((t): t is NormalizedTool => t !== null)
+    const tools = toolsRaw
+        .map((t, i) => normalizeTool(t, i))
+        .filter((t): t is NormalizedTool => t !== null)
 
     const model = firstDefined<string>(
         llm?.model,

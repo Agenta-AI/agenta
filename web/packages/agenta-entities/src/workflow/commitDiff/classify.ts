@@ -97,7 +97,8 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
         const prev = remoteMap.get(key)
         if (!prev) {
             added.push(tool)
-        } else if (prev.description !== tool.description || prev.paramsJson !== tool.paramsJson) {
+        } else if (prev.fingerprint !== tool.fingerprint) {
+            // Field-level detail only for function tools; others still register as edited.
             edited.push({tool, fields: diffToolFields(prev, tool)})
         }
     }
@@ -114,14 +115,14 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
             label: t.label,
             detail: t.source,
             kind: "added" as const,
-            rawKey: t.key,
+            rawKey: t.rawKey,
         })),
         ...edited.map(({tool, fields}) => ({
             id: tool.key,
             label: tool.label,
             detail: toolRowDetail(fields),
             kind: "edited" as const,
-            rawKey: tool.key,
+            rawKey: tool.rawKey,
             fieldChanges: fields,
             descriptionDiff: fields.some((f) => f.field === "description")
                 ? {
@@ -135,7 +136,7 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
             label: t.label,
             detail: t.source,
             kind: "removed" as const,
-            rawKey: t.key,
+            rawKey: t.rawKey,
         })),
     ]
 
