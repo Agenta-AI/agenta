@@ -91,6 +91,7 @@ from oss.src.resources.workflows.catalog import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.shared.utils import agent_feature_analytics_props
 
 
 log = get_module_logger(__name__)
@@ -1655,6 +1656,21 @@ class ApplicationsRouter:
             count=1 if application_revision else 0,
             application_revision=application_revision,
         )
+
+        # Analytics: segment the app_revision_created event by role (apps vs snippets) and
+        # agent-ness, and — for agents — its committed feature composition (the middleware
+        # attaches these request.state props).
+        if application_revision and application_revision.flags:
+            request.state.is_application = bool(
+                application_revision.flags.is_application
+            )
+            request.state.is_snippet = bool(application_revision.flags.is_snippet)
+            request.state.is_agent = bool(application_revision.flags.is_agent)
+            if request.state.is_agent and application_revision.data:
+                for _prop, _value in agent_feature_analytics_props(
+                    application_revision.data.parameters
+                ).items():
+                    setattr(request.state, _prop, _value)
 
         # commit emission lives in ApplicationsService.commit_application_revision
 
