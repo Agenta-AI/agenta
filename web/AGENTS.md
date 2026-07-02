@@ -312,6 +312,8 @@ class (evaluators showing "default", SDK-created apps showing "--" or hex slugs)
 
 ## Styling
 
+When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
+
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
 
 ```typescript

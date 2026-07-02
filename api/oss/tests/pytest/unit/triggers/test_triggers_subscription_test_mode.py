@@ -78,7 +78,7 @@ def _make_service():
         workflows_service=MagicMock(),
     )
     service._require_connection = AsyncMock(return_value=connection)
-    service._normalize_references = AsyncMock()
+    service._validate_references = AsyncMock()
     return service
 
 
@@ -125,7 +125,7 @@ async def test_create_test_subscription_bypasses_reference_validation():
         subscription=_create(is_test=True),
     )
 
-    service._normalize_references.assert_not_awaited()
+    service._validate_references.assert_not_awaited()
     # Test subs are always "on".
     assert result.flags.is_active is True
     assert result.flags.is_test is True
@@ -140,7 +140,7 @@ async def test_create_non_test_subscription_validates_references():
         subscription=_create(is_test=False),
     )
 
-    service._normalize_references.assert_awaited_once()
+    service._validate_references.assert_awaited_once()
 
 
 async def test_edit_to_test_bypasses_validation_and_forces_active():
@@ -154,7 +154,7 @@ async def test_edit_to_test_bypasses_validation_and_forces_active():
         subscription=_edit(existing, is_test=True),
     )
 
-    service._normalize_references.assert_not_awaited()
+    service._validate_references.assert_not_awaited()
     assert result.flags.is_active is True
 
 
@@ -162,7 +162,7 @@ async def test_edit_test_off_rejects_when_references_do_not_resolve():
     service = _make_service()
     existing = _existing(is_test=True)
     service.dao.fetch_subscription = AsyncMock(return_value=existing)
-    service._normalize_references = AsyncMock(side_effect=TriggerReferenceInvalid())
+    service._validate_references = AsyncMock(side_effect=TriggerReferenceInvalid())
 
     with pytest.raises(TriggerReferenceInvalid):
         await service.edit_subscription(
@@ -183,7 +183,7 @@ async def test_edit_test_off_succeeds_when_references_resolve():
         subscription=_edit(existing, is_test=False, references={"workflow": {}}),
     )
 
-    service._normalize_references.assert_awaited_once()
+    service._validate_references.assert_awaited_once()
     assert result.flags.is_test is False
 
 
