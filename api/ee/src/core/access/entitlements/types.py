@@ -387,16 +387,16 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             # TODO(pricing): real free/limit once sandbox billing goes live.
-            Counter.SANDBOX_CPU_CREDITS: Quota(
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_CREDITS: Quota(
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_CREDITS: Quota(
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_CREDITS: Quota(
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
             Counter.SANDBOX_CREDITS: Quota(
@@ -512,16 +512,16 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             # TODO(pricing): real free/limit once sandbox billing goes live.
-            Counter.SANDBOX_CPU_CREDITS: Quota(
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_CREDITS: Quota(
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_CREDITS: Quota(
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_CREDITS: Quota(
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
             Counter.SANDBOX_CREDITS: Quota(
@@ -635,16 +635,16 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             # TODO(pricing): real free/limit once sandbox billing goes live.
-            Counter.SANDBOX_CPU_CREDITS: Quota(
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_CREDITS: Quota(
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_CREDITS: Quota(
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_CREDITS: Quota(
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
             Counter.SANDBOX_CREDITS: Quota(
@@ -753,16 +753,16 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             # TODO(pricing): real free/limit once sandbox billing goes live.
-            Counter.SANDBOX_CPU_CREDITS: Quota(
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_CREDITS: Quota(
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_CREDITS: Quota(
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_CREDITS: Quota(
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
             Counter.SANDBOX_CREDITS: Quota(
@@ -819,16 +819,16 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             # TODO(pricing): real free/limit once sandbox billing goes live.
-            Counter.SANDBOX_CPU_CREDITS: Quota(
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_CREDITS: Quota(
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_CREDITS: Quota(
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_CREDITS: Quota(
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
             Counter.SANDBOX_CREDITS: Quota(

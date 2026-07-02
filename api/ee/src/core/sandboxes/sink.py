@@ -66,13 +66,13 @@ async def record_usage_credits(
     meter_scope = MeterScope(organization_id=organization_id)
 
     dimension_pairs: list[tuple[Counter, Dimension, Decimal]] = [
-        (Counter.SANDBOX_CPU_CREDITS, Dimension.CPU, cpu_seconds),
-        (Counter.SANDBOX_RAM_CREDITS, Dimension.RAM, ram_seconds),
-        (Counter.SANDBOX_SSD_CREDITS, Dimension.SSD, ssd_seconds),
+        (Counter.SANDBOX_CPU_CORE_CREDITS, Dimension.CPU, cpu_seconds),
+        (Counter.SANDBOX_RAM_GIBI_CREDITS, Dimension.RAM, ram_seconds),
+        (Counter.SANDBOX_SSD_GIBI_CREDITS, Dimension.SSD, ssd_seconds),
     ]
     if gpu_seconds is not None:
         dimension_pairs.append(
-            (Counter.SANDBOX_GPU_CREDITS, Dimension.GPU, gpu_seconds)
+            (Counter.SANDBOX_GPU_CORE_CREDITS, Dimension.GPU, gpu_seconds)
         )
 
     total_credits = Decimal("0")

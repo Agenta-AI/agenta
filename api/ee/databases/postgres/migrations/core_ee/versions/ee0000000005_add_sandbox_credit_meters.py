@@ -17,10 +17,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_CPU_CREDITS'")
-    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_RAM_CREDITS'")
-    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_SSD_CREDITS'")
-    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_GPU_CREDITS'")
+    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_CPU_CORE_CREDITS'")
+    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_RAM_GIBI_CREDITS'")
+    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_SSD_GIBI_CREDITS'")
+    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_GPU_CORE_CREDITS'")
     op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_CREDITS'")
 
 

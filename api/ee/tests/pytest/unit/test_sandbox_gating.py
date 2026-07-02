@@ -160,10 +160,10 @@ def test_sandbox_credit_counter_values():
     from ee.src.core.access.entitlements.types import Counter
     from ee.src.core.meters.types import Meters
 
-    assert Meters["SANDBOX_CPU_CREDITS"].value == Counter.SANDBOX_CPU_CREDITS.value
-    assert Meters["SANDBOX_RAM_CREDITS"].value == Counter.SANDBOX_RAM_CREDITS.value
-    assert Meters["SANDBOX_SSD_CREDITS"].value == Counter.SANDBOX_SSD_CREDITS.value
-    assert Meters["SANDBOX_GPU_CREDITS"].value == Counter.SANDBOX_GPU_CREDITS.value
+    assert Meters["SANDBOX_CPU_CORE_CREDITS"].value == Counter.SANDBOX_CPU_CORE_CREDITS.value
+    assert Meters["SANDBOX_RAM_GIBI_CREDITS"].value == Counter.SANDBOX_RAM_GIBI_CREDITS.value
+    assert Meters["SANDBOX_SSD_GIBI_CREDITS"].value == Counter.SANDBOX_SSD_GIBI_CREDITS.value
+    assert Meters["SANDBOX_GPU_CORE_CREDITS"].value == Counter.SANDBOX_GPU_CORE_CREDITS.value
     assert Meters["SANDBOX_CREDITS"].value == Counter.SANDBOX_CREDITS.value
 
 
@@ -174,14 +174,14 @@ def test_sandbox_credits_in_reports():
     assert Counter.SANDBOX_CREDITS.value in REPORTS
     assert REPORTS[Counter.SANDBOX_CREDITS.value] == "sandbox_credits"
 
-    assert Counter.SANDBOX_CPU_SECONDS.value not in REPORTS
-    assert Counter.SANDBOX_RAM_SECONDS.value not in REPORTS
-    assert Counter.SANDBOX_SSD_SECONDS.value not in REPORTS
-    assert Counter.SANDBOX_GPU_SECONDS.value not in REPORTS
-    assert Counter.SANDBOX_CPU_CREDITS.value not in REPORTS
-    assert Counter.SANDBOX_RAM_CREDITS.value not in REPORTS
-    assert Counter.SANDBOX_SSD_CREDITS.value not in REPORTS
-    assert Counter.SANDBOX_GPU_CREDITS.value not in REPORTS
+    assert Counter.SANDBOX_CPU_CORE_SECONDS.value not in REPORTS
+    assert Counter.SANDBOX_RAM_GIBI_SECONDS.value not in REPORTS
+    assert Counter.SANDBOX_SSD_GIBI_SECONDS.value not in REPORTS
+    assert Counter.SANDBOX_GPU_CORE_SECONDS.value not in REPORTS
+    assert Counter.SANDBOX_CPU_CORE_CREDITS.value not in REPORTS
+    assert Counter.SANDBOX_RAM_GIBI_CREDITS.value not in REPORTS
+    assert Counter.SANDBOX_SSD_GIBI_CREDITS.value not in REPORTS
+    assert Counter.SANDBOX_GPU_CORE_CREDITS.value not in REPORTS
 
 
 def test_sandbox_credit_counters_in_read_only_constraint():
@@ -195,10 +195,10 @@ def test_sandbox_credit_counters_in_read_only_constraint():
 
     read_only_counters = CONSTRAINTS[Constraint.READ_ONLY][Tracker.COUNTERS]
     for counter in (
-        Counter.SANDBOX_CPU_CREDITS,
-        Counter.SANDBOX_RAM_CREDITS,
-        Counter.SANDBOX_SSD_CREDITS,
-        Counter.SANDBOX_GPU_CREDITS,
+        Counter.SANDBOX_CPU_CORE_CREDITS,
+        Counter.SANDBOX_RAM_GIBI_CREDITS,
+        Counter.SANDBOX_SSD_GIBI_CREDITS,
+        Counter.SANDBOX_GPU_CORE_CREDITS,
         Counter.SANDBOX_CREDITS,
     ):
         assert counter in read_only_counters, f"{counter} missing from READ_ONLY"
@@ -215,10 +215,10 @@ def test_all_plans_have_sandbox_credit_quotas():
     for plan, entitlements in DEFAULT_ENTITLEMENTS.items():
         counters = entitlements[Tracker.COUNTERS]
         for counter in (
-            Counter.SANDBOX_CPU_CREDITS,
-            Counter.SANDBOX_RAM_CREDITS,
-            Counter.SANDBOX_SSD_CREDITS,
-            Counter.SANDBOX_GPU_CREDITS,
+            Counter.SANDBOX_CPU_CORE_CREDITS,
+            Counter.SANDBOX_RAM_GIBI_CREDITS,
+            Counter.SANDBOX_SSD_GIBI_CREDITS,
+            Counter.SANDBOX_GPU_CORE_CREDITS,
             Counter.SANDBOX_CREDITS,
         ):
             assert counter in counters, f"{plan}: missing {counter}"
