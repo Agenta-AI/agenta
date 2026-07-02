@@ -198,7 +198,7 @@ export interface PrepareLocalPiAssetsInput {
   plan: Pick<
     RunPlan,
     | "isPi"
-    | "isDaytona"
+    | "isRemoteSandbox"
     | "skillDirs"
     | "hasSystemPrompt"
     | "systemPrompt"
@@ -219,7 +219,7 @@ export function prepareLocalPiAssets({
   env,
   log = () => {},
 }: PrepareLocalPiAssetsInput): string | undefined {
-  if (!plan.isPi || plan.isDaytona) return undefined;
+  if (!plan.isPi || plan.isRemoteSandbox) return undefined;
 
   if (plan.skillDirs.length > 0 || plan.hasSystemPrompt) {
     const runAgentDir = prepareLocalAgentDir(

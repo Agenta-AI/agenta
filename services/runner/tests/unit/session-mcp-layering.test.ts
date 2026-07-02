@@ -57,6 +57,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("(a) gateway tools + no user MCP -> internal channel present, no throw", async () => {
     const { servers } = await build({
       isPi: false,
+      isRemote: false,
       isDaytona: false,
       capabilities: mcpCapable,
       harness: "claude",
@@ -84,6 +85,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       () =>
         buildSessionMcpServers({
           isPi: false,
+          isRemote: false,
           isDaytona: false,
           capabilities: mcpCapable,
           harness: "claude",
@@ -99,6 +101,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("(c) gateway tools + user http MCP -> BOTH delivered; user stdio still refused", async () => {
     const { servers } = await build({
       isPi: false,
+      isRemote: false,
       isDaytona: false,
       capabilities: mcpCapable,
       harness: "claude",
@@ -126,6 +129,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       () =>
         buildSessionMcpServers({
           isPi: false,
+          isRemote: false,
           isDaytona: false,
           capabilities: mcpCapable,
           harness: "claude",
@@ -140,6 +144,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("Pi gets [] (native delivery, no MCP channel) even with gateway tools", async () => {
     const { servers } = await build({
       isPi: true,
+      isRemote: false,
       isDaytona: false,
       capabilities: mcpCapable,
       harness: "pi_agenta",
@@ -156,6 +161,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("a non-MCP harness gets [] (capability gate), no internal server started", async () => {
     const { servers } = await build({
       isPi: false,
+      isRemote: false,
       isDaytona: false,
       capabilities: { mcpTools: false, toolCalls: false },
       harness: "no-mcp",
@@ -168,6 +174,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("the internal channel advertisement carries no credential (server-side invariant)", async () => {
     const { servers } = await build({
       isPi: false,
+      isRemote: false,
       isDaytona: false,
       capabilities: mcpCapable,
       harness: "claude",
@@ -194,6 +201,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     // Finding-1 regression guard.
     const { servers } = await build({
       isPi: false,
+      isRemote: true,
       isDaytona: true,
       capabilities: mcpCapable,
       harness: "claude",
@@ -217,6 +225,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     // delivered on Daytona unchanged.
     const { servers } = await build({
       isPi: false,
+      isRemote: true,
       isDaytona: true,
       capabilities: mcpCapable,
       harness: "claude",

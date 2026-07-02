@@ -1,5 +1,6 @@
 import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
+import { dirname as posixDirname, join as posixJoin, resolve as posixResolve } from "node:path/posix";
 
 import type { RunPlan } from "./run-plan.ts";
 import { uploadDirToSandbox } from "./pi-assets.ts";
@@ -14,7 +15,7 @@ export interface PrepareWorkspaceInput {
   sandbox: any;
   plan: Pick<
     RunPlan,
-    | "isDaytona"
+    | "isRemoteSandbox"
     | "isPi"
     | "cwd"
     | "relayDir"
@@ -25,6 +26,20 @@ export interface PrepareWorkspaceInput {
     | "skillDirs"
   >;
   log?: Log;
+}
+
+/** Rejects a harnessFile path that resolves outside `cwd` (e.g. `../escape`). */
+function assertContained(cwd: string, filePath: string, resolvedPath: string): void {
+  if (resolvedPath !== cwd && !resolvedPath.startsWith(cwd + sep)) {
+    throw new Error(`harnessFile path escapes workspace cwd: ${filePath}`);
+  }
+}
+
+/** Posix variant of `assertContained` for remote sandbox paths (always posix, regardless of host OS). */
+function assertContainedPosix(cwd: string, filePath: string, resolvedPath: string): void {
+  if (resolvedPath !== cwd && !resolvedPath.startsWith(cwd + "/")) {
+    throw new Error(`harnessFile path escapes workspace cwd: ${filePath}`);
+  }
 }
 
 /**
@@ -42,7 +57,7 @@ export async function prepareWorkspace({
   const harnessFiles = plan.harnessFiles ?? [];
   const projectSkillRoot = plan.isPi ? undefined : `.${plan.acpAgent}/skills`;
 
-  if (plan.isDaytona) {
+  if (plan.isRemoteSandbox) {
     await sandbox.mkdirFs({ path: plan.cwd }).catch((err: Error) => {
       log(`workspace mkdir skipped: ${err.message}`);
     });
@@ -55,8 +70,9 @@ export async function prepareWorkspace({
       await sandbox.writeFsFile({ path: `${plan.cwd}/AGENTS.md` }, plan.agentsMd);
     }
     for (const file of harnessFiles) {
-      const path = `${plan.cwd}/${file.path}`;
-      const parent = dirname(path);
+      const path = posixJoin(plan.cwd, file.path);
+      assertContainedPosix(posixResolve(plan.cwd), file.path, posixResolve(path));
+      const parent = posixDirname(path);
       await sandbox.mkdirFs({ path: parent }).catch((err: Error) => {
         log(`harness file dir mkdir skipped: ${err.message}`);
       });
@@ -80,6 +96,7 @@ export async function prepareWorkspace({
   if (plan.agentsMd) writeFileSync(join(plan.cwd, "AGENTS.md"), plan.agentsMd, "utf-8");
   for (const file of harnessFiles) {
     const path = join(plan.cwd, file.path);
+    assertContained(resolve(plan.cwd), file.path, resolve(path));
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, file.content, "utf-8");
   }

@@ -72,7 +72,7 @@ describe("resolveRunUsage", () => {
       await resolveRunUsage({
         sandbox: {},
         usageOutPath: file,
-        isDaytona: false,
+        isRemote: false,
         promptResult: { usage: { inputTokens: 99, outputTokens: 99 } },
         streamUsage: { input: 0, output: 0, total: 0, cost: 1 },
       }),
