@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from typing import Any, AsyncIterator, Dict, Iterator, Optional
+from uuid import uuid4
 
 from agenta.sdk.utils.logging import get_module_logger
 
@@ -231,7 +232,7 @@ async def agent_stream_to_vercel_stream(
     events: AsyncIterator[Dict[str, Any]],
     *,
     session_id: Optional[str] = None,
-    message_id: str = "msg-1",
+    message_id: Optional[str] = None,
     trace_id: Optional[str] = None,
 ) -> AsyncIterator[Dict[str, Any]]:
     """Project a stream of neutral agenta events into Vercel UI Message Stream parts.
@@ -243,7 +244,13 @@ async def agent_stream_to_vercel_stream(
     ``done`` events; ``trace_id`` is passed in by routing (off the response), since there is no
     run to fall back to here.
     """
-    start: Dict[str, Any] = {"type": "start", "messageId": message_id}
+    # Every turn needs a UNIQUE messageId — the client keys messages by it, so a shared constant
+    # collides across turns (duplicate React keys, dropped turns). Prefer the run's trace_id (stable,
+    # correlatable), else a fresh uuid.
+    resolved_message_id = message_id or (
+        f"msg-{trace_id}" if trace_id else f"msg-{uuid4().hex}"
+    )
+    start: Dict[str, Any] = {"type": "start", "messageId": resolved_message_id}
     if session_id is not None:
         start["messageMetadata"] = {"sessionId": session_id}
     yield start
