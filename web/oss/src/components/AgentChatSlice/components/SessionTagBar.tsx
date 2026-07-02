@@ -149,20 +149,29 @@ const SessionTagBar = ({
                             onRename={(title) => onRename(session.id, title)}
                         />
                     ))}
-                    <Tooltip title="New session">
-                        <Button
-                            type="text"
-                            aria-label="New session"
-                            icon={<Plus size={14} />}
-                            onClick={onAdd}
-                            className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                        />
-                    </Tooltip>
                 </div>
             ) : (
                 <div className="min-w-0 flex-1" />
             )}
-            {extra && <div className="flex shrink-0 items-center gap-1">{extra}</div>}
+            {/* Fixed session-actions cluster — pinned outside the scroll area so New session (+) sits
+                at the end of the tab strip without scrolling away, grouped with the inspect/history
+                controls. */}
+            {(showSessions || extra) && (
+                <div className="flex shrink-0 items-center gap-1">
+                    {showSessions && (
+                        <Tooltip title="New session">
+                            <Button
+                                type="text"
+                                aria-label="New session"
+                                icon={<Plus size={14} />}
+                                onClick={onAdd}
+                                className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
+                            />
+                        </Tooltip>
+                    )}
+                    {extra}
+                </div>
+            )}
         </div>
     )
 }

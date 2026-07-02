@@ -1097,7 +1097,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
             </div>
             <Tabs
                 animated={false}
-                className="flex min-h-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
+                className="flex min-h-0 min-w-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
                 activeKey={activeId}
                 onChange={setActiveSession}
                 renderTabBar={() => (
