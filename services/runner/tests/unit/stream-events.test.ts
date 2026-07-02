@@ -115,7 +115,9 @@ describe("createSandboxAgentOtel state machine", () => {
     }
 
     // The structured tool/usage events are still present, with exactly one done.
-    assert.equal(ofType(events, "tool_call").length, 1, "tool_call present");
+    const calls = ofType(events, "tool_call");
+    assert.equal(calls.length, 1, "tool_call present");
+    assert.deepEqual(calls[0].input, { city: "Paris" }, "tool_call carries the args from the initial notification");
     assert.equal(ofType(events, "tool_result").length, 1, "tool_result present");
     assert.equal(ofType(events, "usage").length, 1, "usage present");
     assert.equal(ofType(events, "done").length, 1, "exactly one done");
@@ -142,5 +144,42 @@ describe("createSandboxAgentOtel state machine", () => {
     );
     assert.equal(ofType(events, "done").length, 1, "exactly one done without spans");
     assert.ok(types(events).indexOf("usage") < types(events).indexOf("done"), "usage precedes done");
+  });
+
+  it("scenario 4: captures tool args that arrive on a later tool_call_update (rawInput deferral)", () => {
+    // The real Pi wire: the initial `tool_call` announces the call with NO args, and the args
+    // land on a subsequent `tool_call_update`. Emitting the tool_call up front used to freeze
+    // an empty input, so every tool logged `{}`. The event must carry the deferred args.
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({ harness: "pi", model: "openai-codex/x", emit: (e) => emitted.push(e), emitSpans: false });
+    run.start({ prompt: "list connections" });
+    run.handleUpdate({ sessionUpdate: "tool_call", toolCallId: "c1", title: "list_connections" }); // no rawInput
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", rawInput: { limit: 50 } }); // args land here
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", status: "completed", content: [{ content: { type: "text", text: "ok" } }] });
+    run.finish();
+
+    const calls = ofType(emitted, "tool_call");
+    assert.equal(calls.length, 1, "exactly one tool_call event (no duplicate from the deferral)");
+    assert.deepEqual(calls[0].input, { limit: 50 }, "input captured from the tool_call_update, not the empty initial call");
+    const seq = types(emitted);
+    assert.ok(seq.indexOf("tool_call") !== -1 && seq.indexOf("tool_call") < seq.indexOf("tool_result"), "tool_call precedes its result");
+  });
+
+  it("scenario 5: falls back to a bare tool_call when rawInput never arrives", () => {
+    // A genuinely arg-less tool that never carries rawInput must still surface as a
+    // tool_call -> tool_result pair (with a null input), not an orphaned result.
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({ harness: "pi", model: "openai-codex/x", emit: (e) => emitted.push(e), emitSpans: false });
+    run.start({ prompt: "x" });
+    run.handleUpdate({ sessionUpdate: "tool_call", toolCallId: "c1", title: "noArgs" }); // no rawInput, ever
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", status: "completed", content: [{ content: { type: "text", text: "done" } }] });
+    run.finish();
+
+    const calls = ofType(emitted, "tool_call");
+    assert.equal(calls.length, 1, "tool_call still surfaces");
+    assert.equal(calls[0].input, null, "bare call records a null input");
+    assert.equal(ofType(emitted, "tool_result").length, 1, "tool_result present");
+    const seq = types(emitted);
+    assert.ok(seq.indexOf("tool_call") < seq.indexOf("tool_result"), "tool_call precedes its result");
   });
 });

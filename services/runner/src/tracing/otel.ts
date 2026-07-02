@@ -872,7 +872,7 @@ export function createSandboxAgentOtel(
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
   const events: AgentEvent[] = [];
-  const toolSpans = new Map<string, { span?: Span; name: string }>();
+  const toolSpans = new Map<string, { span?: Span; name: string; recorded: boolean }>();
 
   // Live emission. `record` is the single choke point for every event: it appends to the
   // result log and, on the streaming path, flushes the event the moment it is built — so
@@ -1105,20 +1105,38 @@ export function createSandboxAgentOtel(
         if (update.rawInput != null)
           setInputs(span, update.rawInput as Record<string, unknown>, capture);
       }
-      toolSpans.set(id, { span, name: String(name) });
-      record({
-        type: "tool_call",
-        id: String(id),
-        name: String(name),
-        input: update.rawInput,
-      });
+      // Defer the tool_call event until the args are actually present. Pi announces the call
+      // first (often with an empty `rawInput`) and fills the args in on a later
+      // `tool_call_update`; emitting now with an empty input is what made every tool log show
+      // `{}`. Record here only if the args already arrived — otherwise on the update, or (as a
+      // last resort) at close so the call still surfaces.
+      const recorded = update.rawInput != null;
+      if (recorded) {
+        record({
+          type: "tool_call",
+          id: String(id),
+          name: String(name),
+          input: update.rawInput,
+        });
+      }
+      toolSpans.set(id, { span, name: String(name), recorded });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
       return;
     }
 
     if (kind === "tool_call_update") {
-      maybeCloseTool(update.toolCallId, update);
+      // The args often land here, not on the initial `tool_call`. Emit the deferred tool_call
+      // event now with the real input (once), before the tool closes.
+      const id = update.toolCallId;
+      const entry = id ? toolSpans.get(id) : undefined;
+      if (entry && !entry.recorded && update.rawInput != null) {
+        if (entry.span)
+          setInputs(entry.span, update.rawInput as Record<string, unknown>, capture);
+        record({ type: "tool_call", id: String(id), name: entry.name, input: update.rawInput });
+        entry.recorded = true;
+      }
+      maybeCloseTool(id, update);
       return;
     }
 
@@ -1145,6 +1163,13 @@ export function createSandboxAgentOtel(
     if (!entry) return;
     const status = update?.status;
     if (status !== "completed" && status !== "failed") return;
+    // Last resort: if `rawInput` never arrived on any update, still surface the call (with
+    // whatever this closing update carries) BEFORE its result, so the SDK/FE get a
+    // tool_call -> tool_result pair rather than an orphaned result.
+    if (!entry.recorded) {
+      record({ type: "tool_call", id, name: entry.name, input: update.rawInput ?? null });
+      entry.recorded = true;
+    }
     const out =
       acpToolContentText(update.content) ||
       acpToolContentText(update.rawOutput);
