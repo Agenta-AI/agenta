@@ -77,6 +77,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.harness, "pi_agenta");
     assert.equal(result.plan.acpAgent, "pi");
     assert.equal(result.plan.sandboxId, "local");
+    assert.equal(result.plan.isRemoteSandbox, false);
     assert.equal(result.plan.cwd, "/tmp/local-cwd");
     // The relay dir + usage capture are ephemeral runner files kept OFF the (possibly geesefs)
     // cwd: an ephemeral sibling whose leaf is the cwd basename.
@@ -593,6 +594,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.acpAgent, "claude");
     assert.equal(result.plan.isPi, false);
     assert.equal(result.plan.isDaytona, true);
+    assert.equal(result.plan.isRemoteSandbox, true);
     assert.equal(result.plan.cwd, "/home/sandbox/agenta-fixed");
     assert.equal(result.plan.usageOutPath, undefined);
     assert.equal(result.plan.legacyHarnessApiKeyVar, "ANTHROPIC_API_KEY");

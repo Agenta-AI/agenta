@@ -57,6 +57,13 @@ import {
   createCookieFetch,
   prepareDaytonaPiAssets,
 } from "./sandbox_agent/daytona.ts";
+import { prepareE2BPiAssets } from "./sandbox_agent/e2b.ts";
+import {
+  extendE2BSandboxTimeout,
+  startE2BKeepalive,
+  type E2BKeepaliveHandle,
+} from "./sandbox_agent/e2b-keepalive.ts";
+import { e2bTimeoutMs } from "./sandbox_agent/provider.ts";
 import { conciseError } from "./sandbox_agent/errors.ts";
 import { buildSessionMcpServers } from "./sandbox_agent/mcp.ts";
 import { applyModel } from "./sandbox_agent/model.ts";
@@ -222,6 +229,9 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   unmountStorage?: typeof unmountStorage;
   discoverTunnelEndpoint?: typeof discoverTunnelEndpoint;
   responderFactory?: (permissionPolicy: string | undefined) => Responder;
+  prepareE2BPiAssets?: typeof prepareE2BPiAssets;
+  startE2BKeepalive?: typeof startE2BKeepalive;
+  extendE2BSandboxTimeout?: typeof extendE2BSandboxTimeout;
   log?: Log;
 }
 
@@ -311,6 +321,7 @@ export async function runSandboxAgent(
     sandboxProvider: deps.sandboxProvider,
     createLocalCwd: deps.createLocalCwd,
     createDaytonaCwd: deps.createDaytonaCwd,
+    createE2BCwd: deps.createE2BCwd,
     durableCwd,
     resolveSkillDirs: deps.resolveSkillDirs,
     log: logger,
@@ -337,7 +348,7 @@ export async function runSandboxAgent(
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
   const piExtEnv = plan.isPi
-    ? buildPiExtensionEnv(request, !plan.isDaytona, {
+    ? buildPiExtensionEnv(request, !plan.isRemoteSandbox, {
         relayDir: plan.relayDir,
         usageOutPath: plan.usageOutPath,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
@@ -368,11 +379,18 @@ export async function runSandboxAgent(
   // Internal gateway-tool MCP server closer (set when an internal channel is built for a non-Pi
   // harness with executable tools; a no-op otherwise). Released in the `finally`.
   let closeToolMcp: (() => Promise<void>) | undefined;
+  // E2B idle-refresh keepalive (D3): refreshes the sandbox timeout on an interval so
+  // E2B_TIMEOUT_MS measures idle-since-last-liveness-proof instead of run duration since
+  // creation. Started once the sandbox exists (below); stopped in the `finally` so a killed
+  // runner simply stops refreshing and the sandbox self-reaps within timeoutMs (no leak).
+  let e2bKeepalive: E2BKeepaliveHandle | undefined;
   // Durable cwd: set to the host mountpoint once a session-owned local run geesefs-mounts its
   // store prefix, so the `finally` can unmount it. Undefined for non-session/remote/unmounted runs.
+  // Remote sandboxes (Daytona, E2B) are excluded: the local-mount machinery below only applies
+  // to a host-side mount for the local provider.
   let mountedCwd: string | undefined;
   const mountLocalDurableCwd = async (reason: string): Promise<boolean> => {
-    if (!mountCreds || plan.isDaytona) return false;
+    if (!mountCreds || plan.isRemoteSandbox) return false;
     logger(
       `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
     );
@@ -384,7 +402,7 @@ export async function runSandboxAgent(
   };
   let localDurableCwdEnotconnRemounts = 0;
   const reSignAndRemountLocalCwd = async (): Promise<boolean> => {
-    if (!sessionForMount || !runCred || plan.isDaytona) return false;
+    if (!sessionForMount || !runCred || plan.isRemoteSandbox) return false;
     if (
       localDurableCwdEnotconnRemounts >=
       LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT
@@ -412,7 +430,7 @@ export async function runSandboxAgent(
   };
   let runtimeRemount: Promise<boolean> | undefined;
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown): void => {
-    if (plan.isDaytona || !mountCreds || !mountedCwd) return;
+    if (plan.isRemoteSandbox || !mountCreds || !mountedCwd) return;
     if (runtimeRemount || !containsTransportEndpointDisconnected(event)) return;
     logger(
       `local durable cwd ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
@@ -424,11 +442,12 @@ export async function runSandboxAgent(
       return false;
     });
   };
-  let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
-    ? undefined
-    : {
-        cleanup: async () => rmSync(plan.cwd, { recursive: true, force: true }),
-      };
+  let workspace: { cleanup: () => Promise<void> } | undefined =
+    plan.isRemoteSandbox
+      ? undefined
+      : {
+          cleanup: async () => rmSync(plan.cwd, { recursive: true, force: true }),
+        };
 
   try {
     // Persist events in-process so a follow-up turn can resume by session id.
@@ -465,18 +484,34 @@ export async function runSandboxAgent(
     // normal exit so it is never double-deleted.
     if (sandbox) inFlightSandboxes.add(sandbox);
 
-    // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
-    // sandbox via the filesystem API (nothing secret is baked into the image). Locally
-    // these use the host filesystem and the harness's own login (PI_CODING_AGENT_DIR).
+    // On Daytona/E2B, push the harness login, the extension, and AGENTS.md into the remote
+    // sandbox via the filesystem API. Locally these use the host filesystem.
     if (plan.isDaytona) {
       await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
+    } else if (plan.isE2B) {
+      await (deps.prepareE2BPiAssets ?? prepareE2BPiAssets)({
+        sandbox,
+        plan,
+        log: logger,
+      });
+    }
+
+    // Start the E2B idle-refresh keepalive as soon as the sandbox ID is known (D3): from this
+    // point on E2B_TIMEOUT_MS is a rolling idle window, not a hard cap on the whole run.
+    if (plan.isE2B && sandbox?.sandboxId) {
+      e2bKeepalive = (deps.startE2BKeepalive ?? startE2BKeepalive)(
+        sandbox.sandboxId,
+        e2bTimeoutMs(),
+        deps.extendE2BSandboxTimeout ?? extendE2BSandboxTimeout,
+        logger,
+      );
     }
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
     // cwd derivation). The mount lands BEFORE createSession so the session opens inside it.
     // Local: on-host geesefs; scoped creds never enter agent space.
     // Remote (Daytona): geesefs inside the sandbox over the ngrok tunnel.
-    if (mountCreds && !plan.isDaytona) {
+    if (mountCreds && !plan.isRemoteSandbox) {
       // Mount before local workspace materialization so AGENTS.md, harness files, and skills
       // land in the durable prefix instead of being hidden under the later FUSE mount.
       await mountLocalDurableCwd("initial");
@@ -490,7 +525,7 @@ export async function runSandboxAgent(
       });
     } catch (err) {
       if (
-        !plan.isDaytona &&
+        !plan.isRemoteSandbox &&
         mountCreds &&
         isTransportEndpointDisconnected(err) &&
         (await reSignAndRemountLocalCwd())
@@ -558,8 +593,9 @@ export async function runSandboxAgent(
       isPi: plan.isPi,
       capabilities,
       harness: plan.harness,
-      // Daytona: skip the internal loopback HTTP MCP channel (unreachable from the in-sandbox
-      // harness); gateway tools are delivered through the Daytona file relay started below.
+      // Any remote sandbox: skip the internal loopback HTTP MCP channel (unreachable from the
+      // in-sandbox harness); gateway tools are delivered through the file relay started below.
+      isRemote: plan.isRemoteSandbox,
       isDaytona: plan.isDaytona,
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
@@ -597,7 +633,7 @@ export async function runSandboxAgent(
       endpoint: request.telemetry?.exporters?.otlp?.endpoint,
       authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
-      emitSpans: !plan.isPi || plan.isDaytona,
+      emitSpans: !plan.isPi || plan.isRemoteSandbox,
       emit,
     });
     otel = run;
@@ -696,7 +732,7 @@ export async function runSandboxAgent(
       // permission degrades to the run's headless permission policy (the same policy the
       // PolicyResponder uses for Claude builtins above).
       toolRelay = (deps.startToolRelay ?? startToolRelay)(
-        plan.isDaytona
+        plan.isRemoteSandbox
           ? (deps.sandboxRelayHost ?? sandboxRelayHost)(sandbox)
           : (deps.localRelayHost ?? localRelayHost)(),
         plan.relayDir,
@@ -775,7 +811,7 @@ export async function runSandboxAgent(
     const usage = await resolveRunUsage({
       sandbox,
       usageOutPath: plan.usageOutPath,
-      isDaytona: plan.isDaytona,
+      isRemote: plan.isRemoteSandbox,
       promptResult: result,
       streamUsage: run.usage(),
     });
@@ -792,7 +828,7 @@ export async function runSandboxAgent(
     // sandbox).
     const swallowedPiError =
       plan.isPi &&
-      !plan.isDaytona &&
+      !plan.isRemoteSandbox &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
         ? findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd)
@@ -846,6 +882,9 @@ export async function runSandboxAgent(
       error,
     };
   } finally {
+    // Stop the E2B keepalive before tearing down the sandbox: no point refreshing a timeout on
+    // a sandbox we are about to delete, and it must stop even if `destroySandbox` below throws.
+    e2bKeepalive?.stop();
     await runtimeRemount?.catch(() => {});
     if (sandbox) inFlightSandboxes.delete(sandbox);
     await toolRelay?.stop().catch(() => {});

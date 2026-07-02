@@ -1,8 +1,14 @@
 import { local } from "sandbox-agent/local";
 import { daytona } from "sandbox-agent/daytona";
+import { e2b } from "sandbox-agent/e2b";
 
 import type { SandboxPermission } from "../../protocol.ts";
 import { daytonaEnvVars } from "./daytona.ts";
+import {
+  E2B_CLAUDE_INSTALLED,
+  E2B_CODEX_INSTALLED,
+  E2B_OPENCODE_INSTALLED,
+} from "./e2b.ts";
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -98,6 +104,52 @@ export function buildDaytonaCreate(
   };
 }
 
+/** Default E2B sandbox timeout (ms): self-reaps a leaked sandbox that process-KILL skips the `finally`. */
+export const DEFAULT_E2B_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+/** E2B sandbox timeout ms from env, clamped to >= 1 ms (0 would disable the backstop). */
+export function e2bTimeoutMs(
+  rawValue: string | undefined = process.env.E2B_TIMEOUT_MS,
+): number {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_E2B_TIMEOUT_MS;
+  return Math.floor(parsed);
+}
+
+export interface E2BCreateOptions {
+  envs: Record<string, string>;
+  timeoutMs: number;
+  autoPause: boolean;
+}
+
+/**
+ * Build the E2B provider options from the runner's env + the resolved run inputs.
+ *
+ * Pulled out as a pure function so the create options can be tested without constructing
+ * a real E2B client (which needs E2B_API_KEY).
+ *
+ * The `AGENTA_AGENT_SANDBOX_{CODEX,OPENCODE,CLAUDE}_INSTALLED` flags are carried into the
+ * sandbox env for visibility only (see the doc comment on `E2B_CODEX_INSTALLED` in e2b.ts):
+ * unlike Pi's `AGENTA_AGENT_SANDBOX_PI_INSTALLED`, the daemon has no corresponding skip
+ * mechanism for these three, so setting them to "false" does not change what the daemon does.
+ */
+export function buildE2BCreate(
+  piExtEnv: Record<string, string>,
+  secrets: Record<string, string>,
+): E2BCreateOptions {
+  return {
+    envs: {
+      AGENTA_AGENT_SANDBOX_CODEX_INSTALLED: String(E2B_CODEX_INSTALLED),
+      AGENTA_AGENT_SANDBOX_OPENCODE_INSTALLED: String(E2B_OPENCODE_INSTALLED),
+      AGENTA_AGENT_SANDBOX_CLAUDE_INSTALLED: String(E2B_CLAUDE_INSTALLED),
+      ...piExtEnv,
+      ...secrets,
+    },
+    timeoutMs: e2bTimeoutMs(),
+    autoPause: true,
+  };
+}
+
 /**
  * Build the sandbox-agent provider for the requested axis.
  *
@@ -121,6 +173,17 @@ export function buildSandboxProvider(
     return daytona({
       ...(image ? { image } : {}),
       create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
+    });
+  }
+
+  if (sandboxId === "e2b") {
+    const template = process.env.E2B_TEMPLATE ?? "agenta-sandbox-agent";
+    const { envs, timeoutMs, autoPause } = buildE2BCreate(piExtEnv, secrets);
+    return e2b({
+      template,
+      create: { envs } as any,
+      timeoutMs,
+      autoPause,
     });
   }
 

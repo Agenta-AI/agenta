@@ -159,14 +159,15 @@ export interface BuildSessionMcpServersInput {
   capabilities: HarnessCapabilities;
   harness: string;
   /**
-   * True when the run executes in a REMOTE Daytona sandbox (the harness runs IN the sandbox,
-   * not on the runner host). Gates the internal gateway-tool channel: the channel's loopback
-   * (`127.0.0.1`) HTTP MCP URL resolves to the SANDBOX's loopback there, not the runner's, so
-   * advertising it would hand the in-sandbox harness an unreachable URL. On Daytona the channel
-   * is skipped and gateway tools are delivered through the file relay instead (the relay loop
-   * already polls the sandbox filesystem on Daytona — see `engines/sandbox_agent.ts`). See the
-   * Daytona guard in `buildSessionMcpServers`.
+   * True when the run executes in ANY remote sandbox (Daytona or E2B — the harness runs IN the
+   * sandbox, not on the runner host). Gates the internal gateway-tool channel: the channel's
+   * loopback (`127.0.0.1`) HTTP MCP URL resolves to the SANDBOX's loopback there, not the
+   * runner's, so advertising it would hand the in-sandbox harness an unreachable URL. On any
+   * remote sandbox the channel is skipped and gateway tools are delivered through the file relay
+   * instead (the relay loop already polls the sandbox filesystem — see `engines/sandbox_agent.ts`).
    */
+  isRemote: boolean;
+  /** True specifically for Daytona; only used to name the provider in the relay log line. */
   isDaytona: boolean;
   toolSpecs: ResolvedToolSpec[];
   userMcpServers?: McpServerConfig[];
@@ -205,6 +206,7 @@ export async function buildSessionMcpServers({
   isPi,
   capabilities,
   harness,
+  isRemote,
   isDaytona,
   toolSpecs,
   userMcpServers,
@@ -223,16 +225,16 @@ export async function buildSessionMcpServers({
   }
 
   // Layer 1: INTERNAL gateway-tool channel (do not merge with the user gate below). LOCAL ONLY:
-  // its advertised URL is a runner loopback (`127.0.0.1`), unreachable from a remote Daytona
-  // sandbox where the harness runs. On Daytona, skip the loopback HTTP advertisement and let the
-  // file relay deliver the tools (the relay loop polls the sandbox filesystem; see the Daytona
+  // its advertised URL is a runner loopback (`127.0.0.1`), unreachable from a remote sandbox
+  // where the harness runs. On any remote sandbox, skip the loopback HTTP advertisement and let
+  // the file relay deliver the tools (the relay loop polls the sandbox filesystem; see the
   // tool relay in `engines/sandbox_agent.ts`).
-  const internal = isDaytona
+  const internal = isRemote
     ? { servers: [], close: async () => {} }
     : await buildToolMcpServers(toolSpecs, relayDir, log);
-  if (isDaytona && toolSpecs.length > 0) {
+  if (isRemote && toolSpecs.length > 0) {
     log(
-      `daytona: ${toolSpecs.length} gateway tool(s) delivered via the file relay, not a ` +
+      `${isDaytona ? "daytona" : "e2b"}: ${toolSpecs.length} gateway tool(s) delivered via the file relay, not a ` +
         `loopback MCP URL (unreachable from the sandbox)`,
     );
   }
