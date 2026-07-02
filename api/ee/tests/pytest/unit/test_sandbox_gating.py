@@ -160,10 +160,22 @@ def test_sandbox_credit_counter_values():
     from ee.src.core.access.entitlements.types import Counter
     from ee.src.core.meters.types import Meters
 
-    assert Meters["SANDBOX_CPU_CORE_CREDITS"].value == Counter.SANDBOX_CPU_CORE_CREDITS.value
-    assert Meters["SANDBOX_RAM_GIBI_CREDITS"].value == Counter.SANDBOX_RAM_GIBI_CREDITS.value
-    assert Meters["SANDBOX_SSD_GIBI_CREDITS"].value == Counter.SANDBOX_SSD_GIBI_CREDITS.value
-    assert Meters["SANDBOX_GPU_CORE_CREDITS"].value == Counter.SANDBOX_GPU_CORE_CREDITS.value
+    assert (
+        Meters["SANDBOX_CPU_CORE_CREDITS"].value
+        == Counter.SANDBOX_CPU_CORE_CREDITS.value
+    )
+    assert (
+        Meters["SANDBOX_RAM_GIBI_CREDITS"].value
+        == Counter.SANDBOX_RAM_GIBI_CREDITS.value
+    )
+    assert (
+        Meters["SANDBOX_SSD_GIBI_CREDITS"].value
+        == Counter.SANDBOX_SSD_GIBI_CREDITS.value
+    )
+    assert (
+        Meters["SANDBOX_GPU_CORE_CREDITS"].value
+        == Counter.SANDBOX_GPU_CORE_CREDITS.value
+    )
     assert Meters["SANDBOX_CREDITS"].value == Counter.SANDBOX_CREDITS.value
 
 
