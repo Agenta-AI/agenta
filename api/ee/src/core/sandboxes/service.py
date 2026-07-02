@@ -21,6 +21,7 @@ from ee.src.core.meters.service import MetersService
 from ee.src.core.meters.types import MeterScope
 from ee.src.core.sandboxes.dtos import SandboxUsageDTO, SandboxUsageResult
 from ee.src.core.sandboxes.exceptions import SandboxWebhookSignatureError
+from ee.src.core.sandboxes.sink import record_usage_credits
 
 log = get_module_logger(__name__)
 
@@ -106,6 +107,17 @@ class SandboxMeteringService:
                     counter,
                     exc_info=True,
                 )
+
+        # Billing layer: per-dimension + total sandbox_credits, derived from
+        # the raw seconds just recorded above (see sink.py).
+        await record_usage_credits(
+            provider=usage.provider,
+            organization_id=org_id,
+            cpu_seconds=Decimal(usage.vcpu_seconds),
+            ram_seconds=Decimal(usage.ram_gib_seconds),
+            ssd_seconds=Decimal(usage.disk_gib_seconds),
+            gpu_seconds=Decimal(usage.gpu_seconds) if usage.gpu_seconds else None,
+        )
 
         log.info(
             "[sandboxes] recorded provider=%s sandbox=%s org=%s "

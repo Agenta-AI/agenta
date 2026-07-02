@@ -59,6 +59,12 @@ class Counter(str, Enum):
     SANDBOX_RAM_GIBI_SECONDS = "sandbox_ram_gibi_seconds"
     SANDBOX_SSD_GIBI_SECONDS = "sandbox_ssd_gibi_seconds"
     SANDBOX_GPU_CORE_SECONDS = "sandbox_gpu_core_seconds"
+    # Billing layer (Track C): per-dimension + total credit roll-up.
+    SANDBOX_CPU_CORE_CREDITS = "sandbox_cpu_core_credits"
+    SANDBOX_RAM_GIBI_CREDITS = "sandbox_ram_gibi_credits"
+    SANDBOX_SSD_GIBI_CREDITS = "sandbox_ssd_gibi_credits"
+    SANDBOX_GPU_CORE_CREDITS = "sandbox_gpu_core_credits"
+    SANDBOX_CREDITS = "sandbox_credits"
 
 
 class Gauge(str, Enum):
@@ -242,6 +248,9 @@ DEFAULT_CATALOG = [
                     },
                 ],
             },
+            # TODO(pricing): sandbox_credits tiers — measurement-only until
+            # real free/limit numbers land (Counter.SANDBOX_CREDITS in
+            # REPORTS is already flip-a-switch ready).
         },
         "features": [
             "Unlimited prompts",
@@ -278,6 +287,9 @@ DEFAULT_CATALOG = [
                     },
                 ],
             },
+            # TODO(pricing): sandbox_credits tiers — measurement-only until
+            # real free/limit numbers land (Counter.SANDBOX_CREDITS in
+            # REPORTS is already flip-a-switch ready).
         },
         "features": [
             "Everything in Pro",
@@ -372,6 +384,22 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            # TODO(pricing): real free/limit once sandbox billing goes live.
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_CREDITS: Quota(
                 period=Period.MONTHLY,
             ),
         },
@@ -483,6 +511,22 @@ DEFAULT_ENTITLEMENTS = {
             Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
+            # TODO(pricing): real free/limit once sandbox billing goes live.
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -590,6 +634,22 @@ DEFAULT_ENTITLEMENTS = {
             Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
+            # TODO(pricing): real free/limit once sandbox billing goes live.
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -692,6 +752,22 @@ DEFAULT_ENTITLEMENTS = {
             Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
+            # TODO(pricing): real free/limit once sandbox billing goes live.
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -742,6 +818,22 @@ DEFAULT_ENTITLEMENTS = {
             Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
+            # TODO(pricing): real free/limit once sandbox billing goes live.
+            Counter.SANDBOX_CPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_CREDITS: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -758,6 +850,11 @@ DEFAULT_ENTITLEMENTS = {
 # name to report under (`REPORTS[key]`).
 REPORTS: dict[str, str] = {
     Counter.TRACES_INGESTED.value: "traces",
+    # Sandbox billing: only the total roll-up is reportable. The raw
+    # *_seconds and per-dimension *_credits meters stay measurement-only
+    # (recorded, never reported) so per-dimension Stripe billing is a
+    # flip-a-switch addition, not a rewire.
+    Counter.SANDBOX_CREDITS.value: "sandbox_credits",
 }
 
 CONSTRAINTS = {
@@ -786,6 +883,11 @@ CONSTRAINTS = {
             Counter.SANDBOX_RAM_GIBI_SECONDS,
             Counter.SANDBOX_SSD_GIBI_SECONDS,
             Counter.SANDBOX_GPU_CORE_SECONDS,
+            Counter.SANDBOX_CPU_CORE_CREDITS,
+            Counter.SANDBOX_RAM_GIBI_CREDITS,
+            Counter.SANDBOX_SSD_GIBI_CREDITS,
+            Counter.SANDBOX_GPU_CORE_CREDITS,
+            Counter.SANDBOX_CREDITS,
         ],
     },
 }
