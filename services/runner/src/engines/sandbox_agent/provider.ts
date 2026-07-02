@@ -73,6 +73,7 @@ export function daytonaAutoStopMinutes(
  * object carries the auto-stop leak backstop (and `ephemeral`).
  */
 export function buildDaytonaCreate(
+  acpAgent: string,
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
   sandboxPermission: SandboxPermission | undefined,
@@ -86,7 +87,7 @@ export function buildDaytonaCreate(
     ...(snapshot ? { snapshot, image: undefined } : {}),
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
-    envVars: daytonaEnvVars(piExtEnv, secrets),
+    envVars: daytonaEnvVars(acpAgent, piExtEnv, secrets),
     // Server-side leak backstop: `ephemeral` only auto-DELETES a sandbox when it STOPS, and the
     // sandbox-agent wrapper hardcodes `autoStopInterval: 0` (auto-stop OFF) — the two cancel out,
     // so a sandbox the runner leaks (a process KILL skips the per-run teardown `finally`) never
@@ -110,6 +111,7 @@ export function buildDaytonaCreate(
  */
 export function buildSandboxProvider(
   sandboxId: string,
+  acpAgent: string,
   env: Record<string, string>,
   binaryPath: string | undefined,
   piExtEnv: Record<string, string>,
@@ -120,7 +122,7 @@ export function buildSandboxProvider(
     const image = process.env.DAYTONA_IMAGE;
     return daytona({
       ...(image ? { image } : {}),
-      create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
+      create: buildDaytonaCreate(acpAgent, piExtEnv, secrets, sandboxPermission) as any,
     });
   }
 

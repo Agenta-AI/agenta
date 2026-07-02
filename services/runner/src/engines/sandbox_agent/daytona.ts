@@ -24,11 +24,34 @@ export const DAYTONA_PI_INSTALL =
 export const DAYTONA_PI_VERSION = process.env.AGENTA_AGENT_SANDBOX_PI_VERSION ?? "0.79.4";
 
 /**
+ * Arch override the daemon uses when fetching the opencode binary zip from
+ * `anomalyco/opencode` releases. The daemon defaults to the sandbox image's own arch;
+ * override with e.g. `linux-arm64` when the image is arm64 but the daemon's default
+ * detection picks x64 (a known SIGTRAP on arm64 Daytona targets from the PoC). Unset on
+ * real x64 cloud Daytona where the default is already correct.
+ */
+export const DAYTONA_OPENCODE_ARCH_ENV_VAR = "AGENTA_AGENT_SANDBOX_OPENCODE_ARCH";
+
+/**
+ * Env addition for opencode: the arch override the daemon reads when auto-installing the
+ * opencode binary. Returns `{}` when the var is unset (x64 cloud Daytona — no override
+ * needed). Set `AGENTA_AGENT_SANDBOX_OPENCODE_ARCH=linux-arm64` on a dev host that targets
+ * an arm64 Daytona snapshot to avoid the x64-on-arm64 SIGTRAP the PoC surfaced.
+ */
+export function opencodeArchEnv(): Record<string, string> {
+  const arch = process.env[DAYTONA_OPENCODE_ARCH_ENV_VAR];
+  if (!arch) return {};
+  return { [DAYTONA_OPENCODE_ARCH_ENV_VAR]: arch };
+}
+
+/**
  * In-sandbox env for the Daytona daemon: where Pi reads its login, any provider keys,
  * and the Agenta extension env (traceparent + OTLP + tool spec) so the remote Pi traces
- * and runs tools exactly like local. No local-only paths (PATH/PI_ACP_PI_COMMAND) here.
+ * and runs tools exactly like local. Injects the opencode arch override only for the
+ * opencode harness. No local-only paths (PATH/PI_ACP_PI_COMMAND) here.
  */
 export function daytonaEnvVars(
+  acpAgent: string,
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
 ): Record<string, string> {
@@ -42,6 +65,8 @@ export function daytonaEnvVars(
   if (DAYTONA_PI_INSTALL) {
     env.PI_ACP_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`;
   }
+  // Arch override: only inject for opencode (daemon reads it at createSession time).
+  if (acpAgent === "opencode") Object.assign(env, opencodeArchEnv());
   return env;
 }
 
@@ -138,6 +163,32 @@ export async function prepareDaytonaPiAssets({
     );
   }
   if (DAYTONA_PI_INSTALL) await installPiInSandbox(sandbox, log);
+}
+
+export interface PrepareDaytonaOpencodeAssetsInput {
+  sandbox: any;
+  plan: Pick<RunPlan, "acpAgent">;
+  log?: Log;
+}
+
+/**
+ * Prepare Daytona sandbox assets for an opencode run.
+ *
+ * opencode needs no runner-side uploads: the daemon auto-installs the binary from the
+ * official `anomalyco/opencode` GitHub release zip at createSession time, and the provider
+ * key reaches the daemon env via `daytonaEnvVars` / `buildDaytonaCreate` (the `secrets`
+ * spread). This function is a named no-op seam — calling it from `sandbox_agent.ts` makes
+ * the opencode Daytona path explicit and testable, and provides a clean fold point for the
+ * foundation remote-bootstrap generalization.
+ */
+export async function prepareDaytonaOpencodeAssets({
+  plan,
+  log = () => {},
+}: PrepareDaytonaOpencodeAssetsInput): Promise<void> {
+  if (plan.acpAgent !== "opencode") return;
+  // Nothing to upload: daemon auto-installs the binary; provider key is in the create env.
+  const arch = process.env[DAYTONA_OPENCODE_ARCH_ENV_VAR];
+  if (arch) log(`opencode daytona: arch override ${DAYTONA_OPENCODE_ARCH_ENV_VAR}=${arch}`);
 }
 
 /**
