@@ -11,7 +11,7 @@ import {
     Wrench,
 } from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
-import {Button, Typography} from "antd"
+import {Typography} from "antd"
 
 const {Text} = Typography
 
@@ -80,77 +80,40 @@ const StatusIcon = ({state}: {state: string}) => {
     return <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
 }
 
-interface ApprovalRef {
-    id: string
-    approved?: boolean
-    reason?: string
-}
-
-const ApprovalButtons = ({
-    approvalId,
-    onApprovalResponse,
-}: {
-    approvalId: string
-    onApprovalResponse: (args: {id: string; approved: boolean}) => void
-}) => {
-    // Guard a double-submit between the click and the SDK flipping the part to
-    // `approval-responded` (which removes the buttons). Not tied to conversation `busy` —
-    // an approval can only appear mid-stream, so gating on busy would disable it the whole turn.
-    const [responding, setResponding] = useState(false)
-    const respond = (approved: boolean) => {
-        if (responding) return
-        setResponding(true)
-        onApprovalResponse({id: approvalId, approved})
-    }
-    return (
-        <div className="ml-auto flex items-center gap-1.5">
-            <Button type="primary" loading={responding} onClick={() => respond(true)}>
-                Approve
-            </Button>
-            <Button disabled={responding} onClick={() => respond(false)}>
-                Deny
-            </Button>
-        </div>
-    )
-}
-
-/** One tool's row: name, derived one-line summary, status. Used in both modes. */
-const ToolRow = ({
-    part,
-    live,
-    onApprovalResponse,
-}: {
-    part: ToolUIPart
-    live: boolean
-    onApprovalResponse: (args: {id: string; approved: boolean}) => void
-}) => {
+/** One tool's row: name, derived one-line summary, status. Used in both modes. The Approve/Deny
+ * action lives in the persistent ApprovalDock (composer region), so a gate here is just marked
+ * "Awaiting approval" rather than carrying the buttons that used to scroll away with the turn. */
+const ToolRow = ({part, live}: {part: ToolUIPart; live: boolean}) => {
     const name = partToolName(part)
     const state = part.state as string
-    const approval = (part as {approval?: ApprovalRef}).approval
     const summary = rowSummary(part)
     const running = !isSettled(state) && state !== "approval-requested"
-    // The line between the name and the trailing status/buttons: the prompt for an approval,
-    // a live "running…", or the settled one-line output summary.
+    // The line after the name: an awaiting-approval marker, a live "running…", or the settled
+    // one-line output summary.
     const midText =
-        state === "approval-requested" ? "Run this tool?" : live && running ? "running…" : summary
+        state === "approval-requested"
+            ? "Awaiting approval"
+            : live && running
+              ? "running…"
+              : summary
 
     return (
         <div className="flex min-w-0 items-center gap-2 py-1">
-            <StatusIcon state={state} />
-            <Text className="!text-xs !font-medium shrink-0">{name}</Text>
-            {midText ? (
-                <Text
-                    type={state === "output-error" ? "danger" : "secondary"}
-                    className="!text-xs truncate"
-                    title={typeof midText === "string" ? midText : undefined}
-                >
-                    {midText}
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+                <StatusIcon state={state} />
+                <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
+                    {name}
                 </Text>
-            ) : null}
-
-            {state === "approval-requested" && approval?.id ? (
-                <ApprovalButtons approvalId={approval.id} onApprovalResponse={onApprovalResponse} />
-            ) : null}
+                {midText ? (
+                    <Text
+                        type={state === "output-error" ? "danger" : "secondary"}
+                        className="!text-xs min-w-0 truncate"
+                        title={typeof midText === "string" ? midText : undefined}
+                    >
+                        {midText}
+                    </Text>
+                ) : null}
+            </div>
         </div>
     )
 }
@@ -160,7 +123,6 @@ interface ToolActivityProps {
     parts: ToolUIPart[]
     /** This turn is the one being generated right now. */
     isStreaming?: boolean
-    onApprovalResponse: (args: {id: string; approved: boolean}) => void
     /** Open the turn's trace drawer (full input/output). Absent if the turn has no trace yet. */
     onViewTrace?: () => void
 }
@@ -168,25 +130,21 @@ interface ToolActivityProps {
 /**
  * Renders a group of tool calls inside an agent turn. Two modes:
  *  - **Live** (streaming + a tool still in flight): a left-gutter timeline, always shown, so
- *    you watch each tool fire. An `approval-requested` tool surfaces Approve/Deny inline.
+ *    you watch each tool fire. An `approval-requested` tool is marked "Awaiting approval"; the
+ *    Approve/Deny action lives in the persistent ApprovalDock above the composer.
  *  - **Settled**: a single quiet "Used N tools" line; click to expand the per-tool list with
  *    one-line output summaries and a "View full trace" link.
  *
  * Output is summarised to one line per tool; the raw input/output lives in the trace drawer.
  * The FE only renders tool calls — it never executes them.
  */
-const ToolActivity = ({
-    parts,
-    isStreaming = false,
-    onApprovalResponse,
-    onViewTrace,
-}: ToolActivityProps) => {
+const ToolActivity = ({parts, isStreaming = false, onViewTrace}: ToolActivityProps) => {
     const anyUnsettled = parts.some((p) => !isSettled(p.state as string))
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
 
     const [open, setOpen] = useState(false)
-    // An approval must stay reachable, so force the list open whenever one is pending.
+    // Keep the gate visible in-context: force the list open whenever one is awaiting approval.
     const expanded = open || approvalPending
 
     // ---- Live: the gutter timeline (always visible while tools are in flight) ----
@@ -194,12 +152,7 @@ const ToolActivity = ({
         return (
             <div className="flex min-w-0 flex-col border-0 border-l-2 border-solid border-colorBorderSecondary pl-3">
                 {parts.map((part, i) => (
-                    <ToolRow
-                        key={`${part.toolCallId || part.type}-${i}`}
-                        part={part}
-                        live
-                        onApprovalResponse={onApprovalResponse}
-                    />
+                    <ToolRow key={`${part.toolCallId || part.type}-${i}`} part={part} live />
                 ))}
             </div>
         )
@@ -244,7 +197,6 @@ const ToolActivity = ({
                             key={`${part.toolCallId || part.type}-${i}`}
                             part={part}
                             live={false}
-                            onApprovalResponse={onApprovalResponse}
                         />
                     ))}
                     {onViewTrace && (

@@ -78,7 +78,6 @@ interface AgentMessageProps {
     /** Stable across renders (parent passes a `useCallback`'d handler) so the `memo()` below
      * isn't defeated — the message to rewind to is passed in, not closed over per render. */
     onRewind: (message: UIMessage) => void
-    onApprovalResponse: (args: {id: string; approved: boolean}) => void
     /** Settle a parked client tool (#4920) — the dispatcher calls this from a widget. */
     onClientToolOutput: ClientToolOutputHandler
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
@@ -198,7 +197,6 @@ const AgentMessage = ({
     isStreaming = false,
     isLastMessage = false,
     onRewind,
-    onApprovalResponse,
     onClientToolOutput,
     precededByEmptyAssistant = false,
     turnTraceId,
@@ -223,13 +221,9 @@ const AgentMessage = ({
     const timeSummary = traceId ? ownSummary : pairedSummary
     const messageTime = parseTraceTime(timeSummary.rootSpan?.start_time) ?? createdAt
     // A failure can reach us two ways: recorded on the trace (backend), or stamped onto the turn
-    // FE-side from the useChat stream error (AgentChatPanel). Prefer whichever is present.
+    // FE-side from the useChat stream error (AgentChatPanel). `errorText` is derived below, once
+    // we know whether the turn produced an answer.
     const runError = getMessageRunError(message)
-    const errorText = traceError || runError
-    // Surface a settled-turn error even when the model emitted partial output before the
-    // stream died — not only when the turn is answer-less. (`isError` stays answer-less-only
-    // so the *whole* bubble only turns red when there's nothing else to show.)
-    const showError = !isStreaming && !!errorText
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -259,6 +253,17 @@ const AgentMessage = ({
     // read as frozen/broken. Keyed on `isStreaming`, not the conversation-level `busy`, so
     // earlier answer-less turns don't all light up while a later turn streams.
     const noResponse = !isUser && !isStreaming && !hasAnswer
+
+    // A trace-leaf error means a model/tool call failed. When the turn still produced an answer,
+    // the agent recovered from it — that failure belongs inline in ToolActivity ("· N failed"),
+    // NOT as a run failure. So trust `traceError` only on an answer-less turn (the swallowed
+    // quota/model error it was written for). A stream death (`runError`) is a real run failure
+    // even with partial output, so it always counts.
+    const errorText = noResponse ? traceError || runError : runError
+    // Surface a settled-turn error even when the model emitted partial output before the stream
+    // died. (`isError` stays answer-less-only so the *whole* bubble only turns red when there's
+    // nothing else to show.)
+    const showError = !isStreaming && !!errorText
     // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
     // failure (red), with the message inline — not a nested alert box.
     const isError = noResponse && showError
@@ -368,7 +373,6 @@ const AgentMessage = ({
                             key={`${message.id}-tools-${item.index}`}
                             parts={item.parts}
                             isStreaming={isStreaming}
-                            onApprovalResponse={onApprovalResponse}
                             onViewTrace={onViewTrace}
                         />
                     )

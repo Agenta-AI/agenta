@@ -19,6 +19,7 @@ import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {SessionInspectorButton} from "@/oss/components/SessionInspector"
+import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
 import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
@@ -30,6 +31,7 @@ import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {getMessageTraceId} from "./assets/trace"
 import AgentMessage from "./components/AgentMessage"
+import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import QueuedMessages from "./components/QueuedMessages"
@@ -61,9 +63,12 @@ const ignoreStreamRejection = () => {}
 /** Height of the top-edge fade, in px. Shared by the CSS mask and the SC-1 pin so a pinned turn
  * lands BELOW the fade (otherwise the freshly-asked question renders partially faded). */
 const TOP_FADE_PX = 28
-/** Top-edge fade for the message scroll area: transparent at the very top, fully opaque by
- * TOP_FADE_PX. Applied as a CSS mask so the content itself fades (correct in any theme). */
-const TOP_FADE_MASK = `linear-gradient(to bottom, transparent 0, #000 ${TOP_FADE_PX}px)`
+/** Height of the bottom-edge fade, matching the top so content dissolves into the composer edge. */
+const BOTTOM_FADE_PX = 28
+/** Edge fades for the message scroll area: transparent at the very top, fully opaque by TOP_FADE_PX,
+ * then fading back to transparent over the last BOTTOM_FADE_PX. Applied as a CSS mask so the content
+ * itself fades (correct in any theme). */
+const EDGE_FADE_MASK = `linear-gradient(to bottom, transparent 0, #000 ${TOP_FADE_PX}px, #000 calc(100% - ${BOTTOM_FADE_PX}px), transparent 100%)`
 /** Centered reading column for the chat body. Caps line length / bubble width so a wide (maximized)
  * panel doesn't sprawl into oversized bubbles and over-spaced turns; freed side space is whitespace. */
 const CHAT_COLUMN = "mx-auto w-full max-w-[880px]"
@@ -347,6 +352,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         (item: QueuedMessage) => {
             stickRef.current = true
             setShowJump(false)
+            // Any actual send supersedes a prior user-stop, so clear the marker here (covers the
+            // queue-release path; the manual path also clears it in handleSubmit) — otherwise the
+            // "Stopped" tag would smear onto the freshly-sent turn.
+            setStopped(false)
             sendMessage(
                 item.fileParts && item.fileParts.length
                     ? item.text
@@ -359,12 +368,25 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     )
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
-    // one-by-one once the turn truly settles (never mid-approval).
+    // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
+    // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue).
     const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
         status,
         messages,
+        stopped,
         sendQueued,
     })
+
+    // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
+    // composer (not inline in the transcript, so a paused run can't scroll out of reach). Trace
+    // opens the paused turn's own trace drawer.
+    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    const openPausedTurnTrace = useMemo(() => {
+        const last = messages[messages.length - 1]
+        const traceId = last ? getMessageTraceId(last) : undefined
+        return traceId ? () => openTraceDrawer({traceId}) : undefined
+    }, [messages, openTraceDrawer])
 
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
@@ -577,7 +599,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     }, [messages])
 
     useEffect(() => {
-        if (stickRef.current) scrollToBottom()
+        // Don't instant-jump while a programmatic glide (SC-1 submit / jump-to-latest) owns the
+        // scroll — that snap would override the animation. The glide's own settle re-pins to bottom.
+        if (stickRef.current && !programmaticScrollRef.current) scrollToBottom()
     }, [messages, status, scrollToBottom])
 
     const onScroll = useCallback(() => {
@@ -849,7 +873,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     isStreaming={busy && isLast}
                     isLastMessage={isLast}
                     onRewind={() => handleRewind(message)}
-                    onApprovalResponse={addToolApprovalResponse}
                     onClientToolOutput={handleClientToolOutput}
                     precededByEmptyAssistant={
                         index > 0 && isEmptyAssistantTurn(messages[index - 1])
@@ -918,12 +941,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
                     // anchoring off so our pin/anchor logic owns the scroll position).
                     className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-6 [overflow-anchor:none]"
-                    // Fade content into the top edge (under the tab bar) as it scrolls up. A
-                    // gradient mask on the scroll container: transparent at the very top → opaque
-                    // by 28px → opaque the rest of the way. GPU-composited, no JS, theme-agnostic.
+                    // Fade content into the top edge (under the tab bar) and the bottom edge (into the
+                    // composer) as it scrolls. A gradient mask on the scroll container: transparent at
+                    // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
                     style={{
-                        maskImage: TOP_FADE_MASK,
-                        WebkitMaskImage: TOP_FADE_MASK,
+                        maskImage: EDGE_FADE_MASK,
+                        WebkitMaskImage: EDGE_FADE_MASK,
                     }}
                 >
                     {messages.length === 0 && (
@@ -947,47 +970,50 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     )}
                 </div>
 
-                {showJump && (
-                    <Button
-                        size="small"
-                        shape="round"
-                        icon={<ArrowDown size={14} />}
-                        onClick={jumpToLatest}
-                        // Solid elevated surface + border + shadow so the pill reads clearly when it
-                        // floats over streamed text (a transparent pill let the text bleed through).
-                        className="!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md"
-                        aria-label="Jump to latest message"
-                    >
-                        Jump to latest
-                    </Button>
-                )}
+                {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
+                    keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
+                <Button
+                    size="small"
+                    shape="round"
+                    icon={<ArrowDown size={14} />}
+                    onClick={jumpToLatest}
+                    tabIndex={showJump ? 0 : -1}
+                    aria-hidden={!showJump}
+                    // Solid elevated surface + border + shadow so the pill reads clearly when it
+                    // floats over streamed text (a transparent pill let the text bleed through).
+                    className={`!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
+                        showJump
+                            ? "translate-y-0 opacity-100"
+                            : "pointer-events-none translate-y-3 opacity-0"
+                    }`}
+                    aria-label="Jump to latest message"
+                >
+                    Jump to latest
+                </Button>
             </div>
 
-            {/* Queue / approval status sits BETWEEN the messages and the composer, so showing it
-                never shifts the composer (and the editor) upward. Streaming itself is signalled by
-                the composer's send button (it becomes a spinning Stop button), so there's no
-                separate "Streaming…" row. */}
-            {(hitlPending || queued.length > 0) && (
-                <div className={`${CHAT_COLUMN} flex items-center justify-between gap-2 px-3 pb-2`}>
-                    {queued.length > 0 ? (
-                        <QueuedMessages
-                            queued={queued}
-                            onRemove={removeQueued}
-                            onClear={clearQueue}
-                        />
-                    ) : (
-                        <span />
-                    )}
-                    {hitlPending ? (
-                        <span className="text-xs text-colorTextTertiary">Waiting for approval</span>
-                    ) : null}
+            {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
+                composer (and the editor) upward. Streaming itself is signalled by the composer's
+                send button (it becomes a spinning Stop button), so there's no "Streaming…" row. */}
+            {queued.length > 0 && (
+                <div className={`${CHAT_COLUMN} flex items-center gap-2 px-3 pb-2`}>
+                    <QueuedMessages queued={queued} onRemove={removeQueued} onClear={clearQueue} />
                 </div>
             )}
 
             {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
                 Wrapper `px-3` keeps the session-bar gutter; the input centers on CHAT_COLUMN so it
-                aligns with the (also centered) message column when the panel is wide. */}
+                aligns with the (also centered) message column when the panel is wide. The persistent
+                HITL approval dock lives in this same block (above the input) — always mounted so it
+                animates in/out, and inside the composer region so the paused gate can't scroll out
+                of reach and its collapse adds no gap to the surrounding column. */}
             <div className="px-3">
+                <ApprovalDock
+                    className={CHAT_COLUMN}
+                    approvals={pendingApprovals}
+                    onApprovalResponse={addToolApprovalResponse}
+                    onViewTrace={openPausedTurnTrace}
+                />
                 <RichChatInput
                     ref={richInputRef}
                     className={`${CHAT_COLUMN} mb-3`}
