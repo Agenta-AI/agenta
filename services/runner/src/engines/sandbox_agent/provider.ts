@@ -117,7 +117,7 @@ export function e2bTimeoutMs(
  * Pulled out as a pure function so the create options can be tested without constructing
  * a real E2B client (which needs E2B_API_KEY).
  */
-export function buildE2bCreate(
+export function buildE2BCreate(
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
 ): Record<string, unknown> {
@@ -156,7 +156,7 @@ export function buildSandboxProvider(
 
   if (sandboxId === "e2b") {
     const template = process.env.E2B_TEMPLATE ?? "agenta-sandbox-agent";
-    const create = buildE2bCreate(piExtEnv, secrets);
+    const create = buildE2BCreate(piExtEnv, secrets);
     return e2b({
       template,
       create: { envs: (create as any).envs } as any,

@@ -43,20 +43,18 @@ export function mergePromptAndStreamUsage(
 export async function resolveRunUsage({
   sandbox,
   usageOutPath,
-  isDaytona,
-  isE2b,
+  isRemote,
   promptResult,
   streamUsage,
 }: {
   sandbox: any;
   usageOutPath: string | undefined;
-  isDaytona: boolean;
-  isE2b?: boolean;
+  isRemote: boolean;
   promptResult: any;
   streamUsage: AgentUsage | undefined;
 }): Promise<AgentRunResult["usage"]> {
   return (
-    (await readRunUsage(sandbox, usageOutPath, isDaytona || !!isE2b)) ??
+    (await readRunUsage(sandbox, usageOutPath, isRemote)) ??
     mergePromptAndStreamUsage(promptResult, streamUsage)
   );
 }

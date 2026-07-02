@@ -13,26 +13,27 @@ import {
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 
 describe("buildRunPlan — E2B sandbox", () => {
-  it("sets isE2b and uses the E2B cwd factory", () => {
+  it("sets isE2B and uses the E2B cwd factory", () => {
     const result = buildRunPlan(
       {
         harness: "pi_core",
         sandbox: "e2b",
         messages: [{ role: "user", content: "hello" }],
       } as AgentRunRequest,
-      { createE2bCwd: () => "/root/work/agenta-abc123" },
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
     );
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.isE2b, true);
+    assert.equal(result.plan.isE2B, true);
     assert.equal(result.plan.isDaytona, false);
+    assert.equal(result.plan.isRemoteSandbox, true);
     assert.equal(result.plan.sandboxId, "e2b");
     assert.equal(result.plan.cwd, "/root/work/agenta-abc123");
     assert.equal(result.plan.relayDir, "/root/work/agenta-abc123/.agenta-tools");
   });
 
-  it("local runs have isE2b=false", () => {
+  it("local runs have isE2B=false and isRemoteSandbox=false", () => {
     const result = buildRunPlan(
       {
         harness: "pi_core",
@@ -44,10 +45,11 @@ describe("buildRunPlan — E2B sandbox", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.isE2b, false);
+    assert.equal(result.plan.isE2B, false);
+    assert.equal(result.plan.isRemoteSandbox, false);
   });
 
-  it("daytona runs have isE2b=false", () => {
+  it("daytona runs have isE2B=false and isRemoteSandbox=true", () => {
     const result = buildRunPlan(
       {
         harness: "claude",
@@ -59,8 +61,9 @@ describe("buildRunPlan — E2B sandbox", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.isE2b, false);
+    assert.equal(result.plan.isE2B, false);
     assert.equal(result.plan.isDaytona, true);
+    assert.equal(result.plan.isRemoteSandbox, true);
   });
 
   it("refuses a restricted-network E2B run under strict (no egress control)", () => {
@@ -74,7 +77,7 @@ describe("buildRunPlan — E2B sandbox", () => {
           enforcement: "strict",
         },
       } as AgentRunRequest,
-      { createE2bCwd: () => "/root/work/agenta-abc123" },
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
     );
 
     assert.equal(result.ok, false);
@@ -93,7 +96,7 @@ describe("buildRunPlan — E2B sandbox", () => {
           enforcement: "best_effort",
         },
       } as AgentRunRequest,
-      { createE2bCwd: () => "/root/work/agenta-abc123" },
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
     );
 
     assert.equal(result.ok, false);
@@ -109,7 +112,7 @@ describe("buildRunPlan — E2B sandbox", () => {
         messages: [{ role: "user", content: "hello" }],
         sandboxPermission: { network: { mode: "off" }, enforcement: "strict" },
       } as AgentRunRequest,
-      { createE2bCwd: () => "/root/work/agenta-abc123" },
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
     );
 
     assert.equal(result.ok, false);
@@ -128,7 +131,7 @@ describe("buildRunPlan — E2B sandbox", () => {
           enforcement: "strict",
         },
       } as AgentRunRequest,
-      { createE2bCwd: () => "/root/work/agenta-abc123" },
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
     );
 
     assert.equal(result.ok, true);
@@ -141,7 +144,7 @@ describe("buildRunPlan — E2B sandbox", () => {
         sandbox: "e2b",
         messages: [{ role: "user", content: "hello" }],
       } as AgentRunRequest,
-      { createE2bCwd: () => "/root/work/agenta-abc123" },
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
     );
 
     assert.equal(result.ok, true);

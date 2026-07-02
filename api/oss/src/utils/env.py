@@ -566,7 +566,7 @@ class DaytonaConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class E2bConfig(BaseModel):
+class E2BConfig(BaseModel):
     api_key: str | None = os.getenv("E2B_API_KEY")
     template: str | None = os.getenv("E2B_TEMPLATE")
 
@@ -1251,7 +1251,7 @@ class EnvironSettings(BaseModel):
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
-    e2b: E2bConfig = E2bConfig()
+    e2b: E2BConfig = E2BConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()

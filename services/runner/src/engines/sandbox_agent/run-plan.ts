@@ -53,7 +53,9 @@ export interface RunPlan {
   sandboxId: string;
   isPi: boolean;
   isDaytona: boolean;
-  isE2b: boolean;
+  isE2B: boolean;
+  /** True for any remote sandbox (`isDaytona || isE2B`); use for remoteness-only checks. */
+  isRemoteSandbox: boolean;
   prompt: string;
   turnText: string;
   agentsMd?: string;
@@ -110,7 +112,7 @@ export interface BuildRunPlanDeps {
   sandboxProvider?: string;
   createLocalCwd?: (durableCwd?: string) => string;
   createDaytonaCwd?: (durableCwd?: string) => string;
-  createE2bCwd?: () => string;
+  createE2BCwd?: () => string;
   /** Pre-computed durable cwd derived from the sign prefix; when set, skips the ephemeral helpers. */
   durableCwd?: string;
   resolveSkillDirs?: typeof defaultResolveSkillDirs;
@@ -156,7 +158,7 @@ function defaultDaytonaCwd(durableCwd?: string): string {
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
-function defaultE2bCwd(): string {
+function defaultE2BCwd(): string {
   return `/root/work/agenta-${randomBytes(6).toString("hex")}`;
 }
 
@@ -166,7 +168,7 @@ export function buildRunPlan(
     sandboxProvider = process.env.SANDBOX_AGENT_PROVIDER,
     createLocalCwd = defaultLocalCwd,
     createDaytonaCwd = defaultDaytonaCwd,
-    createE2bCwd = defaultE2bCwd,
+    createE2BCwd = defaultE2BCwd,
     durableCwd,
     resolveSkillDirs = defaultResolveSkillDirs,
     log = () => {},
@@ -200,7 +202,8 @@ export function buildRunPlan(
 
   const isPi = acpAgent === "pi";
   const isDaytona = sandboxId === "daytona";
-  const isE2b = sandboxId === "e2b";
+  const isE2B = sandboxId === "e2b";
+  const isRemoteSandbox = isDaytona || isE2B;
 
   const secrets = request.secrets ?? {};
   const legacyHarnessApiKeyVar =
@@ -226,10 +229,10 @@ export function buildRunPlan(
   // control in the sandbox-agent/e2b wrapper, so it is refused like local.
   const network = request.sandboxPermission?.network;
   const networkRestricted = !!network && (network.mode ?? "on") !== "on";
-  if (networkRestricted && isE2b) {
+  if (networkRestricted && isE2B) {
     return { ok: false, error: E2B_NETWORK_UNSUPPORTED_MESSAGE };
   }
-  if (networkRestricted && !isDaytona && !isE2b) {
+  if (networkRestricted && !isDaytona && !isE2B) {
     return { ok: false, error: LOCAL_NETWORK_UNSUPPORTED_MESSAGE };
   }
 
@@ -285,8 +288,8 @@ export function buildRunPlan(
 
   const cwd = isDaytona
     ? createDaytonaCwd(durableCwd)
-    : isE2b
-      ? createE2bCwd()
+    : isE2B
+      ? createE2BCwd()
       : createLocalCwd(durableCwd);
   // The tool-relay scratch (req/res JSON) is ephemeral runner<->child IPC, NOT durable session
   // data — keep it OFF the geesefs-mounted cwd. A relay dir inside the mount routes every tool
@@ -295,7 +298,7 @@ export function buildRunPlan(
   // E2B: the relay is polled through the sandbox FS API, so the dir must live IN the sandbox;
   // the E2B cwd is never geesefs-mounted, so nesting under it is safe.
   const relayBase = isDaytona ? "/home/sandbox/agenta/relay" : join(tmpdir(), "agenta", "relay");
-  const relayDir = isE2b
+  const relayDir = isE2B
     ? `${cwd}/.agenta-tools`
     : join(relayBase, basename(cwd));
 
@@ -337,7 +340,8 @@ export function buildRunPlan(
       sandboxId,
       isPi,
       isDaytona,
-      isE2b,
+      isE2B,
+      isRemoteSandbox,
       prompt,
       turnText: buildTurnText(request),
       agentsMd: request.agentsMd?.trim() || undefined,

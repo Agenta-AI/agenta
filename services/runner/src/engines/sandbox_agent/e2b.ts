@@ -33,7 +33,7 @@ export function e2bEnvVars(
 /**
  * Upload Pi's fallback `auth.json` into an E2B sandbox. Best-effort.
  */
-export async function uploadPiAuthToE2bSandbox(
+export async function uploadPiAuthToE2BSandbox(
   sandbox: any,
   log: Log = () => {},
 ): Promise<void> {
@@ -59,7 +59,7 @@ export async function uploadPiAuthToE2bSandbox(
   }
 }
 
-export interface PrepareE2bPiAssetsInput {
+export interface PrepareE2BPiAssetsInput {
   sandbox: any;
   plan: Pick<
     RunPlan,
@@ -78,14 +78,14 @@ export interface PrepareE2bPiAssetsInput {
  * Push the Pi login fallback, Agenta extension, forced skills, and system prompts into an
  * E2B sandbox. Pi is baked into the template — no in-sandbox install needed.
  */
-export async function prepareE2bPiAssets({
+export async function prepareE2BPiAssets({
   sandbox,
   plan,
   log = () => {},
-}: PrepareE2bPiAssetsInput): Promise<void> {
+}: PrepareE2BPiAssetsInput): Promise<void> {
   if (!plan.isPi) return;
 
-  if (shouldUploadOwnLogin(plan)) await uploadPiAuthToE2bSandbox(sandbox, log);
+  if (shouldUploadOwnLogin(plan)) await uploadPiAuthToE2BSandbox(sandbox, log);
   await uploadPiExtensionToSandbox(sandbox, E2B_PI_DIR, log);
   if (plan.skillDirs.length > 0) {
     await uploadSkillsToSandbox(sandbox, E2B_PI_DIR, plan.skillDirs, log);
