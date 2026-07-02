@@ -24,6 +24,12 @@ const format = (value: unknown): string => {
     }
 }
 
+/** Strip a surrounding markdown code fence — backends sometimes wrap an error in ```…```. */
+const stripFence = (value: string): string => {
+    const m = value.trim().match(/^```[\w-]*\n?([\s\S]*?)\n?```$/)
+    return m ? m[1].trim() : value
+}
+
 const userText = (message: UIMessage): string =>
     (message.parts ?? [])
         .filter((p) => (p as {type?: string}).type === "text")
@@ -95,7 +101,7 @@ const ToolStep = ({part}: {part: ToolUIPart}) => {
             </div>
             {input != null ? <Block label="input" value={format(input)} /> : null}
             {errorText !== undefined ? (
-                <Block label="error" value={errorText} danger />
+                <Block label="error" value={stripFence(errorText)} danger />
             ) : output != null ? (
                 <Block label="output" value={format(output)} />
             ) : null}

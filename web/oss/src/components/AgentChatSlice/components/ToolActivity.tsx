@@ -91,6 +91,12 @@ const formatValue = (value: unknown): string => {
     }
 }
 
+/** Strip a surrounding markdown code fence — backends sometimes wrap an error in ```…```. */
+const stripFence = (value: string): string => {
+    const m = value.trim().match(/^```[\w-]*\n?([\s\S]*?)\n?```$/)
+    return m ? m[1].trim() : value
+}
+
 /** One labeled monospace block (input / output / error) in the Build-mode step log. Capped in
  * height with its own scroll so a large payload can't blow up the transcript. */
 const IOBlock = ({label, value, danger}: {label: string; value: string; danger?: boolean}) => (
@@ -193,7 +199,7 @@ const ToolRow = ({
                             <IOBlock label="input" value={formatValue(input)} />
                         ) : null}
                         {errorText !== undefined ? (
-                            <IOBlock label="error" value={errorText} danger />
+                            <IOBlock label="error" value={stripFence(errorText)} danger />
                         ) : state === "output-available" && output != null ? (
                             <IOBlock label="output" value={formatValue(output)} />
                         ) : null}
