@@ -67,6 +67,25 @@ CLAUDE_MODEL_ALIASES: List[str] = [
     "haiku[1m]",
 ]
 
+# OpenCode providers (both anthropic and openai via plain provider key, NO Zen). Ids are
+# ``provider/model``-prefixed; re-probe to refresh (PoC probe: 60+ per provider). Zen is a
+# third-party hosted gateway disabled in the daemon.
+_OPENCODE_PROVIDERS: List[str] = ["anthropic", "openai"]
+
+
+def _opencode_models() -> Dict[str, List[str]]:
+    """Per-provider model ids OpenCode reaches: the catalog entry for each supported provider.
+
+    Ids are ``provider/model``-prefixed to match the ``provider/id`` model_selection contract.
+    Sourced from the PoC probe; re-probe to refresh.
+    """
+    out: Dict[str, List[str]] = {}
+    for provider in _OPENCODE_PROVIDERS:
+        if provider in supported_llm_models:
+            out[provider] = [f"{provider}/{m}" for m in supported_llm_models[provider]]
+    return out
+
+
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
 # ``agenta`` with no slug.)
 _ALL_MODES = ["agenta", "self_managed"]
@@ -131,6 +150,13 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         connection_modes=list(_ALL_MODES),
         model_selection="alias",
         models={"anthropic": list(CLAUDE_MODEL_ALIASES)},
+    ),
+    "opencode": HarnessConnectionCapabilities(
+        providers=list(_OPENCODE_PROVIDERS),
+        deployments=["direct"],
+        connection_modes=list(_ALL_MODES),
+        model_selection="provider/id",
+        models=_opencode_models(),
     ),
 }
 

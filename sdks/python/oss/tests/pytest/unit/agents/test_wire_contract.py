@@ -25,6 +25,7 @@ from agenta.sdk.agents import (
     Endpoint,
     HarnessType,
     Message,
+    OpencodeAgentTemplate,
     PiAgentTemplate,
     ResolvedConnection,
     RunContext,
@@ -176,6 +177,25 @@ def _claude_payload():
     )
     return request_to_wire(
         harness=HarnessType.CLAUDE,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        secrets={"ANTHROPIC_API_KEY": "sk-ant"},
+        trace=None,
+        session_id=None,
+    )
+
+
+def _opencode_payload():
+    config = OpencodeAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="anthropic/claude-sonnet-4-5",
+        custom_tools=[dict(_CUSTOM_TOOL)],
+        tool_callback=_CALLBACK,
+        permission_policy="auto",
+    )
+    return request_to_wire(
+        harness=HarnessType.OPENCODE,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -418,6 +438,19 @@ def test_request_to_wire_claude_matches_golden(golden):
             ),
         }
     ]
+
+
+def test_request_to_wire_opencode_matches_golden(golden):
+    payload = _opencode_payload()
+    assert payload == golden("run_request.opencode.json")
+    # opencode-specific invariants.
+    assert payload["harness"] == "opencode"
+    assert payload["tools"] == []  # no Pi built-ins
+    assert payload["permissionPolicy"] == "auto"
+    assert "systemPrompt" not in payload  # no prompt overrides
+    assert "appendSystemPrompt" not in payload
+    assert "harnessFiles" not in payload  # no settings file needed
+    assert set(payload) <= KNOWN_REQUEST_KEYS
 
 
 def test_request_to_wire_has_no_prompt_key():

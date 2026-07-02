@@ -163,10 +163,9 @@ export function buildRunPlan(
   const harness = request.harness || "pi_core";
   const sandboxId = request.sandbox || sandboxProvider || "local";
 
-  // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude`).
-  // `pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced skills/prompt/policy) both
-  // run on the `pi` ACP agent; `claude` runs on the `claude` ACP agent. `harness` remains the
-  // selected identity for logs, traces, and user-facing errors.
+  // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude` / `opencode`).
+  // `pi_core` and `pi_agenta` both run on the `pi` ACP agent; `claude` and `opencode` each map
+  // to their own ACP agent. `harness` remains the selected identity for logs, traces, and errors.
   const acpAgent =
     harness === "pi_core" || harness === "pi_agenta" ? "pi" : harness;
 
@@ -190,6 +189,7 @@ export function buildRunPlan(
   const isDaytona = sandboxId === "daytona";
 
   const secrets = request.secrets ?? {};
+  // opencode accepts both providers; fall back to OPENAI_API_KEY as the legacy heuristic var.
   const legacyHarnessApiKeyVar =
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];

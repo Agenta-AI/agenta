@@ -27,6 +27,7 @@ from ..dtos import (
     AgentaAgentTemplate,
     ClaudeAgentTemplate,
     HarnessType,
+    OpencodeAgentTemplate,
     PiAgentTemplate,
     SessionConfig,
 )
@@ -145,10 +146,38 @@ class AgentaHarness(Harness):
         )
 
 
+class OpencodeHarness(Harness):
+    """OpenCode's harness adapter. No Pi built-ins; tools go over MCP (same as Claude).
+    planMode is off (the daemon skips ``session/set_mode`` for opencode)."""
+
+    harness_type = HarnessType.OPENCODE
+
+    def _to_harness_config(self, config: SessionConfig) -> OpencodeAgentTemplate:
+        # OpenCode has no Pi built-in tools; drop them with a warning, same as Claude.
+        if config.builtin_names:
+            log.warning(
+                "OpencodeHarness ignores %d built-in tool(s); built-ins are a Pi concept",
+                len(config.builtin_names),
+            )
+        return OpencodeAgentTemplate(
+            agents_md=config.agent.instructions,
+            model=config.agent.model,
+            resolved_connection=config.resolved_connection,
+            tool_specs=list(config.tool_specs),
+            tool_callback=config.tool_callback,
+            mcp_servers=list(config.mcp_servers),
+            skills=list(config.agent.skills),
+            sandbox_permission=config.agent.sandbox_permission,
+            harness_permissions=config.agent.harness_permissions,
+            permission_policy=config.permission_policy,
+        )
+
+
 _HARNESSES: Dict[HarnessType, Type[Harness]] = {
     HarnessType.PI: PiHarness,
     HarnessType.CLAUDE: ClaudeHarness,
     HarnessType.AGENTA: AgentaHarness,
+    HarnessType.OPENCODE: OpencodeHarness,
 }
 
 

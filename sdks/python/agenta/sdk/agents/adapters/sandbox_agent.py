@@ -121,10 +121,10 @@ class SandboxAgentSession(Session):
 
 
 class SandboxAgentBackend(Backend):
-    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, and Agenta."""
+    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, Agenta, OpenCode."""
 
     supported_harnesses = frozenset(
-        {HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA}
+        {HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA, HarnessType.OPENCODE}
     )
 
     def __init__(

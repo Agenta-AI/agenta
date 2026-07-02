@@ -65,7 +65,7 @@ def test_claude_consumes_custom_gateway_bedrock_and_vertex():
 
 def test_capabilities_document_shape():
     doc = harness_capabilities_document()
-    assert set(doc) == {"pi_core", "pi_agenta", "claude"}
+    assert set(doc) == {"pi_core", "pi_agenta", "claude", "opencode"}
     assert doc["claude"]["providers"] == ["anthropic"]
     assert doc["claude"]["model_selection"] == "alias"
     assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS)
@@ -78,11 +78,15 @@ def test_capabilities_document_shape():
         "vertex_ai",
         "vertex",
     ]
+    # opencode: both providers, direct only, provider/id selection, no Zen
+    assert set(doc["opencode"]["providers"]) == {"anthropic", "openai"}
+    assert doc["opencode"]["model_selection"] == "provider/id"
+    assert doc["opencode"]["deployments"] == ["direct"]
 
 
 def test_every_harness_publishes_a_models_map():
     doc = harness_capabilities_document()
-    for harness in ("pi_core", "pi_agenta", "claude"):
+    for harness in ("pi_core", "pi_agenta", "claude", "opencode"):
         assert isinstance(doc[harness]["models"], dict)
         assert doc[harness]["models"], f"{harness} has an empty models map"
 
@@ -121,3 +125,26 @@ def test_models_round_trip_as_a_plain_dict():
             assert isinstance(provider, str)
             assert isinstance(ids, list)
             assert all(isinstance(model_id, str) for model_id in ids)
+
+
+def test_opencode_allows_both_anthropic_and_openai():
+    assert harness_allows_provider("opencode", "anthropic") is True
+    assert harness_allows_provider("opencode", "openai") is True
+    assert harness_allows_provider("opencode", "gemini") is False
+
+
+def test_opencode_models_are_provider_prefixed():
+    models = HARNESS_CONNECTION_CAPABILITIES["opencode"].models
+    assert set(models) == {"anthropic", "openai"}
+    for provider, ids in models.items():
+        assert ids, f"opencode/{provider} has no models"
+        for model_id in ids:
+            assert model_id.startswith(f"{provider}/"), (
+                f"opencode model id '{model_id}' is not provider-prefixed"
+            )
+
+
+def test_opencode_only_direct_deployment():
+    assert harness_allows_deployment("opencode", "direct") is True
+    for deployment in ("custom", "bedrock", "vertex_ai", "azure"):
+        assert harness_allows_deployment("opencode", deployment) is False
