@@ -1,16 +1,18 @@
 import {useCallback, useEffect, useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowAppTypeAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {Tray} from "@phosphor-icons/react"
 import {Button, Empty, Space, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
 import {useRouter} from "next/router"
 
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {useAppsData} from "@/oss/state/app"
 import {getProjectValues} from "@/oss/state/project"
 
@@ -39,6 +41,7 @@ const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSe
     const router = useRouter()
     const {baseAppURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
+    const posthog = usePostHogAg()
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
     const setWorkflowTypeFilter = useSetAtom(workflowTypeFilterAtom)
     const setWorkflowInvokableOnly = useSetAtom(workflowInvokableOnlyAtom)
@@ -87,6 +90,15 @@ const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSe
             },
             onOpenPlayground: (record) => {
                 if (!isArchived) {
+                    const appType = getDefaultStore().get(
+                        workflowAppTypeAtomFamily(record.workflowId),
+                    )
+                    if (appType === "agent") {
+                        posthog?.capture("agent_playground_opened", {
+                            appId: record.workflowId,
+                            source: "menu",
+                        })
+                    }
                     goToPlayground(undefined, {appId: record.workflowId})
                 }
             },
@@ -112,7 +124,7 @@ const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSe
                 }
             },
         }),
-        [router, baseAppURL, isArchived, goToPlayground, openDeleteAppModal, mutateApps],
+        [router, baseAppURL, isArchived, goToPlayground, openDeleteAppModal, mutateApps, posthog],
     )
 
     const columns = useMemo(() => createAppWorkflowColumns(actions, {mode}), [actions, mode])
