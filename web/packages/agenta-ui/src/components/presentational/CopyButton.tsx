@@ -90,7 +90,9 @@ export function CopyButton({
 
         const success = await copyToClipboard(text)
         if (success) {
-            message.success(successMessage)
+            if (successMessage) {
+                message.success(successMessage)
+            }
             setCopied(true)
             onCopy?.()
 

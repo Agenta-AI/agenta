@@ -169,4 +169,9 @@ export function SectionSkeleton({lines = 4}: SectionSkeletonProps) {
     )
 }
 
-export {ConfigAccordionSection, type ConfigAccordionSectionProps} from "./ConfigAccordionSection"
+export {
+    ConfigAccordionSection,
+    type ConfigAccordionSectionProps,
+    sectionIndicatorColor,
+    type SectionIndicatorTone,
+} from "./ConfigAccordionSection"

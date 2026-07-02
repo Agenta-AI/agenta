@@ -49,6 +49,11 @@ export interface CommitMessageInputProps {
     autoFocus?: boolean
     /** Additional class name for the wrapper */
     className?: string
+    /**
+     * When true, the textarea stretches to fill the available height of its (flex) parent
+     * instead of auto-sizing to content. The wrapper must be given a bounded height.
+     */
+    fill?: boolean
 }
 
 export const CommitMessageInput = memo(function CommitMessageInput({
@@ -63,9 +68,10 @@ export const CommitMessageInput = memo(function CommitMessageInput({
     disabled = false,
     autoFocus = false,
     className,
+    fill = false,
 }: CommitMessageInputProps) {
     return (
-        <div className={cn("flex flex-col gap-1", className)}>
+        <div className={cn("flex flex-col gap-1", fill && "min-h-0 flex-1", className)}>
             <Text className="font-medium">
                 {label}
                 {showOptional && (
@@ -77,10 +83,15 @@ export const CommitMessageInput = memo(function CommitMessageInput({
             </Text>
             <TextArea
                 placeholder={placeholder}
-                className="w-full"
+                className={cn(
+                    "w-full",
+                    // Fill the parent height: stretch the show-count wrapper + inner textarea.
+                    fill &&
+                        "min-h-0 flex-1 [&_.ant-input-textarea]:h-full [&_textarea]:!h-full [&_textarea]:!resize-none",
+                )}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                autoSize={{minRows, maxRows}}
+                autoSize={fill ? false : {minRows, maxRows}}
                 showCount
                 maxLength={maxLength}
                 disabled={disabled}

@@ -7,6 +7,7 @@ import {
     ArrowUUpLeft,
     Brain,
     CaretRight,
+    Check,
     Clock,
     Copy,
     Robot,
@@ -205,6 +206,8 @@ const AgentMessage = ({
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
+    const [copied, setCopied] = useState(false)
+    const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
@@ -234,6 +237,16 @@ const AgentMessage = ({
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
         .join("")
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(fullText)
+            setCopied(true)
+            if (copyResetTimeoutRef.current) clearTimeout(copyResetTimeoutRef.current)
+            copyResetTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
+        } catch {
+            setCopied(false)
+        }
+    }
     const sources = message.parts.filter((p) => p.type === "source-url") as {
         type: "source-url"
         url: string
@@ -474,9 +487,9 @@ const AgentMessage = ({
                 items={[
                     {
                         key: "copy",
-                        label: "Copy",
-                        icon: <Copy size={14} />,
-                        onItemClick: () => navigator.clipboard.writeText(fullText),
+                        label: copied ? "Copied" : "Copy",
+                        icon: copied ? <Check size={14} /> : <Copy size={14} />,
+                        onItemClick: handleCopy,
                     },
                     rewindAction,
                     ...(traceId
