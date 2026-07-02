@@ -250,6 +250,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const programmaticScrollRef = useRef(false)
     // Teardown for the in-flight smooth scroll (removes its listeners + fallback timer).
     const pinCleanupRef = useRef<(() => void) | null>(null)
+    // Last observed scrollTop. A content shrink (tool gutter collapsing, reasoning folding) clamps
+    // scrollTop to the new smaller bottom and fires a scroll event that isn't a user gesture; comparing
+    // against this lets onScroll tell a real scroll-DOWN-to-edge from that clamp (which only decreases).
+    const lastScrollTopRef = useRef(0)
+    // rAF handle coalescing the jump-pill measurement (querySelectorAll + getBoundingClientRect) to once
+    // per frame — a fast wheel/drag and every streamed render would otherwise re-measure a dirtied layout.
+    const showJumpRafRef = useRef(0)
 
     // `useChat` pins its `Chat` (and thus this transport) for the life of the session `id`; it is
     // NOT recreated when `entityId` changes (only on an `id` change). So the request builder must
@@ -548,9 +555,26 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // ── DT4 autoscroll: stick to the bottom of the scrollable area while following ──
     // The fill (min-h-full turn group) makes "question at top" the scroll bottom for a short answer
     // and the answer's end the bottom for a long one, so scrollHeight is the right target (+ pb-6 gap).
+    // Only writes when not already pinned: the ResizeObserver (below) and the follow effect both pin on
+    // the same streamed growth, so the guard drops the redundant write (and the scroll event it fires).
     const scrollToBottom = useCallback(() => {
         const el = scrollRef.current
-        if (el) el.scrollTop = el.scrollHeight
+        if (!el) return
+        const target = el.scrollHeight - el.clientHeight
+        if (el.scrollTop < target - 0.5) el.scrollTop = target
+    }, [])
+
+    // Recompute jump-pill visibility, coalesced to one rAF per frame. The measurement (atLiveEdge →
+    // querySelectorAll + getBoundingClientRect) is display-only, so a one-frame lag is invisible; the
+    // correctness-critical follow decision (stickRef) and SC-3 anchor stay synchronous in onScroll.
+    const scheduleShowJump = useCallback(() => {
+        if (showJumpRafRef.current) return
+        showJumpRafRef.current = requestAnimationFrame(() => {
+            showJumpRafRef.current = 0
+            const el = scrollRef.current
+            if (!el) return
+            setShowJump(!stickRef.current && !atLiveEdge(el))
+        })
     }, [])
 
     // Smoothly scroll the log to `target` (the SC-1 pin / jump-to-latest). Uses the browser's NATIVE
@@ -602,7 +626,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     }, [])
 
     // Stop any in-flight pin animation on unmount (tab close / revision swap).
-    useEffect(() => () => pinCleanupRef.current?.(), [])
+    useEffect(
+        () => () => {
+            pinCleanupRef.current?.()
+            if (showJumpRafRef.current) cancelAnimationFrame(showJumpRafRef.current)
+        },
+        [],
+    )
 
     // After each commit, mark on-screen messages as seen so they don't re-animate on later renders
     // (e.g. streaming tokens). Done in an effect, not during render, so StrictMode's double invoke
@@ -620,15 +650,25 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const onScroll = useCallback(() => {
         const el = scrollRef.current
         if (!el) return
+        // Track scrollTop even for our own pins (recorded, then ignored) so the next real event has an
+        // accurate baseline to compare against.
+        const prevTop = lastScrollTopRef.current
+        lastScrollTopRef.current = el.scrollTop
         // Ignore the scroll event our own pin produced — only a real user scroll changes follow state.
         if (programmaticScrollRef.current) return
         // Follow ONLY when at the very bottom of the scrollable area; a partial scroll must not enable
-        // it (that was the yank). The jump pill instead tracks whether the real latest message is in view.
-        stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
-        setShowJump(!atLiveEdge(el))
-        // Remember where the reader is parked so SC-3 can hold it through layout changes above.
+        // it (that was the yank). Re-arm follow ONLY when the user actively scrolls DOWN to the edge (or
+        // is already following): a content shrink (tool gutter collapsing to "Used N tools", reasoning
+        // folding) clamps scrollTop to the new smaller bottom and fires a scroll event, but a clamp only
+        // ever DECREASES scrollTop, so `> prevTop` rejects it — otherwise the next token would snap the
+        // min-h-full active turn to the top (reported as the chat "jumping to the top" mid-stream).
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+        stickRef.current = atBottom && (stickRef.current || el.scrollTop > prevTop)
+        // Anchor is correctness-critical for SC-3 (the RO reads it next resize) → capture synchronously.
         if (!stickRef.current) recordAnchor()
-    }, [recordAnchor])
+        // Pill is display-only → coalesce its costly measurement to one rAF/frame.
+        scheduleShowJump()
+    }, [recordAnchor, scheduleShowJump])
 
     const jumpToLatest = useCallback(() => {
         const el = scrollRef.current
@@ -655,7 +695,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         const onResize = () => {
             if (programmaticScrollRef.current) return
             if (stickRef.current) {
-                el.scrollTop = el.scrollHeight
+                scrollToBottom() // guarded: no-op if the follow effect already pinned this growth
                 return
             }
             const a = anchorRef.current
@@ -686,7 +726,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         const ro = new ResizeObserver(onResize)
         el.querySelectorAll("[data-mid]").forEach((w) => ro.observe(w))
         return () => ro.disconnect()
-    }, [messages.length])
+    }, [messages.length, scrollToBottom])
 
     // SC-1 (submit) / SC-2 (restore): scroll the log to the bottom, once, when armed. With the active
     // turn reserving a viewport (min-h-full + top padding to clear the fade), "bottom" shows the new
@@ -715,11 +755,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     // Keep the jump pill honest as content streams/settles: show it when the real latest message is
     // below the fold (e.g. a long answer growing past the viewport while parked at the top), and hide
-    // it once that message is visible or while we're following.
-    useLayoutEffect(() => {
-        const el = scrollRef.current
-        if (el) setShowJump(!stickRef.current && !atLiveEdge(el))
-    }, [messages, status])
+    // it once that message is visible or while we're following. Coalesced (not a sync layout read per
+    // streamed render) — the pill is display-only, so one frame of lag is imperceptible.
+    useEffect(() => {
+        scheduleShowJump()
+    }, [messages, status, scheduleShowJump])
 
     // SC-4: interaction is intent, not just scrolling. While following, a real text selection inside
     // the transcript — or opening a link in it — means the reader is engaging here, so release follow
