@@ -4,6 +4,7 @@ import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
+    buildTurnCapture,
     playgroundController,
 } from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
@@ -55,6 +56,7 @@ import {
     setSessionStatusAtom,
     stampMessagesCreatedAtAtom,
 } from "./state/sessions"
+import {captureTurnRequestAtom} from "./state/turnCaptures"
 import {turnInspectorAtom} from "./state/turnInspector"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
@@ -256,6 +258,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const entityIdRef = useRef(entityId)
     entityIdRef.current = entityId
 
+    // Turn Inspector capture write, read via ref so the transport `useMemo` doesn't depend on it.
+    const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
+    const captureRef = useRef(captureTurnRequest)
+    captureRef.current = captureTurnRequest
+
     // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
     // placeholder that `prepareSendMessagesRequest` overrides per request.
     const transport = useMemo(
@@ -271,6 +278,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                             "This agent workflow has no invocation URL — it can’t be run yet.",
                         )
                     }
+                    captureRef.current(buildTurnCapture(req, generateId(), Date.now()))
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
             }),
