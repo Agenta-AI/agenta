@@ -63,17 +63,19 @@ codex runtime; we are teaching the Agenta plumbing to *select* one the daemon al
 The `vibes/sessions/demo` PoC already ran **codex green across local/daytona/modal/e2b**
 (full 16-cell harness×sandbox matrix), so the answers below are observed, not theoretical.
 
-1. **Credential mode — BOTH managed key AND self-managed `auth.json`, in v1.** Mirror the
-   Claude Code two-mode shape:
-   - **Managed (`credentialMode="env"`)**: Agenta injects `OPENAI_API_KEY` (resolved server-side).
-   - **Self-managed (`runtime_provided`)**: the user's own codex login, delivered as
-     `~/.codex/auth.json` = `{"OPENAI_API_KEY": "..."}` — the same fallback-login upload pattern
-     Pi/Claude use (`shouldUploadOwnLogin`).
+1. **Credential mode — BOTH managed key AND self-managed `auth.json`, in v1.** Both modes are
+   implemented via `prepareLocalCodexAssets` (local) and `prepareDaytonaCodexAssets` (remote).
+   - **Managed (`credentialMode="env"`)**: Agenta resolves the credential from the vault. The
+     source key is `OPENAI_API_KEY` (preferred) or `CODEX_API_KEY` (fallback). The runner writes
+     `~/.codex/auth.json = {"OPENAI_API_KEY": "<value>"}` before the daemon starts — the auth.json
+     field is always `OPENAI_API_KEY` regardless of which env var supplied the value.
+   - **Self-managed (`runtime_provided`)**: the user's own `~/.codex/auth.json` is already present
+     on the host. For local runs the daemon inherits HOME and reads it directly; `prepareLocalCodexAssets`
+     verifies the file exists and warns if absent. The `shouldUploadOwnLogin` gate controls both modes.
    **GOTCHA (PoC, applies to BOTH modes):** the codex CLI reads `~/.codex/auth.json` as a FILE,
    not only the env var — so even the managed path must WRITE the auth file (env alone is not
-   enough). The daemon recognizes `OPENAI_API_KEY` / `CODEX_API_KEY` and a `.codex/auth.json`
-   `access_token`. Codex runs with mode `agent-full-access`. Add `CODEX_API_KEY` to
-   `KNOWN_PROVIDER_ENV_VARS` clear-set if adopted; `OPENAI_API_KEY` is already there.
+   enough). `CODEX_API_KEY` is in `KNOWN_PROVIDER_ENV_VARS` as a clear-set entry; it is never
+   written to auth.json — only used as a fallback source for the managed credential value.
 2. **Static permission/config files — skip in v1, but expect to follow the Claude model next.**
    The probe did not surface a required codex config file for a basic managed run; defer
    until the probe (T0.1) shows codex gating tools at runtime. When we DO add permissions, mirror

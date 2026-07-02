@@ -63,8 +63,8 @@ import { applyModel } from "./sandbox_agent/model.ts";
 import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
+  prepareLocalCodexAssets,
   prepareLocalPiAssets,
-  writeCodexAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
 import { attachPermissionResponder } from "./sandbox_agent/permissions.ts";
 import {
@@ -355,10 +355,9 @@ export async function runSandboxAgent(
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
-  // Codex reads ~/.codex/auth.json as a FILE (env alone is insufficient); write it for local runs.
+  // Codex reads ~/.codex/auth.json as a FILE (env alone is insufficient); provision it for local runs.
   if (plan.acpAgent === "codex" && !plan.isDaytona) {
-    const key = env.OPENAI_API_KEY ?? plan.secrets.OPENAI_API_KEY;
-    if (key) writeCodexAuthFile(key, logger);
+    prepareLocalCodexAssets(plan, logger);
   }
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);

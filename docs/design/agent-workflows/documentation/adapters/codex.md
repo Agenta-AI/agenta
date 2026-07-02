@@ -24,16 +24,20 @@ variable. Environment injection alone is insufficient — the file must be writt
 
 Two credential modes are supported:
 
-- **Managed (`credentialMode="env"`)**: Agenta injects `OPENAI_API_KEY` from the project vault.
-  The runner writes `~/.codex/auth.json = {"OPENAI_API_KEY": "<key>"}` before the daemon starts
-  so the codex CLI finds it as a file. Only `OPENAI_API_KEY` reaches the daemon environment;
-  no other provider key leaks (clear-then-apply, Security rule 5).
+- **Managed (`credentialMode="env"`)**: Agenta injects the credential value from the project
+  vault. `prepareLocalCodexAssets` writes `~/.codex/auth.json = {"OPENAI_API_KEY": "<key>"}`
+  before the daemon starts. The source key is `OPENAI_API_KEY` (preferred) or `CODEX_API_KEY`
+  (fallback); the auth.json field is always `OPENAI_API_KEY` — that is what the codex CLI reads.
+  Only the resolved key reaches the daemon environment; no other provider key leaks
+  (clear-then-apply, Security rule 5).
 
 - **Self-managed (`credentialMode="runtime_provided"`)**: The user's own `~/.codex/auth.json`
-  is already present on the host. The daemon inherits the sidecar's HOME and reads it directly.
-  `shouldUploadOwnLogin` returns `true` for `runtime_provided`, matching the Pi/Claude pattern.
+  is already present on the host. The daemon inherits the sidecar's HOME and reads it directly;
+  `prepareLocalCodexAssets` verifies the file exists and logs a warning when it does not.
 
-`CODEX_API_KEY` is included in `KNOWN_PROVIDER_ENV_VARS` so it is cleared on managed runs.
+`CODEX_API_KEY` appears in `KNOWN_PROVIDER_ENV_VARS` as a defensive clear-set entry (so no
+inherited key leaks on managed runs). It is never written to auth.json — only used as a fallback
+source when `OPENAI_API_KEY` is absent in the managed path.
 
 ## Tools over MCP
 

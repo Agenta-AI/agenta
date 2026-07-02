@@ -70,7 +70,7 @@ def test_capabilities_document_shape():
     assert doc["claude"]["model_selection"] == "alias"
     assert doc["codex"]["providers"] == ["openai"]
     assert doc["codex"]["deployments"] == ["direct"]
-    assert doc["codex"]["model_selection"] == "provider/id"
+    assert doc["codex"]["model_selection"] == "id"
     assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS)
     assert doc["pi_core"]["connection_modes"] == ["agenta", "self_managed"]
     assert doc["pi_core"]["deployments"] == ["direct"]

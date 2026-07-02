@@ -267,8 +267,9 @@ export async function uploadSkillsToSandbox(
 
 /**
  * Write `~/.codex/auth.json` for a managed codex run so the codex CLI can read its key
- * as a file (env alone is insufficient). Both credential modes call this; self-managed runs
- * whose key is already on disk are updated so the managed key wins.
+ * as a file (env alone is insufficient). The field name is always `OPENAI_API_KEY`; the
+ * source may be `OPENAI_API_KEY` (preferred) or `CODEX_API_KEY` (fallback) — both resolve
+ * to the same file field.
  */
 export function writeCodexAuthFile(apiKey: string, log: Log = () => {}): void {
   try {
@@ -278,6 +279,35 @@ export function writeCodexAuthFile(apiKey: string, log: Log = () => {}): void {
   } catch (err) {
     log(`codex auth.json write skipped: ${(err as Error).message}`);
   }
+}
+
+/**
+ * Prepare local codex credentials for both modes.
+ *
+ * Managed (`credentialMode="env"`): writes `~/.codex/auth.json` from the resolved key
+ * (`OPENAI_API_KEY` preferred, `CODEX_API_KEY` as fallback source; field name is always
+ * `OPENAI_API_KEY`).
+ * Self-managed (`runtime_provided`): the user's own `~/.codex/auth.json` already lives in
+ * homedir and the daemon inherits HOME from the sidecar, so the file is found without a
+ * copy. This function verifies it is present and logs a warning when it is not so a missing
+ * login surfaces before the run fails inside the daemon.
+ */
+export function prepareLocalCodexAssets(
+  plan: { credentialMode?: string; hasApiKey: boolean; secrets: Record<string, string> },
+  log: Log = () => {},
+): void {
+  const ownLogin =
+    plan.credentialMode === "runtime_provided" ||
+    (!plan.credentialMode && !plan.hasApiKey);
+  if (ownLogin) {
+    const authPath = join(homedir(), ".codex", "auth.json");
+    if (!existsSync(authPath)) {
+      log(`codex self-managed: ~/.codex/auth.json not found; run may fail`);
+    }
+    return;
+  }
+  const key = plan.secrets.OPENAI_API_KEY ?? plan.secrets.CODEX_API_KEY;
+  if (key) writeCodexAuthFile(key, log);
 }
 
 /** Recursively upload a host directory tree into a sandbox path via the FS API. */

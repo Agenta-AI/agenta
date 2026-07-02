@@ -106,8 +106,8 @@ class HarnessConnectionCapabilities(BaseModel):
       deployments.
     - ``connection_modes``: which :class:`Connection` ``mode`` values it supports
       (``["agenta", "self_managed"]``).
-    - ``model_selection``: how a model is named for the harness (``"provider/id"`` exact for Pi,
-      ``"alias"`` for Claude).
+    - ``model_selection``: how a model is named for the harness (``"provider/id"`` for multi-provider
+      Pi/OpenCode, ``"alias"`` for Claude, ``"id"`` bare for single-provider Codex).
     - ``models``: the selectable models per provider family. Pi publishes each vault provider's
       catalog ids (provider-prefixed, e.g. ``openai/gpt-...``); Claude publishes its alias set
       under ``anthropic``. The frontend renders the harness-filtered model picker straight from
@@ -147,7 +147,7 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         providers=["openai"],
         deployments=["direct"],
         connection_modes=list(_ALL_MODES),
-        model_selection="provider/id",
+        model_selection="id",
         models={"openai": list(CODEX_MODEL_IDS)},
     ),
 }
