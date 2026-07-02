@@ -435,7 +435,7 @@ const AgentMessage = ({
         )
 
     // Control toolbar — an X `Actions` row that sits in a reserved lane BELOW the bubble (the
-    // `pb-7` on the row), so it never overlays the last content line and never reaches the next
+    // `pb-10` on the row), so it never overlays the last content line and never reaches the next
     // turn. The lane is always present (stable height), so revealing it only fades opacity — no
     // layout shift either way (the scroll engineering is sensitive to hover-driven reflow).
     // `pointer-events-none` while hidden keeps the invisible buttons unclickable. `Actions`
@@ -504,7 +504,7 @@ const AgentMessage = ({
     // the left, user bubbles the right, neither spans the full column.
     return (
         <div
-            className={`group relative flex items-start pb-7 ${isUser ? "justify-end" : "justify-start"}`}
+            className={`group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
         >
             <Bubble<React.ReactNode>
                 placement={isUser ? "end" : "start"}
