@@ -18,6 +18,7 @@ import type {
     CommitSubmitResult,
     CommitSubmitParams,
     CommitCreateFieldsConfig,
+    CommitDeployOption,
 } from "../../types"
 import {
     commitModalOpenAtom,
@@ -70,6 +71,11 @@ export interface EntityCommitModalProps {
     successMessage?: string | null
     /** Custom confirm button label */
     submitLabel?: string
+    /**
+     * When provided, the footer renders a split "Commit" button. The main action commits;
+     * each option commits and then deploys the new revision to that environment.
+     */
+    commitDeployOptions?: CommitDeployOption[]
     /** Optional mode selector shown in content */
     commitModes?: CommitModeOption[]
     /** Default selected mode */
@@ -109,6 +115,7 @@ export interface EntityCommitModalProps {
 }
 
 const SLUG_CONFLICT_MESSAGE = "A resource with this slug already exists in this project."
+const AGENT_TWO_PANE_ROOT_CLASS = "agenta-agent-commit-two-pane"
 
 function getErrorStatus(error: unknown): number | undefined {
     return (error as {response?: {status?: number}})?.response?.status
@@ -152,6 +159,7 @@ export function EntityCommitModal({
     onAfterSuccess,
     successMessage = "Changes committed successfully",
     submitLabel,
+    commitDeployOptions,
     commitModes,
     defaultCommitMode,
     renderModeContent,
@@ -227,6 +235,8 @@ export function EntityCommitModal({
 
     // Check if diff data is available for dynamic width
     const hasDiffData = context?.diffData?.original && context?.diffData?.modified
+    // Agent commits render a full-bleed two-panel layout (title + footer live inside the body).
+    const isAgentTwoPane = !!hasDiffData && !!context?.sections?.length
 
     // Initialize controlled modal state without toggling global modal open state.
     // Uses a ref to track the last synced entity to avoid re-triggering from
@@ -373,128 +383,155 @@ export function EntityCommitModal({
               })
             : true)
 
-    const handleConfirm = useCallback(async () => {
-        if (onSubmit) {
-            if (!currentEntity) return
+    const handleConfirm = useCallback(
+        async (deployEnvironments?: string[], deployMessage?: string) => {
+            if (onSubmit) {
+                if (!currentEntity) return
 
-            setCommitLoading(true)
-            setCommitError(null)
-            setSlugFieldError(null)
+                setCommitLoading(true)
+                setCommitError(null)
+                setSlugFieldError(null)
 
-            try {
-                const result = await onSubmit({
-                    entity: currentEntity,
-                    message: commitMessage.trim() || null,
-                    mode: selectedMode,
-                    entityName: entityName || undefined,
-                    entitySlug: entitySlug || undefined,
-                })
+                try {
+                    const result = await onSubmit({
+                        entity: currentEntity,
+                        message: commitMessage.trim() || null,
+                        mode: selectedMode,
+                        entityName: entityName || undefined,
+                        entitySlug: entitySlug || undefined,
+                        deployEnvironments,
+                        deployMessage,
+                    })
 
-                if (!result.success) {
-                    const isSlugConflict = result.slugConflict || result.errorStatus === 409
-                    if (isSlugConflict) {
+                    if (!result.success) {
+                        const isSlugConflict = result.slugConflict || result.errorStatus === 409
+                        if (isSlugConflict) {
+                            setSlugFieldError(SLUG_CONFLICT_MESSAGE)
+                            setSlugEditing(true)
+                        }
+                        setCommitError(
+                            new Error(extractApiErrorMessage(result.error || "Commit failed")),
+                        )
+                        setCommitLoading(false)
+                        return
+                    }
+
+                    if (isExternallyControlled) {
+                        onClose?.()
+                    } else {
+                        closeModal()
+                    }
+
+                    if (successMessage) {
+                        message.success(successMessage)
+                    }
+
+                    handleSuccess({newRevisionId: result.newRevisionId})
+                    await onAfterSuccess?.(result)
+                    return
+                } catch (error) {
+                    const msg = extractApiErrorMessage(error)
+                    if (getErrorStatus(error) === 409) {
                         setSlugFieldError(SLUG_CONFLICT_MESSAGE)
                         setSlugEditing(true)
                     }
                     setCommitError(
-                        new Error(extractApiErrorMessage(result.error || "Commit failed")),
+                        error instanceof Error
+                            ? Object.assign(error, {message: msg})
+                            : new Error(msg),
                     )
                     setCommitLoading(false)
                     return
                 }
+            }
 
+            const result = await executeCommit()
+            if (result.success) {
                 if (isExternallyControlled) {
                     onClose?.()
-                } else {
-                    closeModal()
                 }
-
                 if (successMessage) {
                     message.success(successMessage)
                 }
+                handleSuccess({})
+            }
+        },
+        [
+            onSubmit,
+            currentEntity,
+            entityName,
+            entitySlug,
+            setCommitLoading,
+            setCommitError,
+            setSlugFieldError,
+            setSlugEditing,
+            commitMessage,
+            selectedMode,
+            isExternallyControlled,
+            onClose,
+            closeModal,
+            resetModal,
+            successMessage,
+            handleSuccess,
+            onAfterSuccess,
+            executeCommit,
+        ],
+    )
 
-                handleSuccess({newRevisionId: result.newRevisionId})
-                await onAfterSuccess?.(result)
-                return
-            } catch (error) {
-                const msg = extractApiErrorMessage(error)
-                if (getErrorStatus(error) === 409) {
-                    setSlugFieldError(SLUG_CONFLICT_MESSAGE)
-                    setSlugEditing(true)
-                }
-                setCommitError(
-                    error instanceof Error ? Object.assign(error, {message: msg}) : new Error(msg),
-                )
-                setCommitLoading(false)
-                return
-            }
-        }
-
-        const result = await executeCommit()
-        if (result.success) {
-            if (isExternallyControlled) {
-                onClose?.()
-            }
-            if (successMessage) {
-                message.success(successMessage)
-            }
-            handleSuccess({})
-        }
-    }, [
-        onSubmit,
-        currentEntity,
-        entityName,
-        entitySlug,
-        setCommitLoading,
-        setCommitError,
-        setSlugFieldError,
-        setSlugEditing,
-        commitMessage,
-        selectedMode,
-        isExternallyControlled,
-        onClose,
-        closeModal,
-        resetModal,
-        successMessage,
-        handleSuccess,
-        onAfterSuccess,
-        executeCommit,
-    ])
+    const footerNode = (
+        <EntityCommitFooter
+            onClose={handleClose}
+            onConfirm={handleConfirm}
+            isLoading={isLoading}
+            canProceed={canProceedWithExtension}
+            confirmLabel={submitLabel ?? actionLabel}
+            deployOptions={commitDeployOptions}
+        />
+    )
 
     return (
-        <EnhancedModal
-            open={isOpen}
-            onCancel={handleClose}
-            afterClose={handleAfterClose}
-            title={<EntityCommitTitle />}
-            footer={
-                <EntityCommitFooter
-                    onClose={handleClose}
-                    onConfirm={handleConfirm}
-                    isLoading={isLoading}
-                    canProceed={canProceedWithExtension}
-                    confirmLabel={submitLabel ?? actionLabel}
+        <>
+            {/* Scoped override: zero antd's container padding for the agent two-pane layout only.
+                This antd build puts the padding on `.ant-modal-container` (not `.ant-modal-content`). */}
+            {isAgentTwoPane ? (
+                <style>{`.${AGENT_TWO_PANE_ROOT_CLASS} .ant-modal-container{padding:0 !important;overflow:hidden;}`}</style>
+            ) : null}
+            <EnhancedModal
+                open={isOpen}
+                onCancel={handleClose}
+                afterClose={handleAfterClose}
+                rootClassName={isAgentTwoPane ? AGENT_TWO_PANE_ROOT_CLASS : undefined}
+                // Agent commits render title + footer inside the body (two full-bleed panels).
+                title={isAgentTwoPane ? null : <EntityCommitTitle />}
+                footer={isAgentTwoPane ? null : footerNode}
+                width={hasDiffData ? 900 : 520}
+                styles={
+                    isAgentTwoPane
+                        ? {
+                              container: {padding: 0, overflow: "hidden"},
+                              body: {padding: 0, overflow: "hidden"},
+                          }
+                        : {
+                              body: {
+                                  maxHeight: "calc(80vh - 110px)",
+                                  overflow: "hidden",
+                                  display: "flex",
+                                  flexDirection: "column",
+                              },
+                          }
+                }
+            >
+                <EntityCommitContent
+                    commitModes={commitModes}
+                    selectedMode={selectedMode}
+                    onModeChange={setSelectedMode}
+                    extraContent={renderModeContent?.({mode: selectedMode})}
+                    modeLabel={modeLabel}
+                    entityNameEditable={isEntityNameEditable}
+                    entityNameLabel={resolvedEntityNameLabel}
+                    footerSlot={isAgentTwoPane ? footerNode : undefined}
                 />
-            }
-            width={hasDiffData ? 900 : 520}
-            styles={{
-                body: {
-                    maxHeight: "calc(80vh - 110px)",
-                    overflow: "hidden",
-                    display: "flex",
-                    flexDirection: "column",
-                },
-            }}
-        >
-            <EntityCommitContent
-                commitModes={commitModes}
-                selectedMode={selectedMode}
-                onModeChange={setSelectedMode}
-                extraContent={renderModeContent?.({mode: selectedMode})}
-                modeLabel={modeLabel}
-                entityNameEditable={isEntityNameEditable}
-                entityNameLabel={resolvedEntityNameLabel}
-            />
-        </EnhancedModal>
+            </EnhancedModal>
+        </>
     )
 }

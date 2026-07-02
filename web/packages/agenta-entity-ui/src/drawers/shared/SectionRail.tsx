@@ -51,14 +51,14 @@ export function SectionRail({
                             block
                             disabled={disabled}
                             onClick={() => onChange(item.value)}
-                            className={`!h-8 !px-2.5 !text-xs ${
+                            className={`!h-8 !rounded-md !px-2.5 !text-xs transition-colors ${
                                 item.count != null
                                     ? "!flex !items-center !justify-between"
                                     : "!justify-start"
                             } ${
                                 active
                                     ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
-                                    : "!text-[var(--ag-colorTextSecondary)]"
+                                    : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
                             }`}
                         >
                             <span className="truncate">{item.label}</span>
@@ -69,7 +69,7 @@ export function SectionRail({
                     )
                 })}
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorder)] pl-4">
                 {children}
             </div>
         </div>

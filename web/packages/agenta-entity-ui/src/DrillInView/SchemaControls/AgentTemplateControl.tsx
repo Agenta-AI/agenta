@@ -24,8 +24,14 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {workflowBuildKitEnabledAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    agentItemIdentity,
+    classifyAgentChanges,
+    stableStringify,
+} from "@agenta/entities/workflow/commitDiff"
+import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
+import {ConfigAccordionSection, sectionIndicatorColor} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -49,14 +55,15 @@ import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
-import {ITEM_KINDS} from "./agentTemplate/itemKinds"
-import {InstructionsFileRow} from "./agentTemplate/ItemRow"
+import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
+import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {ToolManagementList} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
 import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
+import {modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
@@ -67,6 +74,21 @@ import {
     useAgentTriggers,
 } from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
+
+// Tooltip copy for the config-panel draft/validation indicators.
+const INVALID_ITEM_TIP: Record<ItemKind, string> = {
+    tool: "This tool is missing its name.",
+    mcp: "This server is missing a required field (name, command, or URL).",
+    skill: "This skill is missing its name.",
+}
+const DRAFT_TIP: Record<string, string> = {
+    "model-harness": "Unsaved model or harness changes.",
+    instructions: "Unsaved instruction changes.",
+    tools: "Unsaved tool changes.",
+    mcp: "Unsaved MCP server changes.",
+    skills: "Unsaved skill changes.",
+    advanced: "Unsaved advanced-setting changes.",
+}
 
 export interface AgentTemplateControlProps {
     schema?: SchemaProperty | null
@@ -295,6 +317,119 @@ export function AgentTemplateControl({
         [props],
     )
 
+    // ── Draft + validation indicators ─────────────────────────────────────────
+    // Committed (server) template to diff the live config against. Null for a never-saved
+    // draft — then only validation (not draft) indicators show.
+    const committedConfig = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.serverConfiguration(revisionId ?? ""),
+            [revisionId],
+        ),
+    ) as Record<string, unknown> | null
+    const committed = useMemo(() => {
+        if (!committedConfig) return null
+        const agent = committedConfig.agent
+        const template =
+            agent && typeof agent === "object" && !Array.isArray(agent) ? agent : committedConfig
+        // Strip agenta metadata so it compares like-for-like against the live value.
+        return stripAgentaMetadataDeep(template) as Record<string, unknown>
+    }, [committedConfig])
+
+    // Header rollup: which sections changed vs the commit. Reuses the commit-diff classifier so
+    // the grouping matches (model+harness together; advanced = runner/sandbox/params).
+    const draftSectionKeys = useMemo(() => {
+        const keys = new Set<string>()
+        if (!committed) return keys
+        const map: Record<string, string> = {
+            model: "model-harness",
+            instructions: "instructions",
+            tools: "tools",
+            mcps: "mcp",
+            skills: "skills",
+            params: "advanced",
+        }
+        const local = stripAgentaMetadataDeep(config) as Record<string, unknown>
+        for (const s of classifyAgentChanges(local, committed)) {
+            const k = map[s.id]
+            if (k) keys.add(k)
+        }
+        return keys
+    }, [config, committed])
+
+    // Per-item draft: canonical identity → stable-stringified committed value, so a row reads as
+    // "new" (identity absent from the baseline) or "edited" (present but the value differs). The
+    // identity is collision-free (see agentItemIdentity) so id-less builtin/reference tools and
+    // unnamed items don't collapse onto one map key.
+    const baseMaps = useMemo(() => {
+        const build = (list: unknown, kind: ItemKind) =>
+            new Map(
+                (Array.isArray(list) ? list : []).map(
+                    (e, i) => [agentItemIdentity(kind, e, i), stableStringify(e)] as const,
+                ),
+            )
+        return {
+            tool: build(committed?.tools, "tool"),
+            mcp: build(committed?.mcps, "mcp"),
+            skill: build(committed?.skills, "skill"),
+        }
+    }, [committed])
+
+    const statusForKind = useCallback(
+        (kind: ItemKind) =>
+            (item: unknown, index: number): ItemRowStatus | undefined => {
+                if (ITEM_KINDS[kind].draftInvalid(item as Record<string, unknown>)) {
+                    return {tone: "invalid", label: "Incomplete", tooltip: INVALID_ITEM_TIP[kind]}
+                }
+                if (!committed) return undefined
+                const prev = baseMaps[kind].get(agentItemIdentity(kind, item, index))
+                if (prev === undefined)
+                    return {tone: "new", label: "New", tooltip: "Added since the last commit."}
+                if (prev !== stableStringify(stripAgentaMetadataDeep(item)))
+                    return {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+                return undefined
+            },
+        [committed, baseMaps],
+    )
+    const toolStatusFor = useMemo(() => statusForKind("tool"), [statusForKind])
+    const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
+    const skillStatusFor = useMemo(() => statusForKind("skill"), [statusForKind])
+
+    // Section headers: a blocking problem (invalid) outranks unsaved edits (draft).
+    const sectionInvalidTip = (key: string): string | null => {
+        if (key === "model-harness")
+            return mh.hasModelOrHarness && !modelIdFromConfig(config.llm)
+                ? "No model is selected."
+                : null
+        if (key === "tools")
+            return tools.some((t) => ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>))
+                ? "A tool is missing its name."
+                : null
+        if (key === "mcp")
+            return mcpServers.some((m) => ITEM_KINDS.mcp.draftInvalid(m as Record<string, unknown>))
+                ? "An MCP server is missing a required field."
+                : null
+        if (key === "skills")
+            return skills.some((s) => ITEM_KINDS.skill.draftInvalid(s as Record<string, unknown>))
+                ? "A skill is missing its name."
+                : null
+        return null
+    }
+    const headerIndicator = (
+        key: string,
+    ): {tone: "draft" | "invalid" | "incomplete"; tooltip?: string} | undefined => {
+        const invalid = sectionInvalidTip(key)
+        if (invalid) return {tone: "invalid", tooltip: invalid}
+        if (draftSectionKeys.has(key))
+            return {
+                tone: "draft",
+                tooltip: DRAFT_TIP[key] ?? "Unsaved changes — not yet committed.",
+            }
+        return undefined
+    }
+    const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
+        ? {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+        : undefined
+
     // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
     // drive the same add flow.
     const toolSelectorProps = {
@@ -327,6 +462,7 @@ export function AgentTemplateControl({
             icon: <Cpu size={16} />,
             title: "Model & harness",
             summary: mh.modelSummary,
+            indicator: headerIndicator("model-harness"),
             defaultOpen: true,
             onOpen: () => openSectionDrawer("model-harness"),
             content: mh.modelHarnessDrawerBody,
@@ -337,6 +473,7 @@ export function AgentTemplateControl({
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
             summary: countSummary(1, "file"),
+            indicator: headerIndicator("instructions"),
             // The + is inert until the backend stores multiple instruction files; the section is
             // already a list so it lights up with no rework when that lands.
             extra: !disabled ? (
@@ -358,6 +495,7 @@ export function AgentTemplateControl({
                         filename="AGENTS.md"
                         content={agentsMd ?? ""}
                         onOpen={() => openInstruction("AGENTS.md", agentsMd ?? "")}
+                        status={instructionsStatus}
                     />
                 </div>
             ),
@@ -367,6 +505,7 @@ export function AgentTemplateControl({
             icon: <Wrench size={16} />,
             title: fieldTitle("tools", "Tools"),
             summary: countSummary(tools.length, "tool"),
+            indicator: headerIndicator("tools"),
             extra: !disabled ? (
                 <AgentToolSelectorPopover
                     {...toolSelectorProps}
@@ -391,6 +530,7 @@ export function AgentTemplateControl({
                     removeItem={removeItem}
                     closeEditor={closeEditor}
                     disabled={disabled}
+                    statusFor={toolStatusFor}
                     onOpenIntegration={gatewayTools?.enabled ? openIntegration : undefined}
                     // The empty-state add is the same popover as the header +.
                     emptyAdd={
@@ -407,6 +547,7 @@ export function AgentTemplateControl({
             icon: <Plugs size={16} />,
             title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
+            indicator: headerIndicator("mcp"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
             content: (
@@ -417,6 +558,7 @@ export function AgentTemplateControl({
                     removeItem={removeItem}
                     closeEditor={closeEditor}
                     disabled={disabled}
+                    statusFor={mcpStatusFor}
                     emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
                 />
             ),
@@ -426,6 +568,7 @@ export function AgentTemplateControl({
             icon: <GraduationCap size={16} />,
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
+            indicator: headerIndicator("skills"),
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
             content: (
@@ -436,6 +579,7 @@ export function AgentTemplateControl({
                     removeItem={removeItem}
                     closeEditor={closeEditor}
                     disabled={disabled}
+                    statusFor={skillStatusFor}
                     emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
                 />
             ),
@@ -453,6 +597,7 @@ export function AgentTemplateControl({
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
+            indicator: headerIndicator("advanced"),
             defaultOpen: false,
             summary: mh.advancedSummary,
             onOpen: () => openSectionDrawer("advanced"),
@@ -465,6 +610,7 @@ export function AgentTemplateControl({
         title: React.ReactNode
         summary?: React.ReactNode
         extra?: React.ReactNode
+        indicator?: {tone: "draft" | "invalid" | "incomplete"; tooltip?: string}
         defaultOpen?: boolean
         onOpen?: () => void
         content: React.ReactNode
@@ -487,7 +633,30 @@ export function AgentTemplateControl({
                         key: s.key,
                         label: (
                             <span className="inline-flex items-center gap-1.5">
-                                {s.icon}
+                                <Tooltip title={s.indicator?.tooltip}>
+                                    <span
+                                        className="relative inline-flex items-center"
+                                        style={
+                                            s.indicator
+                                                ? {
+                                                      color: `color-mix(in srgb, ${sectionIndicatorColor(s.indicator.tone)} 45%, var(--ag-colorTextTertiary))`,
+                                                  }
+                                                : undefined
+                                        }
+                                    >
+                                        {s.icon}
+                                        {s.indicator ? (
+                                            <span
+                                                className="absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full"
+                                                style={{
+                                                    background: sectionIndicatorColor(
+                                                        s.indicator.tone,
+                                                    ),
+                                                }}
+                                            />
+                                        ) : null}
+                                    </span>
+                                </Tooltip>
                                 {s.title}
                             </span>
                         ),
@@ -510,6 +679,7 @@ export function AgentTemplateControl({
                             title={s.title}
                             summary={s.summary}
                             extra={s.extra}
+                            indicator={s.indicator}
                             onOpen={s.onOpen}
                             collapsible={false}
                             noDivider
@@ -527,6 +697,7 @@ export function AgentTemplateControl({
                         title={s.title}
                         summary={s.summary}
                         extra={s.extra}
+                        indicator={s.indicator}
                         onOpen={s.onOpen}
                         defaultOpen={s.defaultOpen}
                         noDivider={index === sections.length - 1}
