@@ -141,6 +141,7 @@ export type {
     UseBoundCommitOptions,
     UseBoundCommitReturn,
 } from "./commit"
+export type {CommitDeployOption} from "./types"
 
 // ============================================================================
 // SAVE MODAL

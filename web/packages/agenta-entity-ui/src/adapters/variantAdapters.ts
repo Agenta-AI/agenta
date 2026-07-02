@@ -10,6 +10,7 @@
 import {syncPromptInputKeysInParameters} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {workflowMolecule, type Workflow} from "@agenta/entities/workflow"
+import {classifyAgentChanges, buildCommitSummaryMessage} from "@agenta/entities/workflow/commitDiff"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
@@ -74,9 +75,25 @@ function buildGenericCommitContext(
         return {...d, parameters: stripAgentaMetadataDeep(normalizedParams)}
     }
 
-    const original = stableStringify(buildSide(remoteData, false))
-    const modified = stableStringify(buildSide(localData, true))
+    const remoteSide = buildSide(remoteData, false)
+    const localSide = buildSide(localData, true)
+    const original = stableStringify(remoteSide)
+    const modified = stableStringify(localSide)
     const hasDiff = original !== modified
+
+    // Semantic, section-grouped diff for agent/LLM configs. Returns [] when nothing
+    // recognized changed (e.g. non-agent workflows) → we fall back to the coarse summary.
+    // Try `parameters` first; agent-template configs may instead live at the data root.
+    let sections = hasDiff
+        ? classifyAgentChanges(
+              (localSide as Record<string, unknown>).parameters,
+              (remoteSide as Record<string, unknown>).parameters,
+          )
+        : []
+    if (hasDiff && !sections.length) {
+        sections = classifyAgentChanges(localSide, remoteSide)
+    }
+    const suggestedMessage = sections.length ? buildCommitSummaryMessage(sections) : undefined
 
     const descriptions: string[] = []
     if (hasDiff) descriptions.push("Configuration modified")
@@ -98,6 +115,8 @@ function buildGenericCommitContext(
                   }
                 : undefined,
         diffData: {original, modified, language: "json"},
+        sections: sections.length ? sections : undefined,
+        suggestedMessage,
     }
 }
 

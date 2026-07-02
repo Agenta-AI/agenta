@@ -47,6 +47,10 @@
     --ag-colorErrorText: #d61010;
     --ag-colorError: #d61010;
     --ag-colorErrorBorder: #ef9f9f;
+    --ag-colorInfo: #1677ff;
+    --ag-colorInfoBorder: #91caff;
+    --ag-colorSuccessBorder: #b7eb8f;
+    --ag-colorWarningBorder: #ffe58f;
     --ag-colorBgContainerDisabled: rgba(5, 23, 41, 0.04);
     --ag-colorInfoBg: #f5f7fa;
     --ag-controlItemBgActive: #f5f7fa;
@@ -129,6 +133,12 @@
     --ag-colorErrorText: var(--ant-color-error-text);
     --ag-colorError: var(--ant-color-error);
     --ag-colorErrorBorder: var(--ant-color-error-border);
+    /* antd's `colorInfo` is repurposed as neutral slate in this theme, so the draft
+       indicator points at the blue palette directly to stay a distinct blue accent. */
+    --ag-colorInfo: var(--ant-blue-6, #1677ff);
+    --ag-colorInfoBorder: var(--ant-blue-5, #4096ff);
+    --ag-colorSuccessBorder: var(--ant-color-success-border);
+    --ag-colorWarningBorder: var(--ant-color-warning-border);
     --ag-colorBgContainerDisabled: var(--ant-color-bg-container-disabled);
     /* The project repurposes colorInfoBg as a neutral grey (#f5f7fa ≈ zinc-1, see
        agenta-ui/utils/styles.ts), not a blue info tint — so keep it neutral in

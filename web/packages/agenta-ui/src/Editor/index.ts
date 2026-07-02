@@ -40,6 +40,14 @@ export {preloadEditorPlugins} from "./plugins"
 // DiffView component
 export {default as DiffView} from "./DiffView"
 
+// Diff utilities (text/JSON line diff engine)
+export {
+    computeDiff,
+    computeTextDiffLines,
+    type DiffLine,
+    type ExtendedDiffLine,
+} from "./utils/diffUtils"
+
 // Types
 export type {EditorProps, EditorPluginsProps, EditorContextType, EditorProviderProps} from "./types"
 
