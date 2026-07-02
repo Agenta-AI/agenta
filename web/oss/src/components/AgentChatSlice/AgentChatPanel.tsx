@@ -940,7 +940,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         >
             {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
             {modalContextHolder}
-            <TurnInspector />
+            <TurnInspector sessionId={sessionId} messages={messages} />
             {isDragging && (
                 <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
                     <UploadSimple size={26} className="text-colorPrimary" />

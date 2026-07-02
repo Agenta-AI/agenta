@@ -6,7 +6,6 @@ import type {UIMessage} from "ai"
 import {Segmented} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
-import {sessionMessagesAtom} from "../../state/sessions"
 import {sessionCapturesAtomFamily} from "../../state/turnCaptures"
 import {turnInspectorAtom} from "../../state/turnInspector"
 
@@ -16,37 +15,42 @@ import TimelineTab from "./TimelineTab"
 
 type Tab = "timeline" | "context" | "raw"
 
-/** Dedicated Build-mode turn inspector. Own state (`turnInspectorAtom`), NOT the trace drawer. */
-const TurnInspector = () => {
+/**
+ * Dedicated Build-mode turn inspector. Mounted per session inside `AgentConversation` so it reads
+ * the LIVE `useChat` `messages` (the same list the transcript renders) — the selected turn is found
+ * by id in the live list, and it updates as the turn streams. It opens ONLY for the session that is
+ * the current inspector target, so the N mounted tabs don't each pop a drawer. Own state
+ * (`turnInspectorAtom`), NOT the trace drawer.
+ */
+const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMessage[]}) => {
     const [target, setTarget] = useAtom(turnInspectorAtom)
-    const allMessages = useAtomValue(sessionMessagesAtom)
     const [tab, setTab] = useState<Tab>("timeline")
 
-    const message: UIMessage | null = useMemo(() => {
-        if (!target) return null
-        const list = allMessages[target.sessionId] ?? []
-        return list.find((m) => m.id === target.assistantMessageId) ?? null
-    }, [target, allMessages])
+    const open = target?.sessionId === sessionId
 
-    const captures = useAtomValue(sessionCapturesAtomFamily(target?.sessionId ?? ""))
+    const message: UIMessage | null = useMemo(() => {
+        if (!open || !target) return null
+        return messages.find((m) => m.id === target.assistantMessageId) ?? null
+    }, [open, target, messages])
+
+    const captures = useAtomValue(sessionCapturesAtomFamily(sessionId))
     const turnCaptures = useMemo(() => {
-        if (!target) return []
-        const list = allMessages[target.sessionId] ?? []
-        const idx = list.findIndex((m) => m.id === target.assistantMessageId)
+        if (!open || !target) return []
+        const idx = messages.findIndex((m) => m.id === target.assistantMessageId)
         // The trigger is the last user message at or before this assistant turn.
         let triggerId: string | null = null
         for (let i = idx; i >= 0; i--) {
-            if (list[i]?.role === "user") {
-                triggerId = list[i].id
+            if (messages[i]?.role === "user") {
+                triggerId = messages[i].id
                 break
             }
         }
         return capturesForTrigger(captures, triggerId)
-    }, [target, allMessages, captures])
+    }, [open, target, messages, captures])
 
     return (
         <EnhancedDrawer
-            open={!!target}
+            open={open}
             onClose={() => setTarget(null)}
             width={560}
             title="Turn inspector"

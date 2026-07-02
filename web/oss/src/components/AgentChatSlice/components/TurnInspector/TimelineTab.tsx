@@ -105,7 +105,11 @@ const TimelineTab = ({message}: {message: UIMessage | null}) => {
     if (!message) {
         return <div className="p-4 text-xs text-colorTextTertiary">No turn selected.</div>
     }
-    const parts = message.parts ?? []
+    // Drop the AI SDK step boundary markers — they carry no content, just noise in the log.
+    const parts = (message.parts ?? []).filter((p) => {
+        const t = p.type as string
+        return t !== "step-start" && t !== "step-end"
+    })
     return (
         <div className="flex flex-col gap-4 p-4">
             {parts.length === 0 ? (
