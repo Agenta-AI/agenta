@@ -2,11 +2,14 @@ import {forwardRef, type ReactNode, useEffect, useImperativeHandle, useRef, useS
 
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
 import {HistoryExtension} from "@lexical/history"
+import {LinkNode} from "@lexical/link"
 import {ListItemNode, ListNode} from "@lexical/list"
 import {$convertFromMarkdownString} from "@lexical/markdown"
 import {AutoFocusPlugin} from "@lexical/react/LexicalAutoFocusPlugin"
+import {ClickableLinkPlugin} from "@lexical/react/LexicalClickableLinkPlugin"
 import {ContentEditable} from "@lexical/react/LexicalContentEditable"
 import {LexicalExtensionComposer} from "@lexical/react/LexicalExtensionComposer"
+import {LinkPlugin} from "@lexical/react/LexicalLinkPlugin"
 import {ListPlugin} from "@lexical/react/LexicalListPlugin"
 import {MarkdownShortcutPlugin} from "@lexical/react/LexicalMarkdownShortcutPlugin"
 import {TabIndentationPlugin} from "@lexical/react/LexicalTabIndentationPlugin"
@@ -17,8 +20,10 @@ import {$createParagraphNode, $getRoot, defineExtension, type LexicalEditor} fro
 import {chatInputTheme} from "./assets/theme"
 import {CHAT_TRANSFORMERS} from "./assets/transformers"
 import {CharacterCountPlugin} from "./plugins/CharacterCountPlugin"
+import {CodeFencePlugin} from "./plugins/CodeFencePlugin"
 import {EditableSyncPlugin} from "./plugins/EditableSyncPlugin"
 import {EditorRefBridge} from "./plugins/EditorRefBridge"
+import {LinkPastePlugin} from "./plugins/LinkPastePlugin"
 import {SendButton} from "./plugins/SendButton"
 import {SubmitPlugin} from "./plugins/SubmitPlugin"
 
@@ -63,7 +68,7 @@ const chatInputExtension = defineExtension({
     name: "@agenta/ui/rich-chat-input",
     namespace: "@agenta/ui/rich-chat-input",
     dependencies: [RichTextExtension, HistoryExtension],
-    nodes: [ListNode, ListItemNode, CodeNode, CodeHighlightNode],
+    nodes: [ListNode, ListItemNode, CodeNode, CodeHighlightNode, LinkNode],
     theme: chatInputTheme,
 })
 
@@ -205,7 +210,15 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     <ListPlugin />
                     {/* Tab / Shift+Tab indents + outdents list items (nesting). */}
                     <TabIndentationPlugin />
+                    {/* Link node behavior + the TOGGLE_LINK_COMMAND the paste plugin dispatches.
+                        ClickableLinkPlugin opens a clicked link in a new tab (newTab defaults true);
+                        it still lets you drag-select link text to edit it. */}
+                    <LinkPlugin />
+                    <ClickableLinkPlugin newTab />
+                    <LinkPastePlugin />
                     <MarkdownShortcutPlugin transformers={CHAT_TRANSFORMERS} />
+                    {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
+                    <CodeFencePlugin />
                     <SubmitPlugin onSubmit={onSubmit} />
                     <CharacterCountPlugin onCountChange={setCount} />
                 </div>
