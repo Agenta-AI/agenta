@@ -2,6 +2,8 @@
 
 import hashlib
 import hmac
+import math
+from decimal import Decimal
 from uuid import UUID
 
 import httpx
@@ -30,6 +32,16 @@ _DAYTONA_LOCK_TTL = 120  # 2 min — poll should complete well within this
 # Webhook redelivery dedup (E2B `e2b-delivery-id`).
 _DELIVERY_DEDUP_NS = "sandboxes:e2b:delivery"
 _DELIVERY_DEDUP_TTL = 48 * 60 * 60  # 48h — comfortably beyond E2B's redelivery window
+
+# Daytona reports decimal GB (10^9 bytes); meters store binary GiB (2^30 bytes).
+_GB_TO_GIB = Decimal(10**9) / Decimal(2**30)
+
+
+def _gb_to_gib_seconds(gb_seconds: Decimal) -> int:
+    """Convert Daytona GB-seconds to GiB-seconds (ceiling, matches E2B rounding)."""
+    if gb_seconds <= 0:
+        return 0
+    return max(1, math.ceil(gb_seconds * _GB_TO_GIB))
 
 
 class SandboxMeteringService:
@@ -170,8 +182,12 @@ class SandboxMeteringService:
             return
 
         vcpu_seconds = int(data.get("totalCPUSeconds") or 0)
-        ram_gib_seconds = int(data.get("totalRAMGBSeconds") or 0)
-        disk_gib_seconds = int(data.get("totalDiskGBSeconds") or 0)
+        ram_gib_seconds = _gb_to_gib_seconds(
+            Decimal(str(data.get("totalRAMGBSeconds") or 0))
+        )
+        disk_gib_seconds = _gb_to_gib_seconds(
+            Decimal(str(data.get("totalDiskGBSeconds") or 0))
+        )
         gpu_seconds = int(data.get("totalGPUSeconds") or 0)
 
         log.info(
