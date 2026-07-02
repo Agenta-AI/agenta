@@ -6,12 +6,12 @@ import type { AgentRunResult, AgentUsage } from "../../protocol.ts";
 export async function readRunUsage(
   sandbox: any,
   path: string | undefined,
-  isDaytona: boolean,
+  isRemote: boolean,
 ): Promise<AgentRunResult["usage"]> {
   if (!path) return undefined;
   try {
     let raw: string;
-    if (isDaytona) {
+    if (isRemote) {
       const bytes = await sandbox.readFsFile({ path });
       raw = typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
     } else {
@@ -43,18 +43,18 @@ export function mergePromptAndStreamUsage(
 export async function resolveRunUsage({
   sandbox,
   usageOutPath,
-  isDaytona,
+  isRemote,
   promptResult,
   streamUsage,
 }: {
   sandbox: any;
   usageOutPath: string | undefined;
-  isDaytona: boolean;
+  isRemote: boolean;
   promptResult: any;
   streamUsage: AgentUsage | undefined;
 }): Promise<AgentRunResult["usage"]> {
   return (
-    (await readRunUsage(sandbox, usageOutPath, isDaytona)) ??
+    (await readRunUsage(sandbox, usageOutPath, isRemote)) ??
     mergePromptAndStreamUsage(promptResult, streamUsage)
   );
 }

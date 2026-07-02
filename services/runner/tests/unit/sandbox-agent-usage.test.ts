@@ -43,6 +43,19 @@ describe("readRunUsage", () => {
       cost: 0,
     });
   });
+
+  it("reads E2B Pi usage writeback through the sandbox fs API (isRemote=true)", async () => {
+    const sandbox = {
+      readFsFile: async () => JSON.stringify({ input: 2, output: 6, total: 8, cost: 0.01 }),
+    };
+
+    assert.deepEqual(await readRunUsage(sandbox, "/tmp/usage.json", true), {
+      input: 2,
+      output: 6,
+      total: 8,
+      cost: 0.01,
+    });
+  });
 });
 
 describe("mergePromptAndStreamUsage", () => {
@@ -72,11 +85,28 @@ describe("resolveRunUsage", () => {
       await resolveRunUsage({
         sandbox: {},
         usageOutPath: file,
-        isDaytona: false,
+        isRemote: false,
         promptResult: { usage: { inputTokens: 99, outputTokens: 99 } },
         streamUsage: { input: 0, output: 0, total: 0, cost: 1 },
       }),
       { input: 3, output: 4, total: 7, cost: 0.03 },
+    );
+  });
+
+  it("reads E2B Pi usage through sandbox fs API when isRemote=true", async () => {
+    const sandbox = {
+      readFsFile: async () => JSON.stringify({ input: 5, output: 10, total: 15, cost: 0.05 }),
+    };
+
+    assert.deepEqual(
+      await resolveRunUsage({
+        sandbox,
+        usageOutPath: "/tmp/usage.json",
+        isRemote: true,
+        promptResult: { usage: { inputTokens: 99, outputTokens: 99 } },
+        streamUsage: { input: 0, output: 0, total: 0, cost: 1 },
+      }),
+      { input: 5, output: 10, total: 15, cost: 0.05 },
     );
   });
 });

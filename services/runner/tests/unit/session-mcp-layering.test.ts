@@ -57,6 +57,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("(a) gateway tools + no user MCP -> internal channel present, no throw", async () => {
     const { servers } = await build({
       isPi: false,
+      isRemote: false,
       isDaytona: false,
       capabilities: mcpCapable,
       harness: "claude",
@@ -84,6 +85,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       () =>
         buildSessionMcpServers({
           isPi: false,
+          isRemote: false,
           isDaytona: false,
           capabilities: mcpCapable,
           harness: "claude",
@@ -99,6 +101,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("(c) gateway tools + user http MCP -> BOTH delivered; user stdio still refused", async () => {
     const { servers } = await build({
       isPi: false,
+      isRemote: false,
       isDaytona: false,
       capabilities: mcpCapable,
       harness: "claude",
@@ -126,6 +129,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       () =>
         buildSessionMcpServers({
           isPi: false,
+          isRemote: false,
           isDaytona: false,
           capabilities: mcpCapable,
           harness: "claude",
@@ -140,6 +144,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("Pi gets [] (native delivery, no MCP channel) even with gateway tools", async () => {
     const { servers } = await build({
       isPi: true,
+      isRemote: false,
       isDaytona: false,
       capabilities: mcpCapable,
       harness: "pi_agenta",
@@ -156,6 +161,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("a non-MCP harness gets [] (capability gate), no internal server started", async () => {
     const { servers } = await build({
       isPi: false,
+      isRemote: false,
       isDaytona: false,
       capabilities: { mcpTools: false, toolCalls: false },
       harness: "no-mcp",
@@ -168,6 +174,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
   it("the internal channel advertisement carries no credential (server-side invariant)", async () => {
     const { servers } = await build({
       isPi: false,
+      isRemote: false,
       isDaytona: false,
       capabilities: mcpCapable,
       harness: "claude",
@@ -194,6 +201,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     // Finding-1 regression guard.
     const { servers } = await build({
       isPi: false,
+      isRemote: true,
       isDaytona: true,
       capabilities: mcpCapable,
       harness: "claude",
@@ -217,6 +225,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     // delivered on Daytona unchanged.
     const { servers } = await build({
       isPi: false,
+      isRemote: true,
       isDaytona: true,
       capabilities: mcpCapable,
       harness: "claude",
@@ -235,6 +244,52 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       servers.map((s) => s.name),
       ["linear"],
       "only the user http server is delivered on Daytona (no internal loopback)",
+    );
+  });
+
+  it("(E2B) gateway tools -> NO internal loopback advertisement (file relay delivers them)", async () => {
+    const { servers } = await build({
+      isPi: false,
+      isRemote: true,
+      isDaytona: false,
+      capabilities: mcpCapable,
+      harness: "opencode",
+      toolSpecs: [gatewayTool],
+      relayDir,
+    });
+    assert.equal(
+      servers.find((s) => s.name === "agenta-tools"),
+      undefined,
+      "no internal agenta-tools server is advertised on E2B",
+    );
+    assert.ok(
+      !JSON.stringify(servers).includes("127.0.0.1"),
+      "the E2B session never carries an unreachable loopback MCP url",
+    );
+  });
+
+  it("(E2B) a user http MCP is STILL delivered (remote url, not a runner loopback)", async () => {
+    const { servers } = await build({
+      isPi: false,
+      isRemote: true,
+      isDaytona: false,
+      capabilities: mcpCapable,
+      harness: "opencode",
+      toolSpecs: [gatewayTool],
+      userMcpServers: [
+        {
+          name: "linear",
+          transport: "http",
+          url: "https://mcp.linear.app/sse",
+          env: { Authorization: "Bearer x" },
+        },
+      ],
+      relayDir,
+    });
+    assert.deepEqual(
+      servers.map((s) => s.name),
+      ["linear"],
+      "only the user http server is delivered on E2B (no internal loopback)",
     );
   });
 });

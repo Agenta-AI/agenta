@@ -30,7 +30,7 @@ describe("prepareWorkspace", () => {
     const workspace = await prepareWorkspace({
       sandbox: {},
       plan: {
-        isDaytona: false,
+        isRemoteSandbox: false,
         cwd,
         relayDir: join(cwd, ".agenta-tools"),
         useToolRelay: true,
@@ -69,7 +69,7 @@ describe("prepareWorkspace", () => {
     const workspace = await prepareWorkspace({
       sandbox: {},
       plan: {
-        isDaytona: false,
+        isRemoteSandbox: false,
         cwd,
         relayDir: join(cwd, ".agenta-tools"),
         useToolRelay: false,
@@ -95,7 +95,7 @@ describe("prepareWorkspace", () => {
     await prepareWorkspace({
       sandbox: {},
       plan: {
-        isDaytona: false,
+        isRemoteSandbox: false,
         cwd,
         relayDir: join(cwd, ".agenta-tools"),
         useToolRelay: false,
@@ -120,7 +120,7 @@ describe("prepareWorkspace", () => {
     const workspace = await prepareWorkspace({
       sandbox,
       plan: {
-        isDaytona: true,
+        isRemoteSandbox: true,
         cwd: "/home/sandbox/agenta-fixed",
         relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
         useToolRelay: true,
@@ -155,7 +155,7 @@ describe("prepareWorkspace", () => {
     await prepareWorkspace({
       sandbox,
       plan: {
-        isDaytona: true,
+        isRemoteSandbox: true,
         cwd: "/home/sandbox/agenta-fixed",
         relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
         useToolRelay: false,
@@ -193,7 +193,7 @@ describe("prepareWorkspace", () => {
     await prepareWorkspace({
       sandbox,
       plan: {
-        isDaytona: true,
+        isRemoteSandbox: true,
         cwd: "/home/sandbox/agenta-fixed",
         relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
         useToolRelay: false,
@@ -219,7 +219,7 @@ describe("prepareWorkspace", () => {
     await prepareWorkspace({
       sandbox: {},
       plan: {
-        isDaytona: false,
+        isRemoteSandbox: false,
         cwd,
         relayDir: join(cwd, ".agenta-tools"),
         useToolRelay: false,
@@ -251,7 +251,7 @@ describe("prepareWorkspace", () => {
     await prepareWorkspace({
       sandbox,
       plan: {
-        isDaytona: true,
+        isRemoteSandbox: true,
         cwd: "/home/sandbox/agenta-fixed",
         relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
         useToolRelay: false,
@@ -269,6 +269,131 @@ describe("prepareWorkspace", () => {
             "/home/sandbox/agenta-fixed/.claude/skills/release-notes/SKILL.md",
       ),
       "SKILL.md is uploaded to Claude's project-local skill tree",
+    );
+  });
+
+  it("prepares an E2B cwd through the sandbox fs API (same path as Daytona)", async () => {
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        calls.push({ op: "write", path, body }),
+    };
+
+    const workspace = await prepareWorkspace({
+      sandbox,
+      plan: {
+        isRemoteSandbox: true,
+        cwd: "/root/work/agenta-e2btest",
+        relayDir: "/root/work/agenta-e2btest/.agenta-tools",
+        useToolRelay: true,
+        agentsMd: "agent instructions",
+        acpAgent: "opencode",
+        isPi: false,
+        skillDirs: [],
+      },
+    });
+    await workspace.cleanup();
+
+    assert.deepEqual(calls, [
+      { op: "mkdir", path: "/root/work/agenta-e2btest" },
+      { op: "mkdir", path: "/root/work/agenta-e2btest/.agenta-tools" },
+      {
+        op: "write",
+        path: "/root/work/agenta-e2btest/AGENTS.md",
+        body: "agent instructions",
+      },
+    ]);
+  });
+
+  it("writes a nested harnessFiles entry on E2B via the fs API (opencode)", async () => {
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        calls.push({ op: "write", path, body }),
+    };
+    const content = JSON.stringify({ mcp: { linear: { type: "remote" } } }, null, 2);
+
+    await prepareWorkspace({
+      sandbox,
+      plan: {
+        isRemoteSandbox: true,
+        cwd: "/root/work/agenta-e2btest",
+        relayDir: "/root/work/agenta-e2btest/.agenta-tools",
+        useToolRelay: false,
+        agentsMd: undefined,
+        acpAgent: "opencode",
+        isPi: false,
+        harnessFiles: [{ path: "opencode.json", content }],
+        skillDirs: [],
+      },
+    });
+
+    const write = calls.find(
+      (c) => c.op === "write" && c.path === "/root/work/agenta-e2btest/opencode.json",
+    );
+    assert.ok(write, "opencode.json is written via the fs API on E2B");
+    assert.equal(write!.body, content);
+  });
+
+  it("uploads opencode skills into the project-local .opencode/skills tree on E2B", async () => {
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const skillDir = tempDir();
+    writeFileSync(join(skillDir, "SKILL.md"), "skill-content", "utf-8");
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        calls.push({ op: "write", path, body }),
+    };
+
+    await prepareWorkspace({
+      sandbox,
+      plan: {
+        isRemoteSandbox: true,
+        cwd: "/root/work/agenta-e2btest",
+        relayDir: "/root/work/agenta-e2btest/.agenta-tools",
+        useToolRelay: false,
+        acpAgent: "opencode",
+        isPi: false,
+        skillDirs: [{ name: "my-skill", dir: skillDir }],
+      },
+    });
+
+    assert.ok(
+      calls.some(
+        (c) =>
+          c.op === "write" &&
+          c.path === "/root/work/agenta-e2btest/.opencode/skills/my-skill/SKILL.md",
+      ),
+      "SKILL.md is uploaded to opencode's project-local skill tree on E2B",
+    );
+  });
+
+  it("writes no harness file on E2B for a plan with no harnessFiles", async () => {
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        calls.push({ op: "write", path, body }),
+    };
+
+    await prepareWorkspace({
+      sandbox,
+      plan: {
+        isRemoteSandbox: true,
+        cwd: "/root/work/agenta-e2btest",
+        relayDir: "/root/work/agenta-e2btest/.agenta-tools",
+        useToolRelay: false,
+        acpAgent: "pi",
+        isPi: true,
+        skillDirs: [],
+      },
+    });
+
+    assert.ok(
+      !calls.some((c) => c.path.includes(".claude") || c.path.includes(".opencode")),
+      "no harness-specific path is touched on a Pi-on-E2B run",
     );
   });
 });

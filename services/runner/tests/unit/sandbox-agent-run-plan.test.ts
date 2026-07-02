@@ -10,6 +10,7 @@ import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   buildRunPlan,
   shouldUploadOwnLogin,
+  E2B_NETWORK_UNSUPPORTED_MESSAGE,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
@@ -77,6 +78,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.harness, "pi_agenta");
     assert.equal(result.plan.acpAgent, "pi");
     assert.equal(result.plan.sandboxId, "local");
+    assert.equal(result.plan.isRemoteSandbox, false);
     assert.equal(result.plan.cwd, "/tmp/local-cwd");
     // The relay dir + usage capture are ephemeral runner files kept OFF the (possibly geesefs)
     // cwd: an ephemeral sibling whose leaf is the cwd basename.
@@ -593,6 +595,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.acpAgent, "claude");
     assert.equal(result.plan.isPi, false);
     assert.equal(result.plan.isDaytona, true);
+    assert.equal(result.plan.isRemoteSandbox, true);
     assert.equal(result.plan.cwd, "/home/sandbox/agenta-fixed");
     assert.equal(result.plan.usageOutPath, undefined);
     assert.equal(result.plan.legacyHarnessApiKeyVar, "ANTHROPIC_API_KEY");
@@ -644,6 +647,115 @@ describe("buildRunPlan", () => {
     if (!result.ok) return;
     assert.equal(result.plan.legacyHarnessApiKeyVar, "OPENAI_API_KEY");
     assert.equal(result.plan.hasApiKey, true);
+  });
+
+  it("normalizes an opencode-on-E2B run: isE2B=true, cwd under /root/work", () => {
+    const result = buildRunPlan(
+      {
+        harness: "opencode",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+        secrets: { ANTHROPIC_API_KEY: "sk-ant" },
+        credentialMode: "env",
+      },
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.harness, "opencode");
+    assert.equal(result.plan.acpAgent, "opencode");
+    assert.equal(result.plan.isPi, false);
+    assert.equal(result.plan.isDaytona, false);
+    assert.equal(result.plan.isE2B, true);
+    assert.equal(result.plan.isRemoteSandbox, true);
+    assert.equal(result.plan.cwd, "/root/work/agenta-abc123");
+    assert.equal(result.plan.usageOutPath, undefined);
+    assert.equal(result.plan.credentialMode, "env");
+  });
+
+  it("opencode-on-E2B: restricted network is refused (E2B has no egress control)", () => {
+    const result = buildRunPlan(
+      {
+        harness: "opencode",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+        sandboxPermission: { network: { mode: "off" }, enforcement: "strict" },
+      } as AgentRunRequest,
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, E2B_NETWORK_UNSUPPORTED_MESSAGE);
+  });
+
+  it("opencode-on-E2B: restricted network refused even under best_effort (no egress API)", () => {
+    const result = buildRunPlan(
+      {
+        harness: "opencode",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+        sandboxPermission: { network: { mode: "off" }, enforcement: "best_effort" },
+      } as AgentRunRequest,
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, E2B_NETWORK_UNSUPPORTED_MESSAGE);
+  });
+
+  it("opencode-on-E2B: unrestricted network (mode:on) is allowed", () => {
+    const result = buildRunPlan(
+      {
+        harness: "opencode",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hello" }],
+        sandboxPermission: { network: { mode: "on" }, enforcement: "strict" },
+      } as AgentRunRequest,
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
+  it("opencode-on-E2B: ANTHROPIC_API_KEY in secrets reaches the plan", () => {
+    const result = buildRunPlan(
+      {
+        harness: "opencode",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "hi" }],
+        secrets: { ANTHROPIC_API_KEY: "sk-ant-e2b" },
+        credentialMode: "env",
+      },
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.secrets, { ANTHROPIC_API_KEY: "sk-ant-e2b" });
+  });
+
+  it("planMode is false for opencode (static fallback; no E2B-specific change)", () => {
+    // capabilities.ts static fallback already excludes opencode from planMode;
+    // this is a run-plan smoke-check that the harness/acpAgent mapping is correct.
+    const result = buildRunPlan(
+      {
+        harness: "opencode",
+        sandbox: "e2b",
+        messages: [{ role: "user", content: "build it" }],
+        secrets: { ANTHROPIC_API_KEY: "sk-ant" },
+      },
+      { createE2BCwd: () => "/root/work/agenta-abc123" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    // acpAgent "opencode" is what the daemon receives; planMode gate is in capabilities.ts
+    assert.equal(result.plan.acpAgent, "opencode");
+    assert.equal(result.plan.isE2B, true);
+    assert.equal(result.plan.isRemoteSandbox, true);
   });
 });
 
