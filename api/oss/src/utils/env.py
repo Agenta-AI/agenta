@@ -577,12 +577,14 @@ class E2BConfig(BaseModel):
     api_key: str | None = os.getenv("E2B_API_KEY")
     api_url: str = os.getenv("E2B_API_URL") or "https://api.e2b.app"
     webhook_url: str | None = os.getenv("E2B_WEBHOOK_URL")
+    webhook_secret: str | None = os.getenv("E2B_WEBHOOK_SECRET")
 
     model_config = ConfigDict(extra="ignore")
 
     @property
     def enabled(self) -> bool:
-        return bool(self.api_key)
+        """E2B webhook receiver enabled only if API key and webhook secret are present"""
+        return bool(self.api_key and self.webhook_secret)
 
 
 # ---------------------------------------------------------------------------

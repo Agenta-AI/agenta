@@ -77,21 +77,10 @@ class SandboxMeteringRouter:
         signature = request.headers.get("e2b-signature", "")
         delivery_id = request.headers.get("e2b-delivery-id", "")
 
-        # Resolve signing secret (leader-elected, encrypted in Redis).
-        try:
-            secret = await self.service.get_or_create_e2b_webhook_secret()
-        except Exception:
-            log.error("[sandboxes] E2B secret resolution failed", exc_info=True)
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"status": "error"},
-            )
-
-        # HMAC verification.
+        # HMAC verification against env.e2b.webhook_secret.
         if not self.service.verify_e2b_signature(
             raw_body=raw_body,
             signature_header=signature,
-            secret=secret,
         ):
             log.warning(
                 "[sandboxes] E2B HMAC verification failed delivery_id=%s sig=%r",
