@@ -4,10 +4,12 @@ import {atom, useAtomValue} from "jotai"
 
 import {currentWorkflowContextAtom, type WorkflowKind} from "@/oss/state/workflow"
 
-import type {SidebarConfig} from "../engine/types"
+import type {SidebarConfig, SidebarWorkflowCategory} from "../engine/types"
 import {useSidebarConfig} from "../hooks/useSidebarConfig"
 
-export type WorkflowCategory = "app" | "agent" | "evaluator"
+import {filterWorkflowSidebarItems} from "./workflowItemSupport"
+
+export type WorkflowCategory = SidebarWorkflowCategory
 
 export const deriveWorkflowCategory = (
     kind: WorkflowKind | null,
@@ -18,19 +20,10 @@ export const deriveWorkflowCategory = (
     return "app"
 }
 
-export const ITEM_WORKFLOW_SUPPORT: Record<string, ReadonlySet<WorkflowCategory>> = {
-    "app-variants-link": new Set(["app", "agent"]),
-}
-
 const currentWorkflowAppTypeAtom = atom((get) => {
     const {workflowId} = get(currentWorkflowContextAtom)
     return workflowId ? get(workflowAppTypeAtomFamily(workflowId)) : null
 })
-
-export const filterWorkflowSidebarItems = (
-    items: SidebarConfig[],
-    category: WorkflowCategory,
-): SidebarConfig[] => items.filter((item) => ITEM_WORKFLOW_SUPPORT[item.key]?.has(category) ?? true)
 
 export const useWorkflowSidebarItems = (): SidebarConfig[] => {
     const {appItems} = useSidebarConfig()

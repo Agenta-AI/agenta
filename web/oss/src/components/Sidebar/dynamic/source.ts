@@ -1,7 +1,7 @@
 import type {ListQueryState} from "@agenta/entities/shared"
 import {atom, type Atom} from "jotai"
 
-import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtom} from "@/oss/lib/atoms/sidebar"
+import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtomFamily} from "@/oss/lib/atoms/sidebar"
 
 import type {SidebarEntityRef, SidebarEntitySource} from "./types"
 
@@ -18,14 +18,16 @@ export const gatedSidebarSource = <TRef extends SidebarEntityRef>(
 ): Atom<SidebarEntitySource<TRef>> =>
     atom((get) => {
         const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(parentKey)
-        const popupOpen = get(sidebarPopupGroupsAtom).includes(parentKey)
+        const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(parentKey)
 
         if (!inlineOpen && !popupOpen) {
             return {status: "idle", refs: []}
         }
 
         const query = get(listAtom)
-        return query.isPending ? {status: "loading", refs: []} : {status: "ready", refs: query.data}
+        if (query.isPending) return {status: "loading", refs: []}
+        if (query.isError) return {status: "error", refs: [], error: query.error}
+        return {status: "ready", refs: query.data}
     })
 
 /**
@@ -34,12 +36,12 @@ export const gatedSidebarSource = <TRef extends SidebarEntityRef>(
  * Adapts them into the `ListQueryState` shape `gatedSidebarSource` expects.
  */
 export const fromParts = <TRef extends SidebarEntityRef>(
-    queryAtom: Atom<{isPending?: boolean}>,
+    queryAtom: Atom<{isPending?: boolean; isError?: boolean; error?: Error | null}>,
     dataAtom: Atom<TRef[]>,
 ): Atom<ListQueryState<TRef>> =>
     atom((get) => ({
         data: get(dataAtom),
         isPending: get(queryAtom).isPending ?? false,
-        isError: false,
-        error: null,
+        isError: get(queryAtom).isError ?? false,
+        error: get(queryAtom).error ?? null,
     }))

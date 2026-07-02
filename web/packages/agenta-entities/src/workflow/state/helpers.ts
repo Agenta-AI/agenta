@@ -9,9 +9,27 @@
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
 
-import {collectEvaluatorCandidates, type Workflow} from "../core"
+import {fetchWorkflowsBatch} from "../api/api"
+import {collectEvaluatorCandidates, isOnlineCapableEvaluator, type Workflow} from "../core"
 
 import type {WorkflowType} from "./molecule"
+
+/**
+ * Fetch each non-deleted workflow's latest revision and classify the list.
+ * Agent identity is revision-derived, so classification needs latest revisions.
+ */
+export async function fetchAndClassifyWorkflows(
+    projectId: string,
+    workflows: Workflow[],
+    classify: (workflows: Workflow[], latestRevisions: ReadonlyMap<string, Workflow>) => Workflow[],
+): Promise<Workflow[]> {
+    const nonDeleted = workflows.filter((workflow) => !workflow.deleted_at)
+    const latestRevisions = await fetchWorkflowsBatch(
+        projectId,
+        nonDeleted.map((workflow) => workflow.id),
+    )
+    return classify(nonDeleted, latestRevisions)
+}
 
 export function withLatestAgentFlags(
     workflows: Workflow[],
@@ -47,7 +65,7 @@ export function filterAgentWorkflows(
 }
 
 /** Keep workflow artifacts whose latest revision is not marked as an agent. */
-export function filterPromptWorkflows(
+export function filterNonAgentWorkflows(
     workflows: Workflow[],
     latestRevisions: ReadonlyMap<string, Workflow>,
 ): Workflow[] {
@@ -311,5 +329,23 @@ export function filterLlmEvaluatorWorkflows(
     return workflows.filter((workflow) => {
         const revision = latestRevisions.get(workflow.id)
         return deriveWorkflowTypeFromRevision(revision, {isEvaluator: true}) === "llm"
+    })
+}
+
+/** Keep automatic evaluators whose latest revision supports live evaluation. */
+export function filterNonDeterministicEvaluatorWorkflows(
+    workflows: Workflow[],
+    latestRevisions: ReadonlyMap<string, Workflow>,
+): Workflow[] {
+    return workflows.filter((workflow) => {
+        const revision = latestRevisions.get(workflow.id)
+        if (!revision || revision.flags?.is_feedback) return false
+
+        return isOnlineCapableEvaluator({
+            flags: revision.flags as Record<string, unknown> | null,
+            data: revision.data as {uri?: string | null} | null,
+            meta: revision.meta as Record<string, unknown> | null,
+            slug: revision.slug ?? workflow.slug ?? null,
+        })
     })
 }

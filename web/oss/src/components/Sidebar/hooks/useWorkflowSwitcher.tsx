@@ -20,6 +20,8 @@ import {
 import {resolveWorkflowEntitySelection} from "../components/assets/workflowEntitySelection"
 import WorkflowIdentity from "../components/WorkflowIdentity"
 
+import {resolveIsEvaluatorWorkflow} from "./workflowSwitcherHelpers"
+
 const EMPTY_WORKFLOWS: readonly Workflow[] = []
 
 const getWorkflowActivityTime = (workflow: Workflow) => {
@@ -47,6 +49,9 @@ export const useWorkflowSwitcher = () => {
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
     const [open, setOpen] = useState(false)
 
+    // Product decision: the workflow switcher is intentionally narrower than
+    // full-page routing. It includes non-deterministic automatic evaluators
+    // (LLM/code/hook/online-capable), but not deterministic matchers or humans.
     const switcherEvaluators = EVALUATOR_FULL_PAGE_NAV_ENABLED
         ? nonDeterministicEvaluators
         : EMPTY_WORKFLOWS
@@ -66,9 +71,11 @@ export const useWorkflowSwitcher = () => {
 
     const workflowId = workflow?.id ?? null
     const displayName = workflow?.name ?? workflow?.slug ?? workflowId ?? "Select workflow"
-    const isEvaluator = workflowId
-        ? evaluators.some((evaluator) => evaluator.id === workflowId)
-        : context.workflowKind === "evaluator"
+    const isEvaluator = resolveIsEvaluatorWorkflow({
+        workflowId,
+        workflowKind: context.workflowKind,
+        evaluators,
+    })
 
     const menuItems = useMemo<MenuProps["items"]>(() => {
         const toMenuItem = (entity: Workflow, isEvaluator: boolean) => {

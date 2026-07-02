@@ -1,10 +1,9 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {InitialsAvatar} from "@agenta/ui"
-import {CaretDown, CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
+import {CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
-    Button,
     ButtonProps,
     Dropdown,
     DropdownProps,
@@ -28,6 +27,8 @@ import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
+
+import SidebarSelectionButton from "./SidebarSelectionButton"
 
 interface ListOfProjectsProps {
     collapsed: boolean
@@ -181,70 +182,6 @@ const ListOfProjects = ({
         },
     })
 
-    const sharedButtonProps = useMemo(() => {
-        if (!buttonProps) {
-            return {
-                className: undefined,
-                type: undefined,
-                disabled: undefined,
-                rest: {} as ButtonProps,
-            }
-        }
-
-        const {className, type, disabled, ...rest} = buttonProps
-        return {className, type, disabled, rest: rest as ButtonProps}
-    }, [buttonProps])
-
-    const renderSelectionButton = (
-        label: string,
-        placeholder: string,
-        isOpen: boolean,
-        showCaret: boolean,
-        disabled?: boolean,
-    ) => (
-        <Button
-            type={sharedButtonProps.type ?? "text"}
-            className={clsx(
-                "flex items-center justify-between overflow-hidden h-9 transition-[width,padding,gap] duration-300 ease-in-out",
-                collapsed ? "!w-8 !p-1 gap-0" : "w-full px-1.5 py-3 gap-2",
-                sharedButtonProps.className,
-            )}
-            disabled={disabled || sharedButtonProps.disabled}
-            {...sharedButtonProps.rest}
-        >
-            <div
-                className={clsx(
-                    "flex min-w-0 items-center transition-[gap] duration-300 ease-in-out",
-                    collapsed ? "gap-0" : "gap-2",
-                )}
-            >
-                <InitialsAvatar size="small" name={label || placeholder} />
-                <span
-                    className={clsx(
-                        "max-w-[150px] truncate overflow-hidden transition-[max-width,opacity] duration-300 ease-in-out",
-                        collapsed ? "!max-w-0 opacity-0" : "opacity-100",
-                    )}
-                    title={label || placeholder}
-                    aria-hidden={collapsed}
-                >
-                    {label || placeholder}
-                </span>
-            </div>
-            <span
-                className={clsx(
-                    "flex shrink-0 items-center overflow-hidden transition-[width,opacity] duration-300 ease-in-out",
-                    !collapsed && showCaret ? "w-3.5 opacity-100" : "w-0 opacity-0",
-                )}
-                aria-hidden={collapsed || !showCaret}
-            >
-                <CaretDown
-                    size={14}
-                    className={clsx("transition-transform", isOpen ? "rotate-180" : "")}
-                />
-            </span>
-        </Button>
-    )
-
     const projectButtonLabel =
         project?.project_name ||
         (projectsForSelectedOrganization.length ? "Select project" : "No projects")
@@ -291,7 +228,7 @@ const ListOfProjects = ({
                 projectId,
                 currentAsPath: router.asPath,
                 settingsTab,
-                queryTab: router.query.tab as string | undefined,
+                queryTab: router.query.tab,
             })
 
             void router.push(href)
@@ -527,22 +464,41 @@ const ListOfProjects = ({
                             className: "max-h-80 overflow-y-auto",
                         }}
                     >
-                        {renderSelectionButton(
-                            projectButtonLabel,
-                            "Projects",
-                            projectDropdownOpen,
-                            true,
-                            false,
-                        )}
+                        <div data-project-selector>
+                            <SidebarSelectionButton
+                                collapsed={collapsed}
+                                label={projectButtonLabel}
+                                placeholder="Projects"
+                                isOpen={projectDropdownOpen}
+                                showCaret
+                                buttonProps={buttonProps}
+                            />
+                        </div>
                     </Dropdown>
                 ) : (
                     <div className={clsx({"flex items-center justify-center": collapsed})}>
-                        {renderSelectionButton(projectButtonLabel, "Projects", false, false, true)}
+                        <SidebarSelectionButton
+                            collapsed={collapsed}
+                            label={projectButtonLabel}
+                            placeholder="Projects"
+                            isOpen={false}
+                            showCaret={false}
+                            disabled
+                            buttonProps={buttonProps}
+                        />
                     </div>
                 )
             ) : (
                 <div className={clsx({"flex items-center justify-center": collapsed})}>
-                    {renderSelectionButton("No projects", "Projects", false, false, true)}
+                    <SidebarSelectionButton
+                        collapsed={collapsed}
+                        label="No projects"
+                        placeholder="Projects"
+                        isOpen={false}
+                        showCaret={false}
+                        disabled
+                        buttonProps={buttonProps}
+                    />
                 </div>
             )}
 

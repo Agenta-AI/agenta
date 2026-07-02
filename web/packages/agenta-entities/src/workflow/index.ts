@@ -46,8 +46,9 @@ export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./stat
 
 export {
     deriveWorkflowTypeFromRevision,
+    fetchAndClassifyWorkflows,
     filterAgentWorkflows,
-    filterPromptWorkflows,
+    filterNonAgentWorkflows,
 } from "./state/helpers"
 
 // Per-harness capability map from the `/inspect` response `meta` (agent playground picker).

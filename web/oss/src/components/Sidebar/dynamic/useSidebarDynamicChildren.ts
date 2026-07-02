@@ -1,4 +1,4 @@
-import {createElement, useMemo, useRef} from "react"
+import {createElement, useEffect, useMemo, useRef} from "react"
 
 import {ArrowRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -9,10 +9,9 @@ import useURL from "@/oss/hooks/useURL"
 import type {SidebarConfig} from "../engine/types"
 
 import {SIDEBAR_ENTITIES, sidebarEntitySourcesAtom} from "./registry"
+import {getSidebarSourceStatusLabel} from "./status"
 import type {SidebarEntity, SidebarEntitySource} from "./types"
 
-const PLACEHOLDER_LABEL = "Open to load"
-const LOADING_LABEL = "Loading"
 const SHOW_ALL_LABEL = "Show all"
 
 /**
@@ -20,7 +19,7 @@ const SHOW_ALL_LABEL = "Show all"
  * empty submenu would strip the parent's expand caret, leaving no way to open the
  * group (and so no way to trigger the gated fetch). Placeholders are disabled.
  */
-const resolveChildren = (
+export const resolveChildren = (
     entity: SidebarEntity,
     source: SidebarEntitySource | undefined,
     projectURL: string,
@@ -35,7 +34,7 @@ const resolveChildren = (
         return [
             {
                 key: `${entity.parentKey}-idle`,
-                title: PLACEHOLDER_LABEL,
+                title: getSidebarSourceStatusLabel("idle"),
                 icon: icon(),
                 disabled: true,
                 isDynamic: true,
@@ -48,11 +47,24 @@ const resolveChildren = (
         return [
             {
                 key: `${entity.parentKey}-loading`,
-                title: LOADING_LABEL,
+                title: getSidebarSourceStatusLabel("loading"),
                 icon: icon(),
                 disabled: true,
                 isDynamic: true,
                 isLoading: true,
+            },
+        ]
+    }
+
+    if (status === "error") {
+        return [
+            {
+                key: `${entity.parentKey}-error`,
+                title: getSidebarSourceStatusLabel("error"),
+                icon: icon(),
+                disabled: true,
+                isDynamic: true,
+                isPlaceholder: true,
             },
         ]
     }
@@ -62,7 +74,7 @@ const resolveChildren = (
         return [
             {
                 key: `${entity.parentKey}-empty`,
-                title: entity.emptyLabel ?? "No items",
+                title: getSidebarSourceStatusLabel("ready", entity.emptyLabel),
                 icon: icon(),
                 disabled: true,
                 isDynamic: true,
@@ -104,27 +116,40 @@ export const useSidebarDynamicChildren = (): Record<string, SidebarConfig[]> => 
         Record<string, {projectURL: string; children: SidebarConfig[]}>
     >({})
 
-    return useMemo(() => {
+    // Pure: only reads the cache (populated after commit by the effect below), so
+    // Strict Mode's double render can't corrupt it.
+    const childrenByKey = useMemo(() => {
         const resolvedProjectURL = projectURL ?? ""
-        const cachedChildren = cachedChildrenRef.current ?? {}
+        const cachedChildren = cachedChildrenRef.current
         const sourcesByKey = sources ?? {}
-        const childrenByKey: Record<string, SidebarConfig[]> = {}
+        const result: Record<string, SidebarConfig[]> = {}
         for (const [key, entity] of Object.entries(SIDEBAR_ENTITIES)) {
             const source = sourcesByKey[key]
             const cached = cachedChildren[key]
             const idleFallback =
                 cached?.projectURL === resolvedProjectURL ? cached.children : undefined
-            const children = resolveChildren(entity, source, resolvedProjectURL, idleFallback)
+            result[key] = resolveChildren(entity, source, resolvedProjectURL, idleFallback)
+        }
+        return result
+    }, [sources, projectURL])
 
-            childrenByKey[key] = children
-
-            if (source?.status && source.status !== "idle") {
-                cachedChildren[key] = {projectURL: resolvedProjectURL, children}
+    // Keep the last non-idle children per group so a group going idle (its query
+    // unsubscribing) still renders its previous items instead of the idle placeholder.
+    useEffect(() => {
+        const resolvedProjectURL = projectURL ?? ""
+        const sourcesByKey = sources ?? {}
+        for (const key of Object.keys(SIDEBAR_ENTITIES)) {
+            const status = sourcesByKey[key]?.status
+            if (status && status !== "idle") {
+                cachedChildrenRef.current[key] = {
+                    projectURL: resolvedProjectURL,
+                    children: childrenByKey[key],
+                }
             }
         }
-        cachedChildrenRef.current = cachedChildren
-        return childrenByKey
-    }, [sources, projectURL])
+    }, [sources, projectURL, childrenByKey])
+
+    return childrenByKey
 }
 
 /**

@@ -3,7 +3,7 @@ import {describe, expect, it} from "vitest"
 import type {Workflow} from "../../src/workflow/core"
 import {
     filterAgentWorkflows,
-    filterPromptWorkflows,
+    filterNonAgentWorkflows,
     withLatestAgentFlags,
 } from "../../src/workflow/state/helpers"
 
@@ -60,7 +60,7 @@ describe("withLatestAgentFlags", () => {
             ["agent-1", workflow("agent-rev-1", true)],
         ])
 
-        expect(filterPromptWorkflows(artifacts, latestRevisions).map(({id}) => id)).toEqual([
+        expect(filterNonAgentWorkflows(artifacts, latestRevisions).map(({id}) => id)).toEqual([
             "prompt-1",
             "unresolved-1",
         ])

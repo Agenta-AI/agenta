@@ -28,13 +28,16 @@ import type {Workflow} from "../core"
 import {
     buildWorkflowUri,
     hasFullPagePlaygroundUX,
-    isOnlineCapableEvaluator,
     parseWorkflowKeyFromUri,
     resolveOutputSchemaProperties,
 } from "../core"
 
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
-import {buildServiceUrlFromUri, filterLlmEvaluatorWorkflows} from "./helpers"
+import {
+    buildServiceUrlFromUri,
+    filterLlmEvaluatorWorkflows,
+    filterNonDeterministicEvaluatorWorkflows,
+} from "./helpers"
 import {
     workflowProjectIdAtom,
     workflowLocalServerDataAtomFamily,
@@ -208,20 +211,15 @@ export const nonHumanEvaluatorsAtom = atom<Workflow[]>((get) => {
  */
 export const nonDeterministicEvaluatorsAtom = atom<Workflow[]>((get) => {
     const evaluators = get(nonArchivedEvaluatorsAtom)
-    return evaluators.filter((evaluator) => {
-        if (!evaluator.id) return false
+    const latestRevisions = new Map<string, Workflow>()
+
+    evaluators.forEach((evaluator) => {
+        if (!evaluator.id) return
         const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
-        if (!revision) return false
-        // Human evaluators can carry is_custom too, so exclude them explicitly
-        // before the capability check — only automatic evaluators qualify.
-        if (revision.flags?.is_feedback) return false
-        return isOnlineCapableEvaluator({
-            flags: revision.flags as Record<string, unknown> | null,
-            data: revision.data as {uri?: string | null} | null,
-            meta: revision.meta as Record<string, unknown> | null,
-            slug: revision.slug ?? evaluator.slug ?? null,
-        })
+        if (revision) latestRevisions.set(evaluator.id, revision)
     })
+
+    return filterNonDeterministicEvaluatorWorkflows(evaluators, latestRevisions)
 })
 
 /**

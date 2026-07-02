@@ -19,14 +19,10 @@ import {useAtom} from "jotai"
 import {
     getSettingsSidebarTabs,
     resolveSettingsTab,
-    type SettingsAccess,
     type SettingsTabKey,
 } from "@/oss/components/pages/settings/assets/navigation"
-import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
+import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
-import {useOrgData} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
 import {settingsTabAtom} from "@/oss/state/settings"
 
 import ListOfOrgs from "../components/ListOfOrgs"
@@ -43,27 +39,6 @@ import {SETTINGS_SIDEBAR_SCOPE_ID} from "./constants"
 
 interface SettingsScopeOptions {
     lastPath?: string
-}
-
-const useSettingsAccess = (): SettingsAccess => {
-    const {selectedOrg} = useOrgData()
-    const {user} = useProfileData()
-    const {canViewApiKeys, canViewEvents} = useProjectPermissions()
-    const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
-    const billingEnabled = isBillingEnabled()
-
-    return useMemo(
-        () => ({
-            billingEnabled,
-            canShowTools: isToolsEnabled(),
-            canShowTriggers: isToolsEnabled(),
-            canViewApiKeys,
-            canViewEvents,
-            isEE: isEE(),
-            isOwner,
-        }),
-        [billingEnabled, canViewApiKeys, canViewEvents, isOwner],
-    )
 }
 
 const SETTINGS_TAB_DIVIDERS = new Set<SettingsTabKey>(["webhooks", "account"])
@@ -150,31 +125,26 @@ const useSettingsSidebarSections = (): SidebarSection[] => {
     return useMemo(() => [{key: "settings", items}], [items])
 }
 
-const createSettingsHeader = (lastPath?: string) => {
-    const SettingsSidebarHeader = ({collapsed}: SidebarSlotContext) => {
-        return (
-            <>
-                <div
-                    className={[
-                        "w-full h-[44px] flex items-center",
-                        collapsed ? "justify-center" : "mx-1.5",
-                    ].join(" ")}
-                >
-                    <SidebarBackButton collapsed={collapsed} lastPath={lastPath} className="mt-2" />
-                </div>
+const SettingsSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
+    <>
+        <div
+            className={[
+                "w-full h-[44px] flex items-center",
+                collapsed ? "justify-center" : "mx-1.5",
+            ].join(" ")}
+        >
+            <SidebarBackButton collapsed={collapsed} lastPath={lastPath} className="mt-2" />
+        </div>
 
-                <ListOfOrgs collapsed={collapsed} buttonProps={{type: "text"}} />
-                <Divider className="-mt-[3.5px] mb-3" />
-            </>
-        )
-    }
-
-    return SettingsSidebarHeader
-}
+        <ListOfOrgs collapsed={collapsed} buttonProps={{type: "text"}} />
+        <Divider className="-mt-[3.5px] mb-3" />
+    </>
+)
 
 export const createSettingsSidebarScope = ({lastPath}: SettingsScopeOptions): SidebarScope => ({
     id: SETTINGS_SIDEBAR_SCOPE_ID,
+    lastPath,
     useSelection: useSettingsSidebarSelection,
     useSections: useSettingsSidebarSections,
-    header: createSettingsHeader(lastPath),
+    header: SettingsSidebarHeader,
 })

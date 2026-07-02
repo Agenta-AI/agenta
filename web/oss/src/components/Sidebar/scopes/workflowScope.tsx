@@ -13,29 +13,23 @@ interface WorkflowScopeOptions {
     lastPath?: string
 }
 
-const createWorkflowHeader = (lastPath?: string) => {
-    const WorkflowSidebarHeader = ({collapsed}: SidebarSlotContext) => {
-        return (
-            <>
-                <div
-                    className={[
-                        "w-full h-[48px] flex items-center",
-                        collapsed ? "justify-center" : "mx-1.5",
-                    ].join(" ")}
-                >
-                    <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
-                </div>
+const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
+    <>
+        <div
+            className={[
+                "w-full h-[48px] flex items-center",
+                collapsed ? "justify-center" : "mx-1.5",
+            ].join(" ")}
+        >
+            <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
+        </div>
 
-                <div className={collapsed ? "flex w-full justify-center p-2" : "px-2 pt-1 pb-2"}>
-                    <WorkflowPicker collapsed={collapsed} />
-                </div>
-                <Divider className="mb-1 mt-0" />
-            </>
-        )
-    }
-
-    return WorkflowSidebarHeader
-}
+        <div className={collapsed ? "flex w-full justify-center p-2" : "px-2 pt-1 pb-2"}>
+            <WorkflowPicker collapsed={collapsed} />
+        </div>
+        <Divider className="mb-1 mt-0" />
+    </>
+)
 
 const ROUTE_SELECTION = {mode: "route"} as const
 const useWorkflowSidebarSelection = () => ROUTE_SELECTION
@@ -48,7 +42,8 @@ const useWorkflowSidebarSections = (): SidebarSection[] => {
 
 export const createWorkflowSidebarScope = ({lastPath}: WorkflowScopeOptions): SidebarScope => ({
     id: WORKFLOW_SIDEBAR_SCOPE_ID,
+    lastPath,
     useSelection: useWorkflowSidebarSelection,
     useSections: useWorkflowSidebarSections,
-    header: createWorkflowHeader(lastPath),
+    header: WorkflowSidebarHeader,
 })

@@ -22,6 +22,8 @@ import {
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "../Sidebar/scopes/constants"
+import {resolveSidebarLastPath} from "../Sidebar/scopes/sidebarLastPath"
 import {resolveSidebarView} from "../Sidebar/scopes/viewRegistry"
 import type {SidebarView} from "../Sidebar/types"
 
@@ -176,28 +178,34 @@ const AppWithVariants = memo(
         const appState = useAppState()
         const isAnnotations = appState.pathname.includes("/annotations")
         const lastBasePathRef = useRef<string | null>(null)
+        const lastNonSettingsPathRef = useRef<string | null>(null)
+        const activeSidebarView = resolveSidebarView({
+            pathname: appState.pathname,
+            routeLayer: appState.routeLayer,
+        })
 
         useEffect(() => {
-            if (
-                resolveSidebarView({
-                    pathname: appState.pathname,
-                    routeLayer: appState.routeLayer,
-                }).isBase
-            ) {
+            if (activeSidebarView.isBase) {
                 lastBasePathRef.current = appState.asPath
             }
-        }, [appState.asPath, appState.pathname, appState.routeLayer])
+            if (activeSidebarView.id !== SETTINGS_SIDEBAR_SCOPE_ID) {
+                lastNonSettingsPathRef.current = appState.asPath
+            }
+        }, [activeSidebarView.id, activeSidebarView.isBase, appState.asPath])
+
+        const sidebarLastPath = resolveSidebarLastPath({
+            view: activeSidebarView,
+            lastBasePath: lastBasePathRef.current,
+            lastNonSettingsPath: lastNonSettingsPathRef.current,
+            fallbackPath: baseAppURL,
+        })
 
         const sidebarView = useMemo<SidebarView>(() => {
-            const view = resolveSidebarView({
-                pathname: appState.pathname,
-                routeLayer: appState.routeLayer,
-            })
             return {
-                id: view.id,
-                lastPath: view.isBase ? null : lastBasePathRef.current || baseAppURL,
+                id: activeSidebarView.id,
+                lastPath: sidebarLastPath,
             }
-        }, [appState.pathname, appState.routeLayer, baseAppURL])
+        }, [activeSidebarView.id, sidebarLastPath])
 
         const currentApp = useAtomValue(currentAppAtom)
         const {project} = useProjectData()

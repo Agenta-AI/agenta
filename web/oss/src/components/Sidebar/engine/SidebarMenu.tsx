@@ -112,12 +112,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             placement="right"
                             mouseEnterDelay={0.8}
                         >
-                            <span
-                                className="w-full"
-                                onMouseEnter={() => onPopupOpenChange?.(item.key, true)}
-                            >
-                                {labelNode}
-                            </span>
+                            <span className="w-full">{labelNode}</span>
                         </Tooltip>
                     ) : (
                         labelNode
@@ -215,7 +210,10 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                 item.isPlaceholder && "text-gray-400",
                             )}
                             href={item.link}
-                            onClick={item.onClick}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                item.onClick?.(event)
+                            }}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
                             rel={item.link?.startsWith("http") ? "noopener noreferrer" : undefined}
                         >

@@ -3,7 +3,7 @@ interface BuildProjectSwitchHrefParams {
     projectId: string
     currentAsPath: string
     settingsTab?: string
-    queryTab?: string
+    queryTab?: string | string[]
 }
 
 /**
@@ -24,8 +24,9 @@ export function buildProjectSwitchHref({
     const currentPagePath = currentPathMatch?.[1] ?? "apps"
 
     const isOnSettingsPage = currentPagePath.startsWith("settings")
+    const normalizedQueryTab = Array.isArray(queryTab) ? queryTab[0] : queryTab
     const currentTab =
-        (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ?? queryTab
+        (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ?? normalizedQueryTab
     const tabParam = isOnSettingsPage && currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
 
     return `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`

@@ -21,7 +21,7 @@ const SidebarBackButton = ({collapsed, lastPath, className}: SidebarBackButtonPr
                 className,
             )}
             type="text"
-            size={!collapsed ? "small" : "medium"}
+            size={!collapsed ? "small" : "middle"}
             icon={<ArrowLeft size={14} />}
             onClick={() => {
                 if (lastPath) router.push(lastPath)

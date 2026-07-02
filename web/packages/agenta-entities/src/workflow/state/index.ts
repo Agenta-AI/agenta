@@ -26,8 +26,9 @@ export {
 
 export {
     deriveWorkflowTypeFromRevision,
+    fetchAndClassifyWorkflows,
     filterAgentWorkflows,
-    filterPromptWorkflows,
+    filterNonAgentWorkflows,
 } from "./helpers"
 
 // ============================================================================

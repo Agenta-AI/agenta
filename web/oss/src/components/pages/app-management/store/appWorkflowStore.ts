@@ -13,6 +13,7 @@ import {
     deriveWorkflowTypeFromRevision,
     fetchWorkflowsBatch,
     filterAgentWorkflows,
+    filterNonAgentWorkflows,
     parseWorkflowKeyFromUri,
     queryWorkflows,
 } from "@agenta/entities/workflow"
@@ -208,13 +209,13 @@ async function fetchArchivedAppWorkflows(meta: AppWorkflowQueryMeta) {
         .filter(isArchivedWorkflow)
         .sort(compareDeletedAtDesc)
 
-    if (!meta.agentScope) return archivedWorkflows
-
     const latestRevisions = await fetchWorkflowsBatch(
         meta.projectId,
         archivedWorkflows.map((workflow) => workflow.id),
     )
-    return filterAgentWorkflows(archivedWorkflows, latestRevisions)
+    return meta.agentScope
+        ? filterAgentWorkflows(archivedWorkflows, latestRevisions)
+        : filterNonAgentWorkflows(archivedWorkflows, latestRevisions)
 }
 
 const skeletonDefaults: Partial<AppWorkflowRow> = {

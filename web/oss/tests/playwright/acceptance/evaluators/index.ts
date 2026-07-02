@@ -810,7 +810,7 @@ const testEvaluators = () => {
     )
 
     test(
-        "should exclude non-LLM evaluators from the sidebar workflow switcher",
+        "should exclude deterministic evaluators from the sidebar workflow switcher",
         {
             tag: buildAcceptanceTags({
                 scope: [TestScope.EVALUATIONS],
@@ -868,7 +868,7 @@ const testEvaluators = () => {
             await switchButton.click()
 
             // The dropdown opens via AntD's Dropdown. The just-created Exact
-            // Match evaluator must be absent because it is not LLM-based.
+            // Match evaluator must be absent because it is deterministic.
             await expect(page.getByRole("menuitem").filter({hasText: evaluatorName})).toHaveCount(0)
         },
     )

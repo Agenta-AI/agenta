@@ -111,6 +111,16 @@ describe("buildProjectSwitchHref", () => {
         expect(href).toBe("/w/ws-1/p/proj-new/settings?tab=secrets")
     })
 
+    it("uses the first value when the settings tab query is repeated", () => {
+        const href = buildProjectSwitchHref({
+            workspaceId: WS,
+            projectId: NEW_PROJECT,
+            currentAsPath: "/w/ws-1/p/proj-old/settings?tab=secrets&tab=account",
+            queryTab: ["secrets", "account"],
+        })
+        expect(href).toBe("/w/ws-1/p/proj-new/settings?tab=secrets")
+    })
+
     it("does not add a tab param for non-settings pages even if a tab is present", () => {
         const href = buildProjectSwitchHref({
             workspaceId: WS,

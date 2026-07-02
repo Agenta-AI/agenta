@@ -2,6 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {appTemplatesQueryAtom, createEphemeralAppFromTemplate} from "@agenta/entities/workflow"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {message} from "antd"
@@ -47,13 +48,17 @@ export default function AgentsPage() {
     const {selectedRows, rowSelection, clearSelection} = useAgentsSelection(rows)
 
     const handleCreate = useCallback(async () => {
-        const entityId = await createEphemeralAppFromTemplate({type: "agent"})
-        if (!entityId) {
-            message.error("Couldn't start agent creation — please retry")
-            return
-        }
+        try {
+            const entityId = await createEphemeralAppFromTemplate({type: "agent"})
+            if (!entityId) {
+                message.error("Couldn't start agent creation — please retry")
+                return
+            }
 
-        setOpenDrawer({entityId, context: "app-create"})
+            setOpenDrawer({entityId, context: "app-create"})
+        } catch (error) {
+            message.error(extractApiErrorMessage(error))
+        }
     }, [setOpenDrawer])
 
     const handleArchived = useCallback(() => {

@@ -1,10 +1,9 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {InitialsAvatar} from "@agenta/ui"
-import {ArrowsLeftRight, CaretDown, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
+import {ArrowsLeftRight, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
-    Button,
     ButtonProps,
     Dropdown,
     DropdownProps,
@@ -42,6 +41,7 @@ import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import AuthUpgradeModal, {AuthUpgradeDetail} from "./AuthUpgradeModal"
 import ListOfProjects from "./ListOfProjects"
+import SidebarSelectionButton from "./SidebarSelectionButton"
 
 interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
     collapsed: boolean
@@ -286,70 +286,6 @@ const ListOfOrgs = ({
 
     const organizationButtonLabel = organizationDisplayName
     const canOpenOrganizationMenu = interactive
-
-    const sharedButtonProps = useMemo(() => {
-        if (!buttonProps) {
-            return {
-                className: undefined,
-                type: undefined,
-                disabled: undefined,
-                rest: {} as ButtonProps,
-            }
-        }
-
-        const {className, type, disabled, ...rest} = buttonProps
-        return {className, type, disabled, rest: rest as ButtonProps}
-    }, [buttonProps])
-
-    const renderSelectionButton = (
-        label: string,
-        placeholder: string,
-        isOpen: boolean,
-        showCaret: boolean,
-        disabled?: boolean,
-    ) => (
-        <Button
-            type={sharedButtonProps.type ?? "text"}
-            className={clsx(
-                "flex items-center justify-between overflow-hidden h-9 transition-[width,padding,gap] duration-300 ease-in-out",
-                collapsed ? "!w-8 !p-1 gap-0" : "w-full px-1.5 py-3 gap-2",
-                sharedButtonProps.className,
-            )}
-            disabled={disabled || sharedButtonProps.disabled}
-            {...sharedButtonProps.rest}
-        >
-            <div
-                className={clsx(
-                    "flex min-w-0 items-center transition-[gap] duration-300 ease-in-out",
-                    collapsed ? "gap-0" : "gap-2",
-                )}
-            >
-                <InitialsAvatar size="small" name={label || placeholder} />
-                <span
-                    className={clsx(
-                        "max-w-[150px] truncate overflow-hidden transition-[max-width,opacity] duration-300 ease-in-out",
-                        collapsed ? "!max-w-0 opacity-0" : "opacity-100",
-                    )}
-                    title={label || placeholder}
-                    aria-hidden={collapsed}
-                >
-                    {label || placeholder}
-                </span>
-            </div>
-            <span
-                className={clsx(
-                    "flex shrink-0 items-center overflow-hidden transition-[width,opacity] duration-300 ease-in-out",
-                    !collapsed && showCaret ? "w-3.5 opacity-100" : "w-0 opacity-0",
-                )}
-                aria-hidden={collapsed || !showCaret}
-            >
-                <CaretDown
-                    size={14}
-                    className={clsx("transition-transform", isOpen ? "rotate-180" : "")}
-                />
-            </span>
-        </Button>
-    )
 
     const isPostSignupPage =
         router.pathname === "/post-signup" || router.pathname === "/get-started"
@@ -635,24 +571,27 @@ const ListOfOrgs = ({
                             }}
                         >
                             <div data-org-selector>
-                                {renderSelectionButton(
-                                    organizationButtonLabel,
-                                    organizationLabel,
-                                    organizationDropdownOpen,
-                                    true,
-                                    false,
-                                )}
+                                <SidebarSelectionButton
+                                    collapsed={collapsed}
+                                    label={organizationButtonLabel}
+                                    placeholder={organizationLabel}
+                                    isOpen={organizationDropdownOpen}
+                                    showCaret
+                                    buttonProps={buttonProps}
+                                />
                             </div>
                         </Dropdown>
                     ) : (
                         <div className={clsx({"flex items-center justify-center": collapsed})}>
-                            {renderSelectionButton(
-                                organizationButtonLabel,
-                                organizationLabel,
-                                false,
-                                false,
-                                true,
-                            )}
+                            <SidebarSelectionButton
+                                collapsed={collapsed}
+                                label={organizationButtonLabel}
+                                placeholder={organizationLabel}
+                                isOpen={false}
+                                showCaret={false}
+                                disabled
+                                buttonProps={buttonProps}
+                            />
                         </div>
                     )}
 

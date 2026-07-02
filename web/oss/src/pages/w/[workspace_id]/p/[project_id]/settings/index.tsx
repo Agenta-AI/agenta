@@ -7,18 +7,16 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {
+    DEFAULT_SETTINGS_TAB,
     getSettingsTabLabel,
     resolveSettingsTab,
-    type SettingsAccess,
 } from "@/oss/components/pages/settings/assets/navigation"
-import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
+import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
 
@@ -71,24 +69,9 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
-    const tab = tabQuery ?? settingsTab ?? "workspace"
-    const {canViewApiKeys, canViewEvents} = useProjectPermissions()
-    const {user} = useProfileData()
+    const tab = tabQuery ?? settingsTab ?? DEFAULT_SETTINGS_TAB
     const {selectedOrg} = useOrgData()
-    const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
-    const billingEnabled = isBillingEnabled()
-    const settingsAccess = useMemo<SettingsAccess>(
-        () => ({
-            billingEnabled,
-            canShowTools: isToolsEnabled(),
-            canShowTriggers: isToolsEnabled(),
-            canViewApiKeys,
-            canViewEvents,
-            isEE: isEE(),
-            isOwner,
-        }),
-        [billingEnabled, canViewApiKeys, canViewEvents, isOwner],
-    )
+    const settingsAccess = useSettingsAccess()
     const resolvedTab = resolveSettingsTab(tab, settingsAccess)
     const resolvedTabLabel = getSettingsTabLabel(resolvedTab, settingsAccess)
     const {project} = useProjectData()

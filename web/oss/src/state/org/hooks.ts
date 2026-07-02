@@ -160,7 +160,7 @@ export const useOrgData = () => {
                           projectId,
                           currentAsPath: router.asPath,
                           settingsTab,
-                          queryTab: router.query.tab as string | undefined,
+                          queryTab: router.query.tab,
                       })
                     : `/w/${encodeURIComponent(workspaceId)}`
 

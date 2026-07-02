@@ -7,7 +7,11 @@
  */
 
 import type {Workflow} from "@agenta/entities/workflow"
-import {fetchWorkflowsBatch, filterPromptWorkflows, queryWorkflows} from "@agenta/entities/workflow"
+import {
+    fetchAndClassifyWorkflows,
+    filterNonAgentWorkflows,
+    queryWorkflows,
+} from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
@@ -163,13 +167,13 @@ const workflowsQueryAtom = atomWithQuery((get) => {
                 folderId: isSearching ? undefined : (currentFolderId ?? null),
                 windowing: {order: "descending"},
             })
-            const workflows = response.workflows.filter((workflow) => !workflow.deleted_at)
-            const latestRevisions = await fetchWorkflowsBatch(
+            const workflows = await fetchAndClassifyWorkflows(
                 projectId,
-                workflows.map((workflow) => workflow.id),
+                response.workflows,
+                filterNonAgentWorkflows,
             )
 
-            return filterPromptWorkflows(workflows, latestRevisions).map(mapWorkflowToRow)
+            return workflows.map(mapWorkflowToRow)
         },
         enabled: !!projectId,
         staleTime: 30_000,

@@ -1,5 +1,10 @@
-import {fetchWorkflowsBatch, filterAgentWorkflows, queryWorkflows} from "@agenta/entities/workflow"
+import {
+    fetchAndClassifyWorkflows,
+    filterAgentWorkflows,
+    queryWorkflows,
+} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
+import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -7,6 +12,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 
 export const agentsSearchTermAtom = atom("")
+const AGENTS_WORKFLOWS_QUERY_KEY = ["agents-workflows"] as const
 
 const mapWorkflowToRow = (workflow: Workflow): AppWorkflowRow => ({
     key: workflow.id,
@@ -23,7 +29,7 @@ const agentsWorkflowsQueryAtom = atomWithQuery((get) => {
     const searchTerm = get(agentsSearchTermAtom).trim() || undefined
 
     return {
-        queryKey: ["agents-workflows", projectId, searchTerm ?? null],
+        queryKey: [...AGENTS_WORKFLOWS_QUERY_KEY, projectId, searchTerm ?? null],
         queryFn: async (): Promise<AppWorkflowRow[]> => {
             if (!projectId) return []
 
@@ -35,13 +41,13 @@ const agentsWorkflowsQueryAtom = atomWithQuery((get) => {
                 windowing: {order: "descending"},
             })
 
-            const workflows = response.workflows.filter((workflow) => !workflow.deleted_at)
-            const latestRevisions = await fetchWorkflowsBatch(
+            const workflows = await fetchAndClassifyWorkflows(
                 projectId,
-                workflows.map((workflow) => workflow.id),
+                response.workflows,
+                filterAgentWorkflows,
             )
 
-            return filterAgentWorkflows(workflows, latestRevisions).map(mapWorkflowToRow)
+            return workflows.map(mapWorkflowToRow)
         },
         enabled: !!projectId,
         staleTime: 30_000,
@@ -53,6 +59,10 @@ export const agentsWorkflowsAtom = atom((get) => get(agentsWorkflowsQueryAtom).d
 
 export const agentsWorkflowsLoadingAtom = atom((get) => get(agentsWorkflowsQueryAtom).isPending)
 
-export const refetchAgentsWorkflowsAtom = atom(null, (get) => {
-    get(agentsWorkflowsQueryAtom).refetch()
+export async function invalidateAgentsWorkflowQueries() {
+    await queryClient.invalidateQueries({queryKey: AGENTS_WORKFLOWS_QUERY_KEY, exact: false})
+}
+
+export const refetchAgentsWorkflowsAtom = atom(null, async () => {
+    await invalidateAgentsWorkflowQueries()
 })

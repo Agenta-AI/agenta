@@ -11,6 +11,7 @@ import {Button, Input, Space} from "antd"
 import type {ColumnsType, TableProps} from "antd/es/table"
 
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
+import {useDebounceInput} from "@/oss/hooks/useDebounceInput"
 
 interface AgentsTableSectionProps {
     columns: ColumnsType<AppWorkflowRow>
@@ -39,17 +40,24 @@ export default function AgentsTableSection({
     onCreate,
     onArchive,
 }: AgentsTableSectionProps) {
+    const [localSearchTerm, setLocalSearchTerm] = useDebounceInput<string>(
+        searchTerm,
+        onSearchChange,
+        300,
+        "",
+    )
+
     const filters = useMemo(
         () => (
             <Input.Search
                 placeholder="Search"
                 allowClear
                 className="w-[400px]"
-                value={searchTerm}
-                onChange={(event) => onSearchChange(event.target.value)}
+                value={localSearchTerm}
+                onChange={(event) => setLocalSearchTerm(event.target.value)}
             />
         ),
-        [onSearchChange, searchTerm],
+        [localSearchTerm, setLocalSearchTerm],
     )
 
     const primaryActions = useMemo(
@@ -61,7 +69,7 @@ export default function AgentsTableSection({
                     icon={<TrayIcon />}
                     onClick={onArchive}
                 >
-                    Archive
+                    {selectedCount > 0 ? "Archive" : "Archived"}
                 </Button>
                 <Button type="primary" icon={<PlusIcon />} onClick={onCreate}>
                     Create

@@ -161,17 +161,16 @@ export const useSidebarConfig = (): MainSidebarItems => {
         [baseAppURL, hasProjectURL, projectURL],
     )
 
-    const appItems = useMemo<SidebarConfig[]>(
-        () => [
+    const appItems = useMemo<SidebarConfig[]>(() => {
+        const isHidden = !hasAppContext && !currentApp && !recentlyVisitedAppId
+        return [
             {
                 key: "overview-link",
                 title: "Overview",
                 link: `${appURL || recentlyVisitedAppURL}/overview`,
                 icon: <DesktopIcon size={14} />,
-                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-                // Enabled for evaluators too — Overview surfaces the workflow's
-                // details, variants, and the evaluation runs that evaluated it
-                // (scoped by the workflow id as the `application` reference).
+                isHidden,
+                // Enabled for evaluators too — scoped by the workflow id as the `application` reference.
                 disabled: !hasProjectURL,
             },
             {
@@ -179,27 +178,26 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Playground",
                 link: `${appURL || recentlyVisitedAppURL}/playground`,
                 icon: <RocketIcon size={14} />,
-                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
+                isHidden,
                 disabled: !hasProjectURL,
             },
             {
                 key: "app-variants-link",
                 title: "Registry",
                 link: `${appURL || recentlyVisitedAppURL}/variants`,
-                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
+                isHidden,
                 icon: <LightningIcon size={14} />,
                 disabled: !hasProjectURL,
                 dataTour: "registry-nav",
+                workflowCategories: ["app", "agent"],
             },
             {
                 key: "app-evaluations-link",
                 title: "Evaluations",
                 link: `${appURL || recentlyVisitedAppURL}/evaluations`,
-                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
+                isHidden,
                 icon: <FlaskIcon size={14} />,
-                // Enabled for evaluators too — shows the evaluation runs that
-                // evaluated this evaluator (scoped by its id as the `application`
-                // reference, same machinery as the app-scoped evaluations page).
+                // Enabled for evaluators too — shows the runs scoped by the evaluator's id.
                 disabled: !hasProjectURL,
                 dataTour: "evaluations-nav",
             },
@@ -207,20 +205,19 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 key: "app-traces-link",
                 title: "Observability",
                 icon: <TreeViewIcon size={14} />,
-                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
+                isHidden,
                 link: `${appURL || recentlyVisitedAppURL}/traces`,
                 disabled: !hasProjectURL,
             },
-        ],
-        [
-            appURL,
-            currentApp,
-            hasAppContext,
-            hasProjectURL,
-            recentlyVisitedAppId,
-            recentlyVisitedAppURL,
-        ],
-    )
+        ]
+    }, [
+        appURL,
+        currentApp,
+        hasAppContext,
+        hasProjectURL,
+        recentlyVisitedAppId,
+        recentlyVisitedAppURL,
+    ])
 
     const bottomItems = useMemo<SidebarConfig[]>(
         () => [

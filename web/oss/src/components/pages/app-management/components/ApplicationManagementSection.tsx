@@ -8,6 +8,7 @@ import {Button, Empty, Space, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {invalidateAgentsWorkflowQueries} from "@/oss/components/pages/agents/store"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
@@ -120,6 +121,7 @@ const ApplicationManagementSection = ({
                     await workflowMolecule.lifecycle.unarchive(record.workflowId, {projectId})
                     await mutateApps?.()
                     await invalidateAppManagementWorkflowQueries()
+                    await invalidateAgentsWorkflowQueries()
                     message.success("App restored")
                 } catch (error) {
                     message.error(extractApiErrorMessage(error))

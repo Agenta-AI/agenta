@@ -1,4 +1,4 @@
-import type {ComponentType} from "react"
+import type {ComponentType, JSX, MouseEvent} from "react"
 
 import type {MenuProps} from "antd"
 import type {PrimitiveAtom, WritableAtom} from "jotai"
@@ -8,11 +8,11 @@ export interface SidebarConfig {
     title: string
     tooltip?: string
     link?: string
-    icon: React.JSX.Element
+    icon: JSX.Element
     isHidden?: boolean
     submenu?: SidebarConfig[]
     defaultOpen?: boolean
-    onClick?: (e: React.MouseEvent) => void
+    onClick?: (e: MouseEvent) => void
     tag?: string
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string
@@ -22,7 +22,11 @@ export interface SidebarConfig {
     isDynamic?: boolean
     isLoading?: boolean
     isPlaceholder?: boolean
+    /** Workflow categories that support this item. Omit to support every category. */
+    workflowCategories?: readonly SidebarWorkflowCategory[]
 }
+
+export type SidebarWorkflowCategory = "app" | "agent" | "evaluator"
 
 export interface SidebarMenuProps {
     items: SidebarConfig[]
@@ -40,6 +44,7 @@ export type SidebarSelection =
 
 export interface SidebarSlotContext {
     collapsed: boolean
+    lastPath?: string
 }
 
 export type SidebarSlot = ComponentType<SidebarSlotContext>
@@ -55,6 +60,7 @@ export interface SidebarSection {
 
 export interface SidebarScope {
     id: string
+    lastPath?: string
     useSelection: () => SidebarSelection
     useSections: () => SidebarSection[]
     header?: SidebarSlot

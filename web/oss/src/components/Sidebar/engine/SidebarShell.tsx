@@ -5,6 +5,7 @@ import {useAtom} from "jotai"
 
 import SidebarMenu from "./SidebarMenu"
 import type {SidebarConfig, SidebarScope, SidebarSection, SidebarShellProps} from "./types"
+import {filterVisibleSections} from "./visibility"
 
 const {Sider} = Layout
 
@@ -125,15 +126,6 @@ const findNavigableGroupKeys = (items: SidebarConfig[]) => {
     return keys
 }
 
-// Drop hidden entries at every level, not just the section root, so nested hidden items
-// never render, auto-open, or become selected.
-const filterVisibleItems = (items: SidebarConfig[]): SidebarConfig[] =>
-    items.flatMap((item) =>
-        item.isHidden
-            ? []
-            : [{...item, submenu: item.submenu ? filterVisibleItems(item.submenu) : undefined}],
-    )
-
 const uniqueKeys = (keys: string[]) => Array.from(new Set(keys))
 
 const haveSameKeys = (left: string[], right: string[]) =>
@@ -142,9 +134,10 @@ const haveSameKeys = (left: string[], right: string[]) =>
 const renderSlot = (
     Slot: SidebarSection["before"] | SidebarScope["header"] | SidebarScope["footer"],
     collapsed: boolean,
+    lastPath?: string,
 ) => {
     if (!Slot) return null
-    return <Slot collapsed={collapsed} />
+    return <Slot collapsed={collapsed} lastPath={lastPath} />
 }
 
 const SidebarShell: React.FC<SidebarShellProps> = ({
@@ -165,13 +158,10 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const selection = scope.useSelection()
     const sections = scope.useSections()
 
-    const visibleSections = useMemo(
-        () => sections.filter((section) => section.items.some((item) => !item.isHidden)),
-        [sections],
-    )
+    const visibleSections = useMemo(() => filterVisibleSections(sections), [sections])
 
     const allItems = useMemo(
-        () => visibleSections.flatMap((section) => filterVisibleItems(section.items)),
+        () => visibleSections.flatMap((section) => section.items),
         [visibleSections],
     )
 
@@ -243,9 +233,6 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     )
 
     const renderSection = (section: SidebarSection) => {
-        const items = filterVisibleItems(section.items)
-        if (!items.length) return null
-
         const isBottomSection = section.placement === "bottom"
         const isInlineSection = (section.mode ?? "inline") === "inline"
 
@@ -273,7 +260,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                                   }
                                 : undefined,
                     }}
-                    items={items}
+                    items={section.items}
                     collapsed={collapsed}
                     mode={section.mode}
                     openKeys={isInlineSection ? openKeys : []}
@@ -302,14 +289,14 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                         collapsed ? "w-[80px]" : "w-[236px]",
                     ].join(" ")}
                 >
-                    {renderSlot(scope.header, collapsed)}
+                    {renderSlot(scope.header, collapsed, scope.lastPath)}
                     <SidebarErrorBoundary>
                         <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
                             <div className="flex-1 min-h-0 w-full overflow-y-auto">
                                 {topSections.map(renderSection)}
                             </div>
                             <div className="w-full flex flex-col shrink-0">
-                                {renderSlot(scope.footer, collapsed)}
+                                {renderSlot(scope.footer, collapsed, scope.lastPath)}
                                 {bottomSections.map(renderSection)}
                             </div>
                         </div>

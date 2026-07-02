@@ -19,11 +19,13 @@ export interface SidebarEntityRef {
  * Gated source state for one entity group.
  * - `idle`    group is closed → not fetched (the gate keeps the query unsubscribed)
  * - `loading` group is open and the backing query is pending
+ * - `error`   the backing query failed
  * - `ready`   data is available (may still be empty)
  */
 export interface SidebarEntitySource<TRef extends SidebarEntityRef = SidebarEntityRef> {
-    status: "idle" | "loading" | "ready"
+    status: "idle" | "loading" | "error" | "ready"
     refs: TRef[]
+    error?: unknown
 }
 
 /**
