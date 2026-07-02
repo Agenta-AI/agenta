@@ -437,3 +437,71 @@ async def test_plain_tool_call_prefers_raw_input() -> None:
     inputs = [p for p in parts if p.get("type") == "tool-input-available"]
     assert len(inputs) == 1
     assert inputs[0]["input"] == {"path": "memory://users/self/profile.md"}
+
+
+def _tool_call_then_input_refresh_run() -> AgentStream:
+    """A non-gated tool the runner surfaces up front with an empty input, then re-emits with the
+    real args once they arrive on the ACP ``tool_call_update`` (the runner's input-refresh)."""
+    return AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-1",
+                        "name": "query_workflows",
+                        "input": {},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-1",
+                        "name": "query_workflows",
+                        "input": {"kind": "agent"},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_result",
+                        "id": "tool-1",
+                        "output": "3 found",
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "stop"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "stop",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_repeat_tool_call_refreshes_input_without_a_second_start() -> None:
+    """A repeat ``tool_call`` for a seen id is an input REFRESH: it re-emits ``tool-input-available``
+    with the real args but must NOT emit a second ``tool-input-start`` (which would reset the FE
+    tool part and make it look like the tool re-ran). Mirrors the gated approval-refresh path."""
+    parts = [
+        part
+        async for part in agent_run_to_vercel_parts(_tool_call_then_input_refresh_run())
+    ]
+
+    starts = [p for p in parts if p.get("type") == "tool-input-start"]
+    inputs = [p for p in parts if p.get("type") == "tool-input-available"]
+    # Exactly one start (the call surfaces once), two inputs (empty, then the refresh with args).
+    assert len(starts) == 1
+    assert [p["input"] for p in inputs] == [{}, {"kind": "agent"}]
+    # The refresh precedes the result — input is settled before output arrives.
+    types = [p.get("type") for p in parts]
+    assert types.index("tool-input-available") < types.index("tool-output-available")

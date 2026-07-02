@@ -127,13 +127,20 @@ async def agent_run_to_vercel_parts(
             elif etype == "tool_call":
                 tool_call_id = data.get("id")
                 tool_name = data.get("name")
+                # A repeat tool_call for an already-seen id is an input REFRESH: the runner
+                # re-emits the call once the real args arrive on a later ACP tool_call_update
+                # (Pi announces the call first with absent/`{}` args). Emit `tool-input-start`
+                # only the first time — a second start would reset the FE tool part after its
+                # approval/output. Mirrors the seen-id refresh in `_interaction_parts`.
+                first_seen = tool_call_id not in seen_tool_calls
                 seen_tool_calls.add(tool_call_id)
                 tool_names_by_id[tool_call_id] = tool_name
-                yield {
-                    "type": "tool-input-start",
-                    "toolCallId": tool_call_id,
-                    "toolName": tool_name,
-                }
+                if first_seen:
+                    yield {
+                        "type": "tool-input-start",
+                        "toolCallId": tool_call_id,
+                        "toolName": tool_name,
+                    }
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
@@ -307,13 +314,20 @@ async def agent_stream_to_vercel_stream(
             elif etype == "tool_call":
                 tool_call_id = data.get("id")
                 tool_name = data.get("name")
+                # A repeat tool_call for an already-seen id is an input REFRESH: the runner
+                # re-emits the call once the real args arrive on a later ACP tool_call_update
+                # (Pi announces the call first with absent/`{}` args). Emit `tool-input-start`
+                # only the first time — a second start would reset the FE tool part after its
+                # approval/output. Mirrors the seen-id refresh in `_interaction_parts`.
+                first_seen = tool_call_id not in seen_tool_calls
                 seen_tool_calls.add(tool_call_id)
                 tool_names_by_id[tool_call_id] = tool_name
-                yield {
-                    "type": "tool-input-start",
-                    "toolCallId": tool_call_id,
-                    "toolName": tool_name,
-                }
+                if first_seen:
+                    yield {
+                        "type": "tool-input-start",
+                        "toolCallId": tool_call_id,
+                        "toolName": tool_name,
+                    }
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
