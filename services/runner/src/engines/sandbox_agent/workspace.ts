@@ -14,7 +14,7 @@ export interface PrepareWorkspaceInput {
   sandbox: any;
   plan: Pick<
     RunPlan,
-    | "isDaytona"
+    | "isRemoteSandbox"
     | "isPi"
     | "cwd"
     | "relayDir"
@@ -42,7 +42,7 @@ export async function prepareWorkspace({
   const harnessFiles = plan.harnessFiles ?? [];
   const projectSkillRoot = plan.isPi ? undefined : `.${plan.acpAgent}/skills`;
 
-  if (plan.isDaytona) {
+  if (plan.isRemoteSandbox) {
     await sandbox.mkdirFs({ path: plan.cwd }).catch((err: Error) => {
       log(`workspace mkdir skipped: ${err.message}`);
     });

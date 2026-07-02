@@ -13,17 +13,24 @@ import assert from "node:assert/strict";
 
 import {
   DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
+  DEFAULT_E2B_TIMEOUT_MS,
   buildDaytonaCreate,
+  buildE2BCreate,
   daytonaAutoStopMinutes,
   daytonaNetworkFields,
+  e2bTimeoutMs,
 } from "../../src/engines/sandbox_agent/provider.ts";
 
 const AUTOSTOP_ENV = "DAYTONA_AUTOSTOP";
+const E2B_TIMEOUT_ENV = "E2B_TIMEOUT_MS";
 const previousAutoStop = process.env[AUTOSTOP_ENV];
+const previousE2BTimeout = process.env[E2B_TIMEOUT_ENV];
 
 afterEach(() => {
   if (previousAutoStop === undefined) delete process.env[AUTOSTOP_ENV];
   else process.env[AUTOSTOP_ENV] = previousAutoStop;
+  if (previousE2BTimeout === undefined) delete process.env[E2B_TIMEOUT_ENV];
+  else process.env[E2B_TIMEOUT_ENV] = previousE2BTimeout;
 });
 
 describe("daytonaNetworkFields", () => {
@@ -124,5 +131,73 @@ describe("buildDaytonaCreate (leak backstop on the create object)", () => {
     const create = buildDaytonaCreate({}, {}, undefined);
     assert.equal(create.autoStopInterval, 42);
     assert.equal(create.ephemeral, true);
+  });
+});
+
+describe("e2bTimeoutMs (leak backstop)", () => {
+  it("uses the env value when it is a positive integer", () => {
+    assert.equal(e2bTimeoutMs("60000"), 60000);
+  });
+
+  it("floors a fractional env value", () => {
+    assert.equal(e2bTimeoutMs("1500.9"), 1500);
+  });
+
+  it("falls back to the default when env is unset", () => {
+    assert.equal(e2bTimeoutMs(undefined), DEFAULT_E2B_TIMEOUT_MS);
+  });
+
+  it("falls back to the default for a non-numeric env value", () => {
+    assert.equal(e2bTimeoutMs("soon"), DEFAULT_E2B_TIMEOUT_MS);
+  });
+
+  it("clamps 0 to the default so the backstop is never re-disabled", () => {
+    assert.equal(e2bTimeoutMs("0"), DEFAULT_E2B_TIMEOUT_MS);
+  });
+
+  it("clamps a negative env value to the default", () => {
+    assert.equal(e2bTimeoutMs("-1000"), DEFAULT_E2B_TIMEOUT_MS);
+  });
+
+  it("the default is a positive backstop (timeout stays ON)", () => {
+    assert.ok(DEFAULT_E2B_TIMEOUT_MS >= 1);
+  });
+});
+
+describe("buildE2BCreate (envs + timeout + autoPause)", () => {
+  it("merges piExtEnv and secrets into envs, carries timeoutMs and autoPause:true", () => {
+    delete process.env[E2B_TIMEOUT_ENV];
+    const create = buildE2BCreate(
+      { TRACE_ID: "t1" },
+      { ANTHROPIC_API_KEY: "sk-ant" },
+    );
+    assert.deepEqual((create as any).envs, {
+      TRACE_ID: "t1",
+      ANTHROPIC_API_KEY: "sk-ant",
+    });
+    assert.equal((create as any).autoPause, true);
+    assert.equal((create as any).timeoutMs, DEFAULT_E2B_TIMEOUT_MS);
+    assert.ok(
+      (create as any).timeoutMs > 0,
+      "timeoutMs must be > 0 or the backstop is disabled",
+    );
+  });
+
+  it("carries an env-configured timeout", () => {
+    process.env[E2B_TIMEOUT_ENV] = "900000";
+    const create = buildE2BCreate({}, {});
+    assert.equal((create as any).timeoutMs, 900000);
+  });
+
+  it("opencode provider key (ANTHROPIC_API_KEY) lands in envs via secrets", () => {
+    delete process.env[E2B_TIMEOUT_ENV];
+    const create = buildE2BCreate({}, { ANTHROPIC_API_KEY: "sk-ant-test" });
+    assert.equal((create as any).envs.ANTHROPIC_API_KEY, "sk-ant-test");
+  });
+
+  it("opencode OPENAI_API_KEY variant also lands in envs", () => {
+    delete process.env[E2B_TIMEOUT_ENV];
+    const create = buildE2BCreate({}, { OPENAI_API_KEY: "sk-oai-test" });
+    assert.equal((create as any).envs.OPENAI_API_KEY, "sk-oai-test");
   });
 });
