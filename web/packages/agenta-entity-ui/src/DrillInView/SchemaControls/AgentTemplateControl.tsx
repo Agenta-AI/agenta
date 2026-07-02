@@ -25,9 +25,13 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {workflowBuildKitEnabledAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
-import {classifyAgentChanges, stableStringify} from "@agenta/entities/workflow/commitDiff"
+import {
+    agentItemIdentity,
+    classifyAgentChanges,
+    stableStringify,
+} from "@agenta/entities/workflow/commitDiff"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {ConfigAccordionSection, sectionIndicatorColor} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -50,7 +54,6 @@ import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
-import {toolName} from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {ToolManagementList} from "./agentTemplate/ToolManagementList"
@@ -305,44 +308,39 @@ export function AgentTemplateControl({
         return keys
     }, [config, committed])
 
-    // Per-item draft: identity → stable-stringified committed value, so a row reads as "new"
-    // (identity absent from the baseline) or "edited" (present but the value differs).
-    const identityOf = useMemo<Record<ItemKind, (item: unknown) => string>>(
-        () => ({
-            tool: (item) => String(toolName(item) ?? ""),
-            mcp: (item) => String((item as Record<string, unknown> | null)?.name ?? ""),
-            skill: (item) => {
-                const r = (item as Record<string, unknown> | null) ?? {}
-                return String(r.name ?? r.slug ?? "")
-            },
-        }),
-        [],
-    )
+    // Per-item draft: canonical identity → stable-stringified committed value, so a row reads as
+    // "new" (identity absent from the baseline) or "edited" (present but the value differs). The
+    // identity is collision-free (see agentItemIdentity) so id-less builtin/reference tools and
+    // unnamed items don't collapse onto one map key.
     const baseMaps = useMemo(() => {
-        const build = (list: unknown, identity: (x: unknown) => string) =>
-            new Map((Array.isArray(list) ? list : []).map((e) => [identity(e), stableStringify(e)]))
+        const build = (list: unknown, kind: ItemKind) =>
+            new Map(
+                (Array.isArray(list) ? list : []).map(
+                    (e, i) => [agentItemIdentity(kind, e, i), stableStringify(e)] as const,
+                ),
+            )
         return {
-            tool: build(committed?.tools, identityOf.tool),
-            mcp: build(committed?.mcps, identityOf.mcp),
-            skill: build(committed?.skills, identityOf.skill),
+            tool: build(committed?.tools, "tool"),
+            mcp: build(committed?.mcps, "mcp"),
+            skill: build(committed?.skills, "skill"),
         }
-    }, [committed, identityOf])
+    }, [committed])
 
     const statusForKind = useCallback(
         (kind: ItemKind) =>
-            (item: unknown): ItemRowStatus | undefined => {
+            (item: unknown, index: number): ItemRowStatus | undefined => {
                 if (ITEM_KINDS[kind].draftInvalid(item as Record<string, unknown>)) {
                     return {tone: "invalid", label: "Incomplete", tooltip: INVALID_ITEM_TIP[kind]}
                 }
                 if (!committed) return undefined
-                const prev = baseMaps[kind].get(identityOf[kind](item))
+                const prev = baseMaps[kind].get(agentItemIdentity(kind, item, index))
                 if (prev === undefined)
                     return {tone: "new", label: "New", tooltip: "Added since the last commit."}
                 if (prev !== stableStringify(stripAgentaMetadataDeep(item)))
                     return {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
                 return undefined
             },
-        [committed, baseMaps, identityOf],
+        [committed, baseMaps],
     )
     const toolStatusFor = useMemo(() => statusForKind("tool"), [statusForKind])
     const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
@@ -383,12 +381,6 @@ export function AgentTemplateControl({
     const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
         ? {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
         : undefined
-    const indicatorColor = (tone: "draft" | "invalid" | "incomplete") =>
-        tone === "invalid"
-            ? "var(--ag-colorError)"
-            : tone === "incomplete"
-              ? "var(--ag-colorWarning)"
-              : "var(--ag-colorInfo)"
 
     // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
     // drive the same add flow.
@@ -599,7 +591,7 @@ export function AgentTemplateControl({
                                         style={
                                             s.indicator
                                                 ? {
-                                                      color: `color-mix(in srgb, ${indicatorColor(s.indicator.tone)} 45%, var(--ag-colorTextTertiary))`,
+                                                      color: `color-mix(in srgb, ${sectionIndicatorColor(s.indicator.tone)} 45%, var(--ag-colorTextTertiary))`,
                                                   }
                                                 : undefined
                                         }
@@ -609,7 +601,9 @@ export function AgentTemplateControl({
                                             <span
                                                 className="absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full"
                                                 style={{
-                                                    background: indicatorColor(s.indicator.tone),
+                                                    background: sectionIndicatorColor(
+                                                        s.indicator.tone,
+                                                    ),
                                                 }}
                                             />
                                         ) : null}

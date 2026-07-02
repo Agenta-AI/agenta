@@ -361,8 +361,8 @@ export function EntityCommitContent({
                 "flex overflow-hidden",
                 hasDiffData ? "flex-row" : "flex-col gap-4",
                 hasDiffData && !isAgentCommit && "h-full gap-4",
+                isAgentTwoPane && "h-[min(450px,72vh)]",
             )}
-            style={isAgentTwoPane ? {height: "min(450px, 72vh)"} : undefined}
         >
             {/* Form section — agent two-pane: sits on the RIGHT and holds the action footer. */}
             <div

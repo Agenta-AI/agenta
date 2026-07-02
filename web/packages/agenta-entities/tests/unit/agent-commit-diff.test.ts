@@ -7,6 +7,7 @@ import {describe, it, expect} from "vitest"
 import {readAgentConfig} from "../../src/workflow/commitDiff/accessors"
 import {classifyAgentChanges} from "../../src/workflow/commitDiff/classify"
 import {parseGatewayToolName} from "../../src/workflow/commitDiff/gatewayName"
+import {agentItemIdentity} from "../../src/workflow/commitDiff/identity"
 import {buildCommitSummaryMessage} from "../../src/workflow/commitDiff/summaryMessage"
 
 const tool = (
@@ -296,6 +297,45 @@ describe("classifyAgentChanges", () => {
         const sections = classifyAgentChanges(local, cfg)
         expect(sections.find((s) => s.id === "params")).toBeUndefined()
         expect(sections.find((s) => s.id === "model")).toBeTruthy()
+    })
+})
+
+describe("agentItemIdentity — collision-free item identity", () => {
+    it("keys tools by reference slug / function name / positional fallback", () => {
+        expect(agentItemIdentity("tool", {type: "reference", slug: "wf-a"}, 0)).toBe("ref:wf-a")
+        expect(agentItemIdentity("tool", {function: {name: "gmail_send"}}, 0)).toBe("fn:gmail_send")
+        expect(agentItemIdentity("tool", {type: "platform", op: "list"}, 0)).toBe("platform:list")
+        // Bare builtin (only a type) has no stable id → positional, so duplicates never collapse.
+        expect(agentItemIdentity("tool", {type: "web_search"}, 2)).toBe("#2")
+    })
+
+    it("gives two id-less tools distinct identities (no map collapse)", () => {
+        const a = agentItemIdentity("tool", {type: "web_search"}, 0)
+        const b = agentItemIdentity("tool", {type: "code_execution"}, 1)
+        expect(a).not.toBe(b)
+    })
+
+    it("keys mcps by name and skills by embed slug / name", () => {
+        expect(agentItemIdentity("mcp", {name: "github"}, 0)).toBe("mcp:github")
+        expect(
+            agentItemIdentity(
+                "skill",
+                {"@ag.embed": {"@ag.references": {workflow: {slug: "sk-1"}}}},
+                0,
+            ),
+        ).toBe("skill:sk-1")
+        expect(agentItemIdentity("skill", {name: "writer"}, 0)).toBe("skill:writer")
+    })
+})
+
+describe("classifyAgentChanges — list identity is collision-free", () => {
+    it("does not collapse two id-less mcp entries onto one key", () => {
+        const remote = {agent: {mcps: [{}]}}
+        const local = {agent: {mcps: [{}, {}]}}
+        const mcps = classifyAgentChanges(local, remote).find((s) => s.id === "mcps")
+        // Positional identity: #0 unchanged, #1 added — the second entry is not silently dropped.
+        expect(mcps?.totalCount).toBe(1)
+        expect(mcps?.tags).toContainEqual({kind: "added", label: "1 added"})
     })
 })
 

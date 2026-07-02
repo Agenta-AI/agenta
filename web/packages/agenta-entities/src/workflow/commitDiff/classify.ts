@@ -8,8 +8,10 @@
 import {computeTextDiffLines} from "@agenta/ui/diff"
 
 import {PARAM_KEYS, readAgentConfig, stableStringify} from "./accessors"
+import {agentItemIdentity, type AgentItemKind} from "./identity"
 import type {
     AgentConfigView,
+    ChangeItem,
     ChangeSection,
     NormalizedTool,
     ScalarChange,
@@ -262,33 +264,36 @@ function entryLabel(entry: unknown): string {
     return "item"
 }
 
-/** Identity list-diff for portable sections (`mcps`/`skills`) keyed by human label. */
+/**
+ * Identity list-diff for portable sections (`mcps`/`skills`). Matching is keyed by the canonical
+ * {@link agentItemIdentity} (collision-free), while the row's display label comes from
+ * {@link entryLabel} — so two id-less entries never collapse the way a shared label would.
+ */
 function listSection(
     id: "mcps" | "skills",
     title: string,
     local: unknown[],
     remote: unknown[],
 ): ChangeSection | null {
-    const lMap = new Map(local.map((e) => [entryLabel(e), e]))
-    const rMap = new Map(remote.map((e) => [entryLabel(e), e]))
-    const added: string[] = []
-    const removed: string[] = []
-    const edited: string[] = []
+    const kind: AgentItemKind = id === "mcps" ? "mcp" : "skill"
+    const lMap = new Map(local.map((e, i) => [agentItemIdentity(kind, e, i), e] as const))
+    const rMap = new Map(remote.map((e, i) => [agentItemIdentity(kind, e, i), e] as const))
+    const added: [string, unknown][] = []
+    const removed: [string, unknown][] = []
+    const edited: [string, unknown][] = []
     for (const [key, entry] of lMap) {
         const prev = rMap.get(key)
-        if (prev === undefined) added.push(key)
-        else if (stableStringify(prev) !== stableStringify(entry)) edited.push(key)
+        if (prev === undefined) added.push([key, entry])
+        else if (stableStringify(prev) !== stableStringify(entry)) edited.push([key, entry])
     }
-    for (const key of rMap.keys()) if (!lMap.has(key)) removed.push(key)
+    for (const [key, entry] of rMap) if (!lMap.has(key)) removed.push([key, entry])
 
     const total = added.length + removed.length + edited.length
     if (total === 0) return null
 
-    const items = [
-        ...added.map((k) => ({id: k, label: k, kind: "added" as const})),
-        ...edited.map((k) => ({id: k, label: k, kind: "edited" as const})),
-        ...removed.map((k) => ({id: k, label: k, kind: "removed" as const})),
-    ]
+    const rows = (pairs: [string, unknown][], kindTag: ChangeItem["kind"]) =>
+        pairs.map(([key, entry]) => ({id: key, label: entryLabel(entry), kind: kindTag}))
+    const items = [...rows(added, "added"), ...rows(edited, "edited"), ...rows(removed, "removed")]
     const tags = []
     if (added.length) tags.push({kind: "added" as const, label: `${added.length} added`})
     if (edited.length) tags.push({kind: "edited" as const, label: `${edited.length} edited`})

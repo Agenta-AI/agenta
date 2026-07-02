@@ -92,16 +92,12 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 revisionVersion: newRevisionData?.version ?? undefined,
                 note: deployMessage ?? note,
             }
-            const succeeded: string[] = []
-            const failed: string[] = []
-            for (const environmentSlug of deployEnvironments) {
-                try {
-                    await publish({...refs, environmentSlug})
-                    succeeded.push(environmentSlug)
-                } catch {
-                    failed.push(environmentSlug)
-                }
-            }
+            // Fan out concurrently — the calls are independent, so N environments cost 1× latency.
+            const results = await Promise.allSettled(
+                deployEnvironments.map((environmentSlug) => publish({...refs, environmentSlug})),
+            )
+            const succeeded = deployEnvironments.filter((_, i) => results[i].status === "fulfilled")
+            const failed = deployEnvironments.filter((_, i) => results[i].status === "rejected")
             if (succeeded.length) {
                 message.success(`Published ${label} to ${succeeded.join(", ")}`)
             }

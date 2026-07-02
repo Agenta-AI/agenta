@@ -36,6 +36,20 @@ import {HeightCollapse} from "../../HeightCollapse"
 
 const {Text} = Typography
 
+export type SectionIndicatorTone = "draft" | "invalid" | "incomplete"
+
+/**
+ * The accent token for a section/item change indicator. Single source of truth for the
+ * tone→token mapping, shared by the section header and the config panel's item indicators.
+ */
+export function sectionIndicatorColor(tone: SectionIndicatorTone): string {
+    return tone === "invalid"
+        ? "var(--ag-colorError)"
+        : tone === "incomplete"
+          ? "var(--ag-colorWarning)"
+          : "var(--ag-colorInfo)"
+}
+
 export interface ConfigAccordionSectionProps {
     /** Section title shown in the header. */
     title: ReactNode
@@ -122,13 +136,7 @@ export function ConfigAccordionSection({
     children,
 }: ConfigAccordionSectionProps) {
     // Indicator (unsaved edits / validation) takes precedence over the completion `status`.
-    const indicatorColor = indicator
-        ? indicator.tone === "invalid"
-            ? "var(--ag-colorError)"
-            : indicator.tone === "incomplete"
-              ? "var(--ag-colorWarning)"
-              : "var(--ag-colorInfo)"
-        : null
+    const indicatorColor = indicator ? sectionIndicatorColor(indicator.tone) : null
     // The glyph gets a soft, desaturated tint; the full accent lives on the dot so it still reads.
     const iconColor = indicatorColor
         ? `color-mix(in srgb, ${indicatorColor} 45%, var(--ag-colorTextTertiary))`

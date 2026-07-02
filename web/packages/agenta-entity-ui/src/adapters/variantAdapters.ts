@@ -83,16 +83,12 @@ function buildGenericCommitContext(
 
     // Semantic, section-grouped diff for agent/LLM configs. Returns [] when nothing
     // recognized changed (e.g. non-agent workflows) → we fall back to the coarse summary.
-    // Try `parameters` first; agent-template configs may instead live at the data root.
-    let sections = hasDiff
+    const sections = hasDiff
         ? classifyAgentChanges(
               (localSide as Record<string, unknown>).parameters,
               (remoteSide as Record<string, unknown>).parameters,
           )
         : []
-    if (hasDiff && !sections.length) {
-        sections = classifyAgentChanges(localSide, remoteSide)
-    }
     const suggestedMessage = sections.length ? buildCommitSummaryMessage(sections) : undefined
 
     const descriptions: string[] = []

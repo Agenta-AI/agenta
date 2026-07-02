@@ -6,6 +6,7 @@
  * plus an auto commit message. Consumed by the commit modal's changes summary.
  */
 export {readAgentConfig, PARAM_KEYS, stableStringify} from "./accessors"
+export {agentItemIdentity, type AgentItemKind} from "./identity"
 export {classifyAgentChanges} from "./classify"
 export {buildCommitSummaryMessage} from "./summaryMessage"
 export {parseGatewayToolName, type ParsedToolName} from "./gatewayName"
