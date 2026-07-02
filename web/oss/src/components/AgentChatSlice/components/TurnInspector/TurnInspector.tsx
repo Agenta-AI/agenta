@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {capturesForTrigger} from "@agenta/playground"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {X} from "@phosphor-icons/react"
 import type {UIMessage} from "ai"
 import {Button} from "antd"
 import {useAtom, useAtomValue} from "jotai"
@@ -21,12 +21,15 @@ const TABS: {value: Tab; label: string}[] = [
     {value: "raw", label: "Raw"},
 ]
 
+const PANEL_WIDTH = 480
+
 /**
  * Dedicated Build-mode turn inspector. Mounted per session inside `AgentConversation` so it reads
  * the LIVE `useChat` `messages` (the same list the transcript renders) — accurate turn + live
- * streaming — and opens ONLY for the session that is the current inspector target. Laid out with the
- * drawer siderail pattern (vertical Timeline/Context/Raw rail + bordered content). Own state
- * (`turnInspectorAtom`), NOT the trace drawer.
+ * streaming — and opens ONLY for the session that is the current inspector target. Rendered as an
+ * inline side panel (a flex sibling of the chat column) so it pushes the transcript aside instead of
+ * overlaying it. Siderail pattern inside (vertical Timeline/Context/Raw rail + bordered content).
+ * Own state (`turnInspectorAtom`), NOT the trace drawer.
  */
 const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMessage[]}) => {
     const [target, setTarget] = useAtom(turnInspectorAtom)
@@ -65,45 +68,61 @@ const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMe
         return capturesForTrigger(captures, triggerId)
     }, [open, target, messages, captures])
 
+    // Stays mounted and animates its width (0↔PANEL_WIDTH) in lockstep with the build/chat mode
+    // switch, so it slides in/out instead of snapping. Clipped + `inert` while collapsed.
     return (
-        <EnhancedDrawer
-            open={open}
-            onClose={() => setTarget(null)}
-            width={560}
-            title="Turn inspector"
-            destroyOnHidden
-            styles={{body: {padding: 0}}}
+        <div
+            className="h-full shrink-0 overflow-hidden motion-safe:transition-[width] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+            style={{width: open ? PANEL_WIDTH : 0}}
+            inert={!open}
         >
-            <div className="flex h-full min-h-0 gap-3 p-3">
-                <div className="flex w-[104px] shrink-0 flex-col gap-0.5">
-                    {TABS.map((t) => {
-                        const active = t.value === tab
-                        return (
-                            <Button
-                                key={t.value}
-                                type="text"
-                                block
-                                onClick={() => setTab(t.value)}
-                                className={`!h-8 !justify-start !rounded-md !px-2.5 !text-xs transition-colors ${
-                                    active
-                                        ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
-                                        : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
-                                }`}
-                            >
-                                {t.label}
-                            </Button>
-                        )
-                    })}
+            <div
+                className="flex h-full min-h-0 flex-col border-0 border-l border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)]"
+                style={{width: PANEL_WIDTH}}
+            >
+                <div className="flex shrink-0 items-center justify-between border-0 border-b border-solid border-[var(--ag-colorBorder)] px-3 py-2">
+                    <span className="text-xs font-medium text-[var(--ag-colorText)]">
+                        Turn inspector
+                    </span>
+                    <Button
+                        type="text"
+                        size="small"
+                        icon={<X size={14} />}
+                        onClick={() => setTarget(null)}
+                        aria-label="Close turn inspector"
+                    />
                 </div>
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorder)] pl-3">
-                    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                        {tab === "timeline" ? <TimelineTab round={round} /> : null}
-                        {tab === "context" ? <ContextTab captures={turnCaptures} /> : null}
-                        {tab === "raw" ? <RawTab captures={turnCaptures} /> : null}
+                <div className="flex min-h-0 flex-1 gap-3 p-3">
+                    <div className="flex w-[104px] shrink-0 flex-col gap-0.5">
+                        {TABS.map((t) => {
+                            const active = t.value === tab
+                            return (
+                                <Button
+                                    key={t.value}
+                                    type="text"
+                                    block
+                                    onClick={() => setTab(t.value)}
+                                    className={`!h-8 !justify-start !rounded-md !px-2.5 !text-xs transition-colors ${
+                                        active
+                                            ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
+                                            : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
+                                    }`}
+                                >
+                                    {t.label}
+                                </Button>
+                            )
+                        })}
+                    </div>
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorder)] pl-3">
+                        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                            {tab === "timeline" ? <TimelineTab round={round} /> : null}
+                            {tab === "context" ? <ContextTab captures={turnCaptures} /> : null}
+                            {tab === "raw" ? <RawTab captures={turnCaptures} /> : null}
+                        </div>
                     </div>
                 </div>
             </div>
-        </EnhancedDrawer>
+        </div>
     )
 }
 

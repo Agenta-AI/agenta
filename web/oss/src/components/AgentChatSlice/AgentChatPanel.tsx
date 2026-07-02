@@ -980,7 +980,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     return (
         <div
-            className="relative flex h-full min-h-0 w-full flex-col gap-3"
+            className="relative flex h-full min-h-0 w-full flex-row"
             onDragEnter={onDragEnter}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
@@ -988,149 +988,159 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         >
             {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
             {modalContextHolder}
-            <TurnInspector sessionId={sessionId} messages={messages} />
-            {isDragging && (
-                <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
-                    <UploadSimple size={26} className="text-colorPrimary" />
-                    <span className="text-sm font-medium text-colorPrimary">Drop files here</span>
-                    <span className="text-xs text-colorTextSecondary">
-                        {limits.label} · up to {limits.maxCount},{" "}
-                        {Math.round(limits.maxBytes / 1024 / 1024)} MB each
-                    </span>
-                </div>
-            )}
-            {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
+            {/* Chat column. The turn inspector is a flex sibling (below) so it pushes this column
+                aside rather than overlaying it. */}
+            <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3">
+                {isDragging && (
+                    <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
+                        <UploadSimple size={26} className="text-colorPrimary" />
+                        <span className="text-sm font-medium text-colorPrimary">
+                            Drop files here
+                        </span>
+                        <span className="text-xs text-colorTextSecondary">
+                            {limits.label} · up to {limits.maxCount},{" "}
+                            {Math.round(limits.maxBytes / 1024 / 1024)} MB each
+                        </span>
+                    </div>
+                )}
+                {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
-            <div className="relative flex min-h-0 flex-1 flex-col">
-                <div
-                    ref={(el) => {
-                        scrollRef.current = el
-                    }}
-                    onScroll={onScroll}
-                    // Capture a fresh SC-3 anchor before a click acts (expand/collapse a tool step,
-                    // reasoning fold): those resize the transcript without a scroll, so onScroll never
-                    // refreshes the anchor and the ResizeObserver would compensate against a stale one.
-                    onPointerDownCapture={recordAnchor}
-                    role="log"
-                    aria-live="polite"
-                    aria-label="Agent conversation"
-                    // `pt-8` (32px) ≥ the 28px fade so the first message clears it at rest; `pb-6`
-                    // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
-                    // anchoring off so our pin/anchor logic owns the scroll position).
-                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-6 [overflow-anchor:none]"
-                    // Fade content into the top edge (under the tab bar) and the bottom edge (into the
-                    // composer) as it scrolls. A gradient mask on the scroll container: transparent at
-                    // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
-                    style={{
-                        maskImage: EDGE_FADE_MASK,
-                        WebkitMaskImage: EDGE_FADE_MASK,
-                    }}
-                >
-                    {messages.length === 0 && (
-                        <AgentChatEmptyState entityId={entityId} onStart={handleSubmit} />
-                    )}
-                    {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
-                    {activeStart < messages.length && (
-                        // The active turn reserves a viewport (min-h-full) when there's prior
-                        // conversation, so sticking to the bottom shows the question at the top with the
-                        // answer streaming into the space below — the "pin" is this layout, not JS.
-                        // `pt-8` keeps the question clear of the top fade once it reaches the top.
-                        <div
-                            className={`flex flex-col gap-3${reserveActive ? " min-h-full pt-8" : ""}`}
-                        >
-                            {messages
-                                .slice(activeStart)
-                                .map((m, i) => renderMessage(m, activeStart + i))}
-                        </div>
-                    )}
+                <div className="relative flex min-h-0 flex-1 flex-col">
+                    <div
+                        ref={(el) => {
+                            scrollRef.current = el
+                        }}
+                        onScroll={onScroll}
+                        // Capture a fresh SC-3 anchor before a click acts (expand/collapse a tool step,
+                        // reasoning fold): those resize the transcript without a scroll, so onScroll never
+                        // refreshes the anchor and the ResizeObserver would compensate against a stale one.
+                        onPointerDownCapture={recordAnchor}
+                        role="log"
+                        aria-live="polite"
+                        aria-label="Agent conversation"
+                        // `pt-8` (32px) ≥ the 28px fade so the first message clears it at rest; `pb-6`
+                        // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
+                        // anchoring off so our pin/anchor logic owns the scroll position).
+                        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-6 [overflow-anchor:none]"
+                        // Fade content into the top edge (under the tab bar) and the bottom edge (into the
+                        // composer) as it scrolls. A gradient mask on the scroll container: transparent at
+                        // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
+                        style={{
+                            maskImage: EDGE_FADE_MASK,
+                            WebkitMaskImage: EDGE_FADE_MASK,
+                        }}
+                    >
+                        {messages.length === 0 && (
+                            <AgentChatEmptyState entityId={entityId} onStart={handleSubmit} />
+                        )}
+                        {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
+                        {activeStart < messages.length && (
+                            // The active turn reserves a viewport (min-h-full) when there's prior
+                            // conversation, so sticking to the bottom shows the question at the top with the
+                            // answer streaming into the space below — the "pin" is this layout, not JS.
+                            // `pt-8` keeps the question clear of the top fade once it reaches the top.
+                            <div
+                                className={`flex flex-col gap-3${reserveActive ? " min-h-full pt-8" : ""}`}
+                            >
+                                {messages
+                                    .slice(activeStart)
+                                    .map((m, i) => renderMessage(m, activeStart + i))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
+                    keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
+                    <Button
+                        size="small"
+                        shape="round"
+                        icon={<ArrowDown size={14} />}
+                        onClick={jumpToLatest}
+                        tabIndex={showJump ? 0 : -1}
+                        aria-hidden={!showJump}
+                        // Solid elevated surface + border + shadow so the pill reads clearly when it
+                        // floats over streamed text (a transparent pill let the text bleed through).
+                        className={`!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
+                            showJump
+                                ? "translate-y-0 opacity-100"
+                                : "pointer-events-none translate-y-3 opacity-0"
+                        }`}
+                        aria-label="Jump to latest message"
+                    >
+                        Jump to latest
+                    </Button>
                 </div>
 
-                {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
-                    keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
-                <Button
-                    size="small"
-                    shape="round"
-                    icon={<ArrowDown size={14} />}
-                    onClick={jumpToLatest}
-                    tabIndex={showJump ? 0 : -1}
-                    aria-hidden={!showJump}
-                    // Solid elevated surface + border + shadow so the pill reads clearly when it
-                    // floats over streamed text (a transparent pill let the text bleed through).
-                    className={`!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
-                        showJump
-                            ? "translate-y-0 opacity-100"
-                            : "pointer-events-none translate-y-3 opacity-0"
-                    }`}
-                    aria-label="Jump to latest message"
-                >
-                    Jump to latest
-                </Button>
-            </div>
-
-            {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
+                {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
                 composer (and the editor) upward. Streaming itself is signalled by the composer's
                 send button (it becomes a spinning Stop button), so there's no "Streaming…" row. */}
-            {queued.length > 0 && (
-                <div className={`${CHAT_COLUMN} flex items-center gap-2 px-3 pb-2`}>
-                    <QueuedMessages queued={queued} onRemove={removeQueued} onClear={clearQueue} />
-                </div>
-            )}
+                {queued.length > 0 && (
+                    <div className={`${CHAT_COLUMN} flex items-center gap-2 px-3 pb-2`}>
+                        <QueuedMessages
+                            queued={queued}
+                            onRemove={removeQueued}
+                            onClear={clearQueue}
+                        />
+                    </div>
+                )}
 
-            {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
+                {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
                 Wrapper `px-3` keeps the session-bar gutter; the input centers on CHAT_COLUMN so it
                 aligns with the (also centered) message column when the panel is wide. The persistent
                 HITL approval dock lives in this same block (above the input) — always mounted so it
                 animates in/out, and inside the composer region so the paused gate can't scroll out
                 of reach and its collapse adds no gap to the surrounding column. */}
-            <div className="px-3">
-                <ApprovalDock
-                    className={CHAT_COLUMN}
-                    approvals={pendingApprovals}
-                    onApprovalResponse={addToolApprovalResponse}
-                    onViewTrace={openPausedTurnTrace}
-                />
-                <RichChatInput
-                    ref={richInputRef}
-                    className={`${CHAT_COLUMN} mb-3`}
-                    onSubmit={handleSubmit}
-                    placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                    onPasteFile={(pasted) => addFiles(Array.from(pasted))}
-                    sendForceEnabled={files.length > 0}
-                    streaming={busy}
-                    onStop={handleStop}
-                    prefix={
-                        // Attach button is gated until the agent service is ready for inline
-                        // file parts (big-agents d4b119af26); paste / drag-to-add still work.
-                        <Tooltip
-                            title={
-                                atMax
-                                    ? `Up to ${limits.maxCount} files`
-                                    : "Attach files coming soon"
-                            }
-                        >
-                            <Button
-                                type="text"
-                                icon={<Paperclip size={16} />}
-                                disabled={true}
-                                onClick={() => setAttachmentsOpen((open) => !open)}
-                                aria-label="Attach files"
-                            />
-                        </Tooltip>
-                    }
-                    header={
-                        <HeightCollapse open={attachmentsOpen || files.length > 0}>
-                            <ComposerAttachments
-                                files={files}
-                                rejections={rejections}
-                                limits={limits}
-                                onAdd={addFiles}
-                                onRemove={removeFile}
-                                onDismissRejections={() => setRejections([])}
-                            />
-                        </HeightCollapse>
-                    }
-                />
+                <div className="px-3">
+                    <ApprovalDock
+                        className={CHAT_COLUMN}
+                        approvals={pendingApprovals}
+                        onApprovalResponse={addToolApprovalResponse}
+                        onViewTrace={openPausedTurnTrace}
+                    />
+                    <RichChatInput
+                        ref={richInputRef}
+                        className={`${CHAT_COLUMN} mb-3`}
+                        onSubmit={handleSubmit}
+                        placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                        onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                        sendForceEnabled={files.length > 0}
+                        streaming={busy}
+                        onStop={handleStop}
+                        prefix={
+                            // Attach button is gated until the agent service is ready for inline
+                            // file parts (big-agents d4b119af26); paste / drag-to-add still work.
+                            <Tooltip
+                                title={
+                                    atMax
+                                        ? `Up to ${limits.maxCount} files`
+                                        : "Attach files coming soon"
+                                }
+                            >
+                                <Button
+                                    type="text"
+                                    icon={<Paperclip size={16} />}
+                                    disabled={true}
+                                    onClick={() => setAttachmentsOpen((open) => !open)}
+                                    aria-label="Attach files"
+                                />
+                            </Tooltip>
+                        }
+                        header={
+                            <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                                <ComposerAttachments
+                                    files={files}
+                                    rejections={rejections}
+                                    limits={limits}
+                                    onAdd={addFiles}
+                                    onRemove={removeFile}
+                                    onDismissRejections={() => setRejections([])}
+                                />
+                            </HeightCollapse>
+                        }
+                    />
+                </div>
             </div>
+            <TurnInspector sessionId={sessionId} messages={messages} />
         </div>
     )
 }
