@@ -16,8 +16,9 @@
  */
 import {useCallback, useMemo} from "react"
 
-import {LabeledField} from "@agenta/ui/components/presentational"
-import {Input, Select, Typography} from "antd"
+import {Input, Select} from "antd"
+
+import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
 type NetworkMode = "on" | "off" | "allowlist"
 type FilesystemMode = "on" | "readonly" | "off"
@@ -56,6 +57,14 @@ const ENFORCEMENT_OPTIONS: {value: Enforcement; label: string}[] = [
     {value: "strict", label: "Strict (fail if unenforceable)"},
     {value: "best_effort", label: "Best effort"},
 ]
+
+const NETWORK_EGRESS_HINT =
+    "Outbound network access for the sandbox. Declared config; enforced by the runner."
+const ALLOWLIST_HINT = "CIDR ranges allowed for outbound egress, one per line (e.g. 10.0.0.0/8)."
+const FILESYSTEM_HINT =
+    "Declared filesystem access for the sandbox. Optional; leave unset for no declared boundary."
+const ENFORCEMENT_HINT =
+    "Strict fails the run when the boundary can't be applied; best effort continues."
 
 /** Read the value with the SDK's defaults applied, so the form is never blank. */
 function readValue(value: Record<string, unknown> | null | undefined) {
@@ -100,14 +109,8 @@ export function SandboxPermissionControl({
     )
 
     return (
-        <div className="flex flex-col gap-3 border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-3">
-            <Typography.Text className="text-xs font-medium">Sandbox permissions</Typography.Text>
-
-            <LabeledField
-                label="Network egress"
-                description="Outbound network access for the sandbox. Declared config; enforced by the runner."
-                withTooltip
-            >
+        <>
+            <RailField label={railInfoLabel("Network egress", NETWORK_EGRESS_HINT)} align="center">
                 <Select<NetworkMode>
                     value={current.networkMode}
                     onChange={(v) => write({networkMode: v})}
@@ -115,14 +118,10 @@ export function SandboxPermissionControl({
                     disabled={disabled}
                     className="w-full"
                 />
-            </LabeledField>
+            </RailField>
 
             {current.networkMode === "allowlist" ? (
-                <LabeledField
-                    label="Allowlist"
-                    description="CIDR ranges allowed for outbound egress, one per line (e.g. 10.0.0.0/8)."
-                    withTooltip
-                >
+                <RailField label={railInfoLabel("Allowlist", ALLOWLIST_HINT)}>
                     <Input.TextArea
                         value={current.allowlist.join("\n")}
                         onChange={(e) =>
@@ -138,14 +137,10 @@ export function SandboxPermissionControl({
                         autoSize={{minRows: 2, maxRows: 6}}
                         className="font-mono"
                     />
-                </LabeledField>
+                </RailField>
             ) : null}
 
-            <LabeledField
-                label="Filesystem"
-                description="Declared filesystem access for the sandbox. Optional; leave unset for no declared boundary."
-                withTooltip
-            >
+            <RailField label={railInfoLabel("Filesystem", FILESYSTEM_HINT)} align="center">
                 <Select<FilesystemMode>
                     value={current.filesystem ?? undefined}
                     onChange={(v) => write({filesystem: (v as FilesystemMode | undefined) ?? null})}
@@ -155,13 +150,9 @@ export function SandboxPermissionControl({
                     allowClear
                     className="w-full"
                 />
-            </LabeledField>
+            </RailField>
 
-            <LabeledField
-                label="Enforcement"
-                description="Strict fails the run when the boundary can't be applied; best effort continues."
-                withTooltip
-            >
+            <RailField label={railInfoLabel("Enforcement", ENFORCEMENT_HINT)} align="center">
                 <Select<Enforcement>
                     value={current.enforcement}
                     onChange={(v) => write({enforcement: v})}
@@ -169,7 +160,7 @@ export function SandboxPermissionControl({
                     disabled={disabled}
                     className="w-full"
                 />
-            </LabeledField>
-        </div>
+            </RailField>
+        </>
     )
 }
