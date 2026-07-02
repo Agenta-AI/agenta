@@ -1,10 +1,10 @@
 import {createElement} from "react"
 
-import {testsetsListAtom} from "@agenta/entities/testset"
+// import {testsetsListAtom} from "@agenta/entities/testset"
 import {
     agentWorkflowsListQueryStateAtom,
-    evaluatorsListQueryAtom,
-    nonArchivedEvaluatorsAtom,
+    // evaluatorsListQueryAtom,
+    // nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
 import {RobotIcon} from "@phosphor-icons/react"
@@ -12,7 +12,7 @@ import {atom} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID} from "../scopes/constants"
 
-import {fromParts, gatedSidebarSource} from "./source"
+import {gatedSidebarSource} from "./source"
 import type {
     SidebarEntity,
     SidebarEntityConfig,
@@ -75,22 +75,22 @@ const ENTITIES: SidebarEntity[] = [
         emptyLabel: "No agents",
         showAllPath: "/agents",
     }),
-    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, TESTSETS_SIDEBAR_KEY, {
-        kind: "testset",
-        listAtom: testsetsListAtom,
-        getLabel: (testset) => testset.name || "Untitled test set",
-        childPath: (testset) => `/testsets/${testset.id}`,
-        emptyLabel: "No test sets",
-        showAllPath: "/testsets",
-    }),
-    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, EVALUATORS_SIDEBAR_KEY, {
-        kind: "evaluator",
-        listAtom: fromParts(evaluatorsListQueryAtom, nonArchivedEvaluatorsAtom),
-        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled evaluator",
-        childPath: (workflow) => `/apps/${workflow.id}/overview`,
-        emptyLabel: "No evaluators",
-        showAllPath: "/evaluators",
-    }),
+    // defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, TESTSETS_SIDEBAR_KEY, {
+    //     kind: "testset",
+    //     listAtom: testsetsListAtom,
+    //     getLabel: (testset) => testset.name || "Untitled test set",
+    //     childPath: (testset) => `/testsets/${testset.id}`,
+    //     emptyLabel: "No test sets",
+    //     showAllPath: "/testsets",
+    // }),
+    // defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, EVALUATORS_SIDEBAR_KEY, {
+    //     kind: "evaluator",
+    //     listAtom: fromParts(evaluatorsListQueryAtom, nonArchivedEvaluatorsAtom),
+    //     getLabel: (workflow) => workflow.name || workflow.slug || "Untitled evaluator",
+    //     childPath: (workflow) => `/apps/${workflow.id}/overview`,
+    //     emptyLabel: "No evaluators",
+    //     showAllPath: "/evaluators",
+    // }),
 ]
 
 /** All dynamic entities keyed by their sidebar item key. */
