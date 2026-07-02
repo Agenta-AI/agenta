@@ -554,9 +554,12 @@ class TestResolverMiddlewareEmbedGate:
             WorkflowRevisionData,
         )
 
+        # A variant is a direct (non-environment-backed) lookup, and it is a
+        # resolvable reference (a bare `application` is now rejected at the
+        # boundary, so it can no longer stand in for the direct-lookup case).
         request = WorkflowInvokeRequest(
             credentials="test-creds",
-            references={"application": {"slug": "my-app"}},
+            references={"application_variant": {"slug": "my-app.default"}},
         )
         revision = WorkflowRevisionData(uri="test://uri", parameters={"model": "x"})
 
@@ -627,6 +630,106 @@ class TestResolverReferenceValidation:
                 "evaluator": {"slug": "my-eval"},
             },
         )
+
+
+class TestResolverConfigValidation:
+    """Rules A + B: an invoke must resolve to a caller-intended config.
+
+    Two valid shapes only — inline `data.parameters`, or a revision reference
+    that pins one committed config (a variant, an environment, or a revision, with
+    a supplied `data.revision` correctly double-nested). A bare `application`
+    reference and a single-nested `data.revision` are rejected with a clear 400.
+    """
+
+    def _validate(self, **kwargs):
+        from agenta.sdk.middlewares.running.resolver import (
+            _validate_resolvable_config,
+        )
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        _validate_resolvable_config(WorkflowInvokeRequest(**kwargs))
+
+    # ---- valid shapes pass -------------------------------------------------
+
+    def test_inline_parameters_pass(self):
+        from agenta.sdk.models.workflows import WorkflowRequestData
+
+        self._validate(
+            data=WorkflowRequestData(parameters={"agent": {"harness": "pi_core"}}),
+        )
+
+    def test_double_nested_revision_passes(self):
+        from agenta.sdk.models.workflows import WorkflowRequestData
+
+        self._validate(
+            data=WorkflowRequestData(
+                revision={"data": {"uri": "test://uri", "parameters": {"m": "x"}}},
+            ),
+        )
+
+    def test_resolvable_variant_reference_passes(self):
+        self._validate(references={"application_variant": {"slug": "app.default"}})
+
+    def test_resolvable_environment_reference_passes(self):
+        self._validate(references={"environment": {"slug": "production"}})
+
+    def test_resolvable_revision_reference_passes(self):
+        self._validate(
+            references={
+                "application_revision": {"slug": "app.default", "version": "3"}
+            },
+        )
+
+    def test_empty_request_passes(self):
+        # No expressed config intent — config may arrive from the running context
+        # or a pre-installed handler (the completion / chat interface-default path
+        # must not regress). Nothing to reject here.
+        self._validate()
+
+    # ---- malformed intent rejects -----------------------------------------
+
+    def test_bare_application_reference_rejects(self):
+        with pytest.raises(ValueError) as excinfo:
+            self._validate(references={"application": {"slug": "my-app"}})
+        message = str(excinfo.value)
+        assert "not resolvable" in message
+        assert "application_variant" in message
+        assert getattr(excinfo.value, "status_code", None) == 400
+
+    def test_bare_workflow_reference_rejects(self):
+        with pytest.raises(ValueError, match="pins no committed config"):
+            self._validate(references={"workflow": {"slug": "my-wf"}})
+
+    def test_single_nested_revision_rejects(self):
+        from agenta.sdk.models.workflows import WorkflowRequestData
+
+        with pytest.raises(ValueError) as excinfo:
+            self._validate(
+                data=WorkflowRequestData(
+                    revision={"uri": "test://uri", "parameters": {"m": "x"}},
+                ),
+            )
+        message = str(excinfo.value)
+        assert "one level too shallow" in message
+        assert '{"data": {...}}' in message
+        assert getattr(excinfo.value, "status_code", None) == 400
+
+    @pytest.mark.asyncio
+    async def test_bare_application_rejects_through_middleware(self):
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            references={"application": {"slug": "my-app"}},
+        )
+
+        mw = ResolverMiddleware()
+        call_next = AsyncMock(return_value="result")
+        with tracing_context_manager(TracingContext()):
+            with pytest.raises(ValueError, match="not resolvable"):
+                await mw(request, call_next)
+        call_next.assert_not_called()
 
 
 class TestResolverMiddlewareTracingParameters:

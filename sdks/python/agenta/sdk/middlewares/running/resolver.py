@@ -99,6 +99,103 @@ def _validate_executable_reference_families(refs: Dict[str, Any]) -> None:
         )
 
 
+# Reference keys that pin exactly one committed config, so they can resolve an
+# invoke. A bare family root (``application`` / ``workflow`` / ``evaluator``) is
+# NOT here: a root names many revisions and selects none. An ``environment`` root
+# IS resolvable — it pins the revision deployed to that environment.
+_RESOLVABLE_REFERENCE_KEYS = (
+    "workflow_variant",
+    "workflow_revision",
+    "application_variant",
+    "application_revision",
+    "evaluator_variant",
+    "evaluator_revision",
+    "environment",
+    "environment_variant",
+    "environment_revision",
+)
+
+# Shared tail for both invoke-validation errors: the two valid call shapes, plus
+# why a bare ``application`` reference cannot resolve. Kept as one constant so the
+# Rule A (nesting) and Rule B (reference) messages stay in sync.
+_INVOKE_CALL_SHAPES = (
+    "An invoke must resolve to a config in one of two ways: "
+    "(1) inline configuration at `data.parameters`; or "
+    "(2) a revision reference that pins one committed config — an "
+    "`application_variant` (or `workflow_variant` / `evaluator_variant`), an "
+    "`environment`, or an `application_revision` (or `workflow_revision` / "
+    "`evaluator_revision`). A bare `application` reference is not resolvable: an "
+    "application has many revisions and nothing selects which one to run. A "
+    'supplied `data.revision` must be double-nested as `{"data": {...}}`.'
+)
+
+
+def _is_double_nested_revision(revision: Any) -> bool:
+    """True when ``data.revision`` carries its fields under a nested ``data`` key.
+
+    This is the only shape ``resolve_revision`` consumes (``resolver.py:150``): it
+    reads ``rev_dict["data"]``. A single-nested revision (the bare revision fields
+    at the top level) has no ``data`` key, so the resolver drops it silently and
+    the run falls through to a seeded default. Rule A rejects that shape instead.
+    """
+    return bool(isinstance(revision, dict) and revision.get("data"))
+
+
+def _has_resolvable_reference(refs: Dict[str, Any]) -> bool:
+    return any(
+        _has_reference_identity(refs.get(key)) for key in _RESOLVABLE_REFERENCE_KEYS
+    )
+
+
+def _validate_resolvable_config(request: WorkflowInvokeRequest) -> None:
+    """Reject an invoke that cannot resolve to a caller-intended config.
+
+    Runs at the resolver boundary, alongside
+    ``_validate_executable_reference_families``. Two malformed-intent checks,
+    scoped to the config / parameters path (not a blanket envelope forbid):
+
+    - **Rule A** — a supplied ``data.revision`` must be double-nested
+      (``{"data": {...}}``). A single-nested revision is dropped silently by
+      ``resolve_revision`` and would run a seeded default and then fail late;
+      reject it here with the fix instead.
+    - **Rule B** — when references are the intended config source (no inline
+      parameters, no usable revision), they must pin one committed config. A bare
+      family root (``application`` / ``workflow`` / ``evaluator``) resolves
+      nothing, so it is rejected in favor of a variant, an environment, or a
+      revision.
+
+    An empty request (no revision, no references, no inline parameters) is left
+    untouched: config can still arrive from the running context or a pre-installed
+    handler, and completion / chat must not regress. Only an EXPRESSED but
+    unresolvable config intent is rejected.
+    """
+    data = request.data
+
+    # Rule A: a present data.revision must be correctly double-nested.
+    if data is not None and data.revision:
+        if not _is_double_nested_revision(data.revision):
+            _raise_bad_request(
+                "`data.revision` is nested one level too shallow. Its own fields "
+                'must go under a `data` key: `data.revision = {"data": {...}}`. '
+                + _INVOKE_CALL_SHAPES
+            )
+
+    # Inline parameters or a usable revision already resolve the config; done.
+    has_inline_parameters = bool(data is not None and data.parameters)
+    has_usable_revision = bool(
+        data is not None and _is_double_nested_revision(data.revision)
+    )
+    if has_inline_parameters or has_usable_revision:
+        return
+
+    # Rule B: references are now the intended config source, so they must resolve.
+    if request.references and not _has_resolvable_reference(request.references):
+        _raise_bad_request(
+            "This invoke supplies a reference that pins no committed config, so it "
+            "cannot resolve to anything to run. " + _INVOKE_CALL_SHAPES
+        )
+
+
 def _has_embed_markers(config: Any, _depth: int = 0) -> bool:
     """Check if a configuration contains any @ag.embed markers.
 
@@ -567,6 +664,12 @@ class ResolverMiddleware:
         call_next: Callable[[WorkflowInvokeRequest], Any],
     ):
         ctx = RunningContext.get()
+
+        # Fail loud at the boundary when the caller expressed a config intent that
+        # cannot resolve (a single-nested revision, or a reference that pins no
+        # committed config), instead of silently running a seeded default.
+        _validate_resolvable_config(request)
+
         revision = await resolve_revision(request=request)
 
         request_has_parameters = bool(request.data and request.data.parameters)
