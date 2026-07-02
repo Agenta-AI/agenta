@@ -11,6 +11,7 @@ import {sessionCapturesAtomFamily} from "../../state/turnCaptures"
 import {turnInspectorAtom} from "../../state/turnInspector"
 
 import ContextTab from "./ContextTab"
+import RawTab from "./RawTab"
 import TimelineTab from "./TimelineTab"
 
 type Tab = "timeline" | "context" | "raw"
@@ -66,11 +67,7 @@ const TurnInspector = () => {
                 <div className="min-h-0 flex-1 overflow-y-auto">
                     {tab === "timeline" ? <TimelineTab message={message} /> : null}
                     {tab === "context" ? <ContextTab captures={turnCaptures} /> : null}
-                    {tab === "raw" ? (
-                        <div className="p-4 text-xs text-colorTextTertiary">
-                            Raw — added in Phase 3.
-                        </div>
-                    ) : null}
+                    {tab === "raw" ? <RawTab captures={turnCaptures} /> : null}
                 </div>
             </div>
         </EnhancedDrawer>
