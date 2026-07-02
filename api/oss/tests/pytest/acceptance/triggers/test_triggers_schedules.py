@@ -152,8 +152,11 @@ class TestTriggerSchedulesLifecycle:
         schedule_id = sched["id"]
         assert sched["data"]["schedule"] == "*/5 * * * *"
         assert sched["flags"]["is_active"] is True
-        # The bound reference is stored as the normalized family.
-        assert sched["data"]["references"]
+        # The bound reference is stored VERBATIM, not pinned to a resolved
+        # revision: a bare artifact slug means "resolve latest at trigger time",
+        # so create/edit must validate-only and never expand the family or
+        # inject a revision id. The dispatcher re-resolves on every fire.
+        assert sched["data"]["references"] == {"workflow": {"slug": workflow_slug}}
 
         # LIST
         list_resp = authed_api("GET", "/triggers/schedules/")
@@ -192,7 +195,10 @@ class TestTriggerSchedulesLifecycle:
             },
         )
         assert edit.status_code == 200, edit.text
-        assert edit.json()["schedule"]["data"]["schedule"] == "0 * * * *"
+        edited = edit.json()["schedule"]
+        assert edited["data"]["schedule"] == "0 * * * *"
+        # Edit is validate-only too: the reference stays unpinned.
+        assert edited["data"]["references"] == {"workflow": {"slug": workflow_slug}}
 
         # DELETE
         delete = authed_api("DELETE", f"/triggers/schedules/{schedule_id}")

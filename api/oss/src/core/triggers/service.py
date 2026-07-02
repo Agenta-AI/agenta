@@ -54,7 +54,6 @@ from oss.src.core.triggers.exceptions import (
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.utils import WebhookSecretResolver
-from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.workflows.service import WorkflowsService
 
@@ -749,20 +748,24 @@ class TriggersService:
             raise ConnectionNotFoundError(connection_id=str(connection_id))
         return connection
 
-    async def _normalize_references(
+    async def _validate_references(
         self,
         *,
         project_id: UUID,
         references: Optional[dict],
     ) -> None:
-        """Complete the bound reference family in place, via the canonical retrieve.
+        """Assert the bound reference family resolves — without pinning it.
 
         The FE sends a partial family under the proper prefix (``application`` /
-        ``evaluator``, or ``environment`` + ``application``). Delegate to
-        ``WorkflowsService.retrieve_workflow_revision`` (which resolves every
-        family, environment-backed included) and rebuild the completed family from
-        the resolved revision with ``build_retrieval_info`` — so the dispatcher's
-        ``invoke_workflow`` finds the service uri.
+        ``evaluator``, or ``environment`` + ``application``). We delegate to
+        ``WorkflowsService.retrieve_workflow_revision`` to confirm it currently
+        resolves to a runnable revision (the graceful-failure guarantee), but we
+        deliberately do NOT overwrite the stored references with the resolved
+        revision: an environment slug, or an artifact/variant without a revision,
+        means "resolve latest at trigger time." Persisting the resolved revision
+        here would freeze that binding at save time. The dispatcher re-resolves
+        from the raw references on every fire (``invoke_workflow`` ->
+        ``_ensure_request_revision``), so latest-tracking is preserved.
         """
         if not references or not self.workflows_service:
             return
@@ -807,12 +810,6 @@ class TriggersService:
                 "Bound workflow reference could not be resolved to a runnable revision."
             )
 
-        entity_type = "application" if environment_ref is not None else prefix
-        info = build_retrieval_info(revision=revision, entity_type=entity_type)
-
-        references.clear()
-        references.update(info.references if info else {})
-
     async def create_subscription(
         self,
         *,
@@ -827,7 +824,7 @@ class TriggersService:
         if subscription.flags.is_test:
             subscription.flags.is_active = True
         else:
-            await self._normalize_references(
+            await self._validate_references(
                 project_id=project_id,
                 references=subscription.data.references,
             )
@@ -932,7 +929,7 @@ class TriggersService:
         if subscription.flags.is_test:
             subscription.flags.is_active = True
         else:
-            await self._normalize_references(
+            await self._validate_references(
                 project_id=project_id,
                 references=subscription.data.references,
             )
@@ -1210,7 +1207,7 @@ class TriggersService:
         self._validate_schedule(schedule.data.schedule)
         self._normalize_window(schedule.data)
 
-        await self._normalize_references(
+        await self._validate_references(
             project_id=project_id,
             references=schedule.data.references,
         )
@@ -1268,7 +1265,7 @@ class TriggersService:
         self._validate_schedule(schedule.data.schedule)
         self._normalize_window(schedule.data)
 
-        await self._normalize_references(
+        await self._validate_references(
             project_id=project_id,
             references=schedule.data.references,
         )
