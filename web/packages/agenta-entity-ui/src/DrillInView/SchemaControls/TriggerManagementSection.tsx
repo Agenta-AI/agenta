@@ -60,6 +60,7 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import Image from "next/image"
 
+import {captureEntityUiEvent} from "../../analytics"
 import {loadRecentSamples, waitForNewDelivery} from "../../gatewayTrigger/drawers/shared/deliveries"
 import {
     EventSourcePicker,
@@ -989,7 +990,14 @@ export function AddTriggerDropdown({
     )
 
     return (
-        <Dropdown trigger={["click"]} menu={{items}} styles={{root: {width: 200}}}>
+        <Dropdown
+            trigger={["click"]}
+            menu={{items}}
+            styles={{root: {width: 200}}}
+            onOpenChange={(open) => {
+                if (open) captureEntityUiEvent("agent_trigger_menu_opened")
+            }}
+        >
             {trigger ?? (
                 <Tooltip title="Add trigger">
                     <Button

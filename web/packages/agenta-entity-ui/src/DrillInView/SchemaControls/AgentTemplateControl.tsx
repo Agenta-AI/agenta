@@ -41,6 +41,7 @@ import {
 import {Button, Tabs, Tooltip, Typography} from "antd"
 import {useAtomValue, useStore} from "jotai"
 
+import {captureEntityUiEvent} from "../../analytics"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
@@ -186,26 +187,29 @@ export function AgentTemplateControl({
         selectedToolNames,
         referenceableWorkflows,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
+    const handleToolPickerOpen = useCallback(() => {
+        captureEntityUiEvent("agent_tool_picker_opened", {toolCount: tools.length})
+    }, [tools.length])
 
     // MCP servers: a flat array of McpServer shapes (stdio command/args/env or remote url + secrets).
     const mcpServers = useMemo(
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
     )
-    const handleAddMcpServer = useCallback(
-        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed(), "form"),
-        [openCreate],
-    )
+    const handleAddMcpServer = useCallback(() => {
+        captureEntityUiEvent("agent_mcp_server_add_started", {mcpServerCount: mcpServers.length})
+        openCreate("mcp", ITEM_KINDS.mcp.createSeed(), "form")
+    }, [openCreate, mcpServers.length])
 
     // Skills: a flat array of inline SKILL.md packages or `@ag.embed` references the backend inlines.
     const skills = useMemo(
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
     )
-    const handleAddSkill = useCallback(
-        () => openCreate("skill", ITEM_KINDS.skill.createSeed(), "form"),
-        [openCreate],
-    )
+    const handleAddSkill = useCallback(() => {
+        captureEntityUiEvent("agent_skill_add_started", {skillCount: skills.length})
+        openCreate("skill", ITEM_KINDS.skill.createSeed(), "form")
+    }, [openCreate, skills.length])
 
     // ``instructions.agents_md`` is the one instruction document (flat on the template).
     const instructions =
@@ -245,6 +249,7 @@ export function AgentTemplateControl({
         selectedTools: tools as ToolObj[],
         existingToolCount: tools.length,
         gatewayTools,
+        onOpen: handleToolPickerOpen,
         onReferenceWorkflow: workflowReference?.enabled
             ? () => setReferenceSelectorOpen(true)
             : undefined,
