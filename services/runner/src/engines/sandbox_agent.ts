@@ -53,10 +53,8 @@ import {
 } from "./sandbox_agent/capabilities.ts";
 import { createAcpFetch } from "./sandbox_agent/acp-fetch.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./sandbox_agent/daemon.ts";
-import {
-  createCookieFetch,
-  prepareDaytonaPiAssets,
-} from "./sandbox_agent/daytona.ts";
+import { createCookieFetch } from "./sandbox_agent/daytona.ts";
+import { prepareRemoteHarnessAssets } from "./sandbox_agent/remote-assets.ts";
 import { conciseError } from "./sandbox_agent/errors.ts";
 import { buildSessionMcpServers } from "./sandbox_agent/mcp.ts";
 import { applyModel } from "./sandbox_agent/model.ts";
@@ -465,11 +463,11 @@ export async function runSandboxAgent(
     // normal exit so it is never double-deleted.
     if (sandbox) inFlightSandboxes.add(sandbox);
 
-    // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
-    // sandbox via the filesystem API (nothing secret is baked into the image). Locally
-    // these use the host filesystem and the harness's own login (PI_CODING_AGENT_DIR).
-    if (plan.isDaytona) {
-      await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
+    // On remote sandboxes, push harness credentials and Pi assets into the sandbox via
+    // the filesystem API (nothing secret is baked into the image). Locally these use the
+    // host filesystem and the harness's own login.
+    if (plan.isDaytona || (plan as any).isE2b) {
+      await prepareRemoteHarnessAssets({ sandbox, plan, log: logger });
     }
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
