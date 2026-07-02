@@ -33,7 +33,11 @@ import {
 } from "../core"
 
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
-import {buildServiceUrlFromUri} from "./helpers"
+import {
+    buildServiceUrlFromUri,
+    filterLlmEvaluatorWorkflows,
+    filterNonDeterministicEvaluatorWorkflows,
+} from "./helpers"
 import {
     workflowProjectIdAtom,
     workflowLocalServerDataAtomFamily,
@@ -113,6 +117,26 @@ export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
 })
 
 /**
+ * Non-archived LLM-based evaluators.
+ *
+ * Evaluator-family flags live on latest revisions rather than the artifact
+ * list, so revisions are resolved through the shared batched query atoms.
+ * Unresolved evaluators are held back until they can be classified.
+ */
+export const llmEvaluatorsAtom = atom<Workflow[]>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    const latestRevisions = new Map<string, Workflow>()
+
+    evaluators.forEach((evaluator) => {
+        if (!evaluator.id) return
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+        if (revision) latestRevisions.set(evaluator.id, revision)
+    })
+
+    return filterLlmEvaluatorWorkflows(evaluators, latestRevisions)
+})
+
+/**
  * Non-archived evaluators whose latest revision has the full-page playground
  * UX (prompt-authored — `auto_ai_critique` / `llm` — or code-authored —
  * `auto_custom_code_run` / `code`). Declarative classifiers (match,
@@ -169,6 +193,33 @@ export const nonHumanEvaluatorsAtom = atom<Workflow[]>((get) => {
         if (!revision) return false
         return !revision.flags?.is_feedback
     })
+})
+
+/**
+ * Non-archived **non-deterministic** evaluators — automatic evaluators that
+ * support online (live) evaluation, i.e. the same set offered by the "create
+ * online evaluation" drawer. Human (`is_feedback`) evaluators are excluded, and
+ * the rest are narrowed via `isOnlineCapableEvaluator` (custom / code / hook /
+ * llm families, with a legacy evaluator-key fallback), so the sidebar workflow
+ * switcher surfaces only auto evaluators whose output is non-deterministic (as
+ * opposed to deterministic matchers like exact match).
+ *
+ * The classifying flags / uri live on the latest revision, not the parent
+ * artifact, so it's resolved per-evaluator from the batched + cached latest
+ * revision. An evaluator whose revision hasn't resolved yet is held back until
+ * it can be classified.
+ */
+export const nonDeterministicEvaluatorsAtom = atom<Workflow[]>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    const latestRevisions = new Map<string, Workflow>()
+
+    evaluators.forEach((evaluator) => {
+        if (!evaluator.id) return
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+        if (revision) latestRevisions.set(evaluator.id, revision)
+    })
+
+    return filterNonDeterministicEvaluatorWorkflows(evaluators, latestRevisions)
 })
 
 /**

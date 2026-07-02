@@ -71,6 +71,11 @@ const ENTITY_KIND_META: Record<
     environment: {label: "Environment", Icon: CloudArrowUp},
 }
 
+export const getEntityKindIcon = (kind: ReferenceTone, size = 14) => {
+    const {Icon, iconWeight} = ENTITY_KIND_META[kind]
+    return <Icon size={size} weight={iconWeight} />
+}
+
 export const middleTruncateId = (value: string) =>
     value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value
 

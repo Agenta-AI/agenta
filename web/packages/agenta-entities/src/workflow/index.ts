@@ -44,7 +44,12 @@ import "./snapshotAdapter"
 
 export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
 
-export {deriveWorkflowTypeFromRevision} from "./state/helpers"
+export {
+    deriveWorkflowTypeFromRevision,
+    fetchAndClassifyWorkflows,
+    filterAgentWorkflows,
+    filterNonAgentWorkflows,
+} from "./state/helpers"
 
 // Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
 export {
@@ -209,6 +214,8 @@ export {
     appWorkflowsListDataAtom,
     nonArchivedAppWorkflowsAtom,
     appWorkflowsListQueryStateAtom,
+    promptWorkflowsListQueryStateAtom,
+    agentWorkflowsListQueryStateAtom,
     // Union atoms (app + evaluator combined)
     workflowsListDataAtom,
     nonArchivedWorkflowsAtom,
@@ -307,8 +314,10 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
+    llmEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
     nonHumanEvaluatorsAtom,
+    nonDeterministicEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,

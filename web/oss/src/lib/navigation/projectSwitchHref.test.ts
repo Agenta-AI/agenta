@@ -111,6 +111,16 @@ describe("buildProjectSwitchHref", () => {
         expect(href).toBe("/w/ws-1/p/proj-new/settings?tab=secrets")
     })
 
+    it("uses the first value when the settings tab query is repeated", () => {
+        const href = buildProjectSwitchHref({
+            workspaceId: WS,
+            projectId: NEW_PROJECT,
+            currentAsPath: "/w/ws-1/p/proj-old/settings?tab=secrets&tab=account",
+            queryTab: ["secrets", "account"],
+        })
+        expect(href).toBe("/w/ws-1/p/proj-new/settings?tab=secrets")
+    })
+
     it("does not add a tab param for non-settings pages even if a tab is present", () => {
         const href = buildProjectSwitchHref({
             workspaceId: WS,
@@ -119,5 +129,14 @@ describe("buildProjectSwitchHref", () => {
             queryTab: "spans",
         })
         expect(href).toBe("/w/ws-1/p/proj-new/apps")
+    })
+
+    it("normalizes deep org-switch routes the same way as project switches", () => {
+        const href = buildProjectSwitchHref({
+            workspaceId: WS,
+            projectId: NEW_PROJECT,
+            currentAsPath: "/w/ws-old/p/proj-old/testsets/testset-123?drawer=open",
+        })
+        expect(href).toBe("/w/ws-1/p/proj-new/testsets")
     })
 })

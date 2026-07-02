@@ -1,9 +1,9 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {CaretDown, CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
+import {InitialsAvatar} from "@agenta/ui"
+import {CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
-    Button,
     ButtonProps,
     Dropdown,
     DropdownProps,
@@ -19,6 +19,7 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
 import {createProject, deleteProject, patchProject} from "@/oss/services/project"
 import type {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom} from "@/oss/state/appState"
@@ -27,7 +28,7 @@ import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
 
-import {buildProjectSwitchHref} from "./assets/projectSwitchHref"
+import SidebarSelectionButton from "./SidebarSelectionButton"
 
 interface ListOfProjectsProps {
     collapsed: boolean
@@ -181,52 +182,6 @@ const ListOfProjects = ({
         },
     })
 
-    const sharedButtonProps = useMemo(() => {
-        if (!buttonProps) {
-            return {
-                className: undefined,
-                type: undefined,
-                disabled: undefined,
-                rest: {} as ButtonProps,
-            }
-        }
-
-        const {className, type, disabled, ...rest} = buttonProps
-        return {className, type, disabled, rest: rest as ButtonProps}
-    }, [buttonProps])
-
-    const renderSelectionButton = (
-        label: string,
-        placeholder: string,
-        isOpen: boolean,
-        showCaret: boolean,
-        disabled?: boolean,
-    ) => (
-        <Button
-            type={sharedButtonProps.type ?? "text"}
-            className={clsx(
-                "flex items-center justify-between gap-2 w-full px-1.5 py-3",
-                {"!w-auto": collapsed},
-                sharedButtonProps.className,
-            )}
-            disabled={disabled || sharedButtonProps.disabled}
-            {...sharedButtonProps.rest}
-        >
-            <span
-                className={clsx("truncate", collapsed ? "max-w-[52px]" : "max-w-[180px]")}
-                title={label || placeholder}
-            >
-                {label || placeholder}
-            </span>
-            {!collapsed && showCaret && (
-                <CaretDown
-                    size={14}
-                    className={clsx("transition-transform", isOpen ? "rotate-180" : "")}
-                />
-            )}
-        </Button>
-    )
-
     const projectButtonLabel =
         project?.project_name ||
         (projectsForSelectedOrganization.length ? "Select project" : "No projects")
@@ -273,7 +228,7 @@ const ListOfProjects = ({
                 projectId,
                 currentAsPath: router.asPath,
                 settingsTab,
-                queryTab: router.query.tab as string | undefined,
+                queryTab: router.query.tab,
             })
 
             void router.push(href)
@@ -408,10 +363,13 @@ const ListOfProjects = ({
                 disabled: !interactive,
                 label: (
                     <div className="flex items-center gap-2 w-full max-w-[300px]">
-                        <span className="truncate">{proj.project_name}</span>
-                        {proj.is_default_project && (
-                            <Tag className="bg-[var(--ag-c-0517290F)] m-0">default</Tag>
-                        )}
+                        <InitialsAvatar size="small" name={proj.project_name} />
+                        <div className="flex min-w-0 items-center gap-2">
+                            <span className="truncate">{proj.project_name}</span>
+                            {proj.is_default_project && (
+                                <Tag className="bg-[var(--ag-c-0517290F)] m-0">default</Tag>
+                            )}
+                        </div>
                     </div>
                 ),
                 children,
@@ -506,31 +464,42 @@ const ListOfProjects = ({
                             className: "max-h-80 overflow-y-auto",
                         }}
                     >
-                        {renderSelectionButton(
-                            projectButtonLabel,
-                            "Projects",
-                            projectDropdownOpen,
-                            true,
-                        )}
+                        <div data-project-selector>
+                            <SidebarSelectionButton
+                                collapsed={collapsed}
+                                label={projectButtonLabel}
+                                placeholder="Projects"
+                                isOpen={projectDropdownOpen}
+                                showCaret
+                                buttonProps={buttonProps}
+                            />
+                        </div>
                     </Dropdown>
                 ) : (
                     <div className={clsx({"flex items-center justify-center": collapsed})}>
-                        {renderSelectionButton(projectButtonLabel, "Projects", false, false, true)}
+                        <SidebarSelectionButton
+                            collapsed={collapsed}
+                            label={projectButtonLabel}
+                            placeholder="Projects"
+                            isOpen={false}
+                            showCaret={false}
+                            disabled
+                            buttonProps={buttonProps}
+                        />
                     </div>
                 )
             ) : (
-                <Button
-                    type={sharedButtonProps.type ?? "text"}
-                    className={clsx(
-                        "flex items-center justify-between gap-2 w-full px-1.5 py-3 text-left",
-                        {"!w-auto": collapsed},
-                        sharedButtonProps.className,
-                    )}
-                    disabled
-                    {...sharedButtonProps.rest}
-                >
-                    {!collapsed && <span className="truncate">No projects</span>}
-                </Button>
+                <div className={clsx({"flex items-center justify-center": collapsed})}>
+                    <SidebarSelectionButton
+                        collapsed={collapsed}
+                        label="No projects"
+                        placeholder="Projects"
+                        isOpen={false}
+                        showCaret={false}
+                        disabled
+                        buttonProps={buttonProps}
+                    />
+                </div>
             )}
 
             <Modal
