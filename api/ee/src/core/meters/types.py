@@ -34,7 +34,7 @@ class Meters(str, Enum):
     SANDBOX_GPU_CORE_SECONDS = Counter.SANDBOX_GPU_CORE_SECONDS.value
     # GAUGES
     USERS = Gauge.USERS.value
-    STORAGE_BYTES = Gauge.STORAGE_BYTES.value
+    BYTES = Gauge.BYTES.value
 
 
 class MeterScope(BaseModel):
