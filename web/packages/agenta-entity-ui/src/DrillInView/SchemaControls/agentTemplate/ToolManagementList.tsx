@@ -23,7 +23,10 @@ import {parseGatewayFunctionName} from "../toolUtils"
 
 import {describeTool, isFunctionTool, toolName} from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
-import {ItemChildRow, ItemRow} from "./ItemRow"
+import {ItemChildRow, ItemRow, type ItemRowStatus} from "./ItemRow"
+
+/** Per-tool draft/validation status, keyed by the tool's index in the flat `tools` array. */
+type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
 
 // Persisted per-agent expand state for connected-app groups (key = `${entityId}:${integrationKey}`).
 const toolGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
@@ -60,6 +63,8 @@ export interface ToolManagementListProps {
     onOpenIntegration?: (integrationKey?: string) => void
     /** Add trigger shown in the empty state (the tool selector popover). */
     emptyAdd: ReactNode
+    /** Per-tool draft/validation status (unsaved edits, missing fields). */
+    statusFor?: ToolStatusFor
 }
 
 /** A flat, headed sub-section of bordered item rows (references / definitions / built-in). */
@@ -70,6 +75,7 @@ function FlatToolSection({
     removeItem,
     closeEditor,
     disabled,
+    statusFor,
 }: {
     label: string
     entries: IndexedTool[]
@@ -77,6 +83,7 @@ function FlatToolSection({
     removeItem: ToolManagementListProps["removeItem"]
     closeEditor: () => void
     disabled?: boolean
+    statusFor?: ToolStatusFor
 }) {
     if (entries.length === 0) return null
     return (
@@ -93,6 +100,7 @@ function FlatToolSection({
                             closeEditor()
                         }}
                         disabled={disabled || ITEM_KINDS.tool.isReadOnly(item)}
+                        status={statusFor?.(item, index)}
                     />
                 ))}
             </div>
@@ -113,6 +121,7 @@ function GatewayGroups({
     closeEditor,
     disabled,
     onOpenIntegration,
+    statusFor,
 }: {
     groups: ToolProviderGroup[]
     totalCount: number
@@ -122,6 +131,7 @@ function GatewayGroups({
     closeEditor: () => void
     disabled?: boolean
     onOpenIntegration?: (integrationKey?: string) => void
+    statusFor?: ToolStatusFor
 }) {
     const {integrations} = useToolCatalogIntegrations()
     const [expanded, setExpanded] = useAtom(toolGroupsExpandedAtom)
@@ -196,6 +206,7 @@ function GatewayGroups({
                                     closeEditor()
                                 }}
                                 disabled={disabled}
+                                status={statusFor?.(item, index)}
                             />
                         ))}
                     </CollapsibleProviderGroup>
@@ -214,6 +225,7 @@ export function ToolManagementList({
     disabled,
     onOpenIntegration,
     emptyAdd,
+    statusFor,
 }: ToolManagementListProps) {
     // Partition by kind, preserving each tool's original index (edit/remove address the flat array).
     // Uses only the tool object — no catalog needed here.
@@ -270,6 +282,7 @@ export function ToolManagementList({
                     closeEditor={closeEditor}
                     disabled={disabled}
                     onOpenIntegration={onOpenIntegration}
+                    statusFor={statusFor}
                 />
             )}
             <FlatToolSection
@@ -279,6 +292,7 @@ export function ToolManagementList({
                 removeItem={removeItem}
                 closeEditor={closeEditor}
                 disabled={disabled}
+                statusFor={statusFor}
             />
             <FlatToolSection
                 label="Tool definitions"
@@ -287,6 +301,7 @@ export function ToolManagementList({
                 removeItem={removeItem}
                 closeEditor={closeEditor}
                 disabled={disabled}
+                statusFor={statusFor}
             />
             <FlatToolSection
                 label="Built-in"
@@ -295,6 +310,7 @@ export function ToolManagementList({
                 removeItem={removeItem}
                 closeEditor={closeEditor}
                 disabled={disabled}
+                statusFor={statusFor}
             />
         </div>
     )

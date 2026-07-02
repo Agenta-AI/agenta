@@ -36,6 +36,20 @@ import {HeightCollapse} from "../../HeightCollapse"
 
 const {Text} = Typography
 
+export type SectionIndicatorTone = "draft" | "invalid" | "incomplete"
+
+/**
+ * The accent token for a section/item change indicator. Single source of truth for the
+ * tone→token mapping, shared by the section header and the config panel's item indicators.
+ */
+export function sectionIndicatorColor(tone: SectionIndicatorTone): string {
+    return tone === "invalid"
+        ? "var(--ag-colorError)"
+        : tone === "incomplete"
+          ? "var(--ag-colorWarning)"
+          : "var(--ag-colorInfo)"
+}
+
 export interface ConfigAccordionSectionProps {
     /** Section title shown in the header. */
     title: ReactNode
@@ -83,6 +97,13 @@ export interface ConfigAccordionSectionProps {
      * (neutral, e.g. an empty optional field). @default "default"
      */
     status?: "default" | "complete" | "warning"
+    /**
+     * Change/validation indicator for the leading icon: tints the icon, adds a status dot,
+     * and (with `tooltip`) explains it on hover. Takes precedence over `status`. Used by the
+     * agent config panel to flag sections with unsaved edits (`"draft"`), a blocking problem
+     * (`"invalid"`), or an optional gap (`"incomplete"`).
+     */
+    indicator?: {tone: "draft" | "invalid" | "incomplete"; tooltip?: ReactNode}
     /** Only show `summary` while the section is collapsed. @default false (always). */
     summaryCollapsedOnly?: boolean
     /** Additional CSS class for the section wrapper. */
@@ -109,10 +130,21 @@ export function ConfigAccordionSection({
     noDivider = false,
     size = "default",
     status = "default",
+    indicator,
     summaryCollapsedOnly = false,
     className,
     children,
 }: ConfigAccordionSectionProps) {
+    // Indicator (unsaved edits / validation) takes precedence over the completion `status`.
+    const indicatorColor = indicator ? sectionIndicatorColor(indicator.tone) : null
+    // The glyph gets a soft, desaturated tint; the full accent lives on the dot so it still reads.
+    const iconColor = indicatorColor
+        ? `color-mix(in srgb, ${indicatorColor} 45%, var(--ag-colorTextTertiary))`
+        : status === "complete"
+          ? "var(--ag-colorSuccess)"
+          : status === "warning"
+            ? "var(--ag-colorWarning)"
+            : "var(--ag-c-586673,#586673)"
     const isControlled = open !== undefined
     const [internalOpen, setInternalOpen] = useState(defaultOpen)
     // A section can either open a drawer (onOpen) or expand inline (the accordion default).
@@ -163,16 +195,20 @@ export function ConfigAccordionSection({
             >
                 <div className="flex min-w-0 items-center gap-2">
                     {icon ? (
-                        <span
-                            className={cn(
-                                "flex shrink-0 items-center",
-                                status === "complete" && "text-[var(--ag-colorSuccess)]",
-                                status === "warning" && "text-[var(--ag-colorWarning)]",
-                                status === "default" && "text-[var(--ag-c-586673,#586673)]",
-                            )}
-                        >
-                            {icon}
-                        </span>
+                        <Tooltip title={indicator?.tooltip}>
+                            <span
+                                className="relative flex shrink-0 items-center"
+                                style={{color: iconColor}}
+                            >
+                                {icon}
+                                {indicator ? (
+                                    <span
+                                        className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-[var(--ag-colorBgContainer)]"
+                                        style={{background: indicatorColor ?? undefined}}
+                                    />
+                                ) : null}
+                            </span>
+                        </Tooltip>
                     ) : null}
                     <Text
                         className={cn(

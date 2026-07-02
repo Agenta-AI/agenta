@@ -7,6 +7,7 @@
 
 import type {ReactNode} from "react"
 
+import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import type {Atom, WritableAtom} from "jotai"
 
 // ============================================================================
@@ -118,6 +119,14 @@ export interface CommitContext {
     changesSummary?: CommitChangesSummary
     /** Diff data for preview */
     diffData?: CommitDiffData
+    /**
+     * Semantic, section-grouped changes for agent/LLM workflows. When present, the
+     * commit modal renders a plain-language summary; JSON stays available separately.
+     * Absent for non-agent entities (they use `changesSummary` + `diffData`).
+     */
+    sections?: ChangeSection[]
+    /** Auto-generated commit message derived from `sections` (editable by the user). */
+    suggestedMessage?: string
 }
 
 /**
@@ -290,6 +299,20 @@ export interface CommitSubmitParams {
     entityName?: string
     /** The entity slug (user-edited or auto-generated, only present in create flows) */
     entitySlug?: string
+    /** Environments to deploy the new revision to after a successful commit. */
+    deployEnvironments?: string[]
+    /** Optional message recorded with the deployment (separate from the commit message). */
+    deployMessage?: string
+}
+
+/** An environment offered in the footer's "Commit & deploy" form. */
+export interface CommitDeployOption {
+    /** Environment slug to deploy to. */
+    key: string
+    label: string
+    /** Optional hint shown next to the environment, e.g. "v5 now". */
+    hint?: string
+    disabled?: boolean
 }
 
 export interface CommitCreateFieldsConfig {
@@ -321,6 +344,11 @@ export interface EntityCommitModalProps {
     successMessage?: string | null
     /** Custom confirm button label */
     submitLabel?: string
+    /**
+     * When provided, the footer renders a split "Commit" button. The main action commits;
+     * each option commits and then deploys the new revision to that environment.
+     */
+    commitDeployOptions?: CommitDeployOption[]
     /** Optional mode selector shown in content */
     commitModes?: CommitModeOption[]
     /** Default selected mode */
