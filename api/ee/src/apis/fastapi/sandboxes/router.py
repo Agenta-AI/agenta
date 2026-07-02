@@ -157,7 +157,11 @@ class SandboxMeteringRouter:
 
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
-            content={"status": "accepted", "metered": result.accepted},
+            content={
+                "status": "accepted",
+                "metered": result.accepted,
+                "deduped": result.deduped,
+            },
         )
 
     @intercept_exceptions()

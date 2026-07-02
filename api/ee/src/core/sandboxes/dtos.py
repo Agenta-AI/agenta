@@ -24,3 +24,4 @@ class SandboxUsageDTO(BaseModel):
 class SandboxUsageResult(BaseModel):
     accepted: bool
     delivery_id: Optional[str] = None
+    deduped: bool = False

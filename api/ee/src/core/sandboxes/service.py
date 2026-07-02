@@ -27,6 +27,10 @@ _DAYTONA_LOCK_NS = "sandboxes:daytona"
 _DAYTONA_LOCK_KEY = "poll"
 _DAYTONA_LOCK_TTL = 120  # 2 min — poll should complete well within this
 
+# Webhook redelivery dedup (E2B `e2b-delivery-id`).
+_DELIVERY_DEDUP_NS = "sandboxes:e2b:delivery"
+_DELIVERY_DEDUP_TTL = 48 * 60 * 60  # 48h — comfortably beyond E2B's redelivery window
+
 
 class SandboxMeteringService:
     def __init__(self, *, meters_service: MetersService):
@@ -42,7 +46,25 @@ class SandboxMeteringService:
         Calls check_entitlements(cache=False) per meter so the Layer-2
         atomic adjust() runs, giving an authoritative quota check.
         The call is NON-BLOCKING in Phase 1 (quotas are soft).
+
+        Deduped on usage.delivery_id via Redis SET NX (webhook redelivery
+        double-counting guard). Missing delivery_id skips dedup (best-effort).
         """
+        if usage.delivery_id:
+            claimed = await acquire_lock(
+                namespace=_DELIVERY_DEDUP_NS,
+                key=usage.delivery_id,
+                ttl=_DELIVERY_DEDUP_TTL,
+            )
+            if not claimed:
+                log.info(
+                    "[sandboxes] duplicate delivery_id=%s — skipping meter writes",
+                    usage.delivery_id,
+                )
+                return SandboxUsageResult(
+                    accepted=True, delivery_id=usage.delivery_id, deduped=True
+                )
+
         org_id = usage.organization_id
         scope = MeterScope(organization_id=org_id)
 
