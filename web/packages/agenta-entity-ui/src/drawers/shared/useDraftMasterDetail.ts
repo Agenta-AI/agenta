@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {DRAFT_PREFIX} from "./TriggerListRail"
+import {DRAFT_PREFIX} from "./MasterDetailRail"
 
 /**
  * Master-detail draft state shared by the schedule + subscription drawers. Owns the

@@ -206,9 +206,8 @@ class ConnectionsDAO(ConnectionsDAOInterface):
                 )
 
             if is_active is not None:
-                expected = "true" if is_active else "false"
                 stmt = stmt.filter(
-                    self.ConnectionDBE.flags["is_active"].astext == expected
+                    self.ConnectionDBE.flags.contains({"is_active": is_active})
                 )
 
             stmt = stmt.order_by(self.ConnectionDBE.created_at.desc())

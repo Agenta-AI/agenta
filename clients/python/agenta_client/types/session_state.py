@@ -5,6 +5,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .session_state_flags import SessionStateFlags
 
 
 class SessionState(UniversalBaseModel):
@@ -35,6 +36,9 @@ class SessionState(UniversalBaseModel):
     Remote sandbox id — the single source of truth resume pointer.
     """
     
+    flags: typing.Optional[SessionStateFlags] = None
+    tags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

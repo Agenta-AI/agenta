@@ -11,8 +11,8 @@
  * just as the prompt control's value is the prompt template): the portable definition
  * (instructions/llm/tools/mcps/skills) is FLAT on it, and the execution parts
  * (harness/runner/sandbox) are nested sub-objects. It reuses the existing schema controls rather
- * than inventing new ones: the model selector (GroupedChoiceControl), the tool picker
- * (ToolSelectorPopover + ToolItemControl), the MCP server editor (McpServerItemControl), enum
+ * than inventing new ones: the model selector (GroupedChoiceControl), the agent tool picker
+ * (AgentToolSelectorPopover + ToolItemControl), the MCP server editor (McpServerItemControl), enum
  * selects (harness, sandbox, permission policy), and a textarea (agents_md). The shape is the
  * `agent-template` catalog type generated from the SDK model (AgentTemplateSchema in
  * agenta.sdk.utils.types); the agent service ships a thin `x-ag-type-ref` the playground resolves
@@ -44,10 +44,13 @@ import {useAtomValue, useStore} from "jotai"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
+import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
+import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {ITEM_KINDS} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow} from "./agentTemplate/ItemRow"
+import {ToolManagementList} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -56,7 +59,6 @@ import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
-import {ToolSelectorPopover} from "./ToolSelectorPopover"
 import {type ToolObj} from "./toolUtils"
 import {
     AddTriggerDropdown,
@@ -94,6 +96,16 @@ export function AgentTemplateControl({
     }, [config])
 
     const [referenceSelectorOpen, setReferenceSelectorOpen] = useState(false)
+    const [integrationDrawerOpen, setIntegrationDrawerOpen] = useState(false)
+    // Preselected app for the integration drawer: set when a provider group's "Add {app} tool" opens
+    // it (jump to that app's actions), cleared for the header + (open on the app grid).
+    const [integrationDefaultKey, setIntegrationDefaultKey] = useState<string | undefined>(
+        undefined,
+    )
+    const openIntegration = useCallback((integrationKey?: string) => {
+        setIntegrationDefaultKey(integrationKey)
+        setIntegrationDrawerOpen(true)
+    }, [])
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     const {
         editing,
@@ -248,6 +260,8 @@ export function AgentTemplateControl({
         onReferenceWorkflow: workflowReference?.enabled
             ? () => setReferenceSelectorOpen(true)
             : undefined,
+        // Route the integration row to the agent-scoped drawer instead of the shared global catalog.
+        onOpenIntegration: gatewayTools?.enabled ? openIntegration : undefined,
     }
 
     // Compact "+" for a section header's `extra` slot (stops propagation, so it never toggles open).
@@ -306,7 +320,7 @@ export function AgentTemplateControl({
             title: fieldTitle("tools", "Tools"),
             summary: countSummary(tools.length, "tool"),
             extra: !disabled ? (
-                <ToolSelectorPopover
+                <AgentToolSelectorPopover
                     {...toolSelectorProps}
                     trigger={
                         <Tooltip title="Add tool">
@@ -322,16 +336,17 @@ export function AgentTemplateControl({
             ) : undefined,
             defaultOpen: true,
             content: (
-                <ConfigItemList
-                    kind="tool"
-                    items={tools}
+                <ToolManagementList
+                    tools={tools}
+                    entityId={revisionId}
                     openEdit={openEdit}
                     removeItem={removeItem}
                     closeEditor={closeEditor}
                     disabled={disabled}
+                    onOpenIntegration={gatewayTools?.enabled ? openIntegration : undefined}
                     // The empty-state add is the same popover as the header +.
                     emptyAdd={
-                        <ToolSelectorPopover
+                        <AgentToolSelectorPopover
                             {...toolSelectorProps}
                             trigger={<AddTextLink label="add a tool" />}
                         />
@@ -492,6 +507,7 @@ export function AgentTemplateControl({
                               subtitle={desc.subtitle}
                               footerNote="Changes apply to this agent configuration"
                               width={def.drawerWidth}
+                              contentFlush={def.formFlush}
                               view={drawerView}
                               onViewChange={setDrawerView}
                               onCancel={closeEditor}
@@ -573,6 +589,20 @@ export function AgentTemplateControl({
                         void handleAddWorkflowReference(payload)
                         setReferenceSelectorOpen(false)
                     }}
+                />
+            )}
+
+            {gatewayTools?.enabled && (
+                <AgentIntegrationDrawer
+                    open={integrationDrawerOpen}
+                    onClose={() => {
+                        setIntegrationDrawerOpen(false)
+                        setIntegrationDefaultKey(undefined)
+                    }}
+                    onAddTool={handleAddTool}
+                    onRemoveTool={handleRemoveToolByName}
+                    selectedToolNames={selectedToolNames}
+                    defaultIntegrationKey={integrationDefaultKey}
                 />
             )}
         </div>

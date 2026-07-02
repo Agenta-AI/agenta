@@ -41,6 +41,8 @@ def map_mount_dto_to_dbe_upsert(
         "name": mount_create.name,
         "description": mount_create.description,
         "flags": mount_create.flags.model_dump(),
+        "tags": mount_create.tags,
+        "meta": mount_create.meta,
         "data": {},
     }
 
@@ -64,6 +66,8 @@ def map_mount_dto_to_dbe_create(
         description=mount_create.description,
         #
         flags=mount_create.flags.model_dump(),
+        tags=mount_create.tags,
+        meta=mount_create.meta,
         #
         data={},
     )
@@ -93,6 +97,8 @@ def map_mount_dbe_to_dto(
         data=MountData.model_validate(mount_dbe.data),
         #
         flags=MountFlags(**(mount_dbe.flags or {})),
+        tags=mount_dbe.tags,
+        meta=mount_dbe.meta,
     )
 
 
@@ -110,3 +116,7 @@ def map_mount_dto_to_dbe_edit(
     mount_dbe.description = mount_edit.description
 
     mount_dbe.flags = mount_edit.flags.model_dump()
+    if mount_edit.tags is not None:
+        mount_dbe.tags = mount_edit.tags
+    if mount_edit.meta is not None:
+        mount_dbe.meta = mount_edit.meta

@@ -12,13 +12,20 @@ from oss.src.dbs.postgres.shared.dbas import (
     FlagsDBA,
     IdentifierDBA,
     LifecycleDBA,
+    MetaDBA,
     ProjectScopeDBA,
-    StatusDBA,
+    TagsDBA,
 )
 
 
 class SessionStreamDBE(
-    Base, IdentifierDBA, ProjectScopeDBA, LifecycleDBA, FlagsDBA, StatusDBA
+    Base,
+    IdentifierDBA,
+    ProjectScopeDBA,
+    LifecycleDBA,
+    FlagsDBA,
+    TagsDBA,
+    MetaDBA,
 ):
     """Ephemeral run/liveness facet for a session — the durable mirror of the
     Redis nest (alive ⊇ running ⊇ attached).
@@ -59,5 +66,10 @@ class SessionStreamDBE(
             "ix_session_streams_project_id_session_id",
             "project_id",
             "session_id",
+        ),
+        Index(
+            "ix_session_streams_flags",
+            "flags",
+            postgresql_using="gin",
         ),
     )

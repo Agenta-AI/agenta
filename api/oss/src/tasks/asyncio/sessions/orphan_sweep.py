@@ -16,8 +16,6 @@ from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.core.sessions.streams.dtos import (
     SessionStreamFlags,
-    SessionStreamStatus,
-    StreamStatusCode,
 )
 
 from sqlalchemy import select
@@ -38,7 +36,7 @@ async def run_orphan_sweep(engine: TransactionsEngine) -> None:
     async with engine.session() as session:
         stmt = select(SessionStreamDBE).where(
             SessionStreamDBE.deleted_at.is_(None),
-            SessionStreamDBE.flags["is_alive"].astext == "true",
+            SessionStreamDBE.flags.contains({"is_alive": True}),
             SessionStreamDBE.updated_at < threshold,
         )
         result = await session.execute(stmt)
@@ -51,10 +49,6 @@ async def run_orphan_sweep(engine: TransactionsEngine) -> None:
         for row in orphans:
             row.flags = SessionStreamFlags(
                 is_alive=False, is_running=False, is_attached=False
-            ).model_dump(mode="json")
-            row.status = SessionStreamStatus(
-                code=StreamStatusCode.ended,
-                message="orphan sweep",
             ).model_dump(mode="json")
             row.updated_at = now
             log.warning(

@@ -6,28 +6,30 @@ from pydantic import BaseModel
 
 
 class SessionRecordEvent(BaseModel):
-    session_id: UUID
+    session_id: str
     project_id: UUID
 
-    event_index: Optional[int] = None
-    sender: Optional[str] = None
-    session_update: Optional[str] = None
-    payload: Optional[Dict[str, Any]] = None
+    record_index: Optional[int] = None
+    timestamp: Optional[datetime] = None
+    record_type: Optional[str] = None
+    record_source: Optional[str] = None
+    attributes: Optional[Dict[str, Any]] = None
 
 
 class SessionRecord(BaseModel):
-    id: UUID
+    record_id: UUID
 
-    session_id: UUID
+    session_id: str
     project_id: UUID
 
-    event_index: Optional[int] = None
-    sender: Optional[str] = None
-    session_update: Optional[str] = None
-    payload: Optional[Dict[str, Any]] = None
+    record_index: Optional[int] = None
+    timestamp: Optional[datetime] = None
+    record_type: Optional[str] = None
+    record_source: Optional[str] = None
+    attributes: Optional[Dict[str, Any]] = None
 
     created_at: Optional[datetime] = None
 
 
 class SessionRecordQuery(BaseModel):
-    session_id: UUID
+    session_id: str

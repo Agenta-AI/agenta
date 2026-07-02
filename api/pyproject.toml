@@ -41,7 +41,7 @@ dependencies = [
     "dnspython>=2,<3",
     "opentelemetry-proto>=1,<2",
     "croniter>=6,<7",
-    "miniopy-async>=1.21,<2",
+    "miniopy-async>=1,<2",
 ]
 
 [dependency-groups]

@@ -31,19 +31,17 @@ const RecordsTab = ({sessionId}: {sessionId: string}) => {
             <Collapse
                 size="small"
                 items={records.map((event) => ({
-                    key: event.id,
+                    key: event.record_id,
                     label: (
                         <span className="flex items-center gap-2">
-                            <Tag>{event.event_index ?? "—"}</Tag>
-                            <span>{event.sender ?? "event"}</span>
-                            {event.session_update ? (
-                                <Tag color="blue">{event.session_update}</Tag>
-                            ) : null}
+                            <Tag>{event.record_index ?? "—"}</Tag>
+                            <span>{event.record_source ?? "record"}</span>
+                            {event.record_type ? <Tag color="blue">{event.record_type}</Tag> : null}
                         </span>
                     ),
                     children: (
                         <pre className="m-0 max-h-[40vh] overflow-auto text-xs">
-                            {JSON.stringify(event.payload ?? {}, null, 2)}
+                            {JSON.stringify(event.attributes ?? {}, null, 2)}
                         </pre>
                     ),
                 }))}

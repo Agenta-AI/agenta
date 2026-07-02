@@ -18,8 +18,8 @@ log = get_module_logger(__name__)
 
 MAXLEN_STREAMS_RECORDS = 100_000
 
-# Truncate payload at ingest to avoid storing unbounded event bodies.
-MAX_PAYLOAD_BYTES = 64 * 1024  # 64 KB per event
+# Truncate attributes at ingest to avoid storing unbounded record bodies.
+MAX_ATTRIBUTES_BYTES = 64 * 1024  # 64 KB per record
 
 
 def _orjson_default(obj):
@@ -61,19 +61,19 @@ async def publish_record(
         return False
 
     try:
-        # Truncate payload before publishing so oversized event bodies are
+        # Truncate attributes before publishing so oversized record bodies are
         # caught at the producer boundary, not after touching the DB.
         truncated_event = record_event
-        if record_event.payload is not None:
-            raw_payload = dumps(record_event.payload, default=_orjson_default)
-            if len(raw_payload) > MAX_PAYLOAD_BYTES:
+        if record_event.attributes is not None:
+            raw_attributes = dumps(record_event.attributes, default=_orjson_default)
+            if len(raw_attributes) > MAX_ATTRIBUTES_BYTES:
                 log.warning(
-                    "[RECORDS] Payload truncated",
+                    "[RECORDS] Attributes truncated",
                     session_id=str(record_event.session_id),
-                    original_bytes=len(raw_payload),
+                    original_bytes=len(raw_attributes),
                 )
                 truncated_event = record_event.model_copy(
-                    update={"payload": {"_truncated": True}}
+                    update={"attributes": {"_truncated": True}}
                 )
 
         message = {

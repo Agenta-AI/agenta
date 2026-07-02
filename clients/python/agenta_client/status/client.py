@@ -45,6 +45,32 @@ class StatusClient:
         """
         _response = self._raw_client.health_check(request_options=request_options)
         return _response.data
+    
+    def store_jwks(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Public JWKS the object store's OIDC IAM fetches to verify our web-identity tokens.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.status.store_jwks()
+        """
+        _response = self._raw_client.store_jwks(request_options=request_options)
+        return _response.data
 class AsyncStatusClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._raw_client = AsyncRawStatusClient(client_wrapper=client_wrapper)
@@ -90,4 +116,38 @@ class AsyncStatusClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.health_check(request_options=request_options)
+        return _response.data
+    
+    async def store_jwks(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Public JWKS the object store's OIDC IAM fetches to verify our web-identity tokens.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.status.store_jwks()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.store_jwks(request_options=request_options)
         return _response.data

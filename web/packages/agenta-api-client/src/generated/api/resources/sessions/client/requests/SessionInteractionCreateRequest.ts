@@ -17,4 +17,6 @@ export interface SessionInteractionCreateRequest {
     kind: AgentaApi.SessionInteractionKind;
     data?: AgentaApi.SessionInteractionData | null;
     flags?: AgentaApi.SessionInteractionFlags;
+    tags?: Record<string, unknown> | null;
+    meta?: Record<string, unknown> | null;
 }

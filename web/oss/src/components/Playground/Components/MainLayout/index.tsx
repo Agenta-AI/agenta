@@ -1,5 +1,6 @@
-import {memo, useCallback, useRef, type ReactNode} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui"
 import {
     executionController,
@@ -21,6 +22,7 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 import {PanelSessionInspectorButton} from "@/oss/components/SessionInspector"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 
@@ -128,6 +130,33 @@ const PlaygroundMainView = ({
     // Which entity IDs to render config panels for
     const configEntityIds = configEntityIdsOverride ?? layoutEntityIds
 
+    // ── Agent generation host: keep a stable key across revision switches ──
+    // The agent chat surface lives inside the generation panel below. Keying that panel by the
+    // revision id (`variantId`) tears the whole conversation down on every revision switch —
+    // whether the agent self-commits a new revision or the user picks one in the config header —
+    // which aborts the live stream ("connection lost") and drops the still-streaming turn
+    // (persistence is skipped mid-stream). Agents are single-entity (excluded from comparison),
+    // so we give the single-agent generation panel a stable key; a switch then flows through as an
+    // `entityId` prop update, not a remount, and the conversation (app/session-scoped) survives.
+    // A freshly committed revision's flags load a beat after the swap (workflowType falls back to
+    // "completion" until then), so we LATCH the agent host across that gap and only drop it once
+    // the single entity has loaded as a definitively non-agent workflow.
+    const singleEntityId =
+        !isComparisonView && layoutEntityIds.length === 1 ? layoutEntityIds[0]! : ""
+    const isSingleAgentEntity = useAtomValue(isAgentModeAtomFamily(singleEntityId))
+    const singleEntityQuery = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(singleEntityId), [singleEntityId]),
+    )
+    const agentHostRef = useRef(false)
+    if (!singleEntityId) {
+        agentHostRef.current = false
+    } else if (isSingleAgentEntity) {
+        agentHostRef.current = true
+    } else if (!singleEntityQuery.isPending) {
+        agentHostRef.current = false
+    }
+    const renderAgentGenerationHost = agentHostRef.current
+
     // The agent config panel is a compact read-only summary (editing happens in section drawers), so
     // it stays narrow (550px) instead of the prompt config's 50/50 split. The default is a fixed px
     // width rather than a percentage on purpose: antd applies `defaultSize` verbatim at mount and only
@@ -138,9 +167,38 @@ const PlaygroundMainView = ({
     const primaryConfigId =
         !isComparisonView && configEntityIds.length > 0 ? configEntityIds[0]! : ""
     const isAgentConfig = useAtomValue(isAgentModeAtomFamily(primaryConfigId))
-    const configDefaultSize = isAgentConfig ? 550 : "50%"
-    const configMaxSize = isAgentConfig ? 550 : "70%"
+    const configDefaultSize = isAgentConfig ? 500 : "50%"
+    const configMaxSize = isAgentConfig ? 500 : "70%"
+    // Let the runs panel auto-fill in agent mode. A px config default + a "50%" runs default
+    // don't sum to 100%, so antd scales BOTH up to fill the container — pushing config past its
+    // px max on mount, which then snaps down on the first drag. An undefined runs default fills
+    // the remainder without scaling config, so it mounts at exactly `configDefaultSize`.
+    const runsDefaultSize = isAgentConfig ? undefined : "50%"
     const splitterKey = `${isComparisonView ? "comparison" : "single"}-${isAgentConfig ? "agent" : "std"}`
+    // Mode switching is the header Build/Chat control, so the splitter's own collapse/expand
+    // handles are redundant on the agent playground — disable `collapsible` on both panes (keeping
+    // drag-resize). Prompt playgrounds keep antd's default collapse affordances.
+    const splitCollapsible = !isAgentConfig
+    // Chat-panel maximize toggle (button lives in the chat header). Controlling the config
+    // panel's `size` puts antd's Splitter into controlled mode: 0 collapses it, undefined
+    // restores uncontrolled drag/defaultSize behaviour. Only meaningful in single agent view.
+    const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    const configCollapsed = !isComparisonView && isAgentConfig && chatMaximized
+    // Ease the config pane between its width and 0 on a Build/Chat toggle. The transition class must
+    // land in the SAME commit as the size change (else it snaps), so detect the flip during render
+    // via a ref compare; hold it ~280ms so removing the class doesn't snap, then drop it (mount,
+    // drag, and window resize keep it off so the panes never lag their target size).
+    const prevMaximizedRef = useRef(chatMaximized)
+    const [holdAnimate, setHoldAnimate] = useState(false)
+    const justToggled = prevMaximizedRef.current !== chatMaximized
+    useEffect(() => {
+        if (!justToggled) return
+        prevMaximizedRef.current = chatMaximized
+        setHoldAnimate(true)
+        const t = setTimeout(() => setHoldAnimate(false), 280)
+        return () => clearTimeout(t)
+    }, [justToggled, chatMaximized])
+    const animateSplit = justToggled || holdAnimate
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
     const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
@@ -222,15 +280,19 @@ const PlaygroundMainView = ({
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
                 <Splitter
                     key={`${splitterKey}-splitter`}
-                    className="h-full playground-splitter"
+                    className={clsx("h-full playground-splitter", {
+                        "playground-splitter-collapsed": configCollapsed,
+                        "playground-splitter-animated": animateSplit,
+                    })}
                     orientation={isComparisonView ? "vertical" : "horizontal"}
                 >
                     <SplitterPanel
                         defaultSize={configDefaultSize}
+                        size={configCollapsed ? 0 : undefined}
                         min="20%"
                         max={configMaxSize}
                         className="!h-full"
-                        collapsible
+                        collapsible={splitCollapsible}
                         key={`${splitterKey}-splitter-panel-config`}
                     >
                         <section
@@ -285,8 +347,8 @@ const PlaygroundMainView = ({
                         className={clsx("!h-full @container min-w-0", {
                             "!overflow-y-hidden flex flex-col": isComparisonView,
                         })}
-                        collapsible
-                        defaultSize="50%"
+                        collapsible={splitCollapsible}
+                        defaultSize={runsDefaultSize}
                         key={`${isComparisonView ? "comparison" : "single"}-splitter-panel-runs`}
                     >
                         {isComparisonView && <ExecutionHeader />}
@@ -336,8 +398,22 @@ const PlaygroundMainView = ({
                             ) : isComparisonView && hasDisplayedEntities ? (
                                 <GenerationComparisonRenderer />
                             ) : (
-                                layoutEntityIds.map((variantId) =>
-                                    displayedEntities.includes(variantId) || isEvaluatorMode ? (
+                                layoutEntityIds.map((variantId) => {
+                                    // Single-agent view: a stable key so a revision switch updates
+                                    // the entityId prop instead of remounting the live conversation.
+                                    // Rendered unconditionally (not gated on `displayedEntities`) so
+                                    // it can't blink to the placeholder during the atomic id swap.
+                                    if (renderAgentGenerationHost) {
+                                        return (
+                                            <ExecutionItems
+                                                key="agent-generation-host"
+                                                entityId={variantId}
+                                                renderTestsetActions={renderTestsetActions}
+                                            />
+                                        )
+                                    }
+                                    return displayedEntities.includes(variantId) ||
+                                        isEvaluatorMode ? (
                                         <ExecutionItems
                                             key={variantId}
                                             entityId={variantId}
@@ -347,8 +423,8 @@ const PlaygroundMainView = ({
                                         <GenerationPanelPlaceholder
                                             key={`generation-placeholder-${variantId}`}
                                         />
-                                    ),
-                                )
+                                    )
+                                })
                             )}
                         </section>
                     </SplitterPanel>

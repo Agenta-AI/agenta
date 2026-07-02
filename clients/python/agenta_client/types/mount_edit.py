@@ -12,6 +12,8 @@ class MountEdit(UniversalBaseModel):
     description: typing.Optional[str] = None
     id: typing.Optional[str] = None
     flags: typing.Optional[MountFlags] = None
+    tags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

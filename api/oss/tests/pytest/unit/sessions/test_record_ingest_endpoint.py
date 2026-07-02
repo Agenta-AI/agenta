@@ -41,9 +41,9 @@ async def test_record_ingest_writes_to_stream():
 
     body = SessionRecordIngestRequest(
         session_id=str(session_id),
-        event_index=0,
-        sender="user",
-        payload={"text": "hello"},
+        record_index=0,
+        record_source="user",
+        attributes={"text": "hello"},
     )
 
     app = FastAPI()
@@ -70,10 +70,10 @@ async def test_record_ingest_writes_to_stream():
     assert call_kwargs["organization_id"] == organization_id
     assert call_kwargs["project_id"] == project_id
     event = call_kwargs["record_event"]
-    assert event.session_id == session_id
+    assert event.session_id == str(session_id)
     assert event.project_id == project_id
-    assert event.sender == "user"
-    assert event.payload == {"text": "hello"}
+    assert event.record_source == "user"
+    assert event.attributes == {"text": "hello"}
 
 
 async def test_record_ingest_rejects_without_permission():

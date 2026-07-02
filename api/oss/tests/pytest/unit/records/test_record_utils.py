@@ -128,8 +128,8 @@ class TestStripReplay:
 
 def _evt(update: str, text: str = "", **kwargs):
     return {
-        "session_update": update,
-        "payload": {"text": text},
+        "record_type": update,
+        "attributes": {"text": text},
         **kwargs,
     }
 
@@ -149,8 +149,8 @@ class TestCoalesceEvents:
         events = [_evt("agent_message_chunk", "hello")]
         result = coalesce_events(events)
         assert len(result) == 1
-        assert result[0]["session_update"] == "agent_message"
-        assert result[0]["payload"]["text"] == "hello"
+        assert result[0]["record_type"] == "agent_message"
+        assert result[0]["attributes"]["text"] == "hello"
 
     def test_multiple_chunks_merged(self):
         events = [
@@ -160,8 +160,8 @@ class TestCoalesceEvents:
         ]
         result = coalesce_events(events)
         assert len(result) == 1
-        assert result[0]["session_update"] == "agent_message"
-        assert result[0]["payload"]["text"] == "foo bar baz"
+        assert result[0]["record_type"] == "agent_message"
+        assert result[0]["attributes"]["text"] == "foo bar baz"
 
     def test_chunks_flushed_before_next_event(self):
         events = [
@@ -172,10 +172,10 @@ class TestCoalesceEvents:
         ]
         result = coalesce_events(events)
         assert len(result) == 3
-        assert result[0]["session_update"] == "user_message"
-        assert result[1]["session_update"] == "agent_message"
-        assert result[1]["payload"]["text"] == "Answer"
-        assert result[2]["session_update"] == "tool_call"
+        assert result[0]["record_type"] == "user_message"
+        assert result[1]["record_type"] == "agent_message"
+        assert result[1]["attributes"]["text"] == "Answer"
+        assert result[2]["record_type"] == "tool_call"
 
     def test_empty_agent_message_dropped(self):
         events = [
@@ -184,7 +184,7 @@ class TestCoalesceEvents:
         ]
         result = coalesce_events(events)
         assert len(result) == 1
-        assert result[0]["payload"]["text"] == "real response"
+        assert result[0]["attributes"]["text"] == "real response"
 
     def test_empty_chunk_sequence_produces_nothing(self):
         """Chunks with no text content → empty combined text → nothing stored."""
@@ -197,7 +197,7 @@ class TestCoalesceEvents:
 
     def test_non_agent_events_preserved(self):
         events = [
-            {"session_update": "tool_result", "payload": {"data": 123}},
+            {"record_type": "tool_result", "attributes": {"data": 123}},
         ]
         result = coalesce_events(events)
         assert result == events
@@ -210,8 +210,8 @@ class TestCoalesceEvents:
         ]
         result = coalesce_events(events)
         assert len(result) == 3
-        assert result[0]["payload"]["text"] == "first"
-        assert result[0]["session_update"] == "agent_message"
-        assert result[1]["session_update"] == "user_message"
-        assert result[2]["payload"]["text"] == "second"
-        assert result[2]["session_update"] == "agent_message"
+        assert result[0]["attributes"]["text"] == "first"
+        assert result[0]["record_type"] == "agent_message"
+        assert result[1]["record_type"] == "user_message"
+        assert result[2]["attributes"]["text"] == "second"
+        assert result[2]["record_type"] == "agent_message"

@@ -18,6 +18,7 @@ import {
     describeTool,
     isEmbedRefSkill,
     isFunctionTool,
+    isReferenceTool,
     isStaticSkill,
     type ItemDescriptor,
 } from "./itemDescriptors"
@@ -49,6 +50,8 @@ export interface ItemKindDef {
     drawerTitle: (draft: Record<string, unknown>) => string
     /** Wider drawer for kinds that need it (skills are two-pane). */
     drawerWidth?: number
+    /** Full-bleed body so the Form can lay out its own master/detail (the tool parameter editor). */
+    formFlush?: boolean
     /** Default Form/JSON view when opening an existing item. */
     editView: (item: unknown) => ConfigItemView
     /** Items with no structured form open JSON-only (no Form/JSON toggle). */
@@ -70,12 +73,17 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         emptyLabel: "No tools yet",
         describe: describeTool,
         FormView: ToolFormView,
+        // Two-panel parameter master/detail — needs width + a full-bleed body.
+        drawerWidth: 800,
+        formFlush: true,
         drawerTitle: (draft) => {
             const name = describeTool(draft).name
             return name && name !== "Tool" ? name : "New tool"
         },
-        editView: (item) => (isFunctionTool(item) ? "form" : "json"),
-        jsonOnly: (draft) => !isFunctionTool(draft),
+        // Function tools and workflow-reference tools both have a structured Form; only bare
+        // builtin/provider tools (a naked `type`) stay JSON-only.
+        editView: (item) => (isFunctionTool(item) || isReferenceTool(item) ? "form" : "json"),
+        jsonOnly: (draft) => !isFunctionTool(draft) && !isReferenceTool(draft),
         isReadOnly: () => false,
         // Unused for tools: creation seeds from the picker (buildInlineFunctionTool), not this.
         createSeed: () => ({}),

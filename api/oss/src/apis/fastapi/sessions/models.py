@@ -1,12 +1,11 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional
-from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionStream,
-    SessionStreamStatus,
 )
 from oss.src.core.sessions.states.dtos import SessionState
 from oss.src.core.sessions.records.dtos import SessionRecord
@@ -40,7 +39,6 @@ class SessionHeartbeatRequestModel(BaseModel):
     replica_id: str
     turn_id: Optional[str] = None
     is_running: bool = True
-    status: Optional[SessionStreamStatus] = None
 
 
 class SessionDetachRequestModel(BaseModel):
@@ -98,7 +96,7 @@ class SessionStateUpsertRequest(BaseModel):
 
 
 class SessionRecordQueryRequest(BaseModel):
-    session_id: UUID
+    session_id: str
 
 
 class SessionRecordsQueryResponse(BaseModel):
@@ -123,6 +121,8 @@ class SessionInteractionCreateRequest(BaseModel):
     kind: SessionInteractionKind
     data: Optional[SessionInteractionData] = None
     flags: SessionInteractionFlags = SessionInteractionFlags()
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 class SessionInteractionTransitionRequest(BaseModel):
@@ -186,7 +186,8 @@ class SessionMountsResponse(BaseModel):
 class SessionRecordIngestRequest(BaseModel):
     # project scope comes from the caller's credential, never the body
     session_id: str
-    event_index: Optional[int] = None
-    sender: Optional[str] = None
-    session_update: Optional[str] = None
-    payload: Optional[Dict[str, Any]] = None
+    record_index: Optional[int] = None
+    timestamp: Optional[datetime] = None
+    record_type: Optional[str] = None
+    record_source: Optional[str] = None
+    attributes: Optional[Dict[str, Any]] = None

@@ -9,7 +9,6 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamQuery,
-    StreamStatusCode,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 
@@ -98,16 +97,12 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             )
             if filter.session_id is not None:
                 stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
-            if filter.is_alive is not None:
-                stmt = stmt.where(
-                    SessionStreamDBE.flags["is_alive"].astext
-                    == ("true" if filter.is_alive else "false")
+            if filter.flags is not None:
+                flags_filter = filter.flags.model_dump(
+                    exclude_none=True, exclude_unset=True
                 )
-            if filter.is_running is not None:
-                stmt = stmt.where(
-                    SessionStreamDBE.flags["is_running"].astext
-                    == ("true" if filter.is_running else "false")
-                )
+                if flags_filter:
+                    stmt = stmt.where(SessionStreamDBE.flags.contains(flags_filter))
             stmt = stmt.order_by(SessionStreamDBE.created_at.desc())
             result = await session.execute(stmt)
             dbes = result.scalars().all()
@@ -166,15 +161,14 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
         *,
         project_id: Optional[UUID] = None,
     ) -> int:
-        """Count streams whose status is 'running' (for concurrency cap check)."""
+        """Count running streams (for concurrency cap check)."""
         async with self.engine.session() as session:
             stmt = (
                 select(func.count())
                 .select_from(SessionStreamDBE)
                 .where(
                     SessionStreamDBE.deleted_at.is_(None),
-                    SessionStreamDBE.status["code"].astext
-                    == StreamStatusCode.running.value,
+                    SessionStreamDBE.flags.contains({"is_running": True}),
                 )
             )
             if project_id is not None:

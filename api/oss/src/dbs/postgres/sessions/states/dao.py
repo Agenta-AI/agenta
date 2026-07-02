@@ -11,7 +11,11 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
 from oss.src.core.sessions.states.interfaces import SessionStatesDAOInterface
-from oss.src.core.sessions.states.dtos import SessionState, SessionStateUpsert
+from oss.src.core.sessions.states.dtos import (
+    SessionState,
+    SessionStateFlags,
+    SessionStateUpsert,
+)
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -66,6 +70,7 @@ class SessionStatesDAO(SessionStatesDAOInterface):
             "session_id": session_id,
             "data": upsert.data,
             "sandbox_id": upsert.sandbox_id,
+            "flags": SessionStateFlags().model_dump(mode="json"),
             "created_at": now,
             "updated_at": None,
             "created_by_id": user_id,

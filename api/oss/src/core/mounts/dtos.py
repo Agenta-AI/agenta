@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -29,16 +29,22 @@ class Mount(Identifier, Slug, Header, Lifecycle):
     data: MountData = Field(default_factory=MountData)
     #
     flags: MountFlags = Field(default_factory=MountFlags)
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 class MountCreate(Slug, Header):
     session_id: Optional[str] = None
     #
     flags: MountFlags = Field(default_factory=MountFlags)
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 class MountEdit(Identifier, Header):
     flags: MountFlags = Field(default_factory=MountFlags)
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 class MountQuery(BaseModel):

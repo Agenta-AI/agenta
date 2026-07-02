@@ -23,9 +23,9 @@ class SessionInteractionDBE(Base, SessionInteractionDBA):
             name="uq_session_interactions_project_session_token",
         ),
         Index(
-            "ix_session_interactions_project_id_created_at",
+            "ix_session_interactions_project_id_id",
             "project_id",
-            "created_at",
+            "id",
         ),
         Index(
             "ix_session_interactions_project_id_session_id",
@@ -41,8 +41,6 @@ class SessionInteractionDBE(Base, SessionInteractionDBA):
         Index(
             "ix_session_interactions_pending",
             "project_id",
-            postgresql_where=text(
-                "(status->>'code') = 'pending' AND deleted_at IS NULL"
-            ),
+            postgresql_where=text("status = 'pending' AND deleted_at IS NULL"),
         ),
     )

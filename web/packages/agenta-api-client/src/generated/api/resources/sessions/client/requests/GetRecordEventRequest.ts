@@ -3,9 +3,9 @@
 /**
  * @example
  *     {
- *         event_id: "event_id"
+ *         record_id: "record_id"
  *     }
  */
 export interface GetRecordEventRequest {
-    event_id: string;
+    record_id: string;
 }
