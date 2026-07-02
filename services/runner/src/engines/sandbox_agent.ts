@@ -58,6 +58,12 @@ import {
   prepareDaytonaPiAssets,
 } from "./sandbox_agent/daytona.ts";
 import { prepareE2BPiAssets } from "./sandbox_agent/e2b.ts";
+import {
+  extendE2BSandboxTimeout,
+  startE2BKeepalive,
+  type E2BKeepaliveHandle,
+} from "./sandbox_agent/e2b-keepalive.ts";
+import { e2bTimeoutMs } from "./sandbox_agent/provider.ts";
 import { conciseError } from "./sandbox_agent/errors.ts";
 import { buildSessionMcpServers } from "./sandbox_agent/mcp.ts";
 import { applyModel } from "./sandbox_agent/model.ts";
@@ -224,6 +230,8 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   discoverTunnelEndpoint?: typeof discoverTunnelEndpoint;
   responderFactory?: (permissionPolicy: string | undefined) => Responder;
   prepareE2BPiAssets?: typeof prepareE2BPiAssets;
+  startE2BKeepalive?: typeof startE2BKeepalive;
+  extendE2BSandboxTimeout?: typeof extendE2BSandboxTimeout;
   log?: Log;
 }
 
@@ -371,6 +379,11 @@ export async function runSandboxAgent(
   // Internal gateway-tool MCP server closer (set when an internal channel is built for a non-Pi
   // harness with executable tools; a no-op otherwise). Released in the `finally`.
   let closeToolMcp: (() => Promise<void>) | undefined;
+  // E2B idle-refresh keepalive (D3): refreshes the sandbox timeout on an interval so
+  // E2B_TIMEOUT_MS measures idle-since-last-liveness-proof instead of run duration since
+  // creation. Started once the sandbox exists (below); stopped in the `finally` so a killed
+  // runner simply stops refreshing and the sandbox self-reaps within timeoutMs (no leak).
+  let e2bKeepalive: E2BKeepaliveHandle | undefined;
   // Durable cwd: set to the host mountpoint once a session-owned local run geesefs-mounts its
   // store prefix, so the `finally` can unmount it. Undefined for non-session/remote/unmounted runs.
   // Remote sandboxes (Daytona, E2B) are excluded: the local-mount machinery below only applies
@@ -481,6 +494,17 @@ export async function runSandboxAgent(
         plan,
         log: logger,
       });
+    }
+
+    // Start the E2B idle-refresh keepalive as soon as the sandbox ID is known (D3): from this
+    // point on E2B_TIMEOUT_MS is a rolling idle window, not a hard cap on the whole run.
+    if (plan.isE2B && sandbox?.sandboxId) {
+      e2bKeepalive = (deps.startE2BKeepalive ?? startE2BKeepalive)(
+        sandbox.sandboxId,
+        e2bTimeoutMs(),
+        deps.extendE2BSandboxTimeout ?? extendE2BSandboxTimeout,
+        logger,
+      );
     }
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
@@ -858,6 +882,9 @@ export async function runSandboxAgent(
       error,
     };
   } finally {
+    // Stop the E2B keepalive before tearing down the sandbox: no point refreshing a timeout on
+    // a sandbox we are about to delete, and it must stop even if `destroySandbox` below throws.
+    e2bKeepalive?.stop();
     await runtimeRemount?.catch(() => {});
     if (sandbox) inFlightSandboxes.delete(sandbox);
     await toolRelay?.stop().catch(() => {});

@@ -4,6 +4,11 @@ import { e2b } from "sandbox-agent/e2b";
 
 import type { SandboxPermission } from "../../protocol.ts";
 import { daytonaEnvVars } from "./daytona.ts";
+import {
+  E2B_CLAUDE_INSTALLED,
+  E2B_CODEX_INSTALLED,
+  E2B_OPENCODE_INSTALLED,
+} from "./e2b.ts";
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -122,13 +127,24 @@ export interface E2BCreateOptions {
  *
  * Pulled out as a pure function so the create options can be tested without constructing
  * a real E2B client (which needs E2B_API_KEY).
+ *
+ * The `AGENTA_AGENT_SANDBOX_{CODEX,OPENCODE,CLAUDE}_INSTALLED` flags are carried into the
+ * sandbox env for visibility only (see the doc comment on `E2B_CODEX_INSTALLED` in e2b.ts):
+ * unlike Pi's `AGENTA_AGENT_SANDBOX_PI_INSTALLED`, the daemon has no corresponding skip
+ * mechanism for these three, so setting them to "false" does not change what the daemon does.
  */
 export function buildE2BCreate(
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
 ): E2BCreateOptions {
   return {
-    envs: { ...piExtEnv, ...secrets },
+    envs: {
+      AGENTA_AGENT_SANDBOX_CODEX_INSTALLED: String(E2B_CODEX_INSTALLED),
+      AGENTA_AGENT_SANDBOX_OPENCODE_INSTALLED: String(E2B_OPENCODE_INSTALLED),
+      AGENTA_AGENT_SANDBOX_CLAUDE_INSTALLED: String(E2B_CLAUDE_INSTALLED),
+      ...piExtEnv,
+      ...secrets,
+    },
     timeoutMs: e2bTimeoutMs(),
     autoPause: true,
   };

@@ -74,15 +74,23 @@ describe("buildE2BCreate (leak backstop on the create object)", () => {
       { TRACEPARENT: "trace-id", OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://otel" },
       { OPENAI_API_KEY: "sk-test" },
     );
-    assert.deepEqual(create.envs, {
-      TRACEPARENT: "trace-id",
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://otel",
-      OPENAI_API_KEY: "sk-test",
-    });
+    assert.equal(create.envs.TRACEPARENT, "trace-id");
+    assert.equal(create.envs.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, "http://otel");
+    assert.equal(create.envs.OPENAI_API_KEY, "sk-test");
   });
 
-  it("produces empty envs when no env or secrets are passed", () => {
+  it("carries the bake-status flags by default (true = baked)", () => {
     const create = buildE2BCreate({}, {});
-    assert.deepEqual(create.envs, {});
+    assert.equal(create.envs.AGENTA_AGENT_SANDBOX_CODEX_INSTALLED, "true");
+    assert.equal(create.envs.AGENTA_AGENT_SANDBOX_OPENCODE_INSTALLED, "true");
+    assert.equal(create.envs.AGENTA_AGENT_SANDBOX_CLAUDE_INSTALLED, "true");
+  });
+
+  it("piExtEnv/secrets are applied after the bake-status flags (can override)", () => {
+    const create = buildE2BCreate(
+      { AGENTA_AGENT_SANDBOX_CODEX_INSTALLED: "false" },
+      {},
+    );
+    assert.equal(create.envs.AGENTA_AGENT_SANDBOX_CODEX_INSTALLED, "false");
   });
 });
