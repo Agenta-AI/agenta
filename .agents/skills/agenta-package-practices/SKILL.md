@@ -134,6 +134,8 @@ via `ModalFooter`, theme integration.
 
 ## Style utilities and presentational components
 
+When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
+
 ```typescript
 import {cn, textColors, bgColors} from "@agenta/ui"
 
