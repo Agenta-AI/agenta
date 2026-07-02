@@ -142,9 +142,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // editor + toolbar to the rounded corners. The toolbar has no divider of its
                         // own, so the bottom edge reads as one border, not two.
                         "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] transition-colors",
-                        // Neutral, low-key focus emphasis — a soft border darkening rather than the
-                        // full brand-primary ring, which was too loud for a chat composer.
-                        "border-[var(--ag-colorBorder)] focus-within:border-[var(--ag-colorTextTertiary)]",
+                        // Neutral, low-key focus emphasis — a soft one-step border darkening rather
+                        // than the full brand-primary ring, which was too loud for a chat composer.
+                        "border-[var(--ag-colorBorderSecondary)] focus-within:border-[var(--ag-colorBorder)]",
                         disabled && "opacity-60",
                         className,
                     )}
@@ -181,25 +181,33 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             <ShortcutHint keys="↵" label="Send" />
                             <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
                         </div>
-                        <span
-                            className={clsx(
-                                "ml-auto shrink-0 text-xs tabular-nums",
-                                overLimit
-                                    ? "text-[var(--ag-colorError)]"
-                                    : "text-[var(--ag-colorTextTertiary)]",
+                        <div className="ml-auto flex items-center gap-2">
+                            {/* Only show a counter when there's a limit to track against, or when the
+                                user has actually typed — a lone "0" beside the button is just clutter. */}
+                            {(typeof maxLength === "number" || count > 0) && (
+                                <span
+                                    className={clsx(
+                                        "shrink-0 text-xs tabular-nums",
+                                        overLimit
+                                            ? "text-[var(--ag-colorError)]"
+                                            : "text-[var(--ag-colorTextTertiary)]",
+                                    )}
+                                >
+                                    {typeof maxLength === "number"
+                                        ? `${count}/${maxLength}`
+                                        : count}
+                                </span>
                             )}
-                        >
-                            {typeof maxLength === "number" ? `${count}/${maxLength}` : count}
-                        </span>
-                        {hideSendButton ? null : (
-                            <SendButton
-                                onSubmit={onSubmit}
-                                forceEnabled={sendForceEnabled}
-                                disabled={disabled}
-                                streaming={streaming}
-                                onStop={onStop}
-                            />
-                        )}
+                            {hideSendButton ? null : (
+                                <SendButton
+                                    onSubmit={onSubmit}
+                                    forceEnabled={sendForceEnabled}
+                                    disabled={disabled}
+                                    streaming={streaming}
+                                    onStop={onStop}
+                                />
+                            )}
+                        </div>
                     </div>
 
                     {footer ? <div className="px-2 pb-1.5">{footer}</div> : null}
