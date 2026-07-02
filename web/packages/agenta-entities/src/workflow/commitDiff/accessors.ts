@@ -74,7 +74,14 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
     if (!isObj(raw)) return null
     const key = agentItemIdentity("tool", raw, index)
     const fingerprint = stableStringify(raw)
-    const fn = isObj(raw.function) ? raw.function : undefined
+    // Function tool: either the wrapped `{function:{name,...}}` shape or the flat legacy
+    // `{name, description, parameters}` shape (guarded so reference/builtin tools, which carry a
+    // non-function `type`, don't get misread as flat function tools).
+    const fn = isObj(raw.function)
+        ? raw.function
+        : (raw.type === undefined || raw.type === "function") && typeof raw.name === "string"
+          ? raw
+          : undefined
     const fnName = fn && typeof fn.name === "string" ? fn.name : undefined
 
     // Function / gateway tool.

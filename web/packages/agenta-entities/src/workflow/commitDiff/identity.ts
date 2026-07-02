@@ -35,9 +35,16 @@ export function agentItemIdentity(kind: AgentItemKind, item: unknown, index: num
         // Workflow-reference tool — keyed by the slug it targets.
         if (rec.type === "reference" && typeof rec.slug === "string" && rec.slug)
             return `ref:${rec.slug}`
-        // Function / gateway tool — keyed by its function name.
+        // Function / gateway tool — keyed by its function name (wrapped `function.name` or the
+        // flat legacy shape `{name, description, parameters}`).
         const fn = isObj(rec.function) ? rec.function : undefined
         if (fn && typeof fn.name === "string" && fn.name) return `fn:${fn.name}`
+        if (
+            (rec.type === undefined || rec.type === "function") &&
+            typeof rec.name === "string" &&
+            rec.name
+        )
+            return `fn:${rec.name}`
         // Platform op tool.
         if (rec.type === "platform" && typeof rec.op === "string" && rec.op)
             return `platform:${rec.op}`

@@ -81,7 +81,10 @@ function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
     const parts: string[] = []
     if (descChanged) parts.push("description")
     if (paramCount) parts.push(paramCount === 1 ? "1 parameter" : `${paramCount} parameters`)
-    if (!parts.length) return undefined
+    // Fingerprint-based edit detection can flag a change in a field diffToolFields doesn't inspect
+    // (or a nameless reference/builtin tool with no fields) — fall back to a generic label so the
+    // "edited" badge is never left unexplained.
+    if (!parts.length) return "changed"
     return `${parts.join(" & ")} changed`
 }
 

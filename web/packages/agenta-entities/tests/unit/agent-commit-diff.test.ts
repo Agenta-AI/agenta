@@ -171,11 +171,23 @@ describe("classifyAgentChanges", () => {
 
     it("classifier: nameless builtin tools are diffed too (prompt playground / legacy)", () => {
         // Builtins aren't offered in the agent tool picker, but the prompt playground reuses this
-        // classifier and does have them — they must not be dropped there either.
+        // classifier and does have them — they must not be dropped, added or removed.
         const remote = {prompt: {llm_config: {tools: [{type: "web_search"}]}}}
         const local = {prompt: {llm_config: {tools: []}}}
+        const removed = classifyAgentChanges(local, remote).find((s) => s.id === "tools")
+        expect(removed?.items?.[0]).toMatchObject({kind: "removed", label: "Web search"})
+
+        const added = classifyAgentChanges(remote, local).find((s) => s.id === "tools")
+        expect(added?.items?.[0]).toMatchObject({kind: "added", label: "Web search"})
+    })
+
+    it("flat legacy function tool ({name,...}, no wrapper) keeps fn identity + field diffs", () => {
+        const remote = {prompt: {llm_config: {tools: [{name: "lookup", description: "old"}]}}}
+        const local = {prompt: {llm_config: {tools: [{name: "lookup", description: "new"}]}}}
         const tools = classifyAgentChanges(local, remote).find((s) => s.id === "tools")
-        expect(tools?.items?.[0]).toMatchObject({kind: "removed", label: "Web search"})
+        const item = tools?.items?.[0]
+        expect(item).toMatchObject({kind: "edited", rawKey: "lookup"})
+        expect(item?.fieldChanges?.some((f) => f.field === "description")).toBe(true)
     })
 
     it("instructions rewrite", () => {
@@ -337,6 +349,15 @@ describe("agentItemIdentity — collision-free item identity", () => {
         expect(agentItemIdentity("tool", {type: "platform", op: "list"}, 0)).toBe("platform:list")
         // Bare builtin (only a type) has no stable id → positional, so duplicates never collapse.
         expect(agentItemIdentity("tool", {type: "web_search"}, 2)).toBe("#2")
+    })
+
+    it("keys the flat legacy function shape {name,...} by fn:<name>", () => {
+        expect(agentItemIdentity("tool", {name: "get_weather", parameters: {}}, 0)).toBe(
+            "fn:get_weather",
+        )
+        expect(agentItemIdentity("tool", {type: "function", name: "get_weather"}, 0)).toBe(
+            "fn:get_weather",
+        )
     })
 
     it("gives two id-less tools distinct identities (no map collapse)", () => {
