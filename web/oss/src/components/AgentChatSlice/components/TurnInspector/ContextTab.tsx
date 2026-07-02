@@ -74,14 +74,14 @@ const Send = ({
 const ContextTab = ({captures}: {captures: TurnRequestCapture[]}) => {
     if (captures.length === 0) {
         return (
-            <div className="p-4 text-xs text-colorTextTertiary">
+            <div className="text-xs text-colorTextTertiary">
                 No capture for this turn. Captures are recorded live in Build mode; a turn restored
                 from a previous session has none.
             </div>
         )
     }
     return (
-        <div className="flex flex-col gap-3 p-4">
+        <div className="flex flex-col gap-3">
             {captures.length > 1 ? (
                 <Text type="secondary" className="!text-xs">
                     This turn made {captures.length} requests (initial + resumes). Compare them to
