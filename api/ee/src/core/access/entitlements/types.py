@@ -55,10 +55,10 @@ class Counter(str, Enum):
     CREDITS_CONSUMED = "credits_consumed"
     EVENTS_INGESTED = "events_ingested"
     RECORDS_INGESTED = "records_ingested"
-    SANDBOX_CPU_SECONDS = "sandbox_cpu_seconds"
-    SANDBOX_RAM_SECONDS = "sandbox_ram_seconds"
-    SANDBOX_SSD_SECONDS = "sandbox_ssd_seconds"
-    SANDBOX_GPU_SECONDS = "sandbox_gpu_seconds"
+    SANDBOX_CPU_CORE_SECONDS = "sandbox_cpu_core_seconds"
+    SANDBOX_RAM_GIBI_SECONDS = "sandbox_ram_gibi_seconds"
+    SANDBOX_SSD_GIBI_SECONDS = "sandbox_ssd_gibi_seconds"
+    SANDBOX_GPU_CORE_SECONDS = "sandbox_gpu_core_seconds"
 
 
 class Gauge(str, Enum):
@@ -362,16 +362,16 @@ DEFAULT_ENTITLEMENTS = {
                 retention=Retention.WEEKLY,
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_CPU_SECONDS: Quota(
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_SECONDS: Quota(
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_SECONDS: Quota(
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_SECONDS: Quota(
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
         },
@@ -471,16 +471,16 @@ DEFAULT_ENTITLEMENTS = {
                 retention=Retention.MONTHLY,
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_CPU_SECONDS: Quota(
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_SECONDS: Quota(
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_SECONDS: Quota(
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_SECONDS: Quota(
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
         },
@@ -578,16 +578,16 @@ DEFAULT_ENTITLEMENTS = {
                 retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_CPU_SECONDS: Quota(
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_SECONDS: Quota(
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_SECONDS: Quota(
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_SECONDS: Quota(
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
         },
@@ -680,16 +680,16 @@ DEFAULT_ENTITLEMENTS = {
             Counter.RECORDS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_CPU_SECONDS: Quota(
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_SECONDS: Quota(
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_SECONDS: Quota(
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_SECONDS: Quota(
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
         },
@@ -730,16 +730,16 @@ DEFAULT_ENTITLEMENTS = {
             Counter.RECORDS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_CPU_SECONDS: Quota(
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_RAM_SECONDS: Quota(
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_SSD_SECONDS: Quota(
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
-            Counter.SANDBOX_GPU_SECONDS: Quota(
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
                 period=Period.MONTHLY,
             ),
         },
@@ -782,10 +782,10 @@ CONSTRAINTS = {
             Counter.CREDITS_CONSUMED,
             Counter.EVENTS_INGESTED,
             Counter.RECORDS_INGESTED,
-            Counter.SANDBOX_CPU_SECONDS,
-            Counter.SANDBOX_RAM_SECONDS,
-            Counter.SANDBOX_SSD_SECONDS,
-            Counter.SANDBOX_GPU_SECONDS,
+            Counter.SANDBOX_CPU_CORE_SECONDS,
+            Counter.SANDBOX_RAM_GIBI_SECONDS,
+            Counter.SANDBOX_SSD_GIBI_SECONDS,
+            Counter.SANDBOX_GPU_CORE_SECONDS,
         ],
     },
 }

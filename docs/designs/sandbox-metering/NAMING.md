@@ -1,18 +1,20 @@
 # Sandbox meter key naming (locked)
 
-Scheme: `SANDBOX_<RESOURCE>_SECONDS` — plain 3-letter resource tokens.
+Scheme: `SANDBOX_<RESOURCE>_<UNIT>_SECONDS` — plain resource token + unit token.
 
-| Resource | Counter key             | value                    |
-|----------|-------------------------|--------------------------|
-| CPU      | `SANDBOX_CPU_SECONDS`   | `sandbox_cpu_seconds`    |
-| RAM      | `SANDBOX_RAM_SECONDS`   | `sandbox_ram_seconds`    |
-| SSD      | `SANDBOX_SSD_SECONDS`   | `sandbox_ssd_seconds`    |
-| GPU      | `SANDBOX_GPU_SECONDS`   | `sandbox_gpu_seconds`    |
+| Resource | Unit | Counter key                 | value                        |
+|----------|------|-----------------------------|------------------------------|
+| CPU      | CORE | `SANDBOX_CPU_CORE_SECONDS`   | `sandbox_cpu_core_seconds`   |
+| RAM      | GIBI | `SANDBOX_RAM_GIBI_SECONDS`   | `sandbox_ram_gibi_seconds`   |
+| SSD      | GIBI | `SANDBOX_SSD_GIBI_SECONDS`   | `sandbox_ssd_gibi_seconds`   |
+| GPU      | CORE | `SANDBOX_GPU_CORE_SECONDS`   | `sandbox_gpu_core_seconds`   |
 
-- Plain hardware names (no `v`/virtual prefix, no unit token) — chosen for
-  readability. `SSD` = sandbox disk compute-time (allocated disk x time).
+- Plain hardware resource names (CPU/RAM/SSD/GPU). Unit token: `CORE` =
+  per-core-second (compute), `GIBI` = per-GiB-second (SI gibi = 2^30) for
+  memory/disk. `SSD` = sandbox disk compute-time (allocated disk x time).
 - Storage GAUGE is separate: `Gauge.STORAGE_BYTES` (`storage_bytes`) — persisted
-  bytes at rest, distinct from `SANDBOX_SSD_SECONDS`.
-- Track C per-dimension credit meters mirror the resource tokens
-  (`SANDBOX_CPU_CREDITS`, `SANDBOX_RAM_CREDITS`, `SANDBOX_SSD_CREDITS`,
-  `SANDBOX_GPU_CREDITS`) + total `SANDBOX_CREDITS`.
+  bytes at rest, distinct from `SANDBOX_SSD_GIBI_SECONDS`.
+- Track C per-dimension credit meters mirror the resource+unit tokens
+  (`SANDBOX_CPU_CORE_CREDITS`, `SANDBOX_RAM_GIBI_CREDITS`,
+  `SANDBOX_SSD_GIBI_CREDITS`, `SANDBOX_GPU_CORE_CREDITS`) + total
+  `SANDBOX_CREDITS`.
