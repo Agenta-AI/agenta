@@ -111,6 +111,12 @@ export function e2bTimeoutMs(
   return Math.floor(parsed);
 }
 
+export interface E2BCreateOptions {
+  envs: Record<string, string>;
+  timeoutMs: number;
+  autoPause: boolean;
+}
+
 /**
  * Build the E2B provider options from the runner's env + the resolved run inputs.
  *
@@ -120,7 +126,7 @@ export function e2bTimeoutMs(
 export function buildE2BCreate(
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
-): Record<string, unknown> {
+): E2BCreateOptions {
   return {
     envs: { ...piExtEnv, ...secrets },
     timeoutMs: e2bTimeoutMs(),
@@ -156,12 +162,12 @@ export function buildSandboxProvider(
 
   if (sandboxId === "e2b") {
     const template = process.env.E2B_TEMPLATE ?? "agenta-sandbox-agent";
-    const create = buildE2BCreate(piExtEnv, secrets);
+    const { envs, timeoutMs, autoPause } = buildE2BCreate(piExtEnv, secrets);
     return e2b({
       template,
-      create: { envs: (create as any).envs } as any,
-      timeoutMs: (create as any).timeoutMs,
-      autoPause: (create as any).autoPause,
+      create: { envs } as any,
+      timeoutMs,
+      autoPause,
     });
   }
 

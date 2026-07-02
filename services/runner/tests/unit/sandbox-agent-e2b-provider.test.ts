@@ -57,19 +57,16 @@ describe("buildE2BCreate (leak backstop on the create object)", () => {
   it("carries a positive timeoutMs + autoPause by default (self-reaps a leak)", () => {
     delete process.env[TIMEOUT_ENV];
     const create = buildE2BCreate({}, {});
-    assert.equal((create as any).timeoutMs, DEFAULT_E2B_TIMEOUT_MS);
-    assert.ok(
-      ((create as any).timeoutMs as number) > 0,
-      "timeoutMs must be > 0 or the sandbox never self-reaps on process KILL",
-    );
-    assert.equal((create as any).autoPause, true);
+    assert.equal(create.timeoutMs, DEFAULT_E2B_TIMEOUT_MS);
+    assert.ok(create.timeoutMs > 0, "timeoutMs must be > 0 or the sandbox never self-reaps on process KILL");
+    assert.equal(create.autoPause, true);
   });
 
   it("carries the env-configured timeoutMs", () => {
     process.env[TIMEOUT_ENV] = "120000";
     const create = buildE2BCreate({}, {});
-    assert.equal((create as any).timeoutMs, 120000);
-    assert.equal((create as any).autoPause, true);
+    assert.equal(create.timeoutMs, 120000);
+    assert.equal(create.autoPause, true);
   });
 
   it("merges piExtEnv and secrets into envs", () => {
@@ -77,7 +74,7 @@ describe("buildE2BCreate (leak backstop on the create object)", () => {
       { TRACEPARENT: "trace-id", OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://otel" },
       { OPENAI_API_KEY: "sk-test" },
     );
-    assert.deepEqual((create as any).envs, {
+    assert.deepEqual(create.envs, {
       TRACEPARENT: "trace-id",
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://otel",
       OPENAI_API_KEY: "sk-test",
@@ -86,6 +83,6 @@ describe("buildE2BCreate (leak backstop on the create object)", () => {
 
   it("produces empty envs when no env or secrets are passed", () => {
     const create = buildE2BCreate({}, {});
-    assert.deepEqual((create as any).envs, {});
+    assert.deepEqual(create.envs, {});
   });
 });
