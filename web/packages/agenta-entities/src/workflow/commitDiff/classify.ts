@@ -101,8 +101,9 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
         if (!prev) {
             added.push(tool)
         } else if (prev.fingerprint !== tool.fingerprint) {
-            // Field-level detail only for function tools; others still register as edited.
-            edited.push({tool, fields: diffToolFields(prev, tool)})
+            // Field-level detail only for function tools; reference/builtin edits register with the
+            // generic "changed" detail (they have no function fields to itemize).
+            edited.push({tool, fields: tool.isFunction ? diffToolFields(prev, tool) : []})
         }
     }
     for (const [key, tool] of remoteMap) {
