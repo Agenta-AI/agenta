@@ -14,16 +14,18 @@
  * Kept beside useModelHarness (which owns the Advanced section) so the overlay and the user's own
  * sandbox/permission controls render together.
  */
-import {useMemo, useState} from "react"
+import {useMemo} from "react"
 
 import {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
 } from "@agenta/entities/workflow"
-import {cn} from "@agenta/ui/styles"
-import {CaretRight, Warning, Wrench} from "@phosphor-icons/react"
+import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {Warning, Wrench} from "@phosphor-icons/react"
 import {Switch, Tag, Tooltip, Typography} from "antd"
 import {useAtom, useAtomValue} from "jotai"
+
+import {RailField} from "../../../drawers/shared/RailField"
 
 import {asObj, staticEmbedSlug, type ItemDescriptor} from "./itemDescriptors"
 import {ItemRow} from "./ItemRow"
@@ -111,18 +113,25 @@ export function useBuildKit({
     revisionId,
     sandboxPermissions,
     disabled,
+    enabledOverride,
 }: {
     revisionId: string | null
     sandboxPermissions: Record<string, unknown> | null
     disabled?: boolean
+    /**
+     * When set, the enable toggle reads/writes this buffer instead of the persisted atom — so a
+     * section drawer can scope the change to its draft and commit it to the atom only on Save.
+     */
+    enabledOverride?: {value: boolean; onChange: (value: boolean) => void}
 }) {
     const agentTemplateOverlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
     )
-    const [buildKitEnabled, setBuildKitEnabled] = useAtom(
+    const [atomBuildKitEnabled, setAtomBuildKitEnabled] = useAtom(
         useMemo(() => workflowBuildKitEnabledAtomFamily(revisionId ?? ""), [revisionId]),
     )
-    const [buildKitExpanded, setBuildKitExpanded] = useState(false)
+    const buildKitEnabled = enabledOverride ? enabledOverride.value : atomBuildKitEnabled
+    const setBuildKitEnabled = enabledOverride ? enabledOverride.onChange : setAtomBuildKitEnabled
 
     const overlayTools = useMemo(
         () => (Array.isArray(agentTemplateOverlay?.tools) ? agentTemplateOverlay.tools : []),
@@ -163,112 +172,85 @@ export function useBuildKit({
     )
 
     const buildKitSection = hasBuildKitOverlay ? (
-        <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
-            <button
-                type="button"
-                aria-expanded={buildKitExpanded}
-                onClick={() => setBuildKitExpanded((open) => !open)}
-                className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
-            >
-                <Wrench size={15} className="text-[var(--ag-c-586673,#586673)]" />
-                <span className="text-[13px] font-medium">Playground build kit</span>
-                <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-[var(--ag-c-586673,#586673)]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#d97706]" />
+        <ConfigAccordionSection
+            size="compact"
+            defaultOpen={false}
+            icon={<Wrench size={15} />}
+            title="Playground build kit"
+            summary={
+                <span className="inline-flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--ag-colorWarning)]" />
                     Removed on commit
                 </span>
-                <span onClick={(e) => e.stopPropagation()} className="inline-flex items-center">
-                    <Switch
-                        size="small"
-                        checked={buildKitEnabled}
-                        onChange={setBuildKitEnabled}
-                        disabled={disabled}
-                    />
-                </span>
-                <CaretRight
-                    size={14}
-                    className={cn(
-                        "text-[var(--ag-c-97A4B0,#97a4b0)] transition-transform",
-                        buildKitExpanded && "rotate-90",
-                    )}
+            }
+            extra={
+                <Switch
+                    checked={buildKitEnabled}
+                    onChange={setBuildKitEnabled}
+                    disabled={disabled}
                 />
-            </button>
-            {buildKitExpanded ? (
-                <div className="flex flex-col gap-3 border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 pb-3 pt-2.5">
-                    <p className="m-0 text-[11.5px] leading-snug text-[var(--ag-c-586673,#586673)]">
-                        These playground-only tools, skills, and permissions help the assistant
-                        build and revise this agent. None of this is part of the published agent.
-                    </p>
-                    {!buildKitEnabled ? (
-                        <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-[11.5px] leading-snug text-[var(--ant-color-info-text)]">
-                            The assistant can no longer create files, run code, or edit the agent
-                            here.
-                        </div>
-                    ) : null}
-                    {platformOverlayTools.length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
-                            <Typography.Text className="text-xs font-medium">
-                                Platform tools
-                            </Typography.Text>
-                            {platformOverlayTools.map((tool, index) => (
-                                <ItemRow
-                                    key={`build-kit-platform-tool-${index}`}
-                                    descriptor={describeBuildKitPlatformTool(tool)}
-                                    locked
-                                />
-                            ))}
-                        </div>
-                    ) : null}
-                    {embeddedOverlayTools.length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
-                            <Typography.Text className="text-xs font-medium">
-                                Embedded tools
-                            </Typography.Text>
-                            {embeddedOverlayTools.map((tool, index) => (
-                                <ItemRow
-                                    key={`build-kit-embedded-tool-${index}`}
-                                    descriptor={describeBuildKitEmbed(tool, "tool")}
-                                    locked
-                                />
-                            ))}
-                        </div>
-                    ) : null}
-                    {embeddedOverlaySkills.length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
-                            <Typography.Text className="text-xs font-medium">
-                                Embedded skills
-                            </Typography.Text>
-                            {embeddedOverlaySkills.map((skill, index) => (
-                                <ItemRow
-                                    key={`build-kit-embedded-skill-${index}`}
-                                    descriptor={describeBuildKitEmbed(skill, "skill")}
-                                    locked
-                                />
-                            ))}
-                        </div>
-                    ) : null}
-                    {overlayPermissions && Object.keys(overlayPermissions).length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
-                            <Typography.Text className="text-xs font-medium">
-                                Sandbox permissions
-                            </Typography.Text>
-                            <div className="flex flex-col gap-1.5 opacity-70">
-                                {Object.entries(overlayPermissions).map(([key, value]) => (
-                                    <div
-                                        key={key}
-                                        className="flex items-center justify-between gap-3 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 text-xs"
-                                    >
-                                        <span className="font-mono">{key}</span>
-                                        <Tag className="m-0 font-mono text-[11px]">
-                                            {formatPermissionValue(value)}
-                                        </Tag>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : null}
+            }
+        >
+            <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                These playground-only tools, skills, and permissions help the assistant build and
+                revise this agent. None of this is part of the published agent.
+            </Typography.Text>
+            {!buildKitEnabled ? (
+                <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-[11.5px] leading-snug text-[var(--ant-color-info-text)]">
+                    The assistant can no longer create files, run code, or edit the agent here.
                 </div>
             ) : null}
-        </div>
+            {platformOverlayTools.length > 0 ? (
+                <RailField label="Platform tools">
+                    {platformOverlayTools.map((tool, index) => (
+                        <ItemRow
+                            key={`build-kit-platform-tool-${index}`}
+                            descriptor={describeBuildKitPlatformTool(tool)}
+                            locked
+                        />
+                    ))}
+                </RailField>
+            ) : null}
+            {embeddedOverlayTools.length > 0 ? (
+                <RailField label="Embedded tools">
+                    {embeddedOverlayTools.map((tool, index) => (
+                        <ItemRow
+                            key={`build-kit-embedded-tool-${index}`}
+                            descriptor={describeBuildKitEmbed(tool, "tool")}
+                            locked
+                        />
+                    ))}
+                </RailField>
+            ) : null}
+            {embeddedOverlaySkills.length > 0 ? (
+                <RailField label="Embedded skills">
+                    {embeddedOverlaySkills.map((skill, index) => (
+                        <ItemRow
+                            key={`build-kit-embedded-skill-${index}`}
+                            descriptor={describeBuildKitEmbed(skill, "skill")}
+                            locked
+                        />
+                    ))}
+                </RailField>
+            ) : null}
+            {overlayPermissions && Object.keys(overlayPermissions).length > 0 ? (
+                <RailField label="Sandbox permissions">
+                    <div className="flex flex-col gap-1.5 opacity-70">
+                        {Object.entries(overlayPermissions).map(([key, value]) => (
+                            <div
+                                key={key}
+                                className="flex items-center justify-between gap-3 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 text-xs"
+                            >
+                                <span className="font-mono">{key}</span>
+                                <Tag className="m-0 font-mono text-[11px]">
+                                    {formatPermissionValue(value)}
+                                </Tag>
+                            </div>
+                        ))}
+                    </div>
+                </RailField>
+            ) : null}
+        </ConfigAccordionSection>
     ) : null
 
     const permissionOverrideHint =
