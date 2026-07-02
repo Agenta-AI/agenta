@@ -83,6 +83,7 @@ export const AddItemMenu = memo(function AddItemMenu({
     disabled = false,
     ariaLabel = "Add",
     minWidth = 288,
+    onOpen,
 }: {
     groups: AddItemGroup[]
     /** Custom trigger element (e.g. an inline text-link). Defaults to a `+` text button. */
@@ -90,6 +91,8 @@ export const AddItemMenu = memo(function AddItemMenu({
     disabled?: boolean
     ariaLabel?: string
     minWidth?: number
+    /** Fires when the menu opens (analytics); callers opt in — the menu itself is analytics-free. */
+    onOpen?: () => void
 }) {
     const [open, setOpen] = useState(false)
 
@@ -122,6 +125,7 @@ export const AddItemMenu = memo(function AddItemMenu({
             open={!disabled && open}
             onOpenChange={(next) => {
                 if (disabled) return
+                if (next) onOpen?.()
                 setOpen(next)
             }}
             trigger={["click"]}
