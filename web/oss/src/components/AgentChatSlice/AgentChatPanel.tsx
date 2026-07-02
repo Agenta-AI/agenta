@@ -31,6 +31,7 @@ import {
 import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {getMessageTraceId} from "./assets/trace"
+import AgentChatEmptyState from "./components/AgentChatEmptyState"
 import AgentMessage from "./components/AgentMessage"
 import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
@@ -667,6 +668,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             }
             if (!node) return
             const delta = node.getBoundingClientRect().top - el.getBoundingClientRect().top - a.top
+            // A stale anchor (its node scrolled far off after a programmatic jump / follow) yields an
+            // implausible delta; applying it would slam the scroll to the top. Drop it and let the next
+            // scroll / pointer-down re-anchor. A real collapse/expand moves the anchor well under a viewport.
+            if (Math.abs(delta) > el.clientHeight) {
+                anchorRef.current = null
+                return
+            }
             if (Math.abs(delta) > 0.5) {
                 programmaticScrollRef.current = true
                 el.scrollTop += delta
@@ -959,6 +967,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         scrollRef.current = el
                     }}
                     onScroll={onScroll}
+                    // Capture a fresh SC-3 anchor before a click acts (expand/collapse a tool step,
+                    // reasoning fold): those resize the transcript without a scroll, so onScroll never
+                    // refreshes the anchor and the ResizeObserver would compensate against a stale one.
+                    onPointerDownCapture={recordAnchor}
                     role="log"
                     aria-live="polite"
                     aria-label="Agent conversation"
@@ -975,9 +987,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     }}
                 >
                     {messages.length === 0 && (
-                        <div className="m-auto text-center text-xs text-colorTextTertiary">
-                            Ask a question to start the agent conversation.
-                        </div>
+                        <AgentChatEmptyState entityId={entityId} onStart={handleSubmit} />
                     )}
                     {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
                     {activeStart < messages.length && (
