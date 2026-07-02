@@ -1076,6 +1076,34 @@ class RedisConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# sandbox credit rates (billing conversion for sandbox compute meters)
+# ---------------------------------------------------------------------------
+
+
+class SandboxConfig(BaseModel):
+    """Sandbox credit-rate overrides + create-time quota estimate.
+
+    `credit_rates` is a JSON object keyed by provider slug ("e2b", "daytona",
+    "local"), each value a partial `{"cpu": "0.0014", "ram": "...", ...}` rate
+    override merged onto the code-default table in
+    `ee.src.core.sandboxes.credits.DEFAULT_PROVIDER_RATES`. Values are strings
+    (parsed as Decimal) to avoid float precision loss in env JSON.
+
+    `estimated_vcpu` / `estimated_run_seconds` size the in-flight accrual
+    estimate `check_sandbox_quota` (Layer 1) adds atop the cached meter value
+    before a new sandbox is allowed to launch.
+    """
+
+    credit_rates: dict | None = _load_json_env_dict("AGENTA_SANDBOX_CREDIT_RATES")
+    estimated_vcpu: int = int(os.getenv("AGENTA_SANDBOX_ESTIMATED_VCPU") or 2)
+    estimated_run_seconds: int = int(
+        os.getenv("AGENTA_SANDBOX_ESTIMATED_RUN_SECONDS") or 300
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # email delivery
 # ---------------------------------------------------------------------------
 
@@ -1280,6 +1308,7 @@ class EnvironSettings(BaseModel):
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
+    sandbox: SandboxConfig = SandboxConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
     store: StoreConfig = StoreConfig()
