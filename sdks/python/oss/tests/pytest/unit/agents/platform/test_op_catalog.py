@@ -39,6 +39,7 @@ def test_catalog_ships_platform_builder_ops():
         "find_capabilities",
         "query_workflows",
         "commit_revision",
+        "annotate_trace",
         "find_triggers",
         "create_schedule",
         "create_subscription",
@@ -220,6 +221,44 @@ async def test_commit_revision_defaults_to_approval(connection):
     spec = resolution.tool_specs[0]
     assert spec.needs_approval is True
     assert spec.effective_permission() == "ask"
+
+
+# --- resolver: annotate_trace self-targets its own trace/span -----------------
+
+
+async def test_annotate_trace_binds_own_trace_and_hides_links(connection):
+    # "Grade myself": the run's own trace_id/span_id are bound from run context and never
+    # model-supplied, so the agent can only ever annotate its OWN current trace.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="annotate_trace")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/annotations/"
+    assert spec.call.args_into == "annotation"
+    # Both self-target ids ride as call.context — the runner fills them from runContext at dispatch.
+    assert spec.call.context == {
+        "annotation.links.invocation.trace_id": "$ctx.trace.trace_id",
+        "annotation.links.invocation.span_id": "$ctx.trace.span_id",
+    }
+    # The model supplies only the payload (an evaluator slug + the outputs); `links` is never
+    # exposed, and the schema is closed so the model cannot smuggle its own target.
+    props = spec.input_schema["properties"]
+    assert set(props) == {"references", "data"}
+    assert "links" not in props
+    assert spec.input_schema["additionalProperties"] is False
+    assert props["references"]["properties"]["evaluator"]["required"] == ["slug"]
+    assert props["data"]["properties"]["outputs"]["additionalProperties"] is True
+
+
+async def test_annotate_trace_defaults_to_auto_allow(connection):
+    # Additive self-metadata (does not mutate config) -> auto-allow, no approval.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="annotate_trace")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.needs_approval is False
+    assert spec.effective_permission() == "allow"
 
 
 async def test_trigger_builder_ops_have_expected_paths_and_defaults(connection):

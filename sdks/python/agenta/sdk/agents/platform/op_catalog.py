@@ -309,6 +309,70 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["workflow_revision"],
 }
 
+# Annotate trace (mutating, self-targeting): record an annotation (evaluation feedback) on the
+# agent's OWN current run trace — "grade myself". ``annotation.links.invocation.trace_id`` /
+# ``.span_id`` are bound from run context ($ctx.trace.*) so the agent always annotates its own run
+# and can never retarget another trace (the same self-targeting guarantee ``commit_revision`` gives
+# via $ctx.workflow.variant.id). Unlike ``commit_revision``, this is additive self-metadata (it does
+# not mutate the agent's config), so it defaults to auto-allow / no approval.
+_ANNOTATE_TRACE_DESCRIPTION = (
+    "Record an annotation (evaluation feedback) on your own current run's trace — grade "
+    "yourself. Supply `references.evaluator.slug` naming the annotation category (e.g. "
+    "'self_reflection', 'quality') and the `data.outputs` you are recording (scores, "
+    "labels, notes). Reuse a stable slug across runs: a new slug auto-creates a simple "
+    "evaluator in your project. The trace and span you annotate are your own current run, "
+    "filled automatically — you cannot annotate a different trace."
+)
+_ANNOTATE_TRACE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    # Closed so the model cannot smuggle `links` past the self-target binding
+    # ($ctx.trace.trace_id / .span_id); only the cataloged fields are accepted.
+    "additionalProperties": False,
+    "properties": {
+        "references": {
+            "type": "object",
+            "additionalProperties": False,
+            "description": "What this annotation evaluates against.",
+            "properties": {
+                "evaluator": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "description": (
+                        "Names the annotation category. Auto-created as a simple "
+                        "evaluator if the slug is new, so reuse a stable slug."
+                    ),
+                    "properties": {
+                        "slug": {
+                            "type": "string",
+                            "description": "Stable evaluator slug, e.g. 'self_reflection'.",
+                        }
+                    },
+                    "required": ["slug"],
+                }
+            },
+            "required": ["evaluator"],
+        },
+        "data": {
+            "type": "object",
+            "additionalProperties": False,
+            "description": "The annotation payload.",
+            "properties": {
+                "outputs": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "description": (
+                        "The annotation content you are recording (scores, labels, notes)."
+                    ),
+                }
+            },
+            "required": ["outputs"],
+        },
+        # links.invocation.{trace_id,span_id} are bound from run context ($ctx.trace.*) and
+        # never model-supplied; see context_bindings on the op below.
+    },
+    "required": ["references", "data"],
+}
+
 _FIND_TRIGGERS_DESCRIPTION = (
     "Discover trigger events that fit plain-language use cases. Returns the best-match "
     "event per use case with event_key, trigger_config schema, sample payload, connection "
@@ -499,6 +563,21 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             },
             default_permission="ask",
             default_needs_approval=True,
+        ),
+        PlatformOp(
+            op="annotate_trace",
+            description=_ANNOTATE_TRACE_DESCRIPTION,
+            method="POST",
+            path="/api/annotations/",
+            input_schema=_ANNOTATE_TRACE_INPUT_SCHEMA,
+            context_bindings={
+                "annotation.links.invocation.trace_id": "$ctx.trace.trace_id",
+                "annotation.links.invocation.span_id": "$ctx.trace.span_id",
+            },
+            args_into="annotation",
+            # Additive self-metadata (does not mutate config) -> auto-allow, no approval.
+            default_permission="allow",
+            default_needs_approval=False,
         ),
         PlatformOp(
             op="find_triggers",
