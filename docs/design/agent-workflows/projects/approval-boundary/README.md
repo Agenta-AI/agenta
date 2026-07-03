@@ -24,9 +24,10 @@ Everything here is documentation and planning. No code changes ship with this PR
   inherit. Per agent: one policy with four modes (`allow`, `ask`, `deny`, `allow_reads` =
   reads run, writes ask). The SDK computes each tool's effective permission once and ships
   it; both runner gates enforce it; the session-id inference is deleted; the approval
-  event fires only when the run actually pauses; resume replays the approved call directly
-  (no fragile matching); batch shows the paused state. One shot (POC, no compat
-  constraints); an independent Codex review concurred. See [plan.md](plan.md).
+  event fires only when the run actually pauses; resume matches the re-issued call on
+  stable anchors (drift means a visible fresh prompt, never a silent loop or auto-deny);
+  batch shows the paused state. One shot (POC, no compat constraints); two independent
+  Codex reviews shaped it. See [plan.md](plan.md).
 - **Baseline.** This PR is stacked on Arda's #5054 (merge-then-rework decision). His
   message-id and resume-guard fixes are kept; his `resolvedName` patch and auto-deny
   loop-breaker get deleted by the redesign. The plan's "Baseline" section has the full

@@ -102,8 +102,10 @@ reassemble identically. Both halves can miss:
   the key, parks again, and re-prompts. The mirror case: a stored deny keeps auto-rejecting
   the next identical attempt without a prompt after the user changes their mind.
 
-Both point the same way: keys reassembled from replayed frames are fragile, so the fix
-replays the approved call directly instead of matching a re-issued one (plan phase 4).
+Both point the same way: keys reassembled from replayed frames are fragile. The fix
+anchors the key on stable identity (the spec's own name for relay tools, the recorded
+`tool_call` name for Claude gates, canonical args on both) and makes any residual
+mismatch a visible fresh prompt rather than a silent re-park (plan, "Resume" section).
 
 ### M7. Constant stream `messageId` plus a level-triggered resume predicate re-sends forever
 

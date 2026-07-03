@@ -385,9 +385,10 @@ suspected:
 
 Argument drift (code-review M2) remains a real latent risk of the match-on-replay model,
 and the `approvalId`-only drop (M3) is untouched by #5054 and still open. The diagnosis
-strengthens the plan's direction: any key that must be reassembled from replayed frames is
-fragile, which is why the plan has the runner replay the approved call directly instead of
-matching a re-issued one ([plan.md](plan.md), phase 4). Reproducing and pinning the loop
+strengthens the plan's direction: a key reassembled from replayed frames must anchor on
+*stable* identity, so the plan keys relay tools on the spec's own name and Claude gates
+on the recorded `tool_call` name, and turns any residual mismatch into a visible fresh
+prompt instead of a silent re-park ([plan.md](plan.md), "Resume"). Reproducing and pinning the loop
 stays an acceptance case (phase 6). Note on the baseline: this workspace's PR is now
 stacked on #5054, so its frontend fixes (unique per-turn message id, the already-resumed
 guard) are part of our base; its backend patches (`resolvedName`, the auto-deny
@@ -420,10 +421,15 @@ pre-answered (allow rules for effective-allow tools, deny rules for denies) so g
 only raised for genuine asks.
 
 **Resume.** An approval or denial travels back inside the conversation. On resume the
-runner replays the *approved call itself* (the exact tool and arguments the human saw)
-rather than waiting for the model to re-issue an identical call, so there is no key to
-mismatch and no loop to break. A stored approval is spent on first use, and a config
-changed to `deny` beats any stored approval.
+harness re-issues the call and the runner matches it against the stored decision on
+*stable* anchors: the spec's own name for runner-executed tools, the recorded `tool_call`
+name for Claude gates, canonical args on both. The same call matches and runs; genuinely
+different args are a new call and prompt again, visibly. Nothing silently loops and
+nothing auto-denies. A stored approval is spent on first use, and a config changed to
+`deny` beats any stored approval. (An earlier draft promised replaying the approved call
+without any matching; the pre-implementation review killed that as unimplementable for
+harness-executed builtins, where the runner's only lever is approving or rejecting the
+gate.)
 
 **Headless.** Identical decisions, different surface: an `ask` on a run with no chat open
 still pauses, the batch response says so and names the pending interaction, and the

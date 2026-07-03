@@ -15,8 +15,8 @@ mandate; any of them can be reopened in PR review.
 - The live approve-loop is **diagnosed** (details in how-approvals-work.md, live-warning
   section): a constant stream `messageId` plus a level-triggered resume predicate on the
   frontend (finding M7; fixed in the #5054 base), compounded by tool-*name* drift across
-  ACP frames breaking the decision key (M2's observed form; patched in the base, properly
-  removed by this plan's direct-replay resume).
+  ACP frames breaking the decision key (M2's observed form; patched in the base, kept as
+  a clean recorded-name anchor inside this plan's decision module).
 - The permission model is settled (round 2): per-tool `allow | ask | deny` or inherit; one
   global policy with four modes (`allow`, `ask`, `deny`, `allow_reads` = reads run, writes
   ask); `needs_approval` and the legacy aliases get deleted; "effective permission"
@@ -42,6 +42,17 @@ mandate; any of them can be reopened in PR review.
   `interactions` because an interaction is only the outcome of `ask`; `allow`/`deny`
   never produce one. Then: implement without further check-ins; Mahmoud reviews the PR.
 
+- **2026-07-03, Codex pre-implementation review (xhigh):** the design held except one
+  claim. "Resume replays the approved call directly, no matching" is unimplementable for
+  Claude-native builtins (the runner's only lever is the ACP reply; transcript replay is
+  text, not structured tool injection). The resume section is rewritten: same-call
+  matching on stable anchors per executor, drift pauses visibly. Also folded in: a single
+  pending-approval latch (parallel-gate race), wire-first phase ordering with a
+  `permissionsFromRequest()` legacy bridge, `ToolSpec.to_wire()` ships explicit
+  permissions only, wire rules and settings rules derive from one parse (`mcp__*` rules
+  stay settings-only), Pi leaves the hardcoded `"auto"` path, and a concrete test plan
+  section. `SANDBOX_AGENT_DENY_PERMISSIONS` survives as an operator kill-switch.
+
 ## Decisions taken (delegated, reopenable in PR review)
 
 1. **One-shot scope confirmed:** Option D plus visibility plus the correctness debt, one
@@ -54,9 +65,9 @@ mandate; any of them can be reopened in PR review.
 4. **Batch pause shape:** minimal contract from this side: `stop_reason` plus the pending
    interaction reference. Exact field names stay coordinated with the streaming-invoke
    workspace.
-5. **Direct-replay mechanics:** primary design is injecting the approved call; the
-   approve-with-stored-args fallback gets picked empirically in the phase 6 live loop if
-   injection proves harness-fragile.
+5. **Resume mechanics (revised by the Codex review):** same-call matching on stable
+   anchors, split by executor; drift pauses visibly for a fresh approval. Direct replay
+   ("no matching") was dropped as unimplementable for harness-executed builtins.
 
 ## How this workspace was produced
 
@@ -70,5 +81,5 @@ analysis that diagnosed the live loop.
 
 - The sandbox-agent daemon's permission-request id scheme (per-session counter vs unique):
   decides whether interaction tokens need turn namespacing (code-review H3).
-- Whether ending a parked turn and later injecting the approved call behaves cleanly on
-  Claude (plan, "Direct replay" risk); pinned by the phase 6 live loop.
+- How often the model regenerates different args for the same intended call on cold
+  replay (plan, "Arg regeneration" risk); pinned by the phase 6 live loop.
