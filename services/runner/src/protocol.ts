@@ -88,12 +88,11 @@ export interface PermissionsConfig {
 /**
  * A runnable tool the backend already resolved from the agent config.
  *
- * Three orthogonal axes:
+ * Two orthogonal axes:
  *  - `kind` (executor): how the runner fulfils a call. `callback` POSTs back through Agenta's
  *    /tools/call (gateway tools; the Composio key stays server-side); `code` runs `code` in a
  *    sandbox subprocess with `env` (resolved secrets, scoped to the subprocess); `client` is
  *    fulfilled by the browser across a turn boundary. Absent = `callback` (back-compat).
- *  - `needsApproval`: gate the call on a human yes/no (mechanics owned by the run-event layer).
  *  - `render`: a generative-UI hint (see `RenderHint`).
  *
  * `callRef` is set for `callback` (gateway) tools (the slug the bridge sends back to
@@ -129,15 +128,13 @@ export interface ResolvedToolSpec {
   runtime?: "python" | "node";
   code?: string;
   env?: Record<string, string>;
-  needsApproval?: boolean;
   render?: RenderHint;
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
   readOnly?: boolean;
   /**
    * Layer-3 permission: `allow` runs with no prompt, `ask` raises a
    * human-in-the-loop request, `deny` never runs. Absent = fall back to the global
-   * `permissionPolicy`. The SDK derives a default from `readOnly`/`needsApproval` when the
-   * author set none. Plumbing only here; enforcement is a later slice.
+   * permission plan. The SDK derives a default from `readOnly` when the author set none.
    */
   permission?: ToolPermission;
 }
@@ -232,9 +229,8 @@ export interface McpServerConfig {
   tools?: string[];
   /**
    * Layer-3 permission for the whole server: `allow` / `ask` / `deny`. Absent =
-   * fall back to the global `permissionPolicy`. An MCP server has no `readOnly` hint, so there
-   * is no derived default: an explicit author value or nothing. Plumbing only; enforcement is
-   * a later slice.
+   * fall back to the global permission plan. An MCP server has no `readOnly` hint, so there
+   * is no derived default: an explicit author value or nothing.
    */
   permission?: ToolPermission;
 }
@@ -438,12 +434,7 @@ export interface AgentRunRequest {
   mcpServers?: McpServerConfig[];
   /** Where customTools route their calls back to. Required when customTools is set. */
   toolCallback?: ToolCallbackContext;
-  /** How a permission-gating harness handles tool-use prompts: "auto" (default) | "deny". */
-  permissionPolicy?: string;
-  /**
-   * Authored permission plan assembled by the SDK (`runner.permissions.*` in the agent config).
-   * When absent, the runner maps the legacy `permissionPolicy` via `permissionsFromRequest()`.
-   */
+  /** Authored permission plan assembled by the SDK (`runner.permissions.*` in the agent config). */
   permissions?: PermissionsConfig;
   /**
    * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is

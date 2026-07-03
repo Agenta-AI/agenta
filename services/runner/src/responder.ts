@@ -202,7 +202,8 @@ export class ApprovalResponder implements Responder {
  * `tool_result` content block keyed by `toolCallId` whose `output` is an `{ approved:
  * boolean }` envelope. Each decision is indexed only by `approvedCallKey(name, args)` - the
  * cold-replay anchor. The name/args are recovered from the matching `tool_call` block (same
- * `toolCallId`) the egress folds into the transcript.
+ * `toolCallId`) the egress folds into the transcript. An unbindable approval envelope is
+ * dropped; the gate re-raises and re-prompts, never guessed.
  */
 export function extractApprovalDecisions(
   request: AgentRunRequest,

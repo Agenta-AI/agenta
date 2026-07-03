@@ -264,16 +264,9 @@ describe("permissionsFromRequest", () => {
     );
   });
 
-  it("maps absent new block plus legacy deny to deny", () => {
-    assert.deepEqual(
-      permissionsFromRequest({ permissionPolicy: "deny" } as AgentRunRequest),
-      { default: "deny", rules: [] },
-    );
-  });
-
-  it("maps absent new block and absent legacy field to allow", () => {
+  it("maps absent block to the safe SDK default", () => {
     assert.deepEqual(permissionsFromRequest({} as AgentRunRequest), {
-      default: "allow",
+      default: "allow_reads",
       rules: [],
     });
   });

@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-// services/agent/src/engines/sandbox_agent/daemon.ts -> services/agent
+// services/runner/src/engines/sandbox_agent/daemon.ts -> services/runner
 export const PKG_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 export const ADAPTER_BIN_DIR = join(PKG_ROOT, "node_modules", ".bin");
 

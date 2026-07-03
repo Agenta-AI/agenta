@@ -146,7 +146,7 @@ export async function prepareDaytonaPiAssets({
  * jar, so without this the proxy rejects later ACP requests with "Authentication
  * required" / 502. The sandbox-agent SDK accepts a custom fetch, so we hand it this one.
  *
- * It layers on {@link createAcpFetch} (the long-timeout ACP dispatcher) so a parked HITL turn
+ * It layers on {@link createAcpFetch} (the long-timeout ACP dispatcher) so a paused HITL turn
  * over Daytona is not reaped by undici's default `headersTimeout` either.
  */
 export function createCookieFetch(inner: typeof fetch = createAcpFetch()): typeof fetch {

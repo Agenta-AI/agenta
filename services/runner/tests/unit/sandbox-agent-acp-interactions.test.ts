@@ -1,7 +1,7 @@
 /**
- * Unit tests for sandbox-agent ACP permission wiring.
+ * Unit tests for sandbox-agent ACP interaction wiring.
  *
- * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-permissions.test.ts)
+ * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-acp-interactions.test.ts)
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
@@ -10,7 +10,7 @@ import type { AgentEvent } from "../../src/protocol.ts";
 import type { ClientToolVerdict, Responder } from "../../src/responder.ts";
 import type { Verdict } from "../../src/permission-plan.ts";
 import { PendingApprovalLatch } from "../../src/permission-plan.ts";
-import { attachPermissionResponder } from "../../src/engines/sandbox_agent/permissions.ts";
+import { attachPermissionResponder } from "../../src/engines/sandbox_agent/acp-interactions.ts";
 
 function flushPromises(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -102,29 +102,29 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(events, []);
   });
 
-  it("pendingApproval emits, creates the interaction, parks, and sends no reply", async () => {
+  it("pendingApproval emits, creates the interaction, pauses, and sends no reply", async () => {
     const replies: Array<{ id: string; reply: string }> = [];
     const { session, emit } = makeSession(async (id, reply) => {
       replies.push({ id, reply });
     });
     const events: AgentEvent[] = [];
     const created: Array<{ token: string; toolName?: string; args: unknown }> = [];
-    let parks = 0;
+    let pauses = 0;
 
     attachPermissionResponder({
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "pendingApproval" }),
       latch: new PendingApprovalLatch(),
-      onPark: () => {
-        parks += 1;
+      onPause: () => {
+        pauses += 1;
       },
       onCreateInteraction: (token, toolName, args) => {
         created.push({ token, toolName, args });
       },
     });
     emit({
-      id: "perm-park",
+      id: "perm-pause",
       availableReplies: ["once", "always", "reject"],
       toolCall: { toolCallId: "tool-9", name: "edit", input: { path: "a" } },
       options: { cwd: "/repo" },
@@ -132,14 +132,14 @@ describe("attachPermissionResponder", () => {
     await flushPromises();
 
     assert.deepEqual(replies, []);
-    assert.equal(parks, 1);
+    assert.equal(pauses, 1);
     assert.deepEqual(created, [
-      { token: "perm-park", toolName: "edit", args: { path: "a" } },
+      { token: "perm-pause", toolName: "edit", args: { path: "a" } },
     ]);
     assert.deepEqual(events, [
       {
         type: "interaction_request",
-        id: "perm-park",
+        id: "perm-pause",
         kind: "user_approval",
         payload: {
           toolCallId: "tool-9",
@@ -151,18 +151,18 @@ describe("attachPermissionResponder", () => {
     ]);
   });
 
-  it("two concurrent pending gates emit and park only once through the latch", async () => {
+  it("two concurrent pending gates emit and pause only once through the latch", async () => {
     const { session, emit } = makeSession();
     const events: AgentEvent[] = [];
-    let parks = 0;
+    let pauses = 0;
 
     attachPermissionResponder({
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "pendingApproval" }),
       latch: new PendingApprovalLatch(),
-      onPark: () => {
-        parks += 1;
+      onPause: () => {
+        pauses += 1;
       },
     });
     emit({ id: "perm-1", toolCall: { toolCallId: "tool-1", name: "edit" } });
@@ -171,23 +171,23 @@ describe("attachPermissionResponder", () => {
 
     assert.equal(events.length, 1);
     assert.equal((events[0] as any).id, "perm-1");
-    assert.equal(parks, 1);
+    assert.equal(pauses, 1);
   });
 
-  it("reply rejection parks and does not resolve the interaction", async () => {
+  it("reply rejection pauses and does not resolve the interaction", async () => {
     const { session, emit } = makeSession(async () => {
       throw new Error("daemon closed");
     });
     const resolved: string[] = [];
-    let parks = 0;
+    let pauses = 0;
 
     attachPermissionResponder({
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "allow" }),
       latch: new PendingApprovalLatch(),
-      onPark: () => {
-        parks += 1;
+      onPause: () => {
+        pauses += 1;
       },
       onResolveInteraction: (token) => {
         resolved.push(token);
@@ -196,7 +196,7 @@ describe("attachPermissionResponder", () => {
     emit({ id: "perm-1", availableReplies: ["once", "reject"] });
     await flushPromises();
 
-    assert.equal(parks, 1);
+    assert.equal(pauses, 1);
     assert.deepEqual(resolved, []);
   });
 
@@ -206,15 +206,15 @@ describe("attachPermissionResponder", () => {
       replies.push({ id, reply });
     });
     const events: AgentEvent[] = [];
-    let parks = 0;
+    let pauses = 0;
 
     attachPermissionResponder({
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "allow" }),
       latch: new PendingApprovalLatch(),
-      onPark: () => {
-        parks += 1;
+      onPause: () => {
+        pauses += 1;
       },
     });
     emit({
@@ -224,18 +224,18 @@ describe("attachPermissionResponder", () => {
     await flushPromises();
 
     assert.deepEqual(replies, []);
-    assert.equal(parks, 1);
+    assert.equal(pauses, 1);
     assert.equal(events.length, 1);
     assert.equal((events[0] as any).id, "tool-fallback");
   });
 
-  it("client tool pending forwards to the browser and parks", async () => {
+  it("client tool pending forwards to the browser and pauses", async () => {
     const replies: Array<{ id: string; reply: string }> = [];
     const { session, emit } = makeSession(async (id, reply) => {
       replies.push({ id, reply });
     });
     const events: AgentEvent[] = [];
-    let parks = 0;
+    let pauses = 0;
 
     attachPermissionResponder({
       session,
@@ -245,8 +245,8 @@ describe("attachPermissionResponder", () => {
         { kind: "pendingApproval" },
       ),
       latch: new PendingApprovalLatch(),
-      onPark: () => {
-        parks += 1;
+      onPause: () => {
+        pauses += 1;
       },
     });
     emit({
@@ -265,7 +265,7 @@ describe("attachPermissionResponder", () => {
     await flushPromises();
 
     assert.deepEqual(replies, []);
-    assert.equal(parks, 1);
+    assert.equal(pauses, 1);
     assert.deepEqual(events, [
       {
         type: "interaction_request",

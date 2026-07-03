@@ -65,7 +65,7 @@ export interface RelayPermissions {
    *  what reaches it. True when the relay is the only gate (Pi). */
   enforce: boolean;
   decide: (gate: GateDescriptor) => Verdict;
-  /** Called when an ask pauses at the relay: emit the approval event + park (engine-owned). */
+  /** Called when an ask pauses at the relay: emit the approval event and pause the turn. */
   onPendingApproval: (info: {
     toolCallId: string;
     toolName: string;
@@ -75,7 +75,7 @@ export interface RelayPermissions {
 
 export interface ClientToolRelay {
   onClientTool: (request: ClientToolRelayRequest) => Promise<ClientToolOutcome>;
-  onPark?: (request: ClientToolRelayRequest) => void;
+  onPause?: (request: ClientToolRelayRequest) => void;
 }
 const PAUSED = Symbol("paused");
 
@@ -213,7 +213,7 @@ async function executeRelayedTool(
     };
     const decision = await clientToolRelay.onClientTool(request);
     if (decision === "pendingApproval") {
-      clientToolRelay.onPark?.(request);
+      clientToolRelay.onPause?.(request);
       return PAUSED;
     }
     if (decision === "deny") {

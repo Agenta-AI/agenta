@@ -237,7 +237,7 @@ describe("startToolRelay permission enforcement", () => {
       stopWhen: () => parked.length === 1,
       clientToolRelay: {
         onClientTool: async () => "pendingApproval",
-        onPark: (request) => {
+        onPause: (request) => {
           parked.push(request.toolCallId);
         },
       },

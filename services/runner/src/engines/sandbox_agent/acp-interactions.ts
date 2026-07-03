@@ -20,7 +20,7 @@ export interface AttachPermissionResponderInput {
    * Called when a gate pauses the turn. The orchestration loop uses this to end the turn
    * gracefully because a paused Claude turn never resolves `session.prompt()` on its own.
    */
-  onPark?: () => void;
+  onPause?: () => void;
   log?: (msg: string) => void;
   /** Called on pause to record the pending gate as an interaction (fire-and-forget). */
   onCreateInteraction?: (
@@ -39,7 +39,7 @@ export function attachPermissionResponder({
   responder,
   latch,
   serverPermissions = new Map(),
-  onPark,
+  onPause,
   log,
   onCreateInteraction,
   onResolveInteraction,
@@ -47,14 +47,14 @@ export function attachPermissionResponder({
   session.onPermissionRequest((req: any) => {
     void handleRequest(req).catch((err) => {
       log?.(`[HITL] permission handling failed: ${errorMessage(err)}`);
-      onPark?.();
+      onPause?.();
     });
   });
 
   // A pause sends NO harness reply, ever. Replying `reject` would make Claude emit a failed
   // tool call ("User refused permission") whose `tool_result {isError}` overwrites the
   // approval prompt on the same tool-call id (the F-024 clobber). The turn instead ends via
-  // `onPark` (session teardown resolves the RPC as cancelled, not rejected) and the next
+  // `onPause` (session teardown resolves the RPC as cancelled, not rejected) and the next
   // turn's stored decision answers the re-raised gate.
   const pauseUserApproval = (req: any, id: string, gate: GateDescriptor): void => {
     if (!latch.tryAcquire()) return;
@@ -71,7 +71,7 @@ export function attachPermissionResponder({
       },
     });
     onCreateInteraction?.(eventId, gate.toolName, gate.args);
-    onPark?.();
+    onPause?.();
   };
 
   const pauseClientTool = (
@@ -95,7 +95,7 @@ export function attachPermissionResponder({
         render: spec.render,
       },
     });
-    onPark?.();
+    onPause?.();
   };
 
   const replyPermission = async (
@@ -110,7 +110,7 @@ export function attachPermissionResponder({
       );
     } catch (err) {
       log?.(`[HITL] reply failed id=${id} decision=${decision}: ${errorMessage(err)}`);
-      onPark?.();
+      onPause?.();
       return;
     }
     onResolveInteraction?.(id);
@@ -128,7 +128,7 @@ export function attachPermissionResponder({
       );
     } catch (err) {
       log?.(`[HITL] reply failed id=${id} decision=${verdict.kind}: ${errorMessage(err)}`);
-      onPark?.();
+      onPause?.();
     }
   };
 

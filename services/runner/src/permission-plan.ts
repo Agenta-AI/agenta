@@ -1,3 +1,13 @@
+/**
+ * Permission map; check all four sites when changing behavior:
+ *  - SDK settings renderer: `sdks/python/agenta/sdk/agents/adapters/claude_settings.py`
+ *    pre-answers Claude permission gates from authored and derived rules.
+ *  - ACP responder: `services/runner/src/engines/sandbox_agent/acp-interactions.ts` answers
+ *    gates the harness raises over ACP, or pauses when a human decision is required.
+ *  - Relay enforcement: `services/runner/src/tools/relay.ts` enforces the same decisions for Pi.
+ *  - Client-tool ladder: `services/runner/src/responder.ts` handles browser-fulfilled tools
+ *    across the pause/resume boundary.
+ */
 import type { AgentRunRequest, PermissionMode, ToolPermission } from "./protocol.ts";
 
 /** Which component executes the gated tool; decides how resume matching anchors names. */
@@ -48,6 +58,7 @@ const RULE_RANK: Record<ToolPermission, number> = {
 export function permissionsFromRequest(
   request: AgentRunRequest,
 ): PermissionPlan {
+  // Operator kill-switch for incident response: deny wins over every authored request.
   if (process.env.SANDBOX_AGENT_DENY_PERMISSIONS === "true") {
     return { default: "deny", rules: [] };
   }
@@ -69,10 +80,7 @@ export function permissionsFromRequest(
     };
   }
 
-  if (request.permissionPolicy === "deny") {
-    return { default: "deny", rules: [] };
-  }
-  return { default: "allow", rules: [] };
+  return { default: "allow_reads", rules: [] };
 }
 
 export function effectivePermission(

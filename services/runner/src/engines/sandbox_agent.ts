@@ -73,7 +73,11 @@ import {
   permissionsFromRequest,
   type GateDescriptor,
 } from "../permission-plan.ts";
-import { attachPermissionResponder } from "./sandbox_agent/permissions.ts";
+import { attachPermissionResponder } from "./sandbox_agent/acp-interactions.ts";
+import {
+  PAUSED,
+  PendingApprovalPauseController,
+} from "./sandbox_agent/pause.ts";
 import {
   createInteraction,
   resolveInteraction,
@@ -471,7 +475,7 @@ export async function runSandboxAgent(
       // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) so an
       // in-flight run aborts instead of finishing unobserved. The `finally` still disposes.
       ...(signal ? { signal } : {}),
-      // Drive the ACP HTTP client through a long-timeout undici dispatcher so a parked HITL
+      // Drive the ACP HTTP client through a long-timeout undici dispatcher so a paused HITL
       // turn (the connection held open while a human approves a tool) is NOT reaped by
       // undici's default `headersTimeout` (which would kill it with UND_ERR_HEADERS_TIMEOUT).
       // Daytona additionally needs the per-sandbox auth cookie carried across requests, so it
@@ -638,21 +642,9 @@ export async function runSandboxAgent(
       if (update) run.handleUpdate(update);
     });
 
-    // A pending approval pause must END the turn gracefully, not hold the ACP connection
-    // open forever (F-040): Claude does not end a turn on an unanswered gate, so
-    // `session.prompt()` would block indefinitely. On the first pause we destroy the session
-    // so the in-flight prompt resolves or the local park signal wins the race below.
-    let parked = false;
-    let resolveParked: (() => void) | undefined;
-    const parkedSignal = new Promise<void>((resolve) => {
-      resolveParked = resolve;
-    });
-    const onPark = (): void => {
-      if (parked) return; // first pause wins; later gates this turn are moot once we cancel
-      parked = true;
-      resolveParked?.();
-      void sandbox.destroySession?.(session.id).catch(() => {});
-    };
+    const pause = new PendingApprovalPauseController(() =>
+      sandbox.destroySession?.(session.id),
+    );
     const permissionPlan = permissionsFromRequest(request);
     const storedDecisionMap = extractApprovalDecisions(request);
     if (storedDecisionMap.size > 0) {
@@ -712,7 +704,7 @@ export async function runSandboxAgent(
           },
         });
         recordPendingInteraction(toolCallId, toolName, args);
-        onPark();
+        pause.pause();
       },
     };
     const serverPermissions = serverPermissionsFromRequest(request);
@@ -723,7 +715,7 @@ export async function runSandboxAgent(
       latch,
       serverPermissions,
       log: logger,
-      onPark,
+      onPause: () => pause.pause(),
       onCreateInteraction: recordPendingInteraction,
       onResolveInteraction: (token) => {
         const cred = runCredential(request);
@@ -797,33 +789,32 @@ export async function runSandboxAgent(
             }
             return "pendingApproval";
           },
-          onPark,
+          onPause: () => pause.pause(),
         },
       );
     }
 
-    // Race the prompt against the park signal: on a HITL park the prompt either resolves with
+    // Race the prompt against the pause signal: on a HITL pause the prompt either resolves with
     // a cancelled stop reason (the managed `session/cancel` landed) or never resolves at all
-    // (the harness ignores it) — either way `parkedSignal` ends the turn so the runner returns
+    // (the harness ignores it) — either way the pause signal ends the turn so the runner returns
     // promptly, the `finally` disposes the sandbox (no leak, F-040), and the egress emits a
-    // `finish` frame. When the park wins, the orphaned `prompt()` may later reject as the
+    // `finish` frame. When the pause wins, the orphaned `prompt()` may later reject as the
     // cancelled/torn-down connection unwinds; swallow that so it is not an `unhandledRejection`
     // (the daemon teardown's `fetch failed` is expected on a cancel, not a run error).
-    const PARKED = Symbol("parked");
     const promptPromise = Promise.resolve(
       session.prompt([{ type: "text", text: plan.turnText }]),
     );
     promptPromise.catch(() => {});
     const raced = await Promise.race([
       promptPromise,
-      parkedSignal.then(() => PARKED),
+      pause.signal.then(() => PAUSED),
     ]);
-    // A parked turn is terminal-but-incomplete: stop reason `paused` tells the egress to emit
+    // A paused turn is terminal-but-incomplete: stop reason `paused` tells the egress to emit
     // a clean `finish` (the FE then resumes on the user's decision). A real prompt result keeps
     // the harness's own stop reason.
     const stopReason =
-      raced === PARKED || parked ? "paused" : (raced as any)?.stopReason;
-    const result = raced === PARKED ? undefined : raced;
+      raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
+    const result = raced === PAUSED ? undefined : raced;
     await toolRelay?.stop();
     logger(`prompt stopReason=${stopReason}`);
 

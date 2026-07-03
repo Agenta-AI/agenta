@@ -125,6 +125,28 @@ def test_mcp_permissions_route_to_their_lists_and_skip_unset():
     assert perms["deny"] == ["mcp__shell"]
 
 
+def test_reserved_internal_mcp_server_name_does_not_render_whole_server_rule():
+    server = ResolvedMCPServer(
+        name=INTERNAL_TOOL_MCP_SERVER,
+        transport="http",
+        url="https://x",
+        permission="deny",
+    )
+    tool = CallbackToolSpec(
+        name="get_user", description="d", call_ref="tools__x", permission="allow"
+    )
+    perms = _settings(build_claude_settings_files(None, None, [server], [tool]))[
+        "permissions"
+    ]
+
+    rendered_rules = [
+        rule for rules in perms.values() if isinstance(rules, list) for rule in rules
+    ]
+    assert perms["allow"] == [_rule("get_user")]
+    assert "deny" not in perms
+    assert f"mcp__{INTERNAL_TOOL_MCP_SERVER}" not in rendered_rules
+
+
 def test_merges_author_with_derived_and_dedupes():
     # Author `WebFetch` keeps its position; the network-derived `WebFetch` is deduped, and the
     # filesystem-derived `Write`/`Edit` append.

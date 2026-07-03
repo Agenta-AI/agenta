@@ -524,7 +524,7 @@ describe("runSandboxAgent orchestration", () => {
     // Trailing arg is the relay callbacks object (client-tool + park handlers).
     assert.deepEqual(
       Object.keys((calls.toolRelayArgs?.[6] ?? {}) as object).sort(),
-      ["onClientTool", "onPark"],
+      ["onClientTool", "onPause"],
     );
     assert.equal(
       calls.toolRelayStops,
@@ -851,7 +851,7 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     return { calls, deps };
   }
 
-  it("headless (/invoke: no sessionId, no decisions) auto-allows — no regression", async () => {
+  it("absent permissions use allow_reads and pause an unrated gate", async () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
@@ -866,11 +866,9 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     await flushPromises();
 
     assert.equal(result.ok, true);
-    // Headless auto-allow gates each call individually, so once (this call) is equivalent to
-    // the old always and strictly safer — no turn-wide grant that skips re-gating.
-    assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "once" },
-    ]);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.deepEqual(calls.permissionReplies, []);
   });
 
   it("effective ask with no decision pauses the tool, no harness reply (F-024)", async () => {

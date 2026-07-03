@@ -114,6 +114,10 @@ def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
         permission = _get(server, "permission")
         if not permission or not name:
             continue
+        if name == INTERNAL_TOOL_MCP_SERVER:
+            # Reserved for backend-resolved tools; a user server rule like ``mcp__agenta-tools``
+            # would collide with resolved-tool rules ``mcp__agenta-tools__<tool>``.
+            continue
         rule = f"mcp__{name}"
         if permission == "allow":
             allow.append(rule)

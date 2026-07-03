@@ -40,6 +40,25 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   relay must enforce permissions only when the harness does not gate (Pi) — otherwise
   one approval would be consumed at the gate and the relay would double-gate the same
   call.
+- **Phase 5 landed (Codex implemented, reviewed here).** Legacy wire fields deleted
+  (`permissionPolicy`, `needsApproval`); absent `permissions` now defaults to
+  `allow_reads` (same default as the authored schema); `acp-interactions.ts` and
+  `pause.ts` renames; the four-site permission map heads `permission-plan.ts`;
+  `agenta-tools` reserved-name guard in the settings renderer; stale `services/agent/`
+  comment paths fixed. 401 runner + 477 SDK + 49 services tests green.
+- **General docs sweep landed (Sonnet subagent, reviewed here).** Five permission
+  sections rewritten (tools.md, agent-configuration.md, permission-responder.md,
+  agent-config-schema.md, runner-interface README), ~24 field-level updates, 17
+  superseded banners (capability-config, hitl-fix, streaming-invoke), and the
+  sessions/interactions specs re-grounded (every pause creates the row; T3 marked
+  implemented). Review fixes: one em dash, one stale `services/agent/` path.
+- **Push-policy incident (separate from the commit incident).** `but push` on our
+  stacked lane force-pushed EVERY series in the stack, including `big-agents-work`
+  (Arda's PR #5054 head), six times over two hours, clobbering his and bekossy's
+  pushes; Arda closed #5054. Repair: his full tip (`a11b58cec8`, containing every
+  clobbered commit) was restored with a lease-guarded push. Standing rule (also in
+  memory): never `but push` a stack containing branches we do not own; our series
+  pushes via `git push origin docs/approval-boundary --force-with-lease`.
 - **Phase 4a landed (Codex implemented, reviewed here).** Batch envelopes now carry
   `stop_reason` (omitted when absent, so non-runner results are byte-identical) and, when
   paused, `pending_interaction: {id, tool}`. The SDK already threaded
