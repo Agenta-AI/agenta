@@ -12,6 +12,7 @@ import pytest
 from agenta.sdk.agents import (
     AgentTemplate,
     AgentResult,
+    ClaudeHarness,
     HarnessType,
     Message,
     PiHarness,
@@ -69,6 +70,16 @@ async def test_provisioning_writes_agents_md_only_when_present(make_env):
     assert harness._provisioning(_config("")) == {}
     assert harness._provisioning(_config("   ")) == {}
     assert harness._provisioning(_config(None)) == {}
+
+
+async def test_provisioning_writes_claude_md_for_claude_harness(make_env):
+    # claude-agent-sdk's memory loader auto-loads CLAUDE.md, never AGENTS.md, so the claude
+    # harness's instructions must land in CLAUDE.md (mirrors the runner's workspace.ts rule).
+    env = make_env()
+    harness = ClaudeHarness(env)
+
+    assert harness._provisioning(_config("hello")) == {"CLAUDE.md": b"hello"}
+    assert harness._provisioning(_config("")) == {}
 
 
 async def test_create_session_adds_files_when_provisioned(make_env):
