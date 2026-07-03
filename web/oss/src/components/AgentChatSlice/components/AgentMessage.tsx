@@ -305,9 +305,40 @@ const AgentMessage = ({
         | {kind: "part"; part: UIMessage["parts"][number]; index: number}
         | {kind: "tools"; parts: ToolUIPart[]; index: number}
         | {kind: "clientTool"; part: ToolUIPart; index: number}
+    // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
+    // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
+    // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
+    // tool + same input), so the turn shows the single completed call with its output — not a stuck
+    // spinner beside a duplicate. Until the execution settles, the gate stays (it is genuinely
+    // in-flight).
+    const toolIdentity = (p: ToolUIPart): string => {
+        let inputKey = ""
+        try {
+            inputKey = JSON.stringify((p as {input?: unknown}).input ?? null)
+        } catch {
+            inputKey = ""
+        }
+        return `${p.type}::${inputKey}`
+    }
+    const executedToolIdentities = new Set(
+        message.parts
+            .filter(
+                (p) =>
+                    isToolPart(p.type) &&
+                    ((p as ToolUIPart).state === "output-available" ||
+                        (p as ToolUIPart).state === "output-error"),
+            )
+            .map((p) => toolIdentity(p as ToolUIPart)),
+    )
+    const isSupersededGate = (p: ToolUIPart): boolean =>
+        p.state === "approval-responded" && executedToolIdentities.has(toolIdentity(p))
+
     const renderItems: RenderItem[] = []
     message.parts.forEach((part, i) => {
         if (isToolPart(part.type)) {
+            // The answered gate whose execution already landed on a sibling part — drop it so the
+            // turn doesn't show a stuck approval spinner beside the real, completed call.
+            if (isSupersededGate(part as ToolUIPart)) return
             // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
             // into the "Used N tools" group — so it breaks any current tool run.
             if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage})) {

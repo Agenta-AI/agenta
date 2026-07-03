@@ -32,6 +32,12 @@ const partToolName = (part: ToolUIPart): string => {
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 const isSettled = (state: string) => SETTLED.has(state)
 
+/** Strip a surrounding markdown code fence — backends wrap tool output/errors in ```…```. */
+const stripFence = (value: string): string => {
+    const m = value.trim().match(/^```[\w-]*\n?([\s\S]*?)\n?```$/)
+    return m ? m[1].trim() : value
+}
+
 /**
  * Derive a single human line from a tool's output. Output shape is arbitrary, so this stays
  * conservative: it recognises the common shapes and otherwise returns null (the row then shows
@@ -43,7 +49,7 @@ const summarizeOutput = (output: unknown): string | null => {
         return `${output.length} result${output.length === 1 ? "" : "s"}`
     }
     if (typeof output === "string") {
-        const s = output.trim().replace(/\s+/g, " ")
+        const s = stripFence(output).trim().replace(/\s+/g, " ")
         if (!s) return null
         return s.length > 80 ? `${s.slice(0, 80)}…` : s
     }
@@ -77,6 +83,10 @@ const StatusIcon = ({state}: {state: string}) => {
         return <Prohibit size={13} className="shrink-0 text-colorTextTertiary" />
     if (state === "approval-requested")
         return <Wrench size={13} className="shrink-0 text-colorWarning" />
+    // An answered gate whose execution landed on a sibling part (cold-replay fresh id). Usually
+    // deduped away in AgentMessage; if it slips through, show it as approved — never a stuck spinner.
+    if (state === "approval-responded")
+        return <CheckCircle size={13} className="shrink-0 text-colorTextTertiary" />
     return <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
 }
 
@@ -91,22 +101,16 @@ const formatValue = (value: unknown): string => {
     }
 }
 
-/** Strip a surrounding markdown code fence — backends sometimes wrap an error in ```…```. */
-const stripFence = (value: string): string => {
-    const m = value.trim().match(/^```[\w-]*\n?([\s\S]*?)\n?```$/)
-    return m ? m[1].trim() : value
-}
-
 /** One labeled monospace block (input / output / error) in the Build-mode step log. Capped in
  * height with its own scroll so a large payload can't blow up the transcript. */
 const IOBlock = ({label, value, danger}: {label: string; value: string; danger?: boolean}) => (
     <div className="flex min-w-0 flex-col gap-0.5">
         <span className="font-mono text-[10px] text-colorTextTertiary">{label}</span>
         <pre
-            className={`m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug ${
+            className={`ag-surface-inset m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug ${
                 danger
-                    ? "bg-[var(--ant-color-error-bg)] !text-colorErrorText"
-                    : "bg-colorFillTertiary text-colorTextSecondary"
+                    ? "!bg-[var(--ant-color-error-bg)] !border-transparent !text-colorErrorText"
+                    : "text-colorTextSecondary"
             }`}
         >
             {value}
@@ -128,21 +132,26 @@ const ToolRow = ({
 }) => {
     const name = partToolName(part)
     const state = part.state as string
-    const running = !isSettled(state) && state !== "approval-requested"
+    // `approval-responded` is resolved (the user answered) — not "running". Its execution shows on
+    // a sibling part, so this must not spin forever (the cold-replay lingering-gate spinner).
+    const running =
+        !isSettled(state) && state !== "approval-requested" && state !== "approval-responded"
     // The line after the name: an awaiting-approval marker, a live "running…", the settled one-line
     // summary (Chat), or a short status word (Build shows the full output block below instead).
     const midText =
         state === "approval-requested"
             ? "Awaiting approval"
-            : live && running
-              ? "running…"
-              : detailed
-                ? state === "output-error"
-                    ? "failed"
-                    : state === "output-denied"
-                      ? "denied"
-                      : null
-                : rowSummary(part)
+            : state === "approval-responded"
+              ? "approved"
+              : live && running
+                ? "running…"
+                : detailed
+                  ? state === "output-error"
+                      ? "failed"
+                      : state === "output-denied"
+                        ? "denied"
+                        : null
+                  : rowSummary(part)
 
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
@@ -201,7 +210,17 @@ const ToolRow = ({
                         {errorText !== undefined ? (
                             <IOBlock label="error" value={stripFence(errorText)} danger />
                         ) : state === "output-available" && output != null ? (
-                            <IOBlock label="output" value={formatValue(output)} />
+                            <IOBlock
+                                label="output"
+                                value={
+                                    // Backends wrap tool results in a markdown code fence (```console
+                                    // …```) for the model; the IOBlock is already a monospace <pre>, so
+                                    // strip the redundant fence instead of printing the backticks.
+                                    typeof output === "string"
+                                        ? stripFence(output)
+                                        : formatValue(output)
+                                }
+                            />
                         ) : null}
                     </div>
                 </HeightCollapse>
