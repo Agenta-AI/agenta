@@ -43,6 +43,8 @@ from in-flight project notes and historical archaeology.
 
 ## projects/
 
+- [builder-agent-reliability](projects/builder-agent-reliability/) — why the shipped
+  build-kit agent is confused using its own tools/skills; diagnosis before fix.
 - [code-tool-sandbox](projects/code-tool-sandbox/) — sandboxed code-tool execution.
 - [harness-capabilities](projects/harness-capabilities/) — per-harness capability model.
 - [model-config](projects/model-config/) — model selection config.
