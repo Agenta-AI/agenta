@@ -218,3 +218,14 @@ def test_legacy_permission_fields_are_ignored_on_specs():
     assert spec.permission is None
     assert "permission" not in spec.to_wire()
     assert "needsApproval" not in spec.to_wire()
+
+
+def test_builtin_tool_permission_is_dropped_not_enforced():
+    # Builtins are granted by selection; a per-builtin permission has no enforcement
+    # point on Pi, so the config drops it (with a warning) instead of lying.
+    from agenta.sdk.agents.tools.models import BuiltinToolConfig
+
+    config = BuiltinToolConfig.model_validate(
+        {"type": "builtin", "name": "bash", "permission": "deny"}
+    )
+    assert config.permission is None

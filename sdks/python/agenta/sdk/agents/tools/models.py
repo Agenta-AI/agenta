@@ -16,6 +16,11 @@ from pydantic import (
 )
 
 
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
+
 def _empty_object_schema() -> Dict[str, Any]:
     return {"type": "object", "properties": {}}
 
@@ -78,6 +83,23 @@ class ToolConfigBase(BaseModel):
 class BuiltinToolConfig(ToolConfigBase):
     type: Literal["builtin"] = "builtin"
     name: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _drop_unenforceable_permission(self) -> "BuiltinToolConfig":
+        # Harness builtins are granted by SELECTION (present = runs, absent = does not
+        # exist); no runner gate sees them on Pi, so a per-builtin permission cannot be
+        # enforced and keeping it would be a dead knob an author mistakes for a deny.
+        # Selection-time enforcement (filter builtin_names by effective permission) is
+        # the designed follow-up; until then the field is dropped loudly.
+        if self.permission is not None:
+            log.warning(
+                "builtin tool %r: per-tool permission %r is not enforceable and was "
+                "ignored; control builtins by selection (or a harness settings rule)",
+                self.name,
+                self.permission,
+            )
+            self.permission = None
+        return self
 
 
 class GatewayToolConfig(ToolConfigBase):

@@ -77,6 +77,16 @@ Codex design review (xhigh), a cold-reader clarity pass, two inline review round
 Mahmoud (38 comments total, all answered inline and folded into the docs), and the #5054
 analysis that diagnosed the live loop.
 
+## Follow-ups (filed, not in this PR)
+
+- **Selection-time enforcement for Pi builtins.** Pi's native tools never reach a
+  runner gate, so today the global policy modes do not bind them (headless QA proved
+  `default: deny` does not stop a granted `bash`). The design: filter `builtin_names`
+  at resolution by effective permission, using a small read-only table for Pi's seven
+  builtins (`read/grep/find/ls` read, `bash/edit/write` write); `deny` and un-pausable
+  `ask` exclude the builtin (deny-by-omission is Pi's one native control). Until then,
+  a per-builtin `permission` is dropped with a logged warning instead of silently.
+
 ## Known unknowns
 
 - The sandbox-agent daemon's permission-request id scheme (per-session counter vs unique):

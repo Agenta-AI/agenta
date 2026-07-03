@@ -40,6 +40,16 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   relay must enforce permissions only when the harness does not gate (Pi) — otherwise
   one approval would be consumed at the gate and the relay would double-gate the same
   call.
+- **Headless QA: 7/7 pass on the live EE dev stack** (Sonnet subagent; pi_core +
+  gpt-4o-mini via the pi-agents project; evidence captured per case). All four policy
+  modes behave, explicit beats policy both directions, the paused batch envelope carries
+  `stop_reason` + `pending_interaction`, and legacy keys are ignored without a 500.
+- **QA finding fixed: per-builtin `permission` was a dead knob.** `BuiltinToolConfig`
+  parsed `permission` and dropped it silently; on Pi no gate ever sees native builtins.
+  Fix: the config now drops it LOUDLY (log warning) with a pin test; the FE never
+  offered the field for builtins. Designed follow-up (status.md): selection-time
+  enforcement, filtering `builtin_names` by effective permission using the known
+  read-only-ness of Pi's seven builtins, so `deny`/lockdown modes bind builtins too.
 - **Phase 5 landed (Codex implemented, reviewed here).** Legacy wire fields deleted
   (`permissionPolicy`, `needsApproval`); absent `permissions` now defaults to
   `allow_reads` (same default as the authored schema); `acp-interactions.ts` and
