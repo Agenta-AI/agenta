@@ -4,10 +4,11 @@
  */
 import {useCallback, useEffect, useMemo} from "react"
 
-import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
+import {customSecretsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Check, Cube, EyeSlash, Key, Lightbulb, ShieldCheck, Warning} from "@phosphor-icons/react"
@@ -22,10 +23,12 @@ import {
     buildModelOptionGroups,
     composeModelValue,
     connectionFromConfig,
+    familyFromModelId,
     harnessAllowsModel,
     modelIdFromConfig,
     namedConnectionOptions,
     providerForModel,
+    vaultModelGroups,
     type ConnectionMode,
     type VaultConnectionEntry,
 } from "../connectionUtils"
@@ -145,11 +148,21 @@ export function useModelHarness({
         [capabilities, harnessValue],
     )
 
-    // Harness-filtered model options, built straight from inspect meta. Empty when the harness
-    // publishes none (older agent / standalone) — fall back to the schema's full catalog picker.
+    // Vault custom_provider connections carry their own models; the harness catalog can't reach them.
+    const customSecrets = useAtomValue(customSecretsAtom)
+
+    // The "Add provider" footer + drawer come from context, same source as the completion picker.
+    const {llmProviderConfig} = useDrillInUI()
+
+    // Harness-filtered model options: the inspect catalog PLUS the vault custom_provider models,
+    // so a configured Bedrock model is selectable. Empty when the harness publishes none AND the
+    // vault has none — fall back to the schema's full catalog picker.
     const modelGroups = useMemo(
-        () => buildModelOptionGroups(capabilities, harnessValue),
-        [capabilities, harnessValue],
+        () => [
+            ...buildModelOptionGroups(capabilities, harnessValue),
+            ...vaultModelGroups(customSecrets, capabilities, harnessValue),
+        ],
+        [capabilities, harnessValue, customSecrets],
     )
     const hasInspectModels = modelGroups.length > 0
 
@@ -163,28 +176,43 @@ export function useModelHarness({
             slug?: string | null
         }) => {
             const nextModelId = patch.modelId !== undefined ? patch.modelId : modelId
-            // When the model changes, derive the provider from the picked model; otherwise keep it.
+            // A vault-model pick reunites the model with its connection slug.
+            const vaultMatch =
+                patch.modelId !== undefined
+                    ? customSecrets.find((s) => (s.models ?? []).includes(nextModelId ?? ""))
+                    : undefined
+            // Provider is always the model FAMILY — a vault match's `provider` is its DEPLOYMENT
+            // kind (bedrock/…), which would fail the harness provider check.
             let nextProvider: string | null
             if (patch.provider !== undefined) {
                 nextProvider = patch.provider
             } else if (patch.modelId !== undefined) {
-                nextProvider =
-                    providerForModel(capabilities, harnessValue, nextModelId) ?? connection.provider
+                nextProvider = vaultMatch
+                    ? familyFromModelId(nextModelId, capabilities)
+                    : (providerForModel(capabilities, harnessValue, nextModelId) ??
+                      connection.provider)
             } else {
                 nextProvider = connection.provider
             }
+            // Explicit slug wins; a vault pick auto-fills; a non-vault pick keeps the current one.
+            const nextSlug =
+                patch.slug !== undefined
+                    ? patch.slug
+                    : vaultMatch?.name
+                      ? (vaultMatch.name as string)
+                      : connection.slug
             setAgentField(
                 "llm",
                 composeModelValue({
                     modelId: nextModelId,
                     provider: nextProvider,
                     mode: patch.mode !== undefined ? patch.mode : connection.mode,
-                    slug: patch.slug !== undefined ? patch.slug : connection.slug,
+                    slug: nextSlug,
                     existing: llm,
                 }),
             )
         },
-        [setAgentField, modelId, connection, llm, capabilities, harnessValue],
+        [setAgentField, modelId, connection, llm, capabilities, harnessValue, customSecrets],
     )
 
     // Model is deliberately NOT cleared on a harness switch that can't reach it: the compatibility
@@ -265,6 +293,7 @@ export function useModelHarness({
                     disabled={disabled}
                     placeholder="Select a model…"
                     className="w-full"
+                    footerContent={llmProviderConfig?.footerContent}
                 />
             ) : (
                 <GroupedChoiceControl

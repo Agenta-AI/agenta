@@ -18,7 +18,7 @@ from agenta.sdk.agents.platform import connections
 
 
 def _model(
-    slug: str | None = "openai-prod", provider: str = "openai", model: str = "gpt-5.5"
+    slug: str | None = "openai", provider: str = "openai", model: str = "gpt-5.5"
 ) -> ModelRef:
     connection = {"mode": "agenta"}
     if slug is not None:
@@ -67,17 +67,17 @@ def _custom_provider(
 
 
 async def test_resolve_fetches_secrets_and_selects_one_key(fake_http, connection):
+    # Provider keys are addressed by their PROVIDER; header.name is display-only, never a slug.
     capture = fake_http(
         connections,
         payload=[
-            _provider_key("openai-prod", "openai", "sk-prod"),
-            _provider_key("openai-dev", "openai", "sk-dev"),
-            _provider_key("anthropic-prod", "anthropic", "sk-ant"),
+            _provider_key("My OpenAI key", "openai", "sk-prod"),
+            _provider_key("My Anthropic key", "anthropic", "sk-ant"),
         ],
     )
 
     resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("openai-prod"), context=_context()
+        model=_model("openai"), context=_context()
     )
 
     assert resolved.provider == "openai"
@@ -126,16 +126,27 @@ async def test_default_connection_ambiguous(fake_http, connection):
 
 async def test_bare_model_without_provider_fails_loud(fake_http, connection):
     # F-017: a bare model id (no `provider/` prefix) that matches no vault candidate by model
-    # id has no provider to look a credential up against. It must fail loud with an actionable
-    # message, not degrade silently to no-credential (which surfaced as a misleading auth error
-    # even when the key was present). On a Pi harness the hint suggests an openai/ prefix.
+    # id AND is absent from the supported-models catalog has no provider to look a credential
+    # up against. It must fail loud with an actionable message, not degrade silently to
+    # no-credential. On a Pi harness the hint suggests an openai/ prefix.
     fake_http(connections, payload=[_provider_key("openai-prod", "openai", "sk-prod")])
     with pytest.raises(MissingProviderError) as exc:
         await VaultConnectionResolver(connection).resolve(
-            model=ModelRef.coerce("gpt-4o-mini"), context=_context()
+            model=ModelRef.coerce("unknown-model-x"), context=_context()
         )
     assert "provider prefix" in str(exc.value)
-    assert "openai/gpt-4o-mini" in str(exc.value)
+    assert "openai/unknown-model-x" in str(exc.value)
+
+
+async def test_bare_catalog_model_infers_provider(fake_http, connection):
+    # A bare id listed under exactly one provider in the supported-models catalog is
+    # unambiguous: the provider is inferred instead of failing loud on the missing prefix.
+    fake_http(connections, payload=[_provider_key("openai-prod", "openai", "sk-prod")])
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef.coerce("gpt-4o-mini"), context=_context()
+    )
+    assert resolved.provider == "openai"
+    assert resolved.env == {"OPENAI_API_KEY": "sk-prod"}
 
 
 async def test_missing_provider_hint_is_harness_correct_for_claude(
@@ -219,7 +230,7 @@ async def test_provider_mismatch_fails_loud(fake_http, connection):
     )
     with pytest.raises(ProviderMismatchError):
         await VaultConnectionResolver(connection).resolve(
-            model=_model("anthropic-prod", provider="openai"), context=_context()
+            model=_model("anthropic", provider="openai"), context=_context()
         )
 
 

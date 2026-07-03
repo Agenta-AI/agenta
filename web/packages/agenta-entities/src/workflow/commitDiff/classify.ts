@@ -224,13 +224,14 @@ function prefixed(
 }
 
 /**
- * Model & harness — just the model identity (`llm.model`) and the harness engine
+ * Model & harness — the model identity (`llm.model`), its `provider`, and the harness engine
  * (`harness.kind`), mirroring the config panel's "Model & harness" control section. The rest of
- * `llm` (connection/provider/auth) belongs to Advanced — the config panel groups it there.
+ * `llm` (connection/auth) belongs to Advanced — the config panel groups it there.
  */
 function modelHarnessBucket(v: AgentConfigView): Record<string, unknown> {
     const out: Record<string, unknown> = {}
-    if (v.model !== undefined) out.model = v.model
+    if (v.model !== undefined) out["llm.model"] = v.model
+    if (isPlainObj(v.llm) && v.llm.provider !== undefined) out["llm.provider"] = v.llm.provider
     if (isPlainObj(v.harness) && "kind" in v.harness) out["harness.kind"] = v.harness.kind
     return out
 }
@@ -243,9 +244,9 @@ function modelHarnessBucket(v: AgentConfigView): Record<string, unknown> {
 function advancedBucket(v: AgentConfigView): Record<string, unknown> {
     const out: Record<string, unknown> = {}
     for (const key of PARAM_KEYS) if (v.params[key] !== undefined) out[key] = v.params[key]
-    // Authentication group: everything in `llm` except the model itself (that's Model & harness).
+    // Authentication group: everything in `llm` except model + provider (those are Model & harness).
     if (isPlainObj(v.llm)) {
-        const {model: _model, ...rest} = v.llm
+        const {model: _model, provider: _provider, ...rest} = v.llm
         Object.assign(out, prefixed("llm", rest))
     }
     Object.assign(out, prefixed("runner", v.runner))
