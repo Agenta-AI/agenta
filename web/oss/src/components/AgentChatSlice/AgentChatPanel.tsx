@@ -4,6 +4,7 @@ import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
+    buildTurnCapture,
     playgroundController,
 } from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
@@ -12,13 +13,14 @@ import {HeightCollapse} from "@agenta/ui"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
-import {ArrowDown, Paperclip, UploadSimple} from "@phosphor-icons/react"
+import {ArrowDown, Paperclip, TreeStructure, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {SessionInspectorButton} from "@/oss/components/SessionInspector"
+import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
 import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
@@ -29,13 +31,16 @@ import {
 import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {getMessageTraceId} from "./assets/trace"
+import AgentChatEmptyState from "./components/AgentChatEmptyState"
 import AgentMessage from "./components/AgentMessage"
+import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import QueuedMessages from "./components/QueuedMessages"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionRail from "./components/SessionRail"
 import SessionTagBar from "./components/SessionTagBar"
+import TurnInspector from "./components/TurnInspector/TurnInspector"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
 import {useChatScopeKey} from "./state/scope"
@@ -52,6 +57,8 @@ import {
     setSessionStatusAtom,
     stampMessagesCreatedAtAtom,
 } from "./state/sessions"
+import {captureTurnRequestAtom} from "./state/turnCaptures"
+import {turnInspectorAtom} from "./state/turnInspector"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
  * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
@@ -61,9 +68,12 @@ const ignoreStreamRejection = () => {}
 /** Height of the top-edge fade, in px. Shared by the CSS mask and the SC-1 pin so a pinned turn
  * lands BELOW the fade (otherwise the freshly-asked question renders partially faded). */
 const TOP_FADE_PX = 28
-/** Top-edge fade for the message scroll area: transparent at the very top, fully opaque by
- * TOP_FADE_PX. Applied as a CSS mask so the content itself fades (correct in any theme). */
-const TOP_FADE_MASK = `linear-gradient(to bottom, transparent 0, #000 ${TOP_FADE_PX}px)`
+/** Height of the bottom-edge fade, matching the top so content dissolves into the composer edge. */
+const BOTTOM_FADE_PX = 28
+/** Edge fades for the message scroll area: transparent at the very top, fully opaque by TOP_FADE_PX,
+ * then fading back to transparent over the last BOTTOM_FADE_PX. Applied as a CSS mask so the content
+ * itself fades (correct in any theme). */
+const EDGE_FADE_MASK = `linear-gradient(to bottom, transparent 0, #000 ${TOP_FADE_PX}px, #000 calc(100% - ${BOTTOM_FADE_PX}px), transparent 100%)`
 /** Centered reading column for the chat body. Caps line length / bubble width so a wide (maximized)
  * panel doesn't sprawl into oversized bubbles and over-spaced turns; freed side space is whitespace. */
 const CHAT_COLUMN = "mx-auto w-full max-w-[880px]"
@@ -163,10 +173,16 @@ const MessageRow = ({
     mid,
     enter,
     children,
+    inspected = false,
+    onInspect,
 }: {
     mid: string
     enter: boolean
     children: React.ReactNode
+    /** This turn is the Turn Inspector's current target — tint it. */
+    inspected?: boolean
+    /** Set (assistant turns, inspector open) → click the row to re-focus the inspector on it. */
+    onInspect?: () => void
 }) => {
     const [shown, setShown] = useState(!enter)
     // Reveal one frame after mount so the opacity transition plays. Deps are [] (NOT
@@ -176,12 +192,34 @@ const MessageRow = ({
         const raf = requestAnimationFrame(() => setShown(true))
         return () => cancelAnimationFrame(raf)
     }, [])
+    // Click-to-refocus: only while the inspector is open, and never over an interactive control or
+    // an active text selection (so buttons, links, and copy-select still work).
+    const handleClick = onInspect
+        ? (e: React.MouseEvent) => {
+              if ((e.target as HTMLElement).closest("button, a, input, textarea, [role='button']"))
+                  return
+              if (!window.getSelection()?.isCollapsed) return
+              onInspect()
+          }
+        : undefined
+    // While the inspector is open, a turn is interactive: padded + rounded so the fill has breathing
+    // room. Inspected = a persistent, slightly stronger version of the hover fill (same visual
+    // language, just "held"). `box-border` is required (preflight off → content-box) so the padding
+    // doesn't overflow the 880px column.
+    const interactive = Boolean(onInspect)
     // `shown || !enter` is a belt-and-suspenders: a settled row (id seen) is always visible.
     return (
         <div
             data-mid={mid}
-            className={`${CHAT_COLUMN} flex flex-col gap-1 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out ${
+            onClick={handleClick}
+            className={`${CHAT_COLUMN} flex flex-col gap-1 motion-safe:transition-[opacity,background-color] motion-safe:duration-200 motion-safe:ease-out ${
                 shown || !enter ? "opacity-100" : "motion-safe:opacity-0"
+            } ${interactive ? "box-border rounded-lg px-3 py-2.5" : ""} ${
+                inspected
+                    ? "bg-[var(--ag-colorFillSecondary)]"
+                    : interactive
+                      ? "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]"
+                      : ""
             }`}
         >
             {children}
@@ -195,6 +233,15 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
+    const openTurnInspector = useSetAtom(turnInspectorAtom)
+    const inspectorTarget = useAtomValue(turnInspectorAtom)
+    const buildMode = !useAtomValue(chatPanelMaximizedAtom)
+    const inspectorOpen = inspectorTarget?.sessionId === sessionId
+    // Leaving Build for Chat dismisses the inspector — it's a Build-mode tool, and the panel would
+    // otherwise linger (and keep tinting a turn) in the maximized chat view.
+    useEffect(() => {
+        if (!buildMode && inspectorOpen) openTurnInspector(null)
+    }, [buildMode, inspectorOpen, openTurnInspector])
 
     const [files, setFiles] = useState<UploadFile[]>([])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
@@ -238,6 +285,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const programmaticScrollRef = useRef(false)
     // Teardown for the in-flight smooth scroll (removes its listeners + fallback timer).
     const pinCleanupRef = useRef<(() => void) | null>(null)
+    // Last observed scrollTop. A content shrink (tool gutter collapsing, reasoning folding) clamps
+    // scrollTop to the new smaller bottom and fires a scroll event that isn't a user gesture; comparing
+    // against this lets onScroll tell a real scroll-DOWN-to-edge from that clamp (which only decreases).
+    const lastScrollTopRef = useRef(0)
+    // rAF handle coalescing the jump-pill measurement (querySelectorAll + getBoundingClientRect) to once
+    // per frame — a fast wheel/drag and every streamed render would otherwise re-measure a dirtied layout.
+    const showJumpRafRef = useRef(0)
 
     // `useChat` pins its `Chat` (and thus this transport) for the life of the session `id`; it is
     // NOT recreated when `entityId` changes (only on an `id` change). So the request builder must
@@ -246,6 +300,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // self-commit. Reading `entityIdRef.current` at send time keeps runs on the live revision.
     const entityIdRef = useRef(entityId)
     entityIdRef.current = entityId
+
+    // Turn Inspector capture write, read via ref so the transport `useMemo` doesn't depend on it.
+    const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
+    const captureRef = useRef(captureTurnRequest)
+    captureRef.current = captureTurnRequest
 
     // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
     // placeholder that `prepareSendMessagesRequest` overrides per request.
@@ -262,6 +321,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                             "This agent workflow has no invocation URL — it can’t be run yet.",
                         )
                     }
+                    captureRef.current(buildTurnCapture(req, generateId(), Date.now()))
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
             }),
@@ -347,6 +407,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         (item: QueuedMessage) => {
             stickRef.current = true
             setShowJump(false)
+            // Any actual send supersedes a prior user-stop, so clear the marker here (covers the
+            // queue-release path; the manual path also clears it in handleSubmit) — otherwise the
+            // "Stopped" tag would smear onto the freshly-sent turn.
+            setStopped(false)
             sendMessage(
                 item.fileParts && item.fileParts.length
                     ? item.text
@@ -359,12 +423,25 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     )
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
-    // one-by-one once the turn truly settles (never mid-approval).
+    // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
+    // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue).
     const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
         status,
         messages,
+        stopped,
         sendQueued,
     })
+
+    // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
+    // composer (not inline in the transcript, so a paused run can't scroll out of reach). Trace
+    // opens the paused turn's own trace drawer.
+    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    const openPausedTurnTrace = useMemo(() => {
+        const last = messages[messages.length - 1]
+        const traceId = last ? getMessageTraceId(last) : undefined
+        return traceId ? () => openTraceDrawer({traceId}) : undefined
+    }, [messages, openTraceDrawer])
 
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
@@ -513,9 +590,26 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // ── DT4 autoscroll: stick to the bottom of the scrollable area while following ──
     // The fill (min-h-full turn group) makes "question at top" the scroll bottom for a short answer
     // and the answer's end the bottom for a long one, so scrollHeight is the right target (+ pb-6 gap).
+    // Only writes when not already pinned: the ResizeObserver (below) and the follow effect both pin on
+    // the same streamed growth, so the guard drops the redundant write (and the scroll event it fires).
     const scrollToBottom = useCallback(() => {
         const el = scrollRef.current
-        if (el) el.scrollTop = el.scrollHeight
+        if (!el) return
+        const target = el.scrollHeight - el.clientHeight
+        if (el.scrollTop < target - 0.5) el.scrollTop = target
+    }, [])
+
+    // Recompute jump-pill visibility, coalesced to one rAF per frame. The measurement (atLiveEdge →
+    // querySelectorAll + getBoundingClientRect) is display-only, so a one-frame lag is invisible; the
+    // correctness-critical follow decision (stickRef) and SC-3 anchor stay synchronous in onScroll.
+    const scheduleShowJump = useCallback(() => {
+        if (showJumpRafRef.current) return
+        showJumpRafRef.current = requestAnimationFrame(() => {
+            showJumpRafRef.current = 0
+            const el = scrollRef.current
+            if (!el) return
+            setShowJump(!stickRef.current && !atLiveEdge(el))
+        })
     }, [])
 
     // Smoothly scroll the log to `target` (the SC-1 pin / jump-to-latest). Uses the browser's NATIVE
@@ -567,7 +661,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     }, [])
 
     // Stop any in-flight pin animation on unmount (tab close / revision swap).
-    useEffect(() => () => pinCleanupRef.current?.(), [])
+    useEffect(
+        () => () => {
+            pinCleanupRef.current?.()
+            if (showJumpRafRef.current) cancelAnimationFrame(showJumpRafRef.current)
+        },
+        [],
+    )
 
     // After each commit, mark on-screen messages as seen so they don't re-animate on later renders
     // (e.g. streaming tokens). Done in an effect, not during render, so StrictMode's double invoke
@@ -577,21 +677,33 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     }, [messages])
 
     useEffect(() => {
-        if (stickRef.current) scrollToBottom()
+        // Don't instant-jump while a programmatic glide (SC-1 submit / jump-to-latest) owns the
+        // scroll — that snap would override the animation. The glide's own settle re-pins to bottom.
+        if (stickRef.current && !programmaticScrollRef.current) scrollToBottom()
     }, [messages, status, scrollToBottom])
 
     const onScroll = useCallback(() => {
         const el = scrollRef.current
         if (!el) return
+        // Track scrollTop even for our own pins (recorded, then ignored) so the next real event has an
+        // accurate baseline to compare against.
+        const prevTop = lastScrollTopRef.current
+        lastScrollTopRef.current = el.scrollTop
         // Ignore the scroll event our own pin produced — only a real user scroll changes follow state.
         if (programmaticScrollRef.current) return
         // Follow ONLY when at the very bottom of the scrollable area; a partial scroll must not enable
-        // it (that was the yank). The jump pill instead tracks whether the real latest message is in view.
-        stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
-        setShowJump(!atLiveEdge(el))
-        // Remember where the reader is parked so SC-3 can hold it through layout changes above.
+        // it (that was the yank). Re-arm follow ONLY when the user actively scrolls DOWN to the edge (or
+        // is already following): a content shrink (tool gutter collapsing to "Used N tools", reasoning
+        // folding) clamps scrollTop to the new smaller bottom and fires a scroll event, but a clamp only
+        // ever DECREASES scrollTop, so `> prevTop` rejects it — otherwise the next token would snap the
+        // min-h-full active turn to the top (reported as the chat "jumping to the top" mid-stream).
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+        stickRef.current = atBottom && (stickRef.current || el.scrollTop > prevTop)
+        // Anchor is correctness-critical for SC-3 (the RO reads it next resize) → capture synchronously.
         if (!stickRef.current) recordAnchor()
-    }, [recordAnchor])
+        // Pill is display-only → coalesce its costly measurement to one rAF/frame.
+        scheduleShowJump()
+    }, [recordAnchor, scheduleShowJump])
 
     const jumpToLatest = useCallback(() => {
         const el = scrollRef.current
@@ -618,7 +730,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         const onResize = () => {
             if (programmaticScrollRef.current) return
             if (stickRef.current) {
-                el.scrollTop = el.scrollHeight
+                scrollToBottom() // guarded: no-op if the follow effect already pinned this growth
                 return
             }
             const a = anchorRef.current
@@ -631,6 +743,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             }
             if (!node) return
             const delta = node.getBoundingClientRect().top - el.getBoundingClientRect().top - a.top
+            // A stale anchor (its node scrolled far off after a programmatic jump / follow) yields an
+            // implausible delta; applying it would slam the scroll to the top. Drop it and let the next
+            // scroll / pointer-down re-anchor. A real collapse/expand moves the anchor well under a viewport.
+            if (Math.abs(delta) > el.clientHeight) {
+                anchorRef.current = null
+                return
+            }
             if (Math.abs(delta) > 0.5) {
                 programmaticScrollRef.current = true
                 el.scrollTop += delta
@@ -642,7 +761,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         const ro = new ResizeObserver(onResize)
         el.querySelectorAll("[data-mid]").forEach((w) => ro.observe(w))
         return () => ro.disconnect()
-    }, [messages.length])
+    }, [messages.length, scrollToBottom])
 
     // SC-1 (submit) / SC-2 (restore): scroll the log to the bottom, once, when armed. With the active
     // turn reserving a viewport (min-h-full + top padding to clear the fade), "bottom" shows the new
@@ -671,11 +790,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     // Keep the jump pill honest as content streams/settles: show it when the real latest message is
     // below the fold (e.g. a long answer growing past the viewport while parked at the top), and hide
-    // it once that message is visible or while we're following.
-    useLayoutEffect(() => {
-        const el = scrollRef.current
-        if (el) setShowJump(!stickRef.current && !atLiveEdge(el))
-    }, [messages, status])
+    // it once that message is visible or while we're following. Coalesced (not a sync layout read per
+    // streamed render) — the pill is display-only, so one frame of lag is imperceptible.
+    useEffect(() => {
+        scheduleShowJump()
+    }, [messages, status, scheduleShowJump])
 
     // SC-4: interaction is intent, not just scrolling. While following, a real text selection inside
     // the transcript — or opening a link in it — means the reader is engaging here, so release follow
@@ -842,14 +961,28 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             message.role === "user" && messages[index + 1]
                 ? getMessageTraceId(messages[index + 1])
                 : undefined
+        // While the inspector is open, an assistant turn tints when it's the target and is
+        // click-to-refocus otherwise (click any other turn to re-point the inspector at it).
+        const isAssistantTurn = message.role === "assistant"
+        const isInspected =
+            inspectorOpen && isAssistantTurn && message.id === inspectorTarget?.assistantMessageId
+        const onInspect =
+            inspectorOpen && isAssistantTurn
+                ? () => openTurnInspector({sessionId, assistantMessageId: message.id})
+                : undefined
         return (
-            <MessageRow key={message.id} mid={message.id} enter={enter}>
+            <MessageRow
+                key={message.id}
+                mid={message.id}
+                enter={enter}
+                inspected={isInspected}
+                onInspect={onInspect}
+            >
                 <AgentMessage
                     message={message}
                     isStreaming={busy && isLast}
                     isLastMessage={isLast}
                     onRewind={() => handleRewind(message)}
-                    onApprovalResponse={addToolApprovalResponse}
                     onClientToolOutput={handleClientToolOutput}
                     precededByEmptyAssistant={
                         index > 0 && isEmptyAssistantTurn(messages[index - 1])
@@ -879,13 +1012,25 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         </Button>
                     </div>
                 )}
+                {buildMode && message.role === "assistant" && (
+                    <button
+                        type="button"
+                        onClick={() =>
+                            openTurnInspector({sessionId, assistantMessageId: message.id})
+                        }
+                        className="flex w-fit cursor-pointer items-center gap-1 self-start rounded border-0 bg-transparent px-1 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorPrimary"
+                    >
+                        <TreeStructure size={12} />
+                        Inspect turn
+                    </button>
+                )}
             </MessageRow>
         )
     }
 
     return (
         <div
-            className="relative flex h-full min-h-0 w-full flex-col gap-3"
+            className="ag-canvas relative flex h-full min-h-0 w-full flex-row"
             onDragEnter={onDragEnter}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
@@ -893,143 +1038,159 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         >
             {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
             {modalContextHolder}
-            {isDragging && (
-                <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
-                    <UploadSimple size={26} className="text-colorPrimary" />
-                    <span className="text-sm font-medium text-colorPrimary">Drop files here</span>
-                    <span className="text-xs text-colorTextSecondary">
-                        {limits.label} · up to {limits.maxCount},{" "}
-                        {Math.round(limits.maxBytes / 1024 / 1024)} MB each
-                    </span>
-                </div>
-            )}
-            {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
+            {/* Chat column. The turn inspector is a flex sibling (below) so it pushes this column
+                aside rather than overlaying it. */}
+            <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3">
+                {isDragging && (
+                    <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
+                        <UploadSimple size={26} className="text-colorPrimary" />
+                        <span className="text-sm font-medium text-colorPrimary">
+                            Drop files here
+                        </span>
+                        <span className="text-xs text-colorTextSecondary">
+                            {limits.label} · up to {limits.maxCount},{" "}
+                            {Math.round(limits.maxBytes / 1024 / 1024)} MB each
+                        </span>
+                    </div>
+                )}
+                {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
-            <div className="relative flex min-h-0 flex-1 flex-col">
-                <div
-                    ref={(el) => {
-                        scrollRef.current = el
-                    }}
-                    onScroll={onScroll}
-                    role="log"
-                    aria-live="polite"
-                    aria-label="Agent conversation"
-                    // `pt-8` (32px) ≥ the 28px fade so the first message clears it at rest; `pb-6`
-                    // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
-                    // anchoring off so our pin/anchor logic owns the scroll position).
-                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-6 [overflow-anchor:none]"
-                    // Fade content into the top edge (under the tab bar) as it scrolls up. A
-                    // gradient mask on the scroll container: transparent at the very top → opaque
-                    // by 28px → opaque the rest of the way. GPU-composited, no JS, theme-agnostic.
-                    style={{
-                        maskImage: TOP_FADE_MASK,
-                        WebkitMaskImage: TOP_FADE_MASK,
-                    }}
-                >
-                    {messages.length === 0 && (
-                        <div className="m-auto text-center text-xs text-colorTextTertiary">
-                            Ask a question to start the agent conversation.
-                        </div>
-                    )}
-                    {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
-                    {activeStart < messages.length && (
-                        // The active turn reserves a viewport (min-h-full) when there's prior
-                        // conversation, so sticking to the bottom shows the question at the top with the
-                        // answer streaming into the space below — the "pin" is this layout, not JS.
-                        // `pt-8` keeps the question clear of the top fade once it reaches the top.
-                        <div
-                            className={`flex flex-col gap-3${reserveActive ? " min-h-full pt-8" : ""}`}
-                        >
-                            {messages
-                                .slice(activeStart)
-                                .map((m, i) => renderMessage(m, activeStart + i))}
-                        </div>
-                    )}
-                </div>
+                <div className="ag-canvas relative flex min-h-0 flex-1 flex-col">
+                    <div
+                        ref={(el) => {
+                            scrollRef.current = el
+                        }}
+                        onScroll={onScroll}
+                        // Capture a fresh SC-3 anchor before a click acts (expand/collapse a tool step,
+                        // reasoning fold): those resize the transcript without a scroll, so onScroll never
+                        // refreshes the anchor and the ResizeObserver would compensate against a stale one.
+                        onPointerDownCapture={recordAnchor}
+                        role="log"
+                        aria-live="polite"
+                        aria-label="Agent conversation"
+                        // `pt-8` (32px) ≥ the 28px fade so the first message clears it at rest; `pb-6`
+                        // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
+                        // anchoring off so our pin/anchor logic owns the scroll position).
+                        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-6 [overflow-anchor:none]"
+                        // Fade content into the top edge (under the tab bar) and the bottom edge (into the
+                        // composer) as it scrolls. A gradient mask on the scroll container: transparent at
+                        // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
+                        style={{
+                            maskImage: EDGE_FADE_MASK,
+                            WebkitMaskImage: EDGE_FADE_MASK,
+                        }}
+                    >
+                        {messages.length === 0 && (
+                            <AgentChatEmptyState entityId={entityId} onStart={handleSubmit} />
+                        )}
+                        {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
+                        {activeStart < messages.length && (
+                            // The active turn reserves a viewport (min-h-full) when there's prior
+                            // conversation, so sticking to the bottom shows the question at the top with the
+                            // answer streaming into the space below — the "pin" is this layout, not JS.
+                            // `pt-8` keeps the question clear of the top fade once it reaches the top.
+                            <div
+                                className={`flex flex-col gap-3${reserveActive ? " min-h-full pt-8" : ""}`}
+                            >
+                                {messages
+                                    .slice(activeStart)
+                                    .map((m, i) => renderMessage(m, activeStart + i))}
+                            </div>
+                        )}
+                    </div>
 
-                {showJump && (
+                    {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
+                    keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
                     <Button
                         size="small"
                         shape="round"
                         icon={<ArrowDown size={14} />}
                         onClick={jumpToLatest}
+                        tabIndex={showJump ? 0 : -1}
+                        aria-hidden={!showJump}
                         // Solid elevated surface + border + shadow so the pill reads clearly when it
                         // floats over streamed text (a transparent pill let the text bleed through).
-                        className="!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md"
+                        className={`!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
+                            showJump
+                                ? "translate-y-0 opacity-100"
+                                : "pointer-events-none translate-y-3 opacity-0"
+                        }`}
                         aria-label="Jump to latest message"
                     >
                         Jump to latest
                     </Button>
-                )}
-            </div>
+                </div>
 
-            {/* Queue / approval status sits BETWEEN the messages and the composer, so showing it
-                never shifts the composer (and the editor) upward. Streaming itself is signalled by
-                the composer's send button (it becomes a spinning Stop button), so there's no
-                separate "Streaming…" row. */}
-            {(hitlPending || queued.length > 0) && (
-                <div className={`${CHAT_COLUMN} flex items-center justify-between gap-2 px-3 pb-2`}>
-                    {queued.length > 0 ? (
+                {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
+                composer (and the editor) upward. Streaming itself is signalled by the composer's
+                send button (it becomes a spinning Stop button), so there's no "Streaming…" row. */}
+                {queued.length > 0 && (
+                    <div className={`${CHAT_COLUMN} flex items-center gap-2 px-3 pb-2`}>
                         <QueuedMessages
                             queued={queued}
                             onRemove={removeQueued}
                             onClear={clearQueue}
                         />
-                    ) : (
-                        <span />
-                    )}
-                    {hitlPending ? (
-                        <span className="text-xs text-colorTextTertiary">Waiting for approval</span>
-                    ) : null}
-                </div>
-            )}
+                    </div>
+                )}
 
-            {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
+                {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
                 Wrapper `px-3` keeps the session-bar gutter; the input centers on CHAT_COLUMN so it
-                aligns with the (also centered) message column when the panel is wide. */}
-            <div className="px-3">
-                <RichChatInput
-                    ref={richInputRef}
-                    className={`${CHAT_COLUMN} mb-3`}
-                    onSubmit={handleSubmit}
-                    placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                    onPasteFile={(pasted) => addFiles(Array.from(pasted))}
-                    sendForceEnabled={files.length > 0}
-                    streaming={busy}
-                    onStop={handleStop}
-                    prefix={
-                        // Attach button is gated until the agent service is ready for inline
-                        // file parts (big-agents d4b119af26); paste / drag-to-add still work.
-                        <Tooltip
-                            title={
-                                atMax
-                                    ? `Up to ${limits.maxCount} files`
-                                    : "Attach files coming soon"
-                            }
-                        >
-                            <Button
-                                type="text"
-                                icon={<Paperclip size={16} />}
-                                disabled={true}
-                                onClick={() => setAttachmentsOpen((open) => !open)}
-                                aria-label="Attach files"
-                            />
-                        </Tooltip>
-                    }
-                    header={
-                        <HeightCollapse open={attachmentsOpen || files.length > 0}>
-                            <ComposerAttachments
-                                files={files}
-                                rejections={rejections}
-                                limits={limits}
-                                onAdd={addFiles}
-                                onRemove={removeFile}
-                                onDismissRejections={() => setRejections([])}
-                            />
-                        </HeightCollapse>
-                    }
-                />
+                aligns with the (also centered) message column when the panel is wide. The persistent
+                HITL approval dock lives in this same block (above the input) — always mounted so it
+                animates in/out, and inside the composer region so the paused gate can't scroll out
+                of reach and its collapse adds no gap to the surrounding column. */}
+                <div className="px-3">
+                    <ApprovalDock
+                        className={CHAT_COLUMN}
+                        approvals={pendingApprovals}
+                        onApprovalResponse={addToolApprovalResponse}
+                        onViewTrace={openPausedTurnTrace}
+                    />
+                    <RichChatInput
+                        ref={richInputRef}
+                        className={`${CHAT_COLUMN} mb-3`}
+                        onSubmit={handleSubmit}
+                        placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                        onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                        sendForceEnabled={files.length > 0}
+                        streaming={busy}
+                        onStop={handleStop}
+                        prefix={
+                            // Attach button is gated until the agent service is ready for inline
+                            // file parts (big-agents d4b119af26); paste / drag-to-add still work.
+                            <Tooltip
+                                title={
+                                    atMax
+                                        ? `Up to ${limits.maxCount} files`
+                                        : "Attach files coming soon"
+                                }
+                            >
+                                <Button
+                                    type="text"
+                                    icon={<Paperclip size={16} />}
+                                    disabled={true}
+                                    onClick={() => setAttachmentsOpen((open) => !open)}
+                                    aria-label="Attach files"
+                                />
+                            </Tooltip>
+                        }
+                        header={
+                            <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                                <ComposerAttachments
+                                    files={files}
+                                    rejections={rejections}
+                                    limits={limits}
+                                    onAdd={addFiles}
+                                    onRemove={removeFile}
+                                    onDismissRejections={() => setRejections([])}
+                                />
+                            </HeightCollapse>
+                        }
+                    />
+                </div>
             </div>
+            <TurnInspector sessionId={sessionId} messages={messages} />
         </div>
     )
 }

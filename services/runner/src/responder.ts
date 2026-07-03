@@ -153,7 +153,8 @@ function canonicalJson(value: unknown): string {
   if (value === undefined) throw new Error("undefined is not JSON");
   if (typeof value === "bigint") throw new Error("bigint is not JSON");
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("non-finite number is not JSON");
+    if (!Number.isFinite(value))
+      throw new Error("non-finite number is not JSON");
     return JSON.stringify(value);
   }
   if (typeof value !== "object") return JSON.stringify(value);
@@ -196,12 +197,46 @@ export class HITLResponder implements Responder {
     private readonly decisions: ApprovalDecisions,
     private readonly basePolicy: PermissionPolicy,
     private readonly hasHumanSurface: boolean,
+    /** Tool names in a non-converging resume loop; the next gate for one is denied (loop-breaker). */
+    private readonly nonConverging: ReadonlySet<string> = new Set(),
+    /** Diagnostic sink (a miss or a loop-break). No-op by default so the responder stays pure in tests. */
+    private readonly log: (msg: string) => void = () => {},
   ) {}
 
   async onPermission(request: PermissionRequest): Promise<ResponderOutcome> {
+    const toolCall = (request.raw as { toolCall?: unknown } | undefined)
+      ?.toolCall;
+    const name = permissionToolName(toolCall);
+    const keys = permissionRequestKeys(request);
+
     const stored = this.lookupPermission(request);
-    if (stored) return stored;
-    if (this.hasHumanSurface) return "park"; // human must decide; end the turn, tool pending
+    if (stored) {
+      this.log(
+        `[HITL] gate "${name}" -> stored ${stored} (resume matched) keys=${JSON.stringify(keys)}`,
+      );
+      return stored;
+    }
+    // Loop-breaker: a gate with no stored decision whose tool has been approved repeatedly
+    // without ever executing is a non-converging cold-replay resume (the name/arg key never
+    // re-matched). DENY it — a clean terminal failure the model stops re-issuing — instead of
+    // parking forever (the infinite re-approval loop). Fail-safe under the real key fix above.
+    if (name && this.nonConverging.has(name)) {
+      this.log(
+        `[HITL] loop-breaker: denying "${name}" — approved repeatedly but never executed ` +
+          `(resume key never matched; likely name/arg drift). ` +
+          `keys=${JSON.stringify(keys)} identity=${gateIdentity(toolCall)}`,
+      );
+      return "deny";
+    }
+    if (this.hasHumanSurface) {
+      // First-time gate (or a fresh park after a miss). Dump the full ground-truth identity so a
+      // later re-raise can be compared field-by-field to see what drifted.
+      this.log(
+        `[HITL] gate "${name}" -> PARK (awaiting human) keys=${JSON.stringify(keys)} ` +
+          `identity=${gateIdentity(toolCall)}`,
+      );
+      return "park"; // human must decide; end the turn, tool pending
+    }
     return this.basePolicy === "deny" ? "deny" : "allow"; // headless: PolicyResponder parity
   }
 
@@ -212,15 +247,30 @@ export class HITLResponder implements Responder {
     return "deny";
   }
 
-  private lookupPermission(request: PermissionRequest): PermissionDecision | undefined {
-    for (const key of permissionRequestKeys(request)) {
+  private lookupPermission(
+    request: PermissionRequest,
+  ): PermissionDecision | undefined {
+    const keys = permissionRequestKeys(request);
+    for (const key of keys) {
       const decision = this.decisions.get(key);
       if (isPermissionDecision(decision)) return decision;
+    }
+    // Diagnostic: a gate that misses while decisions ARE present is the resume-key-drift
+    // signature (the stored approve/deny key never matched the re-raised gate). Dump both so a
+    // single live session pins whether the NAME or the ARGS drifted.
+    if (this.decisions.size > 0) {
+      this.log(
+        `[HITL] gate miss keys=${JSON.stringify(keys)} ` +
+          `stored=${JSON.stringify([...this.decisions.keys()])}`,
+      );
     }
     return undefined;
   }
 
-  private lookupClientTool(request: ClientToolRequest): { found: boolean; output?: unknown } {
+  private lookupClientTool(request: ClientToolRequest): {
+    found: boolean;
+    output?: unknown;
+  } {
     for (const key of clientToolRequestKeys(request)) {
       if (this.decisions.has(key)) {
         const output = this.decisions.get(key);
@@ -262,6 +312,41 @@ function permissionRequestKeys(request: PermissionRequest): string[] {
   return keys;
 }
 
+/**
+ * A compact ground-truth dump of an ACP tool call for HITL logs: every name candidate the key
+ * derivation sees (so a park vs. its re-raise can be diffed field-by-field) plus the arg shape.
+ * This is the single most useful diagnostic for the resume-loop: it shows whether the harness
+ * even attaches a resolved `spec` (and its name), and whether title/kind/args drift across turns.
+ */
+function gateIdentity(toolCall: unknown): string {
+  const tc = toolCall as
+    | {
+        toolCallId?: unknown;
+        resolvedName?: unknown;
+        name?: unknown;
+        title?: unknown;
+        kind?: unknown;
+        rawInput?: unknown;
+        input?: unknown;
+      }
+    | undefined;
+  const spec = specOf(toolCall);
+  const args = tc?.rawInput ?? tc?.input;
+  const argKeys =
+    args && typeof args === "object"
+      ? Object.keys(args as object)
+      : typeof args;
+  return JSON.stringify({
+    id: tc?.toolCallId,
+    resolvedName: tc?.resolvedName,
+    specName: spec?.name,
+    name: tc?.name,
+    title: tc?.title,
+    kind: tc?.kind,
+    argKeys,
+  });
+}
+
 function clientToolRequestKeys(request: ClientToolRequest): string[] {
   const keys: string[] = [];
   if (request.toolCallId) keys.push(request.toolCallId);
@@ -270,12 +355,55 @@ function clientToolRequestKeys(request: ClientToolRequest): string[] {
   return keys;
 }
 
-/** Resolve the gated tool's name the same way the egress does: name, then title, then kind. */
+/**
+ * The resolved agenta tool spec attached to an ACP tool call, under any of its aliases. This
+ * alias chain is the crux of the tool-identity-drift fix — kept in ONE place and reused by
+ * `permissions.ts` so the two sides can never silently diverge and re-open the HITL loop.
+ */
+export function specOf(toolCall: unknown): { name?: unknown } | undefined {
+  const tc = toolCall as
+    | {
+        spec?: unknown;
+        toolSpec?: unknown;
+        resolvedTool?: unknown;
+        tool?: unknown;
+      }
+    | undefined;
+  const spec = tc?.spec ?? tc?.toolSpec ?? tc?.resolvedTool ?? tc?.tool;
+  return spec && typeof spec === "object"
+    ? (spec as { name?: unknown })
+    : undefined;
+}
+
+/**
+ * Resolve the gated tool's name for the cold-replay key. Prefer the resolved spec's canonical
+ * `name` — it is STABLE across turns — over the ACP display fields (`title`/`kind`), which the
+ * harness can vary between the park turn and the re-raise (a Claude tool has no ACP `name`, so
+ * the previous `name -> title -> kind` chain keyed on a drift-prone display string and the
+ * cross-turn key silently stopped matching -> re-park loop). The egress
+ * (`vercel/stream.py::_interaction_request`) prefers `spec.name` the same way, so the stored key
+ * and this live key agree. Falls back to the old chain when no spec is resolved (unchanged).
+ */
 function permissionToolName(toolCall: unknown): string | undefined {
   const tc = toolCall as
-    | { name?: unknown; title?: unknown; kind?: unknown }
+    | {
+        resolvedName?: unknown;
+        name?: unknown;
+        title?: unknown;
+        kind?: unknown;
+      }
     | undefined;
-  for (const candidate of [tc?.name, tc?.title, tc?.kind]) {
+  // `resolvedName` (the recorded tool_call name, stamped by the engine) comes FIRST: it is the
+  // same value the transcript folds into the stored key, so preferring it makes the cross-turn
+  // resume key match. `spec.name` next (when a resolved spec exists), then the drift-prone ACP
+  // display fields as a last resort.
+  for (const candidate of [
+    tc?.resolvedName,
+    specOf(toolCall)?.name,
+    tc?.name,
+    tc?.title,
+    tc?.kind,
+  ]) {
     if (typeof candidate === "string" && candidate) return candidate;
   }
   return undefined;
@@ -342,6 +470,57 @@ export function extractApprovalDecisions(
   return decisions;
 }
 
+/**
+ * Tool names whose HITL approvals are NOT converging into real executions — the fingerprint of a
+ * cold-replay resume loop. A successful approve makes the tool RUN and emit a real `tool_result`
+ * on the next turn, so a healthy tool has ~one real result per approval. When a tool's `{approved:
+ * true}` envelopes outnumber its real results by `threshold` or more, the resume key never matched
+ * (name/arg drift) and the gate re-parked every turn. The caller denies the next gate for such a
+ * tool (a clean terminal failure) instead of parking forever. Denies (`{approved: false}`) are
+ * terminal, never a loop, so they are ignored.
+ */
+export function nonConvergingToolNames(
+  request: AgentRunRequest,
+  threshold = 3,
+): Set<string> {
+  const nameById = new Map<string, string | undefined>();
+  for (const message of request.messages ?? []) {
+    const content = message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block?.type === "tool_call" && block.toolCallId) {
+        nameById.set(block.toolCallId, block.toolName);
+      }
+    }
+  }
+  const approved = new Map<string, number>();
+  const executed = new Map<string, number>();
+  for (const message of request.messages ?? []) {
+    const content = message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block?.type !== "tool_result") continue;
+      const name =
+        block.toolName ??
+        (block.toolCallId ? nameById.get(block.toolCallId) : undefined);
+      if (!name) continue;
+      const out = block.output;
+      const flag =
+        out && typeof out === "object" && !Array.isArray(out)
+          ? (out as { approved?: unknown }).approved
+          : undefined;
+      if (flag === true) approved.set(name, (approved.get(name) ?? 0) + 1);
+      else if (flag !== false)
+        executed.set(name, (executed.get(name) ?? 0) + 1);
+    }
+  }
+  const looping = new Set<string>();
+  for (const [name, count] of approved) {
+    if (count - (executed.get(name) ?? 0) >= threshold) looping.add(name);
+  }
+  return looping;
+}
+
 function isPermissionDecision(value: unknown): value is PermissionDecision {
   return value === "allow" || value === "deny";
 }
@@ -350,7 +529,10 @@ function isPermissionDecision(value: unknown): value is PermissionDecision {
  * A parked call reply. Permission responses use `{ approved: boolean }`; client tools carry their
  * real structured `output`.
  */
-function parkedCallResultOf(block: ContentBlock): { found: boolean; output?: unknown } {
+function parkedCallResultOf(block: ContentBlock): {
+  found: boolean;
+  output?: unknown;
+} {
   if (!block || block.type !== "tool_result") return { found: false };
   const output = block.output;
   if (

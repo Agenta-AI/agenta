@@ -2,30 +2,22 @@
  * useModelHarness — the Model & harness + Advanced sections (the panel's most stateful part). One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {customSecretsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {LabeledField} from "@agenta/ui/components/presentational"
+import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {
-    CaretRight,
-    Check,
-    Cube,
-    EyeSlash,
-    Key,
-    Lightbulb,
-    ShieldCheck,
-    Warning,
-} from "@phosphor-icons/react"
-import {Select, Switch, Typography} from "antd"
+import {Check, Cube, EyeSlash, Key, Lightbulb, ShieldCheck, Warning} from "@phosphor-icons/react"
+import {Select, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import {RailField, railInfoLabel} from "../../../drawers/shared/RailField"
+import {SectionRail} from "../../../drawers/shared/SectionRail"
 import {ClaudePermissionsControl} from "../ClaudePermissionsControl"
-import {CodeEditor} from "../CodeEditor"
 import {
     allowedConnectionModes,
     buildModelOptionGroups,
@@ -55,6 +47,8 @@ export function useModelHarness({
     disabled,
     withTooltip,
     revisionId,
+    buildKitEnabledOverride,
+    savedHarnessValue,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -62,6 +56,14 @@ export function useModelHarness({
     disabled?: boolean
     withTooltip?: boolean
     revisionId?: string | null
+    /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
+    buildKitEnabledOverride?: {value: boolean; onChange: (value: boolean) => void}
+    /**
+     * The SAVED (committed) harness value, for the "Current" badge — so it marks the persisted harness
+     * even while `config` holds an unsaved draft pick (the draft pick is shown by the radio, not the
+     * badge). Defaults to this instance's own harness, so the live instance is unaffected.
+     */
+    savedHarnessValue?: string | null
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
@@ -231,44 +233,6 @@ export function useModelHarness({
         [vaultSecrets, capabilities, harnessValue, connection.provider],
     )
 
-    // Raw-JSON escape hatch for the whole `agent.llm` value (collapsed by default).
-    const [showModelJson, setShowModelJson] = useState(false)
-    const [modelJsonText, setModelJsonText] = useState(() => JSON.stringify(llm ?? "", null, 2))
-    const handleModelJsonChange = useCallback(
-        (text: string) => {
-            setModelJsonText(text)
-            try {
-                setAgentField("llm", text ? JSON.parse(text) : "")
-            } catch {
-                // Keep the invalid text in the editor; don't propagate until it parses.
-            }
-        },
-        [setAgentField],
-    )
-    const handleToggleModelJson = useCallback(
-        (next: boolean) => {
-            if (next) setModelJsonText(JSON.stringify(llm ?? "", null, 2))
-            setShowModelJson(next)
-        },
-        [llm],
-    )
-    // Keep the open JSON buffer in sync when `agent.llm` changes from OUTSIDE the editor
-    // (the model picker or the authentication cards). Guard with a structural compare so we
-    // only resync on external changes — when the buffer already represents `agent.llm`
-    // (the user is typing here) we skip, so we never reformat mid-edit or fight the cursor.
-    useEffect(() => {
-        if (!showModelJson) return
-        let bufferValue: unknown
-        try {
-            bufferValue = modelJsonText ? JSON.parse(modelJsonText) : ""
-        } catch {
-            return // invalid in-progress JSON — leave the user's text untouched
-        }
-        if (JSON.stringify(bufferValue) !== JSON.stringify(llm ?? "")) {
-            setModelJsonText(JSON.stringify(llm ?? "", null, 2))
-        }
-    }, [llm, showModelJson, modelJsonText])
-
     // Claude permissions (Layer 1, Claude-only): the Claude harness's own permission knobs, the
     // first-class `harness.permissions` slice. Shown in Advanced only for the Claude harness.
     const claudePermissions = useMemo(() => {
@@ -294,12 +258,8 @@ export function useModelHarness({
         revisionId: revisionId ?? null,
         sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
         disabled,
+        enabledOverride: buildKitEnabledOverride,
     })
-
-    // Collapsed-by-default state for each advanced group (independent; multiple can be open).
-    const [authExpanded, setAuthExpanded] = useState(false)
-    const [execExpanded, setExecExpanded] = useState(false)
-    const [permsExpanded, setPermsExpanded] = useState(false)
 
     const hasAdvanced = Boolean(
         props.llm || // Authentication lives in Advanced now
@@ -310,14 +270,21 @@ export function useModelHarness({
         hasBuildKitOverlay,
     )
 
-    // The Model picker (inspect-filtered when available, else the schema catalog).
+    // The Model picker (inspect-filtered when available, else the schema catalog), as a rail row —
+    // the info tooltip only applies to the inspect-filtered variant (the fallback is the full catalog).
     const modelPicker = props.llm ? (
-        hasInspectModels ? (
-            <LabeledField
-                label="Model"
-                description="Filtered to the models this harness can reach. Selecting a model also sets its provider."
-                withTooltip={withTooltip}
-            >
+        <RailField
+            label={
+                hasInspectModels
+                    ? railInfoLabel(
+                          "Model",
+                          "Filtered to the models this harness can reach. Selecting a model also sets its provider.",
+                      )
+                    : "Model"
+            }
+            align="center"
+        >
+            {hasInspectModels ? (
                 <SelectLLMProviderBase
                     showGroup
                     options={modelGroups}
@@ -328,20 +295,18 @@ export function useModelHarness({
                     className="w-full"
                     footerContent={llmProviderConfig?.footerContent}
                 />
-            </LabeledField>
-        ) : (
-            <GroupedChoiceControl
-                schema={
-                    (props.llm?.properties as Record<string, SchemaProperty> | undefined)?.model ??
-                    props.llm
-                }
-                label="Model"
-                value={modelId}
-                onChange={(v) => writeModel({modelId: v})}
-                withTooltip={withTooltip}
-                disabled={disabled}
-            />
-        )
+            ) : (
+                <GroupedChoiceControl
+                    schema={
+                        (props.llm?.properties as Record<string, SchemaProperty> | undefined)
+                            ?.model ?? props.llm
+                    }
+                    value={modelId}
+                    onChange={(v) => writeModel({modelId: v})}
+                    disabled={disabled}
+                />
+            )}
+        </RailField>
     ) : null
 
     // Shared version-history placeholder for the section drawers (real revision diffs are deferred).
@@ -371,23 +336,19 @@ export function useModelHarness({
         </div>
     )
 
-    // Harness list + compatibility (provider/model reachability + connection mode) derive from the
-    // inspect capabilities map. GAP (tracked): harness_capabilities covers model/provider/mode/hosting
-    // only — NOT tools/skills/MCP — so switching harness can silently leave unsupported tools
-    // unwarned. Extend the panel when the backend adds that. See design.md ("Known gap").
+    // Harness list, from the inspect capabilities map. Model compatibility is shown per-card (below).
+    // GAP (tracked): harness_capabilities covers model/provider/mode/hosting only — NOT tools/skills/
+    // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
     const harnessList = capabilities ? Object.keys(capabilities) : []
-    const modelReachable =
-        !modelId ||
-        !capabilities ||
-        !harnessValue ||
-        harnessAllowsModel(capabilities, harnessValue, modelId)
-    const authSupported = modeOptions.length === 0 || modeOptions.includes(connection.mode)
 
     const harnessCards = (
         <div className="flex flex-col gap-2">
             {harnessList.map((h) => {
                 const caps = capabilities?.[h]
+                // `selected` = the (draft) pick → drives the radio + border. `isCurrent` = the SAVED
+                // harness → drives the "Current" badge, so the badge stays put until the draft is saved.
                 const selected = harnessValue === h
+                const isCurrent = (savedHarnessValue ?? harnessValue) === h
                 const providers = caps?.providers ?? []
                 const deployments = caps?.deployments ?? []
                 const modelCount = caps
@@ -396,7 +357,17 @@ export function useModelHarness({
                           0,
                       )
                     : 0
-                const keepsModel = !modelId || harnessAllowsModel(capabilities, h, modelId)
+                // A harness supports the model if it lists the exact id OR the model's PROVIDER family.
+                // The provider fallback matters because harnesses use different id namespaces: Claude
+                // Code's short alias "opus" isn't in Pi's full-id catalog, but Pi does list the anthropic
+                // provider — so it can run the model. Without this, cross-harness checks read as false
+                // "model not available". (Exact-id alone still can't map aliases; the provider is the
+                // reliable signal we have on the config.)
+                const modelProvider = connection.provider
+                const keepsModel =
+                    !modelId ||
+                    harnessAllowsModel(capabilities, h, modelId) ||
+                    (!!modelProvider && providers.includes(modelProvider))
                 return (
                     <button
                         key={h}
@@ -407,7 +378,7 @@ export function useModelHarness({
                             "flex w-full flex-col gap-1.5 rounded-lg border border-solid p-2.5 text-left transition-colors",
                             disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                             selected
-                                ? "border-[var(--ant-color-primary)] bg-[var(--ant-color-fill-secondary)]"
+                                ? "border-[var(--ant-color-primary-border-hover)] bg-[var(--ant-color-fill-secondary)]"
                                 : "border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] hover:border-[var(--ant-color-text-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)]",
                         )}
                     >
@@ -417,7 +388,7 @@ export function useModelHarness({
                                     "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-solid",
                                     selected
                                         ? "border-[var(--ant-color-primary)]"
-                                        : "border-[var(--ag-c-97A4B0,#97a4b0)]",
+                                        : "border-[var(--ant-color-text-tertiary)]",
                                 )}
                             >
                                 {selected && (
@@ -427,23 +398,29 @@ export function useModelHarness({
                             <span className="text-xs font-medium">
                                 {enumLabel(harnessProps.kind, h) || h}
                             </span>
-                            {selected ? (
-                                <span className="ml-auto rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
-                                    Current
-                                </span>
-                            ) : modelId ? (
-                                <span
-                                    className={cn(
-                                        "ml-auto inline-flex items-center gap-1 text-[10.5px]",
-                                        keepsModel
-                                            ? "text-[var(--ant-color-success)]"
-                                            : "text-[var(--ant-color-warning)]",
-                                    )}
-                                >
-                                    {keepsModel ? <Check size={11} /> : <Warning size={11} />}
-                                    {keepsModel ? "supports your model" : "model not available"}
-                                </span>
-                            ) : null}
+                            <span className="ml-auto flex items-center gap-2">
+                                {/* Model compatibility lives on the card itself: warn on the CURRENT
+                                    harness when it can't run the selected model (quiet when it can);
+                                    for alternatives, show whether switching would keep the model. */}
+                                {modelId && (!keepsModel || !selected) ? (
+                                    <span
+                                        className={cn(
+                                            "inline-flex items-center gap-1 text-[10.5px]",
+                                            keepsModel
+                                                ? "text-[var(--ant-color-success)]"
+                                                : "text-[var(--ant-color-warning)]",
+                                        )}
+                                    >
+                                        {keepsModel ? <Check size={11} /> : <Warning size={11} />}
+                                        {keepsModel ? "supports your model" : "model not available"}
+                                    </span>
+                                ) : null}
+                                {isCurrent ? (
+                                    <span className="rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                                        Current
+                                    </span>
+                                ) : null}
+                            </span>
                         </div>
                         {providers.length > 0 || modelCount > 0 ? (
                             <div className="pl-[22px] text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
@@ -463,110 +440,10 @@ export function useModelHarness({
         </div>
     )
 
-    const compatibilityPanel =
-        capabilities && harnessValue ? (
-            <div className="flex flex-col gap-4">
-                <div>
-                    <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                        Current setup
-                    </div>
-                    <div className="flex flex-col gap-2 text-xs">
-                        {modelId ? (
-                            <div
-                                className={cn(
-                                    "flex items-start gap-1.5",
-                                    modelReachable
-                                        ? "text-[var(--ant-color-success)]"
-                                        : "text-[var(--ant-color-warning)]",
-                                )}
-                            >
-                                {modelReachable ? (
-                                    <Check size={14} className="mt-px shrink-0" />
-                                ) : (
-                                    <Warning size={14} className="mt-px shrink-0" />
-                                )}
-                                <span>
-                                    <span className="font-mono">{modelId}</span>{" "}
-                                    {modelReachable ? "is reachable." : "is not reachable here."}
-                                </span>
-                            </div>
-                        ) : (
-                            <span className="text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                No model selected.
-                            </span>
-                        )}
-                        {props.llm ? (
-                            <div
-                                className={cn(
-                                    "flex items-start gap-1.5",
-                                    authSupported
-                                        ? "text-[var(--ant-color-success)]"
-                                        : "text-[var(--ant-color-warning)]",
-                                )}
-                            >
-                                {authSupported ? (
-                                    <Check size={14} className="mt-px shrink-0" />
-                                ) : (
-                                    <Warning size={14} className="mt-px shrink-0" />
-                                )}
-                                <span>
-                                    {connection.mode === "agenta"
-                                        ? "Agenta-managed"
-                                        : "Self-managed"}{" "}
-                                    auth{" "}
-                                    {authSupported ? "is supported." : "is not supported here."}
-                                </span>
-                            </div>
-                        ) : null}
-                    </div>
-                </div>
-
-                {modelId && harnessList.some((h) => h !== harnessValue) ? (
-                    <div>
-                        <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                            If you switch
-                        </div>
-                        <div className="flex flex-col gap-2 text-xs">
-                            {harnessList
-                                .filter((h) => h !== harnessValue)
-                                .map((h) => {
-                                    const keeps = harnessAllowsModel(capabilities, h, modelId)
-                                    return (
-                                        <div key={h} className="flex items-start gap-1.5">
-                                            {keeps ? (
-                                                <Check
-                                                    size={14}
-                                                    className="mt-px shrink-0 text-[var(--ant-color-success)]"
-                                                />
-                                            ) : (
-                                                <Warning
-                                                    size={14}
-                                                    className="mt-px shrink-0 text-[var(--ant-color-warning)]"
-                                                />
-                                            )}
-                                            <span className="text-[var(--ag-c-586673,#586673)]">
-                                                <span className="text-[var(--ag-c-1C2C3D,#1c2c3d)]">
-                                                    {enumLabel(harnessProps.kind, h) || h}
-                                                </span>{" "}
-                                                {keeps
-                                                    ? "supports your model."
-                                                    : "doesn't support your model — pick a new one."}
-                                            </span>
-                                        </div>
-                                    )
-                                })}
-                        </div>
-                    </div>
-                ) : null}
-
-                {versionHistorySkeleton}
-            </div>
-        ) : null
-
     // Model & harness drawer body. With inspect capabilities: harness cards + model picker on the
-    // left, a real compatibility panel on the right. Without them: the plain harness select.
-    // Shared Model & harness controls — rendered by both the wide drawer body (with the
-    // compatibility side panel) and the trimmed tabs-inline body (single column, no chrome).
+    // left (each card owns its model-compat state), version history on the right — same two-panel
+    // shape as the Advanced drawer. Without capabilities: the plain harness select, single column.
+    // Shared Model & harness controls — rendered by both the wide drawer body and the tabs-inline body.
     const modelHarnessControls = capabilities ? (
         <>
             <div className="flex gap-2 rounded-md bg-[var(--ant-color-fill-quaternary)] p-2.5">
@@ -576,25 +453,21 @@ export function useModelHarness({
                     hosting and connection options you can use.
                 </span>
             </div>
-            <div>
-                <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                    Harness
-                </div>
-                {harnessCards}
-            </div>
+            <RailField label="Harness">{harnessCards}</RailField>
             {modelPicker}
         </>
     ) : (
         <>
             {harnessProps.kind && (
-                <HarnessSelectControl
-                    schema={harnessProps.kind}
-                    label="Harness"
-                    value={(harness.kind as string | null) ?? null}
-                    onChange={(v) => setSection("harness", {...harness, kind: v})}
-                    withTooltip={withTooltip}
-                    disabled={disabled}
-                />
+                <RailField label="Harness" align="center">
+                    <HarnessSelectControl
+                        schema={harnessProps.kind}
+                        value={(harness.kind as string | null) ?? null}
+                        onChange={(v) => setSection("harness", {...harness, kind: v})}
+                        withTooltip={withTooltip}
+                        disabled={disabled}
+                    />
+                </RailField>
             )}
             {modelPicker}
         </>
@@ -605,7 +478,7 @@ export function useModelHarness({
             <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
                 {modelHarnessControls}
             </div>
-            <div className="w-[240px] shrink-0 overflow-y-auto">{compatibilityPanel}</div>
+            <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
         </div>
     ) : (
         <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
@@ -615,101 +488,58 @@ export function useModelHarness({
     // two-panel split or side panel (which read as out-of-place chrome inside a tab).
     const modelHarnessInline = <div className="flex flex-col gap-4">{modelHarnessControls}</div>
 
-    // Authentication (credential source) — moved out of Model & harness into Advanced.
+    // Authentication (credential source) — moved out of Model & harness into Advanced. The
+    // credential-source axis reads as the drawer's shared `[rail | content]`: mode toggle on the
+    // left, the active mode's description + (Agenta-managed) connection picker on the right.
+    const authDescription =
+        connection.mode === "agenta"
+            ? "Agenta supplies the credential from this project's vault — the default provider key, or a named connection you pick below."
+            : "The harness signs in itself (an environment variable or a prior OAuth login). Agenta injects no credential."
+    const authConnectionField =
+        connection.mode === "agenta" ? (
+            <LabeledField
+                label="Connection"
+                description="Which stored connection supplies the credential. Project default uses the project's provider key."
+                withTooltip={withTooltip}
+            >
+                <Select<string>
+                    value={connection.slug ?? "__default__"}
+                    onChange={(v) => writeModel({slug: v === "__default__" ? null : (v ?? null)})}
+                    options={[
+                        {value: "__default__", label: "Project default"},
+                        ...connectionOptions.map((o) => ({value: o.value, label: o.label})),
+                    ]}
+                    disabled={disabled}
+                    className="w-full"
+                    showSearch
+                    optionFilterProp="label"
+                />
+            </LabeledField>
+        ) : null
     const authControls = props.llm ? (
-        <div className="flex flex-col gap-2">
-            {modeOptions.map((m) => {
-                const selected = connection.mode === m
-                const title = m === "agenta" ? "Agenta-managed" : "Self-managed"
-                const desc =
-                    m === "agenta"
-                        ? "Agenta supplies the credential from this project's vault — the default provider key, or a named connection you pick below."
-                        : "The harness signs in itself (an environment variable or a prior OAuth login). Agenta injects no credential."
-                return (
-                    <button
-                        key={m}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        disabled={disabled}
-                        onClick={() => writeModel({mode: m})}
-                        className={cn(
-                            "flex w-full items-start gap-2.5 rounded-lg border border-solid p-2.5 text-left transition-colors",
-                            disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
-                            selected
-                                ? "border-[var(--ant-color-primary)] bg-[var(--ant-color-fill-secondary)]"
-                                : "border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] hover:border-[var(--ant-color-text-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)]",
-                        )}
-                    >
-                        <span
-                            className={cn(
-                                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-solid",
-                                selected
-                                    ? "border-[var(--ant-color-primary)]"
-                                    : "border-[var(--ant-color-text-tertiary)]",
-                            )}
-                        >
-                            {selected && (
-                                <span className="h-2 w-2 rounded-full bg-[var(--ant-color-primary)]" />
-                            )}
-                        </span>
-                        <span className="flex flex-col gap-0.5">
-                            <Typography.Text
-                                className={cn(
-                                    "text-xs font-medium leading-none",
-                                    selected && "!text-[var(--ant-color-primary-text)]",
-                                )}
-                            >
-                                {title}
-                            </Typography.Text>
-                            <Typography.Text type="secondary" className="text-[11px] leading-snug">
-                                {desc}
-                            </Typography.Text>
-                        </span>
-                    </button>
-                )
-            })}
-            {connection.mode === "agenta" && (
-                <LabeledField
-                    label="Connection"
-                    description="Which stored connection supplies the credential. Project default uses the project's provider key."
-                    withTooltip={withTooltip}
-                >
-                    <Select<string>
-                        value={connection.slug ?? "__default__"}
-                        onChange={(v) =>
-                            writeModel({slug: v === "__default__" ? null : (v ?? null)})
-                        }
-                        options={[
-                            {value: "__default__", label: "Project default"},
-                            ...connectionOptions.map((o) => ({value: o.value, label: o.label})),
-                        ]}
-                        disabled={disabled}
-                        className="w-full"
-                        showSearch
-                        optionFilterProp="label"
-                    />
-                </LabeledField>
-            )}
-
-            {/* Raw-JSON escape hatch for the whole `agent.llm` value, collapsed by default. */}
-            <div className="flex items-center gap-2">
-                <Switch
-                    checked={showModelJson}
-                    onChange={handleToggleModelJson}
-                    disabled={disabled}
-                />
-                <Typography.Text className="text-xs">Edit as JSON</Typography.Text>
+        modeOptions.length > 0 ? (
+            <SectionRail
+                disabled={disabled}
+                items={modeOptions.map((m) => ({
+                    value: m,
+                    label: m === "agenta" ? "Agenta-managed" : "Self-managed",
+                }))}
+                value={connection.mode}
+                onChange={(m) => writeModel({mode: m as ConnectionMode})}
+            >
+                <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                    {authDescription}
+                </Typography.Text>
+                {authConnectionField}
+            </SectionRail>
+        ) : (
+            <div className="flex flex-col gap-2">
+                <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                    {authDescription}
+                </Typography.Text>
+                {authConnectionField}
             </div>
-            {showModelJson && (
-                <CodeEditor
-                    value={modelJsonText}
-                    onChange={handleModelJsonChange}
-                    language="json"
-                    disabled={disabled}
-                />
-            )}
-        </div>
+        )
     ) : null
 
     // Advanced header summary: auth mode + sandbox, so the collapsed header still conveys state.
@@ -725,218 +555,145 @@ export function useModelHarness({
     const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
     const hasPermissionsGroup = Boolean(headlessSchema || hasClaudePermissions)
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
+    // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
+    // and tools drawers); inside, configuration reads as the drawer's `[rail | content]` rhythm via
+    // `SectionRail` (Authentication mode) and `RailField` (labelled control rows).
     const advancedControls = (
         <>
             {buildKitSection}
 
             {authControls ? (
-                <div
-                    className={cn(
-                        "rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]",
-                        hasBuildKitOverlay && "mt-0",
-                    )}
+                <ConfigAccordionSection
+                    size="compact"
+                    defaultOpen={false}
+                    icon={<Key size={15} />}
+                    title="Authentication"
+                    summary={
+                        props.llm
+                            ? connection.mode === "agenta"
+                                ? "Agenta-managed"
+                                : "Self-managed"
+                            : undefined
+                    }
+                    summaryCollapsedOnly
                 >
-                    <button
-                        type="button"
-                        aria-expanded={authExpanded}
-                        onClick={() => setAuthExpanded((open) => !open)}
-                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
-                    >
-                        <Key size={15} className="text-[var(--ag-c-586673,#586673)]" />
-                        <span className="text-[13px] font-medium">Authentication</span>
-                        {!authExpanded ? (
-                            <span className="ml-auto text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                {props.llm
-                                    ? connection.mode === "agenta"
-                                        ? "Agenta-managed"
-                                        : "Self-managed"
-                                    : ""}
-                            </span>
-                        ) : (
-                            <span className="ml-auto" />
-                        )}
-                        <CaretRight
-                            size={14}
-                            className={cn(
-                                "text-[var(--ag-c-97A4B0,#97a4b0)] transition-transform",
-                                authExpanded && "rotate-90",
-                            )}
-                        />
-                    </button>
-                    {authExpanded ? (
-                        <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 pb-3 pt-2.5">
-                            <p className="mb-2.5 text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                Where the model credential comes from when this agent runs.
-                            </p>
-                            {authControls}
-                        </div>
-                    ) : null}
-                </div>
+                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                        Where the model credential comes from when this agent runs.
+                    </Typography.Text>
+                    {authControls}
+                </ConfigAccordionSection>
             ) : null}
 
             {hasExecutionGroup ? (
-                <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
-                    <button
-                        type="button"
-                        aria-expanded={execExpanded}
-                        onClick={() => setExecExpanded((open) => !open)}
-                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
-                    >
-                        <Cube size={15} className="text-[var(--ag-c-586673,#586673)]" />
-                        <span className="text-[13px] font-medium">Execution environment</span>
-                        {!execExpanded ? (
-                            <span className="ml-auto text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                {sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : ""}
-                            </span>
-                        ) : (
-                            <span className="ml-auto" />
-                        )}
-                        <CaretRight
-                            size={14}
-                            className={cn(
-                                "text-[var(--ag-c-97A4B0,#97a4b0)] transition-transform",
-                                execExpanded && "rotate-90",
-                            )}
-                        />
-                    </button>
-                    {execExpanded ? (
-                        <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 pb-3 pt-2.5">
-                            <p className="mb-2.5 text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                Where the agent&apos;s tools and code run, and what that sandbox may
-                                touch.
-                            </p>
-                            <div className="flex flex-col gap-2.5">
-                                {sandboxProps.kind && (
-                                    <EnumSelectControl
-                                        schema={sandboxProps.kind}
-                                        label="Sandbox"
-                                        value={(sandbox.kind as string | null) ?? null}
-                                        onChange={(v) =>
-                                            setSection("sandbox", {...sandbox, kind: v})
-                                        }
-                                        withTooltip={withTooltip}
-                                        disabled={disabled}
-                                    />
-                                )}
-                                {sandboxProps.permissions ? (
-                                    <div className="flex flex-col gap-1.5">
-                                        {permissionOverrideHint}
-                                        <SandboxPermissionControl
-                                            value={
-                                                (sandbox.permissions as Record<
-                                                    string,
-                                                    unknown
-                                                > | null) ?? null
-                                            }
-                                            onChange={(v) =>
-                                                setSection("sandbox", {
-                                                    ...sandbox,
-                                                    permissions: v,
-                                                })
-                                            }
-                                            disabled={disabled}
-                                        />
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
+                <ConfigAccordionSection
+                    size="compact"
+                    defaultOpen={false}
+                    icon={<Cube size={15} />}
+                    title="Execution environment"
+                    summary={sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined}
+                    summaryCollapsedOnly
+                >
+                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                        Where the agent&apos;s tools and code run, and what that sandbox may touch.
+                    </Typography.Text>
+                    {sandboxProps.kind ? (
+                        <RailField label="Sandbox" align="center">
+                            <EnumSelectControl
+                                schema={sandboxProps.kind}
+                                value={(sandbox.kind as string | null) ?? null}
+                                onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
+                                withTooltip={withTooltip}
+                                disabled={disabled}
+                            />
+                        </RailField>
                     ) : null}
-                </div>
+                    {sandboxProps.permissions ? (
+                        <>
+                            {permissionOverrideHint}
+                            {/* Renders its knobs as peer RailField rows (Network egress / Filesystem
+                                / Enforcement) sharing this section's rail — no nested sub-form. */}
+                            <SandboxPermissionControl
+                                value={
+                                    (sandbox.permissions as Record<string, unknown> | null) ?? null
+                                }
+                                onChange={(v) =>
+                                    setSection("sandbox", {...sandbox, permissions: v})
+                                }
+                                disabled={disabled}
+                            />
+                        </>
+                    ) : null}
+                </ConfigAccordionSection>
             ) : null}
 
             {hasPermissionsGroup ? (
-                <div className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
-                    <button
-                        type="button"
-                        aria-expanded={permsExpanded}
-                        onClick={() => setPermsExpanded((open) => !open)}
-                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left"
-                    >
-                        <ShieldCheck size={15} className="text-[var(--ag-c-586673,#586673)]" />
-                        <span className="text-[13px] font-medium">Permissions</span>
-                        {!permsExpanded ? (
-                            <span className="ml-auto text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                Auto
-                            </span>
-                        ) : (
-                            <span className="ml-auto" />
-                        )}
-                        <CaretRight
-                            size={14}
-                            className={cn(
-                                "text-[var(--ag-c-97A4B0,#97a4b0)] transition-transform",
-                                permsExpanded && "rotate-90",
+                <ConfigAccordionSection
+                    size="compact"
+                    defaultOpen={false}
+                    icon={<ShieldCheck size={15} />}
+                    title="Permissions"
+                    summary="Auto"
+                    summaryCollapsedOnly
+                >
+                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                        What the agent may do on its own before it must ask.
+                    </Typography.Text>
+                    {headlessSchema ? (
+                        <RailField label="Policy" align="center">
+                            {isPiHarness ? (
+                                <span className="flex items-center gap-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                    <EyeSlash size={13} />
+                                    Permission policy isn&apos;t used by the Pi harness.
+                                </span>
+                            ) : (
+                                <EnumSelectControl
+                                    schema={headlessSchema}
+                                    value={headlessValue}
+                                    onChange={(v) =>
+                                        setSection("runner", {
+                                            ...runner,
+                                            interactions: {...runnerInteractions, headless: v},
+                                        })
+                                    }
+                                    withTooltip={withTooltip}
+                                    disabled={disabled}
+                                />
                             )}
-                        />
-                    </button>
-                    {permsExpanded ? (
-                        <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 pb-3 pt-2.5">
-                            <p className="mb-2.5 text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                What the agent may do on its own before it must ask.
-                            </p>
-                            <div className="flex flex-col gap-2.5">
-                                {headlessSchema ? (
-                                    isPiHarness ? (
-                                        <div className="flex items-center gap-1.5 text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                            <EyeSlash size={13} />
-                                            Permission policy isn&apos;t used by the Pi harness.
-                                        </div>
-                                    ) : (
-                                        <EnumSelectControl
-                                            schema={headlessSchema}
-                                            label="Permission policy"
-                                            value={headlessValue}
-                                            onChange={(v) =>
-                                                setSection("runner", {
-                                                    ...runner,
-                                                    interactions: {
-                                                        ...runnerInteractions,
-                                                        headless: v,
-                                                    },
-                                                })
-                                            }
-                                            withTooltip={withTooltip}
-                                            disabled={disabled}
-                                        />
-                                    )
-                                ) : null}
-                                {hasClaudePermissions ? (
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="flex items-center gap-1.5">
-                                            <Typography.Text className="text-xs font-medium">
-                                                Claude permissions
-                                            </Typography.Text>
-                                            <span className="rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
-                                                Claude harness
-                                            </span>
-                                        </div>
-                                        <ClaudePermissionsControl
-                                            value={claudePermissions}
-                                            onChange={setClaudePermissions}
-                                            disabled={disabled}
-                                            // Mode options + labels come from the harness `permissions`
-                                            // sub-schema (`default_mode` enum) so they follow the template.
-                                            modeSchema={
-                                                (
-                                                    harnessProps.permissions?.properties as
-                                                        | Record<string, SchemaProperty>
-                                                        | undefined
-                                                )?.default_mode
-                                            }
-                                        />
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
+                        </RailField>
                     ) : null}
-                </div>
+                    {hasClaudePermissions ? (
+                        <>
+                            {/* Caption then peer rail rows (mode / allow / ask / deny) sharing the
+                                section rail — the control renders its own RailField rows. */}
+                            <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                                Claude harness
+                            </span>
+                            <ClaudePermissionsControl
+                                value={claudePermissions}
+                                onChange={setClaudePermissions}
+                                disabled={disabled}
+                                // Mode options + labels come from the harness `permissions`
+                                // sub-schema (`default_mode` enum) so they follow the template.
+                                modeSchema={
+                                    (
+                                        harnessProps.permissions?.properties as
+                                            | Record<string, SchemaProperty>
+                                            | undefined
+                                    )?.default_mode
+                                }
+                            />
+                        </>
+                    ) : null}
+                </ConfigAccordionSection>
             ) : null}
         </>
     )
 
+    // The stacked sections carry their own dividers; drop the trailing one on whichever section
+    // renders last (they're conditional, so target the last child rather than a fixed section).
     const advancedDrawerBody = (
         <div className="flex h-full min-h-0 gap-6">
-            <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+            <div className="flex min-w-0 flex-1 flex-col overflow-y-auto pr-1 [&>*:last-child]:!border-b-0">
                 {advancedControls}
             </div>
             <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
@@ -944,7 +701,9 @@ export function useModelHarness({
     )
 
     // Trimmed body for the tabs layout: the grouped controls in one column, no side panel.
-    const advancedInline = <div className="flex flex-col gap-4">{advancedControls}</div>
+    const advancedInline = (
+        <div className="flex flex-col [&>*:last-child]:!border-b-0">{advancedControls}</div>
+    )
 
     return {
         hasModelOrHarness,

@@ -75,9 +75,11 @@ const SessionTag = ({
             }}
             className={clsx(
                 "group flex h-7 max-w-[180px] min-w-0 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
+                // White pill on the recessed chat canvas (raised); the active tab keeps the primary
+                // text + a 2px accent underline so it's unmistakable against its neighbours.
                 active
-                    ? "border-colorBorder bg-colorFillSecondary text-colorText"
-                    : "border-colorBorderSecondary bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
+                    ? "border-colorBorder border-b-2 border-b-[var(--ag-surface-accent)] bg-colorBgContainer text-colorText"
+                    : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
             )}
         >
             <SessionStatusDot sessionId={session.id} />
@@ -134,7 +136,7 @@ const SessionTagBar = ({
 }: SessionTagBarProps) => {
     const closable = sessions.length > 1
     return (
-        <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-colorBorderSecondary px-3">
+        <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
             {showSessions ? (
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {sessions.map((session, index) => (
@@ -149,20 +151,29 @@ const SessionTagBar = ({
                             onRename={(title) => onRename(session.id, title)}
                         />
                     ))}
-                    <Tooltip title="New session">
-                        <Button
-                            type="text"
-                            aria-label="New session"
-                            icon={<Plus size={14} />}
-                            onClick={onAdd}
-                            className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                        />
-                    </Tooltip>
                 </div>
             ) : (
                 <div className="min-w-0 flex-1" />
             )}
-            {extra && <div className="flex shrink-0 items-center gap-1">{extra}</div>}
+            {/* Fixed session-actions cluster — pinned outside the scroll area so New session (+) sits
+                at the end of the tab strip without scrolling away, grouped with the inspect/history
+                controls. */}
+            {(showSessions || extra) && (
+                <div className="flex shrink-0 items-center gap-1">
+                    {showSessions && (
+                        <Tooltip title="New session">
+                            <Button
+                                type="text"
+                                aria-label="New session"
+                                icon={<Plus size={14} />}
+                                onClick={onAdd}
+                                className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
+                            />
+                        </Tooltip>
+                    )}
+                    {extra}
+                </div>
+            )}
         </div>
     )
 }

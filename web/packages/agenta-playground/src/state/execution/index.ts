@@ -366,3 +366,11 @@ export {createNegotiatingFetch, type NegotiatingFetch} from "./agentNegotiation"
 export {agentShouldResumeAfterApproval} from "./agentApprovalResume"
 // Agent-lane queued-message release gate (never releases mid-HITL or pre-resume).
 export {canReleaseQueuedMessage, isHitlPending} from "./agentMessageQueue"
+// Per-turn request capture + correlation helpers (Turn Inspector Context/Raw tabs).
+export {
+    appendCapped,
+    buildTurnCapture,
+    capturesForTrigger,
+    triggerUserMessageId,
+    type TurnRequestCapture,
+} from "./turnCapture"

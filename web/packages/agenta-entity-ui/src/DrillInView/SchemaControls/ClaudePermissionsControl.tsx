@@ -14,9 +14,9 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {LabeledField} from "@agenta/ui/components/presentational"
-import {cn} from "@agenta/ui/styles"
 import {Input, Select} from "antd"
+
+import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
 type ClaudePermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions"
 
@@ -34,8 +34,6 @@ export interface ClaudePermissionsControlProps {
     onChange: (value: Record<string, unknown>) => void
     /** Disable the control */
     disabled?: boolean
-    /** Additional CSS classes */
-    className?: string
     /**
      * The `default_mode` field schema (its `enum` + `title`/`description`). When provided, the mode
      * option set and the field label/description follow the template schema instead of the
@@ -82,7 +80,6 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
     value,
     onChange,
     disabled = false,
-    className,
     modeSchema,
 }: ClaudePermissionsControlProps) {
     const current = useMemo(() => readValue(value), [value])
@@ -137,8 +134,8 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
     )
 
     return (
-        <div className={cn("flex flex-col gap-2", className)}>
-            <LabeledField label={modeLabel} description={modeDescription} withTooltip>
+        <>
+            <RailField label={railInfoLabel(modeLabel, modeDescription)} align="center">
                 <Select<ClaudePermissionMode>
                     value={current.defaultMode ?? undefined}
                     onChange={(v) => write({defaultMode: v ?? null})}
@@ -147,14 +144,14 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     placeholder="Claude default"
                     allowClear
                     className="w-full"
-                    size="small"
                 />
-            </LabeledField>
+            </RailField>
 
-            <LabeledField
-                label="Allow rules"
-                description='Per-tool allow rules, one per line (e.g. "Read", "Bash(npm run:*)").'
-                withTooltip
+            <RailField
+                label={railInfoLabel(
+                    "Allow rules",
+                    'Per-tool allow rules, one per line (e.g. "Read", "Bash(npm run:*)").',
+                )}
             >
                 <Input.TextArea
                     value={current.allow.join("\n")}
@@ -162,14 +159,15 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     disabled={disabled}
                     placeholder={"Read\nBash(npm run:*)"}
                     rows={2}
-                    className="resize-y font-mono text-xs"
+                    className="resize-y font-mono"
                 />
-            </LabeledField>
+            </RailField>
 
-            <LabeledField
-                label="Ask rules"
-                description="Per-tool rules that prompt before use, one per line."
-                withTooltip
+            <RailField
+                label={railInfoLabel(
+                    "Ask rules",
+                    "Per-tool rules that prompt before use, one per line.",
+                )}
             >
                 <Input.TextArea
                     value={current.ask.join("\n")}
@@ -177,14 +175,15 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     disabled={disabled}
                     placeholder="Bash(rm:*)"
                     rows={2}
-                    className="resize-y font-mono text-xs"
+                    className="resize-y font-mono"
                 />
-            </LabeledField>
+            </RailField>
 
-            <LabeledField
-                label="Deny rules"
-                description="Per-tool rules that are always blocked, one per line."
-                withTooltip
+            <RailField
+                label={railInfoLabel(
+                    "Deny rules",
+                    "Per-tool rules that are always blocked, one per line.",
+                )}
             >
                 <Input.TextArea
                     value={current.deny.join("\n")}
@@ -192,9 +191,9 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     disabled={disabled}
                     placeholder={"Write\nmcp__server__tool"}
                     rows={2}
-                    className="resize-y font-mono text-xs"
+                    className="resize-y font-mono"
                 />
-            </LabeledField>
-        </div>
+            </RailField>
+        </>
     )
 })

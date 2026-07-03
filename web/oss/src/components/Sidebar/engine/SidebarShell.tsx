@@ -275,7 +275,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const bottomSections = visibleSections.filter((section) => section.placement === "bottom")
 
     return (
-        <div className="border-0 border-r border-solid border-gray-100">
+        <div className="border-0 border-r border-solid border-[var(--ag-surface-divider)]">
             <Sider
                 theme={theme}
                 className="sticky top-0 bottom-0 h-screen bg-[var(--ag-sidebar-bg)]"
