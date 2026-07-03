@@ -111,6 +111,13 @@ export interface CatalogChooserProps<I, T, C> {
      * The consumer must then drop its own body padding around the chooser. @default false
      */
     fullBleedRail?: boolean
+    /**
+     * Minimum query length before the search is treated as active — must match the
+     * server-side threshold in the consumer's `useIntegrations` hook (below it the hook
+     * ignores the query, so the UI must not switch to "Results" or drop the category
+     * filter either). @default 3
+     */
+    searchMinChars?: number
 }
 
 function ItemTrailing({state}: {state: CatalogItemState}) {
@@ -559,7 +566,7 @@ function CatalogGridSkeleton() {
 }
 
 export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
-    const {connections, defaultIntegrationKey} = props
+    const {connections, defaultIntegrationKey, searchMinChars = 3} = props
     const {
         integrations,
         total,
@@ -607,7 +614,9 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
     // filter the next open (mirrors the item-search cleanup above). Same for the category filter.
     useEffect(() => () => setSearch(""), [setSearch])
     useEffect(() => () => setCategory?.(null), [setCategory])
-    const searching = searchInput.trim().length > 0
+    // Align the "searching" UI state with the hook's server-side threshold: below it the
+    // query still shows the category filter, so the header must not flip to "Results" yet.
+    const searching = searchInput.trim().length >= searchMinChars
 
     const [selected, setSelected] = useState<{kind: "conn" | "intg"; id: string} | null>(
         defaultIntegrationKey ? {kind: "intg", id: defaultIntegrationKey} : null,
