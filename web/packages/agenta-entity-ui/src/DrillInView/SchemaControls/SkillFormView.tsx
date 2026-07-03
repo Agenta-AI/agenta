@@ -202,7 +202,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
 
                 {/* The list grows to fill the column so the drop zone sits at the bottom. Filled
                     with the elevated/item colour so it reads as one panel, not a lone highlighted row. */}
-                <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded-lg bg-[var(--ag-c-EAEFF5,#eaeff5)] p-1">
+                <div className="ag-rail-filelist flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded-lg bg-[var(--ag-c-EAEFF5,#eaeff5)] p-1">
                     <FileRow
                         label="SKILL.md"
                         active={showSkill}

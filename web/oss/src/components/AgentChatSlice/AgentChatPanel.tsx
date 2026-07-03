@@ -1055,7 +1055,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 )}
                 {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
-                <div className="relative flex min-h-0 flex-1 flex-col">
+                <div className="ag-canvas relative flex min-h-0 flex-1 flex-col">
                     <div
                         ref={(el) => {
                             scrollRef.current = el

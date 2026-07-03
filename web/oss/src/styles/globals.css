@@ -349,6 +349,11 @@ body {
 .dark .ag-drawer-elevated .ag-drawer-rail {
     background: var(--ag-drawer-rail);
 }
+/* A list that wraps itself in a light "panel" fill (skill Files list) reads as a redundant box on
+   the already-recessed rail in dark — drop the fill so its rows sit directly on the rail. */
+.dark .ag-drawer-elevated .ag-rail-filelist {
+    background: transparent;
+}
 .dark .ag-drawer-elevated .ag-drawer-card {
     background: var(--ag-drawer-card) !important;
     border-color: var(--ag-drawer-card-border) !important;
