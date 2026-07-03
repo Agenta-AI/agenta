@@ -118,7 +118,7 @@ class ToolConnection(Connection):
 
 class ToolConnectionCreate(ConnectionCreate):
     provider_key: ToolProviderKind
-    data: Optional[Union[ToolConnectionCreateData, Json]] = None
+    data: Optional[ToolConnectionCreateData] = None
 
 
 # ---------------------------------------------------------------------------

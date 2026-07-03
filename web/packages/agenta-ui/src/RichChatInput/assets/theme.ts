@@ -8,7 +8,7 @@ import {type EditorThemeClasses} from "lexical"
 export const chatInputTheme: EditorThemeClasses = {
     paragraph: "m-0",
     code: "my-1 block overflow-x-auto whitespace-pre rounded bg-[var(--ag-colorFillSecondary)] p-2 font-mono text-[0.85em] leading-snug",
-    quote: "my-1 border-l-2 border-solid border-[var(--ag-colorBorder)] pl-3 text-[var(--ag-colorTextSecondary)]",
+    quote: "mx-0 my-1 border-0 border-l-2 border-solid border-[var(--ag-colorBorder)] pl-2 text-[var(--ag-colorTextSecondary)]",
     list: {
         ul: "my-1 list-disc pl-5",
         ol: "my-1 list-decimal pl-5",

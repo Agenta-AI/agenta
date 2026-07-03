@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {ArrowClockwise, GearSix, Trash} from "@phosphor-icons/react"
-import {Button, Table, Tooltip, Typography} from "antd"
+import {Button, Table, Tag, Tooltip, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
@@ -20,6 +20,11 @@ const getRedirectUrl = (connection: ToolConnection | null | undefined): string |
     if (!connection) return undefined
     const dataRedirect = connection.data?.redirect_url
     return typeof dataRedirect === "string" && dataRedirect ? dataRedirect : undefined
+}
+
+const AUTH_SCHEME_LABELS: Record<string, string> = {
+    oauth: "OAuth",
+    api_key: "API Key",
 }
 
 export default function ConnectionsList({integrationKey, connections}: Props) {
@@ -75,6 +80,19 @@ export default function ConnectionsList({integrationKey, connections}: Props) {
                 key: "status",
                 width: 120,
                 render: (_, record) => <ConnectionStatusBadge connection={record} />,
+            },
+            {
+                title: "Auth",
+                key: "auth_scheme",
+                width: 100,
+                render: (_, record) => {
+                    const scheme =
+                        typeof record.data?.auth_scheme === "string"
+                            ? record.data.auth_scheme
+                            : undefined
+                    if (!scheme) return <Typography.Text type="secondary">—</Typography.Text>
+                    return <Tag>{AUTH_SCHEME_LABELS[scheme] ?? scheme}</Tag>
+                },
             },
             {
                 title: "Created",

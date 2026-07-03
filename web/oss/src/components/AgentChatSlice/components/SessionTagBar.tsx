@@ -134,9 +134,9 @@ const SessionTagBar = ({
 }: SessionTagBarProps) => {
     const closable = sessions.length > 1
     return (
-        <div className="flex h-[48px] shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
+        <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-colorBorderSecondary px-3">
             {showSessions ? (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {sessions.map((session, index) => (
                         <SessionTag
                             key={session.id}
