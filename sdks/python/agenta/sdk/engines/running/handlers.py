@@ -43,6 +43,7 @@ from agenta.sdk.engines.running.errors import (
     CustomCodeServerV0Error,
     CustomHookHandlerNotDefinedV0Error,
     ErrorStatus,
+    ForceNotSupportedV0Error,
     InvalidConfigurationParametersV0Error,
     InvalidConfigurationParameterV0Error,
     InvalidInputsV0Error,
@@ -65,6 +66,8 @@ from agenta.sdk.engines.running.errors import (
     MockV0Error,
     FeedbackV0Error,
 )
+from agenta.sdk.agents.fold import trim_to_trailing_unit
+from agenta.sdk.models.workflows import WorkflowInvokeRequestFlags
 
 log = get_module_logger(__name__)
 
@@ -3623,7 +3626,6 @@ async def llm_v0(
                          dict → agent loop config with max_iterations etc.
         tools:           {"internal": [...], "external": [...]}. null → no tools.
         consent:         Consent policy dict. null → auto-approve all internal tools.
-        response:        {"stream": false}.
 
     Inputs (per invocation):
         messages:   Incremental messages appended after parameters.messages.
@@ -3631,15 +3633,44 @@ async def llm_v0(
         context:    Structured context merged with parameters.context.
         consent:    Consent decisions merged with parameters.consent.
 
+    `request.flags.trim` trims `messages` to its trailing unit (default full).
+    `request.flags.force` -> 406 (not yet supported); `stream` is ignored (routing 406s).
+
     Returns always:
         {
             "status":  {"code": int, "type": str, "message": str},
-            "messages": [...],   # full message history
+            "messages": [...],   # full (or trimmed) message history
             "context":  {...},
             "consent":  {...},
             "usage":    {...},
         }
     """
+    _request_flags = getattr(request, "flags", None) if request is not None else None
+    flags = WorkflowInvokeRequestFlags(**(_request_flags or {}))
+    if flags.force:
+        raise ForceNotSupportedV0Error()
+
+    result = await _llm_v0_run(
+        revision=revision,
+        inputs=inputs,
+        parameters=parameters,
+        outputs=outputs,
+        trace=trace,
+        testcase=testcase,
+    )
+    if flags.trim and isinstance(result, dict) and "messages" in result:
+        result["messages"] = trim_to_trailing_unit(result["messages"])
+    return result
+
+
+async def _llm_v0_run(
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
     from agenta.sdk.engines.running.errors import LLMUnavailableV0Error
 
     # --- Validate parameters

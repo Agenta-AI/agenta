@@ -444,3 +444,13 @@ class LLMV0Error(ErrorStatus):
             message=message,
             stacktrace=stacktrace,
         )
+
+
+class ForceNotSupportedV0Error(ErrorStatus):
+    """`flags.force=true` before take-over semantics exist (specs.md); maps to HTTP 406."""
+
+    code: int = 406
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:force-not-supported"
+
+    def __init__(self, message: str = "flags.force is not supported yet"):
+        super().__init__(code=self.code, type=self.type, message=message)

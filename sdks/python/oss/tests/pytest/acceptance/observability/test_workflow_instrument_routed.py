@@ -21,7 +21,7 @@ emits are shipped to the running backend; we then poll the traces API and assert
                the raw attribute `ag.type.node`, but the read path normalizes span
                type into `ag.type.span` — `AgTypeAttributes` has only `trace`/`span`,
                no `node` — so the fetched key is `type.span`, NOT `type.node`.)
-  - INVARIANCE: the span tree is the SAME regardless of Accept/format/history
+  - INVARIANCE: the span tree is the SAME regardless of Accept/format/transcript
                (the three negotiations change the RESPONSE, not the trace).
   - PROPAGATION: an inbound `traceparent` makes the root span a child of the
                remote span (shared trace id, parent = remote span id). Requires the
@@ -97,14 +97,11 @@ def _client(handler) -> TestClient:
 
     @app.middleware("http")
     async def _fake_auth(request, call_next):
-        # The real auth middleware is bypassed for the in-process app; credentials
-        # for OTLP export come from ag.init(), not this request.
+        # Auth is bypassed here; OTLP export credentials come from ag.init().
         request.state.auth = {"credentials": _CREDENTIALS[0]}
         return await call_next(request)
 
-    # Mount the REAL OTel middleware so an inbound `traceparent` is parsed into
-    # request.state.otel (the SDK reads the parent context from there). Without it the
-    # in-process app would silently drop inbound W3C context.
+    # Real OTel middleware so an inbound `traceparent` reaches request.state.otel.
     from agenta.sdk.middlewares.routing.otel import OTelMiddleware
 
     app.add_middleware(OTelMiddleware)
@@ -124,14 +121,27 @@ def routed(agenta_init, api_credentials):
     _CREDENTIALS[0] = None
 
 
-def _invoke(client, *, accept=None, fmt=None, history=None, traceparent=None):
+def _invoke(
+    client,
+    *,
+    accept=None,
+    fmt=None,
+    transcript=None,
+    control=None,
+    embeds=None,
+    traceparent=None,
+):
     headers = {}
     if accept is not None:
         headers["accept"] = accept
     if fmt is not None:
         headers["x-ag-messages-format"] = fmt
-    if history is not None:
-        headers["x-ag-messages-history"] = history
+    if transcript is not None:
+        headers["x-ag-messages-transcript"] = transcript
+    if control is not None:
+        headers["x-ag-session-control"] = control
+    if embeds is not None:
+        headers["x-ag-workflow-embeds"] = embeds
     if traceparent is not None:
         headers["traceparent"] = traceparent
     return client.post(
@@ -201,8 +211,7 @@ def test_routed_stream_shape_trace(routed, is_async):
     assert "one" in body and "two" in body
     assert "generator object" not in body
 
-    # The span + link are created eagerly (before the generator drains), so a stream
-    # surfaces `x-ag-trace-id` just like a batch response.
+    # Span created eagerly, so a stream surfaces x-ag-trace-id like a batch response.
     trace_id = resp.headers.get("x-ag-trace-id")
     assert trace_id, "stream must surface x-ag-trace-id"
     fetched = _poll_trace(trace_id)
@@ -215,7 +224,7 @@ def test_routed_stream_shape_trace(routed, is_async):
 
 
 # =========================================================================== #
-# Negotiation INVARIANCE — same tree across format / history
+# Negotiation INVARIANCE — same tree across format / transcript (flag-blind handler).
 # =========================================================================== #
 def test_routed_trace_invariant_across_format_and_history(routed):
     def wf(value: str = "x"):
@@ -234,18 +243,177 @@ def test_routed_trace_invariant_across_format_and_history(routed):
 
     r_plain = _invoke(_client(wf), accept="application/json")
     r_vercel = _invoke(_client(wf), accept="application/json", fmt="vercel")
-    r_history = _invoke(_client(wf), accept="application/json", history="full")
+    r_transcript = _invoke(_client(wf), accept="application/json", transcript="full")
 
-    for r in (r_plain, r_vercel, r_history):
+    for r in (r_plain, r_vercel, r_transcript):
         assert r.status_code == 200
 
     sig_plain = _tree_signature(r_plain.headers["x-ag-trace-id"])
     sig_vercel = _tree_signature(r_vercel.headers["x-ag-trace-id"])
-    sig_history = _tree_signature(r_history.headers["x-ag-trace-id"])
+    sig_transcript = _tree_signature(r_transcript.headers["x-ag-trace-id"])
 
     # The negotiations changed the RESPONSE (projection / trim) but NOT the span tree.
-    assert sig_plain == sig_vercel == sig_history
-    assert sig_plain[0] == "wf" and sig_plain[2] == "workflow"
+    assert sig_plain == sig_vercel == sig_transcript
+
+
+# =========================================================================== #
+# 5-axis negotiation INVARIANCE: stream x format x transcript x control x embeds,
+# over a REQUEST-TAKING, flag-branching handler shaped like agent_v0. Response
+# varies across combos (stream shape, trim length, vercel projection); span
+# tree + accumulated output must not. `embeds` held at its header default since
+# no header variant of it is distinguishable at this layer.
+# =========================================================================== #
+def _agent_shaped_routed_handler():
+    """Mirrors agent_v0's own branch (stream -> events; force -> 406; else ->
+    folded + optionally trimmed envelope) using the SDK's real fold/trim, so
+    the response genuinely varies with the flags under test."""
+    from agenta.sdk.agents.fold import fold, trim_to_trailing_unit
+    from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
+    from agenta.sdk.models.workflows import WorkflowInvokeRequestFlags
+
+    async def _events(value):
+        async for ev in _mock_events(text=f"reply {value}", tool="search"):
+            yield ev
+
+    async def _batch(value, *, trim):
+        events = [ev async for ev in _mock_events(text=f"reply {value}", tool="search")]
+        folded = fold(events)
+        messages = folded["messages"]
+        if trim:
+            messages = trim_to_trailing_unit(messages)
+        return {"messages": messages}
+
+    async def wf(request, value: str = "x"):
+        flags = WorkflowInvokeRequestFlags(**(request.flags or {}))
+        if flags.force:
+            raise ForceNotSupportedV0Error()
+        if flags.stream:
+            return _events(value)
+        return await _batch(value, trim=bool(flags.trim))
+
+    return wf
+
+
+def test_routed_trace_invariant_across_five_axis_cube(routed):
+    def _tree_signature(trace_id):
+        fetched = _poll_trace(trace_id)
+        root = _root_span(fetched.trace)
+        agtree = _ag(root)
+        return (
+            root.span_name,
+            root.parent_id,
+            agtree.get("type", {}).get("span"),
+            agtree.get("data", {}).get("inputs", {}).get("value"),
+        )
+
+    def _outputs_signature(trace_id):
+        fetched = _poll_trace(trace_id)
+        root = _root_span(fetched.trace)
+        agtree = _ag(root)
+        out = agtree.get("data", {}).get("outputs")
+        # batch holds the untrimmed 3-message turn; stream holds the full event list.
+        if isinstance(out, dict) and isinstance(out.get("messages"), list):
+            return len(out["messages"])
+        if isinstance(out, list):  # stream shape: accumulated event list
+            return len(out)
+        return out
+
+    stream_values = (False, True)
+    transcript_values = (None, "full", "last")
+    fmt_values = (None, "vercel")
+
+    signatures = {}
+    for stream in stream_values:
+        accept = "text/event-stream" if stream else "application/json"
+        for transcript in transcript_values:
+            for fmt in fmt_values:
+                wf = _agent_shaped_routed_handler()
+                resp = _invoke(
+                    _client(wf), accept=accept, fmt=fmt, transcript=transcript
+                )
+                assert resp.status_code == 200
+                if stream:
+                    body = resp.text
+                    if fmt == "vercel":
+                        # vercel projection renames the agenta event vocabulary.
+                        assert "tool-input-available" in body
+                        assert "[DONE]" in body
+                    else:
+                        assert "tool_call" in body and "done" in body
+                else:
+                    outputs = resp.json()["data"]["outputs"]
+                    msgs = outputs["messages"]
+                    expected_len = 1 if transcript == "last" else 3
+                    assert len(msgs) == expected_len, (
+                        f"trim did not change the RESPONSE for transcript={transcript!r}"
+                    )
+
+                trace_id = resp.headers["x-ag-trace-id"]
+                signatures[(stream, transcript, fmt)] = (
+                    _tree_signature(trace_id),
+                    _outputs_signature(trace_id),
+                )
+
+    tree_sigs = {sig for sig, _ in signatures.values()}
+    assert len(tree_sigs) == 1, (
+        f"span tree must be IDENTICAL across the full cube, got {tree_sigs}"
+    )
+    # span output is invariant to `format` (HTTP-only); invariant checked per (stream, transcript).
+    by_combo: dict[tuple, set] = {}
+    for (stream, transcript, _fmt), (_tree, out) in signatures.items():
+        by_combo.setdefault((stream, transcript), set()).add(out)
+    for combo, output_sigs in by_combo.items():
+        assert len(output_sigs) == 1, (
+            f"accumulated span output must be invariant to format for "
+            f"(stream, transcript)={combo}, got {output_sigs}"
+        )
+    (_, only_output) = next(iter(signatures.values()))
+    assert only_output == 3, "span must hold the untrimmed 3-message tool-run turn"
+
+
+# =========================================================================== #
+# The 406 path: force=True 406s regardless of stream/transcript/format; a stream
+# Accept + force still gets a JSON error body, not a stream.
+# =========================================================================== #
+@pytest.mark.parametrize("accept", ["application/json", "text/event-stream"])
+def test_routed_force_true_pins_406_regardless_of_other_axes(routed, accept):
+    wf = _agent_shaped_routed_handler()
+    resp = _invoke(
+        _client(wf), accept=accept, fmt="vercel", transcript="last", control="force"
+    )
+    assert resp.status_code == 406
+    assert resp.headers["content-type"].startswith("application/json")
+    body = resp.json()
+    assert body["status"]["code"] == 406
+
+
+# =========================================================================== #
+# `resolve`/embeds axis: no header value maps to False, so absent vs
+# `x-ag-workflow-embeds: resolve` must produce an identical trace.
+# =========================================================================== #
+def test_routed_trace_invariant_embeds_header_present_vs_absent(routed):
+    def wf(value: str = "x"):
+        return {"messages": [{"role": "assistant", "content": f"reply:{value}"}]}
+
+    def _tree_signature(trace_id):
+        fetched = _poll_trace(trace_id)
+        root = _root_span(fetched.trace)
+        agtree = _ag(root)
+        return (
+            root.span_name,
+            root.parent_id,
+            agtree.get("type", {}).get("span"),
+            _default_output(agtree),
+        )
+
+    r_absent = _invoke(_client(wf), accept="application/json")
+    r_resolve = _invoke(_client(wf), accept="application/json", embeds="resolve")
+
+    assert r_absent.status_code == 200 and r_resolve.status_code == 200
+    sig_absent = _tree_signature(r_absent.headers["x-ag-trace-id"])
+    sig_resolve = _tree_signature(r_resolve.headers["x-ag-trace-id"])
+    assert sig_absent == sig_resolve
+    assert sig_absent[0] == "wf" and sig_absent[2] == "workflow"
 
 
 # =========================================================================== #
@@ -264,12 +432,7 @@ def test_routed_trace_honors_inbound_traceparent(routed):
     resp = _invoke(_client(wf), accept="application/json", traceparent=traceparent)
     assert resp.status_code == 200
 
-    # The root workflow span CONTINUES the inbound W3C context: it shares the inbound
-    # trace id and its own span id is fresh (a child of the remote span). Both are
-    # asserted from the response headers — the SDK exports the span to a fabricated
-    # remote trace that no upstream service ever created, so fetching that trace id
-    # back is unreliable (and slow); the child→remote parenting within a real fetched
-    # tree is covered by the in-memory context-propagation integration test.
+    # Root span continues the inbound W3C context: shares the trace id, fresh span id.
     out_trace_id = (resp.headers.get("x-ag-trace-id") or "").replace("-", "")
     assert out_trace_id == remote_trace_id, "root span must share the inbound trace id"
 
@@ -284,9 +447,7 @@ def test_routed_trace_honors_inbound_traceparent(routed):
 
 
 # =========================================================================== #
-# Faithful big-agents `/invoke` shapes — drive the real mock_v0 behaviors so the
-# wire is genuine AGENTA MESSAGES (batch) and AGENTA EVENTS (stream), and assert
-# the TRACE captured those shapes (not ad-hoc dummies).
+# Faithful big-agents `/invoke` shapes — real mock_v0 behaviors, trace asserted.
 # =========================================================================== #
 from agenta.sdk.workflows.handlers import _mock_messages, _mock_events  # noqa: E402
 
@@ -353,11 +514,8 @@ def test_routed_agent_events_vercel_projection(routed):
 
 
 # =========================================================================== #
-# RETURNED-GENERATOR shape (the agent's real `_agent` shape) against the LIVE
-# backend — the regression for the "<async_generator object ...>" trace bug.
-# `_agent` is an `async def` that RETURNS its event stream (no `yield`); these
-# tests prove the fetched trace records the DRAINED events, not the generator
-# object, once the run goes through OTLP -> worker -> traces API.
+# RETURNED-GENERATOR shape against the LIVE backend — regression for the
+# "<async_generator object ...>" trace bug.
 # =========================================================================== #
 def _ret_gen_handler(is_async: bool):
     """An async/sync def that RETURNS a generator, mirroring _agent's shape."""
@@ -399,9 +557,7 @@ def test_routed_returned_generator_trace_records_drained_events(routed, is_async
     agtree = _ag(root)
     assert agtree.get("type", {}).get("span") == "workflow"
 
-    # THE regression: the span output must be the drained events, never the
-    # generator OBJECT's repr. Assert positively (events present) and negatively
-    # (no "<async_generator object ...>" anywhere in the recorded attributes).
+    # THE regression: span output must be the drained events, never the generator's repr.
     out = _default_output(agtree)
     assert out, "returned-generator span must capture the drained events"
 
@@ -416,25 +572,18 @@ def test_routed_returned_generator_trace_records_drained_events(routed, is_async
 
 
 def test_routed_returned_generator_json_accept_aggregates(routed):
-    # batch Accept on a returned-generator handler -> normalizer drains it to a
-    # batch list; the events (not the generator object) land in the response body.
+    # batch Accept on a flag-blind returned-generator handler -> 406 (no courtesy aggregation).
     wf = _ret_gen_handler(is_async=True)
-    resp = _invoke(_client(wf), accept="application/json", history="full")
-    assert resp.status_code == 200
-    outputs = resp.json()["data"]["outputs"]
-    assert isinstance(outputs, list) and outputs[-1]["type"] == "done"
-    assert "generator object" not in resp.text
-
-    fetched = _poll_trace(resp.headers["x-ag-trace-id"])
-    root = _root_span(fetched.trace)
-    assert _ag(root).get("type", {}).get("span") == "workflow"
+    resp = _invoke(_client(wf), accept="application/json", transcript="full")
+    assert resp.status_code == 406
+    assert resp.headers["content-type"].startswith("application/json")
+    body = resp.json()
+    assert body["requested"] == "application/json"
+    assert "text/event-stream" in body["supported"]
 
 
 def test_routed_returned_generator_raise_early_is_error_trace(routed):
-    # raise BEFORE returning the generator -> batch error response (the primary,
-    # always-present signal). If the errored run also produced a fetchable span, it
-    # must NOT have leaked a generator repr. Span status field naming varies by
-    # client codegen, so probe it defensively rather than hard-assert its shape.
+    # raise BEFORE returning the generator -> batch error response.
     async def wf(value: str = "x"):
         raise RuntimeError("boom")
 
@@ -447,7 +596,6 @@ def test_routed_returned_generator_raise_early_is_error_trace(routed):
         fetched = _poll_trace(trace_id)
         root = _root_span(fetched.trace) if fetched and fetched.trace else None
         if root is not None:
-            # a batch raise never built a generator; nothing to leak either way.
             status = getattr(root, "status_code", None)
             if status is not None:
                 assert str(status).upper().find("OK") == -1, "errored span not OK"
