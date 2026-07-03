@@ -92,9 +92,12 @@ function getExporter(target: ExportTarget): OTLPTraceExporter {
 
 /** Fallback target from env, used when a trace was started without an explicit one. */
 function defaultTarget(): ExportTarget {
-  // AGENTA_API_URL is the `.../api` base the rest of the platform uses.
+  // Internal direct hop first, then the public `.../api` base, then cloud.
   const base =
-    process.env.AGENTA_API_URL?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
+    (process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL)?.replace(
+      /\/+$/,
+      "",
+    ) || "https://cloud.agenta.ai/api";
   // Prefer the bare API key; else fall back to the full (scheme-tagged) ephemeral
   // credential, used verbatim — `/check` hands back a `Secret ...`, not an API key.
   const apiKey = process.env.AGENTA_API_KEY || "";

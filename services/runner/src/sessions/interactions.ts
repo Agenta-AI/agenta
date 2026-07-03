@@ -4,6 +4,7 @@
  * Posts a single interaction to /sessions/interactions authenticated AS the invoke caller.
  * Idempotent on the server (unique constraint on project+session+token), so retries are safe.
  */
+import { apiBase } from "../apiBase.ts";
 
 export type InteractionKind = "user_approval" | "user_input" | "client_tool";
 
@@ -39,9 +40,6 @@ export function buildWorkflowReferences(
 const INGEST_MAX_RETRIES = 3;
 const INGEST_RETRY_BASE_MS = 100;
 
-function apiBase(): string {
-  return process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
-}
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/interactions] ${msg}\n`);

@@ -349,7 +349,7 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- $runner := default dict .Values.agentRunner -}}
 {{- $url := include "agenta.agentRunner.url" . -}}
 {{- if $url }}
-- name: AGENTA_RUNNER_URL
+- name: AGENTA_RUNNER_INTERNAL_URL
   value: {{ $url | quote }}
 {{- end }}
 - name: AGENTA_AGENT_MCPS_ENABLED

@@ -26,7 +26,7 @@ def runner_wrapper(tmp_path: Path) -> Path:
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch, runner_wrapper: Path):
     # Start every case from a known-empty deployment environment.
-    monkeypatch.delenv("AGENTA_RUNNER_URL", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_INTERNAL_URL", raising=False)
     monkeypatch.setenv("AGENTA_RUNNER_DIR", str(runner_wrapper))
 
 
@@ -47,7 +47,7 @@ def test_non_local_sandbox_is_threaded_through():
 
 
 def test_runner_url_selects_http_transport(monkeypatch):
-    monkeypatch.setenv("AGENTA_RUNNER_URL", "http://sandbox-agent:8765")
+    monkeypatch.setenv("AGENTA_RUNNER_INTERNAL_URL", "http://sandbox-agent:8765")
 
     backend = select_backend(_sel("pi_core", "local"))
 

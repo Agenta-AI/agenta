@@ -116,7 +116,7 @@ Agenta uses a microservices architecture deployed as Docker containers. The diag
 - **Port**: 8765 (internal)
 - **Purpose**: Executes agent workflows on behalf of the Services API
 
-The runner receives `/run` requests from the Services API (routed via `AGENTA_RUNNER_URL`) and starts harness processes (Pi, Claude Code, or other supported adapters) in local or remote sandboxes. It mounts durable working directories from the store into each sandbox and relays server-side tools back to the Services API without exposing the full stack environment to the harness.
+The runner receives `/run` requests from the Services API (routed via `AGENTA_RUNNER_INTERNAL_URL`) and starts harness processes (Pi, Claude Code, or other supported adapters) in local or remote sandboxes. It mounts durable working directories from the store into each sandbox and relays server-side tools back to the Services API without exposing the full stack environment to the harness.
 
 Sandbox matrix:
 - `local` — in-process on the runner host; the default for compose and Kubernetes deployments.
@@ -214,7 +214,7 @@ API Service depends on:
 Services API depends on:
 ├── PostgreSQL (agent and service state)
 ├── LLM providers (model calls)
-└── runner sidecar (agent workflow execution via AGENTA_RUNNER_URL)
+└── runner sidecar (agent workflow execution via AGENTA_RUNNER_INTERNAL_URL)
 ```
 
 ### Worker Dependencies

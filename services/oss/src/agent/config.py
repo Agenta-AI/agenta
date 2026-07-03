@@ -44,8 +44,8 @@ def runner_dir() -> Path:
 
 
 def runner_url() -> Optional[str]:
-    """HTTP URL for the deployed agent runner service, when configured."""
-    value = os.getenv("AGENTA_RUNNER_URL")
+    """HTTP URL for the deployed agent runner (internal direct hop), when configured."""
+    value = os.getenv("AGENTA_RUNNER_INTERNAL_URL")
     return value.strip() if value and value.strip() else None
 
 

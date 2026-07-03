@@ -23,6 +23,7 @@
  * so it is uniform across every harness and always nests under the caller's /invoke
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
+import { apiBase } from "../apiBase.ts";
 import { rmSync } from "node:fs";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
@@ -108,10 +109,6 @@ function runCredential(request: AgentRunRequest): string {
   return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
 }
 
-/** Agenta API base for runner→API calls (heartbeat/ingest/mount-sign share this). */
-function apiBase(): string {
-  return process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
-}
 
 type Log = (message: string) => void;
 const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
