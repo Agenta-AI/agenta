@@ -46,6 +46,13 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   `pause.ts` renames; the four-site permission map heads `permission-plan.ts`;
   `agenta-tools` reserved-name guard in the settings renderer; stale `services/agent/`
   comment paths fixed. 401 runner + 477 SDK + 49 services tests green.
+- **Docs sweep stragglers routed by ownership.** Twelve sweep files were hunk-locked to
+  three parallel doc lanes we own (`docs/agent-streaming-invoke`,
+  `docs/design-workspaces-sweep`, `marketing-website`), so their sweep edits were
+  committed to those lanes (e5876e1, 6aabd25, 9ea9ffe) instead of this PR. They land
+  when those lanes merge; this PR's sweep commit carries the other 38 files. The commit
+  subagent hit this, stopped per the guardrails, and left a clean report; an empty
+  duplicate commit it created was removed.
 - **General docs sweep landed (Sonnet subagent, reviewed here).** Five permission
   sections rewritten (tools.md, agent-configuration.md, permission-responder.md,
   agent-config-schema.md, runner-interface README), ~24 field-level updates, 17
