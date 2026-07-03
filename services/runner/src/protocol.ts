@@ -71,6 +71,20 @@ export interface Telemetry {
   exporters?: { otlp?: OtlpExporter };
 }
 
+/** The global permission policy modes. `allow_reads`: read-hinted tools run, everything else asks. */
+export type PermissionMode = "allow" | "ask" | "deny" | "allow_reads";
+/** A single tool's permission verdict vocabulary. */
+export type ToolPermission = "allow" | "ask" | "deny";
+/** An authored harness-builtin rule, Claude settings syntax (e.g. "Bash(rm:*)"). */
+export interface PermissionRule {
+  pattern: string;
+  permission: ToolPermission;
+}
+export interface PermissionsConfig {
+  default?: PermissionMode;
+  rules?: PermissionRule[];
+}
+
 /**
  * A runnable tool the backend already resolved from the agent config.
  *
@@ -125,7 +139,7 @@ export interface ResolvedToolSpec {
    * `permissionPolicy`. The SDK derives a default from `readOnly`/`needsApproval` when the
    * author set none. Plumbing only here; enforcement is a later slice.
    */
-  permission?: "allow" | "ask" | "deny";
+  permission?: ToolPermission;
 }
 
 /** Where and how to route a tool call back through Agenta. */
@@ -222,7 +236,7 @@ export interface McpServerConfig {
    * is no derived default: an explicit author value or nothing. Plumbing only; enforcement is
    * a later slice.
    */
-  permission?: "allow" | "ask" | "deny";
+  permission?: ToolPermission;
 }
 
 /**
@@ -426,6 +440,11 @@ export interface AgentRunRequest {
   toolCallback?: ToolCallbackContext;
   /** How a permission-gating harness handles tool-use prompts: "auto" (default) | "deny". */
   permissionPolicy?: string;
+  /**
+   * Authored permission plan assembled by the SDK (`runner.permissions.*` in the agent config).
+   * When absent, the runner maps the legacy `permissionPolicy` via `permissionsFromRequest()`.
+   */
+  permissions?: PermissionsConfig;
   /**
    * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is
    * enforced on Daytona; on the local sidecar a restricted-network run is rejected under
