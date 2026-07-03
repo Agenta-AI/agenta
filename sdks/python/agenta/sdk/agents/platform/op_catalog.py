@@ -32,7 +32,7 @@ from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agenta.sdk.agents.tools.errors import UnknownPlatformOpError
-from agenta.sdk.agents.tools.models import Permission, ToolCall
+from agenta.sdk.agents.tools.models import ToolCall
 from agenta.sdk.utils.types import CATALOG_TYPES
 
 from ._schema import expand_type_refs
@@ -83,10 +83,8 @@ class PlatformOp(BaseModel):
     context_bindings: Dict[str, str] = Field(default_factory=dict)
     # Where the model's args land in the request body (a dotted deep-set path; absent = the root).
     args_into: Optional[str] = None
-    # Per-op defaults; the config's ``needs_approval`` / ``permission`` override these when set.
-    # Mutating ops default to approval (``ask``); reads default to auto-allow (``allow``).
-    default_permission: Optional[Permission] = None
-    default_needs_approval: bool = False
+    # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
+    read_only: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> "PlatformOp":
@@ -540,8 +538,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/tools/discover",
             input_schema=_FIND_CAPABILITIES_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="query_workflows",
@@ -549,8 +546,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/workflows/query",
             input_schema=_QUERY_WORKFLOWS_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="commit_revision",
@@ -561,8 +557,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             context_bindings={
                 "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
             },
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="annotate_trace",
@@ -575,9 +570,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
                 "annotation.links.invocation.span_id": "$ctx.trace.span_id",
             },
             args_into="annotation",
-            # Additive self-metadata (does not mutate config) -> auto-allow, no approval.
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=False,
         ),
         PlatformOp(
             op="find_triggers",
@@ -585,8 +578,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/discover",
             input_schema=_FIND_TRIGGERS_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="create_schedule",
@@ -598,8 +590,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
                 "schedule.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
             },
             args_into="schedule",
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="create_subscription",
@@ -611,8 +602,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
                 "subscription.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
             },
             args_into="subscription",
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="list_schedules",
@@ -620,8 +610,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="GET",
             path="/api/triggers/schedules/",
             input_schema=_EMPTY_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="list_subscriptions",
@@ -629,8 +618,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="GET",
             path="/api/triggers/subscriptions/",
             input_schema=_EMPTY_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="list_deliveries",
@@ -638,8 +626,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="GET",
             path="/api/triggers/deliveries",
             input_schema=_EMPTY_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="list_connections",
@@ -647,8 +634,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/connections/query",
             input_schema=_EMPTY_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="test_subscription",
@@ -657,8 +643,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             path="/api/triggers/subscriptions/test",
             input_schema=_TEST_SUBSCRIPTION_INPUT_SCHEMA,
             args_into="subscription",
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="remove_schedule",
@@ -666,8 +651,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="DELETE",
             path="/api/triggers/schedules/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="remove_subscription",
@@ -675,8 +659,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="DELETE",
             path="/api/triggers/subscriptions/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="pause_schedule",
@@ -684,8 +667,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/schedules/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="resume_schedule",
@@ -693,8 +675,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/schedules/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="pause_subscription",
@@ -702,8 +683,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/subscriptions/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="resume_subscription",
@@ -711,8 +691,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/subscriptions/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
     )
 }
