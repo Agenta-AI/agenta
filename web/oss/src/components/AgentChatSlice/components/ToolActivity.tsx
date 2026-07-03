@@ -13,6 +13,8 @@ import {
 import type {ToolUIPart} from "ai"
 import {Typography} from "antd"
 
+import {formatToolValue, stripFence} from "../assets/toolFormat"
+
 const {Text} = Typography
 
 /** Friendly name for a tool part. `dynamic-tool` carries the name on `toolName`; the typed
@@ -31,12 +33,6 @@ const partToolName = (part: ToolUIPart): string => {
 // (preparing input, running, awaiting/just-answered an approval) is still in flight.
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 const isSettled = (state: string) => SETTLED.has(state)
-
-/** Strip a surrounding markdown code fence — backends wrap tool output/errors in ```…```. */
-const stripFence = (value: string): string => {
-    const m = value.trim().match(/^```[\w-]*\n?([\s\S]*?)\n?```$/)
-    return m ? m[1].trim() : value
-}
 
 /**
  * Derive a single human line from a tool's output. Output shape is arbitrary, so this stays
@@ -88,17 +84,6 @@ const StatusIcon = ({state}: {state: string}) => {
     if (state === "approval-responded")
         return <CheckCircle size={13} className="shrink-0 text-colorTextTertiary" />
     return <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
-}
-
-/** Pretty-print a tool input/output value for the Build-mode step log: a string as-is, anything
- * else as indented JSON. Never throws — the raw payload also lives in the trace drawer. */
-const formatValue = (value: unknown): string => {
-    if (typeof value === "string") return value
-    try {
-        return JSON.stringify(value, null, 2)
-    } catch {
-        return String(value)
-    }
 }
 
 /** One labeled monospace block (input / output / error) in the Build-mode step log. Capped in
@@ -156,10 +141,15 @@ const ToolRow = ({
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
-    const hasIO =
-        detailed && (input != null || state === "output-available" || errorText !== undefined)
-    // Each detailed step collapses on its own — Build's step log can get long. Default expanded.
-    const [open, setOpen] = useState(true)
+    // Track presence explicitly: a legit `null` output is real (don't hide it), and
+    // `output-available` with no `output` key must not open an empty expander.
+    const hasInput = input !== undefined
+    const hasOutput = state === "output-available" && output !== undefined
+    const hasError = errorText !== undefined
+    const hasIO = detailed && (hasInput || hasOutput || hasError)
+    // Default COLLAPSED: the inline Build step log stays a compact name+status timeline; the full
+    // per-tool input/output lives in the Turn Inspector. Click a row to expand its I/O in place.
+    const [open, setOpen] = useState(false)
 
     const header = (
         <>
@@ -204,23 +194,11 @@ const ToolRow = ({
             {hasIO ? (
                 <HeightCollapse open={open}>
                     <div className="mt-1 flex min-w-0 flex-col gap-1.5 pl-[21px]">
-                        {input != null ? (
-                            <IOBlock label="input" value={formatValue(input)} />
-                        ) : null}
-                        {errorText !== undefined ? (
+                        {hasInput ? <IOBlock label="input" value={formatToolValue(input)} /> : null}
+                        {hasError ? (
                             <IOBlock label="error" value={stripFence(errorText)} danger />
-                        ) : state === "output-available" && output != null ? (
-                            <IOBlock
-                                label="output"
-                                value={
-                                    // Backends wrap tool results in a markdown code fence (```console
-                                    // …```) for the model; the IOBlock is already a monospace <pre>, so
-                                    // strip the redundant fence instead of printing the backticks.
-                                    typeof output === "string"
-                                        ? stripFence(output)
-                                        : formatValue(output)
-                                }
-                            />
+                        ) : hasOutput ? (
+                            <IOBlock label="output" value={formatToolValue(output)} />
                         ) : null}
                     </div>
                 </HeightCollapse>

@@ -4,6 +4,8 @@ import {CheckCircle, CircleNotch, Prohibit, Warning} from "@phosphor-icons/react
 import type {ToolUIPart, UIMessage} from "ai"
 import {Typography} from "antd"
 
+import {formatToolValue, stripFence} from "../../assets/toolFormat"
+
 const {Text} = Typography
 
 const isToolPart = (t: string) => t.startsWith("tool-") || t === "dynamic-tool"
@@ -12,22 +14,6 @@ const toolName = (part: ToolUIPart): string => {
     const type = part.type as string
     if (type === "dynamic-tool") return (part as {toolName?: string}).toolName || "tool"
     return type.replace(/^tool-/, "")
-}
-
-const format = (value: unknown): string => {
-    if (value == null) return ""
-    if (typeof value === "string") return value
-    try {
-        return JSON.stringify(value, null, 2)
-    } catch {
-        return String(value)
-    }
-}
-
-/** Strip a surrounding markdown code fence — backends sometimes wrap an error in ```…```. */
-const stripFence = (value: string): string => {
-    const m = value.trim().match(/^```[\w-]*\n?([\s\S]*?)\n?```$/)
-    return m ? m[1].trim() : value
 }
 
 const userText = (message: UIMessage): string =>
@@ -104,11 +90,11 @@ const ToolStep = ({part}: {part: ToolUIPart}) => {
                     {state}
                 </span>
             </div>
-            {input != null ? <Block label="input" value={format(input)} /> : null}
+            {input != null ? <Block label="input" value={formatToolValue(input)} /> : null}
             {errorText !== undefined ? (
                 <Block label="error" value={stripFence(errorText)} danger />
             ) : output != null ? (
-                <Block label="output" value={format(output)} />
+                <Block label="output" value={formatToolValue(output)} />
             ) : null}
         </div>
     )
@@ -137,13 +123,9 @@ const AssistantPart = ({part}: {part: UIMessage["parts"][number]}) => {
         )
     }
     if (isToolPart(type)) return <ToolStep part={part as ToolUIPart} />
-    // Drop the AI SDK step boundary markers — they carry no content.
-    if (type === "step-start" || type === "step-end") return null
-    return (
-        <Row label={type}>
-            <span />
-        </Row>
-    )
+    // Drop step boundary markers and data-carrier/unknown parts (e.g. data-committed-revision,
+    // data-trace): no renderable content, and empty rows only add noise to the timeline.
+    return null
 }
 
 /**

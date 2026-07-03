@@ -97,22 +97,16 @@ const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynam
  * "streaming"`) it auto-expands so the thoughts stream live; once done it auto-collapses to a
  * "Thought" toggle — click to re-expand. A manual toggle sticks (we stop auto-driving it).
  */
-const ReasoningPart = ({
-    text,
-    streaming,
-    detailed = false,
-}: {
-    text: string
-    streaming: boolean
-    detailed?: boolean
-}) => {
-    // Build mode (`detailed`) keeps reasoning expanded as a step in the log; Chat auto-collapses it.
-    const [expanded, setExpanded] = useState(streaming || detailed)
+const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) => {
+    // Auto-expand only while the thought streams live, then collapse to the "Thought" toggle when
+    // done — in BOTH modes. The full reasoning lives in the Turn Inspector, so the inline step log
+    // stays minimized by default. A manual toggle sticks (we stop auto-driving it).
+    const [expanded, setExpanded] = useState(streaming)
     const userToggled = useRef(false)
 
     useEffect(() => {
-        if (!userToggled.current) setExpanded(streaming || detailed)
-    }, [streaming, detailed])
+        if (!userToggled.current) setExpanded(streaming)
+    }, [streaming])
 
     return (
         <div className="flex flex-col">
@@ -387,7 +381,6 @@ const AgentMessage = ({
                     key={partKey}
                     text={reasoning.text}
                     streaming={reasoning.state === "streaming"}
-                    detailed={detailed}
                 />
             )
         }

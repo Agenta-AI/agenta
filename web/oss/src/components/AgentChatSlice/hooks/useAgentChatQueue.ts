@@ -46,6 +46,11 @@ export const useAgentChatQueue = ({
     // Releasable now: the normal gate, OR a stopped-and-settled turn (the stop voided its gate).
     const canReleaseNow = canReleaseQueuedMessage(status, messages) || (stopped && settled)
 
+    // A stop voids the gate for release (above), so it must void it for reporting too — else the
+    // aborted turn's lingering `approval-requested` part still reads as "awaiting" while `submit`
+    // sends immediately. Keep `hitlPending` in lockstep with the release decision.
+    const hitlPending = !stopped && isHitlPending(messages)
+
     // One latch shared by both send paths caps releases to one per settle and preserves FIFO.
     const releasingRef = useRef(false)
     const queuedRef = useRef(queued)
@@ -96,6 +101,6 @@ export const useAgentChatQueue = ({
         removeQueued,
         clearQueue,
         /** The conversation is paused on a HITL approval — typed messages should queue, not send. */
-        hitlPending: isHitlPending(messages),
+        hitlPending,
     }
 }

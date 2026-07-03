@@ -33,8 +33,12 @@ const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
                                 type="link"
                                 className="!ml-auto !shrink-0 !px-0 !text-xs"
                                 onClick={() => {
-                                    navigator.clipboard?.writeText(json)
-                                    message.success("Request body copied")
+                                    navigator.clipboard
+                                        ?.writeText(json)
+                                        .then(() => message.success("Request body copied"))
+                                        .catch(() =>
+                                            message.error("Couldn't copy — clipboard unavailable"),
+                                        )
                                 }}
                             >
                                 Copy JSON

@@ -173,10 +173,16 @@ const MessageRow = ({
     mid,
     enter,
     children,
+    inspected = false,
+    onInspect,
 }: {
     mid: string
     enter: boolean
     children: React.ReactNode
+    /** This turn is the Turn Inspector's current target — tint it. */
+    inspected?: boolean
+    /** Set (assistant turns, inspector open) → click the row to re-focus the inspector on it. */
+    onInspect?: () => void
 }) => {
     const [shown, setShown] = useState(!enter)
     // Reveal one frame after mount so the opacity transition plays. Deps are [] (NOT
@@ -186,12 +192,34 @@ const MessageRow = ({
         const raf = requestAnimationFrame(() => setShown(true))
         return () => cancelAnimationFrame(raf)
     }, [])
+    // Click-to-refocus: only while the inspector is open, and never over an interactive control or
+    // an active text selection (so buttons, links, and copy-select still work).
+    const handleClick = onInspect
+        ? (e: React.MouseEvent) => {
+              if ((e.target as HTMLElement).closest("button, a, input, textarea, [role='button']"))
+                  return
+              if (!window.getSelection()?.isCollapsed) return
+              onInspect()
+          }
+        : undefined
+    // While the inspector is open, a turn is interactive: padded + rounded so the fill has breathing
+    // room. Inspected = a persistent, slightly stronger version of the hover fill (same visual
+    // language, just "held"). `box-border` is required (preflight off → content-box) so the padding
+    // doesn't overflow the 880px column.
+    const interactive = Boolean(onInspect)
     // `shown || !enter` is a belt-and-suspenders: a settled row (id seen) is always visible.
     return (
         <div
             data-mid={mid}
-            className={`${CHAT_COLUMN} flex flex-col gap-1 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out ${
+            onClick={handleClick}
+            className={`${CHAT_COLUMN} flex flex-col gap-1 motion-safe:transition-[opacity,background-color] motion-safe:duration-200 motion-safe:ease-out ${
                 shown || !enter ? "opacity-100" : "motion-safe:opacity-0"
+            } ${interactive ? "box-border rounded-lg px-3 py-2.5" : ""} ${
+                inspected
+                    ? "bg-[var(--ag-colorFillSecondary)]"
+                    : interactive
+                      ? "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]"
+                      : ""
             }`}
         >
             {children}
@@ -206,7 +234,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     const openTurnInspector = useSetAtom(turnInspectorAtom)
+    const inspectorTarget = useAtomValue(turnInspectorAtom)
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
+    const inspectorOpen = inspectorTarget?.sessionId === sessionId
+    // Leaving Build for Chat dismisses the inspector — it's a Build-mode tool, and the panel would
+    // otherwise linger (and keep tinting a turn) in the maximized chat view.
+    useEffect(() => {
+        if (!buildMode && inspectorOpen) openTurnInspector(null)
+    }, [buildMode, inspectorOpen, openTurnInspector])
 
     const [files, setFiles] = useState<UploadFile[]>([])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
@@ -926,8 +961,23 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             message.role === "user" && messages[index + 1]
                 ? getMessageTraceId(messages[index + 1])
                 : undefined
+        // While the inspector is open, an assistant turn tints when it's the target and is
+        // click-to-refocus otherwise (click any other turn to re-point the inspector at it).
+        const isAssistantTurn = message.role === "assistant"
+        const isInspected =
+            inspectorOpen && isAssistantTurn && message.id === inspectorTarget?.assistantMessageId
+        const onInspect =
+            inspectorOpen && isAssistantTurn
+                ? () => openTurnInspector({sessionId, assistantMessageId: message.id})
+                : undefined
         return (
-            <MessageRow key={message.id} mid={message.id} enter={enter}>
+            <MessageRow
+                key={message.id}
+                mid={message.id}
+                enter={enter}
+                inspected={isInspected}
+                onInspect={onInspect}
+            >
                 <AgentMessage
                     message={message}
                     isStreaming={busy && isLast}

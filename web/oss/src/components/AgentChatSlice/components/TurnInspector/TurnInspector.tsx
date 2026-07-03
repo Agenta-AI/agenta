@@ -21,15 +21,16 @@ const TABS: {value: Tab; label: string}[] = [
     {value: "raw", label: "Raw"},
 ]
 
-const PANEL_WIDTH = 480
+const PANEL_WIDTH = 400
 
 /**
  * Dedicated Build-mode turn inspector. Mounted per session inside `AgentConversation` so it reads
  * the LIVE `useChat` `messages` (the same list the transcript renders) — accurate turn + live
  * streaming — and opens ONLY for the session that is the current inspector target. Rendered as an
  * inline side panel (a flex sibling of the chat column) so it pushes the transcript aside instead of
- * overlaying it. Siderail pattern inside (vertical Timeline/Context/Raw rail + bordered content).
- * Own state (`turnInspectorAtom`), NOT the trace drawer.
+ * overlaying it. Horizontal Timeline/Context/Raw tab bar on top so the content spans the panel's
+ * full width (a vertical rail left the tool I/O JSON too narrow). Own state (`turnInspectorAtom`),
+ * NOT the trace drawer.
  */
 const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMessage[]}) => {
     const [target, setTarget] = useAtom(turnInspectorAtom)
@@ -92,34 +93,31 @@ const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMe
                         aria-label="Close turn inspector"
                     />
                 </div>
-                <div className="flex min-h-0 flex-1 gap-3 p-3">
-                    <div className="flex w-[104px] shrink-0 flex-col gap-0.5">
-                        {TABS.map((t) => {
-                            const active = t.value === tab
-                            return (
-                                <Button
-                                    key={t.value}
-                                    type="text"
-                                    block
-                                    onClick={() => setTab(t.value)}
-                                    className={`!h-8 !justify-start !rounded-md !px-2.5 !text-xs transition-colors ${
-                                        active
-                                            ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
-                                            : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
-                                    }`}
-                                >
-                                    {t.label}
-                                </Button>
-                            )
-                        })}
-                    </div>
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-surface-divider)] pl-3">
-                        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                            {tab === "timeline" ? <TimelineTab round={round} /> : null}
-                            {tab === "context" ? <ContextTab captures={turnCaptures} /> : null}
-                            {tab === "raw" ? <RawTab captures={turnCaptures} /> : null}
-                        </div>
-                    </div>
+                {/* Horizontal tab bar — tabs on top so the content gets the panel's full width (a
+                    vertical rail ate ~130px of a ~480px panel, squeezing the tool I/O JSON too narrow). */}
+                <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-[var(--ag-surface-divider)] px-2 py-1.5">
+                    {TABS.map((t) => {
+                        const active = t.value === tab
+                        return (
+                            <Button
+                                key={t.value}
+                                type="text"
+                                onClick={() => setTab(t.value)}
+                                className={`!h-7 !rounded-md !px-2.5 !text-xs transition-colors ${
+                                    active
+                                        ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
+                                        : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
+                                }`}
+                            >
+                                {t.label}
+                            </Button>
+                        )
+                    })}
+                </div>
+                <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3">
+                    {tab === "timeline" ? <TimelineTab round={round} /> : null}
+                    {tab === "context" ? <ContextTab captures={turnCaptures} /> : null}
+                    {tab === "raw" ? <RawTab captures={turnCaptures} /> : null}
                 </div>
             </div>
         </div>
