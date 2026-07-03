@@ -122,9 +122,14 @@ the `read_only` hint already on each spec is what `allow_reads` consults. Semant
 stay clean: `permissions` is policy, owned by the author, assembled by the SDK;
 `sessionId` goes back to being pure correlation.
 
-The authored config path moves from `runner.interactions.headless` into the permission
-family (proposal: `permissions.default`; final name settled at implementation, but it must
-contain the word "permission" and live with the policy fields).
+The authored config path moves from `runner.interactions.headless` to
+`runner.permissions.default` (agent-level authored rules, if any, sit beside it as
+`runner.permissions.rules`). Settled in review round 3 on JP's point: these permissions are
+enforced by the runner, so they live under the runner scope. They deliberately do not sit
+under `interactions`: an interaction is one possible *outcome* of a permission (`ask`),
+while `allow` and `deny` never produce one, so `runner.interactions.permissions.*` would
+misname two thirds of the values. The run-request block stays `permissions: {...}` because
+the whole request already addresses the runner.
 
 ### One decision function
 
@@ -216,7 +221,11 @@ Batch surfaces `stop_reason` + pending interaction reference; fix the stream-set
 leak (code-review M6). Frontend: the "Permission policy" select becomes the four-mode
 policy on the renamed field; the tool editor's Permission select stays
 allow/ask/deny/inherit and drops the `needs_approval`/legacy-alias fallbacks; no changes to
-the approval UI or resume machinery.
+the approval UI or resume machinery. The agent form also gains the Pi counterpart of the
+Claude settings block (review round 3): a Pi settings control exposing builtin selection
+(`builtin_names`), rendered only for the Pi harness the way `ClaudePermissionsControl`
+renders only for Claude (`useModelHarness.tsx`). Frontend-only: the SDK's
+`PiAgentTemplate` already carries `builtin_names` on the wire and the backend stays as is.
 
 **Phase 4: correctness debt in the same code (from code-review.md).**
 H1 (reply failure pauses or fails loud; resolve the interaction only after a successful

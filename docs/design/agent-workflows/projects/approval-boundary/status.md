@@ -1,8 +1,10 @@
 # Status
 
-**State: plan ready for final review.** Date: 2026-07-03. Two review rounds on the
-explainer are addressed; the plan and reviews are updated to match. Next step: Mahmoud's
-final pass over plan.md (and the remaining decisions below), then implementation.
+**State: implementation in progress.** Date: 2026-07-03. Three review rounds are folded
+in; the final round left two small comments (both addressed below) and a green light:
+implement, Mahmoud reviews the finished PR. The remaining calls listed under "Decisions
+taken (delegated)" were made by the agent under an explicit "go with your decisions"
+mandate; any of them can be reopened in PR review.
 
 ## Where things stand
 
@@ -32,26 +34,29 @@ final pass over plan.md (and the remaining decisions below), then implementation
   `needs_approval` outright. "Reads always allowed" becomes an explicit global policy
   mode instead of an opaque per-tool default. Rename "disposition" to "effective
   permission".
+- **2026-07-03, round 3 (final review):** two comments. (1) Pi gets a settings block in
+  the agent form, mirroring the Claude settings control: the author selects which Pi
+  builtins the agent gets. Frontend-only; `PiAgentTemplate` and the wire already carry
+  `builtin_names`. (2, from JP) the authored policy home is runner-scoped:
+  `runner.permissions.default` (not bare `permissions.default`). We kept it out of
+  `interactions` because an interaction is only the outcome of `ask`; `allow`/`deny`
+  never produce one. Then: implement without further check-ins; Mahmoud reviews the PR.
 
-## Decisions still open
+## Decisions taken (delegated, reopenable in PR review)
 
-1. **Confirm the one-shot scope** (plan = Option D plus visibility plus the correctness
-   debt, in one implementation arc). The staged fallback exists mid-flight if the wire
-   change proves heavy.
-2. **Names.** `permissions.default` as the authored home of the policy, and the name of
-   the fourth mode (`allow_reads` is the placeholder; alternatives: `read_only_auto`,
-   `ask_writes`). Cheap to decide, touches FE form + SDK + wire once.
-3. **Pi relay-ask scope.** The plan makes relay `ask` pause (that is how Pi gets HITL). If
-   the relay's turn-boundary work proves heavy, is a documented Pi-only collapse
-   acceptable for the first slice? Stakes: under the collapse, an `ask` tool on Pi
-   silently runs or is refused per the policy instead of pausing.
-4. **Batch pause shape.** Coordinate exact fields with the streaming-invoke workspace;
-   this side only requires "paused is distinguishable and names the pending interaction".
-5. **Direct-replay mechanics** (flagged, not blocking): when the re-raised gate does not
-   match the approved call, the runner injects the approved call's execution; if that
-   proves harness-fragile in the phase 6 live loop, the fallback is approving the
-   re-raised gate but executing with the approved arguments. Empirical; the plan carries
-   both.
+1. **One-shot scope confirmed:** Option D plus visibility plus the correctness debt, one
+   arc. The staged fallback stays available mid-flight if the wire change proves heavy.
+2. **Names:** `runner.permissions.default` (JP's round-3 comment) and `allow_reads` for
+   the fourth mode, unless the Codex design review offers a clearly better word.
+3. **Pi relay-ask scope:** full. Relay `ask` pauses; that is how Pi gets HITL. If the
+   turn-boundary work blows up in practice, the documented Pi-only collapse ships as an
+   explicit follow-up, not silently.
+4. **Batch pause shape:** minimal contract from this side: `stop_reason` plus the pending
+   interaction reference. Exact field names stay coordinated with the streaming-invoke
+   workspace.
+5. **Direct-replay mechanics:** primary design is injecting the approved call; the
+   approve-with-stored-args fallback gets picked empirically in the phase 6 live loop if
+   injection proves harness-fragile.
 
 ## How this workspace was produced
 

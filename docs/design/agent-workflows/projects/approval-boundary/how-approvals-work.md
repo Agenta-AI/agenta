@@ -289,6 +289,11 @@ there is nothing for us to render the way we render `.claude/settings.json`. If 
 native permission config later, a new adapter renders it and it becomes Pi's Gate 1;
 until then, deny-by-omission at selection time and the relay are the only Pi controls.
 
+That selection control is getting a face (review round 3): the agent form grows a Pi
+settings block, the Pi counterpart of the Claude settings control, where the author picks
+which builtins the agent gets. Frontend-only work: the SDK's `PiAgentTemplate` already
+carries `builtin_names` on the wire, so the backend stays as is.
+
 ## The journey of one gated tool call (the playground path)
 
 Concrete example: the `uc9-digest` agent, Claude harness, global policy `auto` (today's
@@ -398,7 +403,7 @@ the code you will find in the tree today.
 (inherit). One global policy with four modes: `allow` (run everything), `ask` (a human
 approves everything), `deny` (lockdown), `allow_reads` (reads run, writes ask; the
 default). Nothing else: no `needs_approval`, no hidden per-tool defaulting, no
-`runner.interactions.headless`.
+`runner.interactions.headless` (the policy's authored home is `runner.permissions.default`).
 
 **One decision.** A tool's effective permission is its own setting if present, else what
 the policy says (under `allow_reads`, the catalog's read-only hint decides; no hint counts
@@ -426,8 +431,8 @@ durable interactions plane (already receiving rows today) is what will let anyon
 it later. Nothing anywhere consults "is a human watching".
 
 **Pi.** Same decisions, enforced at Pi's one choke point (the relay): `ask` pauses there,
-`deny` refuses there, and builtins remain governed by selection until Pi grows a native
-permission config.
+`deny` refuses there, and builtins remain governed by selection (now exposed in the agent
+form's Pi settings block) until Pi grows a native permission config.
 
 ## The two planes: messages and interactions
 

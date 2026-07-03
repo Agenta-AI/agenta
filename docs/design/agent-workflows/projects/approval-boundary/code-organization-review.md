@@ -79,7 +79,7 @@ Also in this theme:
 
 | Name | Problem | Suggestion |
 | --- | --- | --- |
-| `runner.interactions.headless` / `permission_policy` / `permissionPolicy` | Three names for one knob. The authored name contains neither "permission" nor "policy"; grepping "permission" misses the authoring surface. | One name, in the permission family: `permissions.default` (see design-review.md). |
+| `runner.interactions.headless` / `permission_policy` / `permissionPolicy` | Three names for one knob. The authored name contains neither "permission" nor "policy"; grepping "permission" misses the authoring surface. | One name, in the permission family: `runner.permissions.default` (see design-review.md). |
 | `PermissionPolicy` {auto, deny} vs `Permission` {allow, ask, deny} | Two vocabularies where `auto` and `allow` mean the same thing. | Unify on `allow \| ask \| deny`. |
 | `hasHumanSurface` | Truthful intent, untruthful derivation: it actually means "the request has a session id", which no longer implies a human. | Delete as a permission input (see plan). |
 | `HITLResponder` | It is also the production headless responder; the name suggests `PolicyResponder` handles headless. It does not. | `ApprovalResponder`, and delete `PolicyResponder`. |
