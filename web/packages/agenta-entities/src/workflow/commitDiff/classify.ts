@@ -211,7 +211,7 @@ function scalarSection(
     }
 }
 
-/** Prefix every leaf of a flattened section (e.g. `runner.` → `runner.interactions.headless`). */
+/** Prefix every leaf of a flattened section (e.g. `runner.` -> `runner.permissions.default`). */
 function prefixed(
     prefix: string,
     obj: Record<string, unknown> | undefined,

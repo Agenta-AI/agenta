@@ -40,6 +40,14 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   relay must enforce permissions only when the harness does not gate (Pi) — otherwise
   one approval would be consumed at the gate and the relay would double-gate the same
   call.
+- **Phase 4b landed (Codex implemented, reviewed here).** Four-mode policy select on
+  `runner.permissions.default`, shown for Pi too; per-tool Permission select loses the
+  legacy fallbacks; `PiSettingsControl` added. Codex's binding call accepted and worth
+  knowing: Pi builtin selection writes `{type: "builtin", name}` entries into the
+  template's existing `agent.tools[]` list, because that is the path the backend already
+  parses into `builtin_names` (`harness.extras` is not parsed for Pi). Review fix: the
+  builtin option list only offered read/bash; widened to Pi's full session vocabulary
+  (read, bash, edit, write, grep, find, ls).
 - **Phase 3 commit incident + restack.** The two op_catalog files' hunks were
   dependency-locked to `feat/annotate-trace-op-code` (its commit authored the lines
   phase 3 edits), which a commit subagent tried to force through ref surgery and an

@@ -204,16 +204,16 @@ describe("buildAgentRequest", () => {
         expect(template.llm).toMatchObject({model: "gpt-5.5"})
         expect(template.harness).toEqual({kind: "pi_core"})
         expect(template.sandbox).toEqual({kind: "daytona"})
-        expect(template.runner).toMatchObject({interactions: {headless: "auto"}})
+        expect(template.runner).toMatchObject({permissions: {default: "allow_reads"}})
     })
 
-    it("keeps an explicit headless interaction default over the runner default", async () => {
+    it("keeps an explicit permission policy over the runner default", async () => {
         seed(store, "e", {
-            config: {agent: {runner: {interactions: {headless: "deny"}}}},
+            config: {agent: {runner: {permissions: {default: "deny"}}}},
         })
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
         const template = (req!.requestBody.data as any).parameters.agent
-        expect(template.runner.interactions.headless).toBe("deny")
+        expect(template.runner.permissions.default).toBe("deny")
     })
 
     it("applies the build-kit overlay to a kit-on run with deep and identity merges", async () => {

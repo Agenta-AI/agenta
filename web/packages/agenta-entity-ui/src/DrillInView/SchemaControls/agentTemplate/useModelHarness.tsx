@@ -11,7 +11,7 @@ import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presen
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Check, Cube, EyeSlash, Key, Lightbulb, ShieldCheck, Warning} from "@phosphor-icons/react"
+import {Check, Cube, Key, Lightbulb, ShieldCheck, Warning} from "@phosphor-icons/react"
 import {Select, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -35,10 +35,27 @@ import {
 import {EnumSelectControl} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
 import {HarnessSelectControl} from "../HarnessSelectControl"
+import {PiSettingsControl} from "../PiSettingsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {enumLabel} from "./agentTemplateUtils"
 import {useBuildKit} from "./useBuildKit"
+
+type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
+
+const PERMISSION_POLICY_OPTIONS: {value: PermissionPolicy; label: string; help: string}[] = [
+    {value: "allow_reads", label: "Allow reads", help: "Reads run, writes ask; default"},
+    {value: "allow", label: "Allow all", help: "Every tool runs without asking"},
+    {value: "ask", label: "Ask", help: "A human approves every tool call"},
+    {value: "deny", label: "Deny all", help: "Every tool call is refused"},
+]
+const PERMISSION_POLICY_VALUES = new Set<string>(
+    PERMISSION_POLICY_OPTIONS.map((option) => option.value),
+)
+
+function isPermissionPolicy(value: unknown): value is PermissionPolicy {
+    return typeof value === "string" && PERMISSION_POLICY_VALUES.has(value)
+}
 
 export function useModelHarness({
     schema,
@@ -86,24 +103,34 @@ export function useModelHarness({
     const runner = asObject("runner")
     const sandbox = asObject("sandbox")
 
-    // The runner's headless interaction default (was the flat `permission_policy`).
-    const runnerInteractions =
-        runner.interactions && typeof runner.interactions === "object"
-            ? (runner.interactions as Record<string, unknown>)
+    const runnerPermissions =
+        runner.permissions && typeof runner.permissions === "object"
+            ? (runner.permissions as Record<string, unknown>)
             : {}
-    const headlessValue = (runnerInteractions.headless as string | null | undefined) ?? null
-    const headlessSchema = (
-        runnerProps.interactions?.properties as Record<string, SchemaProperty> | undefined
-    )?.headless
+    const runnerPermissionValue = isPermissionPolicy(runnerPermissions.default)
+        ? runnerPermissions.default
+        : null
+    const runnerPermissionSchema = (
+        runnerProps.permissions?.properties as Record<string, SchemaProperty> | undefined
+    )?.default
 
     // Replace one nested execution section (harness / runner / sandbox), leaving the rest intact.
     const setSection = useCallback(
         (key: string, sectionValue: unknown) => onChange({...config, [key]: sectionValue}),
         [config, onChange],
     )
-    // Set one flat field of the agent definition (here only `llm`).
+    // Set one flat field of the agent definition (here `llm` and `tools`).
     const setAgentField = useCallback(
         (key: string, fieldValue: unknown) => onChange({...config, [key]: fieldValue}),
+        [config, onChange],
+    )
+    const setAgentTools = useCallback(
+        (tools: unknown[] | undefined) => {
+            const next = {...config}
+            if (tools === undefined) delete next.tools
+            else next.tools = tools
+            onChange(next)
+        },
         [config, onChange],
     )
 
@@ -113,8 +140,6 @@ export function useModelHarness({
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
     const harnessValue = typeof harness.kind === "string" ? (harness.kind as string) : null
-    // Pi (`pi_core`/`pi_agenta`) never gates tool use (`permissions: false`); a permission
-    // policy is meaningless for it, so the field is hidden for Pi. Only Claude honors it.
     const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
@@ -251,6 +276,34 @@ export function useModelHarness({
 
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     const hasClaudePermissions = harnessValue === "claude"
+    const hasPiSettings = isPiHarness
+    const agentTools = useMemo(
+        () => (Array.isArray(config.tools) ? (config.tools as unknown[]) : null),
+        [config.tools],
+    )
+    const runnerPermissionOptions = useMemo(() => {
+        const schemaValues = Array.isArray(runnerPermissionSchema?.enum)
+            ? new Set((runnerPermissionSchema.enum as unknown[]).filter(isPermissionPolicy))
+            : null
+        return PERMISSION_POLICY_OPTIONS.filter(
+            (option) => !schemaValues || schemaValues.has(option.value),
+        ).map((option) => ({
+            value: option.value,
+            title: option.label,
+            label: (
+                <div className="flex flex-col py-0.5">
+                    <span>{option.label}</span>
+                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                        {option.help}
+                    </span>
+                </div>
+            ),
+        }))
+    }, [runnerPermissionSchema])
+    const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
+    const runnerPermissionSummary = PERMISSION_POLICY_OPTIONS.find(
+        (option) => option.value === currentRunnerPermission,
+    )?.label
 
     // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
     // sandbox-permission keys the overlay overrides for the user's own permission control below.
@@ -265,8 +318,9 @@ export function useModelHarness({
         props.llm || // Authentication lives in Advanced now
         sandboxProps.kind ||
         sandboxProps.permissions ||
-        runnerProps.interactions ||
+        runnerProps.permissions ||
         hasClaudePermissions ||
+        hasPiSettings ||
         hasBuildKitOverlay,
     )
 
@@ -553,7 +607,9 @@ export function useModelHarness({
 
     // Advanced drawer body: two panels like Model & harness (settings left, version history right).
     const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
-    const hasPermissionsGroup = Boolean(headlessSchema || hasClaudePermissions)
+    const hasPermissionsGroup = Boolean(
+        runnerPermissionSchema || hasClaudePermissions || hasPiSettings,
+    )
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
     // and tools drawers); inside, configuration reads as the drawer's `[rail | content]` rhythm via
@@ -632,33 +688,27 @@ export function useModelHarness({
                     defaultOpen={false}
                     icon={<ShieldCheck size={15} />}
                     title="Permissions"
-                    summary="Auto"
+                    summary={runnerPermissionSummary}
                     summaryCollapsedOnly
                 >
                     <Typography.Text type="secondary" className="text-[11px] leading-snug">
                         What the agent may do on its own before it must ask.
                     </Typography.Text>
-                    {headlessSchema ? (
+                    {runnerPermissionSchema ? (
                         <RailField label="Policy" align="center">
-                            {isPiHarness ? (
-                                <span className="flex items-center gap-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                    <EyeSlash size={13} />
-                                    Permission policy isn&apos;t used by the Pi harness.
-                                </span>
-                            ) : (
-                                <EnumSelectControl
-                                    schema={headlessSchema}
-                                    value={headlessValue}
-                                    onChange={(v) =>
-                                        setSection("runner", {
-                                            ...runner,
-                                            interactions: {...runnerInteractions, headless: v},
-                                        })
-                                    }
-                                    withTooltip={withTooltip}
-                                    disabled={disabled}
-                                />
-                            )}
+                            <Select<PermissionPolicy>
+                                value={currentRunnerPermission}
+                                onChange={(v) =>
+                                    setSection("runner", {
+                                        ...runner,
+                                        permissions: {...runnerPermissions, default: v},
+                                    })
+                                }
+                                options={runnerPermissionOptions}
+                                optionLabelProp="title"
+                                disabled={disabled}
+                                className="w-full"
+                            />
                         </RailField>
                     ) : null}
                     {hasClaudePermissions ? (
@@ -681,6 +731,18 @@ export function useModelHarness({
                                             | undefined
                                     )?.default_mode
                                 }
+                            />
+                        </>
+                    ) : null}
+                    {hasPiSettings ? (
+                        <>
+                            <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                                Pi harness
+                            </span>
+                            <PiSettingsControl
+                                tools={agentTools}
+                                onChange={setAgentTools}
+                                disabled={disabled}
                             />
                         </>
                     ) : null}

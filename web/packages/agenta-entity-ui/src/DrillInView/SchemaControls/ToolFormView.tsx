@@ -38,40 +38,23 @@ export interface ToolFormViewProps {
     disabled?: boolean
 }
 
-// Per-tool permission (allow / ask / deny). Stored as a TOP-LEVEL `permission` key on the tool
-// object — NOT inside `agenta_metadata`, which `stripAgentaMetadataDeep` strips on every save/run.
-// The SDK reads it via `AliasChoices("permission","permission_mode","permissionMode")`. Unset means
-// the tool inherits the agent's global permission policy.
+// Per-tool permission is stored as a top-level `permission` key; unset inherits the runner policy.
 type ToolPermission = "allow" | "ask" | "deny"
+type ToolPermissionSelection = ToolPermission | "inherit"
 
-const PERMISSION_OPTIONS: {value: ToolPermission; label: string}[] = [
+const PERMISSION_OPTIONS: {value: ToolPermissionSelection; label: string}[] = [
     {value: "allow", label: "Allow"},
     {value: "ask", label: "Ask"},
     {value: "deny", label: "Deny"},
+    {value: "inherit", label: "Inherit"},
 ]
 
 function isPermission(value: unknown): value is ToolPermission {
     return value === "allow" || value === "ask" || value === "deny"
 }
 
-/** Display default from the catalog's `read_only` metadata: true → allow, false → ask (unwritten). */
-function defaultPermissionFromReadOnly(
-    metadata: Record<string, unknown> | undefined,
-): ToolPermission | undefined {
-    const readOnly = metadata?.read_only
-    if (readOnly === true) return "allow"
-    if (readOnly === false) return "ask"
-    return undefined
-}
-
-/** Canonical store is the top-level `permission`; fall back to a legacy `agenta_metadata.permission_mode`. */
-function readPermission(
-    topLevel: unknown,
-    metadata: Record<string, unknown> | undefined,
-): ToolPermission | undefined {
-    if (isPermission(topLevel)) return topLevel
-    if (isPermission(metadata?.permission_mode)) return metadata?.permission_mode
-    return undefined
+function readPermission(topLevel: unknown): ToolPermission | undefined {
+    return isPermission(topLevel) ? topLevel : undefined
 }
 
 /** Tool basics — shown in the detail panel while no parameter node is selected. */
@@ -103,22 +86,11 @@ function ToolBasics({
         onChange({...tool, function: {...fn, parameters: {...params, additionalProperties: on}}})
     }
 
-    const metadata = tool.agenta_metadata as Record<string, unknown> | undefined
-    const permission = readPermission(tool.permission, metadata)
-    const permissionDefault = defaultPermissionFromReadOnly(metadata)
-    const setPermission = (next: ToolPermission | null) => {
+    const permission = readPermission(tool.permission)
+    const setPermission = (next: ToolPermissionSelection) => {
         const nextTool = {...tool}
-        // Also drop the legacy `agenta_metadata.permission_mode`; otherwise clearing the
-        // top-level field resolves straight back to the legacy value and "inherit policy"
-        // is unreachable for older tools.
-        const nextMetadata = {
-            ...((nextTool.agenta_metadata as Record<string, unknown> | undefined) ?? {}),
-        }
-        delete nextMetadata.permission_mode
-        if (Object.keys(nextMetadata).length > 0) nextTool.agenta_metadata = nextMetadata
-        else delete nextTool.agenta_metadata
-        if (next) nextTool.permission = next
-        else delete nextTool.permission
+        if (next === "inherit") delete nextTool.permission
+        else nextTool.permission = next
         onChange(nextTool)
     }
 
@@ -149,14 +121,10 @@ function ToolBasics({
                 </RailField>
 
                 <RailField label="Permission" align="center">
-                    <Select<ToolPermission>
-                        value={permission ?? undefined}
-                        onChange={(v) => setPermission(v ?? null)}
+                    <Select<ToolPermissionSelection>
+                        value={permission ?? "inherit"}
+                        onChange={setPermission}
                         options={PERMISSION_OPTIONS}
-                        placeholder={
-                            permissionDefault ? `${permissionDefault} (default)` : "Inherit policy"
-                        }
-                        allowClear
                         className="w-full"
                         disabled={disabled}
                     />
