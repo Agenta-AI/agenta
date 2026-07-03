@@ -97,7 +97,6 @@ class AgentaWorkflowToolResolver:
                     # carry these pointers; code/client tools author plain JSON Schema.
                     input_schema=expand_type_refs(tool_config.input_schema),
                     call_ref=call_ref,
-                    needs_approval=tool_config.needs_approval,
                     render=tool_config.render,
                     permission=tool_config.permission,
                 )

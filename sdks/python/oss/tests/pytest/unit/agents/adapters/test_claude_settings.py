@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from agenta.sdk.agents.adapters.claude_settings import (
     INTERNAL_TOOL_MCP_SERVER,
     build_claude_settings_files,
@@ -248,11 +250,33 @@ def test_ask_tool_not_in_allow():
 
 
 def test_unset_tool_renders_no_rule():
-    # No explicit permission, no read_only, no needs_approval -> effective permission is None ->
-    # no rule at all (falls back to the global `permission_policy`). With nothing else to write,
-    # the whole file is omitted.
     spec = CallbackToolSpec(name="mystery", description="d", call_ref="workflow.x")
     assert build_claude_settings_files(None, None, None, [spec]) == []
+
+
+@pytest.mark.parametrize(
+    ("mode", "read_only", "expected_key", "expected_rule"),
+    [
+        ("allow_reads", True, "allow", _rule("tool")),
+        ("allow_reads", False, None, None),
+        ("allow_reads", None, None, None),
+        ("allow", None, "allow", _rule("tool")),
+        ("ask", True, None, None),
+        ("deny", True, "deny", _rule("tool")),
+    ],
+)
+def test_unset_tool_rules_follow_runner_mode(
+    mode, read_only, expected_key, expected_rule
+):
+    spec = CallbackToolSpec(
+        name="tool", description="d", call_ref="workflow.x", read_only=read_only
+    )
+    files = build_claude_settings_files(None, None, None, [spec], mode)
+    if expected_key is None:
+        assert files == []
+        return
+    perms = _settings(files)["permissions"]
+    assert perms[expected_key] == [expected_rule]
 
 
 def test_deny_tool_renders_deny_rule():

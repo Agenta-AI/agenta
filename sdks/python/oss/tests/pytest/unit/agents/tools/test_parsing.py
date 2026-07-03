@@ -43,28 +43,23 @@ def test_compat_parser_accepts_playground_gateway_slug_and_metadata():
             "render": {"kind": "component", "component": "User"},
         }
     )
-    assert gateway.needs_approval is True
     assert gateway.render == {"kind": "component", "component": "User"}
+    assert not hasattr(gateway, "needs_approval")
 
 
-def test_compat_parser_does_not_flip_string_false_needs_approval():
-    # Legacy payloads may carry the flag as the string "false"; it must not coerce to True
-    # (a plain ``bool("false")`` would).
+def test_compat_parser_ignores_legacy_permission_fields():
     gateway = coerce_tool_config(
         {
-            "function": {"name": "tools__composio__github__GET_USER__c1"},
-            "needs_approval": "false",
-        }
-    )
-    assert gateway.needs_approval is False
-
-    approved = coerce_tool_config(
-        {
-            "function": {"name": "tools__composio__github__GET_USER__c1"},
+            "type": "gateway",
+            "integration": "github",
+            "action": "GET_USER",
+            "connection": "c1",
             "needs_approval": "true",
+            "permission_mode": "deny",
         }
     )
-    assert approved.needs_approval is True
+    assert gateway.permission is None
+    assert not hasattr(gateway, "needs_approval")
 
 
 def test_compat_parser_carries_top_level_permission_on_typed_config():
@@ -91,20 +86,6 @@ def test_compat_parser_carries_permission_from_gateway_slug():
         }
     )
     assert isinstance(gateway, GatewayToolConfig)
-    assert gateway.permission == "deny"
-
-
-def test_compat_parser_accepts_permission_mode_alias_for_permission():
-    # The legacy FE key `permission_mode` deserializes to the same `permission` field.
-    gateway = coerce_tool_config(
-        {
-            "type": "gateway",
-            "integration": "github",
-            "action": "GET_USER",
-            "connection": "c1",
-            "permission_mode": "deny",
-        }
-    )
     assert gateway.permission == "deny"
 
 
@@ -192,13 +173,11 @@ def test_typed_reference_carries_tool_axes():
         {
             "type": "reference",
             "slug": "wf",
-            "needs_approval": True,
             "render": {"kind": "component", "component": "Card"},
             "permission": "ask",
         }
     )
     assert isinstance(tool, ReferenceToolConfig)
-    assert tool.needs_approval is True
     assert tool.render == {"kind": "component", "component": "Card"}
     assert tool.permission == "ask"
 
@@ -215,17 +194,15 @@ def test_typed_platform_config_round_trips():
     tool = parse_tool_config({"type": "platform", "op": "find_capabilities"})
     assert isinstance(tool, PlatformToolConfig)
     assert tool.op == "find_capabilities"
-    # needs_approval is optional (None = use the catalog default).
-    assert tool.needs_approval is None
 
 
-def test_compat_parser_accepts_platform_type():
+def test_compat_parser_accepts_platform_type_and_ignores_legacy_fields():
     tool = coerce_tool_config(
         {"type": "platform", "op": "commit_revision", "needs_approval": False}
     )
     assert isinstance(tool, PlatformToolConfig)
     assert tool.op == "commit_revision"
-    assert tool.needs_approval is False
+    assert not hasattr(tool, "needs_approval")
 
 
 def test_typed_platform_without_op_raises():

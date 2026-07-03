@@ -193,7 +193,6 @@ class AgentaGatewayToolResolver:
                     input_schema=raw_spec.get("input_schema")
                     or {"type": "object", "properties": {}},
                     call_ref=str(raw_spec["call_ref"]),
-                    needs_approval=tool_config.needs_approval,
                     render=tool_config.render,
                     permission=tool_config.permission,
                     read_only=raw_spec.get("read_only"),

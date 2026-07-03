@@ -7,10 +7,8 @@ the code-defined catalog (``op_catalog.py``), so the adapter only needs the back
 per-request auth to assemble the shared :class:`ToolCallback` (which gives the runner the origin to
 resolve the relative ``call.path`` against, and the caller credential to reuse).
 
-The catalog owns the description, endpoint, input schema, run-context bindings, and per-op default
-permission/approval. The config's ``needs_approval`` / ``permission`` override the catalog default
-when set; otherwise the catalog default applies (a mutating op defaults to approval, a read to
-auto-allow).
+The catalog owns the description, endpoint, input schema, run-context bindings, and read-only
+hint. The config contributes only an explicit per-tool permission when authored.
 
 Lives in the SDK so the service and a connected standalone SDK user resolve platform tools the
 same way.
@@ -71,24 +69,15 @@ class AgentaPlatformToolResolver:
                 raise error
             seen.add(op.op)
 
-            # Catalog default unless the author overrode it. ``needs_approval`` is optional on the
-            # config (None = unset), so a mutating op stays gated by default.
-            needs_approval = (
-                tool_config.needs_approval
-                if tool_config.needs_approval is not None
-                else op.default_needs_approval
-            )
-            permission = tool_config.permission or op.default_permission
-
             tool_specs.append(
                 CallbackToolSpec(
                     name=op.op,
                     description=op.description,
                     input_schema=op.resolved_input_schema(),
                     call=op.to_call(),
-                    needs_approval=needs_approval,
                     render=tool_config.render,
-                    permission=permission,
+                    permission=tool_config.permission,
+                    read_only=op.read_only,
                 )
             )
 

@@ -91,19 +91,19 @@ def patched(monkeypatch, fake_backend):
     return backend, recorded
 
 
-def _template(harness="pi_core", *, model=None, permission_policy=None, skills=None):
+def _template(harness="pi_core", *, model=None, permission_default=None, skills=None):
     """Build the agent-template value from loose kwargs the tests still pass flat.
 
     Everything lives on the one template (at `parameters.agent`): `model`/`skills` are the
-    definition; `harness`/`permission_policy` are the nested execution sections
-    (`harness.kind` / `runner.interactions.headless`)."""
+    definition; `harness`/`permission_default` are the nested execution sections
+    (`harness.kind` / `runner.permissions.default`)."""
     template: dict = {"harness": {"kind": harness}}
     if model is not None:
         template["llm"] = model if isinstance(model, dict) else {"model": model}
     if skills is not None:
         template["skills"] = skills
-    if permission_policy is not None:
-        template["runner"] = {"interactions": {"headless": permission_policy}}
+    if permission_default is not None:
+        template["runner"] = {"permissions": {"default": permission_default}}
     return template
 
 
@@ -164,10 +164,10 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
          each producing its own config.
 
     The turn carries a built-in tool (``web_search``), a ``deny`` policy, and one author skill
-    so the divergence is observable: Claude drops Pi built-ins and honors the policy; Pi keeps
-    them and forces ``auto``; Agenta unions the forced tools. The skill rides the neutral config,
-    so every skill-loading harness emits it on its own ``wire_skills`` seam (never in the tool
-    wire); there is no forced skill-name list anymore.
+    so the divergence is observable: Claude drops Pi built-ins while all harnesses ship the
+    same shared permission plan. The skill rides the neutral config, so every skill-loading
+    harness emits it on its own ``wire_skills`` seam (never in the tool wire); there is no
+    forced skill-name list anymore.
     """
     backend = fake_backend(result=AgentResult(output="echo", usage={"total": 15}))
     _patch_handler(monkeypatch, backend, builtins=["web_search"])
@@ -178,7 +178,7 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
         "body": "Read the changelog, then write notes.",
     }
     bodies = [
-        await _invoke(harness, permission_policy="deny", skills=[skill])
+        await _invoke(harness, permission_default="deny", skills=[skill])
         for harness in ("pi_core", "pi_agenta", "claude")
     ]
     pi_body, agenta_body, claude_body = bodies
@@ -205,19 +205,21 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     agenta_wire = agenta_cfg.wire_tools()
     claude_wire = claude_cfg.wire_tools()
 
-    # Pi keeps its built-in tool natively and forces auto regardless of the author's policy.
+    # Pi keeps its built-in tool natively; the runner relay enforces the shared plan.
+    # Skills never ride the tool wire.
     assert pi_wire["tools"] == ["web_search"]
-    assert pi_wire["permissionPolicy"] == "auto"
+    assert pi_wire["permissions"] == {"default": "deny"}
     assert "skills" not in pi_wire
 
-    # Claude drops Pi built-ins and honors the policy.
+    # Claude has no Pi built-ins (the `web_search` name is dropped) and carries the same plan.
     assert claude_wire["tools"] == []
-    assert claude_wire["permissionPolicy"] == "deny"
+    assert claude_wire["permissions"] == {"default": "deny"}
     assert "skills" not in claude_wire
 
-    # Agenta unions the forced tools onto the author's set and forces auto like Pi.
+    # Agenta is Pi-with-an-opinion: it unions the forced tools onto the author's set. Skills are
+    # not tools, so they never appear in the tool wire.
     assert agenta_wire["tools"] == ["web_search", "read", "bash"]
-    assert agenta_wire["permissionPolicy"] == "auto"
+    assert agenta_wire["permissions"] == {"default": "deny"}
     assert "skills" not in agenta_wire
 
     # skills ride the dedicated wire_skills seam, not the tool wire

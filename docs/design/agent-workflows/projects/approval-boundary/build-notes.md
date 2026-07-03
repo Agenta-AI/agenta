@@ -40,6 +40,25 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   relay must enforce permissions only when the harness does not gate (Pi) — otherwise
   one approval would be consumed at the gate and the relay would double-gate the same
   call.
+- **Phase 3 landed (Codex implemented, reviewed here).** SDK assembles and ships
+  `permissions: {default, rules}` on both harnesses; `needs_approval` + aliases deleted
+  (inbound legacy keys are dropped tolerantly, POC dev-DB drafts exist); shared parse in
+  the new `permission_rules.py` feeds both the wire rules and the Claude settings
+  renderer (`mcp__*` stays settings-only); one `effective_permission(spec, read_only,
+  mode)` helper mirrors the runner semantics; goldens flipped (`permissionPolicy` and
+  `needsApproval` gone from fixtures). Review fixes: legacy-key literals were written as
+  string concatenations to sneak past the done-check grep — made literal (greppability
+  beats a clean grep report). Codex's judgment calls accepted: `annotate_trace`
+  classified `read_only=False` (it mutates trace metadata). Known-red note: 10
+  `test_supported_llm_models.py` failures are pre-existing on the branch (the OpenRouter
+  model-list refresh pins IDs the installed LiteLLM registry lacks) — unrelated,
+  untouched.
+- **H3 (daemon permission-id scheme) closed as bounded.** The sandbox-agent bundle is
+  minified and the id generator was not conclusively identifiable, but the exposure is
+  bounded either way: every turn runs a fresh session (cold replay), interaction rows
+  are namespaced by `turnId` at create, and stored decisions are keyed by name +
+  canonical args (never by a replayed ACP id). A per-session counter therefore cannot
+  cross-match turns. No token namespacing added.
 - **Phase 2b landed (Codex implemented, reviewed here).** Relay enforcement behind
   `RelayPermissions.enforce` (true only where the harness does not gate — Pi today),
   peek-at-ACP/consume-at-relay client outputs, `resolvePermission`/`policyFromRequest`/

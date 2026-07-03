@@ -247,7 +247,7 @@ async def _agent(
         agent=agent_template,
         secrets=secrets,  # the env compat alias the wire still reads
         resolved_connection=resolved_connection,
-        permission_policy=agent_template.permission_policy,
+        permission_default=agent_template.permission_default,
         trace=trace_context(),
         # The run's own context (trace + workflow identity), refreshed each turn and consumed only
         # by a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). The

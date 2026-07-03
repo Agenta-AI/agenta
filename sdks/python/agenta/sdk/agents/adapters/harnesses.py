@@ -5,9 +5,9 @@ turning the neutral :class:`SessionConfig` into the harness's own config, especi
 *tools*. The harnesses genuinely differ, so the two adapters do different work:
 
 - **pi_core** takes built-in tools by name *and* resolved tool specs, delivered natively (Pi
-  has no MCP). Pi does not gate tool use, so the permission policy does not apply.
+  has no MCP). The runner relay enforces the shared permission plan.
 - **claude** has no built-in tools (they are a Pi concept), delivers tools over MCP, and
-  gates tool use, so the permission policy applies.
+  receives the same runner permission plan.
 - **pi_agenta** is Pi with an opinion: the same engine and config shape, plus a fixed set of
   forced tools, a base AGENTS.md preamble, and a persona (see :mod:`.agenta_builtins`).
   Skills ride the neutral config as resolved inline packages. Pi and Agenta install them
@@ -60,7 +60,7 @@ class PiHarness(Harness):
 
     def _to_harness_config(self, config: SessionConfig) -> PiAgentTemplate:
         # Pi delivers tools natively: built-in names plus resolved specs registered through
-        # the Pi extension. Pi does not gate tool use, so the permission policy is dropped.
+        # the Pi extension. The runner relay enforces the shared permission plan.
         # Pi reads the selected harness's escape-hatch `extras`: `system` replaces Pi's base
         # prompt, `append_system` extends it (both leave AGENTS.md untouched).
         extras = config.agent.harness_extras
@@ -74,6 +74,7 @@ class PiHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
             system=_opt_str(extras.get("system")),
             append_system=_opt_str(extras.get("append_system")),
@@ -85,8 +86,7 @@ class ClaudeHarness(Harness):
 
     def _to_harness_config(self, config: SessionConfig) -> ClaudeAgentTemplate:
         # Claude has no Pi built-in tools; drop them rather than ship a name Claude cannot
-        # honor. Tools go over MCP, and Claude gates tool use, so the permission policy is
-        # carried through.
+        # honor. Tools go over MCP, and the shared permission plan is carried through.
         if config.builtin_names:
             log.warning(
                 "ClaudeHarness ignores %d built-in tool(s); built-ins are a Pi concept",
@@ -107,8 +107,8 @@ class ClaudeHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
-            permission_policy=config.permission_policy,
         )
 
 
@@ -139,6 +139,7 @@ class AgentaHarness(Harness):
             # drops the default template's `_agenta` embed still gets the platform skill.
             skills=force_skills(list(config.agent.skills)),
             sandbox_permission=config.agent.sandbox_permission,
+            permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
             system=_opt_str(extras.get("system")),
             append_system=compose_append_system(_opt_str(extras.get("append_system"))),

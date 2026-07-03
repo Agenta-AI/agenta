@@ -50,21 +50,17 @@ async def test_gateway_metadata_and_description_fallback_are_preserved(
     resolved = await _resolver(connection).resolve(
         [
             _gateway(
-                needs_approval=True,
                 render={"kind": "component", "component": "User"},
             )
         ]
     )
     spec = resolved.tool_specs[0]
     assert spec.description == "get_user"  # falls back to name when null
-    assert spec.needs_approval is True
     assert spec.render == {"kind": "component", "component": "User"}
     assert spec.read_only is True  # the catalog read-only hint reaches the spec
-    assert spec.to_wire()["needsApproval"] is True
     assert spec.to_wire()["readOnly"] is True
-    # needs_approval beats the read-only auto-allow: the gateway resolver's effective
-    # permission is "ask" (pins the real precedence end to end, not just the model helper).
-    assert spec.to_wire()["permission"] == "ask"
+    assert "needsApproval" not in spec.to_wire()
+    assert "permission" not in spec.to_wire()
     assert isinstance(resolved.tool_callback, ToolCallback)
     assert resolved.tool_callback.endpoint == "https://api.x/api/tools/call"
     assert resolved.tool_callback.authorization == "Access tok"
@@ -95,7 +91,7 @@ async def test_gateway_specs_are_joined_by_call_ref_not_position(fake_http, conn
     )
     resolved = await _resolver(connection).resolve(
         [
-            _gateway(action="FIRST", connection="c1", needs_approval=True),
+            _gateway(action="FIRST", connection="c1"),
             _gateway(
                 action="SECOND",
                 connection="c2",
@@ -105,10 +101,8 @@ async def test_gateway_specs_are_joined_by_call_ref_not_position(fake_http, conn
     )
     first, second = resolved.tool_specs
     assert first.name == "first"
-    assert first.needs_approval is True
     assert first.render is None
     assert second.name == "second"
-    assert second.needs_approval is False
     assert second.render == {"kind": "component", "component": "Second"}
 
 

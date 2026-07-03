@@ -18,19 +18,25 @@
       "inputSchema": {"type": "object", "properties": {}},
       "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
       "kind": "callback",
-      "readOnly": true,
-      "permission": "allow"
+      "readOnly": true
     }
   ],
   "toolCallback": {
     "endpoint": "https://api.example/tools/call",
     "authorization": "Access tok-123"
   },
-  "permissionPolicy": "deny",
+  "permissions": {
+    "default": "deny",
+    "rules": [
+      {"pattern": "WebFetch", "permission": "deny"},
+      {"pattern": "Read", "permission": "allow"},
+      {"pattern": "Bash(npm run:*)", "permission": "allow"}
+    ]
+  },
   "harnessFiles": [
     {
       "path": ".claude/settings.json",
-      "content": "{\n  \"permissions\": {\n    \"defaultMode\": \"acceptEdits\",\n    \"allow\": [\n      \"Read\",\n      \"Bash(npm run:*)\",\n      \"mcp__agenta-tools__get_user\"\n    ],\n    \"deny\": [\n      \"WebFetch\"\n    ]\n  }\n}"
+      "content": "{\n  \"permissions\": {\n    \"defaultMode\": \"acceptEdits\",\n    \"allow\": [\n      \"Read\",\n      \"Bash(npm run:*)\"\n    ],\n    \"deny\": [\n      \"WebFetch\",\n      \"mcp__agenta-tools__get_user\"\n    ]\n  }\n}"
     }
   ],
   "skills": [
