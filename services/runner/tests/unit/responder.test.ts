@@ -3,7 +3,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/responder.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
@@ -15,13 +15,8 @@ import {
   approvedCallKey,
   decisionToReply,
   extractApprovalDecisions,
-  policyFromRequest,
   type PermissionDecision,
 } from "../../src/responder.ts";
-
-afterEach(() => {
-  delete process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
-});
 
 function plan(defaultMode: PermissionPlan["default"]): PermissionPlan {
   return { default: defaultMode, rules: [] };
@@ -46,20 +41,6 @@ async function permissionVerdict(
     gate: descriptor,
   });
 }
-
-describe("policyFromRequest", () => {
-  it("honors the arg and the env override", () => {
-    delete process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
-    assert.equal(policyFromRequest(undefined), "auto");
-    assert.equal(policyFromRequest("auto"), "auto");
-    assert.equal(policyFromRequest("deny"), "deny");
-
-    process.env.SANDBOX_AGENT_DENY_PERMISSIONS = "true";
-    assert.equal(policyFromRequest(undefined), "deny", "env forces deny");
-    assert.equal(policyFromRequest("auto"), "deny", "env overrides auto");
-    delete process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
-  });
-});
 
 describe("decisionToReply", () => {
   it("maps allow to ONCE (never always) so an approval grants only this call", () => {
@@ -184,7 +165,7 @@ describe("ApprovalResponder", () => {
     );
   });
 
-  it("client tools fulfill from stored output before the permission ladder", async () => {
+  it("client tools peek at stored output by default", async () => {
     const key = approvedCallKey("request_connection", { integration: "slack" })!;
     const output = { connected: true };
     const responder = new ApprovalResponder(
@@ -196,14 +177,64 @@ describe("ApprovalResponder", () => {
       toolName: "request_connection",
       args: { integration: "slack" },
     });
+    const request = { id: "tool-1", gate: client };
 
-    assert.deepEqual(await responder.onClientTool({ id: "tool-1", gate: client }), {
+    assert.deepEqual(await responder.onClientTool(request), {
       kind: "fulfilled",
       output,
     });
-    assert.deepEqual(await responder.onClientTool({ id: "tool-1", gate: client }), {
+    assert.deepEqual(await responder.onClientTool(request), {
+      kind: "fulfilled",
+      output,
+    });
+  });
+
+  it("client tools consume stored output when the relay fulfills", async () => {
+    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const output = { connected: true };
+    const responder = new ApprovalResponder(
+      plan("deny"),
+      new ConversationDecisions(new Map([[key, output]])),
+    );
+    const client = gate({
+      executor: "client",
+      toolName: "request_connection",
+      args: { integration: "slack" },
+    });
+    const request = { id: "tool-1", gate: client };
+
+    assert.deepEqual(await responder.onClientTool(request, { consume: true }), {
+      kind: "fulfilled",
+      output,
+    });
+    assert.deepEqual(await responder.onClientTool(request, { consume: true }), {
       kind: "deny",
     });
+  });
+
+  it("client tools support peek then consume for the Claude two-read flow", async () => {
+    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const output = { connected: true };
+    const responder = new ApprovalResponder(
+      plan("deny"),
+      new ConversationDecisions(new Map([[key, output]])),
+    );
+    const client = gate({
+      executor: "client",
+      toolName: "request_connection",
+      args: { integration: "slack" },
+    });
+    const request = { id: "tool-1", gate: client };
+
+    assert.deepEqual(await responder.onClientTool(request), {
+      kind: "fulfilled",
+      output,
+    });
+    assert.deepEqual(await responder.onClientTool(request, { consume: true }), {
+      kind: "fulfilled",
+      output,
+    });
+    assert.deepEqual(await responder.onClientTool(request), { kind: "deny" });
   });
 
   it("client explicit ask consumes stored deny; stored allow still forwards to the browser", async () => {

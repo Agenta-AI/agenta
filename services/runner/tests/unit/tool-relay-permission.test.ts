@@ -1,15 +1,5 @@
 /**
- * Unit tests for Layer-3 permission enforcement in the runner-side tool relay (S3b).
- *
- *  - `resolvePermission` is the pure ladder: allow/deny are honored as-is; ask/unset degrade to
- *    the headless permission policy (auto -> allow, deny -> deny).
- *  - `startToolRelay` enforces that ladder before executing a relayed tool: a `deny` spec is
- *    refused before execution and an `allow` code spec reaches the sidecar unsupported gate.
- *
- * The relay loop is driven over a real temp dir via `localRelayHost`: write a `<id>.req.json`,
- * poll for the `<id>.res.json` the runner writes back. A `code` spec is used so execution
- * needs no network or callback; the sidecar now returns a deterministic unsupported error
- * instead of spawning a runtime.
+ * Unit tests for runner-side relay permission enforcement.
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/tool-relay-permission.test.ts)
  */
@@ -21,234 +11,238 @@ import { join } from "node:path";
 
 import {
   localRelayHost,
-  resolvePermission,
   startToolRelay,
+  type ClientToolRelay,
+  type RelayPermissions,
   type RelayResponse,
 } from "../../src/tools/relay.ts";
 import type { ResolvedToolSpec } from "../../src/protocol.ts";
+import { decide, type PermissionPlan } from "../../src/permission-plan.ts";
+import {
+  approvedCallKey,
+  ConversationDecisions,
+} from "../../src/responder.ts";
 
 const codeSpec = (
   name: string,
   permission?: ResolvedToolSpec["permission"],
+  readOnly?: boolean,
 ): ResolvedToolSpec => ({
   name,
   kind: "code",
   runtime: "python",
-  code: 'def main(**kw):\n    return {"ran": True, "echo": kw}\n',
+  code: "def main(**kw):\n    return {\"ran\": True, \"echo\": kw}\n",
   permission,
+  readOnly,
 });
 
-/** Drive one tool call through the relay loop and return the response the runner wrote. */
-async function relayOnce(
-  spec: ResolvedToolSpec,
-  policy: "auto" | "deny",
-  args: unknown = { a: 1 },
-): Promise<RelayResponse> {
-  const dir = mkdtempSync(join(tmpdir(), "agenta-relay-disp-"));
+function permissionPlan(defaultMode: PermissionPlan["default"]): PermissionPlan {
+  return { default: defaultMode, rules: [] };
+}
+
+function permissions(input: {
+  enforce: boolean;
+  plan?: PermissionPlan;
+  decisions?: ConversationDecisions;
+  pending?: Array<{ toolCallId: string; toolName: string; args: unknown }>;
+}): RelayPermissions {
+  const plan = input.plan ?? permissionPlan("allow");
+  const decisions = input.decisions ?? new ConversationDecisions(new Map());
+  return {
+    enforce: input.enforce,
+    decide: (gate) => decide(gate, plan, decisions),
+    onPendingApproval: (info) => {
+      input.pending?.push(info);
+    },
+  };
+}
+
+async function relayOnce(input: {
+  spec: ResolvedToolSpec;
+  permissions: RelayPermissions;
+  args?: unknown;
+  id?: string;
+  expectResponse?: boolean;
+  stopWhen?: () => boolean;
+  clientToolRelay?: ClientToolRelay;
+}): Promise<RelayResponse | undefined> {
+  const dir = mkdtempSync(join(tmpdir(), "agenta-relay-perm-"));
   try {
-    const id = "call-1";
+    const id = input.id ?? "call-1";
     writeFileSync(
       join(dir, `${id}.req.json`),
-      JSON.stringify({ toolName: spec.name, toolCallId: id, args }),
+      JSON.stringify({
+        toolName: input.spec.name,
+        toolCallId: id,
+        args: input.args ?? { a: 1 },
+      }),
     );
-    const relay = startToolRelay(localRelayHost(), dir, [spec], undefined, policy);
+    const relay = startToolRelay(
+      localRelayHost(),
+      dir,
+      [input.spec],
+      undefined,
+      input.permissions,
+      undefined,
+      input.clientToolRelay,
+    );
     const resPath = join(dir, `${id}.res.json`);
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline && !existsSync(resPath)) {
-      await new Promise((r) => setTimeout(r, 20));
+      if (input.stopWhen?.()) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
     }
     await relay.stop();
-    assert.ok(existsSync(resPath), "the relay wrote a response file");
+    const wroteResponse = existsSync(resPath);
+    if (input.expectResponse === false) {
+      assert.equal(wroteResponse, false, "the relay did not write a response file");
+      return undefined;
+    }
+    assert.ok(wroteResponse, "the relay wrote a response file");
     return JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
-describe("resolvePermission", () => {
-  const cases: Array<[ResolvedToolSpec["permission"], "auto" | "deny", "allow" | "deny"]> = [
-    ["allow", "auto", "allow"],
-    ["allow", "deny", "allow"],
-    ["deny", "auto", "deny"],
-    ["deny", "deny", "deny"],
-    ["ask", "auto", "allow"],
-    ["ask", "deny", "deny"],
-    [undefined, "auto", "allow"],
-    [undefined, "deny", "deny"],
-    // A garbage/unrecognized permission must fall to the policy (never auto-allow).
-    ["bogus" as ResolvedToolSpec["permission"], "auto", "allow"],
-    ["bogus" as ResolvedToolSpec["permission"], "deny", "deny"],
-  ];
-
-  for (const [permission, policy, expected] of cases) {
-    it(`permission=${permission ?? "unset"} policy=${policy} -> ${expected}`, () => {
-      assert.equal(resolvePermission(permission, policy), expected);
-    });
-  }
-});
+function assertCodeToolExecuted(res: RelayResponse | undefined): void {
+  assert.equal(res?.ok, false);
+  assert.match(res?.error ?? "", /Code tools are not supported by the sidecar\./);
+}
 
 describe("startToolRelay permission enforcement", () => {
-  it("refuses a deny spec without executing its code", async () => {
-    const res = await relayOnce(codeSpec("blocked", "deny"), "auto");
-    assert.equal(res.ok, true, "a policy refusal rides as an ok tool result, not an error");
-    assert.equal(res.text, "Tool 'blocked' is denied by policy.");
-    // The refusal string is the whole result: the snippet's `{"ran": true}` never appears.
-    assert.ok(!String(res.text).includes("ran"), "the denied tool's code did not run");
+  it("enforce=false executes an ask spec without pausing", async () => {
+    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const res = await relayOnce({
+      spec: codeSpec("needs_approval", "ask"),
+      permissions: permissions({
+        enforce: false,
+        plan: permissionPlan("ask"),
+        pending,
+      }),
+    });
+
+    assertCodeToolExecuted(res);
+    assert.deepEqual(pending, []);
   });
 
-  it("returns unsupported for an allow code spec", async () => {
-    const res = await relayOnce(codeSpec("permitted", "allow"), "auto");
-    assert.equal(res.ok, false);
-    assert.match(res.error ?? "", /Code tools are not supported by the sidecar\./);
+  it("enforce=true allows allowed tools and refuses authored deny distinctly", async () => {
+    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const allow = await relayOnce({
+      spec: codeSpec("permitted", "allow"),
+      permissions: permissions({ enforce: true, plan: permissionPlan("ask"), pending }),
+    });
+    assertCodeToolExecuted(allow);
+
+    const deny = await relayOnce({
+      spec: codeSpec("blocked", "deny"),
+      permissions: permissions({ enforce: true, plan: permissionPlan("allow"), pending }),
+    });
+    assert.equal(deny?.ok, true);
+    assert.equal(deny?.text, "Tool 'blocked' is denied by policy.");
+    assert.deepEqual(pending, []);
   });
 
-  it("rejects missing required args before executing a relayed tool", async () => {
-    const spec = {
-      ...codeSpec("needs_args", "allow"),
-      input_schema: {
-        type: "object",
-        properties: { required_value: { type: "string" } },
-        required: ["required_value"],
-      },
-    } as ResolvedToolSpec;
-    const res = await relayOnce(spec, "auto", {});
-    assert.equal(res.ok, false);
-    assert.match(res.error ?? "", /missing required argument\(s\): required_value/);
-    assert.ok(
-      !String(res.error).includes("Code tools are not supported"),
-      "validation failed before sidecar code execution",
+  it("enforce=true refuses policy deny with the permission-policy text", async () => {
+    const res = await relayOnce({
+      spec: codeSpec("locked_down"),
+      permissions: permissions({ enforce: true, plan: permissionPlan("deny") }),
+    });
+
+    assert.equal(res?.ok, true);
+    assert.equal(
+      res?.text,
+      "Tool 'locked_down' is denied by the permission policy.",
     );
   });
 
-  it("refuses an unset spec when the headless policy is deny", async () => {
-    const res = await relayOnce(codeSpec("gated", undefined), "deny");
-    assert.equal(res.ok, true);
-    assert.equal(res.text, "Tool 'gated' requires approval; denied in headless mode.");
+  it("ask with no stored decision pauses without writing a response or executing", async () => {
+    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    await relayOnce({
+      spec: codeSpec("approval_needed", "ask"),
+      permissions: permissions({ enforce: true, plan: permissionPlan("allow"), pending }),
+      expectResponse: false,
+      stopWhen: () => pending.length === 1,
+    });
+
+    assert.deepEqual(pending, [
+      { toolCallId: "call-1", toolName: "approval_needed", args: { a: 1 } },
+    ]);
   });
 
-  it("parks a browser-fulfilled client tool without writing a relay response", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-client-"));
-    try {
-      const id = "call-client";
-      const resPath = join(dir, `${id}.res.json`);
-      let parked = false;
-      let seenInput: unknown;
-      writeFileSync(
-        join(dir, `${id}.req.json`),
-        JSON.stringify({
-          toolName: "request_connection",
-          toolCallId: id,
-          args: { integration: "slack" },
-        }),
-      );
-      let resolveHandled: () => void = () => {};
-      const handled = new Promise<void>((resolve) => {
-        resolveHandled = resolve;
-      });
-      const relay = startToolRelay(
-          localRelayHost(),
-          dir,
-          [{ name: "request_connection", kind: "client" }],
-          undefined,
-          "auto",
-          undefined,
-          {
-            onClientTool: async (request) => {
-              seenInput = request.input;
-              return "park";
-            },
-            onPark: () => {
-              parked = true;
-              resolveHandled();
-            },
-          },
-      );
-      await handled;
-      await relay.stop();
-      assert.equal(parked, true);
-      assert.deepEqual(seenInput, { integration: "slack" });
-      assert.equal(existsSync(resPath), false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+  it("ask with a stored allow executes once and consumes the stored decision", async () => {
+    const key = approvedCallKey("approval_needed", { a: 1 })!;
+    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const relayPermissions = permissions({
+      enforce: true,
+      plan: permissionPlan("allow"),
+      decisions: new ConversationDecisions(new Map([[key, "allow"]])),
+      pending,
+    });
+
+    const first = await relayOnce({
+      id: "call-1",
+      spec: codeSpec("approval_needed", "ask"),
+      permissions: relayPermissions,
+    });
+    assertCodeToolExecuted(first);
+    assert.deepEqual(pending, []);
+
+    await relayOnce({
+      id: "call-2",
+      spec: codeSpec("approval_needed", "ask"),
+      permissions: relayPermissions,
+      expectResponse: false,
+      stopWhen: () => pending.length === 1,
+    });
+    assert.deepEqual(pending, [
+      { toolCallId: "call-2", toolName: "approval_needed", args: { a: 1 } },
+    ]);
   });
 
-  it("still parks a browser-fulfilled client tool under deny permission policy", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-client-"));
-    try {
-      const id = "call-client";
-      let parked = false;
-      writeFileSync(
-        join(dir, `${id}.req.json`),
-        JSON.stringify({
-          toolName: "request_connection",
-          toolCallId: id,
-          args: { integration: "slack" },
-        }),
-      );
-      let resolveHandled: () => void = () => {};
-      const handled = new Promise<void>((resolve) => {
-        resolveHandled = resolve;
-      });
-      const relay = startToolRelay(
-        localRelayHost(),
-        dir,
-        [{ name: "request_connection", kind: "client" }],
-        undefined,
-        "deny",
-        undefined,
-        {
-          onClientTool: async () => "park",
-          onPark: () => {
-            parked = true;
-            resolveHandled();
-          },
+  it("allow_reads executes read-hinted tools and pauses tools without a read hint", async () => {
+    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const relayPermissions = permissions({
+      enforce: true,
+      plan: permissionPlan("allow_reads"),
+      pending,
+    });
+
+    const read = await relayOnce({
+      id: "read-call",
+      spec: codeSpec("read_tool", undefined, true),
+      permissions: relayPermissions,
+    });
+    assertCodeToolExecuted(read);
+
+    await relayOnce({
+      id: "write-call",
+      spec: codeSpec("write_tool"),
+      permissions: relayPermissions,
+      expectResponse: false,
+      stopWhen: () => pending.length === 1,
+    });
+    assert.deepEqual(pending, [
+      { toolCallId: "write-call", toolName: "write_tool", args: { a: 1 } },
+    ]);
+  });
+
+  it("client tools use pendingApproval to park without writing a relay response", async () => {
+    const parked: string[] = [];
+    await relayOnce({
+      spec: { name: "request_connection", kind: "client" },
+      permissions: permissions({ enforce: true }),
+      args: { integration: "slack" },
+      expectResponse: false,
+      stopWhen: () => parked.length === 1,
+      clientToolRelay: {
+        onClientTool: async () => "pendingApproval",
+        onPark: (request) => {
+          parked.push(request.toolCallId);
         },
-      );
-      await handled;
-      await relay.stop();
-      assert.equal(parked, true);
-      assert.equal(existsSync(join(dir, `${id}.res.json`)), false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+      },
+    });
 
-  it("writes stored client-tool output when the browser already fulfilled it", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-client-"));
-    try {
-      const id = "call-client";
-      writeFileSync(
-        join(dir, `${id}.req.json`),
-        JSON.stringify({
-          toolName: "request_connection",
-          toolCallId: id,
-          args: { integration: "slack" },
-        }),
-      );
-      const relay = startToolRelay(
-        localRelayHost(),
-        dir,
-        [{ name: "request_connection", kind: "client" }],
-        undefined,
-        "auto",
-        undefined,
-        {
-          onClientTool: async () => ({ output: { connected: true } }),
-        },
-      );
-      const resPath = join(dir, `${id}.res.json`);
-      const deadline = Date.now() + 5000;
-      while (Date.now() < deadline && !existsSync(resPath)) {
-        await new Promise((r) => setTimeout(r, 20));
-      }
-      await relay.stop();
-      assert.ok(existsSync(resPath), "the relay wrote a response file");
-      const res = JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
-      assert.equal(res.ok, true);
-      assert.equal(res.text, JSON.stringify({ connected: true }));
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+    assert.deepEqual(parked, ["call-1"]);
   });
 });

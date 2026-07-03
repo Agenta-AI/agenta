@@ -40,6 +40,16 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   relay must enforce permissions only when the harness does not gate (Pi) — otherwise
   one approval would be consumed at the gate and the relay would double-gate the same
   call.
+- **Phase 2b landed (Codex implemented, reviewed here).** Relay enforcement behind
+  `RelayPermissions.enforce` (true only where the harness does not gate — Pi today),
+  peek-at-ACP/consume-at-relay client outputs, `resolvePermission`/`policyFromRequest`/
+  the "park" verdict deleted. Review added one thing Codex correctly flagged as out of
+  its brief: relay pauses now seed the `/sessions/interactions` plane through the same
+  guarded closure the ACP path uses (every pause leaves a row, whichever gate paused).
+  Known minor trade-off, accepted: the relay decides permission BEFORE validating
+  required args, so a malformed call to an `ask` tool costs one human prompt before the
+  validation error surfaces on execution; deny-first avoids leaking schema info for
+  denied tools.
 - **Phase 1 landed (Codex implemented, reviewed here).** Wire types + decision module +
   generated truth-table tests; 417 runner tests and typecheck green, goldens untouched
   (the new wire field is optional until the SDK emits it in phase 3). Review note

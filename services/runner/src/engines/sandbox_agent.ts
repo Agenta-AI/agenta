@@ -32,12 +32,12 @@ import {
   localRelayHost,
   sandboxRelayHost,
   startToolRelay,
+  type RelayPermissions,
 } from "../tools/relay.ts";
 import {
   ApprovalResponder,
   ConversationDecisions,
   extractApprovalDecisions,
-  policyFromRequest,
   type Responder,
 } from "../responder.ts";
 import {
@@ -68,6 +68,7 @@ import {
   prepareLocalPiAssets,
 } from "./sandbox_agent/pi-assets.ts";
 import {
+  decide,
   PendingApprovalLatch,
   permissionsFromRequest,
   type GateDescriptor,
@@ -664,6 +665,56 @@ export async function runSandboxAgent(
     const responder =
       deps.responderFactory?.(request) ??
       new ApprovalResponder(permissionPlan, decisions, logger);
+    // Every pause seeds the durable interactions plane, whichever gate paused (the ACP
+    // responder on Claude, the relay on Pi). Shared by both wiring sites below.
+    const recordPendingInteraction = (
+      token: string,
+      toolName: string | undefined,
+      toolArgs: unknown,
+    ): void => {
+      const cred = runCredential(request);
+      if (!cred) return;
+      // The /interactions plane only works when respond can re-invoke THIS revision, which
+      // needs at least a committed workflow_revision reference. A draft (inline config, no
+      // committed revision) can't be re-resolved, so skip create and stay messages-only.
+      const references = buildWorkflowReferences(request.runContext?.workflow);
+      if (!references?.workflow_revision) return;
+      void createInteraction(
+        sessionId,
+        request.turnId ?? "",
+        token,
+        "user_approval",
+        { request: { tool: toolName ?? token, args: toolArgs }, references },
+        () => cred,
+      );
+    };
+    // Exactly one gate per call: the harness gate on Claude, the relay on Pi. If more
+    // harness families arrive, move this capability split to engines/sandbox_agent/capabilities.ts.
+    const relayPermissions: RelayPermissions = {
+      enforce: plan.isPi,
+      decide: (gate) => decide(gate, permissionPlan, decisions),
+      onPendingApproval: ({ toolCallId, toolName, args }) => {
+        if (!latch.tryAcquire()) return;
+        run.emitEvent({
+          type: "interaction_request",
+          id: toolCallId,
+          kind: "user_approval",
+          payload: {
+            toolCallId,
+            toolCall: {
+              toolCallId,
+              name: toolName,
+              title: toolName,
+              rawInput: args,
+              input: args,
+            },
+            availableReplies: ["once", "reject"],
+          },
+        });
+        recordPendingInteraction(toolCallId, toolName, args);
+        onPark();
+      },
+    };
     const serverPermissions = serverPermissionsFromRequest(request);
     attachPermissionResponder({
       session,
@@ -673,25 +724,7 @@ export async function runSandboxAgent(
       serverPermissions,
       log: logger,
       onPark,
-      onCreateInteraction: (token, toolName, toolArgs) => {
-        const cred = runCredential(request);
-        if (!cred) return;
-        // The /interactions plane only works when respond can re-invoke THIS revision, which
-        // needs at least a committed workflow_revision reference. A draft (inline config, no
-        // committed revision) can't be re-resolved, so skip create and stay messages/park-only.
-        const references = buildWorkflowReferences(
-          request.runContext?.workflow,
-        );
-        if (!references?.workflow_revision) return;
-        void createInteraction(
-          sessionId,
-          request.turnId ?? "",
-          token,
-          "user_approval",
-          { request: { tool: toolName ?? token, args: toolArgs }, references },
-          () => cred,
-        );
-      },
+      onCreateInteraction: recordPendingInteraction,
       onResolveInteraction: (token) => {
         const cred = runCredential(request);
         if (!cred) return;
@@ -713,7 +746,7 @@ export async function runSandboxAgent(
         plan.relayDir,
         plan.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
-        policyFromRequest(request.permissionPolicy),
+        relayPermissions,
         request.runContext,
         {
           onClientTool: async ({ id, toolCallId, toolName, input, spec }) => {
@@ -724,12 +757,15 @@ export async function runSandboxAgent(
               readOnlyHint: spec.readOnly,
               args: input,
             };
-            const verdict = await responder.onClientTool({
-              id,
-              toolCallId,
-              gate,
-              raw: { spec },
-            });
+            const verdict = await responder.onClientTool(
+              {
+                id,
+                toolCallId,
+                gate,
+                raw: { spec },
+              },
+              { consume: true },
+            );
             if (process.env.AGENTA_RUNNER_DEBUG_TOOLS) {
               logger(
                 `[client-tool] ${toolName} id=${toolCallId} kind=${spec.kind} ` +
@@ -759,7 +795,7 @@ export async function runSandboxAgent(
                 },
               });
             }
-            return "park";
+            return "pendingApproval";
           },
           onPark,
         },

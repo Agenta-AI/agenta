@@ -18,11 +18,7 @@ import {
 
 export type PermissionDecision = "allow" | "deny";
 
-// phase 2b deletes this (relay still consumes it)
-export type PermissionPolicy = "auto" | "deny";
-
-// phase 2b deletes this relay vocabulary when `tools/relay.ts` is rewritten.
-export type ClientToolOutcome = "deny" | "park" | { output: unknown };
+export type ClientToolOutcome = "deny" | "pendingApproval" | { output: unknown };
 
 /** A permission gate raised by the harness, normalized from the ACP request. */
 export interface PermissionGateRequest {
@@ -47,7 +43,10 @@ export type ClientToolVerdict =
 /** Answers interaction requests the harness raises. */
 export interface Responder {
   onPermission(request: PermissionGateRequest): Promise<Verdict>;
-  onClientTool(request: ClientToolGateRequest): Promise<ClientToolVerdict>;
+  onClientTool(
+    request: ClientToolGateRequest,
+    opts?: { consume?: boolean },
+  ): Promise<ClientToolVerdict>;
 }
 
 export type ApprovalDecisions = ReadonlyMap<string, unknown>;
@@ -108,7 +107,14 @@ function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
 }
 
-/** Consume-once store of approvals/denials carried in the replayed conversation. */
+/**
+ * Consume-once store of approvals/denials carried in the replayed conversation.
+ *
+ * Client-tool outputs are consume-once per fulfillment: the ACP gate only peeks to prove an
+ * output exists, and the relay consumes when it actually serves that output to the tool child.
+ * Two identical client-tool calls in one conversation still share the stored output key, matching
+ * the pre-redesign behavior.
+ */
 export class ConversationDecisions implements StoredPermissionDecisions {
   constructor(private readonly byKey: Map<string, unknown>) {}
 
@@ -122,14 +128,22 @@ export class ConversationDecisions implements StoredPermissionDecisions {
     return value;
   }
 
-  /** A client-tool fulfillment output for this exact call, consumed on first take. */
-  takeClientOutput(gate: GateDescriptor): { found: boolean; output?: unknown } {
+  /** A client-tool fulfillment output for this exact call, without consuming it. */
+  peekClientOutput(gate: GateDescriptor): { found: boolean; output?: unknown } {
     const key = approvedCallKey(gate.toolName, gate.args);
     if (!key || !this.byKey.has(key)) return { found: false };
     const value = this.byKey.get(key);
     if (isPermissionDecision(value)) return { found: false };
-    this.byKey.delete(key);
     return { found: true, output: value };
+  }
+
+  /** A client-tool fulfillment output for this exact call, consumed on first take. */
+  takeClientOutput(gate: GateDescriptor): { found: boolean; output?: unknown } {
+    const key = approvedCallKey(gate.toolName, gate.args);
+    const output = this.peekClientOutput(gate);
+    if (!output.found || !key) return { found: false };
+    this.byKey.delete(key);
+    return output;
   }
 }
 
@@ -157,8 +171,13 @@ export class ApprovalResponder implements Responder {
     return verdict;
   }
 
-  async onClientTool(request: ClientToolGateRequest): Promise<ClientToolVerdict> {
-    const storedOutput = this.decisions.takeClientOutput(request.gate);
+  async onClientTool(
+    request: ClientToolGateRequest,
+    opts: { consume?: boolean } = {},
+  ): Promise<ClientToolVerdict> {
+    const storedOutput = opts.consume
+      ? this.decisions.takeClientOutput(request.gate)
+      : this.decisions.peekClientOutput(request.gate);
     if (storedOutput.found) {
       return { kind: "fulfilled", output: storedOutput.output };
     }
@@ -245,20 +264,6 @@ function approvedCallResultOf(block: ContentBlock): { found: boolean; output?: u
   return { found: true, output };
 }
 
-/**
- * Resolve the legacy permission policy with the same precedence as before: an explicit
- * per-run `permissionPolicy: "deny"` or the env override flips to deny; the default is auto.
- */
-// phase 2b deletes this (relay still consumes it)
-export function policyFromRequest(permissionPolicy?: string): PermissionPolicy {
-  if (
-    permissionPolicy === "deny" ||
-    process.env.SANDBOX_AGENT_DENY_PERMISSIONS === "true"
-  ) {
-    return "deny";
-  }
-  return "auto";
-}
 
 /**
  * Map an allow/deny decision onto the harness's available ACP replies.

@@ -508,18 +508,19 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.deepEqual(calls.toolRelayArgs?.slice(0, 6), [
+    assert.deepEqual(calls.toolRelayArgs?.slice(0, 4), [
       "local-relay-host",
       // Relay scratch lives off the geesefs mount: host tmpdir/agenta/relay/<cwd basename>.
       join(tmpdir(), "agenta", "relay", "agenta-fake-cwd"),
       [{ name: "server_tool", kind: "callback" }],
       undefined,
-      // Layer 3 (S3b): the resolved permission policy threaded into the relay. No
-      // `permissionPolicy` on the request -> the headless default `auto`.
-      "auto",
-      // No runContext on the request.
-      undefined,
     ]);
+    const relayPermissions = calls.toolRelayArgs?.[4] as any;
+    assert.equal(relayPermissions.enforce, true, "Pi enforces at the relay");
+    assert.equal(typeof relayPermissions.decide, "function");
+    assert.equal(typeof relayPermissions.onPendingApproval, "function");
+    // No runContext on the request.
+    assert.equal(calls.toolRelayArgs?.[5], undefined);
     // Trailing arg is the relay callbacks object (client-tool + park handlers).
     assert.deepEqual(
       Object.keys((calls.toolRelayArgs?.[6] ?? {}) as object).sort(),
@@ -555,6 +556,11 @@ describe("runSandboxAgent orchestration", () => {
       result.ok,
       true,
       "the run succeeds; gateway tools reach Claude",
+    );
+    assert.equal(
+      (calls.toolRelayArgs?.[4] as any)?.enforce,
+      false,
+      "Claude gates before the relay, so the relay does not re-enforce",
     );
     const mcpServers =
       calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
