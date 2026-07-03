@@ -11,6 +11,8 @@ import {getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
+import {safeParseWithLogging} from "../../shared"
+import {toolCatalogCategoriesResponseSchema} from "../core"
 import type {
     ToolCall,
     ToolCallResponse,
@@ -79,7 +81,13 @@ export const fetchToolCategories = async (
     if (!res.ok) {
         throw new Error(`fetchToolCategories failed: HTTP ${res.status}`)
     }
-    const data = (await res.json()) as ToolCatalogCategoriesResponse
+    // Boundary validation: this endpoint isn't Fern-typed, so the local schema is the
+    // only drift check. On a shape mismatch we log and fall back to an empty list.
+    const data = safeParseWithLogging(
+        toolCatalogCategoriesResponseSchema,
+        await res.json(),
+        "[fetchToolCategories]",
+    )
     return {count: data?.count ?? 0, categories: data?.categories ?? []}
 }
 

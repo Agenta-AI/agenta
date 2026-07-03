@@ -9,7 +9,7 @@
  *
  * Consumers wrap this in their own drawer/section. Dark-safe (`--ag-color*` tokens).
  */
-import {useEffect, useMemo, useState, type ReactNode} from "react"
+import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {ScrollSentinel} from "@agenta/ui"
 import {ArrowClockwise, ArrowLeft, Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
@@ -576,10 +576,15 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
     const categoryData = props.useCategories?.()
     const hasCategoryGroup = !!props.useCategories
 
+    // Integration metadata (name/logo) for connection rows and the selected-connection detail
+    // must outlive the grid narrowing under a category/search filter — otherwise a connection
+    // whose app falls outside the active filter (or hasn't paged in yet) degrades to its raw
+    // integration key. Accumulate a monotonic union of every integration ever loaded so these
+    // lookups stay stable while the visible grid below stays filtered.
+    const metaByKeyRef = useRef(new Map<string, I>())
     const byKey = useMemo(() => {
-        const m = new Map<string, I>()
-        integrations.forEach((i) => m.set(props.integration.key(i), i))
-        return m
+        integrations.forEach((i) => metaByKeyRef.current.set(props.integration.key(i), i))
+        return new Map(metaByKeyRef.current)
     }, [integrations, props.integration])
     // Per-integration connection state for the grid dot: "active" if any connection is functional,
     // otherwise "pending" when connections exist but none is ready yet. Ready wins over pending.
@@ -653,10 +658,15 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         setSearchInput("")
         setSearch("")
     }
-    const pickAll = () => {
-        setSelected(null)
+    // Category state (rail highlight) and the query atom must always move together, or the grid
+    // filters by a category the rail no longer shows.
+    const clearCategory = () => {
         setCategoryState(null)
         setCategory?.(null)
+    }
+    const pickAll = () => {
+        setSelected(null)
+        clearCategory()
         clearSearch()
     }
     const pickCategory = (cat: {id: string; name: string}) => {
@@ -665,8 +675,12 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         setCategory?.(cat.id)
         clearSearch()
     }
+    // A connection is its own rail selection, mutually exclusive with the category filter —
+    // leaving the category active would filter the browse query behind the detail view and, on
+    // Back, restore a stale category the user didn't re-pick.
     const pickConn = (id: string) => {
         setSelected({kind: "conn", id})
+        clearCategory()
         clearSearch()
     }
 

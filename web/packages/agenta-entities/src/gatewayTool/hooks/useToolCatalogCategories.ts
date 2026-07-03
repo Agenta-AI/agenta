@@ -4,7 +4,8 @@ import {useAtomValue} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchToolCategories} from "../api"
-import type {ToolCatalogCategory, ToolCatalogCategoriesResponse} from "../core/types"
+import {dedupeBy} from "../core"
+import type {ToolCatalogCategoriesResponse} from "../core/types"
 
 const DEFAULT_PROVIDER = "composio"
 
@@ -24,16 +25,10 @@ export const useToolCatalogCategories = () => {
 
     // Composio's categories endpoint returns duplicate slugs — dedupe by id so React keys stay
     // unique (a duplicate key crashes the list render).
-    const categories = useMemo(() => {
-        const seen = new Set<string>()
-        const out: ToolCatalogCategory[] = []
-        for (const c of query.data?.categories ?? []) {
-            if (!c?.id || seen.has(c.id)) continue
-            seen.add(c.id)
-            out.push(c)
-        }
-        return out
-    }, [query.data?.categories])
+    const categories = useMemo(
+        () => dedupeBy(query.data?.categories ?? [], (c) => c?.id),
+        [query.data?.categories],
+    )
 
     return {
         categories,

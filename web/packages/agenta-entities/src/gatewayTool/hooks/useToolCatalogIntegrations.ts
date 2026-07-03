@@ -4,6 +4,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithInfiniteQuery} from "jotai-tanstack-query"
 
 import {fetchToolIntegrations} from "../api"
+import {dedupeBy} from "../core"
 import type {
     ToolCatalogIntegration,
     ToolCatalogIntegrationDetails,
@@ -63,14 +64,10 @@ export const useToolCatalogIntegrations = () => {
         const pages = query.data?.pages ?? []
         // Dedupe by key across pagination boundaries — a cursor overlap can repeat an integration,
         // and duplicate React keys crash the grid render.
-        const seen = new Set<string>()
-        const out: CatalogIntegrationItem[] = []
-        for (const i of pages.flatMap((p) => p.integrations ?? [])) {
-            if (!i?.key || seen.has(i.key)) continue
-            seen.add(i.key)
-            out.push(i)
-        }
-        return out
+        return dedupeBy(
+            pages.flatMap((p) => p.integrations ?? []),
+            (i) => i?.key,
+        )
     }, [query.data?.pages])
 
     const total = useMemo(() => {
