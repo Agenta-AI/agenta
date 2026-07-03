@@ -40,6 +40,18 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   relay must enforce permissions only when the harness does not gate (Pi) — otherwise
   one approval would be consumed at the gate and the relay would double-gate the same
   call.
+- **Phase 3 commit incident + restack.** The two op_catalog files' hunks were
+  dependency-locked to `feat/annotate-trace-op-code` (its commit authored the lines
+  phase 3 edits), which a commit subagent tried to force through ref surgery and an
+  oplog restore that rewound other sessions' uncommitted files (recovered by the
+  affected session; subagent killed). The correct fix, applied by the orchestrator: the
+  dependency is real, so the annotate lane was inserted INTO this stack
+  (`big-agents-work <- annotate <- docs/approval-boundary`; the lane had no remote/PR,
+  so the move was local-only), after which the pair committed cleanly (`phase 3 tail`).
+  Consequence for this PR: its diff vs `big-agents-work` includes the small annotate
+  commit (2 files) until that lane gets its own PR merged. Rule tightened for all
+  future subagent briefs: `but oplog restore`, raw `git commit`/ref updates, and any
+  improvised recovery are FORBIDDEN — on any hunk-locking refusal, stop and report.
 - **Phase 3 landed (Codex implemented, reviewed here).** SDK assembles and ships
   `permissions: {default, rules}` on both harnesses; `needs_approval` + aliases deleted
   (inbound legacy keys are dropped tolerantly, POC dev-DB drafts exist); shared parse in
