@@ -103,8 +103,10 @@ string `"allow"`/`"deny"` collides with permission semantics (`responder.ts:218-
   `extractApprovalDecisions`. Value is the raw browser output (no allow/deny coercion).
 - Key by `parkedCallKey(name, args)` but store a **FIFO list per key** so duplicate identical
   calls are consumed in order instead of overwriting.
-- `HITLResponder` takes `decisions` (permissions) AND `clientOutputs` (client tools) as two
-  distinct maps; `onClientTool` reads only `clientOutputs`, `onPermission` only `decisions`.
+- `HITLResponder` (since renamed `ApprovalResponder`, see
+  [projects/approval-boundary/](../approval-boundary/)) takes `decisions` (permissions) AND
+  `clientOutputs` (client tools) as two distinct maps; `onClientTool` reads only
+  `clientOutputs`, `onPermission` only `decisions`.
 
 ### Why this and not the alternatives
 
@@ -173,7 +175,8 @@ on the file-relay module. `relay.ts` imports the type from the new home.
 instead of the inline callback — behavior-preserving for Pi.
 
 **3d. Separate resume store + correlation index** (designs above): `extractClientToolOutputs`,
-`HITLResponder` two-map constructor, the `toolCallIndex` from `session.onEvent`.
+`HITLResponder` (now `ApprovalResponder`) two-map constructor, the `toolCallIndex` from
+`session.onEvent`.
 
 Do NOT delete the dead ACP branch yet.
 Risk: low-medium; existing relay/permission tests + new seam tests guard it.
