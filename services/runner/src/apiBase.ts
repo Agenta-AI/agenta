@@ -7,9 +7,11 @@
  * unreachable, which is why the two must stay distinct env vars.
  */
 export function apiBase(): string {
-  return (
+  const base =
     process.env.AGENTA_API_INTERNAL_URL ??
     process.env.AGENTA_API_URL ??
-    "http://api:8000"
-  );
+    "http://api:8000";
+  // Trim trailing slashes off the BASE only — callers append paths, and collection
+  // endpoints keep their own trailing slash (`${base}/sessions/streams/`).
+  return base.replace(/\/+$/, "");
 }
