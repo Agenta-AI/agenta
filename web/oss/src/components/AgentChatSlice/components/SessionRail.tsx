@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {MagnifyingGlass, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Empty, Input, Tag, Tooltip} from "antd"
+import {Button, Empty, Input, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -84,9 +84,7 @@ const SessionRailRow = ({
                     }}
                     className={clsx(
                         "group flex cursor-pointer items-center gap-2 rounded-md border border-solid px-2 py-1.5 transition-colors",
-                        active
-                            ? "border-colorBorder bg-colorFillSecondary"
-                            : "border-transparent hover:bg-colorFillTertiary",
+                        active ? "ag-surface-selected" : "ag-row-hover border-transparent",
                     )}
                 >
                     <SessionStatusDot sessionId={session.id} />
@@ -107,9 +105,9 @@ const SessionRailRow = ({
                     </div>
                     <div className="flex shrink-0 items-center gap-0.5">
                         {open && !active && (
-                            <Tag color="processing" className="!m-0 !text-[11px]">
+                            <span className="ag-surface-chip rounded px-1.5 py-px text-[11px] text-colorTextSecondary">
                                 open
-                            </Tag>
+                            </span>
                         )}
                         {active && <SessionInspectorButton sessionId={session.id} />}
                         <Tooltip title="Delete session">
@@ -208,11 +206,11 @@ const SessionRail = ({activeId, className}: SessionRailProps) => {
     return (
         <div
             className={clsx(
-                "flex h-full min-h-0 flex-col border-0 border-r border-solid border-colorBorderSecondary",
+                "ag-panel-raised flex h-full min-h-0 flex-col border-0 border-r border-solid border-[var(--ag-surface-divider)]",
                 className,
             )}
         >
-            <div className="flex h-[48px] shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
+            <div className="flex h-[48px] shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-[var(--ag-surface-divider)] px-3">
                 <span className="text-xs font-medium text-colorTextSecondary">Sessions</span>
                 <Tooltip title="New session">
                     <Button
@@ -232,7 +230,7 @@ const SessionRail = ({activeId, className}: SessionRailProps) => {
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search sessions"
                     prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
-                    className="!text-xs"
+                    className="!text-xs !border-[var(--ag-surface-inset-border)] !bg-[var(--ag-surface-inset)]"
                 />
             </div>
 

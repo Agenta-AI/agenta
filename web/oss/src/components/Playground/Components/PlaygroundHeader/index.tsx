@@ -22,7 +22,7 @@ import {
     type AgentChannelMode,
 } from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
-import {bgColors, textColors} from "@agenta/ui"
+import {textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Check, Gavel, GearSix, PencilSimple, Plus, Robot} from "@phosphor-icons/react"
@@ -538,8 +538,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         <>
             <div
                 className={clsx(
-                    "flex items-center justify-between gap-4 px-2.5 py-2",
-                    bgColors.active,
+                    "flex items-center justify-between gap-4 px-2.5 py-2 bg-[var(--ag-surface-raised)] border-0 border-b border-solid border-[var(--ag-surface-divider)]",
                     className,
                 )}
                 {...divProps}

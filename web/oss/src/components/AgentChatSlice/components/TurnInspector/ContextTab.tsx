@@ -29,7 +29,7 @@ const agentModel = (parameters: unknown): string | null => {
 const Block = ({label, value}: {label: string; value: string}) => (
     <div className="flex min-w-0 flex-col gap-0.5">
         <span className="font-mono text-[10px] text-colorTextTertiary">{label}</span>
-        <pre className="m-0 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-colorFillTertiary px-2 py-1.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
+        <pre className="ag-surface-inset m-0 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
             {value}
         </pre>
     </div>

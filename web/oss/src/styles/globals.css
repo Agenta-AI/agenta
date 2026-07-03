@@ -207,6 +207,82 @@ body {
     background: var(--ag-colorPrimary) !important;
     opacity: 0.7 !important;
 }
+/* Agent playground: the divider is the GUTTER between the raised Config panel and the recessed
+   Chat canvas — a real ~12px channel (not a hairline) that says "two workspaces". Widen the bar and
+   tint it the near-black/soft-grey gutter tone; the grip pseudo-elements above still read as the
+   handle. */
+.playground-splitter-agent .ant-splitter-bar {
+    background: var(--ag-surface-gutter) !important;
+    flex-basis: 12px !important;
+    width: 12px !important;
+}
+
+/* ── Agent Playground surface classes ──────────────────────────────────────────────────────────
+   Semantic surfaces for the panel-contrast treatment. Multi-value shadows + fill + border are set
+   together here (more reliable than Tailwind arbitrary-value shadows) and reference the per-theme
+   ladder in theme-variables.css. Roles invert by theme automatically via the token values. */
+.ag-app-ground {
+    background: var(--ag-surface-app);
+}
+.ag-panel-raised {
+    background: var(--ag-surface-raised);
+    box-shadow: var(--ag-surface-raised-shadow);
+}
+.ag-canvas {
+    background: var(--ag-surface-canvas);
+}
+.ag-surface-card {
+    background: var(--ag-surface-card);
+    border: 1px solid var(--ag-surface-card-border);
+    box-shadow: var(--ag-surface-card-shadow);
+}
+.ag-surface-chat {
+    background: var(--ag-surface-chat);
+    border: 1px solid var(--ag-surface-chat-border);
+    box-shadow: var(--ag-surface-chat-shadow);
+}
+.ag-surface-inset {
+    background: var(--ag-surface-inset);
+    border: 1px solid var(--ag-surface-inset-border);
+}
+/* Right-docked Turn inspector: a raised panel floating above the recessed chat canvas — raised
+   tone + a left seam + a soft left-edge shadow so it reads as sitting on top. */
+.ag-inspector-panel {
+    background: var(--ag-surface-raised);
+    border-left: 1px solid var(--ag-surface-divider);
+    box-shadow: var(--ag-surface-inspector-shadow);
+}
+.ag-surface-chip {
+    background: var(--ag-surface-chip);
+    border: 1px solid var(--ag-surface-chip-border);
+}
+.ag-surface-error-well {
+    background: var(--ag-surface-error-well);
+    border: 1px solid var(--ag-surface-error-well-border);
+}
+/* Status chips — the only semantic colour in the treatment (kept subtle). */
+.ag-status-error {
+    background: var(--ag-status-error-bg);
+    border: 1px solid var(--ag-status-error-border);
+    color: var(--ag-status-error-text);
+}
+.ag-status-success {
+    background: var(--ag-status-success-bg);
+    border: 1px solid var(--ag-status-success-border);
+    color: var(--ag-status-success-text);
+}
+/* List-row hover fill (session rows, etc.). */
+.ag-row-hover:hover {
+    background: var(--ag-surface-row-hover);
+}
+/* Selected list row — a lifted card surface with a brand accent bar on the left. Pairs with a base
+   `border border-solid` on the row (this sets the colour + a 2px accent left border + shadow). */
+.ag-surface-selected {
+    background: var(--ag-surface-card);
+    border-color: var(--ag-surface-card-border);
+    border-left: 2px solid var(--ag-surface-accent);
+    box-shadow: var(--ag-surface-card-shadow);
+}
 
 /* Build/Chat mode transitions: ease the panels' flex-basis (config → 0, chat → full) and fade the
    inert split bar instead of snapping. `-animated` is added by MainLayout only around a toggle (off

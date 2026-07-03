@@ -47,7 +47,7 @@ const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
                         >
                             {c.invocationUrl}
                         </Text>
-                        <pre className="m-0 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded bg-colorFillTertiary px-2 py-1.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
+                        <pre className="ag-surface-inset m-0 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
                             {json}
                         </pre>
                     </div>

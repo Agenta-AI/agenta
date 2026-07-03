@@ -619,6 +619,10 @@ export function AgentTemplateControl({
         inlineContent?: React.ReactNode
     }[]
 
+    // Each config section is a contained card on the raised Config panel — the surface tokens give
+    // it depth against the panel (see theme-variables.css "Agent Playground surface ladder").
+    const sectionCardClass = "ag-surface-card rounded-[11px] px-4"
+
     return (
         <div className={cn("flex flex-col", className)}>
             {sections.length === 0 ? (
@@ -683,28 +687,31 @@ export function AgentTemplateControl({
                             onOpen={s.onOpen}
                             collapsible={false}
                             noDivider
-                            className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3"
+                            className={sectionCardClass}
                         >
                             {s.content}
                         </ConfigAccordionSection>
                     ))}
                 </div>
             ) : (
-                sections.map((s, index) => (
-                    <ConfigAccordionSection
-                        key={s.key}
-                        icon={s.icon}
-                        title={s.title}
-                        summary={s.summary}
-                        extra={s.extra}
-                        indicator={s.indicator}
-                        onOpen={s.onOpen}
-                        defaultOpen={s.defaultOpen}
-                        noDivider={index === sections.length - 1}
-                    >
-                        {s.content}
-                    </ConfigAccordionSection>
-                ))
+                <div className="flex flex-col gap-3 pt-1">
+                    {sections.map((s) => (
+                        <ConfigAccordionSection
+                            key={s.key}
+                            icon={s.icon}
+                            title={s.title}
+                            summary={s.summary}
+                            extra={s.extra}
+                            indicator={s.indicator}
+                            onOpen={s.onOpen}
+                            defaultOpen={s.defaultOpen}
+                            noDivider
+                            className={sectionCardClass}
+                        >
+                            {s.content}
+                        </ConfigAccordionSection>
+                    ))}
+                </div>
             )}
 
             {editing

@@ -277,7 +277,13 @@ const PlaygroundMainView = ({
             className={clsx("flex flex-col grow h-full overflow-hidden", className)}
             {...divProps}
         >
-            <div className="w-full max-h-full h-full grow relative overflow-hidden">
+            <div
+                className={clsx("w-full max-h-full h-full grow relative overflow-hidden", {
+                    // Agent Build view: recess the whole workspace to a near-black/soft-grey base so
+                    // the raised Config panel and the Chat canvas read as two distinct surfaces.
+                    "ag-app-ground": isAgentConfig,
+                })}
+            >
                 <Splitter
                     key={`${splitterKey}-splitter`}
                     className={clsx("h-full playground-splitter", {
@@ -305,6 +311,8 @@ const PlaygroundMainView = ({
                                     "grow w-full h-full overflow-y-auto": !isComparisonView,
                                     "grow w-full h-full overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
+                                    // Config = the raised authoring surface.
+                                    "ag-panel-raised": isAgentConfig,
                                 },
                             ])}
                         >
@@ -364,6 +372,8 @@ const PlaygroundMainView = ({
                                         !isComparisonView,
                                     "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
+                                    // Chat = the recessed canvas the message/composer surfaces sit on.
+                                    "ag-canvas": isAgentConfig,
                                 },
                             ])}
                         >

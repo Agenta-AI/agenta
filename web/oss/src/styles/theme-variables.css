@@ -477,10 +477,11 @@
    one step darker than the content surface (#141414) so the nav rail recedes
    and reads as distinct chrome instead of merging into a single flat panel. */
 :root {
-    --ag-sidebar-bg: #ffffff;
+    /* Sidebar is raised chrome — one continuous surface with the top bars + config panel. */
+    --ag-sidebar-bg: var(--ag-surface-raised);
 }
 .dark {
-    --ag-sidebar-bg: #0d0d0d;
+    --ag-sidebar-bg: var(--ag-surface-raised);
 }
 
 /* Evaluations "Application" cell (app name + variant slug + version chip). The
@@ -624,4 +625,72 @@
     --ag-slate-800: rgba(255, 255, 255, 0.75);
     --ag-slate-900: var(--ant-color-text);
     --ag-slate-950: rgba(255, 255, 255, 0.92);
+}
+
+/**
+ * Agent Playground surface ladder — panel-contrast treatment.
+ *
+ * The Build view is two workspaces (Configuration = authoring, Chat = observing) that used
+ * to share one flat background. These tokens separate them with elevation + containment,
+ * not hue. The relationship INVERTS by theme: the raised surface is lighter than the canvas
+ * in dark mode, and white over soft-grey in light mode — so the values differ per theme but
+ * the roles are the same. Values from the approved mockup (Playground.dc.html "elevated").
+ * Scoped to the playground panels; the rest of the app keeps the antd semantic tokens above.
+ */
+:root {
+    --ag-surface-app: #e9ebee; /* root behind the columns */
+    --ag-surface-gutter: #dfe1e5; /* channel between the two columns */
+    --ag-surface-divider: #ededee; /* hairline between chrome planes (sidebar edge, bar bottoms) */
+    --ag-surface-raised: #ffffff; /* Configuration panel */
+    --ag-surface-raised-shadow: 0 1px 3px rgba(16, 18, 22, 0.05);
+    --ag-surface-card: #ffffff; /* a config section */
+    --ag-surface-card-border: #e7e8eb;
+    --ag-surface-card-shadow: 0 1px 2px rgba(16, 18, 22, 0.06);
+    --ag-surface-inset: #f3f4f6; /* nested well (AGENTS.md file, Slack row, code block) */
+    --ag-surface-inset-border: #e7e8eb;
+    --ag-surface-canvas: #f4f5f7; /* recessed Chat canvas */
+    --ag-surface-chat: #ffffff; /* a surface on the canvas (bubble, composer, approval) */
+    --ag-surface-chat-border: #e7e8eb;
+    --ag-surface-chat-shadow: 0 1px 2px rgba(16, 18, 22, 0.06);
+    --ag-surface-inspector-shadow: -8px 0 24px rgba(16, 18, 22, 0.08); /* raised right-docked panel */
+    --ag-surface-chip: #edeef0; /* neutral chip/badge (open badge, code chip) */
+    --ag-surface-chip-border: #e3e4e6;
+    --ag-surface-accent: #c2d54a; /* brand accent (selected-row bar) — constant across themes */
+    --ag-surface-row-hover: #f3f4f6; /* list-row hover fill */
+    --ag-surface-error-well: #fdf3f3; /* faintly error-tinted well (a failed tool payload) */
+    --ag-surface-error-well-border: #f3d0ce;
+    --ag-status-error-bg: #fdecec; /* status chip — the only place semantic colour is used */
+    --ag-status-error-border: #f5c6c4;
+    --ag-status-error-text: #c0362f;
+    --ag-status-success-bg: #eaf6ec;
+    --ag-status-success-border: #bfe3c6;
+    --ag-status-success-text: #2e7d3a;
+}
+.dark {
+    --ag-surface-app: #0a0a0c;
+    --ag-surface-gutter: #060607;
+    --ag-surface-divider: #1c1c1f;
+    --ag-surface-raised: #1a1b1e;
+    --ag-surface-raised-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+    --ag-surface-card: #212327;
+    --ag-surface-card-border: #2d3036;
+    --ag-surface-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    --ag-surface-inset: #111214;
+    --ag-surface-inset-border: #26282d;
+    --ag-surface-canvas: #0c0c0e;
+    --ag-surface-chat: #17181b;
+    --ag-surface-chat-border: #26282d;
+    --ag-surface-chat-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    --ag-surface-inspector-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+    --ag-surface-chip: #2a2a2e;
+    --ag-surface-chip-border: #303035;
+    --ag-surface-row-hover: #212327;
+    --ag-surface-error-well: #1e1416;
+    --ag-surface-error-well-border: #4a2226;
+    --ag-status-error-bg: #2a1618;
+    --ag-status-error-border: #5a2a2e;
+    --ag-status-error-text: #f0857c;
+    --ag-status-success-bg: #16231a;
+    --ag-status-success-border: #2c4a34;
+    --ag-status-success-text: #7fcf8f;
 }

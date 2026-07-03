@@ -77,10 +77,10 @@ const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMe
             inert={!open}
         >
             <div
-                className="flex h-full min-h-0 flex-col border-0 border-l border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)]"
+                className="ag-inspector-panel flex h-full min-h-0 flex-col"
                 style={{width: PANEL_WIDTH}}
             >
-                <div className="flex shrink-0 items-center justify-between border-0 border-b border-solid border-[var(--ag-colorBorder)] px-3 py-2">
+                <div className="flex shrink-0 items-center justify-between border-0 border-b border-solid border-[var(--ag-surface-divider)] px-3 py-2">
                     <span className="text-xs font-medium text-[var(--ag-colorText)]">
                         Turn inspector
                     </span>
@@ -113,7 +113,7 @@ const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMe
                             )
                         })}
                     </div>
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorder)] pl-3">
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-surface-divider)] pl-3">
                         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                             {tab === "timeline" ? <TimelineTab round={round} /> : null}
                             {tab === "context" ? <ContextTab captures={turnCaptures} /> : null}

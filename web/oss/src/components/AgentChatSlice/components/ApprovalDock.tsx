@@ -132,7 +132,7 @@ const ApprovalDock = ({
         >
             <div className="min-h-0 overflow-hidden">
                 {current ? (
-                    <div className="mb-2 flex flex-col gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-3">
+                    <div className="ag-surface-chat mb-2 flex flex-col gap-2.5 rounded-lg p-3">
                         {/* Header: a quiet primary cue (not an error tint) + the ask + a count when batched. */}
                         <div className="flex items-center gap-2">
                             <ShieldCheck
@@ -174,7 +174,7 @@ const ApprovalDock = ({
 
                         {/* The payload — collapsed to a one-line preview, expandable to the full request. */}
                         {payload ? (
-                            <div className="overflow-hidden rounded bg-colorFillTertiary">
+                            <div className="ag-surface-inset overflow-hidden rounded">
                                 <button
                                     type="button"
                                     onClick={() => setShowPayload((s) => !s)}

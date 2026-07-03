@@ -43,8 +43,8 @@ const Block = ({label, value, danger}: {label: string; value: string; danger?: b
         <pre
             className={`m-0 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug ${
                 danger
-                    ? "bg-[var(--ant-color-error-bg)] !text-colorErrorText"
-                    : "bg-colorBgContainer text-colorTextSecondary"
+                    ? "ag-surface-error-well !text-colorErrorText"
+                    : "ag-surface-inset text-colorTextSecondary"
             }`}
         >
             {value}
@@ -83,7 +83,7 @@ const ToolStep = ({part}: {part: ToolUIPart}) => {
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
     return (
-        <div className="flex flex-col gap-1.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2.5">
+        <div className="ag-surface-card flex flex-col gap-1.5 rounded-[11px] p-2.5">
             <div className="flex min-w-0 items-center gap-2">
                 <ToolStatus state={state} />
                 <Text
@@ -92,12 +92,17 @@ const ToolStep = ({part}: {part: ToolUIPart}) => {
                 >
                     {toolName(part)}
                 </Text>
-                <Text
-                    type={state === "output-error" ? "danger" : "secondary"}
-                    className="!text-[11px] ml-auto shrink-0"
+                <span
+                    className={`ml-auto shrink-0 rounded px-1.5 py-px font-mono text-[10px] ${
+                        state === "output-error"
+                            ? "ag-status-error"
+                            : state === "output-available"
+                              ? "ag-status-success"
+                              : "ag-surface-chip text-colorTextSecondary"
+                    }`}
                 >
                     {state}
-                </Text>
+                </span>
             </div>
             {input != null ? <Block label="input" value={format(input)} /> : null}
             {errorText !== undefined ? (
@@ -116,7 +121,7 @@ const AssistantPart = ({part}: {part: UIMessage["parts"][number]}) => {
         if (!text.trim()) return null
         return (
             <Row label="Thought">
-                <div className="whitespace-pre-wrap text-xs italic text-colorTextTertiary">
+                <div className="ag-surface-inset whitespace-pre-wrap rounded px-2.5 py-2 text-xs italic text-colorTextTertiary">
                     {text}
                 </div>
             </Row>
@@ -154,7 +159,7 @@ const TimelineTab = ({round}: {round: UIMessage[]}) => {
         if (msg.role === "user") {
             nodes.push(
                 <Row key={msg.id} label="You" accent>
-                    <div className="whitespace-pre-wrap text-xs text-colorText">
+                    <div className="ag-surface-inset whitespace-pre-wrap rounded px-2.5 py-2 text-xs text-colorText">
                         {userText(msg) || "—"}
                     </div>
                 </Row>,
