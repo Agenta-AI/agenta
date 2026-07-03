@@ -562,7 +562,7 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            AGENTA_RUNNER_URL: ${AGENTA_RUNNER_URL:-http://runner:8765}
+            AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
             AGENTA_AGENT_MCPS_ENABLED: ${AGENTA_AGENT_MCPS_ENABLED:-false}
         # === NETWORK ============================================== #
         networks:
@@ -617,7 +617,7 @@ services:
             # network (the same `http://api:8000` the workers use), NOT the public
             # `http://localhost/api` (which doesn't resolve inside a container). Used by the
             # OTLP tracing-export fallback AND the session heartbeat/record-persist calls.
-            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000/api}
+            AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}

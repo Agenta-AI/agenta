@@ -21,7 +21,7 @@ The agent workflow is split across two services. Know which is which.
    `sandbox-agent` package). It listens on `:8765` and serves `GET /health` and `POST /run`
    (`services/agent/src/server.ts`). The Python service calls it over HTTP.
 
-The Python service finds the runner through `AGENTA_RUNNER_URL`, which defaults to
+The Python service finds the runner through `AGENTA_RUNNER_INTERNAL_URL`, which defaults to
 `http://sandbox-agent:8765` in every compose stage (for example
 `hosting/docker-compose/ee/docker-compose.dev.yml:421`).
 
@@ -112,7 +112,7 @@ In the EE dev compose, the relevant services are:
 
 - `services`. Runs uvicorn on port `8080` inside the container
   (`hosting/docker-compose/ee/docker-compose.dev.yml:383`). It hosts the Python agent
-  service. Traefik routes `/services/` to it. It sets `AGENTA_RUNNER_URL` to
+  service. Traefik routes `/services/` to it. It sets `AGENTA_RUNNER_INTERNAL_URL` to
   `http://sandbox-agent:8765` and `AGENTA_AGENT_ENABLE_MCP` to `false` by default (lines 421
   to 422). It depends on `sandbox-agent` being healthy (line 430).
 
@@ -162,7 +162,7 @@ env file points the chat slice at
 These are the agent-relevant variables. The example file lists them commented out
 (`hosting/docker-compose/ee/env.ee.dev.example`, lines 119 onward).
 
-- `AGENTA_RUNNER_URL`. Where the Python service finds the runner. Default
+- `AGENTA_RUNNER_INTERNAL_URL`. Where the Python service finds the runner. Default
   `http://sandbox-agent:8765`. When unset, the Python service spawns the runner CLI locally
   instead (see `runner_url` and `select_backend` in `services/oss/src/agent/`).
 - `AGENTA_AGENT_ENABLE_MCP`. Gates MCP server resolution. Default `false`.
@@ -196,7 +196,7 @@ This is a standalone pnpm package. It is not part of the web workspace. It runs 
 with no compile step. The only build is `pnpm run build:extension`, which bundles the Pi
 extension into `dist/`.
 
-When the Python service runs in a source checkout with `AGENTA_RUNNER_URL` unset, it
+When the Python service runs in a source checkout with `AGENTA_RUNNER_INTERNAL_URL` unset, it
 spawns this runner through the CLI path instead of calling it over HTTP. See `select_backend`
 in `services/oss/src/agent/app.py:49` and `runner_url` in `services/oss/src/agent/config.py`.
 

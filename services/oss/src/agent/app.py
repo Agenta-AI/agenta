@@ -8,7 +8,7 @@ context (``tracing``), then runs one turn through a :class:`Harness` over a back
 from the config's run-selection fields, and records the run's usage.
 
 The sandbox-agent-backed backend is the production path. The transport is a deployment
-choice: HTTP to `AGENTA_RUNNER_URL`, or a local runner CLI in a source checkout.
+choice: HTTP to `AGENTA_RUNNER_INTERNAL_URL`, or a local runner CLI in a source checkout.
 The harness, sandbox, and permission policy are editable fields on the agent config.
 """
 
@@ -192,7 +192,7 @@ async def _resolve_session_connection(
 def select_backend(agent_template: AgentTemplate) -> Backend:
     """Pick the backend for a run from the agent config's run-selection fields.
 
-    The service always uses the sandbox-agent-backed runner. `AGENTA_RUNNER_URL`
+    The service always uses the sandbox-agent-backed runner. `AGENTA_RUNNER_INTERNAL_URL`
     selects HTTP transport in deployed containers. When it is unset, local development
     spawns the TypeScript runner CLI from the runner dir. Only ``sandbox`` is read here;
     it is a backend/environment concern that never enters ``SessionConfig``.

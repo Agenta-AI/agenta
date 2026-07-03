@@ -17,14 +17,12 @@
  *    backstop. Three retries with linear backoff before the event is dropped.
  */
 
+import { apiBase } from "../apiBase.ts";
 import type { AgentEvent } from "../protocol.ts";
 
 const INGEST_MAX_RETRIES = 3;
 const INGEST_RETRY_BASE_MS = 100;
 
-function apiBase(): string {
-  return process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
-}
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/persist] ${msg}\n`);
