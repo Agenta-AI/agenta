@@ -19,6 +19,7 @@ import {
   parkedCallKey,
   decisionToReply,
   extractApprovalDecisions,
+  nonConvergingToolNames,
   policyFromRequest,
   type PermissionDecision,
   type PermissionRequest,
@@ -464,5 +465,253 @@ describe("emitEvent", () => {
     const ev = run.events().find((e) => e.type === "data");
     assert.ok(ev, "data event recorded with no live sink");
     assert.equal((ev as any).name, "weather");
+  });
+});
+
+// A permission request whose ACP tool call carries a resolved spec (with a STABLE canonical
+// name) plus drift-prone display fields (title/kind). The live wire for a Claude tool has no
+// `name`, so the key must anchor on `spec.name`, not the title/kind that varies across turns.
+function permReqWithSpec(
+  toolCallId: string,
+  specName: string,
+  displayTitle: string,
+  rawInput?: unknown,
+): PermissionRequest {
+  return {
+    id: "perm-1",
+    availableReplies: ["once", "always", "reject"],
+    raw: {
+      id: "perm-1",
+      toolCall: {
+        toolCallId,
+        title: displayTitle,
+        kind: "execute",
+        spec: { name: specName },
+        rawInput,
+      },
+    },
+  };
+}
+
+// The LIVE production shape (from runner logs): a Claude-over-ACP gate with NO spec and a
+// permission-frame `title` that is the specific invocation ("cat ~/...") — which DIFFERS from the
+// `session/update` tool_call title the transcript stored ("Terminal"). The engine recovers the
+// recorded tool_call name and stamps it as `resolvedName`; the key must anchor on THAT.
+function permReqResolved(
+  toolCallId: string,
+  resolvedName: string,
+  driftingTitle: string,
+  rawInput?: unknown,
+): PermissionRequest {
+  return {
+    id: "perm-1",
+    availableReplies: ["once", "always", "reject"],
+    raw: {
+      id: "perm-1",
+      toolCall: { toolCallId, resolvedName, title: driftingTitle, kind: "execute", rawInput },
+    },
+  };
+}
+
+describe("HITLResponder — recorded-name anchor (the live ACP title-drift loop)", () => {
+  it("resumes: stored key uses the tool_call name (Terminal) while the permission title drifts (cat ...)", async () => {
+    // Exactly the logged failure: stored `Terminal#{command,description}` -> allow, re-raised gate
+    // whose ACP permission title is the full command. Without `resolvedName` the live key would be
+    // `cat ...#args` and never match -> re-park loop. With it, the live key is `Terminal#args`.
+    const args = { command: "cat ~/.claude/settings.json", description: "Read global settings" };
+    const decisions = new Map<string, PermissionDecision>([
+      [parkedCallKey("Terminal", args)!, "allow"],
+    ]);
+    const responder = new HITLResponder(decisions, "auto", true);
+    assert.equal(
+      await responder.onPermission(
+        permReqResolved("fresh-id", "Terminal", "cat ~/.claude/settings.json", args),
+      ),
+      "allow",
+      "the recorded tool_call name anchors the resume despite the drifting permission title",
+    );
+  });
+
+  it("the loop-breaker also matches on the recorded name (looping set is keyed the same way)", async () => {
+    const args = { command: "cat x" };
+    const responder = new HITLResponder(
+      new Map(),
+      "auto",
+      true,
+      new Set(["Terminal"]), // nonConverging is keyed by the stored (recorded) name
+      () => {},
+    );
+    // The live gate resolves to "Terminal" (not the "cat x" title), so the breaker engages.
+    assert.equal(
+      await responder.onPermission(permReqResolved("fresh", "Terminal", "cat x", args)),
+      "deny",
+    );
+  });
+});
+
+describe("HITLResponder — stable spec.name anchor (name-drift fix)", () => {
+  it("resumes when the stored key used the spec name but the re-raised gate only has a drifting title", async () => {
+    // Park turn: the tool was stored under its canonical spec name (what the egress now writes).
+    const decisions = new Map<string, PermissionDecision>([
+      [parkedCallKey("commit_revision", { message: "hi" })!, "allow"],
+    ]);
+    const responder = new HITLResponder(decisions, "auto", true);
+    // Re-raise: fresh id, NO ACP `name`, a display title that differs from the spec name.
+    // The old `name -> title -> kind` chain would key on "Commit changes" and never match.
+    assert.equal(
+      await responder.onPermission(
+        permReqWithSpec("fresh-id", "commit_revision", "Commit changes", {
+          message: "hi",
+        }),
+      ),
+      "allow",
+      "spec.name anchors the resume even when the display title drifts",
+    );
+  });
+
+  it("SECURITY: the spec-name anchor is still args-scoped (different args re-prompt)", async () => {
+    const decisions = new Map<string, PermissionDecision>([
+      [parkedCallKey("commit_revision", { message: "hi" })!, "allow"],
+    ]);
+    const responder = new HITLResponder(decisions, "auto", true);
+    assert.equal(
+      await responder.onPermission(
+        permReqWithSpec("call-b", "commit_revision", "Commit changes", {
+          message: "DIFFERENT",
+        }),
+      ),
+      "park",
+      "a different-args call must re-prompt even under the same spec name",
+    );
+  });
+});
+
+describe("nonConvergingToolNames — HITL resume loop detection", () => {
+  // Build a transcript with `approves` {approved:true} envelopes and `execs` real results for
+  // one tool, mirroring what the Vercel ingress folds onto each turn.
+  function transcriptFor(
+    name: string,
+    approves: number,
+    execs: number,
+  ): AgentRunRequest {
+    const content: any[] = [];
+    for (let i = 0; i < approves; i++)
+      content.push({
+        type: "tool_result",
+        toolCallId: `a-${i}`,
+        toolName: name,
+        output: { approved: true },
+      });
+    for (let i = 0; i < execs; i++)
+      content.push({
+        type: "tool_result",
+        toolCallId: `e-${i}`,
+        toolName: name,
+        output: "real output",
+      });
+    return { messages: [{ role: "tool", content }] };
+  }
+
+  it("flags a tool approved repeatedly but never executed", () => {
+    const looping = nonConvergingToolNames(transcriptFor("commit_revision", 3, 0));
+    assert.ok(looping.has("commit_revision"));
+  });
+
+  it("does NOT flag a converging tool (each approval produced a real result)", () => {
+    const looping = nonConvergingToolNames(transcriptFor("edit", 3, 3));
+    assert.equal(looping.has("edit"), false);
+  });
+
+  it("does NOT flag below the threshold (a couple of retries are tolerated)", () => {
+    const looping = nonConvergingToolNames(transcriptFor("bash", 2, 0));
+    assert.equal(looping.has("bash"), false);
+  });
+
+  it("recovers the tool name from the correlated tool_call when the result omits it", () => {
+    const request: AgentRunRequest = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "t1", toolName: "deploy" },
+            { type: "tool_call", toolCallId: "t2", toolName: "deploy" },
+            { type: "tool_call", toolCallId: "t3", toolName: "deploy" },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            { type: "tool_result", toolCallId: "t1", output: { approved: true } },
+            { type: "tool_result", toolCallId: "t2", output: { approved: true } },
+            { type: "tool_result", toolCallId: "t3", output: { approved: true } },
+          ],
+        },
+      ],
+    };
+    assert.ok(nonConvergingToolNames(request).has("deploy"));
+  });
+});
+
+describe("HITLResponder — loop-breaker + diagnostics", () => {
+  it("DENIES a gate whose tool is non-converging, instead of parking forever", async () => {
+    const logs: string[] = [];
+    // No stored decision matches (the drift), and the tool is flagged as looping.
+    const responder = new HITLResponder(
+      new Map(),
+      "auto",
+      true, // human surface -> would normally park
+      new Set(["commit_revision"]),
+      (m) => logs.push(m),
+    );
+    assert.equal(
+      await responder.onPermission(
+        permReqWithSpec("fresh", "commit_revision", "Commit changes", {
+          message: "x",
+        }),
+      ),
+      "deny",
+      "the loop-breaker denies rather than re-parking",
+    );
+    assert.ok(
+      logs.some((l) => l.includes("loop-breaker")),
+      "the loop-break is logged for diagnostics",
+    );
+  });
+
+  it("still parks a NON-looping tool with no stored decision (loop-breaker is scoped)", async () => {
+    const responder = new HITLResponder(
+      new Map(),
+      "auto",
+      true,
+      new Set(["commit_revision"]),
+      () => {},
+    );
+    assert.equal(
+      await responder.onPermission(
+        permReqWithSpec("fresh", "edit", "Edit file", { path: "a.txt" }),
+      ),
+      "park",
+      "a different tool that is not looping still parks normally",
+    );
+  });
+
+  it("logs a gate MISS when decisions are present but none match (drift diagnostic)", async () => {
+    const logs: string[] = [];
+    const decisions = new Map<string, PermissionDecision>([
+      [parkedCallKey("edit", { path: "a.txt" })!, "allow"],
+    ]);
+    const responder = new HITLResponder(
+      decisions,
+      "auto",
+      true,
+      new Set(),
+      (m) => logs.push(m),
+    );
+    // A gate that does not match the stored key -> park, but the miss is logged with both sides.
+    await responder.onPermission(permReqWithSpec("fresh", "edit", "Edit", { path: "OTHER" }));
+    assert.ok(
+      logs.some((l) => l.includes("gate miss") && l.includes("stored=")),
+      "the miss dumps live keys and stored keys",
+    );
   });
 });

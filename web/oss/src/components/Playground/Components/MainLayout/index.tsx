@@ -158,7 +158,7 @@ const PlaygroundMainView = ({
     const renderAgentGenerationHost = agentHostRef.current
 
     // The agent config panel is a compact read-only summary (editing happens in section drawers), so
-    // it stays narrow (550px) instead of the prompt config's 50/50 split. The default is a fixed px
+    // it stays narrow (~440px) instead of the prompt config's 50/50 split. The default is a fixed px
     // width rather than a percentage on purpose: antd applies `defaultSize` verbatim at mount and only
     // clamps to `min`/`max` while dragging, so a percentage default would blow past the px cap on load.
     // Only applies to a single agent variant. `isAgentConfig` resolves once the revision loads, so it
@@ -167,8 +167,8 @@ const PlaygroundMainView = ({
     const primaryConfigId =
         !isComparisonView && configEntityIds.length > 0 ? configEntityIds[0]! : ""
     const isAgentConfig = useAtomValue(isAgentModeAtomFamily(primaryConfigId))
-    const configDefaultSize = isAgentConfig ? 500 : "50%"
-    const configMaxSize = isAgentConfig ? 500 : "70%"
+    const configDefaultSize = isAgentConfig ? 440 : "50%"
+    const configMaxSize = isAgentConfig ? 450 : "70%"
     // Let the runs panel auto-fill in agent mode. A px config default + a "50%" runs default
     // don't sum to 100%, so antd scales BOTH up to fill the container — pushing config past its
     // px max on mount, which then snaps down on the first drag. An undefined runs default fills
@@ -277,10 +277,19 @@ const PlaygroundMainView = ({
             className={clsx("flex flex-col grow h-full overflow-hidden", className)}
             {...divProps}
         >
-            <div className="w-full max-h-full h-full grow relative overflow-hidden">
+            <div
+                className={clsx("w-full max-h-full h-full grow relative overflow-hidden", {
+                    // Agent Build view: recess the whole workspace to a near-black/soft-grey base so
+                    // the raised Config panel and the Chat canvas read as two distinct surfaces.
+                    "ag-app-ground": isAgentConfig,
+                })}
+            >
                 <Splitter
                     key={`${splitterKey}-splitter`}
                     className={clsx("h-full playground-splitter", {
+                        // Agent mode has no collapse pill (Build/Chat lives in the header), so the
+                        // drag handle needs its own discoverability treatment (a visible grip).
+                        "playground-splitter-agent": isAgentConfig,
                         "playground-splitter-collapsed": configCollapsed,
                         "playground-splitter-animated": animateSplit,
                     })}
@@ -302,6 +311,8 @@ const PlaygroundMainView = ({
                                     "grow w-full h-full overflow-y-auto": !isComparisonView,
                                     "grow w-full h-full overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
+                                    // Config = the raised authoring surface.
+                                    "ag-panel-raised": isAgentConfig,
                                 },
                             ])}
                         >
@@ -361,6 +372,8 @@ const PlaygroundMainView = ({
                                         !isComparisonView,
                                     "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
+                                    // Chat = the recessed canvas the message/composer surfaces sit on.
+                                    "ag-canvas": isAgentConfig,
                                 },
                             ])}
                         >

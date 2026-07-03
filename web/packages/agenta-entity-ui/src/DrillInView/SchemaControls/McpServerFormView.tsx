@@ -12,8 +12,9 @@
  */
 import {useState} from "react"
 
-import {LabeledField} from "@agenta/ui/components/presentational"
 import {Input, Select} from "antd"
+
+import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
 import {CodeEditor} from "./CodeEditor"
 
@@ -95,16 +96,16 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
 
     return (
         <div className="flex flex-col gap-3">
-            <LabeledField label="Server name">
+            <RailField label="Server name" align="center">
                 <Input
                     value={server.name ?? ""}
                     onChange={(e) => set("name", e.target.value)}
                     placeholder="my-mcp-server"
                     disabled={disabled}
                 />
-            </LabeledField>
+            </RailField>
 
-            <LabeledField label="Transport">
+            <RailField label="Transport" align="center">
                 <Select
                     className="w-full"
                     value={transport}
@@ -115,19 +116,19 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                         {label: "http (remote URL)", value: "http"},
                     ]}
                 />
-            </LabeledField>
+            </RailField>
 
             {transport === "stdio" ? (
                 <>
-                    <LabeledField label="Command">
+                    <RailField label="Command">
                         <CodeEditor
                             value={server.command ?? ""}
                             onChange={(v) => set("command", v)}
                             placeholder="npx"
                             disabled={disabled}
                         />
-                    </LabeledField>
-                    <LabeledField label="Arguments">
+                    </RailField>
+                    <RailField label="Arguments" align="center">
                         <Select
                             mode="tags"
                             className="w-full"
@@ -138,32 +139,33 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                             open={false}
                             suffixIcon={null}
                         />
-                    </LabeledField>
+                    </RailField>
                 </>
             ) : (
-                <LabeledField label="Server URL">
+                <RailField label="Server URL" align="center">
                     <Input
                         value={server.url ?? ""}
                         onChange={(e) => set("url", e.target.value)}
                         placeholder="https://example.com/mcp"
                         disabled={disabled}
                     />
-                </LabeledField>
+                </RailField>
             )}
 
-            <LabeledField label="Environment" description="KEY=value per line" withTooltip>
+            <RailField label={railInfoLabel("Environment", "KEY=value per line")}>
                 <KeyValueLines
                     value={server.env}
                     onChange={(env) => set("env", Object.keys(env).length ? env : undefined)}
                     placeholder={"NODE_ENV=production"}
                     disabled={disabled}
                 />
-            </LabeledField>
+            </RailField>
 
-            <LabeledField
-                label="Secrets"
-                description="Map an env var to a vault secret name: ENV_VAR=secret_name"
-                withTooltip
+            <RailField
+                label={railInfoLabel(
+                    "Secrets",
+                    "Map an env var to a vault secret name: ENV_VAR=secret_name",
+                )}
             >
                 <KeyValueLines
                     value={server.secrets}
@@ -173,12 +175,14 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     placeholder={"API_KEY=my_api_key"}
                     disabled={disabled}
                 />
-            </LabeledField>
+            </RailField>
 
-            <LabeledField
-                label="Exposed tools"
-                description="Optional allowlist — leave empty to expose all of the server's tools"
-                withTooltip
+            <RailField
+                label={railInfoLabel(
+                    "Exposed tools",
+                    "Optional allowlist — leave empty to expose all of the server's tools",
+                )}
+                align="center"
             >
                 <Select
                     mode="tags"
@@ -190,7 +194,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     open={false}
                     suffixIcon={null}
                 />
-            </LabeledField>
+            </RailField>
         </div>
     )
 }

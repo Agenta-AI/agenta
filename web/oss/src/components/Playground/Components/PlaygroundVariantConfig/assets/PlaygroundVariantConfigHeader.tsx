@@ -176,84 +176,71 @@ const PlaygroundVariantConfigHeader = ({
             {...divProps}
         >
             <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
-                {!embedded && !isLocalDraftVariant && (
-                    <SelectVariant
-                        mode={isProjectScoped ? "browse" : "scoped"}
-                        customBrowseAdapter={isProjectScoped ? browseAdapter : undefined}
-                        showCreateNew={!isEvaluatorEntity}
-                        onChange={(value) => handleSwitchVariant?.(value)}
-                        value={_variantId ?? undefined}
-                        borderlessTrigger={isAgent}
-                    />
-                )}
-                {/* Local draft: show Draft tag then source revision info */}
-                {isLocalDraftVariant && (
-                    <div className="flex items-center gap-2 min-w-0">
-                        <DraftTag />
-                        {variantRevision !== null && variantRevision !== undefined && (
-                            <span className="text-gray-500 whitespace-nowrap truncate min-w-0">
-                                from {rawVariantName} v{variantRevision}
-                            </span>
-                        )}
-                    </div>
-                )}
-                {/* Don't show VariantDetailsWithStatus for local drafts — source info is shown above */}
-                {!isLocalDraftVariant && (
+                {isAgent && !embedded ? (
+                    // Agent playground: the revision selector moved up to the page header (next to the
+                    // agent name), so this bar reads as the config panel's "Configuration" header.
+                    <span className="text-[13px] font-semibold text-[var(--ant-color-text)]">
+                        Configuration
+                    </span>
+                ) : (
                     <>
-                        {embedded && !runnableData ? (
-                            <div className="flex items-center gap-2 grow mr-4">
-                                <span className="text-sm text-gray-700 truncate">
-                                    {rawVariantName as any}
-                                </span>
-                                {variantRevision !== null && variantRevision !== undefined && (
-                                    <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                                        rev {String(variantRevision)}
-                                    </span>
-                                )}
-                            </div>
-                        ) : isAgent && !embedded ? (
-                            // Compact agent status: a version chip + a state dot, instead of the
-                            // verbose "Last modified" row. Discard stays available in the kebab.
-                            <div className="mr-4 flex items-center gap-2">
-                                {variantRevision !== null && variantRevision !== undefined && (
-                                    <span className="rounded bg-[var(--ant-color-fill-secondary)] px-1.5 py-0.5 text-xs text-[var(--ant-color-text-secondary)]">
-                                        v{variantRevision}
-                                    </span>
-                                )}
-                                <Tooltip title={hasChanges ? "Draft — unsaved changes" : "Saved"}>
-                                    <span className="flex items-center gap-1.5 text-xs text-[var(--ant-color-text-tertiary)]">
-                                        <span
-                                            className="h-[7px] w-[7px] rounded-full"
-                                            style={{
-                                                backgroundColor: hasChanges
-                                                    ? "var(--ant-color-warning)"
-                                                    : "var(--ant-color-success)",
-                                            }}
-                                        />
-                                        {hasChanges ? "Draft" : "Saved"}
-                                    </span>
-                                </Tooltip>
-                            </div>
-                        ) : (
-                            <VariantDetailsWithStatus
-                                className="mr-4 gap-2"
-                                revision={variantRevision ?? null}
-                                variant={variantMin}
-                                showBadges
-                                hideName={!embedded}
-                                variantName={rawVariantName as any}
-                                showRevisionAsTag={true}
-                                hasChanges={hasChanges}
-                                isLatest={isLatestRevision}
-                                onDiscardDraft={handleRevisionDiscardDraft}
+                        {!embedded && !isLocalDraftVariant && (
+                            <SelectVariant
+                                mode={isProjectScoped ? "browse" : "scoped"}
+                                customBrowseAdapter={isProjectScoped ? browseAdapter : undefined}
+                                showCreateNew={!isEvaluatorEntity}
+                                onChange={(value) => handleSwitchVariant?.(value)}
+                                value={_variantId ?? undefined}
                             />
                         )}
+                        {/* Local draft: show Draft tag then source revision info */}
+                        {isLocalDraftVariant && (
+                            <div className="flex items-center gap-2 min-w-0">
+                                <DraftTag />
+                                {variantRevision !== null && variantRevision !== undefined && (
+                                    <span className="text-gray-500 whitespace-nowrap truncate min-w-0">
+                                        from {rawVariantName} v{variantRevision}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                        {/* Don't show VariantDetailsWithStatus for local drafts — source info above */}
+                        {!isLocalDraftVariant && (
+                            <>
+                                {embedded && !runnableData ? (
+                                    <div className="flex items-center gap-2 grow mr-4">
+                                        <span className="text-sm text-gray-700 truncate">
+                                            {rawVariantName as any}
+                                        </span>
+                                        {variantRevision !== null &&
+                                            variantRevision !== undefined && (
+                                                <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                                                    rev {String(variantRevision)}
+                                                </span>
+                                            )}
+                                    </div>
+                                ) : (
+                                    <VariantDetailsWithStatus
+                                        className="mr-4 gap-2"
+                                        revision={variantRevision ?? null}
+                                        variant={variantMin}
+                                        showBadges
+                                        hideName={!embedded}
+                                        variantName={rawVariantName as any}
+                                        showRevisionAsTag={true}
+                                        hasChanges={hasChanges}
+                                        isLatest={isLatestRevision}
+                                        onDiscardDraft={handleRevisionDiscardDraft}
+                                    />
+                                )}
+                            </>
+                        )}
+                        {evaluatorLabel && !embedded && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
+                                {evaluatorLabel}
+                            </span>
+                        )}
                     </>
-                )}
-                {evaluatorLabel && !embedded && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
-                        {evaluatorLabel}
-                    </span>
                 )}
             </div>
             <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">

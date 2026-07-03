@@ -2,11 +2,14 @@ import {forwardRef, type ReactNode, useEffect, useImperativeHandle, useRef, useS
 
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
 import {HistoryExtension} from "@lexical/history"
+import {LinkNode} from "@lexical/link"
 import {ListItemNode, ListNode} from "@lexical/list"
 import {$convertFromMarkdownString} from "@lexical/markdown"
 import {AutoFocusPlugin} from "@lexical/react/LexicalAutoFocusPlugin"
+import {ClickableLinkPlugin} from "@lexical/react/LexicalClickableLinkPlugin"
 import {ContentEditable} from "@lexical/react/LexicalContentEditable"
 import {LexicalExtensionComposer} from "@lexical/react/LexicalExtensionComposer"
+import {LinkPlugin} from "@lexical/react/LexicalLinkPlugin"
 import {ListPlugin} from "@lexical/react/LexicalListPlugin"
 import {MarkdownShortcutPlugin} from "@lexical/react/LexicalMarkdownShortcutPlugin"
 import {TabIndentationPlugin} from "@lexical/react/LexicalTabIndentationPlugin"
@@ -17,8 +20,10 @@ import {$createParagraphNode, $getRoot, defineExtension, type LexicalEditor} fro
 import {chatInputTheme} from "./assets/theme"
 import {CHAT_TRANSFORMERS} from "./assets/transformers"
 import {CharacterCountPlugin} from "./plugins/CharacterCountPlugin"
+import {CodeFencePlugin} from "./plugins/CodeFencePlugin"
 import {EditableSyncPlugin} from "./plugins/EditableSyncPlugin"
 import {EditorRefBridge} from "./plugins/EditorRefBridge"
+import {LinkPastePlugin} from "./plugins/LinkPastePlugin"
 import {SendButton} from "./plugins/SendButton"
 import {SubmitPlugin} from "./plugins/SubmitPlugin"
 
@@ -63,14 +68,14 @@ const chatInputExtension = defineExtension({
     name: "@agenta/ui/rich-chat-input",
     namespace: "@agenta/ui/rich-chat-input",
     dependencies: [RichTextExtension, HistoryExtension],
-    nodes: [ListNode, ListItemNode, CodeNode, CodeHighlightNode],
+    nodes: [ListNode, ListItemNode, CodeNode, CodeHighlightNode, LinkNode],
     theme: chatInputTheme,
 })
 
 function ShortcutHint({keys, label}: {keys: string; label: string}) {
     return (
-        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-[var(--ag-colorTextTertiary)]">
-            <kbd className="inline-flex items-center justify-center rounded border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorFillTertiary)] px-1 py-0.5 font-[inherit] text-[10px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
+        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-[var(--ag-colorTextSecondary)]">
+            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[10px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
                 {keys}
             </kbd>
             {label}
@@ -136,10 +141,10 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // Single rounded border around the whole composer; overflow-hidden clips the
                         // editor + toolbar to the rounded corners. The toolbar has no divider of its
                         // own, so the bottom edge reads as one border, not two.
-                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] transition-colors",
-                        // Neutral, low-key focus emphasis — a soft border darkening rather than the
-                        // full brand-primary ring, which was too loud for a chat composer.
-                        "border-[var(--ag-colorBorder)] focus-within:border-[var(--ag-colorTextTertiary)]",
+                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
+                        // The primary input reads as a defined, slightly-lifted field: a visible edge
+                        // + soft shadow, then the accent border on focus (1px, no glow).
+                        "border-[var(--ag-composer-border)] focus-within:border-[var(--ag-composer-focus)]",
                         disabled && "opacity-60",
                         className,
                     )}
@@ -161,7 +166,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             aria-placeholder={placeholder}
                             className="max-h-40 min-h-[72px] overflow-y-auto break-words px-3 py-2.5 text-xs leading-relaxed text-[var(--ag-colorText)] outline-none"
                             placeholder={
-                                <div className="pointer-events-none absolute left-3 top-2.5 select-none text-xs text-[var(--ag-colorTextPlaceholder)]">
+                                <div className="pointer-events-none absolute left-3 top-2.5 select-none text-xs text-[var(--ag-composer-placeholder)]">
                                     {placeholder}
                                 </div>
                             }
@@ -176,25 +181,33 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             <ShortcutHint keys="↵" label="Send" />
                             <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
                         </div>
-                        <span
-                            className={clsx(
-                                "ml-auto shrink-0 text-xs tabular-nums",
-                                overLimit
-                                    ? "text-[var(--ag-colorError)]"
-                                    : "text-[var(--ag-colorTextTertiary)]",
+                        <div className="ml-auto flex items-center gap-2">
+                            {/* Only show a counter when there's a limit to track against, or when the
+                                user has actually typed — a lone "0" beside the button is just clutter. */}
+                            {(typeof maxLength === "number" || count > 0) && (
+                                <span
+                                    className={clsx(
+                                        "shrink-0 text-xs tabular-nums",
+                                        overLimit
+                                            ? "text-[var(--ag-colorError)]"
+                                            : "text-[var(--ag-colorTextTertiary)]",
+                                    )}
+                                >
+                                    {typeof maxLength === "number"
+                                        ? `${count}/${maxLength}`
+                                        : count}
+                                </span>
                             )}
-                        >
-                            {typeof maxLength === "number" ? `${count}/${maxLength}` : count}
-                        </span>
-                        {hideSendButton ? null : (
-                            <SendButton
-                                onSubmit={onSubmit}
-                                forceEnabled={sendForceEnabled}
-                                disabled={disabled}
-                                streaming={streaming}
-                                onStop={onStop}
-                            />
-                        )}
+                            {hideSendButton ? null : (
+                                <SendButton
+                                    onSubmit={onSubmit}
+                                    forceEnabled={sendForceEnabled}
+                                    disabled={disabled}
+                                    streaming={streaming}
+                                    onStop={onStop}
+                                />
+                            )}
+                        </div>
                     </div>
 
                     {footer ? <div className="px-2 pb-1.5">{footer}</div> : null}
@@ -205,7 +218,15 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     <ListPlugin />
                     {/* Tab / Shift+Tab indents + outdents list items (nesting). */}
                     <TabIndentationPlugin />
+                    {/* Link node behavior + the TOGGLE_LINK_COMMAND the paste plugin dispatches.
+                        ClickableLinkPlugin opens a clicked link in a new tab (newTab defaults true);
+                        it still lets you drag-select link text to edit it. */}
+                    <LinkPlugin />
+                    <ClickableLinkPlugin newTab />
+                    <LinkPastePlugin />
                     <MarkdownShortcutPlugin transformers={CHAT_TRANSFORMERS} />
+                    {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
+                    <CodeFencePlugin />
                     <SubmitPlugin onSubmit={onSubmit} />
                     <CharacterCountPlugin onCountChange={setCount} />
                 </div>

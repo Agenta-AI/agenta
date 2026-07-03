@@ -129,7 +129,15 @@ function TypeBadge({type, label}: {type: WorkflowReferenceType | undefined; labe
     return (
         <Tag
             color={cfg.color}
-            className="m-0 max-w-[140px] truncate px-1.5 py-0 text-[10px] leading-[18px]"
+            className={`m-0 max-w-[140px] truncate px-1.5 py-0 text-[10px] leading-[18px] ${
+                type === "completion"
+                    ? "ag-type-completion"
+                    : type === "chat"
+                      ? "ag-type-chat"
+                      : type === "agent"
+                        ? "ag-type-agent"
+                        : ""
+            }`}
             bordered={false}
         >
             {label || cfg.label}
@@ -337,6 +345,7 @@ export function WorkflowReferenceSelector({
 
     return (
         <EnhancedDrawer
+            rootClassName="ag-drawer-elevated"
             open={open}
             onClose={onClose}
             placement="right"
@@ -354,7 +363,7 @@ export function WorkflowReferenceSelector({
         >
             <div className="flex min-h-0 flex-1">
                 {/* Master rail */}
-                <div className="flex w-[260px] shrink-0 flex-col border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
+                <div className="ag-drawer-rail flex w-[260px] shrink-0 flex-col border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
                     <div className="shrink-0 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] p-3">
                         <Input
                             prefix={
@@ -405,9 +414,9 @@ export function WorkflowReferenceSelector({
                                         type="button"
                                         key={wf.id}
                                         onClick={() => setSelected(wf)}
-                                        className={`flex w-full items-center gap-2 rounded-md border-none px-2 py-2 text-left [font:inherit] ${
+                                        className={`ag-drawer-row flex w-full items-center gap-2 rounded-md border-0 border-l-2 border-solid border-transparent px-2 py-2 text-left [font:inherit] ${
                                             selected?.id === wf.id
-                                                ? "bg-[var(--ag-colorFillSecondary)]"
+                                                ? "ag-drawer-row-selected bg-[var(--ag-colorFillSecondary)]"
                                                 : "cursor-pointer bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
                                         }`}
                                     >
