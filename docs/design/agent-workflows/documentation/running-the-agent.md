@@ -5,7 +5,7 @@ This page explains how the agent workflow runs in practice. There is no agent-sp
 `hosting/docker-compose/run.sh`. This page covers that script, the agent pieces it starts,
 the ports, the env vars, and the two ways to run the Node runner outside Docker.
 
-All file:line citations were verified against the code on 2026-06-23.
+All file:line citations were verified against the code on 2026-07-03.
 
 ## There are two agent processes
 
@@ -16,14 +16,14 @@ The agent workflow is split across two services. Know which is which.
    `/invoke` and `/inspect`, parses the config, resolves tools and secrets server-side, and
    then calls the runner (`services/oss/src/agent/app.py`).
 
-2. The Node runner sidecar. It lives in `services/agent/`. Its compose service name is
-   `sandbox-agent`. It runs the agent loop with the real harnesses (Pi, Claude, the
-   `sandbox-agent` package). It listens on `:8765` and serves `GET /health` and `POST /run`
-   (`services/agent/src/server.ts`). The Python service calls it over HTTP.
+2. The Node runner sidecar. It lives in `services/runner/`. Its compose service name is
+   `runner`. It runs the agent loop with the real harnesses (Pi, Claude, the `sandbox-agent`
+   package). It listens on `:8765` and serves `GET /health` and `POST /run`
+   (`services/runner/src/server.ts`). The Python service calls it over HTTP.
 
 The Python service finds the runner through `AGENTA_RUNNER_INTERNAL_URL`, which defaults to
-`http://sandbox-agent:8765` in every compose stage (for example
-`hosting/docker-compose/ee/docker-compose.dev.yml:421`).
+`http://runner:8765` in every compose stage (for example
+`hosting/docker-compose/ee/docker-compose.dev.yml:565`).
 
 ## The script: hosting/docker-compose/run.sh
 
@@ -89,8 +89,8 @@ From the main checked-out branch:
 ```
 
 This is the dev default from `hosting/CLAUDE.md`. It brings up the full EE stack in dev mode,
-including the `services` container (which hosts the Python agent service) and the
-`sandbox-agent` container (the Node runner).
+including the `services` container (which hosts the Python agent service) and the `runner`
+container (the Node runner).
 
 From a git worktree, prefix a distinct project name and use a per-worktree env file so the
 two stacks do not collide:
@@ -111,25 +111,25 @@ To stop the stack without removing volumes:
 In the EE dev compose, the relevant services are:
 
 - `services`. Runs uvicorn on port `8080` inside the container
-  (`hosting/docker-compose/ee/docker-compose.dev.yml:383`). It hosts the Python agent
+  (`hosting/docker-compose/ee/docker-compose.dev.yml:519`). It hosts the Python agent
   service. Traefik routes `/services/` to it. It sets `AGENTA_RUNNER_INTERNAL_URL` to
-  `http://sandbox-agent:8765` and `AGENTA_AGENT_ENABLE_MCP` to `false` by default (lines 421
-  to 422). It depends on `sandbox-agent` being healthy (line 430).
+  `http://runner:8765` and `AGENTA_AGENT_MCPS_ENABLED` to `false` by default (lines 564 to
+  565). It depends on `runner` being healthy (lines 573 to 574).
 
-- `sandbox-agent`. The Node runner (lines 444 onward). In dev it runs
-  `tsx src/server.ts` after rebuilding the Pi extension. It listens on `8765`. Its health
-  check hits `http://127.0.0.1:8765/health` (line 492). It is not behind a compose profile,
-  so it always comes up.
+- `runner`. The Node runner (line 588 onward). In dev it runs `tsx src/server.ts` after
+  rebuilding the Pi extension. It listens on `8765`. Its health check hits
+  `http://127.0.0.1:8765/health` (line 652). It is not behind a compose profile, so it always
+  comes up.
 
-The `sandbox-agent` service ships in every stage. It is present in dev, gh, and gh.ssl for
-both oss and ee. For example the gh stage defines it at
-`hosting/docker-compose/ee/docker-compose.gh.yml:317` and
-`hosting/docker-compose/oss/docker-compose.gh.yml:344`. In gh it uses a prebuilt ghcr image
+The `runner` service ships in every stage. It is present in dev, gh, and gh.ssl for both oss
+and ee. For example the gh stage defines it at
+`hosting/docker-compose/ee/docker-compose.gh.yml:451` and
+`hosting/docker-compose/oss/docker-compose.gh.yml:493`. In gh it uses a prebuilt ghcr image
 instead of building from source.
 
-### The dev sandbox-agent command, explained
+### The dev runner command, explained
 
-The dev compose overrides the image CMD with a shell command (around line 455):
+The dev compose overrides the image CMD with a shell command (around line 600):
 
 ```sh
 mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
@@ -160,12 +160,14 @@ env file points the chat slice at
 ## Agent env vars
 
 These are the agent-relevant variables. The example file lists them commented out
-(`hosting/docker-compose/ee/env.ee.dev.example`, lines 119 onward).
+(`hosting/docker-compose/ee/env.ee.dev.example`, "Core endpoints" and "Agenta - Agent"
+sections).
 
 - `AGENTA_RUNNER_INTERNAL_URL`. Where the Python service finds the runner. Default
-  `http://sandbox-agent:8765`. When unset, the Python service spawns the runner CLI locally
-  instead (see `runner_url` and `select_backend` in `services/oss/src/agent/`).
-- `AGENTA_AGENT_ENABLE_MCP`. Gates MCP server resolution. Default `false`.
+  `http://runner:8765`. When unset, the Python service spawns the runner CLI locally instead
+  (see `runner_url` in `services/oss/src/agent/config.py` and `select_backend` in
+  `services/oss/src/agent/app.py`).
+- `AGENTA_AGENT_MCPS_ENABLED`. Gates MCP server resolution. Default `false`.
 - `SANDBOX_AGENT_PROVIDER`. `local` or `daytona`. Default `local`.
 - `SANDBOX_AGENT_DAYTONA_API_KEY`, `_API_URL`, `_TARGET`, `_SNAPSHOT`, `_IMAGE`,
   `_INSTALL_PI`. Daytona credentials the runner reads for the `daytona` sandbox provider.
@@ -175,16 +177,16 @@ These are the agent-relevant variables. The example file lists them commented ou
   teardown) self-reaps instead of burning credit. Values below `1` fall back to the default
   (a `0` would re-disable auto-stop and reintroduce the leak).
 
-The `sandbox-agent` container deliberately has no `env_file`. The harness sandbox must not
-inherit the stack's secrets. The compose block comments explain this
-(`hosting/docker-compose/ee/docker-compose.dev.yml`, around line 459). Tools run server-side
+The `runner` container deliberately has no `env_file`. The harness sandbox must not inherit
+the stack's secrets. The compose block comments explain this
+(`hosting/docker-compose/ee/docker-compose.dev.yml`, around line 604). Tools run server-side
 in the Python service, so the sandbox only needs its own port, the Pi login, an OTLP export
 fallback, and the Daytona credentials.
 
 ## Running the Node runner outside Docker
 
-You can run the runner directly. From `services/agent/`, with Node 24 on PATH
-(`services/agent/AGENTS.md`):
+You can run the runner directly. From `services/runner/`, with Node 24 on PATH
+(`services/runner/AGENTS.md`):
 
 ```bash
 pnpm install
@@ -198,7 +200,7 @@ extension into `dist/`.
 
 When the Python service runs in a source checkout with `AGENTA_RUNNER_INTERNAL_URL` unset, it
 spawns this runner through the CLI path instead of calling it over HTTP. See `select_backend`
-in `services/oss/src/agent/app.py:49` and `runner_url` in `services/oss/src/agent/config.py`.
+in `services/oss/src/agent/app.py:192` and `runner_url` in `services/oss/src/agent/config.py:46`.
 
 ## See also
 

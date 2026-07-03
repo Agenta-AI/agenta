@@ -35,6 +35,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
 
 from oss.src.middlewares.auth import auth_middleware
 from oss.src.middlewares.analytics import analytics_middleware
+from oss.src.middlewares.prefix import ApiPrefixStripMiddleware
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -481,29 +482,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["Content-Type"] + get_all_supertokens_cors_headers(),
 )
-
-
-class ApiPrefixStripMiddleware:
-    """Strip a literal `/api` prefix so hops that don't strip it (e.g. an ALB) still route.
-
-    Local traefik strips `/api` before the app; a direct container hop has no prefix; an AWS
-    ALB forwards the public `/api/...` path verbatim. Routes live at root (`root_path="/api"`
-    is docs metadata), so accepting both shapes here makes every topology work with one URL.
-    """
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] in ("http", "websocket"):
-            path = scope.get("path", "")
-            if path == "/api" or path.startswith("/api/"):
-                scope = dict(scope)
-                scope["path"] = path[4:] or "/"
-                raw = scope.get("raw_path")
-                if isinstance(raw, (bytes, bytearray)) and raw[:4] == b"/api":
-                    scope["raw_path"] = bytes(raw)[4:] or b"/"
-        await self.app(scope, receive, send)
 
 
 # Added last => outermost: normalizes the path before auth/routing see it.
