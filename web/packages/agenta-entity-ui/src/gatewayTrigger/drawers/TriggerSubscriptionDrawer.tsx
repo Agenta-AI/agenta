@@ -8,7 +8,7 @@ import {
     compileMessageTemplate,
     getScheduleMessagePreview,
     parseInputsFields,
-    isConnectionActive,
+    isConnectionValid,
     isEntityActive,
     isEntityValid,
     parseMessageTemplate,
@@ -1266,7 +1266,7 @@ function SourceChooser({
         <CatalogChooser<TriggerCatalogIntegration, TriggerCatalogEvent, TriggerConnection>
             connections={connections}
             defaultIntegrationKey={defaultIntegrationKey}
-            isConnectionActive={isConnectionActive}
+            isConnectionReady={isConnectionValid}
             useIntegrations={useTriggerIntegrationsList}
             useItems={useTriggerEventList}
             integration={{

@@ -15,7 +15,7 @@ import {useCallback, useMemo, useState} from "react"
 import {
     buildToolSlug,
     fetchToolActionDetail,
-    isConnectionActive,
+    isConnectionValid,
     toolIntegrationsSearchAtom,
     useToolCatalogActions,
     useToolCatalogIntegrations,
@@ -199,8 +199,9 @@ function ToolCatalogContent({
         <div className="min-h-0 flex-1 overflow-hidden px-6 py-4">
             <CatalogChooser<CatalogIntegrationItem, ToolCatalogAction, ToolConnection>
                 connections={connections}
+                cardVariant="subtle"
                 defaultIntegrationKey={defaultIntegrationKey}
-                isConnectionActive={isConnectionActive}
+                isConnectionReady={isConnectionValid}
                 useIntegrations={useToolIntegrationsList}
                 useItems={useToolActionList}
                 integration={{
