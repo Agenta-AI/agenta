@@ -24,7 +24,12 @@ export {
 // HELPERS
 // ============================================================================
 
-export {deriveWorkflowTypeFromRevision} from "./helpers"
+export {
+    deriveWorkflowTypeFromRevision,
+    fetchAndClassifyWorkflows,
+    filterAgentWorkflows,
+    filterNonAgentWorkflows,
+} from "./helpers"
 
 // ============================================================================
 // STORE ATOMS
@@ -38,6 +43,8 @@ export {
     appWorkflowsListDataAtom,
     nonArchivedAppWorkflowsAtom,
     appWorkflowsListQueryStateAtom,
+    promptWorkflowsListQueryStateAtom,
+    agentWorkflowsListQueryStateAtom,
     // Variant/Revision list queries (for 3-level hierarchy)
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
@@ -177,8 +184,10 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
+    llmEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
     nonHumanEvaluatorsAtom,
+    nonDeterministicEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,

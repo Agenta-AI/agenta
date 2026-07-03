@@ -146,6 +146,7 @@ export interface WorkflowQueryFlags {
     // User-defined role
     is_application?: boolean
     is_evaluator?: boolean
+    is_agent?: boolean
     is_snippet?: boolean
 }
 
