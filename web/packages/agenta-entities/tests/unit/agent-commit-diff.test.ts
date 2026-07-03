@@ -295,7 +295,7 @@ describe("classifyAgentChanges", () => {
         expect(sections.find((s) => s.id === "params")).toBeUndefined()
         const mh = sections.find((s) => s.id === "model")
         expect(mh?.scalarChanges).toContainEqual({
-            key: "model",
+            key: "llm.model",
             before: "opus",
             after: "opus[1m]",
             kind: "changed",

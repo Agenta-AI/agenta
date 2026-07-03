@@ -41,7 +41,10 @@ export function buildCommitSummaryMessage(sections: ChangeSection[]): string {
                 phrases.push("edited the instructions")
                 break
             case "model": {
-                const to = section.scalarChanges?.find((c) => c.key === "model")?.after
+                // Agent templates key the model as `llm.model`; legacy prompt shapes as `model`.
+                const to = section.scalarChanges?.find(
+                    (c) => c.key === "llm.model" || c.key === "model",
+                )?.after
                 phrases.push(to ? `changed the model to ${to}` : "updated the model & harness")
                 break
             }
