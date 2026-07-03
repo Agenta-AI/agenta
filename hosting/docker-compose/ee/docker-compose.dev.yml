@@ -156,15 +156,17 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
-    worker-evaluations:
+    worker-streams:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
+        init: true
         command: >
             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_evaluations
+            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
+            --signal SIGTERM --kill-after 5 --
+            python -m entrypoints.worker_streams
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
@@ -177,6 +179,8 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
+            AGENTA_WORKER_STREAMS: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -195,21 +199,23 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_evaluations' in cmd else 1)"]
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_streams' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3
             start_period: 20s
 
-    worker-tracing:
+    worker-queues:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
+        init: true
         command: >
             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_tracing
+            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
+            --signal SIGTERM --kill-after 5 --
+            python -m entrypoints.worker_queues
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
@@ -222,45 +228,8 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-
-    worker-webhooks:
-        # === IMAGE ================================================ #
-        image: agenta-ee-dev-api:latest
-        # === EXECUTION ============================================ #
-        command: >
-            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
-            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_webhooks
-        # === STORAGE ============================================== #
-        volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdks/python:/sdks/python
-            - ../../../clients/python:/clients/python
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
+            AGENTA_WORKER_QUEUES: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -279,191 +248,329 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_webhooks' in cmd else 1)"]
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_queues' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3
             start_period: 20s
 
-    worker-triggers:
-        # === IMAGE ================================================ #
-        image: agenta-ee-dev-api:latest
-        # === EXECUTION ============================================ #
-        command: >
-            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
-            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_triggers
-        # === STORAGE ============================================== #
-        volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdks/python:/sdks/python
-            - ../../../clients/python:/clients/python
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-        healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_triggers' in cmd else 1)"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 20s
+    # Disabled: workers-sprawl topology A — see docs/designs/workers-sprawl/specs.md
+#     worker-evaluations:
+#         # === IMAGE ================================================ #
+#         image: agenta-ee-dev-api:latest
+#         # === EXECUTION ============================================ #
+#         init: true
+#         command: >
+#             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+#             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+#             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --signal SIGTERM --kill-after 5 --
+#             python -m entrypoints.worker_evaluations
+#         # === STORAGE ============================================== #
+#         volumes:
+#             - ../../../api/ee:/app/ee
+#             - ../../../api/oss:/app/oss
+#             - ../../../api/entrypoints:/app/entrypoints
+#             - ../../../sdks/python:/sdks/python
+#             - ../../../clients/python:/clients/python
+#         # === CONFIGURATION ======================================== #
+#         env_file:
+#             - ${ENV_FILE:-./.env.ee.dev}
+#         environment:
+#             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+#         # === NETWORK ============================================== #
+#         networks:
+#             - agenta-network
+#         extra_hosts:
+#             - "host.docker.internal:host-gateway"
+#         # === ORCHESTRATION ======================================== #
+#         depends_on:
+#             postgres:
+#                 condition: service_healthy
+#             alembic:
+#                 condition: service_completed_successfully
+#             redis-volatile:
+#                 condition: service_healthy
+#             redis-durable:
+#                 condition: service_healthy
+#         # === LIFECYCLE ============================================ #
+#         restart: always
+#         healthcheck:
+#             test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_evaluations' in cmd else 1)"]
+#             interval: 30s
+#             timeout: 10s
+#             retries: 3
+#             start_period: 20s
 
-    worker-interactions:
-        # === IMAGE ================================================ #
-        image: agenta-ee-dev-api:latest
-        # === EXECUTION ============================================ #
-        command: >
-            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
-            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_interactions
-        # === STORAGE ============================================== #
-        volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdks/python:/sdks/python
-            - ../../../clients/python:/clients/python
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-        healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_interactions' in cmd else 1)"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 20s
+#     worker-tracing:
+#         # === IMAGE ================================================ #
+#         image: agenta-ee-dev-api:latest
+#         # === EXECUTION ============================================ #
+#         init: true
+#         command: >
+#             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+#             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+#             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --signal SIGTERM --kill-after 5 --
+#             python -m entrypoints.worker_tracing
+#         # === STORAGE ============================================== #
+#         volumes:
+#             - ../../../api/ee:/app/ee
+#             - ../../../api/oss:/app/oss
+#             - ../../../api/entrypoints:/app/entrypoints
+#             - ../../../sdks/python:/sdks/python
+#             - ../../../clients/python:/clients/python
+#         # === CONFIGURATION ======================================== #
+#         env_file:
+#             - ${ENV_FILE:-./.env.ee.dev}
+#         environment:
+#             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+#         # === NETWORK ============================================== #
+#         networks:
+#             - agenta-network
+#         extra_hosts:
+#             - "host.docker.internal:host-gateway"
+#         # === ORCHESTRATION ======================================== #
+#         depends_on:
+#             postgres:
+#                 condition: service_healthy
+#             alembic:
+#                 condition: service_completed_successfully
+#             redis-volatile:
+#                 condition: service_healthy
+#             redis-durable:
+#                 condition: service_healthy
+#         # === LIFECYCLE ============================================ #
+#         restart: always
 
-    worker-records:
-        # === IMAGE ================================================ #
-        image: agenta-ee-dev-api:latest
-        # === EXECUTION ============================================ #
-        command: >
-            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
-            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_records
-        # === STORAGE ============================================== #
-        volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdks/python:/sdks/python
-            - ../../../clients/python:/clients/python
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-        healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_records' in cmd else 1)"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 20s
+#     worker-webhooks:
+#         # === IMAGE ================================================ #
+#         image: agenta-ee-dev-api:latest
+#         # === EXECUTION ============================================ #
+#         init: true
+#         command: >
+#             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+#             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+#             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --signal SIGTERM --kill-after 5 --
+#             python -m entrypoints.worker_webhooks
+#         # === STORAGE ============================================== #
+#         volumes:
+#             - ../../../api/ee:/app/ee
+#             - ../../../api/oss:/app/oss
+#             - ../../../api/entrypoints:/app/entrypoints
+#             - ../../../sdks/python:/sdks/python
+#             - ../../../clients/python:/clients/python
+#         # === CONFIGURATION ======================================== #
+#         env_file:
+#             - ${ENV_FILE:-./.env.ee.dev}
+#         environment:
+#             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+#         # === NETWORK ============================================== #
+#         networks:
+#             - agenta-network
+#         extra_hosts:
+#             - "host.docker.internal:host-gateway"
+#         # === ORCHESTRATION ======================================== #
+#         depends_on:
+#             postgres:
+#                 condition: service_healthy
+#             alembic:
+#                 condition: service_completed_successfully
+#             redis-volatile:
+#                 condition: service_healthy
+#             redis-durable:
+#                 condition: service_healthy
+#         # === LIFECYCLE ============================================ #
+#         restart: always
+#         healthcheck:
+#             test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_webhooks' in cmd else 1)"]
+#             interval: 30s
+#             timeout: 10s
+#             retries: 3
+#             start_period: 20s
 
-    worker-events:
-        # === IMAGE ================================================ #
-        image: agenta-ee-dev-api:latest
-        # === EXECUTION ============================================ #
-        command: >
-            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
-            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_events
-        # === STORAGE ============================================== #
-        volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdks/python:/sdks/python
-            - ../../../clients/python:/clients/python
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-        healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_events' in cmd else 1)"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 20s
+#     worker-triggers:
+#         # === IMAGE ================================================ #
+#         image: agenta-ee-dev-api:latest
+#         # === EXECUTION ============================================ #
+#         init: true
+#         command: >
+#             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+#             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+#             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --signal SIGTERM --kill-after 5 --
+#             python -m entrypoints.worker_triggers
+#         # === STORAGE ============================================== #
+#         volumes:
+#             - ../../../api/ee:/app/ee
+#             - ../../../api/oss:/app/oss
+#             - ../../../api/entrypoints:/app/entrypoints
+#             - ../../../sdks/python:/sdks/python
+#             - ../../../clients/python:/clients/python
+#         # === CONFIGURATION ======================================== #
+#         env_file:
+#             - ${ENV_FILE:-./.env.ee.dev}
+#         environment:
+#             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+#         # === NETWORK ============================================== #
+#         networks:
+#             - agenta-network
+#         extra_hosts:
+#             - "host.docker.internal:host-gateway"
+#         # === ORCHESTRATION ======================================== #
+#         depends_on:
+#             postgres:
+#                 condition: service_healthy
+#             alembic:
+#                 condition: service_completed_successfully
+#             redis-volatile:
+#                 condition: service_healthy
+#             redis-durable:
+#                 condition: service_healthy
+#         # === LIFECYCLE ============================================ #
+#         restart: always
+#         healthcheck:
+#             test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_triggers' in cmd else 1)"]
+#             interval: 30s
+#             timeout: 10s
+#             retries: 3
+#             start_period: 20s
+
+#     worker-interactions:
+#         # === IMAGE ================================================ #
+#         image: agenta-ee-dev-api:latest
+#         # === EXECUTION ============================================ #
+#         init: true
+#         command: >
+#             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+#             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+#             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --signal SIGTERM --kill-after 5 --
+#             python -m entrypoints.worker_interactions
+#         # === STORAGE ============================================== #
+#         volumes:
+#             - ../../../api/ee:/app/ee
+#             - ../../../api/oss:/app/oss
+#             - ../../../api/entrypoints:/app/entrypoints
+#             - ../../../sdks/python:/sdks/python
+#             - ../../../clients/python:/clients/python
+#         # === CONFIGURATION ======================================== #
+#         env_file:
+#             - ${ENV_FILE:-./.env.ee.dev}
+#         environment:
+#             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+#         # === NETWORK ============================================== #
+#         networks:
+#             - agenta-network
+#         extra_hosts:
+#             - "host.docker.internal:host-gateway"
+#         # === ORCHESTRATION ======================================== #
+#         depends_on:
+#             postgres:
+#                 condition: service_healthy
+#             alembic:
+#                 condition: service_completed_successfully
+#             redis-volatile:
+#                 condition: service_healthy
+#             redis-durable:
+#                 condition: service_healthy
+#         # === LIFECYCLE ============================================ #
+#         restart: always
+#         healthcheck:
+#             test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_interactions' in cmd else 1)"]
+#             interval: 30s
+#             timeout: 10s
+#             retries: 3
+#             start_period: 20s
+
+#     worker-records:
+#         # === IMAGE ================================================ #
+#         image: agenta-ee-dev-api:latest
+#         # === EXECUTION ============================================ #
+#         init: true
+#         command: >
+#             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+#             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+#             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --signal SIGTERM --kill-after 5 --
+#             python -m entrypoints.worker_records
+#         # === STORAGE ============================================== #
+#         volumes:
+#             - ../../../api/ee:/app/ee
+#             - ../../../api/oss:/app/oss
+#             - ../../../api/entrypoints:/app/entrypoints
+#             - ../../../sdks/python:/sdks/python
+#             - ../../../clients/python:/clients/python
+#         # === CONFIGURATION ======================================== #
+#         env_file:
+#             - ${ENV_FILE:-./.env.ee.dev}
+#         environment:
+#             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+#         # === NETWORK ============================================== #
+#         networks:
+#             - agenta-network
+#         extra_hosts:
+#             - "host.docker.internal:host-gateway"
+#         # === ORCHESTRATION ======================================== #
+#         depends_on:
+#             postgres:
+#                 condition: service_healthy
+#             alembic:
+#                 condition: service_completed_successfully
+#             redis-volatile:
+#                 condition: service_healthy
+#             redis-durable:
+#                 condition: service_healthy
+#         # === LIFECYCLE ============================================ #
+#         restart: always
+#         healthcheck:
+#             test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_records' in cmd else 1)"]
+#             interval: 30s
+#             timeout: 10s
+#             retries: 3
+#             start_period: 20s
+
+#     worker-events:
+#         # === IMAGE ================================================ #
+#         image: agenta-ee-dev-api:latest
+#         # === EXECUTION ============================================ #
+#         init: true
+#         command: >
+#             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+#             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+#             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --signal SIGTERM --kill-after 5 --
+#             python -m entrypoints.worker_events
+#         # === STORAGE ============================================== #
+#         volumes:
+#             - ../../../api/ee:/app/ee
+#             - ../../../api/oss:/app/oss
+#             - ../../../api/entrypoints:/app/entrypoints
+#             - ../../../sdks/python:/sdks/python
+#             - ../../../clients/python:/clients/python
+#         # === CONFIGURATION ======================================== #
+#         env_file:
+#             - ${ENV_FILE:-./.env.ee.dev}
+#         environment:
+#             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+#         # === NETWORK ============================================== #
+#         networks:
+#             - agenta-network
+#         extra_hosts:
+#             - "host.docker.internal:host-gateway"
+#         # === ORCHESTRATION ======================================== #
+#         depends_on:
+#             postgres:
+#                 condition: service_healthy
+#             alembic:
+#                 condition: service_completed_successfully
+#             redis-volatile:
+#                 condition: service_healthy
+#             redis-durable:
+#                 condition: service_healthy
+#         # === LIFECYCLE ============================================ #
+#         restart: always
+#         healthcheck:
+#             test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_events' in cmd else 1)"]
+#             interval: 30s
+#             timeout: 10s
+#             retries: 3
+#             start_period: 20s
+
 
     cron:
         # === IMAGE ================================================ #

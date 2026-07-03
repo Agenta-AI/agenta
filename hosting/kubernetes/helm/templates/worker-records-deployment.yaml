@@ -1,3 +1,4 @@
+{{- /* Deprecated: workers-sprawl topology A, disabled by default — see docs/designs/workers-sprawl/specs.md */ -}}
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $workerRecords := default dict $values.workerRecords -}}
 {{- $newrelic := default dict $values.newrelic -}}

@@ -108,32 +108,41 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
 {{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
+{{- /* Defaults to workers-sprawl topology A; see docs/designs/workers-sprawl/specs.md */ -}}
 {{- define "agenta.workerEvaluations.enabled" -}}
 {{- $v := (default dict .Values.workerEvaluations).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.workerTracing.enabled" -}}
 {{- $v := (default dict .Values.workerTracing).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.workerWebhooks.enabled" -}}
 {{- $v := (default dict .Values.workerWebhooks).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.workerEvents.enabled" -}}
 {{- $v := (default dict .Values.workerEvents).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.workerTriggers.enabled" -}}
 {{- $v := (default dict .Values.workerTriggers).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.workerRecords.enabled" -}}
 {{- $v := (default dict .Values.workerRecords).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.workerInteractions.enabled" -}}
 {{- $v := (default dict .Values.workerInteractions).enabled -}}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+{{- define "agenta.workerStreams.enabled" -}}
+{{- $v := (default dict .Values.workerStreams).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+{{- define "agenta.workerQueues.enabled" -}}
+{{- $v := (default dict .Values.workerQueues).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.ingress.enabled" -}}
@@ -160,6 +169,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.workerTriggers.replicas" -}}{{ default 1 (default dict .Values.workerTriggers).replicas }}{{- end }}
 {{- define "agenta.workerRecords.replicas" -}}{{ default 1 (default dict .Values.workerRecords).replicas }}{{- end }}
 {{- define "agenta.workerInteractions.replicas" -}}{{ default 1 (default dict .Values.workerInteractions).replicas }}{{- end }}
+{{- define "agenta.workerStreams.replicas" -}}{{ default 1 (default dict .Values.workerStreams).replicas }}{{- end }}
+{{- define "agenta.workerQueues.replicas" -}}{{ default 1 (default dict .Values.workerQueues).replicas }}{{- end }}
 
 {{/* ================================================================
    Workers (gunicorn worker count, default 2).

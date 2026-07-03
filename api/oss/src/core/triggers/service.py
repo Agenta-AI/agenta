@@ -1417,6 +1417,7 @@ class TriggersService:
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )
 
+                log.tick("triggers.enqueued", dims={"queue": "triggers"})
                 log.info(
                     "[SCHEDULE] Dispatched.   ",
                     project_id=project_id,

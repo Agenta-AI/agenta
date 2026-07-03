@@ -1,4 +1,5 @@
 import zlib
+from time import perf_counter
 from typing import List
 from uuid import UUID
 
@@ -83,23 +84,40 @@ async def publish_spans(
     redis = _get_redis()
 
     count = 0
+    total_bytes = 0
+    started = perf_counter()
 
-    for span_dto in span_dtos:
-        span_bytes = serialize_span(
-            organization_id=organization_id,
-            project_id=project_id,
-            user_id=user_id,
-            #
-            span_dto=span_dto,
-        )
+    # Full span_dtos list is already in hand, so pipeline all XADDs into one
+    # round-trip instead of one XADD per span on the firehose.
+    async with redis.pipeline(transaction=False) as pipe:
+        for span_dto in span_dtos:
+            span_bytes = serialize_span(
+                organization_id=organization_id,
+                project_id=project_id,
+                user_id=user_id,
+                #
+                span_dto=span_dto,
+            )
 
-        await redis.xadd(
-            name="streams:tracing",
-            fields={"data": span_bytes},
-            maxlen=MAXLEN_STREAMS_TRACING,
-            approximate=True,
-        )
+            pipe.xadd(
+                name="streams:tracing",
+                fields={"data": span_bytes},
+                maxlen=MAXLEN_STREAMS_TRACING,
+                approximate=True,
+            )
 
-        count += 1
+            count += 1
+            total_bytes += len(span_bytes)
+
+        if count:
+            await pipe.execute()
+
+    log.tick(
+        "tracing.published",
+        count=count,
+        bytes=total_bytes,
+        duration_ms=(perf_counter() - started) * 1000,
+        dims={"stream": "tracing"},
+    )
 
     return count

@@ -40,13 +40,12 @@ Agenta uses a microservices architecture deployed as Docker containers. The diag
                     │                 ┌─────────────────────────┐  ┌─────────────────┐
                     │                 │      Worker Pool        │  │  runner :8765   │
                     │                 │   (background procs)    │  │ (agent runs)    │
-                    │                 │ • worker-evaluations    │  └────────┬────────┘
-                    │                 │ • worker-tracing        │           │
-                    │                 │ • worker-webhooks       │           │
-                    │                 │ • worker-events         │           │
-                    │                 │ • worker-records        │           │
-                    │                 │ • worker-interactions   │           │
-                    │                 │ • worker-triggers       │           │
+                    │                 │ • worker-streams        │  └────────┬────────┘
+                    │                 │   (records/events/      │           │
+                    │                 │    tracing)             │           │
+                    │                 │ • worker-queues         │           │
+                    │                 │   (webhooks/triggers/   │           │
+                    │                 │    interactions/evals)  │           │
                     │                 │ • cron                  │           │
                     │                 └──────────────┬──────────┘           │
                     │                                │                      │
@@ -97,18 +96,31 @@ Agenta uses a microservices architecture deployed as Docker containers. The diag
 - **Technology**: Python workers, TaskIQ, asyncio consumers, Redis, PostgreSQL
 - **Purpose**: Background processing for evaluations, tracing, events, and webhooks
 
-**Key Responsibilities**:
-- **Evaluation Execution**: `worker-evaluations` runs asynchronous evaluation workloads
-- **Tracing Ingestion**: `worker-tracing` consumes OTLP tracing pipelines
-- **Webhook Delivery**: `worker-webhooks` dispatches outbound webhook notifications
-- **Event Processing**: `worker-events` processes internal event streams
-- **Session Records**: `worker-records` persists agent session records from the `streams:records` Redis stream
-- **Interaction Dispatch**: `worker-interactions` consumes the `queues:interactions` queue and dispatches async session interactions
-- **Trigger Processing**: `worker-triggers` processes trigger events for automated workflow execution
+Background work runs as two list-parameterized container kinds. Each kind hosts a
+family of loops in a single process, so the default deployment is one container of
+each rather than seven separate ones. Which loops a container runs is chosen by an
+environment selector; an empty selector runs the whole family.
+
+- **`worker-streams`** — Redis Streams consumers, selected by `AGENTA_WORKER_STREAMS`
+  (subset of `records`, `events`, `tracing`; empty ⇒ all three):
+  - **Tracing Ingestion**: consumes the OTLP tracing pipeline (`streams:tracing`).
+  - **Event Processing**: processes internal event streams (`streams:events`).
+  - **Session Records**: persists agent session records (`streams:records`).
+- **`worker-queues`** — TaskIQ queue consumers, selected by `AGENTA_WORKER_QUEUES`
+  (subset of `webhooks`, `triggers`, `interactions`, `evaluations`; empty ⇒ all four):
+  - **Webhook Delivery**: dispatches outbound webhook notifications (`queues:webhooks`).
+  - **Trigger Processing**: processes trigger events for automated workflows (`queues:triggers`).
+  - **Interaction Dispatch**: dispatches async session interactions (`queues:interactions`).
+  - **Evaluation Execution**: runs asynchronous evaluation workloads (`queues:evaluations`).
+
+Stream and queue names, consumer groups, and message shapes are unchanged by this
+grouping, so scaling a container out simply shares work across its consumer groups.
+To scale a single hot loop, run a second instance of the same kind with a disjoint
+selector (for example, `AGENTA_WORKER_STREAMS=tracing` on its own).
 
 **TaskIQ Integration**:
 - **Broker**: Uses Redis streams for queueing and task distribution
-- **Task Registration**: Evaluation tasks are registered at worker startup
+- **Task Registration**: Queue tasks are registered at worker startup
 - **Execution**: Workers consume Redis-backed jobs and process them asynchronously
 
 ### Agent Runner
@@ -223,6 +235,6 @@ Worker pool depends on:
 ├── Redis (queues and streams)
 ├── PostgreSQL (state and persistence)
 ├── API backend (coordination and config)
-├── worker-records (streams:records stream → session persistence)
+├── worker-streams (records loop: streams:records → session persistence)
 └── Services API / external endpoints (workload-specific processing)
 ```
