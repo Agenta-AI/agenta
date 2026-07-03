@@ -82,6 +82,7 @@ import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/Co
 import SelectAppEmptyState from "@/oss/components/Evaluators/components/ConfigureEvaluator/SelectAppEmptyState"
 import {useEvaluatorRunControls} from "@/oss/components/Evaluators/components/ConfigureEvaluator/useEvaluatorRunControls"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
+import {invalidateAgentsWorkflowQueries} from "@/oss/components/pages/agents/store"
 import {invalidateAppManagementWorkflowQueries} from "@/oss/components/pages/app-management/store"
 import {invalidatePromptsWorkflowQueries} from "@/oss/components/pages/prompts/store"
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
@@ -643,6 +644,7 @@ const useDrawerCreateCommitCallback = () => {
                     // (commit.ts:590) doesn't cover the app-management
                     // paginated store.
                     void invalidateAppManagementWorkflowQueries()
+                    void invalidateAgentsWorkflowQueries()
 
                     // Same problem on the Prompts page: it reads its own
                     // ["prompts-workflows"] query, which neither the shared

@@ -6,14 +6,17 @@ import {Tag, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
+import {
+    DEFAULT_SETTINGS_TAB,
+    getSettingsTabLabel,
+    resolveSettingsTab,
+} from "@/oss/components/pages/settings/assets/navigation"
+import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
 
@@ -66,32 +69,14 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
-    const tab = tabQuery ?? settingsTab ?? "workspace"
-    const {canViewApiKeys, canViewEvents} = useProjectPermissions()
-    const canShowOrganization = isEE()
-    const {user} = useProfileData()
+    const tab = tabQuery ?? settingsTab ?? DEFAULT_SETTINGS_TAB
     const {selectedOrg} = useOrgData()
-    const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
-    const canShowBilling = isEE() && isOwner
-    const billingEnabled = isBillingEnabled()
-    const canShowTools = isToolsEnabled()
-    const canShowTriggers = isToolsEnabled()
-    const canShowAuditLog = isEE() && canViewEvents
-    const canShowAccount = isEE()
-    const resolvedTab =
-        (tab === "organization" && !canShowOrganization) ||
-        (tab === "billing" && !canShowBilling) ||
-        (tab === "tools" && !canShowTools) ||
-        (tab === "triggers" && !canShowTriggers) ||
-        (tab === "apiKeys" && !canViewApiKeys) ||
-        (tab === "auditLog" && !canShowAuditLog) ||
-        (tab === "account" && !canShowAccount)
-            ? "workspace"
-            : tab
+    const settingsAccess = useSettingsAccess()
+    const resolvedTab = resolveSettingsTab(tab, settingsAccess)
+    const resolvedTabLabel = getSettingsTabLabel(resolvedTab, settingsAccess)
     const {project} = useProjectData()
     const {redirectUrl} = useURL()
     const [isOrgIdCopied, setIsOrgIdCopied] = useState(false)
-    const [isProjectIdCopied, setIsProjectIdCopied] = useState(false)
     const settingsKey = `${selectedOrg?.id ?? "org"}:${project?.project_id ?? "project"}`
 
     useEffect(() => {
@@ -107,52 +92,19 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
         setTimeout(() => setIsOrgIdCopied(false), 2000)
     }, [selectedOrg?.id])
 
-    const handleCopyProjectId = useCallback(async () => {
-        const workspaceId = selectedOrg?.default_workspace?.id
-        if (!workspaceId) return
-        await copyToClipboard(workspaceId, false)
-        setIsProjectIdCopied(true)
-        setTimeout(() => setIsProjectIdCopied(false), 2000)
-    }, [selectedOrg?.default_workspace?.id])
-
     const breadcrumbs = useMemo(() => {
         return {
             settings: {
-                label: (() => {
-                    switch (resolvedTab) {
-                        case "organization":
-                            return "Access & Security"
-                        case "workspace":
-                            return "Members"
-                        case "projects":
-                            return "Projects"
-                        case "llms":
-                            return "LLMs"
-                        case "secrets":
-                            return "Secrets"
-                        case "tools":
-                            return "Tools"
-                        case "triggers":
-                            return "Triggers"
-                        case "apiKeys":
-                            return "API Keys"
-                        case "webhooks":
-                            return "Webhooks"
-                        case "auditLog":
-                            return "Audit Log"
-                        case "account":
-                            return "Account"
-                        case "billing":
-                            return billingEnabled ? "Usage & Billing" : "Usage"
-                        default:
-                            return resolvedTab
-                    }
-                })(),
+                label: resolvedTabLabel,
             },
         }
-    }, [canViewApiKeys, resolvedTab, billingEnabled])
+    }, [resolvedTabLabel])
 
-    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab, resolvedTab])
+    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [
+        tab,
+        resolvedTab,
+        resolvedTabLabel,
+    ])
 
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
@@ -163,7 +115,7 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     content: <Organization />,
                     title: (
                         <div className="flex items-center gap-2">
-                            <span>Access & Security</span>
+                            <span>{getSettingsTabLabel("organization", settingsAccess)}</span>
                             <Tooltip
                                 title={isOrgIdCopied ? "Copied!" : "Click to copy organization ID"}
                             >
@@ -184,48 +136,50 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     ),
                 }
             case "llms":
-                return {content: <Secrets />, title: "LLMs"}
+                return {content: <Secrets />, title: getSettingsTabLabel("llms", settingsAccess)}
             case "secrets":
-                return {content: <Vault />, title: "Secrets"}
+                return {content: <Vault />, title: getSettingsTabLabel("secrets", settingsAccess)}
             case "tools":
-                return {content: <Tools />, title: "Tools"}
+                return {content: <Tools />, title: getSettingsTabLabel("tools", settingsAccess)}
             case "triggers":
-                return {content: <Triggers />, title: "Triggers"}
+                return {
+                    content: <Triggers />,
+                    title: getSettingsTabLabel("triggers", settingsAccess),
+                }
             case "apiKeys":
-                return {content: <APIKeys />, title: "API Keys"}
+                return {content: <APIKeys />, title: getSettingsTabLabel("apiKeys", settingsAccess)}
             case "billing":
                 return {
                     content: <Billing />,
-                    title: billingEnabled ? "Usage & Billing" : "Usage",
+                    title: getSettingsTabLabel("billing", settingsAccess),
                 }
             case "webhooks":
-                return {content: <Webhooks />, title: "Webhooks"}
+                return {
+                    content: <Webhooks />,
+                    title: getSettingsTabLabel("webhooks", settingsAccess),
+                }
             case "auditLog":
                 return {
                     content: AuditLogComponent ? <AuditLogComponent /> : <WorkspaceManage />,
-                    title: "Audit Log",
+                    title: getSettingsTabLabel("auditLog", settingsAccess),
                 }
             case "projects":
-                return {content: <ProjectsSettings />, title: "Projects"}
+                return {
+                    content: <ProjectsSettings />,
+                    title: getSettingsTabLabel("projects", settingsAccess),
+                }
             case "account":
-                return {content: <DeleteAccount />, title: "Account"}
+                return {
+                    content: <DeleteAccount />,
+                    title: getSettingsTabLabel("account", settingsAccess),
+                }
             default:
                 return {
                     content: <WorkspaceManage />,
-                    title: "Members",
+                    title: getSettingsTabLabel("workspace", settingsAccess),
                 }
         }
-    }, [
-        resolvedTab,
-        isOrgIdCopied,
-        isProjectIdCopied,
-        handleCopyOrgId,
-        handleCopyProjectId,
-        isDemoOrg,
-        isOwner,
-        billingEnabled,
-        AuditLogComponent,
-    ])
+    }, [resolvedTab, isOrgIdCopied, handleCopyOrgId, isDemoOrg, settingsAccess, AuditLogComponent])
 
     return (
         <PageLayout
