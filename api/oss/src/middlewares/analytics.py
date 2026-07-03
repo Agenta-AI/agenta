@@ -43,6 +43,23 @@ ACTIVATION_EVENTS = {
     "user_invitation_sent_v1": ("invited_user_v1", None),
 }
 
+# Optional analytics props a handler may set on `request.state` for the middleware to
+# attach to its event (e.g. agent detection, agent feature composition). This allowlist is a
+# deliberate boundary: only these keys cross from request.state to the external analytics sink.
+_HANDLER_ANALYTICS_PROPS = (
+    "is_agent",
+    "is_application",
+    "is_snippet",
+    "integration",
+    "tool_count",
+    "mcp_server_count",
+    "skill_count",
+    "trigger_count",
+    "has_triggers",
+    "harness",
+    "connection_mode",
+)
+
 
 async def _set_activation_property(
     distinct_id: str,
@@ -196,6 +213,14 @@ async def analytics_middleware(request: Request, call_next: Callable):
             ):
                 properties["organization_name"] = request.state.organization_name
 
+            # Handler-supplied analytics props (e.g. agent detection, activation route,
+            # committed agent feature composition). Handlers set these on request.state;
+            # `is not None` keeps False / 0 values (an agent with no tools is still an agent).
+            for _prop in _HANDLER_ANALYTICS_PROPS:
+                _value = getattr(request.state, _prop, None)
+                if _value is not None:
+                    properties[_prop] = _value
+
             # Check daily limits if the event is one of those to be limited per auth method
             _project_id = getattr(request.state, "project_id", None)
             _user_id = getattr(request.state, "user_id", None)
@@ -294,6 +319,17 @@ def _get_event_name_from_path(
     # <-------- Application Events -------->
     if method == "POST" and path == "/apps":
         return "app_created"
+
+    elif (
+        method == "POST"
+        and path.endswith("/archive")
+        and ("workflows" in path_parts or "applications" in path_parts)
+        and "variants" not in path_parts
+        and "revisions" not in path_parts
+    ):
+        # App archival goes through the generic workflow artifact route
+        # (`POST /workflows/{id}/archive`); other domains own their own /archive.
+        return "app_archived"
     # <-------- End of Application Events -------->
 
     # <----------- Configuration Events ------------->
@@ -304,7 +340,10 @@ def _get_event_name_from_path(
         return "app_revision_created"
 
     elif method == "POST" and (
-        "/variants/configs/commit" in path or "/variants/configs/fork" in path
+        "/variants/configs/commit" in path
+        or "/variants/configs/fork" in path
+        or "/applications/revisions/commit" in path
+        or "/workflows/revisions/commit" in path
     ):
         return "app_revision_created"
 
@@ -316,6 +355,11 @@ def _get_event_name_from_path(
     elif method == "POST" and "/variants/configs/fetch" in path:
         return "app_revision_fetched"
     # <----------- End of Configuration Events ------------->
+
+    # <----------- Tools Events ------------->
+    if method == "POST" and path.endswith("/tools/connections/"):
+        return "tool_connection_created"
+    # <----------- End of Tools Events ------------->
 
     # <----------- Testsets Events ------------->
     if method == "POST" and "/testsets" in path:

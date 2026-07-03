@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List, Any
+from typing import Optional, Tuple, List, Any, Dict
 from json import loads
 
 from oss.src.core.shared.dtos import (
@@ -86,6 +86,43 @@ class SupportHeadersMiddleware:
             await self.app(scope, receive, send_with_support)
         finally:
             support_ctx.reset(token)
+
+
+def agent_feature_analytics_props(parameters: Optional[Any]) -> Dict[str, Any]:
+    """Analytics props describing an agent revision's feature composition, read defensively
+    from the committed ``parameters.agent`` template. Only keys present with the expected type
+    are returned, so a template shape change omits a prop rather than emitting a wrong one.
+    """
+    agent = parameters.get("agent") if isinstance(parameters, dict) else None
+    if not isinstance(agent, dict):
+        return {}
+
+    props: Dict[str, Any] = {}
+
+    for key, prop in (
+        ("tools", "tool_count"),
+        ("mcps", "mcp_server_count"),
+        ("skills", "skill_count"),
+        ("triggers", "trigger_count"),
+    ):
+        value = agent.get(key)
+        if isinstance(value, list):
+            props[prop] = len(value)
+
+    if "trigger_count" in props:
+        props["has_triggers"] = props["trigger_count"] > 0
+
+    harness = agent.get("harness")
+    if isinstance(harness, dict):
+        harness = harness.get("kind") or harness.get("value")
+    if isinstance(harness, str) and harness:
+        props["harness"] = harness
+
+    connection_mode = agent.get("connection_mode")
+    if isinstance(connection_mode, str) and connection_mode:
+        props["connection_mode"] = connection_mode
+
+    return props
 
 
 def parse_metadata(

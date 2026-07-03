@@ -25,6 +25,7 @@ import {
     type WorkflowCommitResult,
     type WorkflowArchiveResult,
 } from "@agenta/entities/workflow"
+import {registerEntityUiAnalytics} from "@agenta/entity-ui"
 import {playgroundController, setOnSelectionChangeCallback} from "@agenta/playground"
 import {
     workflowRevisionDrawerEntityIdAtom as drawerVariantIdAtom,
@@ -37,6 +38,7 @@ import {
     registryPaginatedStore,
     clearRegistryVariantNameCache,
 } from "@/oss/components/VariantsComponents/store/registryStore"
+import {posthogAtom} from "@/oss/lib/helpers/analytics/store/atoms"
 import {routerAppNavigationAtom} from "@/oss/state/app"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
@@ -308,3 +310,12 @@ registerWorkflowArchiveCallbacks({
         }
     },
 })
+
+// ============================================================================
+// ANALYTICS
+// Inject the app's PostHog capture into entity-ui (which can't import @/oss)
+// ============================================================================
+
+registerEntityUiAnalytics((event, payload) =>
+    getDefaultStore().get(posthogAtom)?.capture(event, payload),
+)

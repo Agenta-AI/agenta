@@ -15,6 +15,7 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {BracketsCurly, GraphIcon, Plugs, Plus, Sparkle} from "@phosphor-icons/react"
 import {Button} from "antd"
 
+import {captureEntityUiEvent} from "../../../analytics"
 import {AddItemMenu, type AddItemGroup} from "../../../drawers/shared/AddItemMenu"
 import type {ToolSelectorPopoverProps} from "../ToolSelectorPopover"
 import type {ToolObj} from "../toolUtils"
@@ -51,6 +52,7 @@ export const AgentToolSelectorPopover = memo(function AgentToolSelectorPopover({
     trigger,
     onReferenceWorkflow,
     onOpenIntegration,
+    existingToolCount = 0,
 }: AgentToolSelectorPopoverProps) {
     const {gatewayTools: gatewayToolsFromContext, workflowReference} = useDrillInUI()
     const gatewayTools = gatewayToolsProp ?? gatewayToolsFromContext
@@ -111,6 +113,9 @@ export const AgentToolSelectorPopover = memo(function AgentToolSelectorPopover({
             groups={groups}
             disabled={disabled}
             ariaLabel="Add tool"
+            onOpen={() =>
+                captureEntityUiEvent("agent_tool_picker_opened", {toolCount: existingToolCount})
+            }
             trigger={
                 trigger ?? (
                     <Button

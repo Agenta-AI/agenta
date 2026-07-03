@@ -39,6 +39,9 @@
 export {SharedGenerationResultUtils, type SharedGenerationResultUtilsProps} from "./shared"
 export {RunnableOutputValue, formatOutputValue, type RunnableOutputValueProps} from "./shared"
 
+// Analytics injection seam (host app registers a PostHog capture fn; package components emit)
+export {registerEntityUiAnalytics, captureEntityUiEvent} from "./analytics"
+
 // ============================================================================
 // DRILL-IN VIEW (Molecule-first API)
 // ============================================================================

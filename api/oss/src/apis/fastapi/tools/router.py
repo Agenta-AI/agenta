@@ -724,6 +724,8 @@ class ToolsRouter:
             connection_create=body.connection,
         )
 
+        request.state.integration = body.connection.integration_key
+
         return ToolConnectionResponse(
             count=1,
             connection=connection,
