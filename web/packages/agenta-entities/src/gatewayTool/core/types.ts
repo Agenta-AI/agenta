@@ -60,19 +60,7 @@ export type ToolResult = AgentaApi.ToolResult
 export type ToolResultData = AgentaApi.ToolResultData
 export type Status = AgentaApi.Status
 
-// ---------------------------------------------------------------------------
-// Legacy API extension
-//
-// The backend accepts an additional `credentials` field inside the create-
-// connection payload's `data` object (used by the API-key auth path), but
-// the OpenAPI spec used by Fern doesn't model it yet. We extend the Fern
-// type so existing flows compile; when the spec is updated this alias can
-// be removed.
-// ---------------------------------------------------------------------------
-
-export type ToolConnectionCreatePayloadData = ToolConnectionCreateData & {
-    credentials?: Record<string, string>
-}
+export type ToolConnectionCreatePayloadData = ToolConnectionCreateData
 
 export interface ToolConnectionCreatePayload {
     connection: Omit<ToolConnectionCreate, "data"> & {

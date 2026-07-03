@@ -17,11 +17,12 @@ def map_connection_create_to_dbe(
     #
     dto: ConnectionCreate,
 ) -> ConnectionDBE:
-    # Serialize provider-specific data to dict if present
+    # The service replaces data with a provider-shaped dict before persistence;
+    # a typed model (validate-on-assignment is off) is dumped, dropping unset keys.
     data = None
     if dto.data:
         if isinstance(dto.data, BaseModel):
-            data = dto.data.model_dump()
+            data = dto.data.model_dump(exclude_none=True)
         else:
             data = dto.data
 

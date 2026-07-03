@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -37,9 +37,18 @@ class ConnectionStatus(BaseModel):
 
 
 class ConnectionCreateData(BaseModel):
+    # Control inputs (from the API): route the provider auth-config type. Never
+    # persisted — the service overwrites data wholesale before the DAO write.
     callback_url: Optional[str] = None
-    #
     auth_scheme: Optional[ConnectionAuthScheme] = None
+    # Provider + service outputs (persisted): the service fills these from the
+    # provider result before persistence. No secrets — the API key is entered on
+    # the provider's hosted redirect UI, never in this payload.
+    connected_account_id: Optional[str] = None
+    auth_config_id: Optional[str] = None
+    redirect_url: Optional[str] = None
+    project_id: Optional[str] = None
+    no_auth: Optional[bool] = None
 
 
 class Connection(
@@ -96,9 +105,7 @@ class ConnectionCreate(
     provider_key: ConnectionProviderKind
     integration_key: str
     #
-    # Either the typed create input (from the API) or the provider-shaped payload
-    # the service builds before persistence (provider field names are opaque here).
-    data: Optional[Union[ConnectionCreateData, Json]] = None
+    data: Optional[ConnectionCreateData] = None
 
 
 class Usage(BaseModel):

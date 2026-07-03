@@ -23,6 +23,11 @@ import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
+const AUTH_SCHEME_LABELS: Record<string, string> = {
+    oauth: "OAuth",
+    api_key: "API Key",
+}
+
 export default function GatewayToolsSection() {
     const {connections, isLoading, refetch} = useToolConnectionsQuery()
     const {handleDelete, handleRefresh, handleRevoke, invalidateConnections} =
@@ -213,6 +218,21 @@ export default function GatewayToolsSection() {
                     style: {minWidth: 120},
                 }),
                 render: (_, record) => <ConnectionStatusBadge connection={record} />,
+            },
+            {
+                title: "Auth",
+                key: "auth_scheme",
+                onHeaderCell: () => ({
+                    style: {minWidth: 100},
+                }),
+                render: (_, record) => {
+                    const scheme =
+                        typeof record.data?.auth_scheme === "string"
+                            ? record.data.auth_scheme
+                            : undefined
+                    if (!scheme) return <Typography.Text type="secondary">—</Typography.Text>
+                    return <Tag>{AUTH_SCHEME_LABELS[scheme] ?? scheme}</Tag>
+                },
             },
             {
                 title: "Created at",

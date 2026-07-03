@@ -129,8 +129,6 @@ export const fetchToolConnection = async (
 export const createToolConnection = async (
     payload: ToolConnectionCreatePayload,
 ): Promise<ToolConnectionResponse> => {
-    // Cast through Parameters<...> because Fern's typed payload doesn't
-    // model the legacy `credentials` field that the backend still accepts.
     return getToolsClient().createToolConnection(
         payload as Parameters<ReturnType<typeof getToolsClient>["createToolConnection"]>[0],
         projectScopedRequest(),
