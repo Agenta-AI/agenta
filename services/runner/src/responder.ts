@@ -153,7 +153,8 @@ function canonicalJson(value: unknown): string {
   if (value === undefined) throw new Error("undefined is not JSON");
   if (typeof value === "bigint") throw new Error("bigint is not JSON");
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("non-finite number is not JSON");
+    if (!Number.isFinite(value))
+      throw new Error("non-finite number is not JSON");
     return JSON.stringify(value);
   }
   if (typeof value !== "object") return JSON.stringify(value);
@@ -203,7 +204,8 @@ export class HITLResponder implements Responder {
   ) {}
 
   async onPermission(request: PermissionRequest): Promise<ResponderOutcome> {
-    const toolCall = (request.raw as { toolCall?: unknown } | undefined)?.toolCall;
+    const toolCall = (request.raw as { toolCall?: unknown } | undefined)
+      ?.toolCall;
     const name = permissionToolName(toolCall);
     const keys = permissionRequestKeys(request);
 
@@ -245,7 +247,9 @@ export class HITLResponder implements Responder {
     return "deny";
   }
 
-  private lookupPermission(request: PermissionRequest): PermissionDecision | undefined {
+  private lookupPermission(
+    request: PermissionRequest,
+  ): PermissionDecision | undefined {
     const keys = permissionRequestKeys(request);
     for (const key of keys) {
       const decision = this.decisions.get(key);
@@ -263,7 +267,10 @@ export class HITLResponder implements Responder {
     return undefined;
   }
 
-  private lookupClientTool(request: ClientToolRequest): { found: boolean; output?: unknown } {
+  private lookupClientTool(request: ClientToolRequest): {
+    found: boolean;
+    output?: unknown;
+  } {
     for (const key of clientToolRequestKeys(request)) {
       if (this.decisions.has(key)) {
         const output = this.decisions.get(key);
@@ -326,7 +333,9 @@ function gateIdentity(toolCall: unknown): string {
   const spec = specOf(toolCall);
   const args = tc?.rawInput ?? tc?.input;
   const argKeys =
-    args && typeof args === "object" ? Object.keys(args as object) : typeof args;
+    args && typeof args === "object"
+      ? Object.keys(args as object)
+      : typeof args;
   return JSON.stringify({
     id: tc?.toolCallId,
     resolvedName: tc?.resolvedName,
@@ -346,8 +355,12 @@ function clientToolRequestKeys(request: ClientToolRequest): string[] {
   return keys;
 }
 
-/** The resolved agenta tool spec attached to an ACP tool call, under any of its aliases. */
-function specOf(toolCall: unknown): { name?: unknown } | undefined {
+/**
+ * The resolved agenta tool spec attached to an ACP tool call, under any of its aliases. This
+ * alias chain is the crux of the tool-identity-drift fix — kept in ONE place and reused by
+ * `permissions.ts` so the two sides can never silently diverge and re-open the HITL loop.
+ */
+export function specOf(toolCall: unknown): { name?: unknown } | undefined {
   const tc = toolCall as
     | {
         spec?: unknown;
@@ -357,7 +370,9 @@ function specOf(toolCall: unknown): { name?: unknown } | undefined {
       }
     | undefined;
   const spec = tc?.spec ?? tc?.toolSpec ?? tc?.resolvedTool ?? tc?.tool;
-  return spec && typeof spec === "object" ? (spec as { name?: unknown }) : undefined;
+  return spec && typeof spec === "object"
+    ? (spec as { name?: unknown })
+    : undefined;
 }
 
 /**
@@ -371,7 +386,12 @@ function specOf(toolCall: unknown): { name?: unknown } | undefined {
  */
 function permissionToolName(toolCall: unknown): string | undefined {
   const tc = toolCall as
-    | { resolvedName?: unknown; name?: unknown; title?: unknown; kind?: unknown }
+    | {
+        resolvedName?: unknown;
+        name?: unknown;
+        title?: unknown;
+        kind?: unknown;
+      }
     | undefined;
   // `resolvedName` (the recorded tool_call name, stamped by the engine) comes FIRST: it is the
   // same value the transcript folds into the stored key, so preferring it makes the cross-turn
@@ -490,7 +510,8 @@ export function nonConvergingToolNames(
           ? (out as { approved?: unknown }).approved
           : undefined;
       if (flag === true) approved.set(name, (approved.get(name) ?? 0) + 1);
-      else if (flag !== false) executed.set(name, (executed.get(name) ?? 0) + 1);
+      else if (flag !== false)
+        executed.set(name, (executed.get(name) ?? 0) + 1);
     }
   }
   const looping = new Set<string>();
@@ -508,7 +529,10 @@ function isPermissionDecision(value: unknown): value is PermissionDecision {
  * A parked call reply. Permission responses use `{ approved: boolean }`; client tools carry their
  * real structured `output`.
  */
-function parkedCallResultOf(block: ContentBlock): { found: boolean; output?: unknown } {
+function parkedCallResultOf(block: ContentBlock): {
+  found: boolean;
+  output?: unknown;
+} {
   if (!block || block.type !== "tool_result") return { found: false };
   const output = block.output;
   if (

@@ -1,5 +1,10 @@
 import type { AgentEvent } from "../../protocol.ts";
-import { decisionToReply, type ClientToolOutcome, type Responder } from "../../responder.ts";
+import {
+  decisionToReply,
+  specOf,
+  type ClientToolOutcome,
+  type Responder,
+} from "../../responder.ts";
 
 export interface AttachPermissionResponderInput {
   session: any;
@@ -67,7 +72,10 @@ export function attachPermissionResponder({
     // and most authoritative HITL log; everything downstream keys off these fields.
     if (log) {
       const spec =
-        toolCall?.spec ?? toolCall?.toolSpec ?? toolCall?.resolvedTool ?? toolCall?.tool;
+        toolCall?.spec ??
+        toolCall?.toolSpec ??
+        toolCall?.resolvedTool ??
+        toolCall?.tool;
       const args = toolCall?.rawInput ?? toolCall?.input;
       log(
         `[HITL] ACP permission id=${id} ` +
@@ -79,7 +87,9 @@ export function attachPermissionResponder({
             title: toolCall?.title,
             kind: toolCall?.kind,
             argKeys:
-              args && typeof args === "object" ? Object.keys(args) : typeof args,
+              args && typeof args === "object"
+                ? Object.keys(args)
+                : typeof args,
             availableReplies,
           }),
       );
@@ -92,10 +102,12 @@ export function attachPermissionResponder({
     // decide: PARK it for a cross-turn round-trip (the browser fulfills the call, the next turn
     // resumes with its result) or reply inline. Every other tool falls through to the normal
     // permission gate below.
-    const spec = clientToolSpecOf(toolCall);
+    const spec = specOf(toolCall) as any;
     if (spec?.kind === "client") {
       const toolCallId =
-        typeof toolCall?.toolCallId === "string" ? toolCall.toolCallId : undefined;
+        typeof toolCall?.toolCallId === "string"
+          ? toolCall.toolCallId
+          : undefined;
       const toolName = clientToolName(toolCall, spec);
       const input = toolCall?.rawInput ?? toolCall?.input;
       run.emitEvent({
@@ -180,7 +192,8 @@ function recordedToolName(
   run: { events?: () => AgentEvent[] },
   toolCallId: unknown,
 ): string | undefined {
-  if (typeof toolCallId !== "string" || !toolCallId || !run.events) return undefined;
+  if (typeof toolCallId !== "string" || !toolCallId || !run.events)
+    return undefined;
   // Last match wins: a later tool_call for the same id (an arg-refresh) carries the same name.
   let name: string | undefined;
   for (const event of run.events()) {
@@ -191,18 +204,22 @@ function recordedToolName(
   return name;
 }
 
-function clientToolSpecOf(toolCall: any): any | undefined {
-  return toolCall?.spec ?? toolCall?.toolSpec ?? toolCall?.resolvedTool ?? toolCall?.tool;
-}
-
 function clientToolName(toolCall: any, spec: any): string | undefined {
-  for (const candidate of [spec?.name, toolCall?.name, toolCall?.title, toolCall?.kind]) {
+  for (const candidate of [
+    spec?.name,
+    toolCall?.name,
+    toolCall?.title,
+    toolCall?.kind,
+  ]) {
     if (typeof candidate === "string" && candidate) return candidate;
   }
   return undefined;
 }
 
-function clientToolReply(decision: ClientToolOutcome, availableReplies: string[]): string {
+function clientToolReply(
+  decision: ClientToolOutcome,
+  availableReplies: string[],
+): string {
   if (decision === "deny") {
     return availableReplies.find((r) => r === "reject") ?? "reject";
   }

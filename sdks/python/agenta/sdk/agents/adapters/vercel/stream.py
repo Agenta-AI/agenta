@@ -154,7 +154,12 @@ async def agent_run_to_vercel_parts(
                     # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
                     # plain `input` empty on some tool-call paths — mirrors the approval /
                     # client-tool reads in `_interaction_parts` so every path shows real args.
-                    "input": data.get("rawInput") or data.get("input"),
+                    # `is not None` (not truthiness): a legit empty `{}` is real args, not absent.
+                    "input": (
+                        data["rawInput"]
+                        if data.get("rawInput") is not None
+                        else data.get("input")
+                    ),
                 }
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
@@ -347,7 +352,12 @@ async def agent_stream_to_vercel_stream(
                     # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
                     # plain `input` empty on some tool-call paths — mirrors the approval /
                     # client-tool reads in `_interaction_parts` so every path shows real args.
-                    "input": data.get("rawInput") or data.get("input"),
+                    # `is not None` (not truthiness): a legit empty `{}` is real args, not absent.
+                    "input": (
+                        data["rawInput"]
+                        if data.get("rawInput") is not None
+                        else data.get("input")
+                    ),
                 }
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
@@ -454,7 +464,11 @@ def _interaction_parts(
             # (which carries only the drift-prone ACP title) cannot downgrade it back and re-break
             # the resume key. See the tool_call handler's `tool_names_by_id.get(...)` preference.
             names[tool_call_id] = tool_name
-            real_input = tool_call.get("rawInput") or tool_call.get("input")
+            real_input = (
+                tool_call["rawInput"]
+                if tool_call.get("rawInput") is not None
+                else tool_call.get("input")
+            )
             # EGRESS side of the HITL key: what name+args the FE persists on the approval part
             # (and folds back on resume). Compare to the runner's live `[HITL] gate` identity.
             log.info(
@@ -514,7 +528,11 @@ def _interaction_parts(
             )
         real_input = payload.get("input")
         if real_input is None and isinstance(tool_call, dict):
-            real_input = tool_call.get("rawInput") or tool_call.get("input")
+            real_input = (
+                tool_call["rawInput"]
+                if tool_call.get("rawInput") is not None
+                else tool_call.get("input")
+            )
         if tool_call_id is not None and tool_call_id not in seen_tool_calls:
             seen_tool_calls.add(tool_call_id)
             yield {
