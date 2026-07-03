@@ -12,6 +12,7 @@ from oss.src.core.tools.dtos import (
     # Tool Catalog
     ToolCatalogAction,
     ToolCatalogActionDetails,
+    ToolCatalogCategory,
     ToolCatalogIntegration,
     ToolCatalogIntegrationDetails,
     ToolCatalogProvider,
@@ -58,6 +59,11 @@ class ToolCatalogIntegrationsResponse(BaseModel):
     integrations: List[
         Union[ToolCatalogIntegration, ToolCatalogIntegrationDetails]
     ] = []
+
+
+class ToolCatalogCategoriesResponse(BaseModel):
+    count: int = 0
+    categories: List[ToolCatalogCategory] = []
 
 
 class ToolCatalogActionResponse(BaseModel):

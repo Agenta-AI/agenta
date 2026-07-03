@@ -19,6 +19,7 @@ from oss.src.utils.caching import get_cache, set_cache
 from oss.src.apis.fastapi.tools.models import (
     ToolCatalogActionResponse,
     ToolCatalogActionsResponse,
+    ToolCatalogCategoriesResponse,
     ToolCatalogIntegrationResponse,
     ToolCatalogIntegrationsResponse,
     ToolCatalogProviderResponse,
@@ -171,6 +172,14 @@ class ToolsRouter:
             methods=["GET"],
             operation_id="list_tool_integrations",
             response_model=ToolCatalogIntegrationsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/providers/{provider_key}/categories/",
+            self.list_categories,
+            methods=["GET"],
+            operation_id="list_tool_categories",
+            response_model=ToolCatalogCategoriesResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -392,6 +401,7 @@ class ToolsRouter:
         *,
         search: Optional[str] = Query(default=None),
         sort_by: Optional[str] = Query(default=None),
+        category: Optional[str] = Query(default=None),
         limit: Optional[int] = Query(default=None),
         cursor: Optional[str] = Query(default=None),
         full_details: bool = Query(default=False),
@@ -408,6 +418,7 @@ class ToolsRouter:
             "provider_key": provider_key,
             "search": search,
             "sort_by": sort_by,
+            "category": category,
             "limit": limit,
             "cursor": cursor,
             "full_details": full_details,
@@ -425,6 +436,7 @@ class ToolsRouter:
             provider_key=provider_key,
             search=search,
             sort_by=sort_by,
+            category=category,
             limit=limit,
             cursor=cursor,
         )
@@ -443,6 +455,49 @@ class ToolsRouter:
             key=cache_key,
             value=response,
             ttl=5 * 60,  # 5 minutes
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def list_categories(
+        self,
+        request: Request,
+        provider_key: str,
+    ) -> ToolCatalogCategoriesResponse:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        cache_key = {"provider_key": provider_key}
+        cached = await get_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:categories",
+            key=cache_key,
+            model=ToolCatalogCategoriesResponse,
+        )
+        if cached:
+            return cached
+
+        categories = await self.tools_service.list_categories(
+            provider_key=provider_key,
+        )
+        response = ToolCatalogCategoriesResponse(
+            count=len(categories),
+            categories=categories,
+        )
+
+        await set_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:categories",
+            key=cache_key,
+            value=response,
+            ttl=30 * 60,  # 30 minutes — categories change rarely
         )
 
         return response

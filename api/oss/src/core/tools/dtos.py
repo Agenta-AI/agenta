@@ -6,6 +6,7 @@ from agenta.sdk.models.workflows import JsonSchemas
 from pydantic import BaseModel, Field
 
 from oss.src.core.gateway.catalog.dtos import (
+    CatalogCategory,
     CatalogIntegration,
     CatalogProvider,
 )
@@ -71,6 +72,10 @@ class ToolCatalogIntegration(CatalogIntegration):
 
 class ToolCatalogIntegrationDetails(ToolCatalogIntegration):
     actions: Optional[List[ToolCatalogAction]] = None
+
+
+class ToolCatalogCategory(CatalogCategory):
+    pass
 
 
 class ToolCatalogProvider(CatalogProvider):

@@ -16,6 +16,7 @@ import httpx
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.gateway.catalog.dtos import (
     CatalogAuthScheme,
+    CatalogCategory,
     CatalogIntegration,
     CatalogIntegrationsPage,
     CatalogProvider,
@@ -117,6 +118,7 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
         *,
         search: Optional[str] = None,
         sort_by: Optional[str] = None,
+        category: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
     ) -> CatalogIntegrationsPage:
@@ -127,6 +129,8 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
             params["search"] = search
         if sort_by:
             params["sort_by"] = sort_by
+        if category:
+            params["category"] = category
         if cursor:
             params["cursor"] = cursor
 
@@ -166,10 +170,60 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
             total=total_items,
         )
 
+    # How many top toolkits to sample when deriving the category nav, and how many categories to
+    # surface. Composio's /toolkits/categories returns ~800 raw tags (incl. junk like "tag1" and
+    # auto-slugged names no toolkit actually carries → empty filters), so it's unusable as a nav.
+    _CATEGORY_SAMPLE_SIZE = 200
+    _CATEGORY_LIMIT = 30
+
+    async def list_categories(self) -> List[CatalogCategory]:
+        # Derive a focused nav from the most-used toolkits' OWN category tags: every category comes
+        # from a real toolkit (so filtering by its id is guaranteed to return results), ranked by how
+        # many popular toolkits carry it. Self-maintaining — no hardcoded allowlist.
+        try:
+            resp = await self._client.get(
+                f"{self.api_url}/toolkits",
+                headers=self._headers(),
+                params={"limit": self._CATEGORY_SAMPLE_SIZE, "sort_by": "usage"},
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="list_categories",
+                detail=composio_error_detail(e),
+            ) from e
+
+        items_raw = data.get("items", []) if isinstance(data, dict) else data
+        counts: Dict[str, int] = {}
+        names: Dict[str, str] = {}
+        for item in items_raw or []:
+            meta = item.get("meta") or {} if isinstance(item, dict) else {}
+            for cat in meta.get("categories") or []:
+                if isinstance(cat, dict):
+                    cid = cat.get("id") or cat.get("slug") or cat.get("name")
+                    cname = cat.get("name") or cid
+                else:
+                    cid = cname = cat
+                if not cid:
+                    continue
+                cid = str(cid)
+                counts[cid] = counts.get(cid, 0) + 1
+                names.setdefault(cid, str(cname))
+
+        ranked = sorted(counts.items(), key=lambda kv: (-kv[1], names[kv[0]].lower()))
+        return [
+            CatalogCategory(id=cid, name=names[cid])
+            for cid, _ in ranked[: self._CATEGORY_LIMIT]
+        ]
+
 
 # ---------------------------------------------------------------------------
 # Parsers
 # ---------------------------------------------------------------------------
+
 
 _AUTH_SCHEME_MAP: Dict[str, CatalogAuthScheme] = {
     "oauth": CatalogAuthScheme.OAUTH,
