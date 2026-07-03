@@ -319,6 +319,15 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
+    # EMF metric lines (`log.tick(...)`) to stdout — the CloudWatch agent already
+    # ships container stdout, so this needs no new port/infra to light up.
+    metrics_enabled: bool = (
+        os.getenv("AGENTA_LOGGING_METRICS_ENABLED") or "true"
+    ).lower() in _TRUTHY
+    metrics_namespace: str = (
+        os.getenv("AGENTA_LOGGING_METRICS_NAMESPACE") or "Agenta/Workers"
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -381,6 +390,30 @@ class ServicesConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# agenta.workers
+# ---------------------------------------------------------------------------
+
+
+def _load_csv_env_list(name: str) -> list[str]:
+    """Parse `name` as a comma-separated list, trimming blanks. Empty/unset -> []."""
+    raw = os.getenv(name) or ""
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+class WorkersConfig(BaseModel):
+    """Topology selectors for the merged `worker-streams`/`worker-queues` entrypoints.
+
+    Empty list means "all loops in that family" — see
+    docs/designs/workers-sprawl/specs.md.
+    """
+
+    streams: list[str] = _load_csv_env_list("AGENTA_WORKER_STREAMS")
+    queues: list[str] = _load_csv_env_list("AGENTA_WORKER_QUEUES")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # agenta.webhooks
 # ---------------------------------------------------------------------------
 
@@ -422,6 +455,7 @@ class AgentaConfig(BaseModel):
     otlp: OTLPConfig = OTLPConfig()
     services: ServicesConfig = ServicesConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
+    workers: WorkersConfig = WorkersConfig()
 
     model_config = ConfigDict(extra="ignore")
 

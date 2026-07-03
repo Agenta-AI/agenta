@@ -77,7 +77,7 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
-    worker-evaluations:
+    worker-streams:
         # === IMAGE ================================================ #
         build:
             context: ../../..
@@ -89,11 +89,14 @@ services:
                 "run-program",
                 "python",
                 "-m",
-                "entrypoints.worker_evaluations",
+                "entrypoints.worker_streams",
             ]
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
+            - AGENTA_WORKER_STREAMS=
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -112,13 +115,13 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_evaluations' in cmd else 1)"]
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_streams' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3
             start_period: 20s
 
-    worker-tracing:
+    worker-queues:
         # === IMAGE ================================================ #
         build:
             context: ../../..
@@ -130,46 +133,14 @@ services:
                 "run-program",
                 "python",
                 "-m",
-                "entrypoints.worker_tracing",
+                "entrypoints.worker_queues",
             ]
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-oss-gh-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-
-    worker-webhooks:
-        # === IMAGE ================================================ #
-        build:
-            context: ../../..
-            dockerfile: api/oss/docker/Dockerfile.gh
-        # === EXECUTION ============================================ #
-        command:
-            [
-                "newrelic-admin",
-                "run-program",
-                "python",
-                "-m",
-                "entrypoints.worker_webhooks",
-            ]
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
+            - AGENTA_WORKER_QUEUES=
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -188,171 +159,7 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_webhooks' in cmd else 1)"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 20s
-
-    worker-triggers:
-        # === IMAGE ================================================ #
-        build:
-            context: ../../..
-            dockerfile: api/oss/docker/Dockerfile.gh
-        # === EXECUTION ============================================ #
-        command:
-            [
-                "newrelic-admin",
-                "run-program",
-                "python",
-                "-m",
-                "entrypoints.worker_triggers",
-            ]
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-oss-gh-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-        healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_triggers' in cmd else 1)"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 20s
-
-    worker-interactions:
-        # === IMAGE ================================================ #
-        build:
-            context: ../../..
-            dockerfile: api/oss/docker/Dockerfile.gh
-        # === EXECUTION ============================================ #
-        command:
-            [
-                "newrelic-admin",
-                "run-program",
-                "python",
-                "-m",
-                "entrypoints.worker_interactions",
-            ]
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-oss-gh-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-        healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_interactions' in cmd else 1)"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 20s
-
-    worker-records:
-        # === IMAGE ================================================ #
-        build:
-            context: ../../..
-            dockerfile: api/oss/docker/Dockerfile.gh
-        # === EXECUTION ============================================ #
-        command:
-            [
-                "newrelic-admin",
-                "run-program",
-                "python",
-                "-m",
-                "entrypoints.worker_records",
-            ]
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-oss-gh-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-        healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_records' in cmd else 1)"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 20s
-
-    worker-events:
-        # === IMAGE ================================================ #
-        build:
-            context: ../../..
-            dockerfile: api/oss/docker/Dockerfile.gh
-        # === EXECUTION ============================================ #
-        command:
-            [
-                "newrelic-admin",
-                "run-program",
-                "python",
-                "-m",
-                "entrypoints.worker_events",
-            ]
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-oss-gh-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-        healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_events' in cmd else 1)"]
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_queues' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3

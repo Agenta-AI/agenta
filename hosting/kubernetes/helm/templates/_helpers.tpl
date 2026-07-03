@@ -108,32 +108,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
 {{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
-{{- define "agenta.workerEvaluations.enabled" -}}
-{{- $v := (default dict .Values.workerEvaluations).enabled -}}
+{{- define "agenta.workerStreams.enabled" -}}
+{{- $v := (default dict .Values.workerStreams).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
-{{- define "agenta.workerTracing.enabled" -}}
-{{- $v := (default dict .Values.workerTracing).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerWebhooks.enabled" -}}
-{{- $v := (default dict .Values.workerWebhooks).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerEvents.enabled" -}}
-{{- $v := (default dict .Values.workerEvents).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerTriggers.enabled" -}}
-{{- $v := (default dict .Values.workerTriggers).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerRecords.enabled" -}}
-{{- $v := (default dict .Values.workerRecords).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerInteractions.enabled" -}}
-{{- $v := (default dict .Values.workerInteractions).enabled -}}
+{{- define "agenta.workerQueues.enabled" -}}
+{{- $v := (default dict .Values.workerQueues).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.ingress.enabled" -}}
@@ -153,13 +133,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
        N replicas = every scheduled job fires N times. Hard-set to 1.
        The values key is kept as documentation; we ignore user overrides. */ -}}
 {{- define "agenta.cron.replicas" -}}1{{- end }}
-{{- define "agenta.workerEvaluations.replicas" -}}{{ default 1 (default dict .Values.workerEvaluations).replicas }}{{- end }}
-{{- define "agenta.workerTracing.replicas" -}}{{ default 1 (default dict .Values.workerTracing).replicas }}{{- end }}
-{{- define "agenta.workerWebhooks.replicas" -}}{{ default 1 (default dict .Values.workerWebhooks).replicas }}{{- end }}
-{{- define "agenta.workerEvents.replicas" -}}{{ default 1 (default dict .Values.workerEvents).replicas }}{{- end }}
-{{- define "agenta.workerTriggers.replicas" -}}{{ default 1 (default dict .Values.workerTriggers).replicas }}{{- end }}
-{{- define "agenta.workerRecords.replicas" -}}{{ default 1 (default dict .Values.workerRecords).replicas }}{{- end }}
-{{- define "agenta.workerInteractions.replicas" -}}{{ default 1 (default dict .Values.workerInteractions).replicas }}{{- end }}
+{{- define "agenta.workerStreams.replicas" -}}{{ default 1 (default dict .Values.workerStreams).replicas }}{{- end }}
+{{- define "agenta.workerQueues.replicas" -}}{{ default 1 (default dict .Values.workerQueues).replicas }}{{- end }}
 
 {{/* ================================================================
    Workers (gunicorn worker count, default 2).
