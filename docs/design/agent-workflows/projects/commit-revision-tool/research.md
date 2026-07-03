@@ -67,7 +67,9 @@ in this same router/domain.
      sends `workflow_revision.delta.set` (deep-merged) and `delta.remove` (dotted paths),
      plus an optional `message`.
    - `context_bindings={"workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"}`.
-   - `default_permission="ask"`, `default_needs_approval=True` (mutating → approval).
+   - `default_permission="ask"` (mutating -> approval). At the time this was written the op
+     also carried a `default_needs_approval=True` flag; that flag is deleted, and `permission`
+     alone now decides (see [projects/approval-boundary/](../approval-boundary/)).
 
 2. **Offered** to every agent via the playground overlay:
    `build_agent_template_overlay` emits `{"type":"platform","op":op}` for every op in

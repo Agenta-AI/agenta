@@ -95,12 +95,13 @@ shared `specInputSchema` accessor (Phase 2).
 
 ## Resume store overload (`ApprovalDecisions`)
 
-`ApprovalDecisions = Map<string, unknown>` (`responder.ts:113`) is reused for BOTH permission
-decisions and client-tool outputs. `HITLResponder.onClientTool` (`responder.ts:218-223`) guards
-with `!isPermissionDecision(output)` and `parkedCallResultOf` (`responder.ts:395-410`) coerces an
-`{approved}` envelope to `"allow"`/`"deny"`. Two hazards: (a) a client tool whose real output is
-literally the string `"allow"`/`"deny"` is mis-read as a permission decision and skipped; (b)
-`Map.set` by `parkedCallKey(name, args)` means two identical client calls overwrite each other.
+`ApprovalDecisions = Map<string, unknown>` (`responder.ts:113`) was reused for BOTH permission
+decisions and client-tool outputs. `HITLResponder.onClientTool` (`responder.ts:218-223`; `HITLResponder`
+was later replaced by `ApprovalResponder`, see [projects/approval-boundary/](../approval-boundary/))
+guarded with `!isPermissionDecision(output)` and `parkedCallResultOf` (`responder.ts:395-410`)
+coerced an `{approved}` envelope to `"allow"`/`"deny"`. Two hazards: (a) a client tool whose real
+output is literally the string `"allow"`/`"deny"` is mis-read as a permission decision and skipped;
+(b) `Map.set` by `parkedCallKey(name, args)` means two identical client calls overwrite each other.
 Codex's fix: a separate client-output store keyed safely, value a FIFO list per key (Phase 3).
 
 ## Claude park mechanics already proven
