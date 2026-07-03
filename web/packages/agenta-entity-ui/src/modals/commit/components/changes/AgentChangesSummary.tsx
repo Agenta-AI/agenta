@@ -228,9 +228,7 @@ function ScalarRows({changes}: {changes: ScalarChange[]}) {
                     key={c.key}
                     className="flex items-center gap-2 px-3.5 py-1.5 font-mono text-[11.5px]"
                 >
-                    {c.key !== "model" ? (
-                        <span className={textColors.secondary}>{c.key}</span>
-                    ) : null}
+                    <span className={textColors.secondary}>{c.key}</span>
                     <span style={{color: "var(--ag-colorError)"}}>{c.before ?? "—"}</span>
                     <ArrowRight className={textColors.tertiary} />
                     <span style={{color: "var(--ag-colorSuccess)"}}>{c.after ?? "—"}</span>

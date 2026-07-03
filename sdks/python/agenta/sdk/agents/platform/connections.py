@@ -76,6 +76,43 @@ def _inferred_claude_provider(model: ModelRef) -> Optional[str]:
     return None
 
 
+def _build_catalog_provider_index() -> Dict[str, str]:
+    """Invert ``supported_llm_models`` to ``{model_id: provider}`` for unambiguous ids only.
+
+    A model id offered by more than one provider (e.g. the same open-weight model on two
+    gateways) is dropped: inference must never guess between providers. Both the bare id and any
+    provider-prefixed form map to the same provider so either spelling resolves.
+    """
+    from agenta.sdk.utils.assets import supported_llm_models
+
+    owners: Dict[str, Set[str]] = {}
+    for provider, models in supported_llm_models.items():
+        for entry in models:
+            bare = entry.split("/", 1)[1] if "/" in entry else entry
+            for key in {entry.lower(), bare.lower()}:
+                owners.setdefault(key, set()).add(provider)
+    return {key: next(iter(prov)) for key, prov in owners.items() if len(prov) == 1}
+
+
+_CATALOG_PROVIDER_INDEX: Dict[str, str] = _build_catalog_provider_index()
+
+
+def _inferred_catalog_provider(model: ModelRef) -> Optional[str]:
+    """Return the provider a bare model id belongs to per ``supported_llm_models``, else ``None``.
+
+    Discovery, not precedence: only fills a MISSING provider on a bare id, and only when the
+    shared model catalog maps it to exactly one provider. An unknown or cross-provider-ambiguous
+    id returns ``None`` and still fails loud (F-017). Credential-precedence between vault
+    connections is decided separately, after the provider is known.
+    """
+    if model.provider:
+        return None
+    bare = (model.model or "").strip().lower()
+    if not bare:
+        return None
+    return _CATALOG_PROVIDER_INDEX.get(bare)
+
+
 def _harness_default_provider(harness: Optional[str]) -> str:
     """The provider to suggest in a missing-provider hint for ``harness``.
 
@@ -258,12 +295,14 @@ def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
 def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandidate]:
     data = _data(secret)
     provider = _stripped(data.get("kind"))
-    slug = _header_name(secret)
     key = _stripped(_settings(secret).get("key"))
-    if not provider or not slug:
+    if not provider:
         return None
+    # A standard provider_key is identified by its PROVIDER, not by a name: it has no slug
+    # concept (slug is a custom_provider connection field). Use the provider as the candidate's
+    # slug so a plain OpenAI key resolves for `openai` — never `header.name`.
     return _ConnectionCandidate(
-        slug=slug,
+        slug=provider,
         kind="provider_key",
         provider=provider,
         deployment="direct",
@@ -406,7 +445,7 @@ def _resolve_from_secrets(
     # A bare Claude alias (haiku/sonnet/opus + [1m]) or a dated claude-* id is unambiguously
     # Anthropic: infer the provider so the F-017 fail-loud rule does not reject a documented
     # Claude model id. Inference only fills a missing provider; an explicit provider is honored.
-    inferred = _inferred_claude_provider(model)
+    inferred = _inferred_claude_provider(model) or _inferred_catalog_provider(model)
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
