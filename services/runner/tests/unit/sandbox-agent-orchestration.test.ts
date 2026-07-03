@@ -232,10 +232,10 @@ function fakeHarness(options: FakeOptions = {}) {
     sandboxRelayHost: (() => "sandbox-relay-host") as any,
     responderFactory: () => ({
       async onPermission() {
-        return options.permissionDecision ?? "allow";
+        return { kind: options.permissionDecision ?? "allow" } as const;
       },
       async onClientTool() {
-        return "deny" as const;
+        return { kind: "deny" } as const;
       },
     }),
   };
@@ -482,19 +482,7 @@ describe("runSandboxAgent orchestration", () => {
     if (!result.ok) return;
     assert.deepEqual(
       result.events?.filter((event) => event.type === "interaction_request"),
-      [
-        {
-          type: "interaction_request",
-          id: "perm-1",
-          kind: "user_approval",
-          payload: {
-            toolCallId: "tool-1",
-            toolCall: { toolCallId: "tool-1", name: "edit" },
-            availableReplies: ["once", "always", "reject"],
-            options: undefined,
-          },
-        },
-      ],
+      [],
     );
     // allow -> once (per-call grant), never always: a turn-wide grant would skip re-gating.
     assert.deepEqual(calls.permissionReplies, [
@@ -848,13 +836,12 @@ describe("runSandboxAgent orchestration", () => {
   });
 });
 
-// These exercise the engine's DEFAULT responder (HITLResponder) by dropping the
-// `responderFactory` override the fake otherwise installs, so we test the real cross-turn
-// wiring: headless parity, the park, and the resume.
-describe("runSandboxAgent default HITL responder wiring", () => {
+// These exercise the engine's default ApprovalResponder by dropping the `responderFactory`
+// override the fake otherwise installs, so we test the real allow, pause, and resume wiring.
+describe("runSandboxAgent default ApprovalResponder wiring", () => {
   function depsWithDefaultResponder() {
     const { calls, deps } = fakeHarness({ emitPermission: true });
-    delete deps.responderFactory; // fall through to the engine's HITLResponder
+    delete deps.responderFactory; // fall through to the engine's ApprovalResponder
     return { calls, deps };
   }
 
@@ -880,13 +867,14 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     ]);
   });
 
-  it("human surface (/messages: sessionId set) with no decision PARKS the tool, no harness reply (F-024)", async () => {
+  it("effective ask with no decision pauses the tool, no harness reply (F-024)", async () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
       {
         harness: "claude",
         sessionId: "conv-1",
+        permissions: { default: "ask" },
         messages: [{ role: "user", content: "edit the file" }],
       },
       undefined,
@@ -922,7 +910,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
         emitPermission: true,
         hangPrompt: true,
       });
-      delete deps.responderFactory; // engine HITLResponder -> parks (human surface, no decision)
+      delete deps.responderFactory; // engine ApprovalResponder -> pauses (effective ask, no decision)
       return { calls, deps };
     })();
 
@@ -930,6 +918,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
       {
         harness: "claude",
         sessionId: "conv-1",
+        permissions: { default: "ask" },
         messages: [{ role: "user", content: "edit the file" }],
       },
       undefined,
@@ -971,6 +960,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
       {
         harness: "claude",
         sessionId: "conv-1",
+        permissions: { default: "ask" },
         messages: [{ role: "user", content: "edit the file" }],
       },
       undefined,
@@ -995,6 +985,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
       {
         harness: "claude",
         sessionId: "conv-1",
+        permissions: { default: "ask" },
         messages: [
           { role: "user", content: "edit the file" },
           {

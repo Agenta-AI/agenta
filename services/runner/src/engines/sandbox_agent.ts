@@ -23,7 +23,6 @@
  * so it is uniform across every harness and always nests under the caller's /invoke
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
-import { apiBase } from "../apiBase.ts";
 import { rmSync } from "node:fs";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
@@ -35,9 +34,9 @@ import {
   startToolRelay,
 } from "../tools/relay.ts";
 import {
-  HITLResponder,
+  ApprovalResponder,
+  ConversationDecisions,
   extractApprovalDecisions,
-  nonConvergingToolNames,
   policyFromRequest,
   type Responder,
 } from "../responder.ts";
@@ -46,6 +45,7 @@ import {
   type AgentRunResult,
   type EmitEvent,
   type ToolCallbackContext,
+  type ToolPermission,
   resolveRunSessionId,
 } from "../protocol.ts";
 import {
@@ -67,6 +67,11 @@ import {
   buildPiExtensionEnv,
   prepareLocalPiAssets,
 } from "./sandbox_agent/pi-assets.ts";
+import {
+  PendingApprovalLatch,
+  permissionsFromRequest,
+  type GateDescriptor,
+} from "../permission-plan.ts";
 import { attachPermissionResponder } from "./sandbox_agent/permissions.ts";
 import {
   createInteraction,
@@ -109,6 +114,22 @@ function runCredential(request: AgentRunRequest): string {
   return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
 }
 
+/** Agenta API base for runner→API calls (heartbeat/ingest/mount-sign share this). */
+function apiBase(): string {
+  return process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
+}
+
+function serverPermissionsFromRequest(
+  request: AgentRunRequest,
+): ReadonlyMap<string, ToolPermission> {
+  const permissions = new Map<string, ToolPermission>();
+  for (const server of request.mcpServers ?? []) {
+    if (server.permission !== undefined) {
+      permissions.set(server.name, server.permission);
+    }
+  }
+  return permissions;
+}
 
 type Log = (message: string) => void;
 const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
@@ -194,7 +215,6 @@ function applyClaudeConnectionEnv(
   ) {
     env.ANTHROPIC_MODEL = selectedModel;
     env.ANTHROPIC_CUSTOM_MODEL_OPTION = selectedModel;
-    logger(`claude model=${selectedModel} deployment=${deployment ?? "<none>"}`);
     return true;
   }
   return false;
@@ -220,7 +240,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   mountStorageRemote?: typeof mountStorageRemote;
   unmountStorage?: typeof unmountStorage;
   discoverTunnelEndpoint?: typeof discoverTunnelEndpoint;
-  responderFactory?: (permissionPolicy: string | undefined) => Responder;
+  responderFactory?: (request: AgentRunRequest) => Responder;
   log?: Log;
 }
 
@@ -256,7 +276,9 @@ function containsTransportEndpointDisconnected(value: unknown): boolean {
     seen.add(current);
 
     const code =
-      "code" in current ? String((current as { code?: unknown }).code) : "";
+      "code" in current
+        ? String((current as { code?: unknown }).code)
+        : "";
     if (code === "ENOTCONN") {
       return true;
     }
@@ -283,8 +305,7 @@ export async function runSandboxAgent(
   // failure leaves durableCwd undefined and buildRunPlan falls back to the ephemeral path.
   const sessionForMount = request.sessionId?.trim();
   const runCred = runCredential(request);
-  const signMount =
-    deps.signSessionMountCredentials ?? signSessionMountCredentials;
+  const signMount = deps.signSessionMountCredentials ?? signSessionMountCredentials;
   let mountCreds: MountCredentials | null =
     sessionForMount && runCred
       ? await signMount(sessionForMount, {
@@ -299,9 +320,7 @@ export async function runSandboxAgent(
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
   let durableCwd: string | undefined;
   if (mountCreds?.prefix) {
-    const isDaytonaReq =
-      (request.sandbox ?? process.env.SANDBOX_AGENT_PROVIDER ?? "local") ===
-      "daytona";
+    const isDaytonaReq = (request.sandbox ?? process.env.SANDBOX_AGENT_PROVIDER ?? "local") === "daytona";
     durableCwd = isDaytonaReq
       ? `/home/sandbox/agenta/${mountCreds.prefix}`
       : `/tmp/agenta/${mountCreds.prefix}`;
@@ -357,15 +376,6 @@ export async function runSandboxAgent(
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
 
-  // The resolved model ref as it reaches the runner (key NAMES only, never values) — the one
-  // line that answers "what model/provider/deployment/credential did this run actually use".
-  logger(
-    `resolved model=${request.model ?? "<none>"} provider=${request.provider ?? "<none>"} ` +
-      `deployment=${request.deployment ?? "<none>"} ` +
-      `connection=${request.connection ? `${request.connection.mode}:${request.connection.slug ?? "-"}` : "<none>"} ` +
-      `secretKeys=[${Object.keys(request.secrets ?? {}).join(",")}]`,
-  );
-
   // Pi traces itself via the extension under the propagated traceparent; for other
   // harnesses we build the span tree here from the ACP event stream. Created below, once
   // the model is resolved, so the chat span carries the harness's actual model rather
@@ -385,11 +395,7 @@ export async function runSandboxAgent(
     logger(
       `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
     );
-    if (
-      await (deps.mountStorage ?? mountStorage)(plan.cwd, mountCreds, {
-        log: logger,
-      })
-    ) {
+    if (await (deps.mountStorage ?? mountStorage)(plan.cwd, mountCreds, { log: logger })) {
       mountedCwd = plan.cwd;
       return true;
     }
@@ -417,9 +423,7 @@ export async function runSandboxAgent(
       log: logger,
     });
     if (!fresh) {
-      logger(
-        `local durable cwd re-sign returned no credentials session=${sessionForMount}`,
-      );
+      logger(`local durable cwd re-sign returned no credentials session=${sessionForMount}`);
       return false;
     }
     mountCreds = fresh;
@@ -510,9 +514,7 @@ export async function runSandboxAgent(
         isTransportEndpointDisconnected(err) &&
         (await reSignAndRemountLocalCwd())
       ) {
-        logger(
-          `retrying workspace preparation after local durable cwd remount`,
-        );
+        logger(`retrying workspace preparation after local durable cwd remount`);
         workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
           sandbox,
           plan,
@@ -525,22 +527,15 @@ export async function runSandboxAgent(
 
     if (mountCreds) {
       if (plan.isDaytona) {
-        const endpoint = await (
-          deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
-        )({
+        const endpoint = await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
           log: logger,
         });
         if (
           endpoint &&
-          (await (deps.mountStorageRemote ?? mountStorageRemote)(
-            sandbox,
-            plan.cwd,
-            mountCreds,
-            {
-              endpoint,
-              log: logger,
-            },
-          ))
+          (await (deps.mountStorageRemote ?? mountStorageRemote)(sandbox, plan.cwd, mountCreds, {
+            endpoint,
+            log: logger,
+          }))
         ) {
           // Remote files live in the store; nothing on this host to unmount.
           logger(`remote durable cwd active for session=${sessionForMount}`);
@@ -642,61 +637,40 @@ export async function runSandboxAgent(
       if (update) run.handleUpdate(update);
     });
 
-    // Cross-turn HITL: when the request carries a platform `sessionId` it came through the
-    // `/messages` endpoint, which validates and stamps a session id on every turn and replays
-    // the conversation — i.e. there is a browser that can answer a permission prompt. The
-    // headless `/invoke` path sets no session id. With no human surface and no stored
-    // decisions the HITLResponder falls back to the base policy and is byte-identical to the
-    // old PolicyResponder, so `/invoke` is unchanged.
-    const hasHumanSurface = !!(request.sessionId && request.sessionId.trim());
-    // A park (cross-turn HITL) must END the turn gracefully, not hold the ACP connection open
-    // forever (F-040): Claude does not end a turn on an unanswered gate, so `session.prompt()`
-    // would block indefinitely, the sandbox would leak, and the egress would never emit a
-    // `finish` frame. On the first park we `destroySession`, which (a) resolves the pending
-    // permission RPC with `{outcome:"cancelled"}` — NOT a reject, so no F-024 clobber — and
-    // (b) sends the managed `session/cancel` so the in-flight `prompt()` resolves with a
-    // cancelled stop reason. The resume then cold-replays as a fresh turn (#4854).
+    // A pending approval pause must END the turn gracefully, not hold the ACP connection
+    // open forever (F-040): Claude does not end a turn on an unanswered gate, so
+    // `session.prompt()` would block indefinitely. On the first pause we destroy the session
+    // so the in-flight prompt resolves or the local park signal wins the race below.
     let parked = false;
     let resolveParked: (() => void) | undefined;
     const parkedSignal = new Promise<void>((resolve) => {
       resolveParked = resolve;
     });
     const onPark = (): void => {
-      if (parked) return; // first park wins; later gates this turn are moot once we cancel
+      if (parked) return; // first pause wins; later gates this turn are moot once we cancel
       parked = true;
       resolveParked?.();
-      // Cancel the in-flight prompt so `session.prompt()` returns instead of hanging. The
-      // managed cancel lives on the SandboxAgent handle (the `Session` wrapper has none).
-      // Best effort: the `finally` disposes the sandbox regardless, and the prompt is also
-      // raced against `parkedSignal` below so the turn ends even if this call rejects.
       void sandbox.destroySession?.(session.id).catch(() => {});
     };
+    const permissionPlan = permissionsFromRequest(request);
+    const storedDecisionMap = extractApprovalDecisions(request);
+    if (storedDecisionMap.size > 0) {
+      logger(
+        `[HITL] resume state: decisions=${JSON.stringify([...storedDecisionMap.keys()])}`,
+      );
+    }
+    const decisions = new ConversationDecisions(storedDecisionMap);
+    const latch = new PendingApprovalLatch();
     const responder =
-      deps.responderFactory?.(request.permissionPolicy) ??
-      (() => {
-        const decisions = extractApprovalDecisions(request);
-        const looping = nonConvergingToolNames(request);
-        // Dump the STORED side of the HITL resume: the decision keys the transcript folded and any
-        // tools flagged as non-converging. Compare against the runner's `[HITL] gate ...` lines
-        // (the LIVE re-raised keys) to see exactly what drifted.
-        if (hasHumanSurface) {
-          logger(
-            `[HITL] resume state: humanSurface=${hasHumanSurface} ` +
-              `decisions=${JSON.stringify([...decisions.keys()])} ` +
-              `looping=${JSON.stringify([...looping])}`,
-          );
-        }
-        return new HITLResponder(
-          decisions,
-          policyFromRequest(request.permissionPolicy),
-          hasHumanSurface,
-          looping,
-          logger,
-        );
-      })();
+      deps.responderFactory?.(request) ??
+      new ApprovalResponder(permissionPlan, decisions, logger);
+    const serverPermissions = serverPermissionsFromRequest(request);
     attachPermissionResponder({
       session,
       run,
+      responder,
+      latch,
+      serverPermissions,
       log: logger,
       onPark,
       onCreateInteraction: (token, toolName, toolArgs) => {
@@ -729,13 +703,9 @@ export async function runSandboxAgent(
           return;
         void resolveInteraction(sessionId, token, () => cred);
       },
-      responder,
     });
 
     if (plan.useToolRelay) {
-      // Layer 3 (S3b): the relay enforces each resolved tool's `permission`; an `ask`/unset
-      // permission degrades to the run's headless permission policy (the same policy the
-      // PolicyResponder uses for Claude builtins above).
       toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
           ? (deps.sandboxRelayHost ?? sandboxRelayHost)(sandbox)
@@ -747,18 +717,28 @@ export async function runSandboxAgent(
         request.runContext,
         {
           onClientTool: async ({ id, toolCallId, toolName, input, spec }) => {
-            const decision = await responder.onClientTool({
+            const gate: GateDescriptor = {
+              executor: "client",
+              toolName: spec.name,
+              specPermission: spec.permission,
+              readOnlyHint: spec.readOnly,
+              args: input,
+            };
+            const verdict = await responder.onClientTool({
               id,
               toolCallId,
-              toolName,
-              input,
+              gate,
               raw: { spec },
             });
-            if (process.env.AGENTA_RUNNER_DEBUG_TOOLS)
+            if (process.env.AGENTA_RUNNER_DEBUG_TOOLS) {
               logger(
-                `[client-tool] ${toolName} id=${toolCallId} kind=${spec.kind} decision=${typeof decision === "string" ? decision : JSON.stringify(decision).slice(0, 200)}`,
+                `[client-tool] ${toolName} id=${toolCallId} kind=${spec.kind} ` +
+                  `decision=${JSON.stringify(verdict).slice(0, 200)}`,
               );
-            if (decision === "park") {
+            }
+            if (verdict.kind === "deny") return "deny";
+            if (verdict.kind === "fulfilled") return { output: verdict.output };
+            if (latch.tryAcquire()) {
               run.emitEvent({
                 type: "interaction_request",
                 id,
@@ -779,7 +759,7 @@ export async function runSandboxAgent(
                 },
               });
             }
-            return decision;
+            return "park";
           },
           onPark,
         },
@@ -802,13 +782,13 @@ export async function runSandboxAgent(
       promptPromise,
       parkedSignal.then(() => PARKED),
     ]);
-    await toolRelay?.stop();
     // A parked turn is terminal-but-incomplete: stop reason `paused` tells the egress to emit
     // a clean `finish` (the FE then resumes on the user's decision). A real prompt result keeps
     // the harness's own stop reason.
     const stopReason =
       raced === PARKED || parked ? "paused" : (raced as any)?.stopReason;
     const result = raced === PARKED ? undefined : raced;
+    await toolRelay?.stop();
     logger(`prompt stopReason=${stopReason}`);
 
     // Usage: Pi writes its totals to a file via the extension. Other harnesses report the

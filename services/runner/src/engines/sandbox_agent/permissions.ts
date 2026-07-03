@@ -1,200 +1,201 @@
-import type { AgentEvent } from "../../protocol.ts";
+import type { AgentEvent, ToolPermission } from "../../protocol.ts";
 import {
   decisionToReply,
-  specOf,
-  type ClientToolOutcome,
+  type ClientToolVerdict,
+  type PermissionDecision,
   type Responder,
 } from "../../responder.ts";
+import {
+  PendingApprovalLatch,
+  type GateDescriptor,
+} from "../../permission-plan.ts";
 
 export interface AttachPermissionResponderInput {
   session: any;
   run: { emitEvent: (event: AgentEvent) => void; events?: () => AgentEvent[] };
   responder: Responder;
+  latch: PendingApprovalLatch;
+  serverPermissions?: ReadonlyMap<string, ToolPermission>;
   /**
-   * Called when the responder PARKS a gate (cross-turn HITL). The orchestration loop uses
-   * this to END the turn gracefully: a parked Claude turn never resolves `session.prompt()`
-   * on its own (the harness does not end the turn on an unanswered gate), so without this the
-   * prompt blocks forever, the sandbox leaks, and the egress never emits a `finish` frame
-   * (F-040). The runner cancels the in-flight prompt (via `destroySession`) so the turn ends
-   * paused and the resume cold-replays. Fires at most once per turn (the first park wins).
+   * Called when a gate pauses the turn. The orchestration loop uses this to end the turn
+   * gracefully because a paused Claude turn never resolves `session.prompt()` on its own.
    */
   onPark?: () => void;
-  /** Diagnostic sink for the raw ACP permission ground truth (name/spec/args the harness sends). */
   log?: (msg: string) => void;
-  /** Called on park to record the parked gate as an interaction (fire-and-forget). */
+  /** Called on pause to record the pending gate as an interaction (fire-and-forget). */
   onCreateInteraction?: (
     token: string,
     toolName: string | undefined,
     toolArgs: unknown,
   ) => void;
-  /**
-   * Called when the runner consumes a stored decision and forwards it to the harness — the
-   * gate is resolved. Transitions the interaction (pending|responded -> resolved). Covers
-   * both planes: a `/interactions` answer (responded -> resolved) and a messages answer
-   * (pending -> resolved). Fire-and-forget.
-   */
+  /** Called after a stored decision was successfully forwarded to the harness. */
   onResolveInteraction?: (token: string) => void;
 }
 
-/**
- * Wire ACP permission reverse-RPC into the runner's event stream and responder policy.
- *
- * The default engine responder is headless today, but this boundary keeps future cross-turn
- * human approval from changing the sandbox-agent session plumbing.
- */
+/** Wire ACP permission reverse-RPC into the runner's event stream and responder policy. */
 export function attachPermissionResponder({
   session,
   run,
   responder,
+  latch,
+  serverPermissions = new Map(),
   onPark,
   log,
   onCreateInteraction,
   onResolveInteraction,
 }: AttachPermissionResponderInput): void {
   session.onPermissionRequest((req: any) => {
-    const id = String(req?.id ?? "");
-    const availableReplies: string[] = req?.availableReplies ?? [];
-    const toolCall = req?.toolCall;
-    // NAME ANCHOR (the HITL resume-loop root cause): Claude-over-ACP names the SAME tool call
-    // differently across frames — the `session/update` tool_call titles it by category ("Terminal"),
-    // the permission request titles it by the specific invocation ("cat ~/.claude/settings.json ...").
-    // Neither carries a stable `name`/`spec`. The transcript (and thus the stored approval key)
-    // records the tool_call name, so the cross-turn key must ALSO use it — not the permission
-    // frame's own drifting title. Recover the recorded tool_call name for THIS id (same id within a
-    // turn) and stamp it as `resolvedName`, which `permissionToolName` (responder) and
-    // `_approval_tool_name` (egress) both prefer, so the live re-raised key equals the stored key.
-    if (toolCall && typeof toolCall === "object" && !toolCall.resolvedName) {
-      const recorded = recordedToolName(run, toolCall.toolCallId);
-      if (recorded) toolCall.resolvedName = recorded;
-    }
-    // GROUND TRUTH: exactly what the harness hands us for this gate — the resolved spec (and its
-    // stable name) if any, the drift-prone display fields, and the arg shape. This is the earliest
-    // and most authoritative HITL log; everything downstream keys off these fields.
-    if (log) {
-      const spec =
-        toolCall?.spec ??
-        toolCall?.toolSpec ??
-        toolCall?.resolvedTool ??
-        toolCall?.tool;
-      const args = toolCall?.rawInput ?? toolCall?.input;
-      log(
-        `[HITL] ACP permission id=${id} ` +
-          JSON.stringify({
-            toolCallId: toolCall?.toolCallId,
-            specName: spec && typeof spec === "object" ? spec.name : undefined,
-            specKind: spec && typeof spec === "object" ? spec.kind : undefined,
-            name: toolCall?.name,
-            title: toolCall?.title,
-            kind: toolCall?.kind,
-            argKeys:
-              args && typeof args === "object"
-                ? Object.keys(args)
-                : typeof args,
-            availableReplies,
-          }),
-      );
-    }
-    // The harness raises a permission request before running ANY gated tool. We branch on the
-    // tool's resolved spec: a `kind: "client"` tool is not really a sandbox permission gate — it
-    // is a tool whose execution belongs to the browser (e.g. `request_connection`, which renders a
-    // connect widget the user interacts with). So instead of approving/denying it in the sandbox,
-    // we forward it to the frontend as a `client_tool` interaction_request and let the responder
-    // decide: PARK it for a cross-turn round-trip (the browser fulfills the call, the next turn
-    // resumes with its result) or reply inline. Every other tool falls through to the normal
-    // permission gate below.
-    const spec = specOf(toolCall) as any;
-    if (spec?.kind === "client") {
-      const toolCallId =
-        typeof toolCall?.toolCallId === "string"
-          ? toolCall.toolCallId
-          : undefined;
-      const toolName = clientToolName(toolCall, spec);
-      const input = toolCall?.rawInput ?? toolCall?.input;
-      run.emitEvent({
-        type: "interaction_request",
-        id,
-        kind: "client_tool",
-        payload: {
-          toolCallId,
-          toolCall,
-          toolName,
-          input,
-          render: spec.render,
-        },
-      });
-      void responder
-        .onClientTool({ id, toolCallId, toolName, input, raw: req })
-        .then((decision) => {
-          if (decision === "park") {
-            onPark?.();
-            return;
-          }
-          if (!req?.id) return;
-          return session.respondPermission(
-            req.id,
-            clientToolReply(decision, availableReplies) as any,
-          );
-        })
-        .catch(() => {});
-      return;
-    }
+    void handleRequest(req).catch((err) => {
+      log?.(`[HITL] permission handling failed: ${errorMessage(err)}`);
+      onPark?.();
+    });
+  });
 
+  // A pause sends NO harness reply, ever. Replying `reject` would make Claude emit a failed
+  // tool call ("User refused permission") whose `tool_result {isError}` overwrites the
+  // approval prompt on the same tool-call id (the F-024 clobber). The turn instead ends via
+  // `onPark` (session teardown resolves the RPC as cancelled, not rejected) and the next
+  // turn's stored decision answers the re-raised gate.
+  const pauseUserApproval = (req: any, id: string, gate: GateDescriptor): void => {
+    if (!latch.tryAcquire()) return;
+    const eventId = interactionEventId(id, req?.toolCall?.toolCallId);
     run.emitEvent({
       type: "interaction_request",
-      id, // ACP permission id -> Vercel approvalId
+      id: eventId,
       kind: "user_approval",
       payload: {
-        // toolCallId of the gated tool, so the cross-turn approval reply correlates back to
-        // its tool call (and the #6 resume finds it). `toolCall` is the ACP ToolCallUpdate.
-        toolCallId: req?.toolCall?.toolCallId,
+        toolCallId: stringValue(req?.toolCall?.toolCallId),
         toolCall: req?.toolCall,
-        availableReplies,
+        availableReplies: stringArray(req?.availableReplies),
         options: req?.options,
       },
     });
-    void responder
-      .onPermission({ id, availableReplies, raw: req })
-      .then((decision) => {
-        // PARK (cross-turn HITL): send NO reply. The `interaction_request` above is the last
-        // word on this tool call; the next turn's stored decision resolves it. Replying
-        // `reject` here would make Claude emit a failed tool call ("User refused permission")
-        // that clobbers the approval prompt on the same tool-call id (F-024) — do NOT map park
-        // onto a reply. Instead signal the orchestration loop to end the turn gracefully:
-        // Claude never ends a turn on an unanswered gate, so the prompt would otherwise hang.
-        if (decision === "park") {
-          const toolName: string | undefined =
-            req?.toolCall?.name ?? req?.toolCall?.title ?? req?.toolCall?.kind;
-          const toolArgs: unknown =
-            req?.toolCall?.rawInput ?? req?.toolCall?.input;
-          onCreateInteraction?.(id, toolName, toolArgs);
-          onPark?.();
-          return;
-        }
-        if (!req?.id) return;
-        // A stored decision is being forwarded to the harness: the gate is resolved.
-        onResolveInteraction?.(id);
-        return session.respondPermission(
-          req.id,
-          decisionToReply(decision, availableReplies) as any,
-        );
-      })
-      .catch(() => {});
-  });
+    onCreateInteraction?.(eventId, gate.toolName, gate.args);
+    onPark?.();
+  };
+
+  const pauseClientTool = (
+    req: any,
+    id: string,
+    gate: GateDescriptor,
+    spec: ToolSpecLike,
+  ): void => {
+    if (!latch.tryAcquire()) return;
+    const toolCallId = stringValue(req?.toolCall?.toolCallId);
+    const eventId = interactionEventId(id, toolCallId);
+    run.emitEvent({
+      type: "interaction_request",
+      id: eventId,
+      kind: "client_tool",
+      payload: {
+        toolCallId,
+        toolCall: req?.toolCall,
+        toolName: gate.toolName,
+        input: gate.args,
+        render: spec.render,
+      },
+    });
+    onPark?.();
+  };
+
+  const replyPermission = async (
+    id: string,
+    decision: PermissionDecision,
+    availableReplies: string[],
+  ): Promise<void> => {
+    try {
+      await session.respondPermission(
+        id,
+        decisionToReply(decision, availableReplies) as any,
+      );
+    } catch (err) {
+      log?.(`[HITL] reply failed id=${id} decision=${decision}: ${errorMessage(err)}`);
+      onPark?.();
+      return;
+    }
+    onResolveInteraction?.(id);
+  };
+
+  const replyClientTool = async (
+    id: string,
+    verdict: Exclude<ClientToolVerdict, { kind: "pendingApproval" }>,
+    availableReplies: string[],
+  ): Promise<void> => {
+    try {
+      await session.respondPermission(
+        id,
+        clientToolReply(verdict, availableReplies) as any,
+      );
+    } catch (err) {
+      log?.(`[HITL] reply failed id=${id} decision=${verdict.kind}: ${errorMessage(err)}`);
+      onPark?.();
+    }
+  };
+
+  async function handleRequest(req: any): Promise<void> {
+    const id = stringValue(req?.id) ?? "";
+    const availableReplies = stringArray(req?.availableReplies);
+    const toolCall = req?.toolCall;
+    const spec = resolvedSpecOf(toolCall);
+    const gate = buildGateDescriptor(toolCall, run, serverPermissions);
+    // Ground truth for HITL debugging: exactly what the harness handed us for this gate.
+    // The stable anchor (gate.toolName) vs the drift-prone display fields is what a live
+    // session needs to diagnose a resume-key mismatch; keep this greppable via `[HITL]`.
+    if (log) {
+      const args = toolCall?.rawInput ?? toolCall?.input;
+      log(
+        `[HITL] ACP gate id=${id} ` +
+          JSON.stringify({
+            toolCallId: toolCall?.toolCallId,
+            anchor: gate.toolName,
+            specName: spec?.name,
+            title: toolCall?.title,
+            kind: toolCall?.kind,
+            executor: gate.executor,
+            argKeys: args && typeof args === "object" ? Object.keys(args) : typeof args,
+          }),
+      );
+    }
+
+    if (spec?.kind === "client") {
+      const verdict = await responder.onClientTool({
+        id,
+        toolCallId: stringValue(toolCall?.toolCallId),
+        gate,
+        raw: req,
+      });
+      if (verdict.kind === "pendingApproval" || !id) {
+        pauseClientTool(req, id, gate, spec);
+        return;
+      }
+      await replyClientTool(id, verdict, availableReplies);
+      return;
+    }
+
+    const verdict = await responder.onPermission({
+      id,
+      availableReplies,
+      gate,
+      raw: req,
+    });
+    if (verdict.kind === "pendingApproval" || !id) {
+      pauseUserApproval(req, id, gate);
+      return;
+    }
+    await replyPermission(id, verdict.kind, availableReplies);
+  }
 }
 
 /**
- * The name the runner already recorded for this tool-call id via the `session/update` `tool_call`
- * event — the SAME value the transcript folds into the stored approval key. Used to key the live
- * permission gate so it matches the stored decision across the cold-replay resume (the ACP
- * permission frame's own title drifts from the tool_call's, breaking the key otherwise).
+ * The name the runner already recorded for this tool-call id via the `session/update`
+ * `tool_call` event. Used to key a harness gate so it matches the stored decision across a
+ * cold-replay resume when the ACP permission frame's own title drifts.
  */
 function recordedToolName(
   run: { events?: () => AgentEvent[] },
   toolCallId: unknown,
 ): string | undefined {
-  if (typeof toolCallId !== "string" || !toolCallId || !run.events)
-    return undefined;
-  // Last match wins: a later tool_call for the same id (an arg-refresh) carries the same name.
+  if (typeof toolCallId !== "string" || !toolCallId || !run.events) return undefined;
   let name: string | undefined;
   for (const event of run.events()) {
     if (event.type === "tool_call" && event.id === toolCallId && event.name) {
@@ -204,24 +205,90 @@ function recordedToolName(
   return name;
 }
 
-function clientToolName(toolCall: any, spec: any): string | undefined {
-  for (const candidate of [
+function buildGateDescriptor(
+  toolCall: any,
+  run: { events?: () => AgentEvent[] },
+  serverPermissions: ReadonlyMap<string, ToolPermission>,
+): GateDescriptor {
+  const spec = resolvedSpecOf(toolCall);
+  const toolName = firstString([
     spec?.name,
+    recordedToolName(run, toolCall?.toolCallId),
     toolCall?.name,
     toolCall?.title,
     toolCall?.kind,
-  ]) {
-    if (typeof candidate === "string" && candidate) return candidate;
+  ]);
+  const specPermission = toolPermission(spec?.permission);
+  const args = toolCall?.rawInput ?? toolCall?.input;
+  return {
+    executor: spec?.kind === "client" ? "client" : spec ? "relay" : "harness",
+    toolName,
+    specPermission,
+    serverPermission: spec ? undefined : serverPermissionFor(toolName, serverPermissions),
+    readOnlyHint: typeof spec?.readOnly === "boolean" ? spec.readOnly : undefined,
+    args,
+  };
+}
+
+function serverPermissionFor(
+  toolName: string | undefined,
+  serverPermissions: ReadonlyMap<string, ToolPermission>,
+): ToolPermission | undefined {
+  if (!toolName?.startsWith("mcp__")) return undefined;
+  const rest = toolName.slice("mcp__".length);
+  const separator = rest.indexOf("__");
+  if (separator <= 0) return undefined;
+  return serverPermissions.get(rest.slice(0, separator));
+}
+
+type ToolSpecLike = {
+  name?: unknown;
+  kind?: unknown;
+  permission?: unknown;
+  readOnly?: unknown;
+  render?: unknown;
+};
+
+function resolvedSpecOf(toolCall: any): ToolSpecLike | undefined {
+  const spec = toolCall?.spec ?? toolCall?.toolSpec ?? toolCall?.resolvedTool ?? toolCall?.tool;
+  return spec && typeof spec === "object" ? (spec as ToolSpecLike) : undefined;
+}
+
+function firstString(values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value) return value;
   }
   return undefined;
 }
 
+function toolPermission(value: unknown): ToolPermission | undefined {
+  return value === "allow" || value === "ask" || value === "deny" ? value : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function interactionEventId(id: string, toolCallId: unknown): string {
+  return id || stringValue(toolCallId) || "";
+}
+
 function clientToolReply(
-  decision: ClientToolOutcome,
+  verdict: Exclude<ClientToolVerdict, { kind: "pendingApproval" }>,
   availableReplies: string[],
 ): string {
-  if (decision === "deny") {
+  if (verdict.kind === "deny") {
     return availableReplies.find((r) => r === "reject") ?? "reject";
   }
   return availableReplies.find((r) => r === "once") ?? "once";
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
