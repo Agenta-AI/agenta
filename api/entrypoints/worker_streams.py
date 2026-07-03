@@ -46,7 +46,7 @@ if is_ee():
 
 log = get_module_logger(__name__)
 
-ALL_STREAMS = ("records", "events", "tracing")
+ALL_STREAMS = ("records", "events", "spans")
 
 # Bound the stream so acked entries are trimmed; without this it grows unbounded.
 MAXLEN_QUEUES_WEBHOOKS = 100_000
@@ -65,12 +65,12 @@ def _selected_streams() -> List[str]:
     return selected
 
 
-async def _build_tracing_worker(redis_client: Redis) -> StreamConsumer:
+async def _build_spans_worker(redis_client: Redis) -> StreamConsumer:
     return TracingWorker(
         service=TracingService(tracing_dao=TracingDAO()),
         redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
+        stream_name="streams:spans",
+        consumer_group="worker-spans",
     )
 
 
@@ -126,9 +126,7 @@ async def main_async() -> int:
         if is_ee():
             bootstrap_entitlements_services()
 
-        # socket_timeout=None: the consumer loop issues XREADGROUP(block=5000ms);
-        # a finite socket timeout trips that blocking read and raises TimeoutError
-        # instead of returning empty.
+        # socket_timeout=None: XREADGROUP(block=5000ms) would otherwise trip the socket timeout.
         redis_client = Redis.from_url(
             env.redis.uri_durable,
             decode_responses=False,
@@ -136,7 +134,7 @@ async def main_async() -> int:
         )
 
         builders = {
-            "tracing": _build_tracing_worker,
+            "spans": _build_spans_worker,
             "records": _build_records_worker,
             "events": _build_events_worker,
         }

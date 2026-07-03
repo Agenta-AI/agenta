@@ -53,6 +53,7 @@ class StreamConsumer:
         self.redis = redis_client
         self.stream_name = stream_name
         self.consumer_group = consumer_group
+        self.metric_stream = consumer_group.removeprefix("worker-")
         # Per-pid consumer name — what makes horizontal scale-up safe: all
         # replicas share consumer_group, Redis fans out work across consumers.
         self.consumer_name = consumer_name or f"worker-{os.getpid()}"
@@ -192,10 +193,10 @@ class StreamConsumer:
                     await self.ack_and_delete(processed_message_ids)
 
                 log.tick(
-                    f"{self.consumer_group}.processed",
+                    f"{self.metric_stream}.processed",
                     count=processed_count,
                     duration_ms=(time.perf_counter() - started) * 1000,
-                    dims={"stream": self.stream_name},
+                    dims={"stream": self.metric_stream},
                 )
 
             except Exception:
@@ -204,8 +205,8 @@ class StreamConsumer:
                     exc_info=True,
                 )
                 log.tick(
-                    f"{self.consumer_group}.errors",
-                    dims={"stream": self.stream_name},
+                    f"{self.metric_stream}.errors",
+                    dims={"stream": self.metric_stream},
                 )
                 # Sleep before retry to avoid tight error loop
                 await asyncio.sleep(1)

@@ -86,8 +86,8 @@ async def main_async() -> int:
         tracing_worker = TracingWorker(
             service=tracing_service,
             redis_client=redis_client,
-            stream_name="streams:tracing",
-            consumer_group="worker-tracing",
+            stream_name="streams:spans",
+            consumer_group="worker-spans",
         )
 
         # Create consumer group (idempotent)

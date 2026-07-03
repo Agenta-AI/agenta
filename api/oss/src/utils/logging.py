@@ -240,7 +240,7 @@ class MultiLogger:
     ) -> None:
         """Emit a CloudWatch EMF metric line beside the adjacent log call.
 
-        `dims` (e.g. `{"stream": "tracing"}`) become CloudWatch dimensions;
+        `dims` (e.g. `{"stream": "spans"}`) become CloudWatch dimensions;
         `**fields` are extra structured context only (not dimensioned).
         """
         if not AGENTA_LOG_METRICS_ENABLED:

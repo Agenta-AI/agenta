@@ -31,8 +31,8 @@ class TracingWorker(StreamConsumer):
     """
     Worker for tracing spans ingestion via Redis Streams.
 
-    Consumes from: streams:tracing
-    Consumer group: worker-tracing
+    Consumes from: streams:spans
+    Consumer group: worker-spans
 
     Flow:
     1. Read batch from Redis Streams (XREADGROUP) — StreamConsumer

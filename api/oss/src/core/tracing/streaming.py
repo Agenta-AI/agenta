@@ -13,8 +13,7 @@ from oss.src.core.tracing.dtos import OTelFlatSpan
 
 log = get_module_logger(__name__)
 
-# Bound the stream so consumed entries are trimmed; without this it grows unbounded.
-MAXLEN_STREAMS_TRACING = 100_000
+MAXLEN_STREAMS_SPANS = 100_000
 
 
 def _get_redis():
@@ -100,9 +99,9 @@ async def publish_spans(
             )
 
             pipe.xadd(
-                name="streams:tracing",
+                name="streams:spans",
                 fields={"data": span_bytes},
-                maxlen=MAXLEN_STREAMS_TRACING,
+                maxlen=MAXLEN_STREAMS_SPANS,
                 approximate=True,
             )
 
@@ -113,11 +112,11 @@ async def publish_spans(
             await pipe.execute()
 
     log.tick(
-        "tracing.published",
+        "spans.published",
         count=count,
         bytes=total_bytes,
         duration_ms=(perf_counter() - started) * 1000,
-        dims={"stream": "tracing"},
+        dims={"stream": "spans"},
     )
 
     return count

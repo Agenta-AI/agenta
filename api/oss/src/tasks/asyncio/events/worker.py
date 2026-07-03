@@ -260,12 +260,14 @@ class EventsWorker(StreamConsumer):
                     ingested=ingested,
                 )
                 log.tick(
-                    "worker-events.processed",
+                    f"{self.metric_stream}.processed",
                     count=len(processed_ids),
                     duration_ms=(time.perf_counter() - started) * 1000,
-                    dims={"stream": "events"},
+                    dims={"stream": self.metric_stream},
                 )
             except Exception:
                 log.error("[EVENTS] Worker loop error", exc_info=True)
-                log.tick("worker-events.errors", dims={"stream": "events"})
+                log.tick(
+                    f"{self.metric_stream}.errors", dims={"stream": self.metric_stream}
+                )
                 await asyncio.sleep(1)
