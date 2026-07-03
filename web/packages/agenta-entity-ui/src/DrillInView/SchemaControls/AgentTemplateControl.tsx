@@ -623,6 +623,16 @@ export function AgentTemplateControl({
     // it depth against the panel (see theme-variables.css "Agent Playground surface ladder").
     const sectionCardClass = "ag-surface-card rounded-[11px] px-4"
 
+    // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
+    // goes null on close; retaining the last value and driving `open` off the live state lets the
+    // exit transition play (an unmount-on-close drawer just vanishes). Matches the SectionDrawers.
+    const lastEditingRef = useRef(editing)
+    if (editing) lastEditingRef.current = editing
+    const shownEditing = editing ?? lastEditingRef.current
+    const lastInstructionRef = useRef(editingInstruction)
+    if (editingInstruction) lastInstructionRef.current = editingInstruction
+    const shownInstruction = editingInstruction ?? lastInstructionRef.current
+
     return (
         <div className={cn("flex flex-col", className)}>
             {sections.length === 0 ? (
@@ -714,19 +724,19 @@ export function AgentTemplateControl({
                 </div>
             )}
 
-            {editing
+            {shownEditing
                 ? (() => {
                       // One drawer for all three kinds — the per-kind icon/title/form/view rules
                       // come from the ITEM_KINDS registry (replaces three near-identical blocks).
-                      const def = ITEM_KINDS[editing.kind]
+                      const def = ITEM_KINDS[shownEditing.kind]
                       const desc = def.describe(draft)
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
-                      const itemKey = `${editing.kind}-${editing.mode}-${editing.index}`
+                      const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
                       return (
                           <ConfigItemDrawer
-                              open
-                              mode={editing.mode}
+                              open={!!editing}
+                              mode={shownEditing.mode}
                               icon={def.icon}
                               title={def.drawerTitle(draft)}
                               badge={{text: desc.typeLabel, color: desc.typeColor}}
@@ -763,10 +773,10 @@ export function AgentTemplateControl({
                   })()
                 : null}
 
-            {editingInstruction && (
+            {shownInstruction && (
                 <InstructionsDrawer
-                    open
-                    filename={editingInstruction.filename}
+                    open={!!editingInstruction}
+                    filename={shownInstruction.filename}
                     value={instructionDraft}
                     onChange={setInstructionDraft}
                     onCancel={() => setEditingInstruction(null)}

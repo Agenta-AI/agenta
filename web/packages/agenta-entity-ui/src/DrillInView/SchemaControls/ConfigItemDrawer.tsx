@@ -95,6 +95,7 @@ export function ConfigItemDrawer({
 
     return (
         <EnhancedDrawer
+            rootClassName="ag-drawer-elevated"
             open={open}
             onClose={onCancel}
             placement="right"

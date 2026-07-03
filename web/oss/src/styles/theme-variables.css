@@ -693,4 +693,29 @@
     --ag-status-success-bg: #16231a;
     --ag-status-success-border: #2c4a34;
     --ag-status-success-text: #7fcf8f;
+    /* Drawers are the TOP elevation tier — a sheet one step lighter than the panels, on a scrim,
+       with recessed form-field wells inside. Dark mode only (light drawers not yet in scope). */
+    --ag-drawer-scrim: rgba(6, 6, 8, 0.6);
+    --ag-drawer-sheet: #1e1f22;
+    --ag-drawer-shadow: -16px 0 40px rgba(0, 0, 0, 0.5);
+    --ag-drawer-divider: #2a2c30;
+    --ag-drawer-field-bg: #141517;
+    --ag-drawer-field-border: #2e3136;
+    --ag-drawer-field-focus: #c2d54a;
+    --ag-drawer-seg-track: #141517;
+    --ag-drawer-seg-active: #2c2f34;
+    /* Two-pane side drawers (Reference a workflow, Add app tools): a recessed rail beside the sheet
+       content, app cards, in-card tags, and semantic workflow-type chips. */
+    --ag-drawer-rail: #1a1b1e;
+    --ag-drawer-card: #26282c;
+    --ag-drawer-card-border: #33363c;
+    --ag-drawer-card-hover: #2b2e33;
+    --ag-drawer-tag-bg: rgba(255, 255, 255, 0.05);
+    --ag-drawer-tag-text: #9a9a9f;
+    --ag-type-completion-bg: rgba(79, 209, 181, 0.14);
+    --ag-type-completion-text: #4fd1b5;
+    --ag-type-chat-bg: rgba(106, 168, 255, 0.14);
+    --ag-type-chat-text: #6aa8ff;
+    --ag-type-agent-bg: rgba(185, 140, 255, 0.14);
+    --ag-type-agent-text: #b98cff;
 }

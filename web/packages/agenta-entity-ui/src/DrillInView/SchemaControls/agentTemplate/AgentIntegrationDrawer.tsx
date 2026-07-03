@@ -271,6 +271,7 @@ export function AgentIntegrationDrawer({
 
     return (
         <EnhancedDrawer
+            rootClassName="ag-drawer-elevated"
             open={open}
             onClose={onClose}
             placement="right"

@@ -198,7 +198,7 @@ function CatalogItemList<I, T, C>({
                                                 {categories.slice(0, 3).map((c) => (
                                                     <span
                                                         key={c}
-                                                        className="rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--ag-colorTextTertiary)]"
+                                                        className="ag-drawer-tag rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--ag-colorTextTertiary)]"
                                                     >
                                                         {c}
                                                     </span>
@@ -244,7 +244,7 @@ function ConnectionDetail<I, T, C>({
     const account = props.connection.name(connection) || props.connection.slug(connection) || ""
     const connectedAt = props.connection.connectedAt?.(connection) || ""
     return (
-        <div className="flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorder)] px-3 py-2">
+        <div className="ag-drawer-card flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorder)] px-3 py-2">
             <AppLogo
                 logo={integration ? props.integration.logo(integration) : undefined}
                 size={20}
@@ -297,9 +297,9 @@ function AppRailItem({
         <button
             type="button"
             onClick={onClick}
-            className={`flex w-full cursor-pointer items-center gap-2 rounded border-0 px-2 py-1.5 text-left ${
+            className={`ag-drawer-row flex w-full cursor-pointer items-center gap-2 rounded border-0 border-l-2 border-solid border-transparent px-2 py-1.5 text-left ${
                 active
-                    ? "bg-[var(--ag-colorPrimaryBg)]"
+                    ? "ag-drawer-row-selected bg-[var(--ag-colorPrimaryBg)]"
                     : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
             }`}
         >
@@ -404,7 +404,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
     return (
         <div className="flex h-full min-h-[260px] gap-3">
             {hasConnections && (
-                <div className="flex w-[220px] shrink-0 flex-col gap-0.5 overflow-y-auto">
+                <div className="ag-drawer-rail flex w-[220px] shrink-0 flex-col gap-0.5 overflow-y-auto">
                     <div className="px-1 pb-1 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                         Your connections
                     </div>

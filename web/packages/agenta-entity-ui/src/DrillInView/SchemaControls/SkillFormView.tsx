@@ -183,7 +183,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
     return (
         <div className="flex h-full gap-3">
             {/* Left: full-height file list (SKILL.md pinned) with the drop zone pinned to the bottom. */}
-            <div className="flex h-full w-44 shrink-0 flex-col gap-2 border-0 border-r border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pr-3">
+            <div className="ag-drawer-rail flex h-full w-44 shrink-0 flex-col gap-2 border-0 border-r border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pr-3">
                 <div className="flex shrink-0 items-center justify-between gap-1">
                     <Typography.Text className="text-xs font-medium">Files</Typography.Text>
                     {!disabled ? (

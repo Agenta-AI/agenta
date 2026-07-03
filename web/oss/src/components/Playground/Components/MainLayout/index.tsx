@@ -158,7 +158,7 @@ const PlaygroundMainView = ({
     const renderAgentGenerationHost = agentHostRef.current
 
     // The agent config panel is a compact read-only summary (editing happens in section drawers), so
-    // it stays narrow (550px) instead of the prompt config's 50/50 split. The default is a fixed px
+    // it stays narrow (~440px) instead of the prompt config's 50/50 split. The default is a fixed px
     // width rather than a percentage on purpose: antd applies `defaultSize` verbatim at mount and only
     // clamps to `min`/`max` while dragging, so a percentage default would blow past the px cap on load.
     // Only applies to a single agent variant. `isAgentConfig` resolves once the revision loads, so it
@@ -167,8 +167,8 @@ const PlaygroundMainView = ({
     const primaryConfigId =
         !isComparisonView && configEntityIds.length > 0 ? configEntityIds[0]! : ""
     const isAgentConfig = useAtomValue(isAgentModeAtomFamily(primaryConfigId))
-    const configDefaultSize = isAgentConfig ? 500 : "50%"
-    const configMaxSize = isAgentConfig ? 500 : "70%"
+    const configDefaultSize = isAgentConfig ? 440 : "50%"
+    const configMaxSize = isAgentConfig ? 450 : "70%"
     // Let the runs panel auto-fill in agent mode. A px config default + a "50%" runs default
     // don't sum to 100%, so antd scales BOTH up to fill the container — pushing config past its
     // px max on mount, which then snaps down on the first drag. An undefined runs default fills

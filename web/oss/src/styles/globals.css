@@ -284,6 +284,109 @@ body {
     box-shadow: var(--ag-surface-card-shadow);
 }
 
+/* ── Drawers: top elevation tier (dark mode only) ──────────────────────────────────────────────
+   The agent config/create drawers (Model & harness, AGENTS.md, tool/MCP/skill, schedule,
+   subscription) opt in via `rootClassName="ag-drawer-elevated"`. The sheet steps a shade lighter than the panels
+   and floats on a scrim; form fields become recessed wells with visible borders (the biggest win —
+   antd's dark field borders vanish into black otherwise). Scoped to `.dark` so light drawers, which
+   aren't in scope yet, are untouched. `!important` overrides antd's CSS-in-JS field tokens. */
+.dark .ag-drawer-elevated .ant-drawer-mask {
+    background: var(--ag-drawer-scrim);
+}
+.dark .ag-drawer-elevated .ant-drawer-content-wrapper {
+    box-shadow: var(--ag-drawer-shadow);
+}
+.dark .ag-drawer-elevated .ant-drawer-content,
+.dark .ag-drawer-elevated .ant-drawer-wrapper-body,
+.dark .ag-drawer-elevated .ant-drawer-body,
+.dark .ag-drawer-elevated .ant-drawer-header,
+.dark .ag-drawer-elevated .ant-drawer-footer {
+    /* `!important` mirrors the field rule below — without it antd's own drawer background wins and
+       the sheet stays at the dark default (the "base layer skipped" bug). */
+    background: var(--ag-drawer-sheet) !important;
+}
+.dark .ag-drawer-elevated .ant-drawer-header {
+    border-bottom: 1px solid var(--ag-drawer-divider);
+}
+.dark .ag-drawer-elevated .ant-drawer-footer {
+    border-top: 1px solid var(--ag-drawer-divider);
+}
+.dark .ag-drawer-elevated .ant-input,
+.dark .ag-drawer-elevated .ant-input-affix-wrapper,
+.dark .ag-drawer-elevated .ant-input-number,
+.dark .ag-drawer-elevated .ant-input-number-affix-wrapper,
+.dark .ag-drawer-elevated .ant-select-outlined .ant-select-selector,
+.dark .ag-drawer-elevated .ant-picker {
+    background: var(--ag-drawer-field-bg) !important;
+    border-color: var(--ag-drawer-field-border) !important;
+}
+.dark .ag-drawer-elevated .ant-input:focus,
+.dark .ag-drawer-elevated .ant-input:hover,
+.dark .ag-drawer-elevated .ant-input-affix-wrapper-focused,
+.dark .ag-drawer-elevated .ant-input-affix-wrapper:hover,
+.dark .ag-drawer-elevated .ant-input-number-focused,
+.dark .ag-drawer-elevated .ant-select-focused .ant-select-selector,
+.dark .ag-drawer-elevated .ant-picker-focused {
+    border-color: var(--ag-drawer-field-focus) !important;
+    box-shadow: none !important;
+}
+.dark .ag-drawer-elevated .ant-segmented {
+    background: var(--ag-drawer-seg-track);
+}
+.dark .ag-drawer-elevated .ant-segmented .ant-segmented-item-selected {
+    background: var(--ag-drawer-seg-active);
+}
+.dark .ag-drawer-elevated .ant-switch {
+    background: #3a3d44;
+}
+.dark .ag-drawer-elevated .ant-switch.ant-switch-checked {
+    background: var(--ag-surface-accent);
+}
+/* Two-pane interiors: a recessed rail beside the sheet content, plus card / row / tag surfaces.
+   Applied additively (existing light styling stays; these override only in dark drawers). */
+/* Recessed rail — background only. Each consumer already draws the single pane divider (a
+   border-l on the content or a border-r on the rail); adding another here double-lines it. */
+.dark .ag-drawer-elevated .ag-drawer-rail {
+    background: var(--ag-drawer-rail);
+}
+.dark .ag-drawer-elevated .ag-drawer-card {
+    background: var(--ag-drawer-card) !important;
+    border-color: var(--ag-drawer-card-border) !important;
+}
+.dark .ag-drawer-elevated .ag-drawer-card:hover {
+    background: var(--ag-drawer-card-hover) !important;
+}
+.dark .ag-drawer-elevated .ag-drawer-card-selected {
+    border-color: var(--ag-surface-accent) !important;
+    background: rgba(194, 213, 74, 0.06) !important;
+}
+.dark .ag-drawer-elevated .ag-drawer-row:hover {
+    background: var(--ag-drawer-card);
+}
+.dark .ag-drawer-elevated .ag-drawer-row-selected {
+    background: var(--ag-drawer-card);
+    border-left: 2px solid var(--ag-surface-accent);
+}
+.dark .ag-drawer-elevated .ag-drawer-tag {
+    background: var(--ag-drawer-tag-bg);
+    color: var(--ag-drawer-tag-text);
+}
+.dark .ag-drawer-elevated .ag-type-completion {
+    background: var(--ag-type-completion-bg);
+    color: var(--ag-type-completion-text);
+    border-color: transparent;
+}
+.dark .ag-drawer-elevated .ag-type-chat {
+    background: var(--ag-type-chat-bg);
+    color: var(--ag-type-chat-text);
+    border-color: transparent;
+}
+.dark .ag-drawer-elevated .ag-type-agent {
+    background: var(--ag-type-agent-bg);
+    color: var(--ag-type-agent-text);
+    border-color: transparent;
+}
+
 /* Build/Chat mode transitions: ease the panels' flex-basis (config → 0, chat → full) and fade the
    inert split bar instead of snapping. `-animated` is added by MainLayout only around a toggle (off
    during drag, so resizing stays 1:1). Gated on `prefers-reduced-motion` for parity with the rail's
