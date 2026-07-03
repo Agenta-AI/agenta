@@ -40,6 +40,14 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   relay must enforce permissions only when the harness does not gate (Pi) — otherwise
   one approval would be consumed at the gate and the relay would double-gate the same
   call.
+- **Phase 4a landed (Codex implemented, reviewed here).** Batch envelopes now carry
+  `stop_reason` (omitted when absent, so non-runner results are byte-identical) and, when
+  paused, `pending_interaction: {id, tool}`. The SDK already threaded
+  `AgentResult.stop_reason` from the wire, so the only production change is the service
+  drain. Review fix: the pending tool name now falls back through the payload's
+  `toolName` and the ACP `name`/`title`/`kind` chain instead of reading only
+  `toolCall.name` (harness gates carry display titles, the exact drift this project is
+  about).
 - **Phase 4b landed (Codex implemented, reviewed here).** Four-mode policy select on
   `runner.permissions.default`, shown for Pi too; per-tool Permission select loses the
   legacy fallbacks; `PiSettingsControl` added. Codex's binding call accepted and worth

@@ -16,6 +16,7 @@ from agenta.sdk.agents import (
     AgentTemplate,
     AgentResult,
     ConnectionNotFoundError,
+    Event,
     ConnectionResolutionError,
     Event,
     GatewayToolResolutionError,
@@ -119,6 +120,50 @@ async def test_invoke_returns_assistant_message(patched):
     assert await _invoke("pi_core") == {
         "messages": [{"role": "assistant", "content": "echo"}]
     }
+
+
+async def test_batch_paused_run_surfaces_pending_interaction(monkeypatch, fake_backend):
+    backend = fake_backend(
+        result=AgentResult(
+            output="waiting",
+            stop_reason="paused",
+            events=[
+                Event(
+                    type="interaction_request",
+                    data={
+                        "type": "interaction_request",
+                        "id": "perm_1",
+                        "kind": "user_approval",
+                        "payload": {
+                            "toolCallId": "call_1",
+                            "toolCall": {
+                                "toolCallId": "call_1",
+                                "name": "deleteFile",
+                            },
+                        },
+                    },
+                )
+            ],
+        )
+    )
+    _patch_handler(monkeypatch, backend)
+
+    body = await _invoke("pi_core")
+
+    assert body == {
+        "messages": [{"role": "assistant", "content": "waiting"}],
+        "stop_reason": "paused",
+        "pending_interaction": {"id": "perm_1", "tool": "deleteFile"},
+    }
+
+
+async def test_batch_completed_run_omits_pause_metadata(monkeypatch, fake_backend):
+    backend = fake_backend(result=AgentResult(output="echo"))
+    _patch_handler(monkeypatch, backend)
+
+    body = await _invoke("pi_core")
+
+    assert body == {"messages": [{"role": "assistant", "content": "echo"}]}
 
 
 async def test_invoke_records_usage(patched):

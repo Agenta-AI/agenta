@@ -56,15 +56,15 @@ class _FakeSession(Session):
                     "kind": "event",
                     "event": {"type": "message", "text": result.output},
                 }
-            yield {
-                "kind": "result",
-                "result": {
-                    "ok": True,
-                    "output": result.output,
-                    "usage": result.usage,
-                    "sessionId": result.session_id,
-                },
+            terminal = {
+                "ok": True,
+                "output": result.output,
+                "usage": result.usage,
+                "sessionId": result.session_id,
             }
+            if result.stop_reason is not None:
+                terminal["stopReason"] = result.stop_reason
+            yield {"kind": "result", "result": terminal}
 
         return AgentStream(_records())
 
