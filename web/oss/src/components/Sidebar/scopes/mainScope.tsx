@@ -8,6 +8,7 @@ import ListOfOrgs from "../components/ListOfOrgs"
 import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
 import {useSidebarConfig} from "../hooks/useSidebarConfig"
 
+import {useSidebarBottomSection} from "./bottomSection"
 import {MAIN_SIDEBAR_SCOPE_ID} from "./constants"
 
 const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => (
@@ -28,7 +29,8 @@ const ROUTE_SELECTION = {mode: "route"} as const
 const useMainSidebarSelection = () => ROUTE_SELECTION
 
 const useMainSidebarSections = (): SidebarSection[] => {
-    const {projectItems, bottomItems} = useSidebarConfig()
+    const {projectItems} = useSidebarConfig()
+    const bottomSection = useSidebarBottomSection()
 
     return useMemo(
         () => [
@@ -36,14 +38,9 @@ const useMainSidebarSections = (): SidebarSection[] => {
                 key: "project",
                 items: projectItems,
             },
-            {
-                key: "bottom",
-                items: bottomItems,
-                placement: "bottom",
-                mode: "vertical",
-            },
+            bottomSection,
         ],
-        [bottomItems, projectItems],
+        [bottomSection, projectItems],
     )
 }
 

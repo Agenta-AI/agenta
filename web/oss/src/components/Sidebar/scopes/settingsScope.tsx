@@ -18,6 +18,7 @@ import {useAtom} from "jotai"
 
 import {
     getSettingsSidebarTabs,
+    isSettingsTabKey,
     resolveSettingsTab,
     type SettingsTabKey,
 } from "@/oss/components/pages/settings/assets/navigation"
@@ -35,6 +36,7 @@ import type {
     SidebarSlotContext,
 } from "../engine/types"
 
+import {useSidebarBottomSection} from "./bottomSection"
 import {SETTINGS_SIDEBAR_SCOPE_ID} from "./constants"
 
 interface SettingsScopeOptions {
@@ -113,6 +115,7 @@ const useSettingsSidebarSelection = (): SidebarSelection => {
         mode: "controlled",
         selectedKey: activeTab,
         onSelect: (key) => {
+            if (!isSettingsTabKey(key)) return
             setSettingsTab(key)
             setTab(key)
         },
@@ -121,8 +124,9 @@ const useSettingsSidebarSelection = (): SidebarSelection => {
 
 const useSettingsSidebarSections = (): SidebarSection[] => {
     const items = useSettingsTabs()
+    const bottomSection = useSidebarBottomSection({includeSettingsLink: false})
 
-    return useMemo(() => [{key: "settings", items}], [items])
+    return useMemo(() => [{key: "settings", items}, bottomSection], [bottomSection, items])
 }
 
 const SettingsSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (

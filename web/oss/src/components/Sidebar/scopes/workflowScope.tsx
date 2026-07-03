@@ -6,6 +6,7 @@ import SidebarBackButton from "../components/SidebarBackButton"
 import WorkflowPicker from "../components/WorkflowPicker"
 import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
 
+import {useSidebarBottomSection} from "./bottomSection"
 import {WORKFLOW_SIDEBAR_SCOPE_ID} from "./constants"
 import {useWorkflowSidebarItems} from "./workflowItems"
 
@@ -36,8 +37,9 @@ const useWorkflowSidebarSelection = () => ROUTE_SELECTION
 
 const useWorkflowSidebarSections = (): SidebarSection[] => {
     const items = useWorkflowSidebarItems()
+    const bottomSection = useSidebarBottomSection()
 
-    return useMemo(() => [{key: "workflow", items}], [items])
+    return useMemo(() => [{key: "workflow", items}, bottomSection], [bottomSection, items])
 }
 
 export const createWorkflowSidebarScope = ({lastPath}: WorkflowScopeOptions): SidebarScope => ({
