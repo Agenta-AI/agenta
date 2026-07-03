@@ -178,10 +178,18 @@ class ConnectionsService:
             ),
         )
 
+        # Effective auth scheme is a durable fact about the connection; persist it.
+        auth_scheme = (
+            connection_create_data.auth_scheme.value
+            if connection_create_data and connection_create_data.auth_scheme
+            else None
+        )
+
         # Merge provider-returned connection_data with service-level project_id.
         # The adapter owns provider-specific field names; the service adds project scope.
         data: Dict[str, Any] = dict(provider_result.connection_data)
         data["project_id"] = str(project_id)
+        data["auth_scheme"] = auth_scheme
         connection_create.data = data
 
         # Validity is server-owned, never client-supplied. An auth-backed connection is

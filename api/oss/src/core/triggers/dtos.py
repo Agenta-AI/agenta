@@ -18,7 +18,6 @@ from oss.src.core.gateway.connections.dtos import (
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
-    Json,
     Lifecycle,
     Metadata,
     Reference,
@@ -192,7 +191,7 @@ class TriggerConnection(Connection):
 
 class TriggerConnectionCreate(ConnectionCreate):
     provider_key: TriggerProviderKind
-    data: Optional[Union[TriggerConnectionCreateData, Json]] = None
+    data: Optional[TriggerConnectionCreateData] = None
 
 
 # ---------------------------------------------------------------------------
