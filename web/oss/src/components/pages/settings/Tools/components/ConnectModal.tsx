@@ -57,9 +57,6 @@ export default function ConnectModal({
                 slug: values.slug,
                 name: values.name || values.slug,
                 mode: selectedMode,
-                ...(selectedMode === "api_key" && values.api_key
-                    ? {credentials: {api_key: values.api_key}}
-                    : {}),
             }
 
             const result = await handleCreate(payload)
@@ -69,7 +66,7 @@ export default function ConnectModal({
                     : undefined
 
             if (redirectUrl) {
-                // OAuth: open popup window
+                // OAuth and API key both authorize on the provider's hosted redirect UI.
                 const popup = window.open(
                     redirectUrl,
                     "tools_oauth",
@@ -90,7 +87,7 @@ export default function ConnectModal({
                     }
                 }, 1000)
             } else {
-                // API key flow: connection created immediately
+                // No-auth toolkit: connection created immediately, no redirect.
                 handleClose()
             }
         } catch {
@@ -136,16 +133,6 @@ export default function ConnectModal({
                                 label: m === "oauth" ? "OAuth" : "API Key",
                             }))}
                         />
-                    </Form.Item>
-                )}
-
-                {selectedMode === "api_key" && (
-                    <Form.Item
-                        name="api_key"
-                        label="API Key"
-                        rules={[{required: true, message: "API key is required"}]}
-                    >
-                        <Input.Password placeholder="Enter API key" />
                     </Form.Item>
                 )}
             </Form>

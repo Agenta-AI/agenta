@@ -508,13 +508,6 @@ class TriggersRouter:
                 },
             )
 
-        if isinstance(body.connection.data, dict):
-            body.connection.data = {
-                k: v
-                for k, v in body.connection.data.items()
-                if k not in {"callback_url", "auth_scheme"}
-            } or None
-
         connection = await self.triggers_service.create_connection(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
