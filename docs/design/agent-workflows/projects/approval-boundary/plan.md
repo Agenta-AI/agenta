@@ -175,10 +175,13 @@ frontend research: nothing in the UI depends on parking for non-ask tools).
 **Phase 4: correctness debt in the same code (from code-review.md).**
 H1 (reply failure parks or fails loud; resolve interaction only after a successful reply),
 H2 (only `{approved}` envelopes become decisions; client-tool replay scoped by interaction
-token), M2+M3 as one item, elevated because the failure is now observed live (see phase 6):
-approval responses must correlate by `toolCallId` and drop loudly otherwise, and the
-approve→resume match must survive argument drift (echo the approval id through the replay,
-or replay the approved result directly, decided by what the live reproduction shows), M4
+token), M2+M3+M7 as one item, now diagnosed via PR #5054 (see the live-warning section of
+how-approvals-work.md): the observed loop = a constant stream `messageId` plus a
+level-triggered resume predicate (M7, frontend half) compounded by tool-*name* drift across
+ACP frames breaking the decision key (M2's observed form). The durable fix here is the
+direct replay of the approved call, which removes the reassembled-key fragility class
+(name drift, argument drift) outright; approval responses must correlate by `toolCallId`
+and drop loudly otherwise (M3), M4
 (client tools resolve through the same ladder, defaulting to `allow`), M5 (latch the stop
 reason before the relay drain), L1 (no-id gates park instead of silently hanging), H3
 (verify the daemon's permission-id scheme; if per-session counters, namespace interaction
@@ -237,11 +240,17 @@ test that let the proxy rot).
 - **Rule matching for builtins.** The structured `rules` need a matcher compatible with
   Claude's rule syntax (`Bash(npm run:*)`). Scope it to exactly what the settings renderer
   accepts today; anything fancier stays authored-settings-only and documented as such.
-- **Argument drift on resume (code-review M2, observed live).** Cold-replay approval
-  matching by name+args re-prompts when the model rewords arguments, and QA now shows the
-  approve→loop symptom in the playground, so this is no longer hypothetical. It moves into
-  phase 4 (fix direction: echo the approval id through the replay, or have the runner
-  replay the approved result directly rather than relying on an identical re-issue).
+- **Reassembled-key fragility on resume (code-review M2/M7, diagnosed).** The live
+  approve-loop is explained: constant `messageId` + level-triggered resume predicate on the
+  frontend, tool-name drift across ACP frames on the backend. Fix direction settled: the
+  runner replays the approved call directly, removing the whole matching class. Two pieces
+  of PR #5054 are worth absorbing regardless (unique per-turn message id; the
+  "already resumed" edge-trigger guard); two pieces should be superseded by this plan, not
+  inherited (the `resolvedName` stamping that patches the name drift, and especially the
+  `nonConvergingToolNames` loop-breaker that silently auto-DENIES a gate after three
+  non-converging approvals: it is keyed by bare tool name globally, can false-positive on a
+  busy tool, reintroduces the F-024 deny-clobber deliberately, and gives the user no signal
+  that their approved tool was blocked).
 - **Batch response shape.** Owned jointly with the streaming-invoke workspace; this plan
   only requires that paused be distinguishable.
 - **Vocabulary migration.** `auto` → `allow` and the authored-path rename touch the FE

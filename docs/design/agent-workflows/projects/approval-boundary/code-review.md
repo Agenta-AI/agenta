@@ -84,16 +84,40 @@ no new prompt. This quietly defeats the "reply `once`, never `always`" guard: th
 re-gates, but the stored decision answers every re-gate. Direction: consume a stored
 decision on first match (delete from the map), which is what "once" means.
 
-### M2. Cold-replay argument drift degrades approve-to-resume into a re-prompt loop
+### M2. The match-on-replay key is fragile: name drift observed live, argument drift latent
 
 A design consequence of the name+args key (`responder.ts:126-135`): the resumed turn
-re-generates the tool call, and the model must reproduce byte-identical arguments for the
-stored approval to match. Any drift (an added optional field, a reworded command) misses the
-key, parks again, and re-prompts. The user can approve repeatedly while the tool never runs.
-The mirror case: a stored deny keeps auto-rejecting the next identical attempt without a
-prompt, one silent wrong decision after the user changes their mind. Worth a live test to
-measure how often drift happens in practice; the fix options are design work (correlate by
-approval id echoed through the replay, or replay the approved result directly).
+re-generates the tool call, and the stored approval matches only if both halves of the key
+reassemble identically. Both halves can miss:
+
+- **Name drift (observed live, via PR #5054's diagnosis).** Claude-over-ACP titles the same
+  call differently in different frames: the `tool_call` stream event carries a category
+  ("Terminal") while the permission frame carries the specific invocation. The key is built
+  from one frame and probed with the other, so it missed even with byte-identical
+  arguments. This, compounded with M7 below, produced the infinite approve-loop QA found.
+  #5054 patches it by stamping a `resolvedName` from the recorded `tool_call` event onto
+  the gate; treat that as evidence of the instability, not as the fix.
+- **Argument drift (latent).** The model must reproduce byte-identical arguments on replay.
+  Any drift (an added optional field, a reworded command, a regenerated digest text) misses
+  the key, parks again, and re-prompts. The mirror case: a stored deny keeps auto-rejecting
+  the next identical attempt without a prompt after the user changes their mind.
+
+Both point the same way: keys reassembled from replayed frames are fragile, so the fix
+replays the approved call directly instead of matching a re-issued one (plan phase 4).
+
+### M7. Constant stream `messageId` plus a level-triggered resume predicate re-sends forever
+
+Found via PR #5054. The stream egress default `message_id: "msg-1"` is never overridden by
+its only caller (`sdks/python/agenta/sdk/decorators/routing.py:284` /
+`vercel/stream.py`), so every turn of every conversation streams the same message id and
+the Vercel client folds all turns into one assistant message. The resume predicate
+(`agentApprovalResume.ts:108-122`) is level-triggered and has no "already resumed" state,
+so once an `approval-responded` part exists in that ever-growing last message, the
+predicate returns true after every subsequent settle and `useChat` re-sends the
+conversation forever. This is the frontend half of the observed infinite loop; it would
+loop even if the backend key always matched. Fix (from #5054, worth keeping regardless of
+the redesign): a unique message id per turn, and an edge-trigger guard in the predicate (a
+`step-start` after the last resolved approval means "already resumed, do not fire again").
 
 ### M3. An approval response keyed only by `approvalId` is silently dropped
 

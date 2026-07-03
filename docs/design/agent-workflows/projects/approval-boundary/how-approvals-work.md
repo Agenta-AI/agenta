@@ -333,14 +333,31 @@ tools are effectively allowed; `SEND_MESSAGE` posts to Slack and ends up gated.
     approval in the transcript is not something the harness itself reads as an
     authorization.)
 
-That is the designed resume mechanism. **Live behavior warning:** in current QA (Mahmoud,
-2026-07-03) the happy path does not reliably complete: clicking Approve can loop, with the
-run re-parking and re-prompting again and again. That symptom matches the fragility already
-flagged in [code-review.md](code-review.md): the stored decision is keyed by exact tool
-name plus byte-identical arguments (M2: if the model re-issues the call with slightly
-different arguments on replay, the key misses and the gate re-parks), and an approval that
-comes back keyed only by `approvalId` is silently dropped (M3). Reproducing and pinning
-this loop is now part of the fix's acceptance tests ([plan.md](plan.md), phase 6).
+That is the designed resume mechanism. **Live behavior warning, now diagnosed:** QA
+(Mahmoud, 2026-07-03) showed the happy path looping: clicking Approve re-parked and
+re-prompted forever. PR #5054 (Arda's empirical fix) plus our review of it pinned the loop
+to two independent bugs that compound, and notably *neither* is the argument-drift we first
+suspected:
+
+- **Frontend re-send loop.** The SDK's stream egress sent a constant `messageId: "msg-1"`
+  on every turn (`stream.py`; the caller never passed an id), so the Vercel client saw all
+  turns as one ever-growing assistant message. The resume predicate
+  (`agentApprovalResume.ts`) is level-triggered with no "already resumed" guard, so the
+  stale `approval-responded` part kept satisfying it after every later turn, and the
+  frontend re-sent the conversation forever. This alone reproduces the infinite loop.
+- **Backend key miss, but on the name, not the args.** Claude-over-ACP names the same tool
+  call differently in different frames: the `tool_call` stream event carries a category
+  title ("Terminal") while the permission frame carries the specific invocation. The
+  stored decision is keyed by name plus canonical args; the two frames disagree on the
+  *name* half, so the key missed even with byte-identical arguments, and the gate
+  re-parked on every resume.
+
+Argument drift (code-review M2) remains a real latent risk of the match-on-replay model,
+and the `approvalId`-only drop (M3) is untouched by #5054 and still open. The diagnosis
+strengthens the plan's direction: any key that must be reassembled from replayed frames is
+fragile, which is why the plan has the runner replay the approved call directly instead of
+matching a re-issued one ([plan.md](plan.md), phase 4). Reproducing and pinning the loop
+stays an acceptance case (phase 6).
 
 ## The two planes: messages and interactions
 

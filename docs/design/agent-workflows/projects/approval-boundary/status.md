@@ -19,6 +19,35 @@ covers Claude's `default_mode`/`bypassPermissions`, the settings merge semantics
 ACP request-vs-event distinction, the two kinds of "session", and the cold-replay resume
 model before the responder code.
 
+## Update 2026-07-03 (later): the approve-loop is diagnosed, via PR #5054
+
+Arda's PR #5054 empirically stops the loop; our review of it pinned the mechanism. Two
+independent bugs compound, and neither is the argument-drift we first suspected:
+
+- Frontend half (new finding M7): the stream egress sent a constant `messageId: "msg-1"`
+  every turn, so the client folded all turns into one message; the resume predicate is
+  level-triggered with no "already resumed" guard, so it re-sent forever.
+- Backend half (M2's observed form): tool-*name* drift across ACP frames ("Terminal" in
+  the tool_call event vs the invocation title in the permission frame) broke the
+  name+args decision key even with identical arguments.
+
+Consequences for this plan (folded into plan.md phase 4 and risks):
+
+- The direct-replay-of-the-approved-call fix is reinforced: it removes the whole
+  reassembled-key fragility class (name drift and argument drift) instead of patching one
+  half of the key.
+- Absorb from #5054 regardless of the redesign: the unique per-turn message id and the
+  frontend "already resumed" edge-trigger guard. Both are correct on their own.
+- Do not inherit from #5054: the `resolvedName` stamping (patches the symptom our redesign
+  removes) and the `nonConvergingToolNames` loop-breaker (auto-denies after three
+  non-converging approvals, keyed by bare tool name globally: can false-positive-deny a
+  busy tool, deliberately reintroduces the F-024 deny-clobber, and is silent to the user).
+
+Recommendation on #5054 itself: do not merge as-is; split it. Keep the message-id fix, the
+resume-predicate guard, the tool-input `{}` display fix, and the unrelated Turn
+Inspector/chat-UX work (own PRs). Treat the name-anchor patch and the loop-breaker as
+temporary evidence to be superseded by this plan.
+
 ## What is done
 
 - Full research pass across all five systems (frontend, agent service, runner, harness
