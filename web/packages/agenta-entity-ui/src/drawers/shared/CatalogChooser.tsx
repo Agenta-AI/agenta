@@ -280,6 +280,107 @@ function ConnectionDetail<I, T, C>({
     )
 }
 
+/**
+ * Multi-account view: the integration shown once as a header, then one selectable card per
+ * connected account. Account cards are labelled by the distinguishing field (the slug the user
+ * chose at connect time) because display names default to the integration name and collide.
+ */
+function ConnectionSwitcher<I, T, C>({
+    connections,
+    selectedConn,
+    integration,
+    props,
+    onSelect,
+}: {
+    connections: C[]
+    selectedConn: C
+    integration?: I
+    props: CatalogChooserProps<I, T, C>
+    onSelect: (id: string) => void
+}) {
+    const integrationName = integration
+        ? props.integration.name(integration)
+        : props.connection.integrationKey(selectedConn)
+    const selectedId = props.connection.id(selectedConn)
+
+    return (
+        <div className="ag-drawer-card rounded-lg border border-solid border-[var(--ag-colorBorder)] p-2.5">
+            <div className="mb-2 flex items-center gap-2.5">
+                <AppLogo
+                    logo={integration ? props.integration.logo(integration) : undefined}
+                    size={20}
+                />
+                <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                    {integrationName}
+                </span>
+                <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                    {connections.length} accounts
+                </span>
+            </div>
+            <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
+                {connections.map((c) => {
+                    const id = props.connection.id(c)
+                    const name = props.connection.name(c)?.trim()
+                    const slug = props.connection.slug(c)?.trim()
+                    // Prefer a user-given name; fall back to the slug, which is the per-account
+                    // identifier (names default to the integration name and collide).
+                    const primary =
+                        name && name !== integrationName ? name : slug || name || id || "account"
+                    const secondary = primary === slug ? undefined : slug
+                    const connectedAt = props.connection.connectedAt?.(c)
+                    const ready = props.isConnectionReady(c)
+                    const isCurrent = id != null && id === selectedId
+                    return (
+                        <button
+                            key={id ?? primary}
+                            type="button"
+                            onClick={() => id && onSelect(id)}
+                            aria-pressed={isCurrent}
+                            className={`flex items-center gap-2 rounded-md border border-solid px-2 py-1.5 text-left ${
+                                isCurrent
+                                    ? "border-[var(--ag-colorPrimary)] bg-[var(--ag-colorPrimaryBg)]"
+                                    : "cursor-pointer border-[var(--ag-colorBorder)] bg-transparent hover:border-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorFillQuaternary)]"
+                            }`}
+                        >
+                            <span
+                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                    ready
+                                        ? "bg-[var(--ag-colorSuccess)]"
+                                        : "bg-[var(--ag-colorWarning)]"
+                                }`}
+                            />
+                            <span className="min-w-0 flex-1">
+                                <span
+                                    className={`block truncate text-[11px] font-medium ${
+                                        isCurrent
+                                            ? "text-[var(--ag-colorPrimary)]"
+                                            : "text-[var(--ag-colorText)]"
+                                    }`}
+                                >
+                                    {primary}
+                                </span>
+                                {(secondary || connectedAt) && (
+                                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                        {secondary}
+                                        {secondary && connectedAt ? " · " : ""}
+                                        {connectedAt ? `connected ${connectedAt}` : ""}
+                                    </span>
+                                )}
+                            </span>
+                            {isCurrent && (
+                                <Check
+                                    size={12}
+                                    className="shrink-0 text-[var(--ag-colorPrimary)]"
+                                />
+                            )}
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
+
 function AppRailItem({
     active,
     logo,
@@ -489,52 +590,20 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         {selectedConn ? (
                             <div className="flex min-h-0 flex-1 flex-col">
                                 <div className="shrink-0">
-                                    <ConnectionDetail
-                                        connection={selectedConn}
-                                        integration={selectedIntegration}
-                                        props={props}
-                                    />
-                                    {siblingConns.length > 1 && (
-                                        <div className="mt-2 flex flex-wrap items-center gap-1">
-                                            <span className="text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                                Account
-                                            </span>
-                                            {siblingConns.map((c) => {
-                                                const id = props.connection.id(c)
-                                                const label =
-                                                    props.connection.name(c)?.trim() ||
-                                                    props.connection.slug(c)?.trim() ||
-                                                    id ||
-                                                    "account"
-                                                const isCurrent =
-                                                    id === props.connection.id(selectedConn)
-                                                return (
-                                                    <button
-                                                        key={id ?? label}
-                                                        type="button"
-                                                        onClick={() =>
-                                                            id && setSelected({kind: "conn", id})
-                                                        }
-                                                        className={`flex items-center gap-1 rounded border border-solid px-1.5 py-0.5 text-[11px] ${
-                                                            isCurrent
-                                                                ? "border-[var(--ag-colorPrimary)] bg-[var(--ag-colorPrimaryBg)] text-[var(--ag-colorPrimary)]"
-                                                                : "cursor-pointer border-[var(--ag-colorBorder)] bg-transparent text-[var(--ag-colorTextSecondary)] hover:border-[var(--ag-colorPrimary)]"
-                                                        }`}
-                                                    >
-                                                        <span
-                                                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                                                props.isConnectionReady(c)
-                                                                    ? "bg-[var(--ag-colorSuccess)]"
-                                                                    : "bg-[var(--ag-colorWarning)]"
-                                                            }`}
-                                                        />
-                                                        <span className="max-w-[140px] truncate">
-                                                            {label}
-                                                        </span>
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
+                                    {siblingConns.length > 1 ? (
+                                        <ConnectionSwitcher
+                                            connections={siblingConns}
+                                            selectedConn={selectedConn}
+                                            integration={selectedIntegration}
+                                            props={props}
+                                            onSelect={(id) => setSelected({kind: "conn", id})}
+                                        />
+                                    ) : (
+                                        <ConnectionDetail
+                                            connection={selectedConn}
+                                            integration={selectedIntegration}
+                                            props={props}
+                                        />
                                     )}
                                     <div className="mb-2 mt-4 flex items-center justify-between gap-2">
                                         <Typography.Text
