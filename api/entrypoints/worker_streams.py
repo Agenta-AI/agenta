@@ -126,7 +126,14 @@ async def main_async() -> int:
         if is_ee():
             bootstrap_entitlements_services()
 
-        redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
+        # socket_timeout=None: the consumer loop issues XREADGROUP(block=5000ms);
+        # a finite socket timeout trips that blocking read and raises TimeoutError
+        # instead of returning empty.
+        redis_client = Redis.from_url(
+            env.redis.uri_durable,
+            decode_responses=False,
+            socket_timeout=None,
+        )
 
         builders = {
             "tracing": _build_tracing_worker,
