@@ -1,6 +1,23 @@
 # Status
 
-**State: design + plan under review. No code changed.** Date: 2026-07-02.
+**State: design + plan under review; review round 1 (how-approvals-work) addressed.**
+Date: 2026-07-03.
+
+Review round 1 (Mahmoud, 28 inline comments on `how-approvals-work.md`) produced three
+substantive changes, all folded in:
+
+- **Live finding:** the playground approve→resume happy path currently loops (Approve
+  re-parks and re-prompts). This is the observed form of code-review M2/M3; it is now an
+  explicit acceptance case in plan phase 6 and elevated in phase 4.
+- **Structure:** deciding and executing are separate jobs; the relay carries no permission
+  logic in the target design (the shared decision function runs before execution).
+- **Client tools:** no special-case bypass; they resolve through the same ladder and
+  default to `allow`.
+
+The explainer was also generalized across harnesses (a per-harness gate table), and now
+covers Claude's `default_mode`/`bypassPermissions`, the settings merge semantics, the
+ACP request-vs-event distinction, the two kinds of "session", and the cold-replay resume
+model before the responder code.
 
 ## What is done
 

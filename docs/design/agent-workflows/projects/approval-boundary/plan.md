@@ -120,10 +120,16 @@ consulted, so a stale approval can never override a config that has since change
 match, so one approval authorizes one execution ("once" semantics, code-review M1).
 
 The same function backs both gates: the ACP responder (harness-gated tools) and the relay
-(runner-executed tools). The relay's `TODO(S5)` collapse disappears; the relay can already
-park for client tools, and an `ask` on a relay tool parks the same way. `hasHumanSurface` is
-deleted. `PolicyResponder` is deleted. An `ask` park on a headless run is correct behavior:
-the turn ends `paused`, visibly, with an interaction row for the future durable-resume flow.
+(runner-executed tools). Deciding and executing stay separate jobs (Mahmoud's review point,
+2026-07-03): the decision runs *before* execution, in the shared function, and the relay
+itself carries no permission logic; it executes calls that were already permitted. The
+relay's `TODO(S5)` collapse disappears; the relay can already park for client tools, and an
+`ask` on a relay tool parks the same way. Client tools stop being a special case: they
+resolve through the same function and simply default to `allow` (their fulfillment *is* the
+browser interaction), so `deny` and `ask` work on them with no extra code. `hasHumanSurface`
+is deleted. `PolicyResponder` is deleted. An `ask` park on a headless run is correct
+behavior: the turn ends `paused`, visibly, with an interaction row for the future
+durable-resume flow.
 
 ### Events mean actions
 
@@ -169,11 +175,15 @@ frontend research: nothing in the UI depends on parking for non-ask tools).
 **Phase 4: correctness debt in the same code (from code-review.md).**
 H1 (reply failure parks or fails loud; resolve interaction only after a successful reply),
 H2 (only `{approved}` envelopes become decisions; client-tool replay scoped by interaction
-token), M3 (approval responses must correlate by `toolCallId`; drop loudly otherwise), M4
-(client tools honor `deny`), M5 (latch the stop reason before the relay drain), L1 (no-id
-gates park instead of silently hanging), H3 (verify the daemon's permission-id scheme; if
-per-session counters, namespace interaction tokens with the turn), L2 (reserve the
-`agenta-tools` MCP server name in the settings renderer).
+token), M2+M3 as one item, elevated because the failure is now observed live (see phase 6):
+approval responses must correlate by `toolCallId` and drop loudly otherwise, and the
+approve→resume match must survive argument drift (echo the approval id through the replay,
+or replay the approved result directly, decided by what the live reproduction shows), M4
+(client tools resolve through the same ladder, defaulting to `allow`), M5 (latch the stop
+reason before the relay drain), L1 (no-id gates park instead of silently hanging), H3
+(verify the daemon's permission-id scheme; if per-session counters, namespace interaction
+tokens with the turn), L2 (reserve the `agenta-tools` MCP server name in the settings
+renderer).
 
 **Phase 5: organization cleanup (from code-organization-review.md).**
 Extract the park controller from `sandbox_agent.ts` into the `engines/sandbox_agent/`
@@ -188,7 +198,10 @@ Live matrix on the dev stack (Claude harness, a model with credit):
   finishes; no approval events.
 - headless with an `ask` tool: run ends `paused`, batch response says so, interaction row
   exists.
-- playground with an `ask` tool: prompt renders, approve resumes and runs, deny resumes and
+- playground with an `ask` tool: prompt renders, approve resumes and **completes without
+  looping**. This case is currently broken live (Mahmoud, 2026-07-03: Approve loops, the
+  run re-parks and re-prompts repeatedly), which is the observed form of code-review M2/M3.
+  Reproduce first, fix in phase 4, and pin the pass as the replay test. Deny resumes and
   continues without the tool (the two old approval-UI bugs stay fixed: F-024, the reject
   that clobbered the prompt, and F-036, the deny that left the run hanging).
 - playground with everything `allow`: no prompt, tools visibly run (the owner's "auto means
@@ -224,10 +237,11 @@ test that let the proxy rot).
 - **Rule matching for builtins.** The structured `rules` need a matcher compatible with
   Claude's rule syntax (`Bash(npm run:*)`). Scope it to exactly what the settings renderer
   accepts today; anything fancier stays authored-settings-only and documented as such.
-- **Argument drift on resume (code-review M2).** Cold-replay approval matching by
-  name+args can re-prompt when the model rewords arguments. Measure it live in Phase 6; if
-  it bites, the follow-up is echoing the approval id through the replay, which is a
-  separate design slice.
+- **Argument drift on resume (code-review M2, observed live).** Cold-replay approval
+  matching by name+args re-prompts when the model rewords arguments, and QA now shows the
+  approve→loop symptom in the playground, so this is no longer hypothetical. It moves into
+  phase 4 (fix direction: echo the approval id through the replay, or have the runner
+  replay the approved result directly rather than relying on an identical re-issue).
 - **Batch response shape.** Owned jointly with the streaming-invoke workspace; this plan
   only requires that paused be distinguishable.
 - **Vocabulary migration.** `auto` → `allow` and the authored-path rename touch the FE
