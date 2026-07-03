@@ -74,14 +74,22 @@ export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}
         )
     }
 
+    const sendDisabled = disabled || (empty && !forceEnabled)
     return (
         <Button
             type="primary"
             shape="circle"
             aria-label="Send"
             icon={<ArrowUp size={16} weight="bold" />}
-            disabled={disabled || (empty && !forceEnabled)}
+            disabled={sendDisabled}
             onClick={handleClick}
+            // The primary send action: filled accent when there's something to send, a clearly-inert
+            // grey fill when empty (never a faint outlined ghost).
+            className={
+                sendDisabled
+                    ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
+                    : "!border-[var(--ag-surface-accent)] !bg-[var(--ag-surface-accent)] !text-[#191a0d] hover:!border-[#b8cb3f] hover:!bg-[#b8cb3f]"
+            }
         />
     )
 }

@@ -1018,7 +1018,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         onClick={() =>
                             openTurnInspector({sessionId, assistantMessageId: message.id})
                         }
-                        className="flex w-fit cursor-pointer items-center gap-1 self-start rounded border-0 bg-transparent px-1 py-0.5 text-xs text-colorTextTertiary transition-colors hover:text-colorPrimary"
+                        className="flex w-fit cursor-pointer items-center gap-1 self-start rounded border-0 bg-transparent px-1 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorPrimary"
                     >
                         <TreeStructure size={12} />
                         Inspect turn

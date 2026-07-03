@@ -74,8 +74,8 @@ const chatInputExtension = defineExtension({
 
 function ShortcutHint({keys, label}: {keys: string; label: string}) {
     return (
-        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-[var(--ag-colorTextTertiary)]">
-            <kbd className="inline-flex items-center justify-center rounded border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorFillTertiary)] px-1 py-0.5 font-[inherit] text-[10px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
+        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-[var(--ag-colorTextSecondary)]">
+            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[10px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
                 {keys}
             </kbd>
             {label}
@@ -141,10 +141,10 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // Single rounded border around the whole composer; overflow-hidden clips the
                         // editor + toolbar to the rounded corners. The toolbar has no divider of its
                         // own, so the bottom edge reads as one border, not two.
-                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] transition-colors",
-                        // Neutral, low-key focus emphasis — a soft one-step border darkening rather
-                        // than the full brand-primary ring, which was too loud for a chat composer.
-                        "border-[var(--ag-colorBorderSecondary)] focus-within:border-[var(--ag-colorBorder)]",
+                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
+                        // The primary input reads as a defined, slightly-lifted field: a visible edge
+                        // + soft shadow, then the accent border on focus (1px, no glow).
+                        "border-[var(--ag-composer-border)] focus-within:border-[var(--ag-surface-accent)]",
                         disabled && "opacity-60",
                         className,
                     )}

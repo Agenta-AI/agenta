@@ -639,7 +639,8 @@
  */
 :root {
     --ag-surface-app: #e9ebee; /* root behind the columns */
-    --ag-surface-gutter: #dfe1e5; /* channel between the two columns */
+    --ag-surface-gutter: #eceef1; /* channel between the two columns — a light hairline-weight tone
+                                     in light mode (the white/grey tone step is the real separator) */
     --ag-surface-divider: #ededee; /* hairline between chrome planes (sidebar edge, bar bottoms) */
     --ag-surface-raised: #ffffff; /* Configuration panel */
     --ag-surface-raised-shadow: 0 1px 3px rgba(16, 18, 22, 0.05);
@@ -656,6 +657,11 @@
     --ag-surface-chip: #edeef0; /* neutral chip/badge (open badge, code chip) */
     --ag-surface-chip-border: #e3e4e6;
     --ag-surface-accent: #c2d54a; /* brand accent (selected-row bar) — constant across themes */
+    --ag-user-bubble-bg: #f4f6e4; /* the "mine" turn — a soft accent tint vs the agent's plain turn */
+    --ag-user-bubble-border: #dde4a0;
+    --ag-composer-border: #dadde1; /* the primary input — a touch stronger edge than the cards */
+    --ag-send-disabled-bg: #eceef1; /* inert send button (empty input) — a grey fill, not a ghost */
+    --ag-send-disabled-fg: #a6abb1;
     --ag-surface-row-hover: #f3f4f6; /* list-row hover fill */
     --ag-surface-error-well: #fdf3f3; /* faintly error-tinted well (a failed tool payload) */
     --ag-surface-error-well-border: #f3d0ce;
@@ -718,4 +724,9 @@
     --ag-type-chat-text: #6aa8ff;
     --ag-type-agent-bg: rgba(185, 140, 255, 0.14);
     --ag-type-agent-text: #b98cff;
+    --ag-user-bubble-bg: rgba(194, 213, 74, 0.08);
+    --ag-user-bubble-border: rgba(194, 213, 74, 0.22);
+    --ag-composer-border: #2e3136;
+    --ag-send-disabled-bg: #26282c;
+    --ag-send-disabled-fg: #6e7176;
 }

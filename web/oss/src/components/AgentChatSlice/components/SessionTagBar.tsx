@@ -75,9 +75,11 @@ const SessionTag = ({
             }}
             className={clsx(
                 "group flex h-7 max-w-[180px] min-w-0 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
+                // White pill on the recessed chat canvas (raised); the active tab keeps the primary
+                // text + a 2px accent underline so it's unmistakable against its neighbours.
                 active
-                    ? "border-colorBorder bg-colorFillSecondary text-colorText"
-                    : "border-colorBorderSecondary bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
+                    ? "border-colorBorder border-b-2 border-b-[var(--ag-surface-accent)] bg-colorBgContainer text-colorText"
+                    : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
             )}
         >
             <SessionStatusDot sessionId={session.id} />
@@ -134,7 +136,7 @@ const SessionTagBar = ({
 }: SessionTagBarProps) => {
     const closable = sessions.length > 1
     return (
-        <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-colorBorderSecondary px-3">
+        <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
             {showSessions ? (
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {sessions.map((session, index) => (

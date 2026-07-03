@@ -117,7 +117,7 @@ const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) =>
                     setExpanded((e) => !e)
                 }}
                 aria-expanded={expanded}
-                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextTertiary transition-colors hover:bg-colorFillQuaternary hover:text-colorTextSecondary"
+                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextSecondary transition-colors hover:bg-colorFillQuaternary hover:text-colorText"
             >
                 <CaretRight
                     size={11}
@@ -568,7 +568,11 @@ const AgentMessage = ({
                 classNames={{
                     // Error styling is a self-contained callout in RunErrorBody now, not painted on
                     // the (borderless) bubble content — otherwise it bleeds edge-to-edge with no pad.
-                    content: "min-w-0 max-w-full overflow-hidden",
+                    // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
+                    // stays borderless on the canvas.
+                    content: isUser
+                        ? "min-w-0 max-w-full overflow-hidden !border !border-solid !border-[var(--ag-user-bubble-border)] !bg-[var(--ag-user-bubble-bg)]"
+                        : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 content={body}
