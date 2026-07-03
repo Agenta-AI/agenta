@@ -109,7 +109,8 @@ Batch `/invoke` follows this path:
 
 1. The workflow route calls `_agent` in `services/oss/src/agent/app.py`.
 2. `_agent` parses one `AgentConfig` from request parameters; it carries the run-selection
-   fields `harness`, `sandbox`, and `permission_policy`.
+   fields `harness` and `sandbox`, plus the permission policy at
+   `runner.permissions.default`.
 3. The service resolves three things independently: tools, MCP servers, and provider-key
    secrets. MCP resolution is gated by `AGENTA_AGENT_ENABLE_MCP`
    (`services/oss/src/agent/tools/resolver.py:23`, off by default).

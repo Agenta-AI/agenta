@@ -86,8 +86,9 @@ session representation and storage size.
 ## Config Ownership
 
 `AgentConfig` describes the agent itself: instructions, model, tool references, MCP server
-config, and per-harness option bags. It also carries the run-selection fields `harness`,
-`sandbox`, and `permission_policy`; there is one agent config, not a config plus a separate
+config, and per-harness option bags. It also carries the run-selection fields `harness` and
+`sandbox`, plus the permission policy at `runner.permissions.default`; there is one agent
+config, not a config plus a separate
 `RunSelection` object. The handler reads `sandbox` to choose a backend, but the backend choice
 itself is not stored on the config.
 

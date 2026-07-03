@@ -25,11 +25,11 @@ The fields and the full schema follow.
 | `mcp_servers` | `MCPServerConfig[]` | `[]` | Declared MCP servers; secret env resolved from the vault at run time. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
 | `harness` | `"pi_core" \| "claude" \| "pi_agenta"` (see slug+name note) | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
-| `permission_policy` | `"auto" \| "deny"` | `"auto"` | How a gating harness (Claude Code) handles tool-use prompts in a headless run. |
+| `permissions` | `{default: "allow" \| "ask" \| "deny" \| "allow_reads", rules?: [...]}` | `{default: "allow_reads"}` | The agent-wide policy. `allow_reads` runs read-hinted tools and asks for everything else; `allow` runs everything; `ask` asks for everything; `deny` runs nothing unless a tool explicitly allows it. `rules` are optional authored patterns (for example `Bash(rm:*)`) that override the default for matching harness builtins. |
 | `sandbox_permission` | `SandboxPermission \| null` | `null` (form pre-fills one) | The declared network and filesystem boundary. See [Sandbox permission](../in-service/sandbox-permission.md). |
 | `skills` | `(SkillConfig \| EmbedRef)[]` | one embedded default skill | Inline SKILL.md packages, or `@ag.embed` references the backend inlines before the runner sees them. |
 
-Note that `harness`, `sandbox`, and `permission_policy` are the run-selection fields. They
+Note that `harness`, `sandbox`, and `permissions` are the run-selection fields. They
 live on `AgentConfig` itself, under `data.parameters.agent`, and the handler reads them in the
 one `AgentConfig.from_params(...)` parse along with the rest of the config. There is one agent
 config, not a config plus a separate selection object.
@@ -76,7 +76,7 @@ every field in its default state:
   "mcp_servers": [],
   "harness": "pi_core",
   "sandbox": "local",
-  "permission_policy": "auto",
+  "permissions": { "default": "allow_reads" },
   "sandbox_permission": {
     "network": { "mode": "on", "allowlist": [] },
     "enforcement": "strict"
@@ -121,21 +121,21 @@ Either form is valid:
 
 ```jsonc
 // builtin: a harness built-in by name
-{ "type": "builtin", "name": "read", "needs_approval": false, "permission": null, "render": null }
+{ "type": "builtin", "name": "read", "permission": null, "render": null }
 
 // gateway: a server-side action (e.g. Composio); runs in Agenta, key stays server-side
 { "type": "gateway", "provider": "composio", "integration": "github",
   "action": "create_issue", "connection": "my-gh", "name": null,
-  "needs_approval": false, "permission": null, "render": null }
+  "permission": null, "render": null }
 
 // code: sandboxed code with named secrets injected at resolve time
 { "type": "code", "name": "fx", "runtime": "python", "script": "...",
   "input_schema": {}, "secrets": ["API_KEY"],
-  "needs_approval": false, "permission": null, "render": null }
+  "permission": null, "render": null }
 
 // client: fulfilled by the browser; filtered out of the runner's MCP tools/list
 { "type": "client", "name": "pick_file", "description": "...", "input_schema": {},
-  "needs_approval": false, "permission": null, "render": null }
+  "permission": null, "render": null }
 
 // reference (variant axis): the service runs the workflow's latest revision (or a pinned
 // `version`) server-side when the model calls it. Resolves to a callback tool; key stays
@@ -143,17 +143,17 @@ Either form is valid:
 // as siblings.
 { "type": "reference", "ref_by": "variant", "slug": "summarize", "version": null,
   "name": "summarize", "description": "...", "input_schema": {},
-  "needs_approval": false, "permission": null, "render": null }
+  "permission": null, "render": null }
 
 // reference (environment axis): the service runs whatever revision is deployed in `environment`
 // for `slug`. `version` is not allowed (the environment is the pin).
 { "type": "reference", "ref_by": "environment", "environment": "production", "slug": "summarize",
-  "name": "summarize", "needs_approval": false, "permission": null, "render": null }
+  "name": "summarize", "permission": null, "render": null }
 
 // platform: an existing Agenta endpoint exposed to the agent. `op` names a platform-op catalog
-// entry (the catalog owns description/endpoint/schema/bind/gate defaults). `needs_approval` is
-// optional (null = the catalog default — e.g. commit_revision defaults to approval).
-{ "type": "platform", "op": "find_capabilities", "needs_approval": null, "permission": null }
+// entry (the catalog owns description/endpoint/schema/bind/gate defaults). `permission` is
+// optional (null means inherit the policy; commit_revision's catalog default resolves to `ask`).
+{ "type": "platform", "op": "find_capabilities", "permission": null }
 
 // @ag.embed (a different feature, not in the tool-authoring UI): inline the referenced value into
 // a concrete `client` tool config before the runner sees it (the backend's embed resolver does
@@ -170,10 +170,12 @@ plain config, not markers — the generic resolver only inlines `@ag.embed`, and
 the tool-specific mapping. See [Tool models and
 resolution](../in-service/tool-models-and-resolution.md).
 
-`permission` is `"allow" | "ask" | "deny"`. When unset, it is derived: explicit value wins,
-then `needs_approval` to `"ask"`, then `read_only` (`true` to `"allow"`, `false` to `"ask"`),
-else the global policy applies. See [Tool models and
-resolution](../in-service/tool-models-and-resolution.md).
+`permission` is `"allow" | "ask" | "deny"`, or unset to inherit. When unset, the runner's
+shared decision function resolves it: an authored rule match wins if one applies, else the
+policy's `default` mode decides (`allow_reads` consults the tool's `read_only` hint: `true`
+resolves to `allow`, no hint or `false` resolves to `ask`). There is no `needs_approval`
+field and no separate per-tool defaulting step; one function resolves every tool the same
+way. See [Tool models and resolution](../in-service/tool-models-and-resolution.md).
 
 ### `mcp_servers[]`
 

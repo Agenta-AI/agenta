@@ -14,10 +14,12 @@ review lens: the wire-shape differences and what to check when one moves.
 Each adapter implements `_to_harness_config(...)` and emits a different `/run` wire shape:
 
 - **`PiHarness`** delivers built-in tool names and native custom tools, supports Pi prompt
-  overrides (`system`, `append_system`), and drops `permission_policy` because Pi never gates
-  tool use.
+  overrides (`system`, `append_system`), and carries the same `permissions` block as the other
+  harnesses. Pi has no native permission gate of its own (no `.claude/settings.json` equivalent),
+  so the runner's tool relay enforces `permissions` for Pi at execution time; an `ask` verdict
+  pauses the run and Pi gets the same human-in-the-loop approval Claude gets at its gate.
 - **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins (it warns
-  if any are set). It carries `permission_policy` and renders `.claude/settings.json` from four
+  if any are set). It carries `permissions` and renders `.claude/settings.json` from four
   sources — the author's `harness_kwargs["claude"]["permissions"]` slice, the sandbox permission,
   each user MCP server's permission (`mcp__<server>` rules), and each resolved EXECUTABLE tool's
   permission (`mcp__agenta-tools__<name>` rules; F-046) — shipped as `harnessFiles`. It carries
@@ -34,7 +36,7 @@ The wire shapes, side by side:
 | built-in tools | yes | no | forced set |
 | custom tools | native | over MCP | native |
 | prompt overrides | `system`/`append_system` | none (reads `harness_kwargs`) | forced `append_system` + author `system` |
-| permission policy | dropped | carried | dropped |
+| permission policy | carried, enforced by the relay | carried, enforced by settings + the responder | carried, enforced by the relay |
 | inline skills | yes (agent-dir scope) | yes (materialized to `.claude/skills`) | yes (agent-dir scope) |
 | harness files | none | `.claude/settings.json` | none |
 
@@ -62,4 +64,4 @@ The wire shapes, side by side:
   (`services/agent/src/tools/mcp-bridge.ts`, `relay-mcp-stdio.ts`, `tool-mcp-http.ts`,
   `engines/sandbox_agent/mcp.ts`, `sdks/python/agenta/sdk/agents/adapters/claude_settings.py`).
   Renaming the server on one side without the other silently
-  re-parks `allow` tools on Claude (the bug F-046 fixed).
+  re-pauses `allow` tools on Claude (the bug F-046 fixed).

@@ -13,8 +13,8 @@ The playground renders a single composite `agent_config` control. The field list
 control is not hardcoded in the frontend. It is fetched from the backend catalog type
 `agent_config`, which the SDK defines once as `AgentConfigSchema`. The runtime then re-parses
 the same payload into one permissive `AgentConfig` (the run-selection fields `harness`,
-`sandbox`, and `permission_policy` live on it), resolves tools and secrets server-side, and
-hands a final wire request to the Node runner.
+`sandbox`, and `runner.permissions.default` live on it), resolves tools and secrets
+server-side, and hands a final wire request to the Node runner.
 
 ## Three objects share the name "AgentConfig"
 
@@ -69,12 +69,14 @@ existing control:
   shape the prompt control uses.
 - `mcp_servers` renders as a flat array. Each entry uses `McpServerItemControl`, which is a
   JSON editor for one server entry.
-- `harness`, `sandbox`, and `permission_policy` each render as an enum select.
+- `harness`, `sandbox`, and the permission policy each render as an enum select. The
+  permission policy select has four modes: `allow`, `ask`, `deny`, `allow_reads` (the
+  default). It renders for Pi too; Pi now honors it the same way Claude does.
 
 So the object the form produces is:
 
 ```
-{ agents_md, model, tools[], mcp_servers[], harness, sandbox, permission_policy }
+{ agents_md, model, tools[], mcp_servers[], harness, sandbox, runner: { permissions: { default } } }
 ```
 
 The field set comes from the backend at runtime. The frontend fetches the catalog type with
@@ -100,7 +102,7 @@ Its fields and defaults:
 | `mcp_servers` | `List[MCPServerConfig]` | empty list | typed |
 | `harness` | `Literal["pi_core","claude","pi_agenta"]` | `"pi_core"` | enum |
 | `sandbox` | `Literal["local","daytona"]` | `"local"` | enum |
-| `permission_policy` | `Literal["auto","deny"]` | `"auto"` | enum |
+| `runner.permissions.default` | `Literal["allow","ask","deny","allow_reads"]` | `"allow_reads"` | enum, four modes |
 
 The schema is registered in `CATALOG_TYPES` under the key `"agent_config"`
 (`sdks/python/agenta/sdk/utils/types.py:1132`). The API catalog imports `CATALOG_TYPES` from
@@ -142,7 +144,7 @@ class AgentConfig(BaseModel):
     # the run-selection fields
     harness: str = "pi_core"
     sandbox: str = "local"
-    permission_policy: PermissionPolicy = "auto"
+    permission_default: PermissionMode = "allow_reads"
 ```
 
 One correction to a common belief. This model is not `extra="allow"`. Its looseness comes
@@ -158,11 +160,18 @@ The genuinely loose object is the file-default dataclass at
 built-in default, not user input.
 
 The run-selection fields are on this neutral config too. `harness`, `sandbox`, and
-`permission_policy` are plain fields on `AgentConfig` (in
+`permission_default` are plain fields on `AgentConfig` (in
 `sdks/python/agenta/sdk/agents/dtos.py`). They used to live on a separate `RunSelection`
 object; that object is retired, because there is one agent definition, not an agent plus a
 sidecar selection. The composite schema and the neutral config now agree: both keep these
-fields next to the rest of the agent.
+fields next to the rest of the agent. The authored form of the same value is
+`runner.permissions.default`; the SDK flattens it onto `permission_default` when it parses
+the template. The old three-name split (`runner.interactions.headless` authored,
+`permission_policy` stored, `permissionPolicy` on the wire) is gone. The value now has four
+modes (`allow`, `ask`, `deny`, `allow_reads`) instead of two (`auto`, `deny`), and the wire
+field is `permissions: {default, rules?}`. Authors can also add `runner.permissions.rules`, a
+list of `{pattern, permission}` entries for harness-builtin tools (for example
+`Bash(rm:*)` set to `ask`). The runner checks rules before falling back to `default`.
 
 Tool entries are strict even though the list is lenient. Each tool subclass is `extra="forbid"`
 (`sdks/python/agenta/sdk/agents/tools/models.py`). `MCPServerConfig` is also `extra="forbid"`
@@ -191,9 +200,10 @@ resolves tools, MCP servers, and secrets server-side, bundles everything into a
 reads `agent_config.sandbox` and passes it to `SandboxAgentBackend(sandbox=...)` instead.
 
 The final wire shape the Node runner receives is `AgentRunRequest` in
-`services/agent/src/protocol.ts` (around line 185). That is the true wired surface:
+`services/runner/src/protocol.ts`. That is the true wired surface:
 `harness`, `sandbox`, `agentsMd`, `systemPrompt`/`appendSystemPrompt`, `model`, `tools`
-(builtin names), `skills`, `customTools`, `mcpServers`, `toolCallback`, `permissionPolicy`.
+(builtin names), `skills`, `customTools`, `mcpServers`, `toolCallback`, and
+`permissions: {default, rules?}`.
 
 ## Field-by-field: enforced vs loose, wired vs decorative
 
@@ -209,7 +219,7 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 | agents_md | yes, `agents_md: str` | yes, as `instructions` | wired to `agentsMd` | The schema names it `agents_md`. The neutral config names it `instructions`. |
 | harness | yes, enum | yes, on `AgentConfig` | wired, picks the harness class | Enum-enforced. The runtime validates via `make_harness`. |
 | sandbox | yes, enum | yes, on `AgentConfig` | wired to the backend, absent from `SessionConfig` | Backend concern, not agent identity. |
-| permission_policy | yes, enum | yes, on `AgentConfig` | wired to `SessionConfig` | Only the Claude harness reads it. Pi ignores it, so it is decorative for `pi_core` and `pi_agenta`. |
+| runner.permissions.default | yes, enum (4 modes) | yes, as `permission_default` on `AgentConfig` | wired to `SessionConfig` and the run request's `permissions.default` | Enforced for both harnesses: Claude at its settings file and the ACP responder, Pi at the tool relay. No longer decorative on Pi. |
 
 ## Notable gaps and quirks
 
@@ -219,13 +229,14 @@ list. `persona` is a forced append-system string. Neither appears in any schema,
 appears on the neutral config, and the playground renders no control for either. Pi and
 Claude harnesses get no forced skills or persona.
 
-Per-harness divergence is real. `permission_policy` is wired only for Claude. Builtin tool
-names are dropped for Claude with a warning, because builtins are Pi-only. Skills and persona
-are Agenta-only. Pi's `system` and `append_system` overrides come through the
-`harness_kwargs` escape hatch on the neutral config, which is itself absent from the schema.
+Per-harness divergence is real in other ways, but not in permission enforcement anymore: the
+permission policy is now enforced on both Claude and Pi. Builtin tool names are dropped for
+Claude with a warning, because builtins are Pi-only. Skills and persona are Agenta-only. Pi's
+`system` and `append_system` overrides come through the `harness_kwargs` escape hatch on the
+neutral config, which is itself absent from the schema.
 
-Harness, sandbox, and permission policy sit next to the agent definition in both the schema
-and the neutral `AgentConfig`. The two agree on one control.
+Harness, sandbox, and the permission policy sit next to the agent definition in both the
+schema and the neutral `AgentConfig`. The two agree on one control.
 
 ## A concrete example config
 
@@ -248,15 +259,15 @@ This is what the playground saves and the runtime reads:
   ],
   "harness": "pi_core",
   "sandbox": "local",
-  "permission_policy": "auto"
+  "runner": { "permissions": { "default": "allow_reads" } }
 }
 ```
 
 With this config, the runtime reads `agents_md`, `model`, `tools`, `mcp_servers`, and the
-run-selection fields `harness`, `sandbox`, and `permission_policy` through the one neutral
-`AgentConfig`, resolves the tools and MCP servers server-side, and runs one turn on the Pi
-harness in a local sandbox. The `permission_policy` value is ignored because the harness is
-Pi, not Claude.
+run-selection fields `harness`, `sandbox`, and `runner.permissions.default` through the one
+neutral `AgentConfig`, resolves the tools and MCP servers server-side, and runs one turn on
+the Pi harness in a local sandbox. Under `allow_reads`, `web_search` runs as a read with no
+prompt; a write tool would pause for approval on this harness exactly as it would on Claude.
 
 ## See also
 

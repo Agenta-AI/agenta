@@ -3,7 +3,7 @@
 ## Problem
 
 The interactions API is fully built but nothing produces interactions, so the domain is
-untestable. When a session-owned (HITL) turn hits a permission gate, the runner `park`s
+untestable. When a session-owned (HITL) turn hits a permission gate, the runner pauses
 the turn and emits an `interaction_request` only on the messages plane
 (`services/agent/src/engines/sandbox_agent.ts`, `responder.ts`). It never calls the
 interactions API, so the `session_interactions` table stays empty and the inspector's
@@ -13,9 +13,12 @@ to act on.
 ## Goal
 
 Whenever a human-in-the-loop interaction is raised, do BOTH: emit the messages-plane
-`interaction_request` event AND create a row via the interactions API. Headless `/invoke`
-keeps its inline policy answer (auto / allow / deny) and does NOT create a row (no human,
-nothing to resolve). Then make the inspector usable: a Refresh button on all five tabs,
+`interaction_request` event AND create a row via the interactions API. Every pause creates
+a row, whether or not a human happens to be watching right now; there is no headless
+exception. The only real gate on the row write is that the run must reference a committed
+revision, because the respond/resume flow needs a stable revision to re-invoke against.
+Uncommitted playground drafts skip the interactions-plane write for that reason, not
+because no human is present. Then make the inspector usable: a Refresh button on all five tabs,
 and an Interactions tab that shows the full interaction and can respond with the correct
 shape.
 
@@ -83,7 +86,7 @@ directly.
 The single message's shape depends on kind:
 
 - `user_input`: an ordinary user message — `{role: "user", content: <typed text>}`.
-- `user_approval`: NOT free text. The runner resolves a parked approval from a
+- `user_approval`: NOT free text. The runner resolves a paused approval from a
   `tool_result` content block keyed by the gated `toolCallId` carrying `{approved: bool}`
   (`responder.ts` `extractApprovalDecisions`). In neutral form that is
   `{role: "user", content: [{type: "tool_result", toolCallId: <token>, output: {approved}}]}`,
@@ -110,11 +113,13 @@ boundary — the inspector still speaks neutral.)
 - `token` = the harness tool-call id (the same stable per-call key the responder already
   uses in `permissionRequestKeys`). Makes creation idempotent per gate and gives the
   respond/transition path its correlation key.
-- Hook point: the `onPark` callback in `sandbox_agent.ts` (fires exactly when the
-  HITLResponder returns `"park"`, i.e. a real human-surface gate with no stored decision).
-  On park, call `createInteraction(kind=user_approval, data.request={tool name + args})`
-  in addition to the existing messages-plane emission. Headless and stored-decision paths
-  do not create (they never park).
+- Hook point: the `onPause` callback in `sandbox_agent.ts` (fires exactly when the
+  ApprovalResponder returns `pendingApproval`, i.e. an `ask` gate with no stored decision,
+  on a run that references a committed revision). On pause, call
+  `createInteraction(kind=user_approval, data.request={tool name + args})` in addition to
+  the existing messages-plane emission. Stored-decision paths do not create a row, because
+  they never pause. Uncommitted drafts also skip the create, per the committed-revision
+  gate above.
 - `data.flags.delivered_in_band = true` (the messages plane also carried the event).
 
 ### API
@@ -153,8 +158,8 @@ lives in the `answer` (the `{approved}` tool_result), never in the status:
   endpoint sets this at the API, before/as it dispatches the detached invoke. Only
   scenario 1. WIRED.
 - `resolved` — the runner consumed the answer and forwarded it to the harness. The runner
-  sets this (calls the transition endpoint) from the non-park branch of the permission
-  responder, where it applies a stored decision. Reachable from `responded` (scenario 1:
+  sets this (calls the transition endpoint) from the allow/stored-decision branch of the
+  permission responder, where it applies a stored decision. Reachable from `responded` (scenario 1:
   the answer came via /interactions) or directly from `pending` (scenario 2: the answer
   came inline via a messages reply, never touching the interactions endpoint). WIRED.
 - `cancelled` — the gate is orphaned; no one will answer the token. TWO producers, both
@@ -208,9 +213,10 @@ interaction is never retroactively cancelled by a later turn.
 - Cancel-on-kill: with a `pending` gate open, Kill the session from the Streams tab. The
   pending interaction flips to `cancelled`.
 - Hit Refresh on each of the five tabs; each re-fetches its own data.
-- Regression: a headless `/invoke` over the same gate auto-answers via policy and creates
-  NO interaction row. The messages-plane `interaction_request` event still fires on the
-  HITL path.
+- Regression: a headless `/invoke` over a gate whose effective permission is `allow` or
+  `deny` auto-answers and creates NO interaction row, same as the HITL path. A headless
+  `/invoke` over an `ask` gate still pauses and still creates a row, as long as the run
+  references a committed revision.
 
 ## Out of scope (deferred to the big-agents agent-template audit)
 
@@ -218,6 +224,6 @@ interaction is never retroactively cancelled by a later turn.
 - The "runner interactions" umbrella naming (user approvals / user inputs / callback
   tools as the three kinds).
 - The full dual-plane "whoever-reacts-first" resolver that also feeds the API respond
-  back into a parked runner gate. This branch creates the record and lets the inspector
-  respond; closing the loop back into a live parked turn from the API plane is the
+  back into a paused runner gate. This branch creates the record and lets the inspector
+  respond; closing the loop back into a live paused turn from the API plane is the
   follow-up.

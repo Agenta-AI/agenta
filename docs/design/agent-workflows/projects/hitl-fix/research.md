@@ -1,5 +1,7 @@
 # Research: the full HITL path, read-only trace
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 All citations are to the tree at `gitbutler/workspace` (v0.104.2). The HITL round-trip
 crosses four layers. The renderer, the egress, and the cross-turn resume are correct. The
 break is a single conflicting reply in the **runner**, which poisons the wire so the

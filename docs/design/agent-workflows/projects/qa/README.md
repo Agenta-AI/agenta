@@ -83,7 +83,7 @@ curl -s -X POST \
   "http://localhost:8280/services/agent/v0/invoke?project_id=$PROJ" \
   -d '{"data":{"inputs":{"messages":[{"role":"user","content":"<prompt>"}]},
        "parameters":{"agent":{ <agent config: agents_md, model, harness, sandbox,
-       tools, mcp_servers, permission_policy, harness_options> }}}}'
+       tools, mcp_servers, runner.permissions, harness_options> }}}}'
 ```
 
 The response is one JSON assistant message. That makes pass and fail easy to assert: grep

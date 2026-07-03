@@ -59,7 +59,10 @@ group by job:
   "skills":       [ /* inline skill packages */ ],
 
   // policy + files
-  "permissionPolicy":  "auto",           // "auto" | "deny"
+  "permissions": {                       // the global policy + authored builtin rules
+    "default": "allow_reads",            // "allow" | "ask" | "deny" | "allow_reads"
+    "rules":   [ { "pattern": "Bash(rm:*)", "permission": "ask" } ]  // optional
+  },
   "sandboxPermission": { /* Layer 2 boundary; network enforced on Daytona, see sandbox-permission.md */ },
   "harnessFiles":      [ { "path": ".claude/settings.json", "content": "..." } ],
 

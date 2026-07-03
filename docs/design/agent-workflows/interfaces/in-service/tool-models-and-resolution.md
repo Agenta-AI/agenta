@@ -9,8 +9,8 @@ resolved specs become `/run` fields, so a change here usually reaches the wire (
 
 ## Config types (what the author writes)
 
-All share a base of `needs_approval` (default `false`), `permission` (`allow`/`ask`/`deny`,
-optional), and `render` (optional), discriminated by `type`:
+All share a base of `permission` (`allow`/`ask`/`deny`, optional, unset inherits the global
+policy) and `render` (optional), discriminated by `type`:
 
 ```jsonc
 { "type": "builtin", "name": "read" }
@@ -31,8 +31,8 @@ optional), and `render` (optional), discriminated by `type`:
 
 // platform: an existing Agenta endpoint exposed to the agent. `op` names a platform-op catalog
 // entry; the catalog owns the description, endpoint, schema, context bindings, and per-op gate defaults.
-// `needs_approval` is optional here (null = use the catalog default).
-{ "type": "platform", "op": "find_capabilities", "needs_approval": null, "permission": null }
+// `permission` is optional here (null = use the catalog default).
+{ "type": "platform", "op": "find_capabilities", "permission": null }
 ```
 
 A tool can also be a **workflow** referenced as a tool (`type: "reference"`, above) or a
@@ -67,16 +67,20 @@ config (not markers); `resolve_tools` owns the tool-specific mapping.
 { "kind": "client", "name": "..." }
 ```
 
-Each resolved spec also carries `needs_approval`, `read_only`, `permission`, and `render`.
+Each resolved spec also carries `read_only`, `permission`, and `render`.
 
 ## Permission derivation
 
-When a tool's `permission` is unset, it is derived by precedence:
+A tool's authored `permission` travels as is. `ToolSpec.to_wire()` sends only the author's
+explicit `permission`; when it is unset, the spec sends nothing and the `read_only` hint
+rides alongside as a separate field. The runner resolves the rest: its shared decision
+function (`services/runner/src/permission-plan.ts`) looks up, in order:
 
 1. an explicit `permission` wins,
-2. else `needs_approval: true` to `"ask"`,
-3. else `read_only`: `true` to `"allow"`, `false` to `"ask"`,
-4. else `None`, and the runner falls back to the global policy.
+2. else an authored builtin rule match (`runner.permissions.rules`),
+3. else, under the `allow_reads` policy mode, the `read_only` hint (`true` to `allow`, unset
+   or `false` to `ask`),
+4. else the global policy mode (`allow`/`ask`/`deny`).
 
 ## Secret injection
 
@@ -87,8 +91,11 @@ secret; their provider key stays server-side and the call routes back through `/
 ## Owned by
 
 - `sdks/python/agenta/sdk/agents/tools/models.py`: the config and spec models (incl.
-  `ReferenceToolConfig`, its `ref_by` axes, `PlatformToolConfig`, `ToolCall`, and `call_ref`) and
-  the permission derivation.
+  `ReferenceToolConfig`, its `ref_by` axes, `PlatformToolConfig`, `ToolCall`, and `call_ref`),
+  carrying the author's explicit `permission` and the `read_only` hint.
+- `services/runner/src/permission-plan.ts`: the shared decision function that resolves a
+  tool's effective permission at run time (explicit permission, then rule match, then the
+  `allow_reads` read-only check, then the global policy).
 - `sdks/python/agenta/sdk/agents/tools/compat.py`: coerces legacy/typed tool dicts (a
   `type: "reference"` or `type: "platform"` dict parses straight into its config model).
 - `sdks/python/agenta/sdk/agents/platform/gateway.py`: gateway resolution to a `call_ref`.
@@ -118,7 +125,8 @@ in `op_catalog.py` (the SDK must not import the API).
 
 ## Watch for when changing
 
-- **Permission defaults and the derivation order.** It decides what gets gated.
+- **Permission defaults and the derivation order.** It decides what gets gated. The order
+  now lives in the runner's shared decision function, not in this SDK module.
 - **Read-only and render hints.** They flow through to the runner and the browser.
 - **The tool input schema.** It is what the harness sees as the tool's parameters.
 - **Secret injection for code tools.** Secrets ride `env` and are resolved once at parse time.

@@ -118,7 +118,7 @@ Request fields include:
 | `messages` | Conversation history and current turn. |
 | `secrets` | Provider env vars resolved by the service. |
 | `tools`, `customTools`, `toolCallback`, `mcpServers` | Resolved tool delivery. |
-| `permissionPolicy` | `auto` or `deny` for permission-gating harnesses. |
+| `permissions` | Permission plan: `{default, rules?}`. `default` is one of `allow`, `ask`, `deny`, or `allow_reads`; `rules` is an optional list of `{pattern, permission}` entries for harness builtins. The runner enforces it on every harness. |
 | `trace` | Trace context for nested spans. |
 
 One-shot calls return one JSON result. Streaming calls use NDJSON internally: one

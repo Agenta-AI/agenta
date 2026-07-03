@@ -1,5 +1,7 @@
 # Status
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 Source of truth for where this project stands. Keep it current.
 
 ## State
