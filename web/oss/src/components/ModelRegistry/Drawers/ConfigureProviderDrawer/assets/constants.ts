@@ -71,6 +71,15 @@ export const PROVIDER_FIELDS: {
         attributes: {kind: "json", rows: 10, monospace: true, strict: true},
     },
     {
+        key: "bearerToken",
+        label: "Bedrock API key",
+        placeholder: "Enter Bedrock API key",
+        note: "Use a Bedrock API key, or an access key ID + secret access key below.",
+        model: ["bedrock"],
+        required: false,
+        attributes: {kind: "text", type: "password"},
+    },
+    {
         key: "accessKeyId",
         label: "Access key ID",
         placeholder: "Enter access key ID",
@@ -98,3 +107,20 @@ export const PROVIDER_FIELDS: {
         attributes: {kind: "text", type: "password"},
     },
 ]
+
+/**
+ * Per-provider credential requirement, declared as alternative sets: a config is valid when at
+ * least one set has all its fields filled. Keeps "either/or" auth (e.g. Bedrock: a bearer token
+ * OR an access-key pair) in data, not branched in the submit handler. Providers absent here have
+ * no cross-field requirement (their individually-required fields still apply).
+ */
+export const PROVIDER_AUTH_REQUIREMENTS: Record<
+    string,
+    {alternatives: (keyof LlmProvider)[][]; message: string}
+> = {
+    bedrock: {
+        alternatives: [["bearerToken"], ["accessKeyId", "accessKey"]],
+        message:
+            "Bedrock needs either a Bedrock API key, or both an access key ID and secret access key.",
+    },
+}

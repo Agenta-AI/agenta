@@ -48,7 +48,10 @@ def test_inspect_default_parses_into_the_runtime_selection():
 
     config = AgentTemplate.from_params(params)
 
-    assert config.model == inspect_default["llm"]["model"]
+    # The runtime selection is provider-qualified (F-017): `llm.provider` + `llm.model`
+    # combine into the `provider/model` ref credentials resolve against.
+    llm = inspect_default["llm"]
+    assert config.model == f"{llm['provider']}/{llm['model']}"
     assert config.instructions == inspect_default["instructions"]["agents_md"]
     assert config.sandbox_permission is None
     assert config.harness == "pi_core"

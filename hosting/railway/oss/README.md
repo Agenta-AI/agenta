@@ -120,7 +120,7 @@ Optional reliability knobs for fresh projects:
 - `RAILWAY_ALEMBIC_MAX_ATTEMPTS` (default `3`)
 
 `deploy-from-images.sh` redeploys Postgres and Redis before running Alembic, then retries Alembic on failure to reduce first-deploy race conditions.
-It also deploys `runner` before `services` and configures `AGENTA_RUNNER_URL` to the runner's private Railway URL.
+It also deploys `runner` before `services` and configures `AGENTA_RUNNER_INTERNAL_URL` to the runner's private Railway URL.
 
 ## Preview Lifecycle Scripts
 

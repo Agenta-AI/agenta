@@ -23,6 +23,7 @@
  * so it is uniform across every harness and always nests under the caller's /invoke
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
+import { apiBase } from "../apiBase.ts";
 import { rmSync } from "node:fs";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
@@ -108,10 +109,6 @@ function runCredential(request: AgentRunRequest): string {
   return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
 }
 
-/** Agenta API base for runner→API calls (heartbeat/ingest/mount-sign share this). */
-function apiBase(): string {
-  return process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
-}
 
 type Log = (message: string) => void;
 const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
@@ -197,6 +194,7 @@ function applyClaudeConnectionEnv(
   ) {
     env.ANTHROPIC_MODEL = selectedModel;
     env.ANTHROPIC_CUSTOM_MODEL_OPTION = selectedModel;
+    logger(`claude model=${selectedModel} deployment=${deployment ?? "<none>"}`);
     return true;
   }
   return false;
@@ -358,6 +356,15 @@ export async function runSandboxAgent(
   const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
+
+  // The resolved model ref as it reaches the runner (key NAMES only, never values) — the one
+  // line that answers "what model/provider/deployment/credential did this run actually use".
+  logger(
+    `resolved model=${request.model ?? "<none>"} provider=${request.provider ?? "<none>"} ` +
+      `deployment=${request.deployment ?? "<none>"} ` +
+      `connection=${request.connection ? `${request.connection.mode}:${request.connection.slug ?? "-"}` : "<none>"} ` +
+      `secretKeys=[${Object.keys(request.secrets ?? {}).join(",")}]`,
+  );
 
   // Pi traces itself via the extension under the propagated traceparent; for other
   // harnesses we build the span tree here from the ACP event stream. Created below, once

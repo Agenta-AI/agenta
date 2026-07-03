@@ -13,6 +13,7 @@
  * `createAgentServer(run)` is the testable seam: it builds the server around an injectable
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
+import { apiBase } from "./apiBase.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -142,7 +143,7 @@ async function persistSandboxId(
   sandboxId: string,
   authorization: string,
 ): Promise<void> {
-  const base = process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
+  const base = apiBase();
   try {
     const res = await fetch(
       `${base}/sessions/states/?session_id=${encodeURIComponent(sessionId)}`,

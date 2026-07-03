@@ -34,7 +34,7 @@ existing self-hosted Agenta deployment that predates the runner and store featur
    A `200` response confirms the runner is up. If you get a connection error, check
    `docker compose logs runner`.
 
-4. The `AGENTA_RUNNER_URL=http://runner:8765` value is included in the updated Compose
+4. The `AGENTA_RUNNER_INTERNAL_URL=http://runner:8765` value is included in the updated Compose
    files by default. If you maintain a custom env file, add it there.
 
 5. (Optional) Enable durable agent workspaces. Set the store credentials in your env file:

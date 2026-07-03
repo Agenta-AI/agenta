@@ -17,7 +17,7 @@ import {isSlugInputValid} from "@/oss/lib/helpers/utils"
 
 import LabelInput from "../../../assets/LabelInput"
 
-import {PROVIDER_FIELDS} from "./constants"
+import {PROVIDER_AUTH_REQUIREMENTS, PROVIDER_FIELDS} from "./constants"
 import ModelNameInput from "./ModelNameInput"
 import {ConfigureProviderDrawerContentProps} from "./types"
 
@@ -145,6 +145,16 @@ const ConfigureProviderDrawerContent = ({
     const shouldFilter = validProviders.includes(normalizedProviderKind)
     const hasSelectedProvider = !!(providerValue && providerValue.toString().trim().length)
 
+    // Fields that belong to this provider's either/or auth sets — validated as a group, not each
+    // individually required. Derived from PROVIDER_AUTH_REQUIREMENTS so nothing is hardcoded here.
+    const eitherOrAuthKeys = useMemo(
+        () =>
+            new Set<string>(
+                (PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]?.alternatives ?? []).flat(),
+            ),
+        [normalizedProviderKind],
+    )
+
     useEffect(() => {
         if (selectedProvider) {
             const rawProvider = String(selectedProvider.provider ?? "")
@@ -162,6 +172,17 @@ const ConfigureProviderDrawerContent = ({
             if (form.getFieldValue("models").length === 0 || !form.getFieldValue("models")[0]) {
                 setErrorMessage("Please add a model name before submitting")
                 return
+            }
+
+            const authReq = PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]
+            if (authReq) {
+                const filled = (key: keyof LlmProvider) =>
+                    !!(values[key] as string | undefined)?.trim()
+                const satisfied = authReq.alternatives.some((set) => set.every(filled))
+                if (!satisfied) {
+                    setErrorMessage(authReq.message)
+                    return
+                }
             }
 
             if (selectedProvider?.id) {
@@ -222,8 +243,12 @@ const ConfigureProviderDrawerContent = ({
                         }).map((rawField) => {
                             const field = rawField as FieldWithAttributes
                             const isJson = field.attributes?.kind === "json"
+                            // A field in an either/or auth group is not individually required — the
+                            // group is validated as a whole on submit. Other fields (e.g. region)
+                            // keep their own requirement.
+                            const isEitherOrAuthField = eitherOrAuthKeys.has(field.key)
                             const isRequired =
-                                field.key === "apiBaseUrl"
+                                field.key === "apiBaseUrl" || isEitherOrAuthField
                                     ? false
                                     : !shouldFilter
                                       ? !!field.required

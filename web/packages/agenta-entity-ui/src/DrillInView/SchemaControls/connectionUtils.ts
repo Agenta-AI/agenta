@@ -172,6 +172,19 @@ export function allowedProviders(
 }
 
 /**
+ * The deployment surfaces the harness can consume (`direct` / `custom` / `bedrock` / `vertex_ai` /
+ * ...). A custom_provider connection's kind is a DEPLOYMENT, not a provider family, so it is gated
+ * against this list — not `allowedProviders`. A missing harness/capability is permissive (`["*"]`).
+ */
+export function allowedDeployments(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+): string[] {
+    const entry = capsFor(capabilities, harness)
+    return entry?.deployments?.length ? entry.deployments : ["*"]
+}
+
+/**
  * The connection modes the harness supports. A missing harness/capability is permissive (returns
  * both modes).
  */
@@ -315,6 +328,81 @@ export interface VaultConnectionEntry {
 export interface ConnectionOption {
     label: string
     value: string
+}
+
+/** A vault custom_provider entry rich enough to contribute model options (its own models). */
+export interface VaultModelSource {
+    /** The connection name == the slug the resolver matches on. */
+    name?: string
+    /** The provider family (data.kind), e.g. "bedrock". */
+    provider?: string
+    /** The connection's own model ids (bare slugs). */
+    models?: string[]
+}
+
+/**
+ * The model FAMILY a hosted model id encodes, matched against the provider families the capability
+ * map knows (union across harnesses — data-driven, no hardcoded vendor list). Deployment-hosted ids
+ * carry the vendor structurally: bedrock `[region.]vendor.model` ("eu.anthropic.claude-haiku-4-5"),
+ * gateway ids `vendor/model`. Returns null when the id encodes no known family.
+ */
+export function familyFromModelId(
+    modelId: string | null | undefined,
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+): string | null {
+    if (!modelId) return null
+    const families = new Set<string>()
+    for (const caps of Object.values(capabilities ?? {})) {
+        for (const provider of caps?.providers ?? []) families.add(provider.toLowerCase())
+    }
+    if (!families.size) return null
+    for (const token of modelId.toLowerCase().split(/[./]/)) {
+        if (families.has(token)) return token
+    }
+    return null
+}
+
+/**
+ * Grouped model options contributed by the vault's custom_provider connections, so a connection's
+ * own models (e.g. a Bedrock connection's `eu.anthropic.claude-haiku-4-5`) are selectable in the
+ * model picker — not just the harness's static catalog. Filtered to connections whose provider the
+ * harness can consume; each group carries its connection slug in option metadata so picking a model
+ * can reunite it with its agenta-managed credential. Skips connections with no models.
+ */
+export function vaultModelGroups(
+    secrets: VaultModelSource[] | null | undefined,
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+): ModelOptionGroup[] {
+    if (!secrets?.length) return []
+    // A custom_provider's `provider` field is its deployment kind (bedrock/vertex_ai/azure/custom),
+    // gated against the harness's consumable deployments — NOT its provider families.
+    const consumable = allowedDeployments(capabilities, harness)
+    const anyDeployment = consumable.includes("*")
+
+    const groups: ModelOptionGroup[] = []
+    for (const secret of secrets) {
+        const slug = secret.name?.trim()
+        const deployment = secret.provider?.toLowerCase() || null
+        const models = (secret.models ?? []).filter(Boolean)
+        if (!slug || !models.length) continue
+        if (
+            !anyDeployment &&
+            deployment &&
+            !consumable.some((d) => d.toLowerCase() === deployment)
+        ) {
+            continue
+        }
+        groups.push({
+            label: secret.name ?? slug,
+            options: models.map((id) => ({
+                label: id,
+                value: id,
+                metadata: {connectionSlug: slug, provider: secret.provider},
+            })),
+        })
+    }
+    return groups
 }
 
 /**

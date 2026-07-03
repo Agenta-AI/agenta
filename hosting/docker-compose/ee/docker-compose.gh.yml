@@ -81,9 +81,8 @@ services:
         labels:
             - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.api.entrypoints=web"
-            - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
-            - "traefik.http.middlewares.api-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.api.middlewares=api-strip"
+            # Do NOT strip /api: the app is mounted at /api (SCRIPT_NAME + FastAPI root_path).
+            # Forward /api/* unchanged so app-generated redirects keep the prefix.
             - "traefik.http.services.api.loadbalancer.server.port=8000"
             - "traefik.http.routers.api.service=api"
         # === LIFECYCLE ============================================ #
@@ -420,7 +419,7 @@ services:
         environment:
             - SCRIPT_NAME=/services
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
-            - AGENTA_RUNNER_URL=${AGENTA_RUNNER_URL:-http://runner:8765}
+            - AGENTA_RUNNER_INTERNAL_URL=${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
             - AGENTA_AGENT_MCPS_ENABLED=${AGENTA_AGENT_MCPS_ENABLED:-false}
             - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
             - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
@@ -463,7 +462,7 @@ services:
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
             # which does not resolve inside a container. Used by the OTLP tracing-export
             # fallback AND the session heartbeat/record-persist calls.
-            AGENTA_API_URL: ${AGENTA_RUNNER_API_URL:-http://api:8000/api}
+            AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}

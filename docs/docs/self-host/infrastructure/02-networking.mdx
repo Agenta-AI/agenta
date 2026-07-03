@@ -35,7 +35,7 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 │  │     Web     │  │     API     │   │   Services API     │                 │
 │  │   :3000     │  │   :8000     │   │      :8080         │                 │
 │  └─────────────┘  └──────┬──────┘   └─────────┬──────────┘                 │
-│                          │                     │ AGENTA_RUNNER_URL          │
+│                          │                     │                            │
 │                          │ Redis queues         ▼                           │
 │                          │ / streams   ┌─────────────────┐                  │
 │                          │             │  runner :8765   │                  │
@@ -91,7 +91,7 @@ API Container:
 Services API Container:
 ├── → postgres:5432 (agent and service state)
 ├── → LLM providers (model calls)
-└── → runner:8765 (agent run dispatch via AGENTA_RUNNER_URL)
+└── → runner:8765 (agent run dispatch via AGENTA_RUNNER_INTERNAL_URL)
 
 Runner:
 ├── → seaweedfs:8333 or external S3 endpoint (durable storage mount)
@@ -134,7 +134,7 @@ These variables configure how containers communicate internally. Use `REDIS_URI`
 | `REDIS_URI_VOLATILE` | Redis for caches/channels | `redis://redis-volatile:6379/0` | Falls back to `REDIS_URI` |
 | `REDIS_URI_DURABLE` | Redis for queues/streams | `redis://redis-durable:6381/0` | Falls back to `REDIS_URI` |
 | `SUPERTOKENS_CONNECTION_URI` | Auth service | `http://supertokens:3567` | SuperTokens service URL |
-| `AGENTA_RUNNER_URL` | Runner URL | `http://runner:8765` | Points the Services API at the agent runner; default in compose, generated from `agentRunner.*` in Helm |
+| `AGENTA_RUNNER_INTERNAL_URL` | Runner URL | `http://runner:8765` | Points the Services API at the agent runner; default in compose, generated from `agentRunner.*` in Helm |
 
 :::note Daytona sandboxes and the remote compose profile
 Compose deployments using Daytona remote sandboxes require the `remote` compose profile, which starts an ngrok tunnel. The remote sandbox mounts durable storage over the public internet, so the store endpoint must be reachable. Railway and Kubernetes deployments expose the store endpoint publicly and do not need ngrok.
