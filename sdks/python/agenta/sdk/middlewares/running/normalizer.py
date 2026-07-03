@@ -162,21 +162,8 @@ class NormalizerMiddleware:
             result.session_id = session_id
             return result
 
-        # Generator handlers (sync or async) yield events. The per-call `stream`
-        # flag decides the representation: stream -> pass through; otherwise drain
-        # and aggregate into a batch (`history` sets full list vs last only). The
-        # default (flags unset) keeps a generator a stream — back-compat.
+        # Generators always pass through as a stream response; batch/stream is handler-owned.
         if isasyncgen(result) or isgenerator(result):
-            if flags.stream is False:
-                items = await self._drain(result)
-                outputs = items if flags.history else items[-1:]
-                return WorkflowServiceBatchResponse(
-                    data=WorkflowServiceResponseData(outputs=outputs),
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    session_id=session_id,
-                )
-
             iterator = self._async_iterator(result)
             return WorkflowServiceStreamResponse(
                 generator=iterator,
@@ -185,19 +172,9 @@ class NormalizerMiddleware:
                 session_id=session_id,
             )
 
-        # Direct (non-generator) return. Full-vs-last is a property of a `messages` list, so
-        # apply it when the handler returned the `{messages: [...]}` envelope (agent v0's
-        # `outputs.messages`) — the same `history` trim the generator-drain path does above.
-        # A single message / string / scalar (chat, completion, evaluators) has no `messages`
-        # field and passes through untouched. The handler owns its output shape; the normalizer
-        # only honors history once it sees a `messages` list.
-        outputs = result
-        if isinstance(result, dict) and isinstance(result.get("messages"), list):
-            msgs = result["messages"]
-            outputs = {**result, "messages": msgs if flags.history else msgs[-1:]}
-
+        # Direct return passes through unmodified; the handler owns its output shape.
         return WorkflowServiceBatchResponse(
-            data=WorkflowServiceResponseData(outputs=outputs),
+            data=WorkflowServiceResponseData(outputs=result),
             trace_id=trace_id,
             span_id=span_id,
             session_id=session_id,
@@ -219,18 +196,6 @@ class NormalizerMiddleware:
                     yield item
 
         return iterator
-
-    @staticmethod
-    async def _drain(result) -> list:
-        """Consume a sync or async generator fully into a list."""
-        items: list = []
-        if isasyncgen(result):
-            async for item in result:
-                items.append(item)
-        else:
-            for item in result:
-                items.append(item)
-        return items
 
     async def _normalize_exception(
         self,

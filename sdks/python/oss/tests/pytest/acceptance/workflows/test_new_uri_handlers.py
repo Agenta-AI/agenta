@@ -57,8 +57,7 @@ def evaluate(body: str) -> str:
     return f"def evaluate(inputs, output, trace):\n    {body}\n"
 
 
-# Markers indicating the Daytona sandbox backend is unavailable (no usable
-# snapshot/region, depleted credits, suspended org) rather than a code defect.
+# Markers indicating the Daytona sandbox backend is unavailable, not a code defect.
 _DAYTONA_UNAVAILABLE_MARKERS = (
     "Failed to create sandbox",
     "is not available in region",
@@ -521,10 +520,12 @@ class TestLlmV0Acceptance:
         assert retrieve_handler("agenta:builtin:prompt:v0") is None
         assert retrieve_interface("agenta:builtin:prompt:v0") is None
 
-    def test_agent_interface_is_registered_without_handler(self):
-        # The agent builtin ships an interface (schemas) but no in-process handler:
-        # the agent runs in the sidecar, not via a registered SDK callable.
-        assert retrieve_handler("agenta:builtin:agent:v0") is None
+    def test_agent_interface_is_registered_with_handler(self):
+        # agent_v0 is SDK-registered: any SDK process can resolve the URI.
+        handler = retrieve_handler("agenta:builtin:agent:v0")
+        assert handler is not None
+        assert callable(handler)
+
         revision = retrieve_interface("agenta:builtin:agent:v0")
         assert isinstance(revision, WorkflowRevisionData)
         assert revision.uri == "agenta:builtin:agent:v0"

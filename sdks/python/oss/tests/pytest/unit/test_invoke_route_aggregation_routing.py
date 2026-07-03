@@ -1,8 +1,8 @@
 """
 ROUTING: over the REAL `/invoke` route, an `Accept` header is HTTP sugar for the
 canonical `flags.stream` command. A batch Accept (application/json) against a
-streaming handler must AGGREGATE into a batch — not 406 — because the endpoint
-maps Accept -> flags.stream=False and the normalizer drains the generator.
+stream-only handler (generator, no `request` param) 406s — no courtesy
+aggregation (specs.md "Removals").
 
 A stream Accept (text/event-stream) still streams. An explicit `flags.stream` in
 the body wins over the header.
@@ -64,65 +64,66 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
-def _post(client, *, accept, flags=None, history_header=None):
+def _post(
+    client,
+    *,
+    accept,
+    flags=None,
+    transcript_header=None,
+    control_header=None,
+    embeds_header=None,
+):
     body = {"data": {"inputs": {"value": "x"}}}
     if flags is not None:
         body["flags"] = flags
     headers = {"accept": accept}
-    if history_header is not None:
-        headers["x-ag-messages-history"] = history_header
+    if transcript_header is not None:
+        headers["x-ag-messages-transcript"] = transcript_header
+    if control_header is not None:
+        headers["x-ag-session-control"] = control_header
+    if embeds_header is not None:
+        headers["x-ag-workflow-embeds"] = embeds_header
     return client.post("/invoke", json=body, headers=headers)
 
 
-def test_json_accept_aggregates_streaming_handler_to_batch():
+def test_json_accept_on_stream_only_handler_is_406():
     with _offline_tracing():
-        resp = _post(_client(), accept="application/json", flags={"history": True})
+        resp = _post(_client(), accept="application/json", flags={"trim": True})
 
-    assert resp.status_code == 200
-    assert "application/json" in resp.headers["content-type"]
-    body = resp.json()
-    assert body["data"]["outputs"] == ["a:x", "b:x"]
+    assert resp.status_code == 406
 
 
-def test_json_accept_default_history_is_last_only():
+def test_json_accept_default_on_stream_only_handler_is_406():
     with _offline_tracing():
         resp = _post(_client(), accept="application/json")
 
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["data"]["outputs"] == ["b:x"]
+    assert resp.status_code == 406
 
 
-def test_history_full_header_keeps_full_list():
-    # Negotiation 3: `x-ag-messages-history: full` is HTTP sugar for `flags.history=True`,
-    # mirroring Accept->stream. A batch Accept aggregates; history=full keeps all events.
+def test_transcript_last_header_on_stream_only_handler_is_406():
     with _offline_tracing():
-        resp = _post(_client(), accept="application/json", history_header="full")
+        resp = _post(_client(), accept="application/json", transcript_header="last")
 
-    assert resp.status_code == 200
-    assert resp.json()["data"]["outputs"] == ["a:x", "b:x"]
+    assert resp.status_code == 406
 
 
-def test_history_last_header_trims_to_last():
+def test_transcript_full_header_on_stream_only_handler_is_406():
     with _offline_tracing():
-        resp = _post(_client(), accept="application/json", history_header="last")
+        resp = _post(_client(), accept="application/json", transcript_header="full")
 
-    assert resp.status_code == 200
-    assert resp.json()["data"]["outputs"] == ["b:x"]
+    assert resp.status_code == 406
 
 
-def test_explicit_history_flag_wins_over_header():
-    # body flag history=True must NOT be overridden by the `last` header (body wins).
+def test_explicit_trim_flag_on_stream_only_handler_is_406():
     with _offline_tracing():
         resp = _post(
             _client(),
             accept="application/json",
-            flags={"history": True},
-            history_header="last",
+            flags={"trim": True},
+            transcript_header="last",
         )
 
-    assert resp.status_code == 200
-    assert resp.json()["data"]["outputs"] == ["a:x", "b:x"]
+    assert resp.status_code == 406
 
 
 def test_sse_accept_still_streams():
@@ -134,12 +135,10 @@ def test_sse_accept_still_streams():
 
 
 def test_explicit_stream_flag_wins_over_accept():
-    # body says stream=True; a json Accept must NOT override it back to batch.
+    # body stream=True must win over a json Accept -> 406, not overridden to batch.
     with _offline_tracing():
         resp = _post(_client(), accept="application/json", flags={"stream": True})
 
-    # stream=True forces a streaming response; json Accept then can't be satisfied
-    # as a stream -> 406 (the explicit command won, the header lost).
     assert resp.status_code == 406
 
 
@@ -151,8 +150,7 @@ def _error_client() -> TestClient:
         request.state.auth = {}
         return await call_next(request)
 
-    # Mirrors the real agent handler: an async function that raises while resolving
-    # (NOT a generator) — the normalizer catches it into a batch error response.
+    # Raises while resolving (not a generator) -> normalizer catches it as a batch error.
     @route("/", app=app)
     async def wf(value: str = "x"):
         raise ValueError("boom")
@@ -161,9 +159,7 @@ def _error_client() -> TestClient:
 
 
 def test_error_with_stream_accept_returns_json_error_not_406():
-    # An errored handler yields a batch error response even though the caller asked
-    # for a stream. The route must surface the real error (JSON, the handler's code)
-    # instead of 406ing on the format mismatch — a 406 would mask the actual error.
+    # Route must surface the real error, not 406 on the format mismatch.
     with _offline_tracing():
         resp = _post(_error_client(), accept="text/event-stream")
 
@@ -202,9 +198,7 @@ def _branching_client() -> TestClient:
 
 
 def test_stream_accept_drives_handler_flags_stream_to_generator_branch():
-    # The negotiated stream decision (Accept -> flags.stream) must reach a handler
-    # reading request.flags.stream, so it takes its generator branch — otherwise it
-    # returns a batch and the route 406s the stream request (the agent's failure mode).
+    # Negotiated stream decision must reach request.flags.stream to pick the generator branch.
     with _offline_tracing():
         resp = _branching_client().post(
             "/invoke",
@@ -224,6 +218,36 @@ def test_json_accept_drives_handler_flags_stream_to_batch_branch():
             headers={"accept": "application/json"},
         )
 
+    assert resp.status_code == 200
+    assert resp.json()["data"]["outputs"] == "batch:x"
+
+
+# force/embeds headers stay inert on the branching client (doesn't read those flags).
+def test_force_header_inert_on_batch_branch():
+    with _offline_tracing():
+        resp = _post(
+            _branching_client(), accept="application/json", control_header="force"
+        )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["outputs"] == "batch:x"
+
+
+def test_force_header_inert_on_stream_branch():
+    with _offline_tracing():
+        resp = _post(
+            _branching_client(),
+            accept="text/event-stream",
+            control_header="force",
+        )
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers["content-type"]
+
+
+def test_embeds_header_inert_on_batch_branch():
+    with _offline_tracing():
+        resp = _post(
+            _branching_client(), accept="application/json", embeds_header="resolve"
+        )
     assert resp.status_code == 200
     assert resp.json()["data"]["outputs"] == "batch:x"
 

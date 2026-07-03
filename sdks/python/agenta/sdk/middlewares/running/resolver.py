@@ -601,6 +601,9 @@ class ResolverMiddleware:
         # The embed resolver walks arrays, so an `@ag.embed` inside `parameters.skills[i]`
         # resolves on either path.
         resolve_flag = (request.flags or {}).get("resolve", True)
+        # Strip so the handler never sees a middleware-owned flag.
+        if request.flags and "resolve" in request.flags:
+            request.flags = {k: v for k, v in request.flags.items() if k != "resolve"}
 
         if request.data.parameters:
             if resolve_flag and _has_embed_markers(request.data.parameters):

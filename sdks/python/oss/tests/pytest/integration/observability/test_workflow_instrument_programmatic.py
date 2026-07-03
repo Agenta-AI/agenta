@@ -216,12 +216,7 @@ async def test_nested_task_is_child_of_workflow_root(in_memory_tracing):
     assert len(children) == 1, "expected exactly one nested task span"
     child = children[0]
     assert child.name == "inner"
-    # nested span keeps its declared type and is NOT promoted to workflow.
-    # NB: a bare @instrument() records the UPPERCASE "TASK" — the deprecated
-    # `spankind="TASK"` default wins over `type="task"` in instrument.__init__
-    # (`self.type = spankind or kind or type`). The root, by contrast, is forced
-    # to lowercase "workflow" by _parse_type_and_kind. Asserting the real values
-    # documents that casing asymmetry rather than papering over it.
+    # bare @instrument() records uppercase "TASK", unlike the root's lowercase "workflow".
     assert _attr(child, "ag.type.node") == "TASK"
     assert child.kind == SpanKind.INTERNAL
     assert _attr(child, "ag.data.outputs.__default__") == "inner:z"
@@ -255,8 +250,7 @@ async def test_raising_function_records_error_status(in_memory_tracing):
     def wf(value: str):
         raise RuntimeError("boom")
 
-    # The normalizer converts the handler exception into an error batch response;
-    # the span must still be ended with ERROR status + a recorded exception event.
+    # span must end with ERROR status + a recorded exception event.
     response = await wf.invoke(request=_request())
     assert isinstance(response, WorkflowServiceBatchResponse)
     assert response.status is not None and response.status.code >= 400
@@ -353,9 +347,7 @@ async def test_ignore_outputs_drops_outputs_from_trace(in_memory_tracing):
 
 
 # --------------------------------------------------------------------------- #
-# Faithful big-agents `/invoke` shapes via the real mock_v0 behaviors
-# (Agenta messages envelope = batch; Agenta events {type,data} = stream).
-# These prove the trace captures the genuine wire shapes, not ad-hoc dummies.
+# Faithful big-agents `/invoke` shapes via the real mock_v0 behaviors.
 # --------------------------------------------------------------------------- #
 from agenta.sdk.workflows.handlers import _mock_messages, _mock_events  # noqa: E402
 
@@ -373,9 +365,7 @@ async def test_agent_messages_envelope_trace(in_memory_tracing):
 
     root = _roots(in_memory_tracing.finished_spans())[0]
     _assert_workflow_root(root, name="wf")
-    # the {messages:[...]} dict is NOT the {message,cost,usage} shape, so _patch
-    # passes it through; at max_depth=2 the messages list lands JSON-encoded under
-    # ag.data.outputs.messages.
+    # not the {message,cost,usage} shape, so _patch passes it through unchanged.
     msgs = _json_attr(root, "ag.data.outputs.messages")
     assert isinstance(msgs, list)
     assert msgs[-1]["role"] == "assistant" and msgs[-1]["content"] == "reply:m"
@@ -385,8 +375,7 @@ async def test_agent_messages_envelope_trace(in_memory_tracing):
 async def test_agent_events_stream_trace(in_memory_tracing):
     @workflow()
     async def wf(value: str):
-        # stream agent shape: yield the agenta event stream {type, data}
-        # (mirrors _agent_event_stream). mock_v0 `events` is the source vocab.
+        # stream agent shape: yield the agenta event stream {type, data}.
         async for ev in _mock_events(text=f"reply {value}"):
             yield ev
 
@@ -398,9 +387,193 @@ async def test_agent_events_stream_trace(in_memory_tracing):
 
     root = _roots(in_memory_tracing.finished_spans())[0]
     _assert_workflow_root(root, name="wf")
-    # the generator span captured the drained event list (chunks are dicts, not
-    # str, so they are NOT joined) — JSON-encoded under ag.data.outputs.__default__.
+    # dict chunks are not joined; captured as a JSON-encoded list.
     captured = _json_attr(root, "ag.data.outputs.__default__")
     assert isinstance(captured, list)
     assert captured[0]["type"] == "message_start"
     assert captured[-1]["type"] == "done"
+
+
+# --------------------------------------------------------------------------- #
+# 5-axis negotiation INVARIANCE: stream x format x transcript x control x embeds.
+# `format` is HTTP-only and exercised at the routed layer instead; programmatically
+# the remaining axes collapse to stream/trim/force/resolve booleans, swept in full.
+# --------------------------------------------------------------------------- #
+from agenta.sdk.agents.fold import fold, trim_to_trailing_unit  # noqa: E402
+from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error  # noqa: E402
+from agenta.sdk.models.workflows import WorkflowInvokeRequestFlags  # noqa: E402
+
+
+def _agent_shaped_request(*, stream=None, trim=None, force=None, resolve=None):
+    flags = {}
+    if stream is not None:
+        flags["stream"] = stream
+    if trim is not None:
+        flags["trim"] = trim
+    if force is not None:
+        flags["force"] = force
+    if resolve is not None:
+        flags["resolve"] = resolve
+    return WorkflowServiceRequest(data={"inputs": {"value": "x"}}, flags=flags)
+
+
+# Split into batch/stream/dispatcher since one `async def` can't both return and yield.
+async def _agent_shaped_batch(value: str, *, trim: bool):
+    events = [ev async for ev in _mock_events(text=f"reply {value}", tool="search")]
+    folded = fold(events)
+    messages = folded["messages"]
+    if trim:
+        messages = trim_to_trailing_unit(messages)
+    return {"messages": messages, "stop_reason": folded.get("stop_reason")}
+
+
+async def _agent_shaped_stream(value: str):
+    async for ev in _mock_events(text=f"reply {value}", tool="search"):
+        yield ev
+
+
+def _build_agent_shaped_workflow():
+    @workflow()
+    async def wf(request, value: str):
+        flags = WorkflowInvokeRequestFlags(**(request.flags or {}))
+        if flags.force:
+            raise ForceNotSupportedV0Error()
+        if flags.stream:
+            return _agent_shaped_stream(value)  # generator object, NOT awaited
+        return await _agent_shaped_batch(value, trim=bool(flags.trim))
+
+    return wf
+
+
+_TRI = (None, False, True)
+
+
+@pytest.mark.parametrize("resolve", _TRI)
+@pytest.mark.parametrize("trim", _TRI)
+@pytest.mark.parametrize("stream", _TRI)
+@pytest.mark.asyncio
+async def test_agent_shaped_trace_invariant_across_stream_trim_resolve(
+    in_memory_tracing, stream, trim, resolve
+):
+    """Non-406 corner of the cube: span tree + accumulated outputs identical
+    regardless of stream/trim/resolve, even though the RESPONSE demonstrably
+    varies (stream flips shape; trim drops the tool-call/tool-result pair)."""
+    wf = _build_agent_shaped_workflow()
+    request = _agent_shaped_request(
+        stream=stream, trim=trim, force=None, resolve=resolve
+    )
+    response = await wf.invoke(request=request)
+
+    if stream:
+        assert isinstance(response, WorkflowServiceStreamResponse)
+        events = await _collect(response)
+        # tool="search" makes tool_call the first event; done is always terminal.
+        assert events[0]["type"] == "tool_call" and events[-1]["type"] == "done"
+    else:
+        assert isinstance(response, WorkflowServiceBatchResponse)
+        messages = response.data.outputs["messages"]
+        if trim:
+            assert messages == [{"role": "assistant", "content": "reply x "}]
+        else:
+            assert len(messages) == 3  # tool_call + tool_result + assistant
+
+    roots = _roots(in_memory_tracing.finished_spans())
+    assert len(roots) == 1, f"expected exactly one root span, got {len(roots)}"
+    root = roots[0]
+    _assert_workflow_root(root, name="wf")
+
+    # ACCUMULATED OUTPUT invariance: span always captures the full, untrimmed turn.
+    if stream:
+        captured = _json_attr(root, "ag.data.outputs.__default__")
+        assert isinstance(captured, list) and len(captured) >= 5
+        assert captured[0]["type"] == "tool_call"
+        assert captured[-1]["type"] == "done"
+    else:
+        msgs = _json_attr(root, "ag.data.outputs.messages")
+        # span output equals whatever the handler returned (trim applied inside it).
+        if trim:
+            assert msgs == [{"role": "assistant", "content": "reply x "}]
+        else:
+            assert len(msgs) == 3
+
+
+@pytest.mark.parametrize("resolve", _TRI)
+@pytest.mark.parametrize("trim", _TRI)
+@pytest.mark.parametrize("stream", _TRI)
+@pytest.mark.asyncio
+async def test_agent_shaped_resolve_never_alters_trace_for_fixed_stream_trim(
+    in_memory_tracing, stream, trim, resolve
+):
+    """Isolate `resolve` (middleware-owned, stripped pre-handler): holding
+    stream/trim fixed, the span tree + accumulated outputs must be BYTE-IDENTICAL
+    across every `resolve` value (None/False/True) — resolve never reaches the
+    handler, so nothing it does can vary with it. Runs the request twice (resolve
+    unset vs the given value) and diffs the two span signatures."""
+
+    def _signature(root):
+        base = {
+            "name": root.name,
+            "parent": root.parent,
+            "kind": root.kind,
+            "status": root.status.status_code,
+            "inputs_value": _attr(root, "ag.data.inputs.value"),
+        }
+        if stream:
+            base["outputs"] = _json_attr(root, "ag.data.outputs.__default__")
+        else:
+            base["outputs"] = _json_attr(root, "ag.data.outputs.messages")
+        return base
+
+    wf = _build_agent_shaped_workflow()
+
+    request_a = _agent_shaped_request(stream=stream, trim=trim, resolve=None)
+    response_a = await wf.invoke(request=request_a)
+    if stream:
+        await _collect(response_a)
+    root_a = _roots(in_memory_tracing.finished_spans())[-1]
+    sig_a = _signature(root_a)
+
+    in_memory_tracing.clear()
+
+    wf2 = _build_agent_shaped_workflow()
+    request_b = _agent_shaped_request(stream=stream, trim=trim, resolve=resolve)
+    response_b = await wf2.invoke(request=request_b)
+    if stream:
+        await _collect(response_b)
+    root_b = _roots(in_memory_tracing.finished_spans())[-1]
+    sig_b = _signature(root_b)
+
+    assert sig_a == sig_b, "resolve must never change the span tree or its outputs"
+
+
+# --------------------------------------------------------------------------- #
+# The 406 path: force=True raises from inside the handler; span records the
+# error but never any ag.data.outputs, regardless of stream/trim/resolve.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("resolve", _TRI)
+@pytest.mark.parametrize("trim", _TRI)
+@pytest.mark.parametrize("stream", _TRI)
+@pytest.mark.asyncio
+async def test_agent_shaped_force_true_pins_406_error_trace(
+    in_memory_tracing, stream, trim, resolve
+):
+    wf = _build_agent_shaped_workflow()
+    request = _agent_shaped_request(
+        stream=stream, trim=trim, force=True, resolve=resolve
+    )
+    response = await wf.invoke(request=request)
+
+    # normalizer maps the raised ForceNotSupportedV0Error to a 406 batch response.
+    assert isinstance(response, WorkflowServiceBatchResponse)
+    assert response.status is not None and response.status.code == 406
+
+    roots = _roots(in_memory_tracing.finished_spans())
+    assert len(roots) == 1, f"expected exactly one root span, got {len(roots)}"
+    root = roots[0]
+    assert root.name == "wf"
+    assert root.parent is None
+    assert root.status.status_code == StatusCode.ERROR
+    assert any(e.name == "exception" for e in root.events), "exception event recorded"
+    # no output was ever produced — the handler raised before returning/yielding.
+    assert _attr(root, "ag.data.outputs.__default__") is None
+    assert _json_attr(root, "ag.data.outputs.messages") is None

@@ -1,11 +1,9 @@
-"""Agent workflow app: the ``/invoke`` handler, wired onto the SDK agent runtime.
+"""Agent workflow app: composition + mount over the SDK's `agent_v0` handler.
 
 Mirrors the chat/completion services: an Agenta app exposing ``/invoke`` and ``/inspect``
-through ``ag.create_app`` + ``ag.workflow`` + ``ag.route``. The handler parses the request
-into one neutral ``AgentTemplate`` (``agenta.sdk.agents``), resolves tools (``tools``) and one
-least-privilege model connection (``resolve_connection``) server-side, threads the trace
-context (``tracing``), then runs one turn through a :class:`Harness` over a backend it picks
-from the config's run-selection fields, and records the run's usage.
+through ``ag.create_app`` + ``ag.workflow`` + ``ag.route``. Supplies service-specific
+composition (template, tool resolver, secret provider) over
+``agenta.sdk.agents.handler``, which owns the stream/batch/fold/trim/force contract.
 
 The sandbox-agent-backed backend is the production path. The transport is a deployment
 choice: HTTP to `AGENTA_RUNNER_INTERNAL_URL`, or a local runner CLI in a source checkout.
@@ -41,9 +39,11 @@ from agenta.sdk.agents.connections import (
     UnsupportedProviderError,
 )
 
+from agenta.sdk.agents.handler import agent_batch, agent_event_stream
 from agenta.sdk.agents.platform import resolve_connection
 
 from agenta.sdk.decorators.tracing import auto_instrument
+from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 from agenta.sdk.engines.running.utils import (
     register_handler,
     register_interface,
@@ -210,8 +210,10 @@ async def _agent(
     messages: Optional[List[Any]] = None,
     parameters: Optional[Dict] = None,
 ):
-    # The stream decision is a flag, negotiated from Accept at the HTTP edge.
-    stream = WorkflowInvokeRequestFlags(**(request.flags or {})).stream
+    """Service composition over `agenta.sdk.agents.handler`'s stream/batch/fold/trim/force."""
+    flags = WorkflowInvokeRequestFlags(**(request.flags or {}))
+    if flags.force:
+        raise ForceNotSupportedV0Error()
     # session_id is resolved (echoed/minted) by the normalizer onto the request.
     session_id = request.session_id
 
@@ -266,59 +268,14 @@ async def _agent(
         agent_template.harness, Environment(select_backend(agent_template))
     )
 
-    # ONE path: always stream. The agent only ever runs the streaming transport; the per-call
-    # `stream` flag (negotiated from Accept) decides the SHAPE we hand the running layer:
-    #   - stream -> yield the live agenta event stream (the AgentStream's AgentEvents as
-    #     `{type, data}`). Routing projects these to vercel/sse per `x-ag-messages-format`.
-    #   - batch  -> drain the same stream and coalesce the `{messages: [...]}` envelope from the
-    #     terminal AgentResult. Agent v0 output is `outputs.messages`, mirroring `inputs.messages`.
-    # The one-shot `prompt()` transport is DEV-ONLY and never used here. Coalescing is agent-owned
-    # (it needs the AgentStream's terminal result), so the generic normalizer stays shape-agnostic.
-    if stream:
-        return _agent_event_stream(harness, session_config, msgs)
-    return await _agent_batch(harness, session_config, msgs)
-
-
-async def _agent_event_stream(harness, session_config, msgs):
-    """Run one streaming turn and yield the live agenta event stream.
-
-    Yields each ``Event`` as a neutral ``{type, data}`` dict (the agenta wire). Routing
-    projects them to vercel/sse when the caller asks; the handler never emits vercel. Usage is
-    recorded in the ``finally`` once the stream fully drains (guarded: a failed/aborted stream
-    has no terminal result). Owns the environment lifecycle (``setup`` / ``cleanup``).
-    """
-    await harness.setup()
-    run = await harness.stream(session_config, msgs)
-    try:
-        async for event in run:
-            yield {"type": event.type, "data": event.data}
-    finally:
-        try:
-            record_usage(run.result().usage)
-        except Exception:  # result unavailable on a failed/aborted stream
-            pass
-        await harness.cleanup()
-
-
-async def _agent_batch(harness, session_config, msgs):
-    """Drain the streaming turn and return the ``{messages: [...]}`` output envelope.
-
-    Always uses the streaming transport (``stream()``), draining it to the terminal
-    ``AgentResult`` — the same coalesced result the dev-only one-shot path would return.
-    Agent v0's output is ``outputs.messages`` (an object with a ``messages`` field of type
-    ``messages``), unlike chat/completion whose ``outputs`` IS the single message. The
-    normalizer's full-vs-last (`flags.history`) trims the inner list. Owns the lifecycle.
-    """
-    await harness.setup()
-    try:
-        run = await harness.stream(session_config, msgs)
-        async for _ in run:  # drain to the terminal result
-            pass
-        result = run.result()
-    finally:
-        await harness.cleanup()
-    record_usage(result.usage)
-    return {"messages": [{"role": "assistant", "content": result.output}]}
+    # stream -> event stream; batch -> fold(stream), trimmed when asked.
+    if flags.stream:
+        return agent_event_stream(
+            harness, session_config, msgs, record_usage=record_usage
+        )
+    return await agent_batch(
+        harness, session_config, msgs, trim=flags.trim, record_usage=record_usage
+    )
 
 
 AGENT_URI = "agenta:builtin:agent:v0"

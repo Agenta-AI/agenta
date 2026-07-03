@@ -10,10 +10,10 @@ sweep all three negotiation axes against all four handler shapes:
     shape     ∈ {sync-fn, async-fn, sync-gen, async-gen}     (handler return type)
     transport ∈ {none, application/json, text/event-stream, application/x-ndjson}   (Accept)
     format    ∈ {agenta (default), vercel}                   (x-ag-messages-format)
-    history   ∈ {unset/last, full}                           (x-ag-messages-history)
+    transcript ∈ {unset/last, full}                       (x-ag-messages-transcript)
 
 It asserts the RESPONSE (status, media type, body/stream framing, vercel projection,
-history trim). It does NOT assert traces — the span tree is invariant across these
+transcript trim). It does NOT assert traces — the span tree is invariant across these
 axes (see otel-instrument-test-plan.md §3), so trace structure/content is asserted
 once-per-shape programmatically (integration/observability) and over a live backend
 (acceptance/observability/test_workflow_instrument_routed.py).
@@ -33,9 +33,7 @@ from fastapi.testclient import TestClient
 from agenta.sdk.decorators.routing import route
 
 
-# --------------------------------------------------------------------------- #
 # Offline runtime (tracing + singleton not under test)
-# --------------------------------------------------------------------------- #
 @contextmanager
 def _offline_tracing():
     with (
@@ -61,27 +59,16 @@ def _offline_tracing():
         yield
 
 
-# --------------------------------------------------------------------------- #
-# Handlers — the per-layer shapes `/invoke` actually carries (see services agent
-# app.py): the BATCH path returns the canonical agent `{messages:[{role,content}]}`
-# envelope (Agenta messages), the STREAM path yields Agenta EVENTS `{type, data}`
-# (the AgentStream's AgentEvents — message_start/_delta/_end, usage, done). The
-# stream handlers delegate to the real mock_v0 `events` behavior so the wire is
-# the genuine agenta event vocabulary, not ad-hoc chunks.
-#
-# We keep the four Python shapes (sync/async × batch/stream) because the routing
-# + normalizer behavior is shape-sensitive; only the PAYLOAD is made faithful.
-# --------------------------------------------------------------------------- #
+# Handlers mirror the per-layer shapes /invoke carries (see services agent app.py):
+# batch returns the agent {messages:[...]} envelope, stream yields agenta events {type, data}.
 from agenta.sdk.workflows.handlers import _mock_messages, _mock_events  # noqa: E402
 
 
 def _batch_envelope(value: str):
-    # Mirrors _mock_messages / _agent_batch: the {messages:[...]} output envelope.
     return _mock_messages(text=f"reply:{value}")
 
 
 async def _event_stream(value: str):
-    # Mirrors _agent_event_stream: yield the agenta event stream {type, data}.
     async for ev in _mock_events(text=f"reply {value}"):
         yield ev
 
@@ -110,8 +97,7 @@ def _build_app(shape: str) -> FastAPI:
 
         @route("/", app=app)
         def wf(value: str = "x"):
-            # sync generator yielding the same agenta event vocabulary (a sync gen
-            # cannot drive the async mock, so emit the canonical events directly).
+            # sync gen can't drive the async mock, so emit the canonical events directly
             yield {"type": "message_start", "data": {"id": "msg-1"}}
             yield {
                 "type": "message_delta",
@@ -137,14 +123,27 @@ def _client(shape: str) -> TestClient:
     return TestClient(_build_app(shape))
 
 
-def _post(client, *, accept=None, fmt=None, history=None, flags=None):
+def _post(
+    client,
+    *,
+    accept=None,
+    fmt=None,
+    transcript=None,
+    control=None,
+    embeds=None,
+    flags=None,
+):
     headers = {}
     if accept is not None:
         headers["accept"] = accept
     if fmt is not None:
         headers["x-ag-messages-format"] = fmt
-    if history is not None:
-        headers["x-ag-messages-history"] = history
+    if transcript is not None:
+        headers["x-ag-messages-transcript"] = transcript
+    if control is not None:
+        headers["x-ag-session-control"] = control
+    if embeds is not None:
+        headers["x-ag-workflow-embeds"] = embeds
     body = {"data": {"inputs": {"value": "x"}}}
     if flags is not None:
         body["flags"] = flags
@@ -156,9 +155,7 @@ BATCH_SHAPES = ["sync-fn", "async-fn"]
 STREAM_SHAPES = ["sync-gen", "async-gen"]
 
 
-# =========================================================================== #
 # AXIS 1 — transport (Accept) x shape
-# =========================================================================== #
 @pytest.mark.parametrize("shape", BATCH_SHAPES)
 @pytest.mark.parametrize("accept", [None, "application/json"])
 def test_batch_shape_batch_accept_is_json(shape, accept):
@@ -166,7 +163,6 @@ def test_batch_shape_batch_accept_is_json(shape, accept):
         resp = _post(_client(shape), accept=accept)
     assert resp.status_code == 200
     assert "application/json" in resp.headers["content-type"]
-    # batch shape returns the canonical agent envelope: one assistant message.
     msgs = resp.json()["data"]["outputs"]["messages"]
     assert msgs[-1]["role"] == "assistant"
     assert msgs[-1]["content"] == "reply:x"
@@ -175,30 +171,24 @@ def test_batch_shape_batch_accept_is_json(shape, accept):
 @pytest.mark.parametrize("shape", BATCH_SHAPES)
 @pytest.mark.parametrize("accept", ["text/event-stream", "application/x-ndjson"])
 def test_batch_shape_stream_accept_is_406(shape, accept):
-    # A pure batch handler cannot satisfy a stream Accept -> 406.
+    # pure batch handler can't satisfy a stream Accept
     with _offline_tracing():
         resp = _post(_client(shape), accept=accept)
     assert resp.status_code == 406
 
 
 @pytest.mark.parametrize("shape", STREAM_SHAPES)
-def test_stream_shape_no_accept_aggregates_to_batch(shape):
-    # Over the REAL route, the endpoint sets `flags.stream = (accept in STREAM_TYPES)`.
-    # With no Accept (`*/*`/absent), _parse_accept returns None, so stream=False and
-    # the normalizer drains the generator to a BATCH JSON response. This differs from
-    # the handle_invoke_success-level "stream + none -> ndjson" in
-    # test_workflow_negotiation_routing.py: that test feeds an already-built stream
-    # response; here the endpoint decides stream=False BEFORE the handler runs. To get
-    # ndjson with no Accept, set body flags.stream=True explicitly.
+def test_stream_shape_no_accept_is_natural_stream(shape):
+    # no Accept -> serves the handler's natural stream shape as ndjson, no aggregation
     with _offline_tracing():
         resp = _post(_client(shape), accept=None)
     assert resp.status_code == 200
-    assert "application/json" in resp.headers["content-type"]
+    assert "application/x-ndjson" in resp.headers["content-type"]
 
 
 @pytest.mark.parametrize("shape", STREAM_SHAPES)
 def test_stream_shape_no_accept_with_stream_flag_is_ndjson(shape):
-    # The explicit per-call command restores streaming when there is no Accept header.
+    # explicit stream flag restores streaming with no Accept header
     with _offline_tracing():
         resp = _post(_client(shape), accept=None, flags={"stream": True})
     assert resp.status_code == 200
@@ -222,45 +212,27 @@ def test_stream_shape_ndjson_accept_is_ndjson(shape):
 
 
 @pytest.mark.parametrize("shape", STREAM_SHAPES)
-def test_stream_shape_json_accept_aggregates_events_to_batch(shape):
-    # The invoke-absorbs-messages behavior: a batch Accept maps to flags.stream=False;
-    # the normalizer drains the AGENTA EVENT generator into a batch list instead of
-    # 406ing. Aggregating an event stream yields the event list (NOT a coalesced
-    # messages envelope — that's the agent's separate _agent_batch path). history
-    # defaults to last -> only the final event (`done`) survives.
+def test_stream_shape_json_accept_is_406(shape):
     with _offline_tracing():
         resp = _post(_client(shape), accept="application/json")
-    assert resp.status_code == 200
-    assert "application/json" in resp.headers["content-type"]
-    outputs = resp.json()["data"]["outputs"]
-    assert outputs[-1]["type"] == "done"  # last event is the terminal `done`
+    assert resp.status_code == 406
 
 
-# =========================================================================== #
-# AXIS 3 — history x shape (batch direction; full vs last)
-# =========================================================================== #
+# AXIS 3 — transcript x shape (batch direction; full vs last)
 @pytest.mark.parametrize("shape", STREAM_SHAPES)
-def test_stream_shape_json_accept_history_full_keeps_all_events(shape):
+def test_stream_shape_json_accept_with_transcript_header_is_406(shape):
+    # transcript header can't rescue a batch Accept against a stream-only handler
     with _offline_tracing():
-        resp = _post(_client(shape), accept="application/json", history="full")
-    assert resp.status_code == 200
-    outputs = resp.json()["data"]["outputs"]
-    # full -> every agenta event retained, in order, ending with `done`.
-    types = [e["type"] for e in outputs]
-    assert types[0] == "message_start"
-    assert "message_delta" in types
-    assert types[-1] == "done"
+        resp = _post(_client(shape), accept="application/json", transcript="last")
+    assert resp.status_code == 406
 
 
 @pytest.mark.parametrize("shape", BATCH_SHAPES)
 def test_batch_envelope_history_trims_messages_list(shape):
-    # For a direct {messages:[...]} return, history trims the messages LIST in
-    # place (normalizer's direct-return branch). The agent batch envelope here has
-    # a single assistant message, so full and last are both length 1 — assert the
-    # trim path runs and the message is preserved either way.
+    # trim trims the messages list in place; here full and last are both length 1
     with _offline_tracing():
-        full = _post(_client(shape), accept="application/json", history="full")
-        last = _post(_client(shape), accept="application/json", history="last")
+        full = _post(_client(shape), accept="application/json", transcript="full")
+        last = _post(_client(shape), accept="application/json", transcript="last")
     assert full.status_code == last.status_code == 200
     full_msgs = full.json()["data"]["outputs"]["messages"]
     last_msgs = last.json()["data"]["outputs"]["messages"]
@@ -268,19 +240,15 @@ def test_batch_envelope_history_trims_messages_list(shape):
     assert last_msgs[0]["content"] == "reply:x"
 
 
-# =========================================================================== #
 # AXIS 2 — format (agenta vs vercel) x shape
-# =========================================================================== #
 @pytest.mark.parametrize("shape", BATCH_SHAPES)
 def test_batch_vercel_projects_messages_and_sets_headers(shape):
     with _offline_tracing():
         resp = _post(_client(shape), accept="application/json", fmt="vercel")
     assert resp.status_code == 200
     assert resp.headers.get("x-ag-messages-format") == "vercel"
-    # The agenta {messages:[...]} envelope is projected to Vercel UIMessage[].
     messages = resp.json()["data"]["outputs"]["messages"]
     assert isinstance(messages, list) and len(messages) >= 1
-    # UIMessage carries `parts` (vercel shape), not the raw agenta `content` string.
     assert any("parts" in m for m in messages), "expected projected UIMessage parts"
 
 
@@ -290,7 +258,6 @@ def test_batch_agenta_format_is_passthrough(shape):
         resp = _post(_client(shape), accept="application/json", fmt="agenta")
     assert resp.status_code == 200
     messages = resp.json()["data"]["outputs"]["messages"]
-    # agenta canonical shape keeps role/content, no `parts` projection.
     assert all("content" in m for m in messages)
 
 
@@ -301,7 +268,6 @@ def test_stream_vercel_is_sse_with_vercel_headers(shape):
     assert resp.status_code == 200
     assert "text/event-stream" in resp.headers["content-type"]
     assert resp.headers.get("x-ag-messages-format") == "vercel"
-    # The Vercel UI message stream terminates with `data: [DONE]`.
     assert "[DONE]" in resp.text
 
 
@@ -311,35 +277,86 @@ def test_stream_agenta_sse_is_plain_sse(shape):
         resp = _post(_client(shape), accept="text/event-stream", fmt="agenta")
     assert resp.status_code == 200
     assert "text/event-stream" in resp.headers["content-type"]
-    # plain SSE frames the agenta envelopes as `data: {json}` (no vercel [DONE]).
     assert "data:" in resp.text
 
 
-# =========================================================================== #
+# AXIS 4 — control (x-ag-session-control: force) x shape
+# these synthetic shapes take no `request` param, so force is inert for them either way
+@pytest.mark.parametrize("shape", BATCH_SHAPES)
+def test_batch_shape_force_header_is_inert(shape):
+    with _offline_tracing():
+        resp = _post(_client(shape), accept="application/json", control="force")
+    assert resp.status_code == 200
+    assert resp.json()["data"]["outputs"]["messages"][-1]["content"] == "reply:x"
+
+
+@pytest.mark.parametrize("shape", BATCH_SHAPES)
+def test_batch_shape_force_body_flag_is_inert(shape):
+    with _offline_tracing():
+        resp = _post(_client(shape), accept="application/json", flags={"force": True})
+    assert resp.status_code == 200
+    assert resp.json()["data"]["outputs"]["messages"][-1]["content"] == "reply:x"
+
+
+@pytest.mark.parametrize("shape", STREAM_SHAPES)
+def test_stream_shape_force_header_is_inert(shape):
+    with _offline_tracing():
+        resp = _post(_client(shape), accept="text/event-stream", control="force")
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers["content-type"]
+
+
+@pytest.mark.parametrize("shape", STREAM_SHAPES)
+def test_stream_shape_force_body_flag_is_inert(shape):
+    with _offline_tracing():
+        resp = _post(_client(shape), accept="text/event-stream", flags={"force": True})
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers["content-type"]
+
+
+# AXIS 5 — embeds (x-ag-workflow-embeds: resolve) x shape
+# resolve is stripped by ResolverMiddleware before any handler runs; inert here too
+@pytest.mark.parametrize("shape", BATCH_SHAPES)
+def test_batch_shape_embeds_header_is_inert(shape):
+    with _offline_tracing():
+        resp = _post(_client(shape), accept="application/json", embeds="resolve")
+    assert resp.status_code == 200
+    assert resp.json()["data"]["outputs"]["messages"][-1]["content"] == "reply:x"
+
+
+@pytest.mark.parametrize("shape", STREAM_SHAPES)
+def test_stream_shape_embeds_header_is_inert(shape):
+    with _offline_tracing():
+        resp = _post(_client(shape), accept="text/event-stream", embeds="resolve")
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers["content-type"]
+
+
+@pytest.mark.parametrize("shape", BATCH_SHAPES)
+def test_batch_shape_resolve_body_flag_is_inert(shape):
+    with _offline_tracing():
+        resp = _post(
+            _client(shape), accept="application/json", flags={"resolve": False}
+        )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["outputs"]["messages"][-1]["content"] == "reply:x"
+
+
 # Explicit body flags win over header sugar (precedence)
-# =========================================================================== #
 @pytest.mark.parametrize("shape", STREAM_SHAPES)
 def test_body_stream_flag_wins_over_json_accept(shape):
     with _offline_tracing():
         resp = _post(_client(shape), accept="application/json", flags={"stream": True})
-    # stream=True forces a stream; a json Accept can't be satisfied -> 406.
     assert resp.status_code == 406
 
 
 @pytest.mark.parametrize("shape", STREAM_SHAPES)
-def test_body_history_flag_wins_over_header(shape):
-    # body flags.history=True must override the `last` header sugar: the aggregated
-    # event list keeps ALL events (>1), ending with `done`, not trimmed to last.
+def test_body_trim_flag_does_not_rescue_json_accept(shape):
     with _offline_tracing():
-        full = _post(
+        resp = _post(
             _client(shape),
             accept="application/json",
-            history="last",
-            flags={"history": True},
+            transcript="full",
+            flags={"trim": True},
         )
-        last = _post(_client(shape), accept="application/json", history="last")
-    assert full.status_code == last.status_code == 200
-    full_events = full.json()["data"]["outputs"]
-    last_events = last.json()["data"]["outputs"]
-    assert len(full_events) > 1 and full_events[-1]["type"] == "done"
-    assert len(last_events) == 1  # header `last` won when no body flag
+    assert resp.status_code == 406

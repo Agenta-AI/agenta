@@ -2,7 +2,8 @@
 The session-control matrix folded into the single invoke command:
 
     run-vs-control axis = presence of `data.inputs`
-    takeover axis       = `request.flags.control`
+    takeover axis       = `request.flags.force` (invoke-plane twin of this PoC's
+                          own `control` axis below; see specs.md "Out of scope")
 
     | data.inputs | control | behavior |
     | present     | False   | send   (run a turn)            |
@@ -29,10 +30,7 @@ import pytest
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 
 
-# --------------------------------------------------------------------------- #
-# PoC control dispatch — local to the test (NOT SDK code). The real version wires
-# a durable store + run lifecycle into /invoke; this proves the matrix logic only.
-# --------------------------------------------------------------------------- #
+# PoC control dispatch — local to the test (NOT SDK code); proves the matrix logic only.
 class ControlConflict(Exception):
     """A turn sent to a session with a live run and no takeover -> HTTP 409."""
 
@@ -54,7 +52,7 @@ async def dispatch(*, session_id, inputs_present, control, store, run=None):
         return "steer"
 
     if control:
-        row["attached"] = True  # attach: never changes run status
+        row["attached"] = True
         return "attach"
 
     _cancel(row)
@@ -73,7 +71,7 @@ async def _launch(row, run):
         return
     task = asyncio.ensure_future(run())
     row["cancel"] = task.cancel
-    await asyncio.sleep(0)  # let the run reach its first await (marks alive)
+    await asyncio.sleep(0)  # let the run reach its first await
 
 
 def _cancel(row):
@@ -82,15 +80,8 @@ def _cancel(row):
         cancel()
 
 
-# --------------------------------------------------------------------------- #
 # The run-vs-control axis: missing inputs != empty inputs must survive the model
-# --------------------------------------------------------------------------- #
 def test_missing_inputs_distinct_from_empty_inputs():
-    # GREEN already: the Python request model preserves missing-vs-{} for
-    # data.inputs, so the run-vs-control signal is viable at this layer. (The wire
-    # fragility — JSON undefined/null/{} across SDKs/codegen — is a separate
-    # concern to verify at the HTTP boundary; if it cannot hold there, promote
-    # run-vs-control to its own boolean flag.)
     run_no_args = WorkflowServiceRequest(data={"inputs": {}})
     control_call = WorkflowServiceRequest(data={})  # inputs omitted
 
@@ -108,23 +99,7 @@ def test_missing_inputs_distinct_from_empty_inputs():
     assert run_inputs != ctl_inputs, "missing-vs-empty must not collapse"
 
 
-# --------------------------------------------------------------------------- #
-# Behavior matrix — store-driven, against a concurrent slow run.
-#
-# A session row tracks: alive (run status), attached (a client watching), token
-# (sender-message counter), and cancel (stop the live run). The action depends on
-# BOTH the request (inputs presence x control) AND the store state, matching the
-# vibes demo's run-lock:
-#
-#   alive=no              + inputs            -> send   (alive=T, token+1)
-#   alive=yes + no control + inputs           -> 409    (collision)
-#   alive=yes + control    + inputs           -> steer  (cancel + restart, token+1)
-#   alive=yes + control    + no inputs        -> attach (attached=T)
-#   alive=yes + no control + no inputs        -> cancel (alive=F)
-#   client disconnect                         -> detach (attached=F, alive kept)
-#
-# Driven against the local PoC dispatch above + an in-memory fake store.
-# --------------------------------------------------------------------------- #
+# Behavior matrix — store-driven, against a concurrent slow run (see docstring table above).
 
 
 class _FakeSessionStore:

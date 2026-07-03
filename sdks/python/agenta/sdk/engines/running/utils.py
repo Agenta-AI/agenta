@@ -9,6 +9,8 @@ from agenta.sdk.models.workflows import (
 )
 from agenta.sdk.utils.types import build_agent_v0_default
 
+from agenta.sdk.agents.handler import agent_v0
+
 from agenta.sdk.engines.running.handlers import (
     # --- NEW URI
     feedback_v0,
@@ -357,6 +359,7 @@ HANDLER_REGISTRY: dict = dict(
             # --- OLD URI
             chat=dict(v0=chat_v0),
             completion=dict(v0=completion_v0),
+            agent=dict(v0=agent_v0),
             echo=dict(v0=echo_v0),
             auto_exact_match=dict(v0=auto_exact_match_v0),
             auto_regex_test=dict(v0=auto_regex_test_v0),

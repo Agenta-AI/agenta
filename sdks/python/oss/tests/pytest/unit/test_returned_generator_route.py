@@ -35,16 +35,13 @@ def _offline_tracing():
         mock_ag.tracing = MagicMock()
         mock_ag.tracing.get_current_span.return_value = span
         mock_ag.tracing.redact = None
-        # start_span + use_span (Option 2) are what the fixed instrument uses; mock both.
         mock_ag.tracer = MagicMock()
         mock_run_ag.DEFAULT_AGENTA_SINGLETON_INSTANCE = MagicMock()
         mock_run_ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key = None
         yield
 
 
-# --------------------------------------------------------------------------- #
 # Handlers: async def / sync def that RETURN a generator (no `yield` in the body)
-# --------------------------------------------------------------------------- #
 def _app(shape: str, *, raise_early=False, raise_mid=False) -> FastAPI:
     app = FastAPI()
 
@@ -92,9 +89,7 @@ def _post(app, *, accept=None, flags=None, raise_server_exceptions=True):
     body = {"data": {"inputs": {"value": "x"}}}
     if flags is not None:
         body["flags"] = flags
-    # raise_server_exceptions=False makes TestClient behave like a real ASGI server:
-    # a mid-stream handler error truncates the response instead of re-raising into
-    # the test (a real client just sees a cut-off stream, not a Python traceback).
+    # raise_server_exceptions=False mirrors a real ASGI server: mid-stream errors truncate, don't raise.
     client = TestClient(app, raise_server_exceptions=raise_server_exceptions)
     return client.post("/invoke", json=body, headers=headers)
 
@@ -102,10 +97,7 @@ def _post(app, *, accept=None, flags=None, raise_server_exceptions=True):
 RET_GEN_SHAPES = ["async-ret-gen", "sync-ret-gen"]
 
 
-# =========================================================================== #
-# SUCCESS across transport — the returned generator is drained to the wire.
-# The body must carry the EVENTS, never a serialized generator object.
-# =========================================================================== #
+# SUCCESS across transport — the returned generator is drained to the wire, never serialized.
 @pytest.mark.parametrize("shape", RET_GEN_SHAPES)
 def test_ret_gen_sse_streams_events(shape):
     with _offline_tracing():
@@ -127,26 +119,17 @@ def test_ret_gen_ndjson_streams_events(shape):
 
 
 @pytest.mark.parametrize("shape", RET_GEN_SHAPES)
-def test_ret_gen_json_accept_aggregates_to_batch(shape):
-    # batch Accept -> flags.stream=False -> normalizer drains the returned generator
-    # into a batch list. The events land in the body; never the generator object.
+def test_ret_gen_json_accept_is_406(shape):
+    # Stream-only handler (no `request` param); batch Accept 406s, no courtesy aggregation.
     with _offline_tracing():
-        resp = _post(_app(shape), accept="application/json", flags={"history": True})
-    assert resp.status_code == 200
-    assert "application/json" in resp.headers["content-type"]
-    outputs = resp.json()["data"]["outputs"]
-    assert isinstance(outputs, list)
-    assert outputs[-1]["type"] == "done"
-    assert "generator object" not in resp.text
+        resp = _post(_app(shape), accept="application/json", flags={"trim": False})
+    assert resp.status_code == 406
 
 
-# =========================================================================== #
 # EXCEPTION over the route
-# =========================================================================== #
 @pytest.mark.parametrize("shape", RET_GEN_SHAPES)
 def test_ret_gen_raise_early_is_json_error(shape):
-    # raise before returning the generator -> batch error response (500), even for
-    # a stream Accept: the route surfaces the real error instead of 406ing.
+    # Raise before returning the generator -> batch error (500), even for a stream Accept.
     with _offline_tracing():
         resp = _post(_app(shape, raise_early=True), accept="text/event-stream")
     assert resp.status_code == 500
@@ -156,12 +139,7 @@ def test_ret_gen_raise_early_is_json_error(shape):
 
 @pytest.mark.parametrize("shape", RET_GEN_SHAPES)
 def test_ret_gen_raise_mid_stream_surfaces(shape):
-    # raise after the first event: SSE headers were already flushed (200), so a real
-    # server can't change the status — it truncates the stream. The pre-error event
-    # reached the wire; the generator object never leaked. Use
-    # raise_server_exceptions=False so TestClient models the real server (otherwise it
-    # re-raises the handler error into the test, which is a TestClient artifact, not
-    # the client-observable behavior).
+    # Raise mid-stream: headers already flushed (200), so the server truncates instead of erroring.
     with _offline_tracing():
         resp = _post(
             _app(shape, raise_mid=True),
