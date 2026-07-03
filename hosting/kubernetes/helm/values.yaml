@@ -142,19 +142,3 @@ workerQueues:
   enabled: true
   replicas: 1
   # queues: "evaluations"
-
-# Legacy per-loop workers — disabled; enable + disable the two kinds above to revert.
-# workerTracing:
-#   enabled: true
-# workerRecords:
-#   enabled: true
-# workerEvents:
-#   enabled: true
-# workerWebhooks:
-#   enabled: true
-# workerTriggers:
-#   enabled: true
-# workerInteractions:
-#   enabled: true
-# workerEvaluations:
-#   enabled: true

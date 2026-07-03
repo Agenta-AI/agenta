@@ -243,7 +243,10 @@ class EventsWorker(StreamConsumer):
                             "[EVENTS] Skipping ACK/DEL due to webhook dispatch failure",
                             batch_size=len(batch),
                         )
-                        log.tick("worker-events.errors", dims={"stream": "events"})
+                        log.tick(
+                            f"{self.metric_stream}.errors",
+                            dims={"stream": self.metric_stream},
+                        )
                         continue
                 else:
                     log.info(

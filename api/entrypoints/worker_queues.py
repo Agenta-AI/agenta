@@ -17,9 +17,8 @@ entrypoint does that setup itself (once, for the whole process) and drives one
 Receiver per selected broker as a sibling asyncio task. See
 docs/designs/workers-sprawl/specs.md for the full writeup.
 
-The 4 single-broker entrypoints (worker_webhooks.py, worker_triggers.py,
-worker_interactions.py, worker_evaluations.py) are untouched and remain valid;
-nothing external is required to move off them.
+Replaces the removed single-broker queue entrypoints; this is now the sole
+queue-consumer entrypoint.
 """
 
 import sys
@@ -36,6 +35,10 @@ from taskiq_redis import RedisStreamBroker
 
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.environments.service import EnvironmentsService
+from oss.src.core.evaluations.runtime.broker import (
+    build_evaluations_broker,
+    build_evaluations_worker,
+)
 from oss.src.core.evaluations.runtime.locks import run_worker_heartbeat
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
@@ -78,7 +81,6 @@ from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
-from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
 from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
@@ -87,7 +89,7 @@ from oss.src.utils.env import env
 from oss.src.utils.helpers import validate_required_env_vars, warn_deprecated_env_vars
 from oss.src.utils.logging import get_module_logger
 
-# Guard EE imports — see worker_tracing.py for the rationale.
+# Guard EE imports so an OSS build needn't import the ee.* package.
 if is_ee():
     from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
@@ -102,41 +104,9 @@ ALL_QUEUES = ("webhooks", "triggers", "interactions", "evaluations")
 MAXLEN_QUEUES_WEBHOOKS = 100_000
 MAXLEN_QUEUES_TRIGGERS = 100_000
 MAXLEN_QUEUES_INTERACTIONS = 100_000
-MAXLEN_QUEUES_EVALUATIONS = 100_000
 
 _WORKER_ID = str(uuid4())
 _worker_heartbeat_task: "asyncio.Task | None" = None
-
-
-class _NoRedeliveryRedisStreamBroker(RedisStreamBroker):
-    """Same as evaluations' broker in worker_evaluations.py — never redelivers.
-    Duplicated here (not imported) to keep this entrypoint's broker set
-    self-contained; the class is tiny and evaluations-specific.
-    """
-
-    async def listen(self):
-        from taskiq import AckableMessage
-        from redis.asyncio import Redis
-
-        async with Redis(connection_pool=self.connection_pool) as redis_conn:
-            while True:
-                fetched = await redis_conn.xreadgroup(
-                    self.consumer_group_name,
-                    self.consumer_name,
-                    {
-                        self.queue_name: ">",
-                        **self.additional_streams,
-                    },
-                    block=self.block,
-                    noack=False,
-                    count=self.count,
-                )
-                for stream, msg_list in fetched:
-                    for msg_id, msg in msg_list:
-                        yield AckableMessage(
-                            data=msg[b"data"],
-                            ack=self._ack_generator(id=msg_id, queue_name=stream),
-                        )
 
 
 def _selected_queues() -> List[str]:
@@ -161,7 +131,7 @@ def _build_webhooks_broker() -> tuple[AsyncBroker, int]:
         approximate=True,
     )
     WebhooksWorker(broker=broker, webhooks_dao=WebhooksDAO())
-    return broker, 50  # max_async_tasks — matches worker_webhooks.py
+    return broker, 50  # max_async_tasks
 
 
 def _build_triggers_broker() -> tuple[AsyncBroker, int]:
@@ -201,7 +171,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     TriggersWorker(
         broker=broker, dispatcher=triggers_dispatcher, triggers_dao=triggers_dao
     )
-    return broker, 50  # matches worker_triggers.py
+    return broker, 50  # max_async_tasks
 
 
 def _build_interactions_broker() -> tuple[AsyncBroker, int]:
@@ -251,19 +221,11 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
         dispatch_fn=_dispatch_detached_run,
     )
     InteractionsWorker(broker=broker, dispatcher=interactions_dispatcher)
-    return broker, 50  # matches worker_interactions.py
+    return broker, 50  # max_async_tasks
 
 
 def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
-    broker = _NoRedeliveryRedisStreamBroker(
-        url=env.redis.uri_durable,
-        queue_name="queues:evaluations",
-        consumer_group_name="worker-evaluations",
-        maxlen=MAXLEN_QUEUES_EVALUATIONS,
-        approximate=True,
-        socket_timeout=30,
-        socket_connect_timeout=30,
-    )
+    broker = build_evaluations_broker(consumer_group_name="worker-evaluations")
 
     tracing_dao = TracingDAO()
     testcases_dao = BlobsDAO(BlobDBE=TestcaseBlobDBE)
@@ -304,7 +266,7 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
         evaluators_service=evaluators_service,
     )
 
-    evaluations_worker = EvaluationsWorker(
+    build_evaluations_worker(
         broker=broker,
         tracing_service=tracing_service,
         simple_evaluators_service=simple_evaluators_service,
@@ -314,7 +276,6 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
         workflows_service=workflows_service,
         evaluations_service=evaluations_service,
     )
-    evaluations_service.evaluations_worker = evaluations_worker
 
     @broker.on_event(TaskiqEvents.WORKER_STARTUP)
     async def _start_worker_heartbeat(state) -> None:
@@ -335,7 +296,7 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
                 pass
         log.info("[EVAL] Worker heartbeat stopped", worker_id=_WORKER_ID)
 
-    return broker, 10  # max_async_tasks — matches worker_evaluations.py
+    return broker, 10  # max_async_tasks
 
 
 _BUILDERS = {

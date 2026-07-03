@@ -42,13 +42,15 @@ This collapses 7 dev containers to 2 with no topology-specific code — every to
 
 ## Constraints preserved (must not change)
 
-1. Stream names verbatim: `streams:tracing`, `streams:events`, `streams:records`. (The
-   separate planned `streams:tracing` → `streams:spans` rename is NOT done here.)
+1. Stream names verbatim: `streams:spans`, `streams:events`, `streams:records`. (The
+   `streams:tracing` → `streams:spans` rename, with group `worker-tracing` →
+   `worker-spans`, landed as part of this work.)
 2. Queue names verbatim: `queues:webhooks`, `queues:triggers`, `queues:interactions`,
    `queues:evaluations`.
-3. Consumer-group names verbatim (all seven): `worker-tracing`, `worker-events`,
-   `worker-records`, `worker-webhooks`, `worker-triggers`, `worker-interactions`,
-   `worker-evaluations`. This is the coordination identity that makes scale-up safe —
+3. Consumer-group names verbatim (all seven, modulo the tracing→spans rename above):
+   `worker-spans`, `worker-events`, `worker-records`, `worker-webhooks`,
+   `worker-triggers`, `worker-interactions`, `worker-evaluations`. This is the
+   coordination identity that makes scale-up safe —
    `consumer_name = f"worker-{os.getpid()}"` per process, unchanged.
 4. Message shapes: `data` = zlib(orjson(...)) blob on streams; TaskIQ task names + kwargs
    unchanged.
@@ -134,9 +136,16 @@ This is implemented for all four queues (not left as a partial TODO) — the ris
 out by the audit ("spike this early") resolves cleanly once `run_worker` is bypassed in
 favor of the coroutine it wraps.
 
-The 7 existing `worker_*.py` entrypoints are kept working unchanged (not touched) —
-they remain valid one-item topologies; nothing external (compose, helm, prod deploy)
-is required to switch to the new entrypoints as part of this slice.
+The evaluations broker/worker construction is shared via a factory,
+`api/oss/src/core/evaluations/runtime/broker.py` (`build_evaluations_broker`/
+`build_evaluations_worker`), used by both the producer side (`api/entrypoints/
+routers.py`, `.kiq()` enqueue, `consumer_group_name="api-evaluations-producer"`) and the
+consumer side (`worker_queues.py`, `consumer_group_name="worker-evaluations"`) — one
+factory, two group identities, no duplicated broker-construction logic.
+
+The 7 old `worker_*.py` entrypoints were deleted once `worker_streams.py`/
+`worker_queues.py` took over as the sole entrypoints and every deploy surface
+(compose/Helm) moved off them — they are not kept around as shims.
 
 ## Design: `.tick()` EMF metrics
 
@@ -152,14 +161,21 @@ single CloudWatch **Embedded Metric Format** JSON line to stdout:
       {
         "Namespace": "Agenta/Workers",
         "Dimensions": [["stream"]],
-        "Metrics": [{"Name": "tracing.processed", "Unit": "Count"}]
+        "Metrics": [{"Name": "spans.processed", "Unit": "Count"}]
       }
     ]
   },
-  "stream": "tracing",
-  "tracing.processed": 42
+  "stream": "spans",
+  "spans.processed": 42
 }
 ```
+
+The `stream`/`queue` dimension value is derived from the consumer group name:
+`metric_stream = consumer_group.removeprefix("worker-")` (see
+`api/oss/src/tasks/asyncio/shared/consumer.py`), so `worker-spans` → `spans`,
+`worker-events` → `events`, `worker-records` → `records`. Producer-side
+`spans.published` (in `publish_spans`) pairs with consumer-side `spans.processed`
+under the same `stream=spans` dimension value.
 
 No new port, no new infra — the CloudWatch agent already ships container stdout; EMF
 lines embedded in stdout become metrics automatically. Dimensioned by `stream`/`queue`
@@ -178,42 +194,41 @@ next to each existing `log.info`/`log.error` that already has the numbers in sco
 
 ## Dev compose and helm (Package 2, this-repo parts only)
 
-Both `hosting/docker-compose/{ee,oss}/docker-compose.dev.yml` gain `worker-streams` and
-`worker-queues` services (empty `AGENTA_WORKER_STREAMS`/`AGENTA_WORKER_QUEUES` inline
-`environment:` vars — NOT `.env` — so the same `.env` file works for both merged and
-split topologies). The 7 existing worker services are commented out (not deleted) so
-dev boots 2 containers by default, matching the audit's Recommendation
-("one container of each — topology A — by default"). `init: true` and the
-watchmedo hardening from Package 0b apply to the 2 new services too (and to the 7 old
-ones, kept for reference/rollback).
+All 7 docker-compose files (`hosting/docker-compose/{ee,oss}/docker-compose.dev.yml` plus
+the 5 gh/gh.local/ssl variants) carry `worker-streams` and `worker-queues` services
+(empty `AGENTA_WORKER_STREAMS`/`AGENTA_WORKER_QUEUES` inline `environment:` vars — NOT
+`.env` — so the same `.env` file works for both merged and split topologies). The 7
+legacy per-loop worker services were deleted outright from every compose file (not
+commented out) — dev/gh boot 2 containers by default, matching the audit's
+Recommendation ("one container of each — topology A — by default"). `init: true` and the
+watchmedo hardening from Package 0b apply to the 2 new services.
 
-Helm: two new parameterized deployments alongside the 7 existing `worker-*-deployment.yaml`
-(kept, marked deprecated in a comment) — the audit notes helm isn't the prod path here, so
-this is a lighter touch: add the shape, don't migrate values/charts wiring beyond what's
-needed to prove the two deployments render.
+Helm: two parameterized deployments (`worker-streams-deployment.yaml`,
+`worker-queues-deployment.yaml`) are the sole worker deployments — the 7 legacy
+`worker-*-deployment.yaml` files and their `_helpers.tpl` entries were deleted outright,
+not marked deprecated. Helm isn't the prod path (audit note), so this stayed a lighter
+touch: the shape renders correctly with the two deployments; there is no remaining
+legacy values/chart wiring.
 
 ## Operational notes (the "why" behind the one-line source comments)
 
 Source and config files carry only a one-line pointer here; this section is the full
 rationale.
 
-**One coherent topology, never two.** Every environment ships *topology A* by default:
-one `worker-streams` (records+events+tracing) and one `worker-queues`
+**One coherent topology.** Every environment ships *topology A*: one `worker-streams`
+(records+events+spans) and one `worker-queues`
 (webhooks+triggers+interactions+evaluations). The 7 legacy per-loop
-containers/deployments are kept in the tree but disabled by default. Running both the
-merged kinds *and* the legacy per-loop set at once would put two consumer groups' worth
-of processes on the same stream/queue — wasteful, though not double-processing (Redis
-consumer-group exclusivity still holds). So the rule is: exactly one topology active.
+containers/deployments were removed from the tree entirely — there is no
+comment-out/uncomment fallback path left; reverting to the per-loop topology means
+restoring the deleted blocks from git history, not toggling a flag.
 
-- **docker-compose** (all 7 files): the 2 new services are defined and active; the 7
-  legacy `worker-*` services are commented out (kept for rollback). To revert to the
-  per-loop topology, uncomment the 7 and comment out the 2.
-- **helm**: `_helpers.tpl` `*.enabled` fallbacks make `workerStreams`/`workerQueues`
-  default `true` and the 7 legacy `worker*` default `false`, so an empty `values.yaml`
-  renders exactly topology A. `values.yaml` surfaces `workerStreams`/`workerQueues`
-  (`enabled`, `replicas`, optional `streams`/`queues` selector). **Fallback to the legacy
-  topology:** set `workerStreams.enabled` and `workerQueues.enabled` to `false`, and each
-  `worker*.enabled` to `true`.
+- **docker-compose** (all 7 files): only the 2 new services are defined; the 7 legacy
+  `worker-*` services are deleted, not present in any form.
+- **helm**: `_helpers.tpl` defines only `agenta.workerStreams.*`/`agenta.workerQueues.*`
+  helpers (default `enabled: true`), so an empty `values.yaml` renders topology A.
+  `values.yaml` surfaces `workerStreams`/`workerQueues` (`enabled`, `replicas`, optional
+  `streams`/`queues` selector). There is no legacy `worker*.enabled` fallback in the
+  chart anymore.
 
 **Selector vars.** `AGENTA_WORKER_STREAMS` / `AGENTA_WORKER_QUEUES` are comma-lists;
 empty/unset ⇒ all loops in that family. They are set per-service **inline** in each

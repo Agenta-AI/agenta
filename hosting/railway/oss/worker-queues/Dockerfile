@@ -10,5 +10,5 @@ ENV SUPERTOKENS_CONNECTION_URI=http://supertokens.railway.internal:3567
 ENV ALEMBIC_CFG_PATH_CORE=/app/oss/databases/postgres/migrations/core/alembic.ini
 ENV ALEMBIC_CFG_PATH_TRACING=/app/oss/databases/postgres/migrations/tracing/alembic.ini
 
-# Background worker for asynchronous event stream processing
-CMD ["python", "-m", "entrypoints.worker_events"]
+# TaskIQ queue consumers (webhooks, triggers, interactions, evaluations)
+CMD ["python", "-m", "entrypoints.worker_queues"]

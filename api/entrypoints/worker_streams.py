@@ -1,16 +1,15 @@
 """
 worker_streams - list-parameterized entrypoint hosting the stream consumer
-loops (records, events, tracing) in one process.
+loops (records, events, spans) in one process.
 
-Reads AGENTA_WORKER_STREAMS (subset of {records, events, tracing}); empty or
+Reads AGENTA_WORKER_STREAMS (subset of {records, events, spans}); empty or
 unset selects all three. Each selected loop keeps its own stream name,
 consumer group, and StreamConsumer subclass unchanged (see
 oss/src/tasks/asyncio/shared/consumer.py) — this entrypoint only decides which
 loops share this process, via asyncio.gather.
 
-The 7 single-loop entrypoints (worker_tracing.py, worker_records.py,
-worker_events.py, ...) are untouched and remain valid; nothing external is
-required to move off them.
+Replaces the removed single-loop stream entrypoints; this is now the sole
+stream-consumer entrypoint.
 """
 
 import sys
@@ -40,7 +39,7 @@ from oss.src.utils.env import env
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.logging import get_module_logger
 
-# Guard EE imports — see worker_tracing.py for the rationale.
+# Guard EE imports so an OSS build needn't import the ee.* package.
 if is_ee():
     from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
@@ -86,8 +85,7 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
 async def _build_events_worker(redis_client: Redis) -> StreamConsumer:
     events_service = EventsService(events_dao=EventsDAO())
 
-    # Webhook dispatch is embedded in the events loop today (worker_events.py);
-    # preserve that wiring so events keeps its post-hook.
+    # Webhook dispatch runs inside the events loop as its post-hook.
     webhooks_dao = WebhooksDAO()
     broker = RedisStreamBroker(
         url=env.redis.uri_durable,

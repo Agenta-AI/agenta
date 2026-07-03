@@ -42,7 +42,7 @@ Agenta uses a microservices architecture deployed as Docker containers. The diag
                     │                 │   (background procs)    │  │ (agent runs)    │
                     │                 │ • worker-streams        │  └────────┬────────┘
                     │                 │   (records/events/      │           │
-                    │                 │    tracing)             │           │
+                    │                 │    spans)               │           │
                     │                 │ • worker-queues         │           │
                     │                 │   (webhooks/triggers/   │           │
                     │                 │    interactions/evals)  │           │
@@ -102,8 +102,8 @@ each rather than seven separate ones. Which loops a container runs is chosen by 
 environment selector; an empty selector runs the whole family.
 
 - **`worker-streams`** — Redis Streams consumers, selected by `AGENTA_WORKER_STREAMS`
-  (subset of `records`, `events`, `tracing`; empty ⇒ all three):
-  - **Tracing Ingestion**: consumes the OTLP tracing pipeline (`streams:tracing`).
+  (subset of `records`, `events`, `spans`; empty ⇒ all three):
+  - **Span Ingestion**: consumes the OTLP tracing pipeline (`streams:spans`).
   - **Event Processing**: processes internal event streams (`streams:events`).
   - **Session Records**: persists agent session records (`streams:records`).
 - **`worker-queues`** — TaskIQ queue consumers, selected by `AGENTA_WORKER_QUEUES`
@@ -116,7 +116,7 @@ environment selector; an empty selector runs the whole family.
 Stream and queue names, consumer groups, and message shapes are unchanged by this
 grouping, so scaling a container out simply shares work across its consumer groups.
 To scale a single hot loop, run a second instance of the same kind with a disjoint
-selector (for example, `AGENTA_WORKER_STREAMS=tracing` on its own).
+selector (for example, `AGENTA_WORKER_STREAMS=spans` on its own).
 
 **TaskIQ Integration**:
 - **Broker**: Uses Redis streams for queueing and task distribution
