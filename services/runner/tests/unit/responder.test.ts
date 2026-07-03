@@ -493,6 +493,62 @@ function permReqWithSpec(
   };
 }
 
+// The LIVE production shape (from runner logs): a Claude-over-ACP gate with NO spec and a
+// permission-frame `title` that is the specific invocation ("cat ~/...") — which DIFFERS from the
+// `session/update` tool_call title the transcript stored ("Terminal"). The engine recovers the
+// recorded tool_call name and stamps it as `resolvedName`; the key must anchor on THAT.
+function permReqResolved(
+  toolCallId: string,
+  resolvedName: string,
+  driftingTitle: string,
+  rawInput?: unknown,
+): PermissionRequest {
+  return {
+    id: "perm-1",
+    availableReplies: ["once", "always", "reject"],
+    raw: {
+      id: "perm-1",
+      toolCall: { toolCallId, resolvedName, title: driftingTitle, kind: "execute", rawInput },
+    },
+  };
+}
+
+describe("HITLResponder — recorded-name anchor (the live ACP title-drift loop)", () => {
+  it("resumes: stored key uses the tool_call name (Terminal) while the permission title drifts (cat ...)", async () => {
+    // Exactly the logged failure: stored `Terminal#{command,description}` -> allow, re-raised gate
+    // whose ACP permission title is the full command. Without `resolvedName` the live key would be
+    // `cat ...#args` and never match -> re-park loop. With it, the live key is `Terminal#args`.
+    const args = { command: "cat ~/.claude/settings.json", description: "Read global settings" };
+    const decisions = new Map<string, PermissionDecision>([
+      [parkedCallKey("Terminal", args)!, "allow"],
+    ]);
+    const responder = new HITLResponder(decisions, "auto", true);
+    assert.equal(
+      await responder.onPermission(
+        permReqResolved("fresh-id", "Terminal", "cat ~/.claude/settings.json", args),
+      ),
+      "allow",
+      "the recorded tool_call name anchors the resume despite the drifting permission title",
+    );
+  });
+
+  it("the loop-breaker also matches on the recorded name (looping set is keyed the same way)", async () => {
+    const args = { command: "cat x" };
+    const responder = new HITLResponder(
+      new Map(),
+      "auto",
+      true,
+      new Set(["Terminal"]), // nonConverging is keyed by the stored (recorded) name
+      () => {},
+    );
+    // The live gate resolves to "Terminal" (not the "cat x" title), so the breaker engages.
+    assert.equal(
+      await responder.onPermission(permReqResolved("fresh", "Terminal", "cat x", args)),
+      "deny",
+    );
+  });
+});
+
 describe("HITLResponder — stable spec.name anchor (name-drift fix)", () => {
   it("resumes when the stored key used the spec name but the re-raised gate only has a drifting title", async () => {
     // Park turn: the tool was stored under its canonical spec name (what the egress now writes).

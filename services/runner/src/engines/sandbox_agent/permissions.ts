@@ -3,7 +3,7 @@ import { decisionToReply, type ClientToolOutcome, type Responder } from "../../r
 
 export interface AttachPermissionResponderInput {
   session: any;
-  run: { emitEvent: (event: AgentEvent) => void };
+  run: { emitEvent: (event: AgentEvent) => void; events?: () => AgentEvent[] };
   responder: Responder;
   /**
    * Called when the responder PARKS a gate (cross-turn HITL). The orchestration loop uses
@@ -50,6 +50,18 @@ export function attachPermissionResponder({
     const id = String(req?.id ?? "");
     const availableReplies: string[] = req?.availableReplies ?? [];
     const toolCall = req?.toolCall;
+    // NAME ANCHOR (the HITL resume-loop root cause): Claude-over-ACP names the SAME tool call
+    // differently across frames — the `session/update` tool_call titles it by category ("Terminal"),
+    // the permission request titles it by the specific invocation ("cat ~/.claude/settings.json ...").
+    // Neither carries a stable `name`/`spec`. The transcript (and thus the stored approval key)
+    // records the tool_call name, so the cross-turn key must ALSO use it — not the permission
+    // frame's own drifting title. Recover the recorded tool_call name for THIS id (same id within a
+    // turn) and stamp it as `resolvedName`, which `permissionToolName` (responder) and
+    // `_approval_tool_name` (egress) both prefer, so the live re-raised key equals the stored key.
+    if (toolCall && typeof toolCall === "object" && !toolCall.resolvedName) {
+      const recorded = recordedToolName(run, toolCall.toolCallId);
+      if (recorded) toolCall.resolvedName = recorded;
+    }
     // GROUND TRUTH: exactly what the harness hands us for this gate — the resolved spec (and its
     // stable name) if any, the drift-prone display fields, and the arg shape. This is the earliest
     // and most authoritative HITL log; everything downstream keys off these fields.
@@ -156,6 +168,27 @@ export function attachPermissionResponder({
       })
       .catch(() => {});
   });
+}
+
+/**
+ * The name the runner already recorded for this tool-call id via the `session/update` `tool_call`
+ * event — the SAME value the transcript folds into the stored approval key. Used to key the live
+ * permission gate so it matches the stored decision across the cold-replay resume (the ACP
+ * permission frame's own title drifts from the tool_call's, breaking the key otherwise).
+ */
+function recordedToolName(
+  run: { events?: () => AgentEvent[] },
+  toolCallId: unknown,
+): string | undefined {
+  if (typeof toolCallId !== "string" || !toolCallId || !run.events) return undefined;
+  // Last match wins: a later tool_call for the same id (an arg-refresh) carries the same name.
+  let name: string | undefined;
+  for (const event of run.events()) {
+    if (event.type === "tool_call" && event.id === toolCallId && event.name) {
+      name = event.name;
+    }
+  }
+  return name;
 }
 
 function clientToolSpecOf(toolCall: any): any | undefined {

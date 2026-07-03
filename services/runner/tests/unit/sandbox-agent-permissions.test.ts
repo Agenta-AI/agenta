@@ -81,6 +81,46 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(replies, [{ id: "perm-1", reply: "once" }]);
   });
 
+  it("stamps resolvedName from the recorded tool_call so the resume key matches (ACP title-drift fix)", async () => {
+    // Live shape: the `session/update` tool_call named the tool "Terminal"; the permission frame
+    // titles it by the specific command. The responder must see `resolvedName: "Terminal"` (the
+    // recorded name) so its key matches the stored `Terminal#args`, not the drifting command title.
+    let handler: ((req: any) => void) | undefined;
+    const session = {
+      onPermissionRequest(cb: (req: any) => void) {
+        handler = cb;
+      },
+      async respondPermission() {},
+    };
+    const recorded: AgentEvent[] = [
+      { type: "tool_call", id: "tool-1", name: "Terminal", input: {} },
+    ];
+    const seen: PermissionRequest[] = [];
+    const responder: Responder = {
+      async onPermission(request) {
+        seen.push(request);
+        return "allow";
+      },
+      async onClientTool() {
+        return "deny";
+      },
+    };
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {}, events: () => recorded },
+      responder,
+    });
+    handler?.({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tool-1", title: "cat ~/.claude/settings.json", kind: "execute" },
+    });
+    await flushPromises();
+
+    const tc = (seen[0]?.raw as any)?.toolCall;
+    assert.equal(tc.resolvedName, "Terminal", "recorded tool_call name stamped onto the gate");
+  });
+
   it("parks: emits the interaction_request but sends NO harness reply (F-024 regression)", async () => {
     // The park outcome must never reach the harness as a reply: a `reject` would make Claude
     // emit a failed tool call ("User refused permission") whose tool_result{isError} clobbers

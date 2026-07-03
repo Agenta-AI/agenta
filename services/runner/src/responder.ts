@@ -313,7 +313,15 @@ function permissionRequestKeys(request: PermissionRequest): string[] {
  */
 function gateIdentity(toolCall: unknown): string {
   const tc = toolCall as
-    | { toolCallId?: unknown; name?: unknown; title?: unknown; kind?: unknown; rawInput?: unknown; input?: unknown }
+    | {
+        toolCallId?: unknown;
+        resolvedName?: unknown;
+        name?: unknown;
+        title?: unknown;
+        kind?: unknown;
+        rawInput?: unknown;
+        input?: unknown;
+      }
     | undefined;
   const spec = specOf(toolCall);
   const args = tc?.rawInput ?? tc?.input;
@@ -321,6 +329,7 @@ function gateIdentity(toolCall: unknown): string {
     args && typeof args === "object" ? Object.keys(args as object) : typeof args;
   return JSON.stringify({
     id: tc?.toolCallId,
+    resolvedName: tc?.resolvedName,
     specName: spec?.name,
     name: tc?.name,
     title: tc?.title,
@@ -362,9 +371,19 @@ function specOf(toolCall: unknown): { name?: unknown } | undefined {
  */
 function permissionToolName(toolCall: unknown): string | undefined {
   const tc = toolCall as
-    | { name?: unknown; title?: unknown; kind?: unknown }
+    | { resolvedName?: unknown; name?: unknown; title?: unknown; kind?: unknown }
     | undefined;
-  for (const candidate of [specOf(toolCall)?.name, tc?.name, tc?.title, tc?.kind]) {
+  // `resolvedName` (the recorded tool_call name, stamped by the engine) comes FIRST: it is the
+  // same value the transcript folds into the stored key, so preferring it makes the cross-turn
+  // resume key match. `spec.name` next (when a resolved spec exists), then the drift-prone ACP
+  // display fields as a last resort.
+  for (const candidate of [
+    tc?.resolvedName,
+    specOf(toolCall)?.name,
+    tc?.name,
+    tc?.title,
+    tc?.kind,
+  ]) {
     if (typeof candidate === "string" && candidate) return candidate;
   }
   return undefined;
