@@ -109,6 +109,7 @@ describe("attachPermissionResponder", () => {
     });
     const events: AgentEvent[] = [];
     const created: Array<{ token: string; toolName?: string; args: unknown }> = [];
+    const pausedToolCalls: string[] = [];
     let pauses = 0;
 
     attachPermissionResponder({
@@ -122,6 +123,9 @@ describe("attachPermissionResponder", () => {
       onCreateInteraction: (token, toolName, args) => {
         created.push({ token, toolName, args });
       },
+      onPausedToolCall: (id) => {
+        pausedToolCalls.push(id);
+      },
     });
     emit({
       id: "perm-pause",
@@ -133,6 +137,7 @@ describe("attachPermissionResponder", () => {
 
     assert.deepEqual(replies, []);
     assert.equal(pauses, 1);
+    assert.deepEqual(pausedToolCalls, ["tool-9"]);
     assert.deepEqual(created, [
       { token: "perm-pause", toolName: "edit", args: { path: "a" } },
     ]);
@@ -235,6 +240,7 @@ describe("attachPermissionResponder", () => {
       replies.push({ id, reply });
     });
     const events: AgentEvent[] = [];
+    const pausedToolCalls: string[] = [];
     let pauses = 0;
 
     attachPermissionResponder({
@@ -247,6 +253,9 @@ describe("attachPermissionResponder", () => {
       latch: new PendingApprovalLatch(),
       onPause: () => {
         pauses += 1;
+      },
+      onPausedToolCall: (id) => {
+        pausedToolCalls.push(id);
       },
     });
     emit({
@@ -266,6 +275,7 @@ describe("attachPermissionResponder", () => {
 
     assert.deepEqual(replies, []);
     assert.equal(pauses, 1);
+    assert.deepEqual(pausedToolCalls, ["tool-client"]);
     assert.deepEqual(events, [
       {
         type: "interaction_request",

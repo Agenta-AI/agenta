@@ -9,6 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
+import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
+import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
   runSandboxAgent,
@@ -26,6 +28,8 @@ interface FakeOptions {
   promptResult?: Record<string, unknown>;
   promptEvent?: Record<string, unknown>;
   promptEvents?: Array<Record<string, unknown>>;
+  afterPromptEvents?: () => Promise<void> | void;
+  postPermissionEvents?: Array<Record<string, unknown>>;
   streamUsage?: Record<string, number>;
   output?: string;
   promptError?: Error;
@@ -89,12 +93,17 @@ function fakeHarness(options: FakeOptions = {}) {
         options.promptEvent ?? { payload: { update: { kind: "noop" } } },
       ];
       for (const event of promptEvents) eventHandler?.(event);
+      await options.afterPromptEvents?.();
       if (options.emitPermission) {
         permissionHandler?.({
           id: "perm-1",
           availableReplies: ["once", "always", "reject"],
           toolCall: { toolCallId: "tool-1", name: "edit" },
         });
+      }
+      if (options.postPermissionEvents?.length) {
+        if (options.emitPermission) await flushPromises();
+        for (const event of options.postPermissionEvents) eventHandler?.(event);
       }
       if (options.promptError) throw options.promptError;
       if (options.hangPrompt) {
@@ -242,6 +251,20 @@ function fakeHarness(options: FakeOptions = {}) {
 
   return { calls, deps, events };
 }
+
+describe("PendingApprovalPauseController", () => {
+  it("tracks paused tool-call ids", () => {
+    const pause = new PendingApprovalPauseController(() => {});
+
+    assert.equal(pause.isPausedToolCall(undefined), false);
+    assert.equal(pause.isPausedToolCall("tool-1"), false);
+
+    pause.markPausedToolCall("tool-1");
+
+    assert.equal(pause.isPausedToolCall("tool-1"), true);
+    assert.equal(pause.isPausedToolCall("tool-2"), false);
+  });
+});
 
 describe("runSandboxAgent orchestration", () => {
   it("returns a successful one-shot result and cleans up acquired resources", async () => {
@@ -902,6 +925,98 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     // call that clobbers the approval prompt on the same tool-call id (F-024). The turn ends
     // with the tool pending; the next turn carrying the decision resolves it.
     assert.deepEqual(calls.permissionReplies, []);
+  });
+
+  it("drops teardown tool updates after a Pi relay approval pause while keeping other ids", async () => {
+    const relayPause = { fire: () => {} };
+    const { calls, deps } = fakeHarness({
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-1",
+              title: "approval_needed",
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-2",
+              title: "other_tool",
+            },
+          },
+        },
+      ],
+      afterPromptEvents: () => relayPause.fire(),
+      postPermissionEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call_update",
+              toolCallId: "tool-1",
+              status: "failed",
+              content: [{ content: { type: "text", text: "aborted" } }],
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call_update",
+              toolCallId: "tool-2",
+              status: "failed",
+              content: [{ content: { type: "text", text: "other failed" } }],
+            },
+          },
+        },
+      ],
+    });
+    deps.createOtel = createSandboxAgentOtel as any;
+    relayPause.fire = () => {
+      const relayPermissions = calls.toolRelayArgs?.[4] as any;
+      relayPermissions.onPendingApproval({
+        toolCallId: "tool-1",
+        toolName: "approval_needed",
+        args: { path: "a" },
+      });
+    };
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "use the tool" }],
+        customTools: [
+          { name: "approval_needed", kind: "callback", permission: "ask" },
+        ],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.deepEqual(
+      result.events
+        ?.filter((event) => event.type === "interaction_request")
+        .map((event) => ({ id: (event as any).id, kind: (event as any).kind })),
+      [{ id: "tool-1", kind: "user_approval" }],
+    );
+    assert.deepEqual(
+      result.events
+        ?.filter((event) => event.type === "tool_result")
+        .map((event) => ({
+          id: (event as any).id,
+          output: (event as any).output,
+          isError: (event as any).isError,
+        })),
+      [{ id: "tool-2", output: "other failed", isError: true }],
+    );
   });
 
   it("park ENDS the turn even when the prompt hangs: terminal stopReason 'paused', no harness reply (F-040)", async () => {

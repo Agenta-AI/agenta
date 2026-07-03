@@ -40,6 +40,22 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   relay must enforce permissions only when the harness does not gate (Pi) — otherwise
   one approval would be consumed at the gate and the relay would double-gate the same
   call.
+- **Live QA found and fixed one real bug: pause teardown clobbered the approval prompt
+  on the Pi relay path.** The relay writes no response file on a pause, session teardown
+  fires the extension's AbortSignal, Pi reports the call as failed ("aborted"), and that
+  frame overwrote the prompt (F-024's class, new path). Fix: the pause controller keeps
+  a paused-call registry and the engine drops any later harness frame for a paused call
+  (the approval request is the last word, now enforced). Regression tests added; UI
+  retest: 1 prompt, Approve resumes with real data and ZERO re-prompts, Deny refuses
+  cleanly. Polish note, not blocking: a user Deny currently surfaces the relay's
+  "denied by the permission policy" wording; "denied by the user" would read better.
+- **UI QA environment notes (pre-existing, not this PR's regressions):** old app
+  records on the dev box stored the internal `agenta-agent:8000` service URL
+  (unreachable from a browser; fixed in the dev DB to the proxied
+  `/services/agent/v0`); the tool picker offers no path to platform ops (tracked by the
+  tools-review workstream); the Anthropic account is out of credit so Claude-harness
+  live runs stayed unverified (Claude-path behavior is covered by unit + settings
+  rendering tests and the Gate-2 machinery is shared).
 - **Headless QA: 7/7 pass on the live EE dev stack** (Sonnet subagent; pi_core +
   gpt-4o-mini via the pi-agents project; evidence captured per case). All four policy
   modes behave, explicit beats policy both directions, the paused batch envelope carries

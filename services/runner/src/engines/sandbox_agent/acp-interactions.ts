@@ -22,6 +22,8 @@ export interface AttachPermissionResponderInput {
    */
   onPause?: () => void;
   log?: (msg: string) => void;
+  /** Called with the ACP tool-call id when a gate pauses the turn. */
+  onPausedToolCall?: (id: string) => void;
   /** Called on pause to record the pending gate as an interaction (fire-and-forget). */
   onCreateInteraction?: (
     token: string,
@@ -41,6 +43,7 @@ export function attachPermissionResponder({
   serverPermissions = new Map(),
   onPause,
   log,
+  onPausedToolCall,
   onCreateInteraction,
   onResolveInteraction,
 }: AttachPermissionResponderInput): void {
@@ -58,13 +61,15 @@ export function attachPermissionResponder({
   // turn's stored decision answers the re-raised gate.
   const pauseUserApproval = (req: any, id: string, gate: GateDescriptor): void => {
     if (!latch.tryAcquire()) return;
-    const eventId = interactionEventId(id, req?.toolCall?.toolCallId);
+    const toolCallId = stringValue(req?.toolCall?.toolCallId);
+    const eventId = interactionEventId(id, toolCallId);
+    if (toolCallId) onPausedToolCall?.(toolCallId);
     run.emitEvent({
       type: "interaction_request",
       id: eventId,
       kind: "user_approval",
       payload: {
-        toolCallId: stringValue(req?.toolCall?.toolCallId),
+        toolCallId,
         toolCall: req?.toolCall,
         availableReplies: stringArray(req?.availableReplies),
         options: req?.options,
@@ -83,6 +88,7 @@ export function attachPermissionResponder({
     if (!latch.tryAcquire()) return;
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
     const eventId = interactionEventId(id, toolCallId);
+    if (toolCallId) onPausedToolCall?.(toolCallId);
     run.emitEvent({
       type: "interaction_request",
       id: eventId,

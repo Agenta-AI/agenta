@@ -170,6 +170,20 @@ export async function destroyInFlightSandboxes(
   ]);
 }
 
+function shouldSuppressPausedToolCallUpdate(
+  update: unknown,
+  pause: PendingApprovalPauseController,
+): boolean {
+  const frame = update as
+    | { sessionUpdate?: unknown; toolCallId?: unknown }
+    | undefined;
+  const kind = frame?.sessionUpdate;
+  if (kind !== "tool_call" && kind !== "tool_call_update") return false;
+  const toolCallId =
+    typeof frame?.toolCallId === "string" ? frame.toolCallId : undefined;
+  return pause.isPausedToolCall(toolCallId);
+}
+
 const CLAUDE_STRICT_DEPLOYMENTS = new Set([
   "custom",
   "bedrock",
@@ -635,16 +649,18 @@ export async function runSandboxAgent(
       ],
     });
 
+    const pause = new PendingApprovalPauseController(() =>
+      sandbox.destroySession?.(session.id),
+    );
+
     session.onEvent((event: any) => {
       remountLocalCwdAfterRuntimeEnotconn(event);
       const payload = event?.payload;
       const update = payload?.params?.update ?? payload?.update;
-      if (update) run.handleUpdate(update);
+      if (update && !shouldSuppressPausedToolCallUpdate(update, pause)) {
+        run.handleUpdate(update);
+      }
     });
-
-    const pause = new PendingApprovalPauseController(() =>
-      sandbox.destroySession?.(session.id),
-    );
     const permissionPlan = permissionsFromRequest(request);
     const storedDecisionMap = extractApprovalDecisions(request);
     if (storedDecisionMap.size > 0) {
@@ -687,6 +703,7 @@ export async function runSandboxAgent(
       decide: (gate) => decide(gate, permissionPlan, decisions),
       onPendingApproval: ({ toolCallId, toolName, args }) => {
         if (!latch.tryAcquire()) return;
+        pause.markPausedToolCall(toolCallId);
         run.emitEvent({
           type: "interaction_request",
           id: toolCallId,
@@ -716,6 +733,7 @@ export async function runSandboxAgent(
       serverPermissions,
       log: logger,
       onPause: () => pause.pause(),
+      onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onCreateInteraction: recordPendingInteraction,
       onResolveInteraction: (token) => {
         const cred = runCredential(request);
@@ -767,6 +785,7 @@ export async function runSandboxAgent(
             if (verdict.kind === "deny") return "deny";
             if (verdict.kind === "fulfilled") return { output: verdict.output };
             if (latch.tryAcquire()) {
+              pause.markPausedToolCall(toolCallId);
               run.emitEvent({
                 type: "interaction_request",
                 id,

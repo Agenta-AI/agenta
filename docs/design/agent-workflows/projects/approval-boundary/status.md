@@ -1,10 +1,16 @@
 # Status
 
-**State: implementation in progress.** Date: 2026-07-03. Three review rounds are folded
-in; the final round left two small comments (both addressed below) and a green light:
-implement, Mahmoud reviews the finished PR. The remaining calls listed under "Decisions
-taken (delegated)" were made by the agent under an explicit "go with your decisions"
-mandate; any of them can be reopened in PR review.
+**State: implemented and QA'd; awaiting final PR review.** Date: 2026-07-03. All six
+plan phases landed on the lane with per-phase review; tests green across runner (444),
+SDK agents (480+), and services (49), including a 40-case cross-language parity
+fixture. Live QA: headless matrix 7/7; playground approve/deny/allow flows verified
+(one prompt, approve resumes without looping, deny refuses cleanly) after fixing one
+QA-found bug (pause teardown clobbered the prompt on the Pi relay path; fixed with a
+paused-call event filter + regression tests). Remaining before merge: rebase onto
+post-#5058 `big-agents` (audit done: their runner deltas are formatting plus patches
+this redesign supersedes; their egress `rawInput is not None` fix merges untouched)
+and flip the PR base. Claude-harness live runs were blocked by account credit; that
+path is covered by unit and settings-rendering tests.
 
 ## Where things stand
 

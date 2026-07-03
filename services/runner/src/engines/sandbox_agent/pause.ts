@@ -8,6 +8,7 @@ export const PAUSED = Symbol("paused");
 
 export class PendingApprovalPauseController {
   private pendingApproval = false;
+  private readonly pausedToolCallIds = new Set<string>();
   private resolvePause: (() => void) | undefined;
 
   readonly signal: Promise<void>;
@@ -23,6 +24,20 @@ export class PendingApprovalPauseController {
     this.pendingApproval = true;
     this.resolvePause?.();
     void Promise.resolve(this.destroySession()).catch(() => {});
+  }
+
+  /**
+   * F-024 lineage: once a paused tool call emits its `interaction_request`, that request is the
+   * last word for the call this turn. Later harness frames for the same id are teardown artifacts
+   * from cancellation/session disposal and must not reach the event stream.
+   */
+  markPausedToolCall(toolCallId: string): void {
+    if (!toolCallId) return;
+    this.pausedToolCallIds.add(toolCallId);
+  }
+
+  isPausedToolCall(toolCallId: string | undefined): boolean {
+    return toolCallId !== undefined && this.pausedToolCallIds.has(toolCallId);
   }
 
   get active(): boolean {
