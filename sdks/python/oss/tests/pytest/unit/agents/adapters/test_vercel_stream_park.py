@@ -155,6 +155,62 @@ async def test_parked_tool_call_refreshes_real_args_on_approval() -> None:
     assert parts[-1]["type"] == "finish"
 
 
+@pytest.mark.asyncio
+async def test_approval_prefers_resolved_name_over_drifting_title() -> None:
+    """When the runner stamps ``resolvedName`` (the recorded tool_call name) on the gate, the
+    egress names the FE part with it — matching the responder's live key — even though the ACP
+    permission ``title`` is the drift-prone specific command. This is the live Claude-tool shape."""
+    run = AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-1",
+                        "name": "Terminal",
+                        "input": {},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "interaction_request",
+                        "id": "perm-1",
+                        "kind": "user_approval",
+                        "payload": {
+                            "toolCallId": "tool-1",
+                            "toolCall": {
+                                "id": "tool-1",
+                                "resolvedName": "Terminal",
+                                "title": "cat ~/.claude/settings.json",
+                                "kind": "execute",
+                                "rawInput": {"command": "cat ~/.claude/settings.json"},
+                            },
+                        },
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "paused"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "paused",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+    parts = [part async for part in agent_run_to_vercel_parts(run)]
+    inputs = [p for p in parts if p.get("type") == "tool-input-available"]
+    assert inputs[-1]["toolName"] == "Terminal", (
+        "the resolved (recorded) name wins over the drifting permission title"
+    )
+
+
 def _parked_run_with_spec_name() -> AgentStream:
     """A parked turn whose tracing ``tool_call`` surfaced the drift-prone ACP display name
     (``Terminal``), while the approval request carries the resolved spec's STABLE canonical name
@@ -217,6 +273,86 @@ async def test_approval_refreshes_part_with_stable_spec_name() -> None:
     # The refreshing emit from the approval request names the tool by its stable spec name.
     assert inputs[-1]["toolName"] == "Bash"
     assert inputs[-1]["input"] == {"cmd": "ls"}
+
+
+def _parked_run_with_late_arg_refresh() -> AgentStream:
+    """The regression order: the tool_call surfaces (empty), the approval upgrades the part to the
+    stable spec name (``Bash``), and THEN Pi's real args land on a later tool_call_update — which
+    the runner replays as a repeat ``tool_call`` carrying only the drift-prone ACP title. That
+    late refresh must NOT clobber the spec name back to the title, or the cross-turn resume key
+    breaks and the gate loops again (the regression from the input-`{}` fix)."""
+    return AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-1",
+                        "name": "Terminal",
+                        "input": {},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "interaction_request",
+                        "id": "perm-1",
+                        "kind": "user_approval",
+                        "payload": {
+                            "toolCallId": "tool-1",
+                            "toolCall": {
+                                "id": "tool-1",
+                                "title": "Terminal",
+                                "kind": "execute",
+                                "spec": {"name": "Bash"},
+                                "rawInput": {"cmd": "ls"},
+                            },
+                        },
+                    },
+                },
+                # Pi fills the args in AFTER the gate: a repeat tool_call with only the ACP title.
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-1",
+                        "name": "Terminal",
+                        "rawInput": {"cmd": "ls"},
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "paused"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "paused",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_late_arg_refresh_does_not_clobber_stable_spec_name() -> None:
+    """A late arg-refresh (repeat tool_call) after the approval keeps the stable spec name, so the
+    FE part the resume folds back still keys as ``Bash`` (not the drift-prone ``Terminal``)."""
+    parts = [
+        part
+        async for part in agent_run_to_vercel_parts(_parked_run_with_late_arg_refresh())
+    ]
+    inputs = [p for p in parts if p.get("type") == "tool-input-available"]
+    # Every emission for this id keeps the stable name; the last (the late refresh) must too.
+    assert inputs[-1]["toolName"] == "Bash", (
+        "the late arg-refresh must not downgrade the approval's stable spec name"
+    )
+    assert inputs[-1]["input"] == {"cmd": "ls"}
+    # And there is exactly ONE tool-input-start (the refresh must not reset the part).
+    assert sum(1 for p in parts if p.get("type") == "tool-input-start") == 1
 
 
 def _commit_revision_run() -> AgentStream:

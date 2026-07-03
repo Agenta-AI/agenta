@@ -134,7 +134,13 @@ async def agent_run_to_vercel_parts(
                 # approval/output. Mirrors the seen-id refresh in `_interaction_parts`.
                 first_seen = tool_call_id not in seen_tool_calls
                 seen_tool_calls.add(tool_call_id)
-                tool_names_by_id[tool_call_id] = tool_name
+                # Record the name only on first sight. On a repeat (arg-refresh) keep the
+                # best-known name: an intervening approval may have upgraded it to the STABLE
+                # spec name, and this refresh carries only the drift-prone ACP title — letting it
+                # clobber the spec name re-breaks the cross-turn resume key (the HITL loop).
+                if first_seen:
+                    tool_names_by_id[tool_call_id] = tool_name
+                tool_name = tool_names_by_id.get(tool_call_id) or tool_name
                 if first_seen:
                     yield {
                         "type": "tool-input-start",
@@ -184,7 +190,7 @@ async def agent_run_to_vercel_parts(
                     if data.get("render") is not None:
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
-                for part in _interaction_parts(data, seen_tool_calls):
+                for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -321,7 +327,13 @@ async def agent_stream_to_vercel_stream(
                 # approval/output. Mirrors the seen-id refresh in `_interaction_parts`.
                 first_seen = tool_call_id not in seen_tool_calls
                 seen_tool_calls.add(tool_call_id)
-                tool_names_by_id[tool_call_id] = tool_name
+                # Record the name only on first sight. On a repeat (arg-refresh) keep the
+                # best-known name: an intervening approval may have upgraded it to the STABLE
+                # spec name, and this refresh carries only the drift-prone ACP title — letting it
+                # clobber the spec name re-breaks the cross-turn resume key (the HITL loop).
+                if first_seen:
+                    tool_names_by_id[tool_call_id] = tool_name
+                tool_name = tool_names_by_id.get(tool_call_id) or tool_name
                 if first_seen:
                     yield {
                         "type": "tool-input-start",
@@ -371,7 +383,7 @@ async def agent_stream_to_vercel_stream(
                     if data.get("render") is not None:
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
-                for part in _interaction_parts(data, seen_tool_calls):
+                for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -413,7 +425,9 @@ async def agent_stream_to_vercel_stream(
 
 
 def _interaction_parts(
-    data: Dict[str, Any], seen_tool_calls: set
+    data: Dict[str, Any],
+    seen_tool_calls: set,
+    tool_names_by_id: Optional[Dict[Any, Any]] = None,
 ) -> Iterator[Dict[str, Any]]:
     """Project a neutral ``interaction_request`` event to Vercel stream parts.
 
@@ -424,6 +438,7 @@ def _interaction_parts(
     didn't, synthesize a tool part from the request payload so the approval has something to
     render against.
     """
+    names = tool_names_by_id if tool_names_by_id is not None else {}
     kind = data.get("kind")
     payload = data.get("payload") or {}
     if kind == "user_approval":
@@ -435,6 +450,10 @@ def _interaction_parts(
             # gate (responder.ts `permissionToolName`). Otherwise the cross-turn key silently
             # stops matching and the gate re-parks every turn (the HITL resume loop).
             tool_name = _approval_tool_name(tool_call)
+            # Record it as the AUTHORITATIVE name for this id, so a later arg-refresh tool_call
+            # (which carries only the drift-prone ACP title) cannot downgrade it back and re-break
+            # the resume key. See the tool_call handler's `tool_names_by_id.get(...)` preference.
+            names[tool_call_id] = tool_name
             real_input = tool_call.get("rawInput") or tool_call.get("input")
             # EGRESS side of the HITL key: what name+args the FE persists on the approval part
             # (and folds back on resume). Compare to the runner's live `[HITL] gate` identity.
@@ -545,15 +564,16 @@ def _tool_spec_of(tool_call: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 def _approval_tool_name(tool_call: Dict[str, Any]) -> Optional[Any]:
     """The gated tool's name for the cross-turn resume key.
 
-    Prefer the resolved spec's canonical ``name`` — STABLE across cold-replay turns — over the
-    ACP display fields (``title``/``kind``), which the harness can vary between the park turn and
-    the re-raise. The runner's ``permissionToolName`` (responder.ts) uses the same precedence, so
-    the stored key (this name, folded back on resume) and the live re-raised key agree. Falls back
-    to ``name -> title -> kind`` when no spec is resolved (unchanged behavior).
+    Prefer ``resolvedName`` — the recorded ``tool_call`` name the runner stamps on the gate, the
+    SAME value the transcript folds into the stored key — so the egress names the part exactly as
+    the responder keys it. Then the resolved spec's canonical ``name`` (when a spec exists). Only
+    then the ACP display fields (``title``/``kind``), which drift between the park frame and the
+    permission frame and were the resume-loop root cause. Falls back to ``name -> title -> kind``.
     """
     spec = _tool_spec_of(tool_call)
     return (
-        (spec or {}).get("name")
+        tool_call.get("resolvedName")
+        or (spec or {}).get("name")
         or tool_call.get("name")
         or tool_call.get("title")
         or tool_call.get("kind")
