@@ -5,7 +5,13 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -20,7 +26,8 @@ function tempDir(): string {
 }
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const dir of dirs.splice(0))
+    rmSync(dir, { recursive: true, force: true });
 });
 
 describe("prepareWorkspace", () => {
@@ -42,12 +49,44 @@ describe("prepareWorkspace", () => {
     });
 
     assert.equal(existsSync(join(cwd, ".agenta-tools")), true);
-    assert.equal(readFileSync(join(cwd, "AGENTS.md"), "utf-8"), "agent instructions");
+    assert.equal(
+      readFileSync(join(cwd, "AGENTS.md"), "utf-8"),
+      "agent instructions",
+    );
     // A Pi run never gets a Claude settings file.
     assert.equal(existsSync(join(cwd, ".claude", "settings.json")), false);
 
     await workspace.cleanup();
     assert.equal(existsSync(cwd), false);
+  });
+
+  it("writes claude instructions to CLAUDE.md, not AGENTS.md (local)", async () => {
+    // claude-agent-sdk's memory loader auto-loads CLAUDE.md, never AGENTS.md, so the claude
+    // harness's instructions must land in CLAUDE.md to be read at all.
+    const cwd = tempDir();
+
+    const workspace = await prepareWorkspace({
+      sandbox: {},
+      plan: {
+        isDaytona: false,
+        cwd,
+        relayDir: join(cwd, ".agenta-tools"),
+        useToolRelay: false,
+        agentsMd: "agent instructions",
+        acpAgent: "claude",
+        isPi: false,
+        skillDirs: [],
+      },
+    });
+
+    assert.equal(
+      readFileSync(join(cwd, "CLAUDE.md"), "utf-8"),
+      "agent instructions",
+    );
+    // The AGENTS.md name is Pi's; a claude run must not use it (the loader ignores it).
+    assert.equal(existsSync(join(cwd, "AGENTS.md")), false);
+
+    await workspace.cleanup();
   });
 
   it("writes a nested harnessFiles entry (.claude/settings.json) for a local run", async () => {
@@ -110,9 +149,11 @@ describe("prepareWorkspace", () => {
   });
 
   it("prepares a Daytona cwd through the sandbox fs API", async () => {
-    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> =
+      [];
     const sandbox = {
-      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      mkdirFs: async ({ path }: { path: string }) =>
+        calls.push({ op: "mkdir", path }),
       writeFsFile: async ({ path }: { path: string }, body: string) =>
         calls.push({ op: "write", path, body }),
     };
@@ -143,14 +184,60 @@ describe("prepareWorkspace", () => {
     ]);
   });
 
-  it("writes a nested harnessFiles entry on Daytona via the fs API", async () => {
-    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+  it("writes claude instructions to CLAUDE.md on Daytona", async () => {
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> =
+      [];
     const sandbox = {
-      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      mkdirFs: async ({ path }: { path: string }) =>
+        calls.push({ op: "mkdir", path }),
       writeFsFile: async ({ path }: { path: string }, body: string) =>
         calls.push({ op: "write", path, body }),
     };
-    const content = JSON.stringify({ permissions: { deny: ["Bash"] } }, null, 2);
+
+    await prepareWorkspace({
+      sandbox,
+      plan: {
+        isDaytona: true,
+        cwd: "/home/sandbox/agenta-fixed",
+        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+        useToolRelay: false,
+        agentsMd: "agent instructions",
+        acpAgent: "claude",
+        isPi: false,
+        skillDirs: [],
+      },
+    });
+
+    // The instructions land in CLAUDE.md (the name claude-agent-sdk loads), never AGENTS.md.
+    assert.ok(
+      calls.some(
+        (c) =>
+          c.op === "write" &&
+          c.path === "/home/sandbox/agenta-fixed/CLAUDE.md" &&
+          c.body === "agent instructions",
+      ),
+      "instructions are written to CLAUDE.md via the fs API",
+    );
+    assert.ok(
+      !calls.some((c) => c.path === "/home/sandbox/agenta-fixed/AGENTS.md"),
+      "a claude run never writes AGENTS.md",
+    );
+  });
+
+  it("writes a nested harnessFiles entry on Daytona via the fs API", async () => {
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> =
+      [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) =>
+        calls.push({ op: "mkdir", path }),
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        calls.push({ op: "write", path, body }),
+    };
+    const content = JSON.stringify(
+      { permissions: { deny: ["Bash"] } },
+      null,
+      2,
+    );
 
     await prepareWorkspace({
       sandbox,
@@ -169,7 +256,8 @@ describe("prepareWorkspace", () => {
 
     // The parent dir of the nested path is created via the fs API.
     const claudeDir = calls.find(
-      (c) => c.op === "mkdir" && c.path === "/home/sandbox/agenta-fixed/.claude",
+      (c) =>
+        c.op === "mkdir" && c.path === "/home/sandbox/agenta-fixed/.claude",
     );
     assert.ok(claudeDir, ".claude dir is created via the fs API");
     const write = calls.find(
@@ -183,9 +271,11 @@ describe("prepareWorkspace", () => {
   });
 
   it("writes no harness file on Daytona for a plan with no harnessFiles", async () => {
-    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> =
+      [];
     const sandbox = {
-      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      mkdirFs: async ({ path }: { path: string }) =>
+        calls.push({ op: "mkdir", path }),
       writeFsFile: async ({ path }: { path: string }, body: string) =>
         calls.push({ op: "write", path, body }),
     };
@@ -239,11 +329,13 @@ describe("prepareWorkspace", () => {
   });
 
   it("uploads Claude skills into the project-local .claude/skills tree on Daytona", async () => {
-    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> =
+      [];
     const skillDir = tempDir();
     writeFileSync(join(skillDir, "SKILL.md"), "skill", "utf-8");
     const sandbox = {
-      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      mkdirFs: async ({ path }: { path: string }) =>
+        calls.push({ op: "mkdir", path }),
       writeFsFile: async ({ path }: { path: string }, body: string) =>
         calls.push({ op: "write", path, body }),
     };
