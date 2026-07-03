@@ -218,12 +218,14 @@ class EventsWorker(StreamConsumer):
 
         while True:
             try:
-                started = time.perf_counter()
-
-                # 1. Read batch from stream
+                # 1. Read batch from stream (idle blocks return empty, never tick)
+                read_started = time.perf_counter()
                 batch = await self.read_batch()
                 if not batch:
                     continue
+
+                read_ms = (time.perf_counter() - read_started) * 1000
+                started = time.perf_counter()
 
                 # 2. Process batch
                 ingested, processed_ids, batches = await self.process_batch(batch)
@@ -266,6 +268,7 @@ class EventsWorker(StreamConsumer):
                     f"{self.metric_stream}.processed",
                     count=len(processed_ids),
                     duration_ms=(time.perf_counter() - started) * 1000,
+                    read_ms=read_ms,
                     dims={"stream": self.metric_stream},
                 )
             except Exception:

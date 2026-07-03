@@ -189,6 +189,14 @@ if AGENTA_LOG_CONSOLE_ENABLED and not _LOGGING_CONFIGURED:
         sdk_logger.propagate = False
 
 
+def _emf_unit_for(field: str) -> str:
+    if field.endswith("_ms"):
+        return "Milliseconds"
+    if field == "bytes" or field.endswith("_bytes"):
+        return "Bytes"
+    return "None"
+
+
 def _emit_emf_metric(
     name: str,
     *,
@@ -203,6 +211,13 @@ def _emit_emf_metric(
     EMF lines embedded in it become metrics automatically.
     """
     dim_names = list(dims.keys())
+    # Register every numeric field (duration_ms, bytes, ...) as its own metric so
+    # it graphs in CloudWatch; a name-based unit keeps ms/bytes sensible. Non-numeric
+    # fields stay as EMF properties (context only).
+    metrics = [{"Name": name, "Unit": unit}]
+    for key, value in fields.items():
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            metrics.append({"Name": key, "Unit": _emf_unit_for(key)})
     record = {
         "_aws": {
             "Timestamp": int(time.time() * 1000),
@@ -210,7 +225,7 @@ def _emit_emf_metric(
                 {
                     "Namespace": AGENTA_LOG_METRICS_NAMESPACE,
                     "Dimensions": [dim_names] if dim_names else [[]],
-                    "Metrics": [{"Name": name, "Unit": unit}],
+                    "Metrics": metrics,
                 }
             ],
         },
@@ -219,6 +234,7 @@ def _emit_emf_metric(
         **fields,
     }
     sys.stdout.write(orjson_dumps(record).decode() + "\n")
+    sys.stdout.flush()
 
 
 class MultiLogger:

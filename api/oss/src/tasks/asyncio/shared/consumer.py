@@ -182,11 +182,16 @@ class StreamConsumer:
 
         while True:
             try:
-                started = time.perf_counter()
+                read_started = time.perf_counter()
                 batch = await self.read_batch()
                 if not batch:
                     continue
 
+                # read_ms = fetch + batch accumulation (the consumer's Redis-read
+                # latency, symmetric with the producer's XADD latency); duration_ms
+                # = process + ack only. Idle 5s blocks return empty and never tick.
+                read_ms = (time.perf_counter() - read_started) * 1000
+                started = time.perf_counter()
                 processed_count, processed_message_ids = await self.process_batch(batch)
 
                 if processed_message_ids:
@@ -196,6 +201,7 @@ class StreamConsumer:
                     f"{self.metric_stream}.processed",
                     count=processed_count,
                     duration_ms=(time.perf_counter() - started) * 1000,
+                    read_ms=read_ms,
                     dims={"stream": self.metric_stream},
                 )
 
