@@ -58,24 +58,6 @@ _PROVIDER_ENV_VARS: Dict[str, str] = {
 _CLAUDE_ALIASES: Set[str] = {alias.lower() for alias in CLAUDE_MODEL_ALIASES}
 
 
-def _inferred_claude_provider(model: ModelRef) -> Optional[str]:
-    """Return ``"anthropic"`` when a bare model id is a known Claude alias, else ``None``.
-
-    Only fires for a bare id (no explicit ``provider``). A known alias (the ``capabilities.py``
-    set) or any ``claude-*`` dated id (the Anthropic naming convention) is unambiguously
-    Anthropic, so it resolves to the ``anthropic`` provider rather than failing loud as a
-    provider-less model.
-    """
-    if model.provider:
-        return None
-    bare = (model.model or "").strip().lower()
-    if not bare:
-        return None
-    if bare in _CLAUDE_ALIASES or bare.startswith("claude-"):
-        return "anthropic"
-    return None
-
-
 def _build_catalog_provider_index() -> Dict[str, str]:
     """Invert ``supported_llm_models`` to ``{model_id: provider}`` for unambiguous ids only.
 
@@ -97,19 +79,29 @@ def _build_catalog_provider_index() -> Dict[str, str]:
 _CATALOG_PROVIDER_INDEX: Dict[str, str] = _build_catalog_provider_index()
 
 
-def _inferred_catalog_provider(model: ModelRef) -> Optional[str]:
-    """Return the provider a bare model id belongs to per ``supported_llm_models``, else ``None``.
+def infer_provider_from(model: ModelRef) -> Optional[str]:
+    """Discover the provider for a bare (provider-less) model id, or ``None`` if undecidable.
 
-    Discovery, not precedence: only fills a MISSING provider on a bare id, and only when the
-    shared model catalog maps it to exactly one provider. An unknown or cross-provider-ambiguous
-    id returns ``None`` and still fails loud (F-017). Credential-precedence between vault
-    connections is decided separately, after the provider is known.
+    Discovery, not precedence: only fills a MISSING provider (an explicit ``provider`` is always
+    honored), and never guesses. Three sources, in order of specificity:
+
+    1. Claude harness aliases (``haiku``/``sonnet``/``opus`` + ``[1m]``) — harness shorthands that
+       live outside any model catalog, so they can only be matched by name.
+    2. The ``claude-*`` structural prefix — Anthropic's dated-id naming convention, which resolves
+       newer ids the shared catalog has not been updated with yet.
+    3. The shared ``supported_llm_models`` catalog — every other known model id, when it maps to
+       exactly one provider.
+
+    Returns ``None`` for an unknown or cross-provider-ambiguous id, which then fails loud (F-017)
+    rather than resolving mis-credentialed.
     """
     if model.provider:
         return None
     bare = (model.model or "").strip().lower()
     if not bare:
         return None
+    if bare in _CLAUDE_ALIASES or bare.startswith("claude-"):
+        return "anthropic"
     return _CATALOG_PROVIDER_INDEX.get(bare)
 
 
@@ -134,6 +126,7 @@ _SNAKE_EXTRA_ENV_ALIASES: Dict[str, str] = {
     "aws_access_key_id": "AWS_ACCESS_KEY_ID",
     "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
     "aws_session_token": "AWS_SESSION_TOKEN",
+    "aws_bearer_token_bedrock": "AWS_BEARER_TOKEN_BEDROCK",
     "vertex_ai_project": "GOOGLE_CLOUD_PROJECT",
     "vertex_ai_location": "GOOGLE_CLOUD_LOCATION",
     "vertex_ai_credentials": "GOOGLE_APPLICATION_CREDENTIALS",
@@ -275,10 +268,15 @@ class _ConnectionCandidate:
     def resolved_env(self, provider: str) -> Dict[str, str]:
         env = dict(self.env)
         env_var = _provider_env_var(provider) or _provider_env_var(self.provider)
-        if self.api_key and env_var:
+        # Bedrock's key is a bearer token with its own channel below — never the family's
+        # API-key env var (a bedrock key in ANTHROPIC_API_KEY would mis-auth the direct API).
+        if self.api_key and env_var and self.deployment != "bedrock":
             env.setdefault(env_var, self.api_key)
         if self.deployment == "azure" and self.api_key:
             env.setdefault("AZURE_OPENAI_API_KEY", self.api_key)
+        # A bedrock key rides AWS_BEARER_TOKEN_BEDROCK — the one channel both harnesses accept.
+        if self.deployment == "bedrock" and self.api_key:
+            env.setdefault("AWS_BEARER_TOKEN_BEDROCK", self.api_key)
         return env
 
 
@@ -298,9 +296,7 @@ def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandi
     key = _stripped(_settings(secret).get("key"))
     if not provider:
         return None
-    # A standard provider_key is identified by its PROVIDER, not by a name: it has no slug
-    # concept (slug is a custom_provider connection field). Use the provider as the candidate's
-    # slug so a plain OpenAI key resolves for `openai` — never `header.name`.
+    # A provider_key is identified by its provider — it has no slug concept, never `header.name`.
     return _ConnectionCandidate(
         slug=provider,
         kind="provider_key",
@@ -445,7 +441,7 @@ def _resolve_from_secrets(
     # A bare Claude alias (haiku/sonnet/opus + [1m]) or a dated claude-* id is unambiguously
     # Anthropic: infer the provider so the F-017 fail-loud rule does not reject a documented
     # Claude model id. Inference only fills a missing provider; an explicit provider is honored.
-    inferred = _inferred_claude_provider(model) or _inferred_catalog_provider(model)
+    inferred = infer_provider_from(model)
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
