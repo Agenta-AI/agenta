@@ -34,6 +34,7 @@ import {useSetAtom} from "jotai"
 
 import {CatalogChooser} from "../../../drawers/shared/CatalogChooser"
 import ConnectDrawer from "../../../gatewayTool/drawers/ConnectDrawer"
+import {useReconnectToolConnection} from "../../../gatewayTool/hooks/useReconnectToolConnection"
 import type {ToolSelectionMeta} from "../ToolSelectorPopover"
 import {parseGatewayFunctionName, type ToolObj} from "../toolUtils"
 
@@ -124,6 +125,7 @@ function ToolCatalogContent({
 }: Omit<AgentIntegrationDrawerProps, "open" | "onClose">) {
     const [pending, setPending] = useState<string | null>(null)
     const {connections} = useToolConnectionsQuery()
+    const {reconnect, reconnectingId} = useReconnectToolConnection()
 
     const slugFor = useCallback(
         (conn: ToolConnection, actionKey: string) =>
@@ -202,6 +204,8 @@ function ToolCatalogContent({
                 cardVariant="subtle"
                 defaultIntegrationKey={defaultIntegrationKey}
                 isConnectionReady={isConnectionValid}
+                onReconnect={(c) => c.id && reconnect(c.id)}
+                isReconnecting={(c) => !!c.id && c.id === reconnectingId}
                 useIntegrations={useToolIntegrationsList}
                 useItems={useToolActionList}
                 integration={{

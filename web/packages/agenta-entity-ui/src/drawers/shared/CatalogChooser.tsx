@@ -12,7 +12,7 @@
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {ScrollSentinel} from "@agenta/ui"
-import {ArrowLeft, Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import {ArrowClockwise, ArrowLeft, Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {Button, Input, Spin, Tooltip, Typography} from "antd"
 
 import {AppCard, AppLogo} from "./CatalogAppCard"
@@ -74,6 +74,11 @@ export interface CatalogChooserProps<I, T, C> {
     itemsSearchPlaceholder?: string
     emptyItemsText: string
     onPickItem: (connection: C, item: T) => void
+    /** Re-run auth for a pending/broken connection (reopens the OAuth popup). When provided, a
+     * "Reconnect" affordance shows on the selected connection while it isn't ready. */
+    onReconnect?: (connection: C) => void
+    /** Whether a reconnect is currently in flight for this connection. */
+    isReconnecting?: (connection: C) => boolean
     /** Per-item affordance (tools track selected/pending). Defaults to "add". */
     itemState?: (connection: C, item: T) => CatalogItemState
     /** Connect a not-yet-connected app — render the surface's connect drawer. */
@@ -605,6 +610,35 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                             props={props}
                                         />
                                     )}
+                                    {props.onReconnect &&
+                                        !props.isConnectionReady(selectedConn) &&
+                                        (() => {
+                                            const busy =
+                                                props.isReconnecting?.(selectedConn) ?? false
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    disabled={busy}
+                                                    onClick={() =>
+                                                        props.onReconnect?.(selectedConn)
+                                                    }
+                                                    className="mt-2 flex w-full items-center justify-between gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-left disabled:cursor-wait"
+                                                >
+                                                    <span className="text-[11px] text-[var(--ag-colorWarningText)]">
+                                                        Authentication is still pending for this
+                                                        connection.
+                                                    </span>
+                                                    <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-[var(--ag-colorPrimary)]">
+                                                        {busy ? (
+                                                            <Spin size="small" />
+                                                        ) : (
+                                                            <ArrowClockwise size={13} />
+                                                        )}
+                                                        {busy ? "Reconnecting…" : "Reconnect"}
+                                                    </span>
+                                                </button>
+                                            )
+                                        })()}
                                     <div className="mb-2 mt-4 flex items-center justify-between gap-2">
                                         <Typography.Text
                                             type="secondary"
