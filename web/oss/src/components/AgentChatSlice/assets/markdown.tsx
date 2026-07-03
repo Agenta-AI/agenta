@@ -1,7 +1,9 @@
 import {memo, type ReactNode} from "react"
 
+import {CopyButton} from "@agenta/ui/components/presentational"
 import {XMarkdown} from "@ant-design/x-markdown"
 import Latex from "@ant-design/x-markdown/plugins/Latex"
+import {Tooltip} from "antd"
 import {PrismAsync as SyntaxHighlighter} from "react-syntax-highlighter"
 import {oneDark} from "react-syntax-highlighter/dist/esm/styles/prism"
 
@@ -77,21 +79,40 @@ const CodeBlock = ({
     children?: ReactNode
 }) => {
     if (!block) return <code className={className}>{children}</code>
+
+    const code = childrenToText(children).replace(/\n$/, "")
+
     return (
-        <SyntaxHighlighter
-            language={(lang || "text").trim().split(/\s+/)[0] || "text"}
-            style={oneDark}
-            PreTag="div"
-            customStyle={{
-                margin: "0.5rem 0",
-                padding: "0.75rem",
-                borderRadius: 6,
-                fontSize: "0.75rem",
-            }}
-            codeTagProps={{style: {fontSize: "0.75rem"}}}
-        >
-            {childrenToText(children).replace(/\n$/, "")}
-        </SyntaxHighlighter>
+        <div className="relative min-w-0 max-w-full">
+            <div className="absolute top-3 right-2 z-10">
+                <Tooltip title="Copy code">
+                    <CopyButton
+                        text={code}
+                        buttonText={null}
+                        icon
+                        size="small"
+                        aria-label="Copy code"
+                        successMessage=""
+                        className="!h-7 !w-7 !border-colorBorderSecondary !bg-colorBgElevated !p-0 !text-colorTextSecondary shadow-sm"
+                    />
+                </Tooltip>
+            </div>
+            <SyntaxHighlighter
+                language={(lang || "text").trim().split(/\s+/)[0] || "text"}
+                style={oneDark}
+                PreTag="div"
+                customStyle={{
+                    margin: "0.5rem 0",
+                    padding: "0.75rem",
+                    paddingRight: "2.75rem",
+                    borderRadius: 6,
+                    fontSize: "0.75rem",
+                }}
+                codeTagProps={{style: {fontSize: "0.75rem"}}}
+            >
+                {code}
+            </SyntaxHighlighter>
+        </div>
     )
 }
 

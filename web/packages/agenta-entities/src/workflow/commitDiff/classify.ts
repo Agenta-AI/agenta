@@ -81,7 +81,10 @@ function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
     const parts: string[] = []
     if (descChanged) parts.push("description")
     if (paramCount) parts.push(paramCount === 1 ? "1 parameter" : `${paramCount} parameters`)
-    if (!parts.length) return undefined
+    // Fingerprint-based edit detection can flag a change in a field diffToolFields doesn't inspect
+    // (or a nameless reference/builtin tool with no fields) — fall back to a generic label so the
+    // "edited" badge is never left unexplained.
+    if (!parts.length) return "changed"
     return `${parts.join(" & ")} changed`
 }
 
@@ -97,8 +100,10 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
         const prev = remoteMap.get(key)
         if (!prev) {
             added.push(tool)
-        } else if (prev.description !== tool.description || prev.paramsJson !== tool.paramsJson) {
-            edited.push({tool, fields: diffToolFields(prev, tool)})
+        } else if (prev.fingerprint !== tool.fingerprint) {
+            // Field-level detail only for function tools; reference/builtin edits register with the
+            // generic "changed" detail (they have no function fields to itemize).
+            edited.push({tool, fields: tool.isFunction ? diffToolFields(prev, tool) : []})
         }
     }
     for (const [key, tool] of remoteMap) {
@@ -114,14 +119,14 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
             label: t.label,
             detail: t.source,
             kind: "added" as const,
-            rawKey: t.key,
+            rawKey: t.rawKey,
         })),
         ...edited.map(({tool, fields}) => ({
             id: tool.key,
             label: tool.label,
             detail: toolRowDetail(fields),
             kind: "edited" as const,
-            rawKey: tool.key,
+            rawKey: tool.rawKey,
             fieldChanges: fields,
             descriptionDiff: fields.some((f) => f.field === "description")
                 ? {
@@ -135,7 +140,7 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
             label: t.label,
             detail: t.source,
             kind: "removed" as const,
-            rawKey: t.key,
+            rawKey: t.rawKey,
         })),
     ]
 

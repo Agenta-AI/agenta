@@ -1195,7 +1195,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     }, [pendingRun, addSession, setPendingRun])
 
     return (
-        <div className="flex h-full min-h-0 w-full flex-row">
+        <div className="flex h-full min-h-0 min-w-0 w-full flex-row">
             {/* Rail stays mounted and slides (width 0↔RAIL_WIDTH) so it animates in lockstep with the
                 config pane instead of snapping. Clipped while collapsed; `inert` drops it from tab
                 order + a11y when hidden. */}
@@ -1216,7 +1216,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                     // bar would be an empty 48px strip. Collapse its height to 0 — animated to match
                     // the rail/config panes — rather than leaving dead space or snapping it away.
                     <div
-                        className="shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                        className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
                         style={{height: chatMaximized ? 0 : 48}}
                     >
                         <SessionTagBar

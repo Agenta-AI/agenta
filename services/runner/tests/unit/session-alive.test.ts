@@ -70,7 +70,7 @@ describe("startAliveWatchdog", () => {
     await w2.release();
   });
 
-  it("release() sends a final heartbeat with is_running=false and status=ended", async () => {
+  it("release() sends a final heartbeat with is_running=false (status derived server-side)", async () => {
     const watchdog = startAliveWatchdog("sess-2", "turn-xyz", "proj-2");
     await flushMicrotasks();
     fetchCalls.length = 0; // reset after the start heartbeat
@@ -82,7 +82,7 @@ describe("startAliveWatchdog", () => {
     const body = final.body as Record<string, unknown>;
     assert.equal(body["is_running"], false);
     assert.equal(body["turn_id"], "turn-xyz");
-    assert.deepEqual(body["status"], { code: "ended" });
+    assert.ok(!("status" in body), "status was dropped from the heartbeat contract");
   });
 
   it("swallows heartbeat failures — never throws", async () => {
