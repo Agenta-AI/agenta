@@ -1,5 +1,7 @@
 # Plan — direction, platform-side change, decisions, tests
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../../approval-boundary/) (2026-07). Kept as a dated record.
+
 Design only. No code in this PR.
 
 ## The direction, in one line

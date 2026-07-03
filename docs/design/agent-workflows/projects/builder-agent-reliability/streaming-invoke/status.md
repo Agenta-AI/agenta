@@ -1,5 +1,7 @@
 # Status
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../../approval-boundary/) (2026-07). Kept as a dated record.
+
 **State: design under review. No platform code changed.** Live-verified on
 `bighetzner.agenta.dev`.
 

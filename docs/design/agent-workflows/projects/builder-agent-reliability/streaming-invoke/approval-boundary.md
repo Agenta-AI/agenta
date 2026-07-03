@@ -1,5 +1,7 @@
 # Approval boundary — an auto-approved run stops at the tool gate (bug)
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../../approval-boundary/) (2026-07). Kept as a dated record.
+
 This page investigates a specific behavior the streaming reproduction exposed, decides whether it is
 a bug, shows how the frontend hides it, pins when it was introduced with a commit, and recommends a
 fix. It is the detailed companion to `context.md` and `research.md`.

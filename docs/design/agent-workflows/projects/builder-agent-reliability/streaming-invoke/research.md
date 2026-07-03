@@ -1,5 +1,7 @@
 # Research — the mechanism, with citations
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../../approval-boundary/) (2026-07). Kept as a dated record.
+
 All paths are from the repo root. Live evidence is from `bighetzner.agenta.dev`, project
 `019f1a24-52d1-7253-a675-e569105bc0b5`, agent `019f1a84-b778-7c22-97ce-3816e5edbb09` (UC9 Repo
 Digest).

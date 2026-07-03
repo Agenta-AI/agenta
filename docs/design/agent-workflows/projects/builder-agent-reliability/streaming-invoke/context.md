@@ -1,5 +1,7 @@
 # Context
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../../approval-boundary/) (2026-07). Kept as a dated record.
+
 ## The symptom
 
 A multi-tool agent — the `uc9-digest` repo-digest agent: `LIST_COMMITS`, `LIST_REPOSITORY_ISSUES`,
