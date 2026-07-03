@@ -144,7 +144,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
                         // The primary input reads as a defined, slightly-lifted field: a visible edge
                         // + soft shadow, then the accent border on focus (1px, no glow).
-                        "border-[var(--ag-composer-border)] focus-within:border-[var(--ag-surface-accent)]",
+                        "border-[var(--ag-composer-border)] focus-within:border-[var(--ag-composer-focus)]",
                         disabled && "opacity-60",
                         className,
                     )}
@@ -166,7 +166,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             aria-placeholder={placeholder}
                             className="max-h-40 min-h-[72px] overflow-y-auto break-words px-3 py-2.5 text-xs leading-relaxed text-[var(--ag-colorText)] outline-none"
                             placeholder={
-                                <div className="pointer-events-none absolute left-3 top-2.5 select-none text-xs text-[var(--ag-colorTextPlaceholder)]">
+                                <div className="pointer-events-none absolute left-3 top-2.5 select-none text-xs text-[var(--ag-composer-placeholder)]">
                                     {placeholder}
                                 </div>
                             }

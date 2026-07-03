@@ -659,7 +659,9 @@
     --ag-surface-accent: #c2d54a; /* brand accent (selected-row bar) — constant across themes */
     --ag-user-bubble-bg: #f4f6e4; /* the "mine" turn — a soft accent tint vs the agent's plain turn */
     --ag-user-bubble-border: #dde4a0;
-    --ag-composer-border: #dadde1; /* the primary input — a touch stronger edge than the cards */
+    --ag-composer-border: #e7e8eb; /* the primary input — a quiet edge; the shadow carries the lift */
+    --ag-composer-focus: #c2d54a; /* focus edge — the full accent reads fine on white */
+    --ag-composer-placeholder: #767b82; /* readable placeholder weight (not body text) */
     --ag-send-disabled-bg: #eceef1; /* inert send button (empty input) — a grey fill, not a ghost */
     --ag-send-disabled-fg: #a6abb1;
     --ag-surface-row-hover: #f3f4f6; /* list-row hover fill */
@@ -726,7 +728,15 @@
     --ag-type-agent-text: #b98cff;
     --ag-user-bubble-bg: rgba(194, 213, 74, 0.08);
     --ag-user-bubble-border: rgba(194, 213, 74, 0.22);
-    --ag-composer-border: #2e3136;
+    --ag-composer-border: #2a2c30;
+    --ag-composer-focus: rgba(
+        194,
+        213,
+        74,
+        0.45
+    ); /* focus edge — a soft olive tint; the full lime
+                                                      accent shouts against the near-black composer */
+    --ag-composer-placeholder: #7e828a;
     --ag-send-disabled-bg: #26282c;
     --ag-send-disabled-fg: #6e7176;
 }
