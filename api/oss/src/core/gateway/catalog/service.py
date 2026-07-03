@@ -8,6 +8,7 @@ trigger events) stay in their own domain services.
 from typing import List, Optional
 
 from oss.src.core.gateway.catalog.dtos import (
+    CatalogCategory,
     CatalogIntegration,
     CatalogIntegrationsPage,
     CatalogProvider,
@@ -49,6 +50,7 @@ class CatalogService:
         #
         search: Optional[str] = None,
         sort_by: Optional[str] = None,
+        category: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
     ) -> CatalogIntegrationsPage:
@@ -56,9 +58,18 @@ class CatalogService:
         return await adapter.list_integrations(
             search=search,
             sort_by=sort_by,
+            category=category,
             limit=limit,
             cursor=cursor,
         )
+
+    async def list_categories(
+        self,
+        *,
+        provider_key: str,
+    ) -> List[CatalogCategory]:
+        adapter = self.adapter_registry.get(provider_key)
+        return await adapter.list_categories()
 
     async def get_integration(
         self,

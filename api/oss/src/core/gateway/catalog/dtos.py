@@ -52,3 +52,10 @@ class CatalogIntegrationsPage(BaseModel):
     integrations: List[CatalogIntegration] = []
     next_cursor: Optional[str] = None
     total: int = 0
+
+
+class CatalogCategory(BaseModel):
+    """A toolkit category the catalog can be filtered by (e.g. "developer-tools")."""
+
+    id: str
+    name: str

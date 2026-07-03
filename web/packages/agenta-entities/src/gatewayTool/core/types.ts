@@ -37,6 +37,17 @@ export type ToolCatalogActionDetails = AgentaApi.ToolCatalogActionDetails
 export type ToolCatalogActionResponse = AgentaApi.ToolCatalogActionResponse
 export type ToolCatalogActionsResponse = AgentaApi.ToolCatalogActionsResponse
 
+// Categories are a new catalog endpoint not yet in the Fern client — hand-typed
+// until the generated client is regenerated to include `listToolCategories`.
+export interface ToolCatalogCategory {
+    id: string
+    name: string
+}
+export interface ToolCatalogCategoriesResponse {
+    count: number
+    categories: ToolCatalogCategory[]
+}
+
 // ---------------------------------------------------------------------------
 // Connections
 // ---------------------------------------------------------------------------

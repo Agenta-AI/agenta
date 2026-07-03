@@ -19,16 +19,31 @@ const PREFETCH = 2
 // Server-side search atom — set by the drawer, drives the query
 export const toolIntegrationsSearchAtom = atom("")
 
+// Active category filter (Composio `category` slug), or null for "all apps". Search
+// overrides it — an active search ignores the category axis (flat results).
+export const toolIntegrationsCategoryAtom = atom<string | null>(null)
+
 export const toolCatalogIntegrationsInfiniteAtom =
     atomWithInfiniteQuery<ToolCatalogIntegrationsResponse>((get) => {
         const search = get(toolIntegrationsSearchAtom)
         const effectiveSearch = search.length >= 3 ? search : ""
+        // Search flattens across all categories, so the category filter only applies
+        // when there is no active search.
+        const category = effectiveSearch ? null : get(toolIntegrationsCategoryAtom)
 
         return {
-            queryKey: ["tools", "catalog", "integrations", DEFAULT_PROVIDER, effectiveSearch],
+            queryKey: [
+                "tools",
+                "catalog",
+                "integrations",
+                DEFAULT_PROVIDER,
+                effectiveSearch,
+                category ?? "",
+            ],
             queryFn: async ({pageParam}) =>
                 fetchToolIntegrations(DEFAULT_PROVIDER, {
                     search: effectiveSearch || undefined,
+                    category: category || undefined,
                     limit: CHUNK_SIZE,
                     cursor: (pageParam as string) || undefined,
                 }),
@@ -42,10 +57,20 @@ export const toolCatalogIntegrationsInfiniteAtom =
 export const useToolCatalogIntegrations = () => {
     const query = useAtomValue(toolCatalogIntegrationsInfiniteAtom)
     const setSearch = useSetAtom(toolIntegrationsSearchAtom)
+    const setCategory = useSetAtom(toolIntegrationsCategoryAtom)
 
     const integrations = useMemo<CatalogIntegrationItem[]>(() => {
         const pages = query.data?.pages ?? []
-        return pages.flatMap((p) => p.integrations ?? [])
+        // Dedupe by key across pagination boundaries — a cursor overlap can repeat an integration,
+        // and duplicate React keys crash the grid render.
+        const seen = new Set<string>()
+        const out: CatalogIntegrationItem[] = []
+        for (const i of pages.flatMap((p) => p.integrations ?? [])) {
+            if (!i?.key || seen.has(i.key)) continue
+            seen.add(i.key)
+            out.push(i)
+        }
+        return out
     }, [query.data?.pages])
 
     const total = useMemo(() => {
@@ -91,5 +116,7 @@ export const useToolCatalogIntegrations = () => {
         error: query.error,
         requestMore,
         setSearch,
+        setCategory,
+        refetch: query.refetch,
     }
 }

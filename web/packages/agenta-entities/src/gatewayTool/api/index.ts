@@ -5,6 +5,7 @@ export {
     executeToolCall,
     fetchToolActionDetail,
     fetchToolActions,
+    fetchToolCategories,
     fetchToolConnection,
     fetchToolIntegrationDetail,
     fetchToolIntegrations,

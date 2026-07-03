@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from oss.src.core.gateway.catalog.dtos import (
+    CatalogCategory,
     CatalogIntegration,
     CatalogIntegrationsPage,
     CatalogProvider,
@@ -25,9 +26,13 @@ class CatalogGatewayInterface(ABC):
         *,
         search: Optional[str] = None,
         sort_by: Optional[str] = None,
+        category: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
     ) -> CatalogIntegrationsPage: ...
+
+    @abstractmethod
+    async def list_categories(self) -> List[CatalogCategory]: ...
 
     @abstractmethod
     async def get_integration(

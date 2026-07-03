@@ -9,6 +9,8 @@ export type {
     ToolCatalogActionDetails,
     ToolCatalogActionResponse,
     ToolCatalogActionsResponse,
+    ToolCatalogCategory,
+    ToolCatalogCategoriesResponse,
     ToolCatalogIntegration,
     ToolCatalogIntegrationDetails,
     ToolCatalogIntegrationResponse,

@@ -18,6 +18,7 @@ import {
     isConnectionValid,
     toolIntegrationsSearchAtom,
     useToolCatalogActions,
+    useToolCatalogCategories,
     useToolCatalogIntegrations,
     useToolConnectionsQuery,
     type ToolCatalogAction,
@@ -95,12 +96,21 @@ function useToolIntegrationsList() {
     const r = useToolCatalogIntegrations()
     return {
         integrations: r.integrations,
+        total: r.total,
         hasNextPage: r.hasNextPage,
         isFetchingNextPage: r.isFetchingNextPage,
         isLoading: r.isLoading,
         requestMore: r.requestMore,
         setSearch,
+        setCategory: r.setCategory,
+        error: r.error,
+        refetch: r.refetch,
     }
+}
+
+function useToolCategoriesList() {
+    const r = useToolCatalogCategories()
+    return {categories: r.categories, isLoading: r.isLoading, error: r.error, refetch: r.refetch}
 }
 
 function useToolActionList(integrationKey: string) {
@@ -198,10 +208,12 @@ function ToolCatalogContent({
     )
 
     return (
-        <div className="min-h-0 flex-1 overflow-hidden px-6 py-4">
+        <div className="min-h-0 flex-1 overflow-hidden">
             <CatalogChooser<CatalogIntegrationItem, ToolCatalogAction, ToolConnection>
                 connections={connections}
                 cardVariant="subtle"
+                fullBleedRail
+                useCategories={useToolCategoriesList}
                 defaultIntegrationKey={defaultIntegrationKey}
                 isConnectionReady={isConnectionValid}
                 onReconnect={(c) => c.id && reconnect(c.id)}
