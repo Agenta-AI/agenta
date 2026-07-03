@@ -75,7 +75,11 @@ server-side reject rather than calling its own `/inspect`.
 
 ```
 pi:     providers = [openai, anthropic, google/gemini, mistral, groq, minimax, together_ai,
-                     openrouter]   (+ the ~24 no-vault-kind providers Pi also reaches)
+                     openrouter, openai-codex]   (+ the ~24 no-vault-kind providers Pi also reaches)
+                  // openai-codex = OpenAI's ChatGPT/Codex subscription; reached via an OAuth login
+                  // (no vault provider_key), so it is usable under self_managed and the agenta
+                  // default's runtime_provided fallback. Models (gpt-5.5/gpt-5.4/gpt-5.4-mini) are
+                  // carried explicitly in capabilities.py since the litellm catalog omits them.
         deployments = [direct]   (azure, bedrock, vertex declared; Pi consumption staged with
                                   model-config -> fail loud in v1)
         connection_modes = [agenta, self_managed]

@@ -13,6 +13,19 @@ the playground's composite sidecar URI (`{mode, url}` → the agent config `uri`
 
 > **Status:** verified working on 2026-06-25. Two `/run` turns on `harness=claude`, `model=haiku`,
 > with no API key, returned correct output using only the mounted subscription OAuth.
+>
+> **Update 2026-06-30:** the same sidecar also serves the **OpenAI ChatGPT/Codex subscription**
+> for Pi. Mount the host's Pi login (`~/.pi/agent`, provider key `openai-codex`, from `pi` →
+> `/login`) alongside `~/.claude`, and run `harness=pi_core` with `model=openai-codex/<id>`
+> (`gpt-5.5`/`gpt-5.4`/`gpt-5.4-mini`/`gpt-5.3-codex-spark`) and `connection.mode=self_managed`.
+> Verified end to end through the live agent service. The full dual-login recipe, wiring, and
+> verification now live in the **`subscription-sidecar` skill** (`.agents/skills/subscription-sidecar/`);
+> this document keeps the Claude-specific rationale below.
+>
+> Note the app layer needs `openai-codex` in the per-harness capability table
+> (`sdks/python/agenta/sdk/agents/capabilities.py`); it was missing, so a codex `self_managed` run
+> was rejected before reaching the runner. Fixed 2026-06-30. See
+> [`../provider-model-auth/harness-provider-matrix.md`](../provider-model-auth/harness-provider-matrix.md).
 
 ## Why this works without a code change
 
