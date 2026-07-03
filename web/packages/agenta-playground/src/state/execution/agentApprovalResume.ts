@@ -109,14 +109,30 @@ export function agentShouldResumeAfterApproval({messages}: {messages: MessageLik
     const last = messages[messages.length - 1]
     if (!last || last.role !== "assistant") return false
 
-    const toolParts = (last.parts ?? []).filter(
-        (part) => isToolPart(part) && part.providerExecuted !== true,
-    )
+    const parts = last.parts ?? []
+    const toolParts = parts.filter((part) => isToolPart(part) && part.providerExecuted !== true)
     if (toolParts.length === 0) return false
 
-    const hasResolved = toolParts.some(
-        (part) => isRespondedToolPart(part) || isClientToolResult(part),
-    )
+    // Index of the LAST freshly-resolved parked interaction (an approval response or a
+    // browser-fulfilled client-tool result). Using the last one handles chained gates: a second
+    // approval later in the turn is what should drive the (next) resume.
+    let lastResolvedIdx = -1
+    for (let i = 0; i < parts.length; i++) {
+        if (isRespondedToolPart(parts[i]) || isClientToolResult(parts[i])) lastResolvedIdx = i
+    }
+    if (lastResolvedIdx === -1) return false
+
+    // ALREADY RESUMED guard (the post-resolve loop). The cold-replay runner re-issues the approved
+    // tool under a FRESH id, so its execution output attaches to a NEW part and the original
+    // `approval-responded` part LINGERS in this same assistant message forever. Once the model has
+    // continued past the approval, a new step begins — a `step-start` part appears AFTER it. Without
+    // this guard the predicate keeps seeing the lingering `approval-responded` and auto-resends after
+    // every completion, re-running the whole turn endlessly (the loop the HITL fix exposed).
+    const resumedAlready = parts
+        .slice(lastResolvedIdx + 1)
+        .some((part) => part.type === "step-start")
+    if (resumedAlready) return false
+
     const allSettled = toolParts.every(isSettledToolPart)
-    return hasResolved && allSettled
+    return allSettled
 }
