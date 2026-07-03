@@ -704,24 +704,21 @@ export function AgentTemplateControl({
                     ))}
                 </div>
             ) : (
-                <div className="flex flex-col gap-3 pt-1">
-                    {sections.map((s) => (
-                        <ConfigAccordionSection
-                            key={s.key}
-                            icon={s.icon}
-                            title={s.title}
-                            summary={s.summary}
-                            extra={s.extra}
-                            indicator={s.indicator}
-                            onOpen={s.onOpen}
-                            defaultOpen={s.defaultOpen}
-                            noDivider
-                            className={sectionCardClass}
-                        >
-                            {s.content}
-                        </ConfigAccordionSection>
-                    ))}
-                </div>
+                sections.map((s, index) => (
+                    <ConfigAccordionSection
+                        key={s.key}
+                        icon={s.icon}
+                        title={s.title}
+                        summary={s.summary}
+                        extra={s.extra}
+                        indicator={s.indicator}
+                        onOpen={s.onOpen}
+                        defaultOpen={s.defaultOpen}
+                        noDivider={index === sections.length - 1}
+                    >
+                        {s.content}
+                    </ConfigAccordionSection>
+                ))
             )}
 
             {shownEditing
