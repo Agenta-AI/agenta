@@ -1,109 +1,69 @@
 # Status
 
-**State: design + plan under review; review round 1 (how-approvals-work) addressed.**
-Date: 2026-07-03.
+**State: plan ready for final review.** Date: 2026-07-03. Two review rounds on the
+explainer are addressed; the plan and reviews are updated to match. Next step: Mahmoud's
+final pass over plan.md (and the remaining decisions below), then implementation.
 
-Review round 1 (Mahmoud, 28 inline comments on `how-approvals-work.md`) produced three
-substantive changes, all folded in:
+## Where things stand
 
-- **Live finding:** the playground approve→resume happy path currently loops (Approve
-  re-parks and re-prompts). This is the observed form of code-review M2/M3; it is now an
-  explicit acceptance case in plan phase 6 and elevated in phase 4.
-- **Structure:** deciding and executing are separate jobs; the relay carries no permission
-  logic in the target design (the shared decision function runs before execution).
-- **Client tools:** no special-case bypass; they resolve through the same ladder and
-  default to `allow`.
+- PR #5041 (this workspace) is **stacked on Arda's #5054** (`big-agents-work`), per the
+  merge-then-rework decision: he merges as-is, we build on top and delete what the
+  redesign supersedes. The plan's "Baseline" section sorts his changes into
+  kept / deleted-by-this-work / unrelated.
+- The live approve-loop is **diagnosed** (details in how-approvals-work.md, live-warning
+  section): a constant stream `messageId` plus a level-triggered resume predicate on the
+  frontend (finding M7; fixed in the #5054 base), compounded by tool-*name* drift across
+  ACP frames breaking the decision key (M2's observed form; patched in the base, properly
+  removed by this plan's direct-replay resume).
+- The permission model is settled (round 2): per-tool `allow | ask | deny` or inherit; one
+  global policy with four modes (`allow`, `ask`, `deny`, `allow_reads` = reads run, writes
+  ask); `needs_approval` and the legacy aliases get deleted; "effective permission"
+  replaces the term "disposition".
 
-The explainer was also generalized across harnesses (a per-harness gate table), and now
-covers Claude's `default_mode`/`bypassPermissions`, the settings merge semantics, the
-ACP request-vs-event distinction, the two kinds of "session", and the cold-replay resume
-model before the responder code.
+## Decisions taken (Mahmoud)
 
-## Update 2026-07-03 (later): the approve-loop is diagnosed, via PR #5054
+- **2026-07-02:** auto means auto everywhere (an auto-approved tool runs without
+  prompting, on every surface); docs+plan PR first, implementation separate; no
+  backward-compatibility constraints.
+- **2026-07-03, round 1:** deciding and executing are separate jobs (the relay carries no
+  permission logic; one central decision on our side); client tools go through the same
+  ladder, defaulting to `allow`.
+- **2026-07-03, round 2:** #5054 merges as-is, we rework stacked on it. Delete
+  `needs_approval` outright. "Reads always allowed" becomes an explicit global policy
+  mode instead of an opaque per-tool default. Rename "disposition" to "effective
+  permission".
 
-Arda's PR #5054 empirically stops the loop; our review of it pinned the mechanism. Two
-independent bugs compound, and neither is the argument-drift we first suspected:
+## Decisions still open
 
-- Frontend half (new finding M7): the stream egress sent a constant `messageId: "msg-1"`
-  every turn, so the client folded all turns into one message; the resume predicate is
-  level-triggered with no "already resumed" guard, so it re-sent forever.
-- Backend half (M2's observed form): tool-*name* drift across ACP frames ("Terminal" in
-  the tool_call event vs the invocation title in the permission frame) broke the
-  name+args decision key even with identical arguments.
+1. **Confirm the one-shot scope** (plan = Option D plus visibility plus the correctness
+   debt, in one implementation arc). The staged fallback exists mid-flight if the wire
+   change proves heavy.
+2. **Names.** `permissions.default` as the authored home of the policy, and the name of
+   the fourth mode (`allow_reads` is the placeholder; alternatives: `read_only_auto`,
+   `ask_writes`). Cheap to decide, touches FE form + SDK + wire once.
+3. **Pi relay-ask scope.** The plan makes relay `ask` pause (that is how Pi gets HITL). If
+   the relay's turn-boundary work proves heavy, is a documented Pi-only collapse
+   acceptable for the first slice? Stakes: under the collapse, an `ask` tool on Pi
+   silently runs or is refused per the policy instead of pausing.
+4. **Batch pause shape.** Coordinate exact fields with the streaming-invoke workspace;
+   this side only requires "paused is distinguishable and names the pending interaction".
+5. **Direct-replay mechanics** (flagged, not blocking): when the re-raised gate does not
+   match the approved call, the runner injects the approved call's execution; if that
+   proves harness-fragile in the phase 6 live loop, the fallback is approving the
+   re-raised gate but executing with the approved arguments. Empirical; the plan carries
+   both.
 
-Consequences for this plan (folded into plan.md phase 4 and risks):
+## How this workspace was produced
 
-- The direct-replay-of-the-approved-call fix is reinforced: it removes the whole
-  reassembled-key fragility class (name drift and argument drift) instead of patching one
-  half of the key.
-- Absorb from #5054 regardless of the redesign: the unique per-turn message id and the
-  frontend "already resumed" edge-trigger guard. Both are correct on their own.
-- Do not inherit from #5054: the `resolvedName` stamping (patches the symptom our redesign
-  removes) and the `nonConvergingToolNames` loop-breaker (auto-denies after three
-  non-converging approvals, keyed by bare tool name globally: can false-positive-deny a
-  busy tool, deliberately reintroduces the F-024 deny-clobber, and is silent to the user).
-
-Recommendation on #5054 itself: do not merge as-is; split it. Keep the message-id fix, the
-resume-predicate guard, the tool-input `{}` display fix, and the unrelated Turn
-Inspector/chat-UX work (own PRs). Treat the name-anchor patch and the loop-breaker as
-temporary evidence to be superseded by this plan.
-
-## What is done
-
-- Full research pass across all five systems (frontend, agent service, runner, harness
-  config rendering, API interactions plane), verified against the current tree with
-  file:line citations. This supersedes the investigation in
-  `../builder-agent-reliability/streaming-invoke/approval-boundary.md`, which cites
-  pre-rename `services/agent/` paths and misses the stored-decision branch and the second
-  (client-tool) park path.
-- Bug confirmed and pinned: park keyed to session-id presence, session ids minted for every
-  request, `auto` policy unreachable, batch hides the paused state
-  ([the-bug.md](the-bug.md)).
-- Correctness review: 4 high, 6 medium, 2 low findings beyond the headline bug
-  ([code-review.md](code-review.md)).
-- Organization review: verdict and top-5 improvements
-  ([code-organization-review.md](code-organization-review.md)).
-- Independent second opinion (OpenAI Codex, xhigh): concurred with the diagnosis, rejected
-  the partial fixes, recommended the one-plan design in one shot; its ordering rule (a
-  stored approval must not override a current deny) is folded into the plan.
-- Plan written with options, phases, test plan, and behavior deltas ([plan.md](plan.md)).
-
-## Decisions already taken (by Mahmoud, 2026-07-02)
-
-- Auto means auto everywhere: an auto-approved tool runs without prompting; the human sees
-  it ran. Only `ask` waits for a human.
-- This PR is docs + plan only; implementation follows after review.
-- No backward-compatibility constraints (pre-release POC).
-
-## Decisions needed to start implementing
-
-1. **Confirm the recommendation**: Option D (one resolved permission plan, one shot) vs the
-   staged fallback (B+C first, then D). Plan recommends D. Stakes: D costs more up front
-   (wire shape, golden fixtures, tests in two languages, all in one PR) but ends with one
-   computation of the policy. The staged fallback ships the auto fix sooner but, until D
-   lands, an author's explicit `ask` rule on a Claude builtin like `Bash` silently
-   auto-approves under a default of `allow`.
-2. **Naming**: approve `permissions.default` (vocabulary `allow | ask | deny`) as the
-   authored home of the global default, replacing `runner.interactions.headless` and the
-   `auto | deny` vocabulary. Stakes: touches the FE form, SDK parsing, wire, and fixtures
-   once; skipping it keeps three names for one knob.
-3. **Relay-ask scope**: if parking `ask` for relay-executed tools proves heavy, is a
-   documented Pi-only collapse acceptable for the first slice? Stakes: under the collapse,
-   an `ask` tool on Pi never prompts; it silently runs (default `allow`) or is refused
-   (default `deny`). Claude paths get the full design either way.
-4. **Batch pause shape**: coordinate the exact paused-response fields with the
-   streaming-invoke workspace (only "visible + carries the interaction reference" is
-   required from this side).
-
-## Next steps
-
-- Review of this workspace (see the PR comment for exactly what feedback is needed).
-- On approval: implement per plan.md phases 1-6, with the correctness debt (phase 4) and
-  the live matrix + replay pin (phase 6) as the acceptance gate.
+Four parallel code-research passes (runner, SDK+service, frontend, API interactions
+plane), a correctness review (H1-H4, M1-M7, L1-L2), an organization review, an independent
+Codex design review (xhigh), a cold-reader clarity pass, two inline review rounds by
+Mahmoud (38 comments total, all answered inline and folded into the docs), and the #5054
+analysis that diagnosed the live loop.
 
 ## Known unknowns
 
-- The sandbox-agent daemon's permission-request id scheme (per-session counter vs unique)
-  This decides whether interaction tokens need turn namespacing (code-review H3).
-- How often cold-replay argument drift breaks approval matching in practice
-  (code-review M2); measure during phase 6.
+- The sandbox-agent daemon's permission-request id scheme (per-session counter vs unique):
+  decides whether interaction tokens need turn namespacing (code-review H3).
+- Whether ending a parked turn and later injecting the approved call behaves cleanly on
+  Claude (plan, "Direct replay" risk); pinned by the phase 6 live loop.

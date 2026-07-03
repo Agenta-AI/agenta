@@ -53,13 +53,12 @@ nothing inherits it. Two things make the current shape confusing, and both are a
 the plan:
 
 - The vocabulary does not match the per-tool one (`auto | deny` here, `allow | ask | deny`
-  per tool), and it cannot express "ask for everything". The natural set of agent-wide
-  behaviors ("approve everything", "ask for everything", "deny everything", "ask only for
-  writes") is exactly what the plan's target shape gives you: a `default_permission` of
-  `allow | ask | deny`, with "ask only for writes" falling out of the per-tool defaults
-  (reads default to `allow`, writes to `ask`; see knob 2). The `deny` default exists for
-  lockdown ("this agent runs no tools unless a tool is explicitly allowed"); it is
-  legitimate, just rarely what you want.
+  per tool), and it cannot express "ask for everything". Decided in review round 2: the
+  policy becomes one field with **four explicit modes**, matching the natural set of
+  agent-wide behaviors: `allow` (approve everything), `ask` (a human approves everything),
+  `deny` (lockdown: nothing runs unless a tool is explicitly allowed), and `allow_reads`
+  (reads run, writes ask; the sensible default). "Reads are always fine" thereby becomes a
+  visible policy choice instead of an opaque per-tool defaulting step (see knob 2).
 - The knob has three names depending on where you stand. Authors write it as
   `runner.interactions.headless` in the agent config (parsed in
   `sdks/python/agenta/sdk/agents/dtos.py:1087-1102`); the SDK stores it as
@@ -79,22 +78,25 @@ changes it (`web/packages/agenta-playground/src/state/execution/agentRequest.ts:
 integration action from the Composio catalog; a code tool; an MCP server) can carry its own
 `permission`: `allow`, `ask`, or `deny`
 (`sdks/python/agenta/sdk/agents/tools/models.py:26`). `allow` means run it without asking.
-`ask` means a human must approve each call. `deny` means never run it. A tool with no
-explicit permission falls back through a ladder (`effective_permission`,
-`models.py:273-292`), in order:
+`ask` means a human must approve each call. `deny` means never run it. Unset means the tool
+inherits the policy. So the author's options per tool are exactly two: specify a
+permission, or inherit. The tool editor exposes the field as a Permission select with an
+"Inherit policy" placeholder (`web/.../ToolFormView.tsx:47-51`).
 
-1. an explicit `permission` wins;
-2. else `needs_approval: true` means `ask` (`needs_approval` is the older boolean form of
-   the same idea, from before the three-valued `permission` field existed; stored configs
-   still carry it, so the ladder honors it; the plan deprecates it at the config edge);
-3. else the catalog's `read_only` hint applies its default: reads are safe to auto-run
-   (`allow`), writes should prompt (`ask`). This is our own convention, applied by our SDK;
-   the hint comes from the Composio catalog's tags.
-4. else nothing is set, and the tool inherits the global policy (knob 1).
+A tool's **effective permission** is the final allow/ask/deny after that inheritance
+resolves. (Earlier drafts called this the "disposition"; renamed, since the code already
+says `effective_permission`.)
 
-The output of this ladder is what the rest of this workspace calls the tool's
-**disposition**: its final, resolved allow/ask/deny. The tool editor exposes the field as a
-Permission select with an "Inherit policy" placeholder (`web/.../ToolFormView.tsx:47-51`).
+Two extra inputs complicate today's inheritance, and both go away (decided, round 2):
+
+- A legacy `needs_approval: true` boolean (the older form of the same idea, from before
+  the three-valued field existed) still counts as `ask` in today's resolution
+  (`effective_permission`, `models.py:273-292`). It gets **deleted outright**, along with
+  its aliases; no deprecation dance, since nothing is released.
+- The catalog's `read_only` hint (from Composio's tags) today silently defaults reads to
+  `allow` and writes to `ask`, per tool. That behavior moves into the policy as the
+  explicit `allow_reads` mode (knob 1); the hint stays on the tool spec as the data that
+  mode consults.
 
 **3. Claude harness rules.** For the Claude harness only, authors can write raw Claude Code
 permission rules (`harness.permissions`): a `default_mode` plus `allow`/`ask`/`deny` rule
@@ -151,8 +153,8 @@ triggers a permission request.
 One consequence to hold on to, because it constrains the fix: since `ask` and unset both
 render as "no rule", they look identical by the time a call reaches Gate 2. The runner
 cannot tell "the author explicitly wants a human" from "the author said nothing, apply the
-default" unless it consults the tool's disposition from the run request. Today it consults
-nothing (that is the bug); the fix makes Gate 2 look the disposition up.
+default" unless it consults the tool's effective permission from the run request. Today it consults
+nothing (that is the bug); the fix makes Gate 2 look the effective permission up.
 
 **Gate 2: the runner's ACP responder.** When Gate 1 does not settle a tool, a gating
 harness raises a permission request to the runner over ACP. This is not a stream event: it
@@ -199,20 +201,28 @@ async onPermission(request) {
 Three outcomes are possible. `allow` replies "once" to the harness (approve this single
 call, never "always") and the tool runs. `deny` replies "reject" and the tool is refused.
 `park` is the interesting one: the runner sends no reply at all, tears the session down, and
-ends the turn with `stopReason: "paused"` (`sandbox_agent.ts:640-649, 766-767`). Park means
-"a human must answer, and the answer will arrive on a future turn, not this one".
+ends the turn with `stopReason: "paused"` (`sandbox_agent.ts:640-649, 766-767`).
 
-Branch 2 is where the intended logic and the actual logic part ways. The *intended* logic
-was: an interactive surface (someone in the playground) should get the question; a headless
-call (nobody watching) should be answered by the policy, because parking a run nobody can
-resume just kills it. That intent is defensible. The *implementation* reduced "is a human
-watching" to one signal: does the run request carry a non-empty session id
-(`hasHumanSurface`, `sandbox_agent.ts:627`). Session ids were a plausible proxy when only
-the playground sent them; the SDK now mints one for every request, so the proxy is always
-true and branch 3 is dead code. That, plus the fact that the policy should not have been
-shadowed by surface detection in the first place, is [the-bug.md](the-bug.md). The fix
-removes branch 2 entirely: whether to park becomes a property of the tool's disposition
-(`ask`), not of who might be watching.
+Hold on to the right mental model before dissecting the branches, because the code obscures
+it. The correct model is: **always answer by the tool's effective permission.** Allow means
+allow. Deny means deny. Ask means raise the question to a human and wait. That is the whole
+policy. "Park" is not a fourth policy; it is the *mechanism* ask uses to wait: a live
+harness session cannot block on an open gate forever (that hangs the run, the old F-040
+lesson), so the runner ends the turn cleanly and lets the answer arrive on a future turn.
+And "who is watching" changes only *where the question surfaces* (chat buttons now, a
+durable interaction record for later surfaces), never *whether* the tool needs asking.
+
+Today's code deviates from that model in two ways. First, "ask" does not exist in its
+policy vocabulary: `basePolicy` in branch 3 is the global `permission_policy`, which can
+only say `auto` or `deny`, so the code cannot express "ask" as policy at all. Second, in
+place of the missing word it uses surface detection: branch 2 parks whenever a "human
+surface" exists, and the implementation reduced that to "does the run request carry a
+non-empty session id" (`hasHumanSurface`, `sandbox_agent.ts:627`). Session ids were a
+plausible proxy when only the playground sent them; the SDK now resolves one for every
+request, so the proxy is always true, branch 3 is dead code, and every fresh gate parks.
+That is [the-bug.md](the-bug.md). The fix deletes branch 2 and restores the model above:
+whether to pause is a property of the tool's effective permission (`ask`), never of who
+might be watching; an `ask` pauses on a headless run too, visibly.
 
 **Gate 3: the tool relay.** Gateway and code tools do not run inside the harness; the runner
 executes them itself through its tool relay. The relay enforces the per-tool permission
@@ -265,21 +275,37 @@ policy. There is no human-in-the-loop on Pi at all today. The playground UI is h
 the policy field (it hides "Permission policy" for Pi with a note, hardcoded by harness name
 at `web/.../useModelHarness.tsx:113`), but per-tool `ask` on a Pi agent is silently not
 honored. The plan's fix is structural: once the relay consults the shared decision function,
-an `ask` disposition parks at the relay exactly like a Claude gate parks at the responder,
+a resolved `ask` pauses at the relay exactly like a Claude gate pauses at the responder,
 and Pi gets real approvals through the same machinery (this is the old S5.2 item; scope
 decision 3 in [status.md](status.md)).
 
+On "surely Pi has permission settings for its builtins, like Claude does": it does not,
+and the asymmetry is worth stating precisely. Pi's builtins are its native tools (bash,
+read, write, and so on), and Pi's only native control over them is *selection*: the agent
+config decides which builtins are granted at all (`builtin_names`). Granted means runs
+without asking; not granted means does not exist. There is no mode, no rule list, no
+settings file exposed over the ACP bridge (that is what `permissions: false` reports), so
+there is nothing for us to render the way we render `.claude/settings.json`. If Pi grows a
+native permission config later, a new adapter renders it and it becomes Pi's Gate 1;
+until then, deny-by-omission at selection time and the relay are the only Pi controls.
+
 ## The journey of one gated tool call (the playground path)
 
-Concrete example: the `uc9-digest` agent, Claude harness, policy `auto`. Three read-only
-tools are effectively allowed; `SEND_MESSAGE` posts to Slack and ends up gated.
+Concrete example: the `uc9-digest` agent, Claude harness, global policy `auto` (today's
+name for allow). Three read-only tools are effectively allowed; `SEND_MESSAGE` posts to
+Slack and ends up gated.
 
 1. You send a message in the playground. The frontend posts the whole conversation to the
-   agent service's streaming endpoint.
-2. The SDK's request normalizer resolves a session id, minting a fresh UUID if the request
-   has none (`sdks/python/agenta/sdk/middlewares/running/normalizer.py:307`,
-   `sdks/python/agenta/sdk/models/shared.py:13-22`). The id flows into the run request the
-   service sends the runner.
+   agent service's streaming endpoint, including the conversation's own session id
+   (`session_id` in the envelope, `web/packages/agenta-playground/src/state/execution/
+   agentRequest.ts:389`). That id is stable for the conversation, not per message.
+2. The SDK's request normalizer passes a supplied session id through, and mints a fresh
+   UUID only when the caller sent none, which the playground never does; the minting hits
+   headless callers like curl or evaluations
+   (`sdks/python/agenta/sdk/middlewares/running/normalizer.py:307`,
+   `sdks/python/agenta/sdk/models/shared.py:13-22`). Either way, every run request the
+   runner sees now carries some session id, which is exactly what broke the "session id
+   means a human is watching" proxy.
 3. The runner starts a Claude session in the sandbox, writing the rendered
    `.claude/settings.json` into the workspace first.
 4. Claude runs the three reads without asking: their catalog `read_only: true` hint
@@ -357,7 +383,51 @@ and the `approvalId`-only drop (M3) is untouched by #5054 and still open. The di
 strengthens the plan's direction: any key that must be reassembled from replayed frames is
 fragile, which is why the plan has the runner replay the approved call directly instead of
 matching a re-issued one ([plan.md](plan.md), phase 4). Reproducing and pinning the loop
-stays an acceptance case (phase 6).
+stays an acceptance case (phase 6). Note on the baseline: this workspace's PR is now
+stacked on #5054, so its frontend fixes (unique per-turn message id, the already-resumed
+guard) are part of our base; its backend patches (`resolvedName`, the auto-deny
+loop-breaker) are in the base too and get deleted by the fix.
+
+## The target path: the same flow after the fix
+
+For contrast with everything above, here is the whole system as it will work once the plan
+lands. This is the version to hold in your head going forward; the sections above explain
+the code you will find in the tree today.
+
+**Config.** Two levels, one vocabulary. Each tool: `allow`, `ask`, `deny`, or unset
+(inherit). One global policy with four modes: `allow` (run everything), `ask` (a human
+approves everything), `deny` (lockdown), `allow_reads` (reads run, writes ask; the
+default). Nothing else: no `needs_approval`, no hidden per-tool defaulting, no
+`runner.interactions.headless`.
+
+**One decision.** A tool's effective permission is its own setting if present, else what
+the policy says (under `allow_reads`, the catalog's read-only hint decides; no hint counts
+as a write). The SDK assembles this once and ships it on the run request. Every enforcement
+point reads the same answer; none re-derives it.
+
+**Answering a gate.** Wherever a tool needs a verdict (Claude's raised gate at the ACP
+responder, or the relay before executing a gateway/code tool), the answer follows the
+effective permission: `allow` runs, in place, on every surface, with the tool call and
+result visible in the stream and no approval event. `deny` refuses. `ask` emits exactly one
+approval request and pauses the turn (`stopReason: "paused"`); pausing is the mechanism,
+not a policy. Claude's settings file stays what it is, pre-answering what can be
+pre-answered (allow rules for effective-allow tools, deny rules for denies) so gates are
+only raised for genuine asks.
+
+**Resume.** An approval or denial travels back inside the conversation. On resume the
+runner replays the *approved call itself* (the exact tool and arguments the human saw)
+rather than waiting for the model to re-issue an identical call, so there is no key to
+mismatch and no loop to break. A stored approval is spent on first use, and a config
+changed to `deny` beats any stored approval.
+
+**Headless.** Identical decisions, different surface: an `ask` on a run with no chat open
+still pauses, the batch response says so and names the pending interaction, and the
+durable interactions plane (already receiving rows today) is what will let anyone answer
+it later. Nothing anywhere consults "is a human watching".
+
+**Pi.** Same decisions, enforced at Pi's one choke point (the relay): `ask` pauses there,
+`deny` refuses there, and builtins remain governed by selection until Pi grows a native
+permission config.
 
 ## The two planes: messages and interactions
 

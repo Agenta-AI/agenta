@@ -20,17 +20,22 @@ Everything here is documentation and planning. No code changes ship with this PR
   the `auto` policy is dead code, and a headless run (any caller without a chat UI: curl,
   agent-as-tool, evaluations, triggers) dies at the first gate. Batch responses hide the
   pause entirely: HTTP 200, mid-sentence text. See [the-bug.md](the-bug.md).
-- **The fix direction.** Park only on authored intent. One resolved permission plan
-  (default + per-tool + builtin rules, vocabulary `allow | ask | deny`) is computed by the
-  SDK and enforced by both runner gates; the session-id inference is deleted; the approval
-  event fires only when the run actually pauses; batch shows the paused state. Recommended
-  as one shot (POC, no compat constraints); an independent Codex review concurred. See
-  [plan.md](plan.md).
+- **The fix direction.** Pause only on authored intent. Per tool: `allow | ask | deny` or
+  inherit. Per agent: one policy with four modes (`allow`, `ask`, `deny`, `allow_reads` =
+  reads run, writes ask). The SDK computes each tool's effective permission once and ships
+  it; both runner gates enforce it; the session-id inference is deleted; the approval
+  event fires only when the run actually pauses; resume replays the approved call directly
+  (no fragile matching); batch shows the paused state. One shot (POC, no compat
+  constraints); an independent Codex review concurred. See [plan.md](plan.md).
+- **Baseline.** This PR is stacked on Arda's #5054 (merge-then-rework decision). His
+  message-id and resume-guard fixes are kept; his `resolvedName` patch and auto-deny
+  loop-breaker get deleted by the redesign. The plan's "Baseline" section has the full
+  sort.
 - **One expectation to reset.** The fix does not make the original reproducing agent run
-  unattended under default config. Its `SEND_MESSAGE` tool is a write, and writes default
-  to `ask` by design, so the run still pauses there until the author marks that tool
-  `allow`. What changes: the pause happens for the authored reason, it is visible, and the
-  `auto` policy genuinely governs the tools it applies to.
+  unattended under the default policy. Its `SEND_MESSAGE` tool is a write, and the default
+  policy mode asks for writes, so the run still pauses there until the author allows that
+  tool (or sets the policy to `allow`). What changes: the pause is an explicit policy
+  outcome, it is visible, and `allow` genuinely means allow everywhere.
 - **Beyond the bug.** The correctness review found 4 high, 6 medium, and 2 low issues in
   the same code (a swallowed reply failure that can hang runs, stale client-tool replay,
   and more). The organization review found good invariant discipline but four enforcement

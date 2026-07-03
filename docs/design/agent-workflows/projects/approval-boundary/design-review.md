@@ -41,7 +41,7 @@ hack.
 
 ### 3. Three enforcers, no single computer
 
-The per-tool disposition is computed independently in three places:
+The per-tool effective permission is computed independently in three places:
 
 - Python, when rendering Claude's settings file (`claude_settings.py:151-189`);
 - TypeScript, in the relay for runner-executed tools (`relay.ts:143-152`);
@@ -108,31 +108,32 @@ These are constraints any design must respect, not flaws:
   hardening (bare names would over-authorize) and constrains any alternative resume design.
 - **Harnesses are asymmetric.** Pi never raises gates, so per-tool `ask` on Pi is
   enforceable only at the relay, which today cannot park mid-prompt. Claude builtins have no
-  tool spec, so their dispositions exist only as authored settings rules.
+  tool spec, so their effective permissions exist only as authored settings rules.
 
 ## Principles for the fix
 
 1. **Declare intent; never infer it from transport.** Park only when the resolved
-   disposition says `ask`. Delete `hasHumanSurface`. Session ids stay what they are:
+   effective permission says `ask`. Delete `hasHumanSurface`. Session ids stay what they are:
    correlation for persistence and tracing.
-2. **One computer, many enforcers.** The SDK already owns `effective_permission()` and the
-   settings rendering; make it compute one resolved permission plan (default disposition
-   plus per-tool dispositions, including structured rules for Claude builtins) and ship it
-   on the run request. The responder and the relay become lookups into the same plan.
-   (Codex pushed hard on this point: a fix that only patches the responder "fixes `auto`
-   while silently breaking explicit builtin `ask`", because authored ask-rules for Claude
-   builtins are visible only inside the settings file.)
-3. **One vocabulary.** `allow | ask | deny` everywhere. The global default becomes
-   `default_permission` in the same vocabulary (`auto` maps to `allow`; a global `ask` is
-   now expressible and legitimate: approval-by-default). Retire the
+2. **One computer, many enforcers.** The SDK already owns the settings rendering; make it
+   assemble one permission plan (the policy default, per-tool permissions, and structured
+   rules for Claude builtins) and ship it on the run request. The responder and the relay
+   become lookups into the same plan. (Codex pushed hard on this point: a fix that only
+   patches the responder "fixes `auto` while silently breaking explicit builtin `ask`",
+   because authored ask-rules for Claude builtins are visible only inside the settings
+   file.)
+3. **One vocabulary.** `allow | ask | deny` per tool, everywhere. The global default
+   becomes one policy field with four explicit modes: `allow`, `ask`, `deny`, and
+   `allow_reads` (reads run, writes ask), which promotes the old hidden read-only
+   defaulting into a visible policy choice (review round 2). Retire the
    `runner.interactions.headless` authoring path in favor of a name inside the permission
-   family.
+   family, and delete the legacy `needs_approval` boolean outright.
 4. **Events mean actions.** Emit `interaction_request(user_approval)` only when the run
    pauses. An auto-approved gate emits nothing extra; the tool events already show what ran.
 5. **Terminal state is always visible.** Batch surfaces `stop_reason` and, when paused, the
    pending interaction identity.
 6. **A stored approval never overrides a current deny.** The decision order is: resolve the
-   disposition first; consult stored decisions only when the disposition is `ask`. (Codex
+   effective permission first; consult stored decisions only when the effective permission is `ask`. (Codex
    flagged this ordering; the current code checks stored decisions first, so a stale
    approval could outrank a config that has since been changed to deny.)
 
@@ -140,7 +141,7 @@ These are constraints any design must respect, not flaws:
 
 - **The one-line fix** (consult the policy before parking) restores `auto` but silently
   auto-approves every `ask`/unset tool too, killing the playground prompt. Rejected.
-- **A disposition-aware responder without the shared plan** fixes resolved tools but leaves
+- **A effective permission-aware responder without the shared plan** fixes resolved tools but leaves
   Claude-builtin ask-rules invisible to the responder, so an author's explicit `ask` on
   `Bash` would auto-approve under a policy of `allow`. Rejected as a final state; acceptable
   only as an explicitly temporary step.

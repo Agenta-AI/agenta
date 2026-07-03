@@ -16,18 +16,18 @@ The `uc9-digest` agent (three read tools, then `SEND_MESSAGE`) runs with permiss
   stopped. The caller cannot tell a paused run from a finished one.
 
 Before diagnosing, be precise about what *should* happen, because it is subtler than "the
-run should never pause". Every tool resolves to a **disposition**: its final
+run should never pause". Every tool resolves to an **effective permission**: its final
 `allow | ask | deny`, computed from the author's explicit per-tool permission, the legacy
 `needs_approval` flag, or a catalog hint that defaults read-only tools to `allow` and
 mutating tools to `ask` (`effective_permission`,
-`sdks/python/agenta/sdk/agents/tools/models.py:273-292`). Tools with no disposition at all
+`sdks/python/agenta/sdk/agents/tools/models.py:273-292`). Tools with no effective permission at all
 fall back to the global policy, and that is what `auto` governs.
 
 `SEND_MESSAGE` is a write, so it resolves to `ask` by default. Under a correct
 implementation, this specific run pauses there until the author marks the tool `allow`.
 The bug is therefore three things, none of which is "it paused":
 
-- the pause happens for the wrong reason (a session id instead of the tool's disposition);
+- the pause happens for the wrong reason (a session id instead of the tool's effective permission);
 - the `auto` policy is dead code for the tools it does govern;
 - a headless caller can neither see the pause nor answer it.
 

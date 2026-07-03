@@ -177,7 +177,7 @@ recording on parked turns (both handlers record it).
   still PARK", which pins the bug itself.
 - `responder.test.ts:184-225, 376-428` and
   `sandbox-agent-orchestration.test.ts:883-989`: expect `park` as the no-match outcome
-  under `basePolicy "auto"` with no disposition on the gate; expected outcomes change with
+  under `basePolicy "auto"` with no effective permission on the gate; expected outcomes change with
   the fix's default.
 - `tool-relay-permission.test.ts:74-77, 123-127`: pin the `ask`-collapses-to-policy
   behavior (`TODO(S5)`).
