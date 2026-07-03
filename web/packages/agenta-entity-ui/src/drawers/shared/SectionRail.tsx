@@ -25,6 +25,8 @@ export interface SectionRailProps {
     onChange: (value: string) => void
     /** Rail column width. @default "w-[116px]" */
     railWidth?: string
+    /** Disable the rail toggles (e.g. a read-only revision). @default false */
+    disabled?: boolean
     /** Right-hand content panel; separated from the rail by a left border. */
     children: ReactNode
 }
@@ -34,6 +36,7 @@ export function SectionRail({
     value,
     onChange,
     railWidth = "w-[116px]",
+    disabled = false,
     children,
 }: SectionRailProps) {
     return (
@@ -46,6 +49,7 @@ export function SectionRail({
                             key={item.value}
                             type="text"
                             block
+                            disabled={disabled}
                             onClick={() => onChange(item.value)}
                             className={`!h-8 !rounded-md !px-2.5 !text-xs transition-colors ${
                                 item.count != null

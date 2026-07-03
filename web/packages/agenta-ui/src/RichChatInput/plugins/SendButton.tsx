@@ -40,19 +40,33 @@ export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}
 
     if (streaming) {
         // A spinning ring (stream in progress) around a Stop square — one affordance that both
-        // signals progress and stops the run on click.
+        // signals progress and stops the run on click. Two-layer ring: a faint neutral track under
+        // a thin, muted-primary arc, so the accent reads as a calm progress cue rather than a loud
+        // full-saturation halo; the Stop glyph stays neutral so the accent isn't doubled up.
         return (
             <span className="relative inline-flex">
                 <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-0 animate-spin rounded-full border-2 border-solid border-[var(--ag-colorPrimary)] border-t-transparent"
+                    className="pointer-events-none absolute inset-0 rounded-full border-[1.5px] border-solid border-[var(--ag-colorFillSecondary)]"
+                />
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 animate-spin rounded-full border-[1.5px] border-solid border-transparent"
+                    style={{
+                        borderTopColor:
+                            "color-mix(in srgb, var(--ag-colorPrimary) 60%, var(--ag-colorBgContainer))",
+                    }}
                 />
                 <Button
                     type="text"
                     shape="circle"
                     aria-label="Stop"
                     icon={
-                        <Stop size={14} weight="fill" className="text-[var(--ag-colorPrimary)]" />
+                        <Stop
+                            size={13}
+                            weight="fill"
+                            className="text-[var(--ag-colorTextSecondary)]"
+                        />
                     }
                     onClick={onStop}
                 />
@@ -60,14 +74,22 @@ export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}
         )
     }
 
+    const sendDisabled = disabled || (empty && !forceEnabled)
     return (
         <Button
             type="primary"
             shape="circle"
             aria-label="Send"
             icon={<ArrowUp size={16} weight="bold" />}
-            disabled={disabled || (empty && !forceEnabled)}
+            disabled={sendDisabled}
             onClick={handleClick}
+            // The primary send action: filled accent when there's something to send, a clearly-inert
+            // grey fill when empty (never a faint outlined ghost).
+            className={
+                sendDisabled
+                    ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
+                    : "!border-[var(--ag-surface-accent)] !bg-[var(--ag-surface-accent)] !text-[#191a0d] hover:!border-[#b8cb3f] hover:!bg-[#b8cb3f]"
+            }
         />
     )
 }

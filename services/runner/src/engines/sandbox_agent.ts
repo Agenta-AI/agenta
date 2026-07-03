@@ -37,6 +37,7 @@ import {
 import {
   HITLResponder,
   extractApprovalDecisions,
+  nonConvergingToolNames,
   policyFromRequest,
   type Responder,
 } from "../responder.ts";
@@ -193,6 +194,7 @@ function applyClaudeConnectionEnv(
   ) {
     env.ANTHROPIC_MODEL = selectedModel;
     env.ANTHROPIC_CUSTOM_MODEL_OPTION = selectedModel;
+    logger(`claude model=${selectedModel} deployment=${deployment ?? "<none>"}`);
     return true;
   }
   return false;
@@ -254,9 +256,7 @@ function containsTransportEndpointDisconnected(value: unknown): boolean {
     seen.add(current);
 
     const code =
-      "code" in current
-        ? String((current as { code?: unknown }).code)
-        : "";
+      "code" in current ? String((current as { code?: unknown }).code) : "";
     if (code === "ENOTCONN") {
       return true;
     }
@@ -283,7 +283,8 @@ export async function runSandboxAgent(
   // failure leaves durableCwd undefined and buildRunPlan falls back to the ephemeral path.
   const sessionForMount = request.sessionId?.trim();
   const runCred = runCredential(request);
-  const signMount = deps.signSessionMountCredentials ?? signSessionMountCredentials;
+  const signMount =
+    deps.signSessionMountCredentials ?? signSessionMountCredentials;
   let mountCreds: MountCredentials | null =
     sessionForMount && runCred
       ? await signMount(sessionForMount, {
@@ -298,7 +299,9 @@ export async function runSandboxAgent(
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
   let durableCwd: string | undefined;
   if (mountCreds?.prefix) {
-    const isDaytonaReq = (request.sandbox ?? process.env.SANDBOX_AGENT_PROVIDER ?? "local") === "daytona";
+    const isDaytonaReq =
+      (request.sandbox ?? process.env.SANDBOX_AGENT_PROVIDER ?? "local") ===
+      "daytona";
     durableCwd = isDaytonaReq
       ? `/home/sandbox/agenta/${mountCreds.prefix}`
       : `/tmp/agenta/${mountCreds.prefix}`;
@@ -354,6 +357,15 @@ export async function runSandboxAgent(
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
 
+  // The resolved model ref as it reaches the runner (key NAMES only, never values) — the one
+  // line that answers "what model/provider/deployment/credential did this run actually use".
+  logger(
+    `resolved model=${request.model ?? "<none>"} provider=${request.provider ?? "<none>"} ` +
+      `deployment=${request.deployment ?? "<none>"} ` +
+      `connection=${request.connection ? `${request.connection.mode}:${request.connection.slug ?? "-"}` : "<none>"} ` +
+      `secretKeys=[${Object.keys(request.secrets ?? {}).join(",")}]`,
+  );
+
   // Pi traces itself via the extension under the propagated traceparent; for other
   // harnesses we build the span tree here from the ACP event stream. Created below, once
   // the model is resolved, so the chat span carries the harness's actual model rather
@@ -373,7 +385,11 @@ export async function runSandboxAgent(
     logger(
       `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
     );
-    if (await (deps.mountStorage ?? mountStorage)(plan.cwd, mountCreds, { log: logger })) {
+    if (
+      await (deps.mountStorage ?? mountStorage)(plan.cwd, mountCreds, {
+        log: logger,
+      })
+    ) {
       mountedCwd = plan.cwd;
       return true;
     }
@@ -401,7 +417,9 @@ export async function runSandboxAgent(
       log: logger,
     });
     if (!fresh) {
-      logger(`local durable cwd re-sign returned no credentials session=${sessionForMount}`);
+      logger(
+        `local durable cwd re-sign returned no credentials session=${sessionForMount}`,
+      );
       return false;
     }
     mountCreds = fresh;
@@ -492,7 +510,9 @@ export async function runSandboxAgent(
         isTransportEndpointDisconnected(err) &&
         (await reSignAndRemountLocalCwd())
       ) {
-        logger(`retrying workspace preparation after local durable cwd remount`);
+        logger(
+          `retrying workspace preparation after local durable cwd remount`,
+        );
         workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
           sandbox,
           plan,
@@ -505,15 +525,22 @@ export async function runSandboxAgent(
 
     if (mountCreds) {
       if (plan.isDaytona) {
-        const endpoint = await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+        const endpoint = await (
+          deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
+        )({
           log: logger,
         });
         if (
           endpoint &&
-          (await (deps.mountStorageRemote ?? mountStorageRemote)(sandbox, plan.cwd, mountCreds, {
-            endpoint,
-            log: logger,
-          }))
+          (await (deps.mountStorageRemote ?? mountStorageRemote)(
+            sandbox,
+            plan.cwd,
+            mountCreds,
+            {
+              endpoint,
+              log: logger,
+            },
+          ))
         ) {
           // Remote files live in the store; nothing on this host to unmount.
           logger(`remote durable cwd active for session=${sessionForMount}`);
@@ -646,14 +673,31 @@ export async function runSandboxAgent(
     };
     const responder =
       deps.responderFactory?.(request.permissionPolicy) ??
-      new HITLResponder(
-        extractApprovalDecisions(request),
-        policyFromRequest(request.permissionPolicy),
-        hasHumanSurface,
-      );
+      (() => {
+        const decisions = extractApprovalDecisions(request);
+        const looping = nonConvergingToolNames(request);
+        // Dump the STORED side of the HITL resume: the decision keys the transcript folded and any
+        // tools flagged as non-converging. Compare against the runner's `[HITL] gate ...` lines
+        // (the LIVE re-raised keys) to see exactly what drifted.
+        if (hasHumanSurface) {
+          logger(
+            `[HITL] resume state: humanSurface=${hasHumanSurface} ` +
+              `decisions=${JSON.stringify([...decisions.keys()])} ` +
+              `looping=${JSON.stringify([...looping])}`,
+          );
+        }
+        return new HITLResponder(
+          decisions,
+          policyFromRequest(request.permissionPolicy),
+          hasHumanSurface,
+          looping,
+          logger,
+        );
+      })();
     attachPermissionResponder({
       session,
       run,
+      log: logger,
       onPark,
       onCreateInteraction: (token, toolName, toolArgs) => {
         const cred = runCredential(request);
@@ -711,7 +755,9 @@ export async function runSandboxAgent(
               raw: { spec },
             });
             if (process.env.AGENTA_RUNNER_DEBUG_TOOLS)
-              logger(`[client-tool] ${toolName} id=${toolCallId} kind=${spec.kind} decision=${typeof decision === "string" ? decision : JSON.stringify(decision).slice(0, 200)}`);
+              logger(
+                `[client-tool] ${toolName} id=${toolCallId} kind=${spec.kind} decision=${typeof decision === "string" ? decision : JSON.stringify(decision).slice(0, 200)}`,
+              );
             if (decision === "park") {
               run.emitEvent({
                 type: "interaction_request",

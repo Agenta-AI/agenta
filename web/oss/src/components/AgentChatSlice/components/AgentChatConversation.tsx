@@ -16,6 +16,7 @@ import {createAgentChatTransport} from "../assets/transport"
 import {persistSessionMessagesAtom, sessionMessagesAtom} from "../state/sessions"
 
 import AgentMessage from "./AgentMessage"
+import ApprovalDock, {getPendingApprovals} from "./ApprovalDock"
 import type {ClientToolOutputHandler} from "./clientTools"
 
 const {Text} = Typography
@@ -102,6 +103,10 @@ const AgentChatConversation = ({
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // HITL gates the paused turn is blocked on — surfaced in the persistent ApprovalDock above
+    // the composer (the inline tool row is just an "Awaiting approval" marker).
+    const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
 
     // Settle a parked client tool (#4920) — same wrapper as AgentChatPanel. `addToolOutput` matches
     // the part by `toolCallId` on the last turn; `tool` is only the typed-tools key, so a cast onto
@@ -266,7 +271,6 @@ const AgentChatConversation = ({
                         isStreaming={busy && index === messages.length - 1}
                         isLastMessage={index === messages.length - 1}
                         onRewind={handleRewind}
-                        onApprovalResponse={addToolApprovalResponse}
                         onClientToolOutput={handleClientToolOutput}
                     />
                 ))}
@@ -275,71 +279,82 @@ const AgentChatConversation = ({
                 )}
             </div>
 
-            <Sender
-                ref={senderRef}
-                value={input}
-                onChange={setInput}
-                loading={busy}
-                onSubmit={handleSubmit}
-                onCancel={stop}
-                onPasteFile={(pasted) => {
-                    setFiles((prev) => [
-                        ...prev,
-                        ...Array.from(pasted).map((file) => ({
-                            uid: `${file.name}-${file.lastModified}-${file.size}`,
-                            name: file.name,
-                            status: "done" as const,
-                            originFileObj: file as UploadFile["originFileObj"],
-                        })),
-                    ])
-                    setAttachmentsOpen(true)
-                }}
-                prefix={
-                    <Tooltip title="Attach files coming soon">
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<Paperclip size={16} />}
-                            onClick={() => setAttachmentsOpen((open) => !open)}
-                            disabled={
-                                true /* TODO: re-enable once we can read the files into data: URLs at send time */
-                            }
-                        />
-                    </Tooltip>
-                }
-                header={
-                    // Own the collapse instead of `Sender.Header`: its `CSSMotion` hides via
-                    // `display:none`, so the *enter* can't paint a height:0 baseline and jumps
-                    // to full height (only leave animates). The grid 0fr→1fr trick animates
-                    // symmetrically to the exact content height and never uses display:none, so
-                    // `Attachments` stays mounted and drop-to-attach keeps working while closed.
-                    <div
-                        className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
-                            attachmentsOpen || files.length > 0
-                                ? "grid-rows-[1fr] opacity-100"
-                                : "grid-rows-[0fr] opacity-0"
-                        }`}
-                    >
-                        <div className="min-h-0 overflow-hidden">
-                            <div className="border-b border-solid border-colorBorderSecondary p-2">
-                                <Attachments
-                                    items={files}
-                                    // Never auto-upload — keep the File and send it inline as a data: URL.
-                                    beforeUpload={() => false}
-                                    onChange={({fileList}) => setFiles(fileList)}
-                                    getDropContainer={() => dropContainerRef.current}
-                                    placeholder={(type) => ({
-                                        title: type === "drop" ? "Drop files here" : "Attach files",
-                                        description:
-                                            "Click or drag — sent inline to the agent as data URLs.",
-                                    })}
-                                />
+            {/* Dock + composer share one flex child so the root's gap-3 adds no space around the
+                dock while it's collapsed; the dock's own margin spaces it from the composer. */}
+            <div className="flex flex-col">
+                <ApprovalDock
+                    approvals={pendingApprovals}
+                    onApprovalResponse={addToolApprovalResponse}
+                />
+                <Sender
+                    ref={senderRef}
+                    value={input}
+                    onChange={setInput}
+                    loading={busy}
+                    onSubmit={handleSubmit}
+                    onCancel={stop}
+                    onPasteFile={(pasted) => {
+                        setFiles((prev) => [
+                            ...prev,
+                            ...Array.from(pasted).map((file) => ({
+                                uid: `${file.name}-${file.lastModified}-${file.size}`,
+                                name: file.name,
+                                status: "done" as const,
+                                originFileObj: file as UploadFile["originFileObj"],
+                            })),
+                        ])
+                        setAttachmentsOpen(true)
+                    }}
+                    prefix={
+                        <Tooltip title="Attach files coming soon">
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={<Paperclip size={16} />}
+                                onClick={() => setAttachmentsOpen((open) => !open)}
+                                disabled={
+                                    true /* TODO: re-enable once we can read the files into data: URLs at send time */
+                                }
+                            />
+                        </Tooltip>
+                    }
+                    header={
+                        // Own the collapse instead of `Sender.Header`: its `CSSMotion` hides via
+                        // `display:none`, so the *enter* can't paint a height:0 baseline and jumps
+                        // to full height (only leave animates). The grid 0fr→1fr trick animates
+                        // symmetrically to the exact content height and never uses display:none, so
+                        // `Attachments` stays mounted and drop-to-attach keeps working while closed.
+                        <div
+                            className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+                                attachmentsOpen || files.length > 0
+                                    ? "grid-rows-[1fr] opacity-100"
+                                    : "grid-rows-[0fr] opacity-0"
+                            }`}
+                        >
+                            <div className="min-h-0 overflow-hidden">
+                                <div className="border-b border-solid border-colorBorderSecondary p-2">
+                                    <Attachments
+                                        items={files}
+                                        // Never auto-upload — keep the File and send it inline as a data: URL.
+                                        beforeUpload={() => false}
+                                        onChange={({fileList}) => setFiles(fileList)}
+                                        getDropContainer={() => dropContainerRef.current}
+                                        placeholder={(type) => ({
+                                            title:
+                                                type === "drop"
+                                                    ? "Drop files here"
+                                                    : "Attach files",
+                                            description:
+                                                "Click or drag — sent inline to the agent as data URLs.",
+                                        })}
+                                    />
+                                </div>
                             </div>
                         </div>
-                    </div>
-                }
-                placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
-            />
+                    }
+                    placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
+                />
+            </div>
         </div>
     )
 }

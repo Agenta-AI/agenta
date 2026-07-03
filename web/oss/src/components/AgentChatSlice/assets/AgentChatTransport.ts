@@ -1,4 +1,5 @@
 import {createNegotiatingFetch, type NegotiatingFetch} from "@agenta/playground"
+import {generateId} from "@agenta/shared/utils"
 import {DefaultChatTransport, type UIMessage, type UIMessageChunk} from "ai"
 
 /**
@@ -133,7 +134,12 @@ function batchJsonToUiMessageStream(
                     (json as Record<string, unknown>)?.trace_id ??
                     ((json as Record<string, unknown>)?.data as Record<string, unknown>)?.trace_id
 
-                const start: Record<string, unknown> = {type: "start", messageId: msg.id ?? "msg-1"}
+                // Unique fallback id per replay — a constant made every id-less batch turn
+                // collide on the same React key (duplicate-key warning + dropped turns).
+                const start: Record<string, unknown> = {
+                    type: "start",
+                    messageId: msg.id ?? `msg-batch-${generateId()}`,
+                }
                 if (sessionId) start.messageMetadata = {sessionId}
                 emit(start)
                 emit({type: "start-step"})

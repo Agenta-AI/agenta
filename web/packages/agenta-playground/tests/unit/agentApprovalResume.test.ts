@@ -251,6 +251,72 @@ describe("agentShouldResumeAfterApproval", () => {
         expect(agentShouldResumeAfterApproval({messages})).toBe(false)
     })
 
+    it("does NOT resume once the model continued past the approval (post-resolve loop guard)", () => {
+        // The cold-replay resume APPENDS to the same assistant message: after the approved gate,
+        // a new step (`step-start`) begins and the tool re-runs under a fresh id (output-available).
+        // The original `approval-responded` part lingers — but the turn already resumed, so a
+        // SECOND auto-resend would re-run the whole turn forever. A step-start AFTER the resolved
+        // approval is the "already resumed" signal.
+        const messages = [
+            user("show config"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-Terminal",
+                        toolCallId: "call_old",
+                        state: "approval-responded",
+                        input: {command: "cat settings.json"},
+                        approval: {id: "perm_1", approved: true},
+                    },
+                    {type: "step-start"},
+                    {
+                        type: "tool-Terminal",
+                        toolCallId: "call_new",
+                        state: "output-available",
+                        input: {command: "cat settings.json"},
+                        output: "No global settings found",
+                    },
+                    {type: "text", text: "Here's the current configuration…"},
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("STILL resumes on a chained second approval later in the turn", () => {
+        // Two gates in one turn: the first was approved-and-resumed (step-start follows it), then a
+        // SECOND gate was just approved and is the tail — its approval still needs the resume.
+        const messages = [
+            user("do two"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-Terminal",
+                        toolCallId: "call_1",
+                        state: "approval-responded",
+                        input: {command: "a"},
+                        approval: {id: "perm_1", approved: true},
+                    },
+                    {type: "step-start"},
+                    {
+                        type: "tool-Terminal",
+                        toolCallId: "call_2",
+                        state: "approval-responded",
+                        input: {command: "b"},
+                        approval: {id: "perm_2", approved: true},
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
     it("ignores provider-executed tool parts when deciding completeness", () => {
         const messages = [
             user("do it"),

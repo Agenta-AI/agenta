@@ -117,6 +117,7 @@ export default function TriggerScheduleDrawer() {
     // `enabled` flags or render guards are needed.
     return (
         <EnhancedDrawer
+            rootClassName="ag-drawer-elevated"
             open={open}
             onClose={handleClose}
             title={title}

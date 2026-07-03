@@ -154,6 +154,244 @@ body {
     opacity: 0.4 !important;
 }
 
+/* Agent playground: the collapse pill is disabled (Build/Chat switch lives in the header), so the
+   drag handle is the ONLY resize affordance and must be discoverable on its own. Render a persistent
+   centered grip on the divider — neutral at rest, then an accent TINT + taller on hover/drag — so it
+   reads as a draggable handle without turning into a loud bar. Geometry is fully specified so it
+   doesn't depend on antd's default pseudo-element placement. */
+.playground-splitter-agent .ant-splitter-bar-dragger::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 50% !important;
+    right: auto !important;
+    width: 2px !important;
+    height: auto !important;
+    border-radius: 0 !important;
+    transform: translateX(-50%) !important;
+    background: var(--ag-colorBorderSecondary) !important;
+}
+.playground-splitter-agent .ant-splitter-bar-dragger::after {
+    content: "" !important;
+    position: absolute !important;
+    top: 50% !important;
+    bottom: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    width: 4px !important;
+    height: 24px !important;
+    border-radius: 9999px !important;
+    transform: translate(-50%, -50%) !important;
+    background: var(--ag-colorTextTertiary) !important;
+    transition:
+        background 150ms ease,
+        opacity 150ms ease,
+        height 150ms ease;
+}
+/* Hover + active: the full-height DIVIDER only strengthens to a neutral border tone — a long line in
+   the accent colour reads as too loud. The small GRIP takes the accent (`colorPrimary`), softened to a
+   TINT via opacity so it stays a clear-but-quiet handle in both themes (the tinted-primary border
+   token blended into the dark divider; the full colour was too strong). `:not(-active)` mirrors the
+   base `.playground-splitter` hover rule's specificity so we win the tie by source order — otherwise
+   that base rule would swap the divider to a faint fill on hover (the fade). */
+.playground-splitter-agent
+    .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::before,
+.playground-splitter-agent .ant-splitter-bar-dragger-active::before {
+    background: var(--ag-colorBorder) !important;
+}
+.playground-splitter-agent
+    .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::after,
+.playground-splitter-agent .ant-splitter-bar-dragger-active::after {
+    height: 36px !important;
+    background: var(--ag-colorPrimary) !important;
+    opacity: 0.7 !important;
+}
+/* Agent playground: the divider is the GUTTER between the raised Config panel and the recessed
+   Chat canvas — a real ~12px channel (not a hairline) that says "two workspaces". Widen the bar and
+   tint it the near-black/soft-grey gutter tone; the grip pseudo-elements above still read as the
+   handle. */
+.playground-splitter-agent .ant-splitter-bar {
+    background: var(--ag-surface-gutter) !important;
+    flex-basis: 12px !important;
+    width: 12px !important;
+}
+
+/* ── Agent Playground surface classes ──────────────────────────────────────────────────────────
+   Semantic surfaces for the panel-contrast treatment. Multi-value shadows + fill + border are set
+   together here (more reliable than Tailwind arbitrary-value shadows) and reference the per-theme
+   ladder in theme-variables.css. Roles invert by theme automatically via the token values. */
+.ag-app-ground {
+    background: var(--ag-surface-app);
+}
+.ag-panel-raised {
+    background: var(--ag-surface-raised);
+    box-shadow: var(--ag-surface-raised-shadow);
+}
+.ag-canvas {
+    background: var(--ag-surface-canvas);
+}
+.ag-surface-card {
+    background: var(--ag-surface-card);
+    border: 1px solid var(--ag-surface-card-border);
+    box-shadow: var(--ag-surface-card-shadow);
+}
+.ag-surface-chat {
+    background: var(--ag-surface-chat);
+    border: 1px solid var(--ag-surface-chat-border);
+    box-shadow: var(--ag-surface-chat-shadow);
+}
+.ag-surface-inset {
+    background: var(--ag-surface-inset);
+    border: 1px solid var(--ag-surface-inset-border);
+}
+/* Right-docked Turn inspector: a raised panel floating above the recessed chat canvas — raised
+   tone + a left seam + a soft left-edge shadow so it reads as sitting on top. */
+.ag-inspector-panel {
+    background: var(--ag-surface-raised);
+    border-left: 1px solid var(--ag-surface-divider);
+    box-shadow: var(--ag-surface-inspector-shadow);
+}
+.ag-surface-chip {
+    background: var(--ag-surface-chip);
+    border: 1px solid var(--ag-surface-chip-border);
+}
+.ag-surface-error-well {
+    background: var(--ag-surface-error-well);
+    border: 1px solid var(--ag-surface-error-well-border);
+}
+/* Status chips — the only semantic colour in the treatment (kept subtle). */
+.ag-status-error {
+    background: var(--ag-status-error-bg);
+    border: 1px solid var(--ag-status-error-border);
+    color: var(--ag-status-error-text);
+}
+.ag-status-success {
+    background: var(--ag-status-success-bg);
+    border: 1px solid var(--ag-status-success-border);
+    color: var(--ag-status-success-text);
+}
+/* List-row hover fill (session rows, etc.). */
+.ag-row-hover:hover {
+    background: var(--ag-surface-row-hover);
+}
+/* Selected list row — a lifted card surface with a brand accent bar on the left. Pairs with a base
+   `border border-solid` on the row (this sets the colour + a 2px accent left border + shadow). */
+.ag-surface-selected {
+    background: var(--ag-surface-card);
+    border-color: var(--ag-surface-card-border);
+    border-left: 2px solid var(--ag-surface-accent);
+    box-shadow: var(--ag-surface-card-shadow);
+}
+
+/* ── Drawers: top elevation tier (dark mode only) ──────────────────────────────────────────────
+   The agent config/create drawers (Model & harness, AGENTS.md, tool/MCP/skill, schedule,
+   subscription) opt in via `rootClassName="ag-drawer-elevated"`. The sheet steps a shade lighter than the panels
+   and floats on a scrim; form fields become recessed wells with visible borders (the biggest win —
+   antd's dark field borders vanish into black otherwise). Scoped to `.dark` so light drawers, which
+   aren't in scope yet, are untouched. `!important` overrides antd's CSS-in-JS field tokens. */
+.dark .ag-drawer-elevated .ant-drawer-mask {
+    background: var(--ag-drawer-scrim);
+}
+.dark .ag-drawer-elevated .ant-drawer-content-wrapper {
+    box-shadow: var(--ag-drawer-shadow);
+}
+.dark .ag-drawer-elevated .ant-drawer-content,
+.dark .ag-drawer-elevated .ant-drawer-wrapper-body,
+.dark .ag-drawer-elevated .ant-drawer-body,
+.dark .ag-drawer-elevated .ant-drawer-header,
+.dark .ag-drawer-elevated .ant-drawer-footer {
+    /* `!important` mirrors the field rule below — without it antd's own drawer background wins and
+       the sheet stays at the dark default (the "base layer skipped" bug). */
+    background: var(--ag-drawer-sheet) !important;
+}
+.dark .ag-drawer-elevated .ant-drawer-header {
+    border-bottom: 1px solid var(--ag-drawer-divider);
+}
+.dark .ag-drawer-elevated .ant-drawer-footer {
+    border-top: 1px solid var(--ag-drawer-divider);
+}
+.dark .ag-drawer-elevated .ant-input,
+.dark .ag-drawer-elevated .ant-input-affix-wrapper,
+.dark .ag-drawer-elevated .ant-input-number,
+.dark .ag-drawer-elevated .ant-input-number-affix-wrapper,
+.dark .ag-drawer-elevated .ant-select-outlined .ant-select-selector,
+.dark .ag-drawer-elevated .ant-picker {
+    background: var(--ag-drawer-field-bg) !important;
+    border-color: var(--ag-drawer-field-border) !important;
+}
+.dark .ag-drawer-elevated .ant-input:focus,
+.dark .ag-drawer-elevated .ant-input:hover,
+.dark .ag-drawer-elevated .ant-input-affix-wrapper-focused,
+.dark .ag-drawer-elevated .ant-input-affix-wrapper:hover,
+.dark .ag-drawer-elevated .ant-input-number-focused,
+.dark .ag-drawer-elevated .ant-select-focused .ant-select-selector,
+.dark .ag-drawer-elevated .ant-picker-focused {
+    border-color: var(--ag-drawer-field-focus) !important;
+    box-shadow: none !important;
+}
+.dark .ag-drawer-elevated .ant-segmented {
+    background: var(--ag-drawer-seg-track);
+}
+.dark .ag-drawer-elevated .ant-segmented .ant-segmented-item-selected {
+    background: var(--ag-drawer-seg-active);
+}
+.dark .ag-drawer-elevated .ant-switch {
+    background: #3a3d44;
+}
+.dark .ag-drawer-elevated .ant-switch.ant-switch-checked {
+    background: var(--ag-surface-accent);
+}
+/* Two-pane interiors: a recessed rail beside the sheet content, plus card / row / tag surfaces.
+   Applied additively (existing light styling stays; these override only in dark drawers). */
+/* Recessed rail — background only. Each consumer already draws the single pane divider (a
+   border-l on the content or a border-r on the rail); adding another here double-lines it. */
+.dark .ag-drawer-elevated .ag-drawer-rail {
+    background: var(--ag-drawer-rail);
+}
+/* A list that wraps itself in a light "panel" fill (skill Files list) reads as a redundant box on
+   the already-recessed rail in dark — drop the fill so its rows sit directly on the rail. */
+.dark .ag-drawer-elevated .ag-rail-filelist {
+    background: transparent;
+}
+.dark .ag-drawer-elevated .ag-drawer-card {
+    background: var(--ag-drawer-card) !important;
+    border-color: var(--ag-drawer-card-border) !important;
+}
+.dark .ag-drawer-elevated .ag-drawer-card:hover {
+    background: var(--ag-drawer-card-hover) !important;
+}
+.dark .ag-drawer-elevated .ag-drawer-card-selected {
+    border-color: var(--ag-surface-accent) !important;
+    background: rgba(194, 213, 74, 0.06) !important;
+}
+.dark .ag-drawer-elevated .ag-drawer-row:hover {
+    background: var(--ag-drawer-card);
+}
+.dark .ag-drawer-elevated .ag-drawer-row-selected {
+    background: var(--ag-drawer-card);
+    border-left: 2px solid var(--ag-surface-accent);
+}
+.dark .ag-drawer-elevated .ag-drawer-tag {
+    background: var(--ag-drawer-tag-bg);
+    color: var(--ag-drawer-tag-text);
+}
+.dark .ag-drawer-elevated .ag-type-completion {
+    background: var(--ag-type-completion-bg);
+    color: var(--ag-type-completion-text);
+    border-color: transparent;
+}
+.dark .ag-drawer-elevated .ag-type-chat {
+    background: var(--ag-type-chat-bg);
+    color: var(--ag-type-chat-text);
+    border-color: transparent;
+}
+.dark .ag-drawer-elevated .ag-type-agent {
+    background: var(--ag-type-agent-bg);
+    color: var(--ag-type-agent-text);
+    border-color: transparent;
+}
+
 /* Build/Chat mode transitions: ease the panels' flex-basis (config → 0, chat → full) and fade the
    inert split bar instead of snapping. `-animated` is added by MainLayout only around a toggle (off
    during drag, so resizing stays 1:1). Gated on `prefers-reduced-motion` for parity with the rail's

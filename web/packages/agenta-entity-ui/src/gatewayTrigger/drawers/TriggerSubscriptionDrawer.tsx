@@ -8,7 +8,7 @@ import {
     compileMessageTemplate,
     getScheduleMessagePreview,
     parseInputsFields,
-    isConnectionActive,
+    isConnectionValid,
     isEntityActive,
     isEntityValid,
     parseMessageTemplate,
@@ -168,6 +168,7 @@ export default function TriggerSubscriptionDrawer() {
 
     return (
         <EnhancedDrawer
+            rootClassName="ag-drawer-elevated"
             open={open}
             onClose={handleClose}
             title={title}
@@ -1265,7 +1266,7 @@ function SourceChooser({
         <CatalogChooser<TriggerCatalogIntegration, TriggerCatalogEvent, TriggerConnection>
             connections={connections}
             defaultIntegrationKey={defaultIntegrationKey}
-            isConnectionActive={isConnectionActive}
+            isConnectionReady={isConnectionValid}
             useIntegrations={useTriggerIntegrationsList}
             useItems={useTriggerEventList}
             integration={{

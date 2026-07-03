@@ -1071,6 +1071,24 @@ _DEFAULT_HARNESS = "pi_core"
 _DEFAULT_SANDBOX = "local"
 _DEFAULT_PERMISSION_POLICY = "auto"
 
+
+def _default_agent_provider() -> str:
+    """The provider for `_DEFAULT_AGENT_MODEL`, from `_DEFAULT_HARNESS`'s reachable set.
+
+    The credential resolver has no model-id->provider table, so a bare default model fails loud
+    (F-017). Deriving from the same capability table the picker uses keeps the shipped default
+    runnable and the harness/provider defaults from drifting apart.
+    """
+    from agenta.sdk.agents.capabilities import HARNESS_CONNECTION_CAPABILITIES
+
+    caps = HARNESS_CONNECTION_CAPABILITIES.get(_DEFAULT_HARNESS)
+    if caps and caps.providers:
+        return "openai" if "openai" in caps.providers else caps.providers[0]
+    return "openai"
+
+
+_DEFAULT_AGENT_PROVIDER = _default_agent_provider()
+
 # The schema key carrying each harness option's versioned slug identity (the contract identity in
 # the repo's `agenta:...:v0` grammar). Specific to the harness rather than a generic `x-ag-slug`.
 _HARNESS_SLUG_KEY = "x-ag-harness-slug"
@@ -1412,7 +1430,7 @@ def build_agent_v0_default(
     SDK builtin passes none)."""
     template: Dict[str, Any] = {
         "instructions": {"agents_md": _DEFAULT_AGENTS_MD},
-        "llm": {"model": _DEFAULT_AGENT_MODEL},
+        "llm": {"provider": _DEFAULT_AGENT_PROVIDER, "model": _DEFAULT_AGENT_MODEL},
         "tools": [],
         "mcps": [],
     }

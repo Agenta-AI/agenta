@@ -664,6 +664,22 @@ function acpBlockText(block: any): string {
   return "";
 }
 
+/**
+ * Whether a tool's `rawInput` holds real, inspectable args. Pi announces a call with an absent
+ * or empty `{}` input and fills the args in on a later `tool_call_update`; both placeholders
+ * count as "no args yet" so we know to refresh the tool_call once the real args land.
+ */
+function hasToolArgs(input: unknown): boolean {
+  if (input == null) return false;
+  if (
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    Object.keys(input as Record<string, unknown>).length === 0
+  )
+    return false;
+  return true;
+}
+
 /** Text of an ACP tool_call `content` array (ToolCallContent[]). */
 function acpToolContentText(content: any): string {
   if (!content) return "";
@@ -875,7 +891,7 @@ export function createSandboxAgentOtel(
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
   const events: AgentEvent[] = [];
-  const toolSpans = new Map<string, { span?: Span; name: string }>();
+  const toolSpans = new Map<string, { span?: Span; name: string; hasArgs: boolean }>();
 
   // Live emission. `record` is the single choke point for every event: it appends to the
   // result log and, on the streaming path, flushes the event the moment it is built — so
@@ -1108,20 +1124,36 @@ export function createSandboxAgentOtel(
         if (update.rawInput != null)
           setInputs(span, update.rawInput as Record<string, unknown>, capture);
       }
-      toolSpans.set(id, { span, name: String(name) });
+      // Emit the tool_call up front — the FE tool part, the HITL approval part, and the loop
+      // breaker all attach to it, so it MUST surface before any approval/result for this id.
+      // Pi often announces the call with absent/`{}` args and fills them on a later
+      // `tool_call_update`; we refresh the input there (see below), never by delaying this.
       record({
         type: "tool_call",
         id: String(id),
         name: String(name),
         input: update.rawInput,
       });
+      toolSpans.set(id, { span, name: String(name), hasArgs: hasToolArgs(update.rawInput) });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
       return;
     }
 
     if (kind === "tool_call_update") {
-      maybeCloseTool(update.toolCallId, update);
+      // The real args often land here, not on the initial `tool_call`. Refresh the input ONCE,
+      // by re-recording the tool_call with the real args, so a non-gated tool shows them instead
+      // of the placeholder `{}`. The egress projects a repeat tool_call for a seen id as an
+      // input refresh (no new tool-input-start), mirroring the gated approval-refresh path.
+      const id = update.toolCallId;
+      const entry = id ? toolSpans.get(id) : undefined;
+      if (entry && !entry.hasArgs && hasToolArgs(update.rawInput)) {
+        if (entry.span)
+          setInputs(entry.span, update.rawInput as Record<string, unknown>, capture);
+        record({ type: "tool_call", id: String(id), name: entry.name, input: update.rawInput });
+        entry.hasArgs = true;
+      }
+      maybeCloseTool(id, update);
       return;
     }
 

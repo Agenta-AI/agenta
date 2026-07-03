@@ -29,6 +29,7 @@ import {
     getMessageUsage,
     type MessageUsageMetrics,
 } from "../assets/trace"
+import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
 
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
@@ -79,7 +80,6 @@ interface AgentMessageProps {
     /** Stable across renders (parent passes a `useCallback`'d handler) so the `memo()` below
      * isn't defeated — the message to rewind to is passed in, not closed over per render. */
     onRewind: (message: UIMessage) => void
-    onApprovalResponse: (args: {id: string; approved: boolean}) => void
     /** Settle a parked client tool (#4920) — the dispatcher calls this from a widget. */
     onClientToolOutput: ClientToolOutputHandler
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
@@ -98,6 +98,9 @@ const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynam
  * "Thought" toggle — click to re-expand. A manual toggle sticks (we stop auto-driving it).
  */
 const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) => {
+    // Auto-expand only while the thought streams live, then collapse to the "Thought" toggle when
+    // done — in BOTH modes. The full reasoning lives in the Turn Inspector, so the inline step log
+    // stays minimized by default. A manual toggle sticks (we stop auto-driving it).
     const [expanded, setExpanded] = useState(streaming)
     const userToggled = useRef(false)
 
@@ -114,7 +117,7 @@ const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) =>
                     setExpanded((e) => !e)
                 }}
                 aria-expanded={expanded}
-                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextTertiary transition-colors hover:bg-colorFillQuaternary hover:text-colorTextSecondary"
+                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextSecondary transition-colors hover:bg-colorFillQuaternary hover:text-colorText"
             >
                 <CaretRight
                     size={11}
@@ -199,13 +202,15 @@ const AgentMessage = ({
     isStreaming = false,
     isLastMessage = false,
     onRewind,
-    onApprovalResponse,
     onClientToolOutput,
     precededByEmptyAssistant = false,
     turnTraceId,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
+    // Build vs Chat: Build (config panel open, not maximized) shows the full step log — per-tool
+    // input/output/error + expanded reasoning; Chat keeps the calm collapsed summary.
+    const detailed = !useAtomValue(chatPanelMaximizedAtom)
     const [copied, setCopied] = useState(false)
     const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -226,13 +231,9 @@ const AgentMessage = ({
     const timeSummary = traceId ? ownSummary : pairedSummary
     const messageTime = parseTraceTime(timeSummary.rootSpan?.start_time) ?? createdAt
     // A failure can reach us two ways: recorded on the trace (backend), or stamped onto the turn
-    // FE-side from the useChat stream error (AgentChatPanel). Prefer whichever is present.
+    // FE-side from the useChat stream error (AgentChatPanel). `errorText` is derived below, once
+    // we know whether the turn produced an answer.
     const runError = getMessageRunError(message)
-    const errorText = traceError || runError
-    // Surface a settled-turn error even when the model emitted partial output before the
-    // stream died — not only when the turn is answer-less. (`isError` stays answer-less-only
-    // so the *whole* bubble only turns red when there's nothing else to show.)
-    const showError = !isStreaming && !!errorText
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -272,6 +273,17 @@ const AgentMessage = ({
     // read as frozen/broken. Keyed on `isStreaming`, not the conversation-level `busy`, so
     // earlier answer-less turns don't all light up while a later turn streams.
     const noResponse = !isUser && !isStreaming && !hasAnswer
+
+    // A trace-leaf error means a model/tool call failed. When the turn still produced an answer,
+    // the agent recovered from it — that failure belongs inline in ToolActivity ("· N failed"),
+    // NOT as a run failure. So trust `traceError` only on an answer-less turn (the swallowed
+    // quota/model error it was written for). A stream death (`runError`) is a real run failure
+    // even with partial output, so it always counts.
+    const errorText = noResponse ? traceError || runError : runError
+    // Surface a settled-turn error even when the model emitted partial output before the stream
+    // died. (`isError` stays answer-less-only so the *whole* bubble only turns red when there's
+    // nothing else to show.)
+    const showError = !isStreaming && !!errorText
     // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
     // failure (red), with the message inline — not a nested alert box.
     const isError = noResponse && showError
@@ -300,9 +312,40 @@ const AgentMessage = ({
         | {kind: "part"; part: UIMessage["parts"][number]; index: number}
         | {kind: "tools"; parts: ToolUIPart[]; index: number}
         | {kind: "clientTool"; part: ToolUIPart; index: number}
+    // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
+    // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
+    // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
+    // tool + same input), so the turn shows the single completed call with its output — not a stuck
+    // spinner beside a duplicate. Until the execution settles, the gate stays (it is genuinely
+    // in-flight).
+    const toolIdentity = (p: ToolUIPart): string => {
+        let inputKey = ""
+        try {
+            inputKey = JSON.stringify((p as {input?: unknown}).input ?? null)
+        } catch {
+            inputKey = ""
+        }
+        return `${p.type}::${inputKey}`
+    }
+    const executedToolIdentities = new Set(
+        message.parts
+            .filter(
+                (p) =>
+                    isToolPart(p.type) &&
+                    ((p as ToolUIPart).state === "output-available" ||
+                        (p as ToolUIPart).state === "output-error"),
+            )
+            .map((p) => toolIdentity(p as ToolUIPart)),
+    )
+    const isSupersededGate = (p: ToolUIPart): boolean =>
+        p.state === "approval-responded" && executedToolIdentities.has(toolIdentity(p))
+
     const renderItems: RenderItem[] = []
     message.parts.forEach((part, i) => {
         if (isToolPart(part.type)) {
+            // The answered gate whose execution already landed on a sibling part — drop it so the
+            // turn doesn't show a stuck approval spinner beside the real, completed call.
+            if (isSupersededGate(part as ToolUIPart)) return
             // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
             // into the "Used N tools" group — so it breaks any current tool run.
             if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage})) {
@@ -381,7 +424,7 @@ const AgentMessage = ({
                             key={`${message.id}-tools-${item.index}`}
                             parts={item.parts}
                             isStreaming={isStreaming}
-                            onApprovalResponse={onApprovalResponse}
+                            detailed={detailed}
                             onViewTrace={onViewTrace}
                         />
                     )
@@ -444,7 +487,7 @@ const AgentMessage = ({
         )
 
     // Control toolbar — an X `Actions` row that sits in a reserved lane BELOW the bubble (the
-    // `pb-7` on the row), so it never overlays the last content line and never reaches the next
+    // `pb-10` on the row), so it never overlays the last content line and never reaches the next
     // turn. The lane is always present (stable height), so revealing it only fades opacity — no
     // layout shift either way (the scroll engineering is sensitive to hover-driven reflow).
     // `pointer-events-none` while hidden keeps the invisible buttons unclickable. `Actions`
@@ -513,7 +556,7 @@ const AgentMessage = ({
     // the left, user bubbles the right, neither spans the full column.
     return (
         <div
-            className={`group relative flex items-start pb-7 ${isUser ? "justify-end" : "justify-start"}`}
+            className={`group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
         >
             <Bubble<React.ReactNode>
                 placement={isUser ? "end" : "start"}
@@ -525,7 +568,11 @@ const AgentMessage = ({
                 classNames={{
                     // Error styling is a self-contained callout in RunErrorBody now, not painted on
                     // the (borderless) bubble content — otherwise it bleeds edge-to-edge with no pad.
-                    content: "min-w-0 max-w-full overflow-hidden",
+                    // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
+                    // stays borderless on the canvas.
+                    content: isUser
+                        ? "min-w-0 max-w-full overflow-hidden !border !border-solid !border-[var(--ag-user-bubble-border)] !bg-[var(--ag-user-bubble-bg)]"
+                        : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 content={body}

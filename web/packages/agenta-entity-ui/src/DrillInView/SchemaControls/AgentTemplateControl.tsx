@@ -45,6 +45,7 @@ import {
     Wrench,
 } from "@phosphor-icons/react"
 import {Button, Tabs, Tooltip, Typography} from "antd"
+import deepEqual from "fast-deep-equal"
 import {useAtomValue, useStore} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
@@ -153,35 +154,60 @@ export function AgentTemplateControl({
         setEditingInstruction({filename})
     }, [])
 
-    // Section drawers (Model & harness, Advanced). Edits apply live; a config snapshot taken on open
-    // is restored on Cancel, giving the same draft-then-save feel as the item drawers.
+    // Section drawers (Model & harness, Advanced) use a SCOPED draft: edits are buffered locally and
+    // relayed to the entity only on Save (Cancel discards; Save is gated on a real diff vs. the value
+    // we opened with). The build-kit enable toggle lives OUTSIDE the config (a persisted atom), so it
+    // is buffered alongside the config draft and committed to the atom on Save.
     const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
-    const sectionSnapshot = useRef<Record<string, unknown> | null>(null)
-    // Snapshot + restore for the build-kit enabled atom (lives outside config; needs separate tracking).
+    const [draftConfig, setDraftConfig] = useState<Record<string, unknown> | null>(null)
+    const [draftBuildKit, setDraftBuildKit] = useState<boolean | null>(null)
+    const sectionBaseline = useRef<{config: Record<string, unknown>; buildKit: boolean} | null>(
+        null,
+    )
     const store = useStore()
     const revisionIdRef = useRef<string | null>(null)
-    const buildKitEnabledSnapshot = useRef<boolean | null>(null)
+    const applyDraftConfig = useCallback(
+        (next: Record<string, unknown>) => setDraftConfig(next),
+        [],
+    )
+    // Swallow writes from the draft hook while its drawer is closed (its body isn't rendered, so an
+    // internal auto-correction effect must not leak into `draftConfig`). The live `mh` handles any
+    // real auto-correction against the entity.
+    const noopConfigChange = useCallback(() => {}, [])
     const openSectionDrawer = useCallback(
         (key: "model-harness" | "advanced") => {
-            sectionSnapshot.current = value ?? {}
-            buildKitEnabledSnapshot.current = store.get(
+            const snapshotConfig = (value ?? {}) as Record<string, unknown>
+            const snapshotBuildKit = store.get(
                 workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
             )
+            setDraftConfig(snapshotConfig)
+            setDraftBuildKit(snapshotBuildKit)
+            sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
             setOpenSection(key)
         },
         [value, store],
     )
-    const cancelSection = useCallback(() => {
-        if (sectionSnapshot.current) onChange(sectionSnapshot.current)
-        if (buildKitEnabledSnapshot.current !== null) {
-            store.set(
-                workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
-                buildKitEnabledSnapshot.current,
-            )
-        }
+    const closeSectionDraft = useCallback(() => {
         setOpenSection(null)
-    }, [onChange, store])
-    const saveSection = useCallback(() => setOpenSection(null), [])
+        setDraftConfig(null)
+        setDraftBuildKit(null)
+        sectionBaseline.current = null
+    }, [])
+    // Cancel: nothing was written live, so just drop the draft.
+    const cancelSection = closeSectionDraft
+    const saveSection = useCallback(() => {
+        if (draftConfig !== null) onChange(draftConfig)
+        if (draftBuildKit !== null) {
+            store.set(workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""), draftBuildKit)
+        }
+        closeSectionDraft()
+    }, [draftConfig, draftBuildKit, onChange, store, closeSectionDraft])
+    // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
+    const sectionDirty =
+        openSection !== null &&
+        sectionBaseline.current !== null &&
+        (!deepEqual(draftConfig, sectionBaseline.current.config) ||
+            draftBuildKit !== sectionBaseline.current.buildKit)
 
     // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
     const layout = useAtomValue(agentTemplateLayoutAtom)
@@ -208,7 +234,29 @@ export function AgentTemplateControl({
 
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
+    //
+    // TWO instances, on purpose:
+    //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries + the inline
+    //    tabs bodies. Keeping it live means a section header NEVER reflects the drawer's unsaved draft
+    //    (the reported bug: editing in the open drawer updated the background summary).
+    //  - `mhDraft` is bound to the DRAFT (config + build-kit) — it drives the OPEN section drawer's
+    //    body, so its forms edit the buffer and Save relays it to the entity/atom. When no drawer is
+    //    open its `onChange` is a no-op (and its body isn't rendered), so the extra hook is inert.
     const mh = useModelHarness({schema, config, onChange, disabled, withTooltip, revisionId})
+    const mhDraft = useModelHarness({
+        schema,
+        config: draftConfig ?? config,
+        onChange: openSection !== null ? applyDraftConfig : noopConfigChange,
+        disabled,
+        withTooltip,
+        revisionId,
+        buildKitEnabledOverride:
+            draftBuildKit !== null ? {value: draftBuildKit, onChange: setDraftBuildKit} : undefined,
+        // "Current" marks the SAVED harness (from the live entity), not the draft pick.
+        savedHarnessValue:
+            ((config.harness as Record<string, unknown> | undefined)?.kind as string | undefined) ??
+            null,
+    })
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
@@ -571,6 +619,20 @@ export function AgentTemplateControl({
         inlineContent?: React.ReactNode
     }[]
 
+    // Each config section is a contained card on the raised Config panel — the surface tokens give
+    // it depth against the panel (see theme-variables.css "Agent Playground surface ladder").
+    const sectionCardClass = "ag-surface-card rounded-[11px] px-4"
+
+    // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
+    // goes null on close; retaining the last value and driving `open` off the live state lets the
+    // exit transition play (an unmount-on-close drawer just vanishes). Matches the SectionDrawers.
+    const lastEditingRef = useRef(editing)
+    if (editing) lastEditingRef.current = editing
+    const shownEditing = editing ?? lastEditingRef.current
+    const lastInstructionRef = useRef(editingInstruction)
+    if (editingInstruction) lastInstructionRef.current = editingInstruction
+    const shownInstruction = editingInstruction ?? lastInstructionRef.current
+
     return (
         <div className={cn("flex flex-col", className)}>
             {sections.length === 0 ? (
@@ -635,7 +697,7 @@ export function AgentTemplateControl({
                             onOpen={s.onOpen}
                             collapsible={false}
                             noDivider
-                            className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3"
+                            className={sectionCardClass}
                         >
                             {s.content}
                         </ConfigAccordionSection>
@@ -659,19 +721,19 @@ export function AgentTemplateControl({
                 ))
             )}
 
-            {editing
+            {shownEditing
                 ? (() => {
                       // One drawer for all three kinds — the per-kind icon/title/form/view rules
                       // come from the ITEM_KINDS registry (replaces three near-identical blocks).
-                      const def = ITEM_KINDS[editing.kind]
+                      const def = ITEM_KINDS[shownEditing.kind]
                       const desc = def.describe(draft)
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
-                      const itemKey = `${editing.kind}-${editing.mode}-${editing.index}`
+                      const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
                       return (
                           <ConfigItemDrawer
-                              open
-                              mode={editing.mode}
+                              open={!!editing}
+                              mode={shownEditing.mode}
                               icon={def.icon}
                               title={def.drawerTitle(draft)}
                               badge={{text: desc.typeLabel, color: desc.typeColor}}
@@ -708,10 +770,10 @@ export function AgentTemplateControl({
                   })()
                 : null}
 
-            {editingInstruction && (
+            {shownInstruction && (
                 <InstructionsDrawer
-                    open
-                    filename={editingInstruction.filename}
+                    open={!!editingInstruction}
+                    filename={shownInstruction.filename}
                     value={instructionDraft}
                     onChange={setInstructionDraft}
                     onCancel={() => setEditingInstruction(null)}
@@ -732,10 +794,10 @@ export function AgentTemplateControl({
                 icon={<Cpu size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
-                disabled={disabled}
-                width={mh.modelHarnessDrawerWidth}
+                disabled={disabled || !sectionDirty}
+                width={mhDraft.modelHarnessDrawerWidth}
             >
-                {mh.modelHarnessDrawerBody}
+                {mhDraft.modelHarnessDrawerBody}
             </SectionDrawer>
 
             <SectionDrawer
@@ -744,10 +806,10 @@ export function AgentTemplateControl({
                 icon={<SlidersHorizontal size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
-                disabled={disabled}
+                disabled={disabled || !sectionDirty}
                 width={880}
             >
-                {mh.advancedDrawerBody}
+                {mhDraft.advancedDrawerBody}
             </SectionDrawer>
 
             {workflowReference?.enabled && (
