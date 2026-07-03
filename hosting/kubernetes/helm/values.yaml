@@ -129,3 +129,16 @@ redisDurable:
 #     persistence:
 #       enabled: true
 #       size: 20Gi
+
+# ================================================================== #
+# workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md
+# `streams`/`queues` = selector lists; empty ⇒ all loops in that kind.
+# ================================================================== #
+workerStreams:
+  enabled: true
+  replicas: 1
+  # streams: "tracing"
+workerQueues:
+  enabled: true
+  replicas: 1
+  # queues: "evaluations"

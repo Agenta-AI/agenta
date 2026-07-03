@@ -835,6 +835,7 @@ class InteractionsRouter:
                 interaction_id=str(interaction_id),
                 answer=answer,
             )
+            log.tick("interactions.enqueued", dims={"queue": "interactions"})
         else:
             references = (
                 {

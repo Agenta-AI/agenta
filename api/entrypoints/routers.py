@@ -201,7 +201,10 @@ from oss.src.routers import (
 from oss.src.apis.fastapi.access.router import AccessRouter
 
 from oss.src.utils.env import env
-from entrypoints.worker_evaluations import evaluations_worker
+from oss.src.core.evaluations.runtime.broker import (
+    build_evaluations_broker,
+    build_evaluations_worker,
+)
 import oss.src.core.evaluations.tasks.run  # noqa: F401
 import oss.src.core.evaluations.tasks.processor  # noqa: F401
 
@@ -670,12 +673,24 @@ evaluations_service = EvaluationsService(
     queries_service=queries_service,
     testsets_service=testsets_service,
     evaluators_service=evaluators_service,
-    evaluations_worker=evaluations_worker,
     # Sub-services the run slice processor needs; passing them lets the
     # service build its own RunSliceOperations (probe/populate/process).
     testcases_service=testcases_service,
     workflows_service=workflows_service,
     applications_service=applications_service,
+)
+
+# Producer side of the evaluations pipeline: enqueues onto queues:evaluations;
+# entrypoints/worker_queues.py consumes them.
+evaluations_worker = build_evaluations_worker(
+    broker=build_evaluations_broker(consumer_group_name="api-evaluations-producer"),
+    tracing_service=tracing_service,
+    simple_evaluators_service=simple_evaluators_service,
+    testsets_service=testsets_service,
+    testcases_service=testcases_service,
+    queries_service=queries_service,
+    workflows_service=workflows_service,
+    evaluations_service=evaluations_service,
 )
 
 simple_evaluations_service = SimpleEvaluationsService(
@@ -787,7 +802,7 @@ async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
 
 
 # Producer side of the interactions pipeline: the respond route enqueues
-# `interactions.respond` tasks here; entrypoints/worker_interactions.py consumes them.
+# `interactions.respond` tasks here; entrypoints/worker_queues.py consumes them.
 _interactions_broker = RedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:interactions",
@@ -808,7 +823,7 @@ _interactions_worker = InteractionsWorker(
 )
 
 # Producer side of the inbound dispatch pipeline: the ingress route enqueues
-# `triggers.dispatch` tasks here; entrypoints/worker_triggers.py consumes them.
+# `triggers.dispatch` tasks here; entrypoints/worker_queues.py consumes them.
 _triggers_broker = RedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:triggers",

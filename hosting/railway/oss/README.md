@@ -25,10 +25,8 @@ baseline.
 - `services/` - services wrapper image with explicit gunicorn command
 - `runner/` - agent runner image
 - `redis/` - redis wrapper to ensure volume permissions are writable
-- `worker-evaluations/` - Taskiq worker image for evaluations
-- `worker-tracing/` - tracing ingestion worker image
-- `worker-webhooks/` - webhook delivery worker image
-- `worker-events/` - event stream worker image
+- `worker-streams/` - list-parameterized worker image for stream consumers (tracing, events, records)
+- `worker-queues/` - list-parameterized worker image for taskiq queue consumers (webhooks, triggers, interactions, evaluations)
 - `cron/` - cron service image
 - `alembic/` - migration runner image
 - `scripts/bootstrap.sh` - create project, environment, and services
@@ -286,8 +284,6 @@ the deploy flow grows or back-to-back deploys hit the 1,000 RPH Hobby ceiling.
   off to the official Redis entrypoint, preventing `MISCONF` from RDB write
   permission failures.
 - Alembic now creates `agenta_oss_core`, `agenta_oss_tracing`, and `agenta_oss_supertokens` automatically before running migrations.
-- OTLP traces require `worker-tracing` to be deployed and healthy.
-- Evaluation jobs require `worker-evaluations` to be deployed and healthy.
-- Webhook deliveries require `worker-webhooks` to be deployed and healthy.
-- Event processing requires `worker-events` to be deployed and healthy.
+- OTLP traces and event/record processing require `worker-streams` to be deployed and healthy.
+- Evaluation jobs, webhook deliveries, triggers, and interactions require `worker-queues` to be deployed and healthy.
 - The scripts intentionally do not persist secrets in git-tracked files.

@@ -45,9 +45,9 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 │                          ▼                      │                           │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │                            Worker Pool                               │   │
-│  │   worker-evaluations, worker-tracing, worker-webhooks,               │   │
-│  │   worker-events, worker-records, worker-interactions,                │   │
-│  │   worker-triggers, cron                                              │   │
+│  │   worker-streams (records, events, spans),                           │   │
+│  │   worker-queues (webhooks, triggers, interactions, evaluations),     │   │
+│  │   cron                                                               │   │
 │  └─────────────────────────┬────────────────────────────────────────────┘   │
 │                            │                    │ (from runner)              │
 │                            ▼                    ▼                           │
@@ -101,7 +101,7 @@ Worker Pool:
 ├── → redis-volatile:6379, redis-durable:6381 (task and event consumption)
 ├── → postgres:5432 (Data access)
 ├── → api:8000 (coordination and shared backend logic)
-└── → external webhook destinations (worker-webhooks)
+└── → external webhook destinations (worker-queues, webhooks loop)
 ```
 
 ## Network Environment Variables

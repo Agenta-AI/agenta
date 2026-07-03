@@ -305,11 +305,13 @@ class WebhooksDispatcher:
                             f"delivery={delivery_id} event={event.event_id} "
                             f"subscription={sub.id}"
                         )
+                        log.tick("webhooks.enqueued", dims={"queue": "webhooks"})
                     except Exception as e:
                         log.error(
                             f"[WEBHOOKS DISPATCHER] Failed to enqueue delivery "
                             f"for subscription {sub.id}: {e}"
                         )
+                        log.tick("webhooks.enqueue_errors", dims={"queue": "webhooks"})
                         enqueue_failures += 1
 
         if enqueue_failures > 0:
