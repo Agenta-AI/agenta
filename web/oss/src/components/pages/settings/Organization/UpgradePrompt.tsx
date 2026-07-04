@@ -1,14 +1,12 @@
 import {FC} from "react"
 
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {Lock} from "@phosphor-icons/react"
-import {Card, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 
 import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {appIdentifiersAtom} from "@/oss/state/appState/atoms"
-
-const {Title, Text} = Typography
 
 interface UpgradePromptProps {
     title: string
@@ -23,17 +21,13 @@ export const UpgradePrompt: FC<UpgradePromptProps> = ({title, description}) => {
 
     return (
         <Card>
-            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                <div className="mb-4 p-4 rounded-full bg-[var(--ant-color-fill-quaternary)]">
-                    <Lock size={32} className="text-[var(--ant-color-text-tertiary)]" />
+            <CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center">
+                <div className="mb-4 rounded-full bg-muted p-4">
+                    <Lock size={32} className="text-muted-foreground" />
                 </div>
-                <Title level={1} className="!text-lg !mb-2">
-                    {title}
-                </Title>
-                <Text type="secondary" className="!text-base mb-4 max-w-md block">
-                    {description}
-                </Text>
-                <Text type="secondary" className="!text-sm">
+                <h2 className="mb-2 text-lg font-semibold">{title}</h2>
+                <p className="mb-4 max-w-md text-base text-muted-foreground">{description}</p>
+                <p className="text-sm text-muted-foreground">
                     Available on <strong>Business</strong> and <strong>Enterprise</strong> plans.{" "}
                     {showBillingLink && workspaceId && projectId && (
                         <Link
@@ -43,8 +37,8 @@ export const UpgradePrompt: FC<UpgradePromptProps> = ({title, description}) => {
                             Upgrade plan →
                         </Link>
                     )}
-                </Text>
-            </div>
+                </p>
+            </CardContent>
         </Card>
     )
 }
