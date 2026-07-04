@@ -15,6 +15,7 @@ import {
   approvedCallKey,
   decisionToReply,
   extractApprovalDecisions,
+  extractClientToolOutputs,
   type PermissionDecision,
 } from "../../src/responder.ts";
 
@@ -170,7 +171,7 @@ describe("ApprovalResponder", () => {
     const output = { connected: true };
     const responder = new ApprovalResponder(
       plan("deny"),
-      new ConversationDecisions(new Map([[key, output]])),
+      new ConversationDecisions(new Map(), new Map([[key, [output]]])),
     );
     const client = gate({
       executor: "client",
@@ -194,7 +195,7 @@ describe("ApprovalResponder", () => {
     const output = { connected: true };
     const responder = new ApprovalResponder(
       plan("deny"),
-      new ConversationDecisions(new Map([[key, output]])),
+      new ConversationDecisions(new Map(), new Map([[key, [output]]])),
     );
     const client = gate({
       executor: "client",
@@ -217,7 +218,7 @@ describe("ApprovalResponder", () => {
     const output = { connected: true };
     const responder = new ApprovalResponder(
       plan("deny"),
-      new ConversationDecisions(new Map([[key, output]])),
+      new ConversationDecisions(new Map(), new Map([[key, [output]]])),
     );
     const client = gate({
       executor: "client",
@@ -308,7 +309,7 @@ describe("extractApprovalDecisions", () => {
     assert.equal(decisions.has("tc-1"), false);
   });
 
-  it("stores correlated client-tool outputs under the same call key", () => {
+  it("routes a correlated client-tool output to the CLIENT store, not the approval store", () => {
     const request: AgentRunRequest = {
       messages: [
         {
@@ -335,11 +336,12 @@ describe("extractApprovalDecisions", () => {
       ],
     };
 
-    const decisions = extractApprovalDecisions(request);
-    assert.deepEqual(
-      decisions.get(approvedCallKey("request_connection", { integration: "slack" })!),
+    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    // A raw browser output is NOT an approval decision; it lives only in the client store.
+    assert.equal(extractApprovalDecisions(request).has(key), false);
+    assert.deepEqual(extractClientToolOutputs(request).get(key), [
       { connected: true },
-    );
+    ]);
   });
 
   it("ignores ordinary tool results that cannot be bound to a call shape", () => {
@@ -364,6 +366,150 @@ describe("extractApprovalDecisions", () => {
       messages: [{ role: "user", content: "just a single turn" }],
     };
     assert.equal(extractApprovalDecisions(request).size, 0);
+  });
+});
+
+describe("client-tool output store (separate from approvals)", () => {
+  const clientGate = (input: unknown = { integration: "slack" }): GateDescriptor => ({
+    executor: "client",
+    toolName: "request_connection",
+    args: input,
+  });
+
+  it("extractClientToolOutputs stores raw outputs (not approvals) as a FIFO list per key", () => {
+    const request: AgentRunRequest = {
+      sessionId: "s-client",
+      messages: [
+        {
+          role: "tool",
+          content: [
+            // Two identical request_connection calls -> same name+args key -> a FIFO list of 2.
+            {
+              type: "tool_result",
+              toolCallId: "c-1",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { connected: true, account: "first" },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "c-2",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { connected: true, account: "second" },
+            },
+            // An approval envelope must NOT land in the client-output store.
+            {
+              type: "tool_result",
+              toolCallId: "c-3",
+              toolName: "edit",
+              input: { path: "a" },
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    };
+    const outputs = extractClientToolOutputs(request);
+    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    assert.deepEqual(outputs.get(key), [
+      { connected: true, account: "first" },
+      { connected: true, account: "second" },
+    ]);
+    // The approval-envelope result is absent from the client-output store...
+    assert.equal(outputs.has(approvedCallKey("edit", { path: "a" })!), false);
+    // ...and lives only in the approval store.
+    const decisions = extractApprovalDecisions(request);
+    assert.equal(decisions.get(approvedCallKey("edit", { path: "a" })!), "allow");
+  });
+
+  it("resolves two identical client calls from the FIFO store, in order", async () => {
+    const request: AgentRunRequest = {
+      sessionId: "s-client",
+      messages: [
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "c-1",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { account: "first" },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "c-2",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { account: "second" },
+            },
+          ],
+        },
+      ],
+    };
+    const responder = new ApprovalResponder(
+      plan("ask"),
+      new ConversationDecisions(
+        extractApprovalDecisions(request),
+        extractClientToolOutputs(request),
+      ),
+    );
+    const request1 = { id: "i-1", toolCallId: "live-1", gate: clientGate() };
+    // First call consumes the first output; the second identical call consumes the second.
+    assert.deepEqual(await responder.onClientTool(request1, { consume: true }), {
+      kind: "fulfilled",
+      output: { account: "first" },
+    });
+    assert.deepEqual(await responder.onClientTool(request1, { consume: true }), {
+      kind: "fulfilled",
+      output: { account: "second" },
+    });
+    // A third identical call has no stored output left -> forward to the browser (pause).
+    assert.deepEqual(await responder.onClientTool(request1, { consume: true }), {
+      kind: "pendingApproval",
+    });
+  });
+
+  it("returns a client output literally \"allow\" as output, never as a permission decision", async () => {
+    const request: AgentRunRequest = {
+      sessionId: "s-client",
+      messages: [
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "c-1",
+              toolName: "confirm",
+              input: { q: "ok?" },
+              // The raw browser output happens to be the string "allow" — under the old shared
+              // store this collided with a permission decision and was skipped.
+              output: "allow",
+            },
+          ],
+        },
+      ],
+    };
+    const responder = new ApprovalResponder(
+      plan("ask"),
+      new ConversationDecisions(
+        extractApprovalDecisions(request),
+        extractClientToolOutputs(request),
+      ),
+    );
+    assert.deepEqual(
+      await responder.onClientTool(
+        {
+          id: "i-1",
+          toolCallId: "live",
+          gate: { executor: "client", toolName: "confirm", args: { q: "ok?" } },
+        },
+        { consume: true },
+      ),
+      { kind: "fulfilled", output: "allow" },
+      "the client output is returned verbatim, not interpreted as a permission allow",
+    );
   });
 });
 

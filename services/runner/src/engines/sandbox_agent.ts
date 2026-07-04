@@ -40,8 +40,10 @@ import {
   ApprovalResponder,
   ConversationDecisions,
   extractApprovalDecisions,
+  extractClientToolOutputs,
   type Responder,
 } from "../responder.ts";
+import { buildClientToolRelay } from "./sandbox_agent/client-tools.ts";
 import {
   type AgentRunRequest,
   type AgentRunResult,
@@ -73,7 +75,6 @@ import {
   decide,
   PendingApprovalLatch,
   permissionsFromRequest,
-  type GateDescriptor,
 } from "../permission-plan.ts";
 import { attachPermissionResponder } from "./sandbox_agent/acp-interactions.ts";
 import {
@@ -692,7 +693,10 @@ export async function runSandboxAgent(
         `[HITL] resume state: decisions=${JSON.stringify([...storedDecisionMap.keys()])}`,
       );
     }
-    const decisions = new ConversationDecisions(storedDecisionMap);
+    const decisions = new ConversationDecisions(
+      storedDecisionMap,
+      extractClientToolOutputs(request),
+    );
     const latch = new PendingApprovalLatch();
     const responder =
       deps.responderFactory?.(request) ??
@@ -773,6 +777,17 @@ export async function runSandboxAgent(
       },
     });
 
+    // The ONE client-tool seam both delivery paths share: the Pi file relay (below) consumes it
+    // directly. Built here because it needs the responder, the otel run, and the pause plumbing.
+    const clientToolRelay = buildClientToolRelay({
+      responder,
+      run,
+      latch,
+      pause,
+      recordPendingInteraction,
+      log: logger,
+    });
+
     if (plan.useToolRelay) {
       toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
@@ -783,59 +798,7 @@ export async function runSandboxAgent(
         request.toolCallback as ToolCallbackContext | undefined,
         relayPermissions,
         request.runContext,
-        {
-          onClientTool: async ({ id, toolCallId, toolName, input, spec }) => {
-            const gate: GateDescriptor = {
-              executor: "client",
-              toolName: spec.name,
-              specPermission: spec.permission,
-              readOnlyHint: spec.readOnly,
-              args: input,
-            };
-            const verdict = await responder.onClientTool(
-              {
-                id,
-                toolCallId,
-                gate,
-                raw: { spec },
-              },
-              { consume: true },
-            );
-            if (process.env.AGENTA_RUNNER_DEBUG_TOOLS) {
-              logger(
-                `[client-tool] ${toolName} id=${toolCallId} kind=${spec.kind} ` +
-                  `decision=${JSON.stringify(verdict).slice(0, 200)}`,
-              );
-            }
-            if (verdict.kind === "deny") return "deny";
-            if (verdict.kind === "fulfilled") return { output: verdict.output };
-            if (latch.tryAcquire()) {
-              pause.markPausedToolCall(toolCallId);
-              run.emitEvent({
-                type: "interaction_request",
-                id,
-                kind: "client_tool",
-                payload: {
-                  toolCallId,
-                  toolName,
-                  input,
-                  render: spec.render,
-                  toolCall: {
-                    id: toolCallId,
-                    toolCallId,
-                    name: toolName,
-                    rawInput: input,
-                    input,
-                    kind: spec.kind,
-                  },
-                },
-              });
-              recordPendingInteraction(id, toolName, input, "client_tool");
-            }
-            return "pendingApproval";
-          },
-          onPause: () => pause.pause(),
-        },
+        clientToolRelay,
       );
     }
 
