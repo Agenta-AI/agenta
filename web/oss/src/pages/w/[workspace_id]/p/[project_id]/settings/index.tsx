@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {PageLayout} from "@agenta/ui"
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
 import {Link} from "@phosphor-icons/react"
-import {Tag, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -116,22 +117,24 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     title: (
                         <div className="flex items-center gap-2">
                             <span>{getSettingsTabLabel("organization", settingsAccess)}</span>
-                            <Tooltip
-                                title={isOrgIdCopied ? "Copied!" : "Click to copy organization ID"}
-                            >
-                                <Tag
-                                    className="cursor-pointer flex items-center gap-1"
-                                    onClick={handleCopyOrgId}
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleCopyOrgId}
+                                        />
+                                    }
                                 >
                                     <Link size={14} weight="bold" />
                                     <span>Organization ID</span>
-                                </Tag>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {isOrgIdCopied ? "Copied!" : "Click to copy organization ID"}
+                                </TooltipContent>
                             </Tooltip>
-                            {isDemoOrg && (
-                                <Tag className="bg-[var(--ag-c-0517290F)] m-0 font-normal">
-                                    demo
-                                </Tag>
-                            )}
+                            {isDemoOrg && <Badge variant="secondary">demo</Badge>}
                         </div>
                     ),
                 }
@@ -182,16 +185,21 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     }, [resolvedTab, isOrgIdCopied, handleCopyOrgId, isDemoOrg, settingsAccess, AuditLogComponent])
 
     return (
-        <PageLayout
+        <div
             key={settingsKey}
-            title={title}
-            // The Audit Log tab hosts a full-height InfiniteVirtualTable, which
-            // needs a bounded parent so it scrolls internally instead of growing
-            // the page. Other tabs keep PageLayout's default `min-h-full` flow.
-            className={resolvedTab === "auditLog" ? "h-full min-h-0" : undefined}
+            className={`flex w-full flex-col gap-4 self-stretch p-4 ${
+                resolvedTab === "auditLog" ? "h-full min-h-0" : "min-h-full"
+            }`}
         >
+            <div className="flex h-11 shrink-0 items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <div role="heading" aria-level={3} className="truncate text-lg font-medium">
+                        {title}
+                    </div>
+                </div>
+            </div>
             {content}
-        </PageLayout>
+        </div>
     )
 }
 
