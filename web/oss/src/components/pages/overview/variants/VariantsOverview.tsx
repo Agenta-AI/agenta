@@ -1,8 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {Rocket} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
-import clsx from "clsx"
+import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 
@@ -14,8 +13,6 @@ import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
-
-const {Title} = Typography
 
 const VariantsOverview = () => {
     const [, updateQuery] = useQuery()
@@ -69,11 +66,9 @@ const VariantsOverview = () => {
     )
 
     return (
-        <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
+        <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-                <Title level={3} className="!m-0">
-                    Recent Prompts
-                </Title>
+                <h3 className="!m-0">Recent Prompts</h3>
 
                 <Button
                     type="primary"

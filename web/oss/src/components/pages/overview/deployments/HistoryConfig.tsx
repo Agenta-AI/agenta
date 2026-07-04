@@ -2,7 +2,6 @@ import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
-import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
@@ -23,7 +22,7 @@ const HistoryConfig = ({revisionId, showOriginal}: HistoryConfigProps) => {
 
     return (
         <div className="flex flex-col gap-4 grow h-full">
-            <Typography.Text className="text-base font-medium">Configuration</Typography.Text>
+            <span className="text-base font-medium">Configuration</span>
 
             {hasParams ? (
                 <OSSdrillInUIProvider>
@@ -34,9 +33,9 @@ const HistoryConfig = ({revisionId, showOriginal}: HistoryConfigProps) => {
                     />
                 </OSSdrillInUIProvider>
             ) : (
-                <Typography.Text type="secondary" className="font-medium text-center mt-12">
+                <span className="font-medium text-center mt-12 text-muted-foreground">
                     No Parameters
-                </Typography.Text>
+                </span>
             )}
         </div>
     )

@@ -5,7 +5,7 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CaretRight} from "@phosphor-icons/react"
-import {Input, Table, Tag, Typography} from "antd"
+import {Input, Table, Tag} from "antd"
 import {createUseStyles} from "react-jss"
 
 import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
@@ -64,12 +64,10 @@ const ChangeVariantModal = ({
         <>
             <EnhancedModal width={520} centered destroyOnHidden footer={null} {...props}>
                 <div>
-                    <Typography.Text className={classes.title}>
-                        Deploy to {selectedEnvironment.name}
-                    </Typography.Text>
+                    <span className={classes.title}>Deploy to {selectedEnvironment.name}</span>
 
                     <div className="flex flex-col gap-4 mt-2">
-                        <Typography.Text>Choose a variant for deployment</Typography.Text>
+                        <span>Choose a variant for deployment</span>
 
                         <Search
                             value={searchTerm}
@@ -100,9 +98,9 @@ const ChangeVariantModal = ({
                                                 <div className="flex items-center gap-2">
                                                     <Tag className="flex items-center gap-2">
                                                         <EnvironmentStatus variant={record} />
-                                                        <Typography>
+                                                        <span>
                                                             {formatVariantIdWithHash(record.id)}
-                                                        </Typography>
+                                                        </span>
                                                     </Tag>
                                                     <CaretRight />
                                                 </div>

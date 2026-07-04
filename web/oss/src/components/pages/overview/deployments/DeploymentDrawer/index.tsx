@@ -13,7 +13,7 @@ import {
     Rocket,
     Swap,
 } from "@phosphor-icons/react"
-import {Button, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography} from "antd"
+import {Button, DrawerProps, Dropdown, Space, Tabs, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -38,8 +38,6 @@ import type {DeploymentDrawerProps} from "./types"
 const DeploymentHistoryModal = dynamic(
     () => import("@/oss/components/pages/overview/deployments/DeploymentHistoryModal"),
 )
-
-const {Title, Text} = Typography
 
 const DeploymentDrawer = ({
     variants,
@@ -133,14 +131,16 @@ const DeploymentDrawer = ({
                 destroyOnHidden
                 closeIcon={null}
                 title={
-                    <Space className="flex justify-between w-full [&_h1.ant-typography]:text-lg [&_h1.ant-typography]:font-medium [&_h1.ant-typography]:!mb-0">
+                    <Space className="flex justify-between w-full">
                         <Space className="gap-3">
                             <Button
                                 onClick={() => props.onClose?.({} as any)}
                                 type="text"
                                 icon={<CloseOutlined />}
                             />
-                            <Title>{selectedEnvironment?.name} environment</Title>
+                            <h2 className="mb-0 text-lg font-medium">
+                                {selectedEnvironment?.name} environment
+                            </h2>
                         </Space>
 
                         {selectedEnvironment.deployedVariantName && (
@@ -191,7 +191,7 @@ const DeploymentDrawer = ({
                 {selectedEnvironment.deployedVariantName ? (
                     <div className="flex flex-col">
                         <div className="flex justify-between">
-                            <Text className="font-[500]">Variant Deployed</Text>
+                            <span className="font-[500]">Variant Deployed</span>
 
                             {variant && (
                                 <VariantPopover
@@ -273,9 +273,9 @@ const DeploymentDrawer = ({
                     <div className="flex flex-col items-center justify-center gap-4 py-20">
                         <CloudWarning size={40} />
 
-                        <Typography.Text>
+                        <span>
                             No deployment has been done on {selectedEnvironment.name} environment
-                        </Typography.Text>
+                        </span>
 
                         <Button
                             className="flex items-center gap-2"

@@ -1,15 +1,11 @@
 import {useCallback} from "react"
 
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
-import {Typography} from "antd"
-import clsx from "clsx"
 import {useRouter} from "next/router"
 
 import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
 import useURL from "@/oss/hooks/useURL"
 import {useAppEnvironments} from "@/oss/state/environment/useAppEnvironments"
-
-const {Title} = Typography
 
 const DeploymentOverview = () => {
     const {environments, isEnvironmentsLoading: isDeploymentLoading} = useAppEnvironments()
@@ -30,10 +26,8 @@ const DeploymentOverview = () => {
     )
 
     return (
-        <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
-            <Title level={3} className="!m-0">
-                Deployment
-            </Title>
+        <div className="flex flex-col gap-2">
+            <h3 className="!m-0">Deployment</h3>
 
             <EnvironmentCardRow
                 className="flex gap-4"

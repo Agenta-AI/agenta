@@ -6,7 +6,6 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Rocket} from "@phosphor-icons/react"
-import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 type DeploymentModalProps = {
@@ -64,7 +63,7 @@ const DeploymentModal = ({
             {...props}
         >
             <div className="[&_h1]:text-sm [&_h1]:font-semibold [&_h1]:leading-[1.5714285714285714] [&_h1]:mb-2 [&_span]:text-colorPrimary [&_span]:text-sm [&_span]:leading-[1.5714285714285714] [&_span]:font-medium">
-                <Typography.Title>Confirm Deployment</Typography.Title>
+                <h1>Confirm Deployment</h1>
 
                 <div className="flex flex-col gap-4">
                     <div>

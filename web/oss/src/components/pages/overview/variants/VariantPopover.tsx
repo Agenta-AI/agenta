@@ -3,7 +3,7 @@ import {useUserDisplayName} from "@agenta/entities/shared/user"
 import type {Workflow} from "@agenta/entities/workflow"
 import {VariantNameCell} from "@agenta/entity-ui/variant"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
+import {Badge, Button, Flex, Popover, Tag} from "antd"
 
 import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -18,7 +18,7 @@ const ModifiedByText = ({variant}: {variant: Workflow}) => {
     const authorId = variant.updated_by_id ?? variant.created_by_id ?? null
     const resolvedName = useUserDisplayName(authorId ?? undefined)
     if (!resolvedName || resolvedName === "-") return null
-    return <Typography.Text className="font-normal">{resolvedName}</Typography.Text>
+    return <span className="font-normal">{resolvedName}</span>
 }
 
 const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopoverProps) => {
@@ -54,9 +54,9 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                         <ModifiedByText variant={selectedDeployedVariant} />
                     )}
                     {selectedDeployedVariant?.message && (
-                        <Typography.Text type="secondary">
+                        <span className="text-muted-foreground">
                             {selectedDeployedVariant?.message}
-                        </Typography.Text>
+                        </span>
                     )}
                 </div>
             }

@@ -1,13 +1,11 @@
 import {CopyButton} from "@agenta/ui"
 import {CloudArrowUp} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import clsx from "clsx"
 
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
 
 import type {LanguageCodeBlockProps} from "../types"
-
-const {Text} = Typography
 
 const LanguageCodeBlock = ({
     selectedLang,
@@ -24,7 +22,7 @@ const LanguageCodeBlock = ({
         <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                    <Text className="font-[500]">Fetch Prompt/Config</Text>
+                    <span className="font-[500]">Fetch Prompt/Config</span>
                     {canCopySnippet && (
                         <CopyButton
                             buttonText={null}
@@ -49,7 +47,7 @@ const LanguageCodeBlock = ({
                                 "flex flex-col gap-2 items-center justify-center rounded-lg",
                             )}
                         >
-                            <Typography>Deploy a variant to start using this endpoint</Typography>
+                            <span>Deploy a variant to start using this endpoint</span>
                             <Button
                                 icon={<CloudArrowUp />}
                                 onClick={handleOpenSelectDeployVariantModal}
@@ -63,7 +61,7 @@ const LanguageCodeBlock = ({
 
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                    <Text className="font-[500]">Invoke LLM</Text>
+                    <span className="font-[500]">Invoke LLM</span>
                     {canCopySnippet && (
                         <CopyButton
                             buttonText={null}
@@ -88,7 +86,7 @@ const LanguageCodeBlock = ({
                                 "flex flex-col gap-2 items-center justify-center rounded-lg",
                             )}
                         >
-                            <Typography>Deploy a variant to start using this endpoint</Typography>
+                            <span>Deploy a variant to start using this endpoint</span>
                             <Button
                                 icon={<CloudArrowUp />}
                                 onClick={handleOpenSelectDeployVariantModal}
