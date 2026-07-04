@@ -8,6 +8,7 @@ import {
   USER_MCP_UNSUPPORTED_MESSAGE,
   type McpServerStdio,
 } from "../../tools/mcp-bridge.ts";
+import type { ClientToolRelay } from "../../tools/relay.ts";
 
 type Log = (message: string) => void;
 
@@ -171,6 +172,14 @@ export interface BuildSessionMcpServersInput {
   toolSpecs: ResolvedToolSpec[];
   userMcpServers?: McpServerConfig[];
   relayDir: string;
+  /**
+   * The shared client-tool relay. When set (local Claude), the internal channel advertises
+   * `client` tools and pauses a `tools/call` for one. Omit for Pi (which uses the file relay);
+   * on Daytona the channel is skipped entirely.
+   */
+  clientToolRelay?: ClientToolRelay;
+  /** Engine pause/teardown abort signal, threaded to the internal MCP server. */
+  signal?: AbortSignal;
   log?: Log;
 }
 
@@ -214,6 +223,8 @@ export async function buildSessionMcpServers({
   toolSpecs,
   userMcpServers,
   relayDir,
+  clientToolRelay,
+  signal,
   log = () => {},
 }: BuildSessionMcpServersInput): Promise<SessionMcpServers> {
   const userMcpCount = userMcpServers?.length ?? 0;
@@ -232,7 +243,11 @@ export async function buildSessionMcpServers({
   // sandbox where the harness runs. On Daytona, skip the loopback HTTP advertisement.
   const internal = isDaytona
     ? { servers: [], close: async () => {} }
-    : await buildToolMcpServers(toolSpecs, relayDir, log);
+    : await buildToolMcpServers(toolSpecs, relayDir, {
+        clientToolRelay,
+        signal,
+        log,
+      });
   // Only Pi has a sandbox-side file-relay writer (its bundled extension), and Pi never reaches
   // this point (the `isPi` early-return above), so no harness that gets here has ANY delivery
   // path on Daytona. `run-plan.ts` (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`) refuses that combination

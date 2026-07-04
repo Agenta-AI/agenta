@@ -30,7 +30,11 @@ import {
   buildToolMcpServers,
   type ToolMcpServersResult,
 } from "../../src/tools/mcp-bridge.ts";
-import { RELAY_REQ_SUFFIX, RELAY_RES_SUFFIX } from "../../src/tools/relay.ts";
+import {
+  RELAY_REQ_SUFFIX,
+  RELAY_RES_SUFFIX,
+  type ClientToolRelay,
+} from "../../src/tools/relay.ts";
 import type { ResolvedToolSpec } from "../../src/protocol.ts";
 
 const relayDir = "/tmp/agenta-tools";
@@ -310,6 +314,146 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
         method: "notifications/initialized",
       });
       assert.equal(out, undefined, "notification -> 202, no body");
+    });
+  });
+
+  describe("client tools (Claude delivery)", () => {
+    const clientSpec: ResolvedToolSpec = {
+      name: "request_connection",
+      kind: "client",
+      input_schema: {
+        type: "object",
+        required: ["integration"],
+        properties: { integration: { type: "string" } },
+      },
+    } as unknown as ResolvedToolSpec;
+
+    it("advertises client tools in tools/list when a relay is wired", async () => {
+      const relay: ClientToolRelay = {
+        onClientTool: async () => "pendingApproval",
+      };
+      const { servers } = await build(
+        [{ name: "search", kind: "callback", callRef: "x" }, clientSpec],
+        relayDir,
+        { clientToolRelay: relay },
+      );
+      assert.equal(servers.length, 1, "the server starts even with a client tool present");
+      const list = await rpc(servers[0].url, {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+      });
+      const names = list.result.tools.map((t: any) => t.name).sort();
+      assert.deepEqual(names, ["request_connection", "search"]);
+    });
+
+    it("pauses: NO tool result, the request is aborted, and onPause fires exactly once", async () => {
+      // The acceptance unit: a paused client tool must produce NO JSON-RPC result for its
+      // tools/call (a result would let Claude settle and clobber the pending widget). The handler
+      // returns the paused sentinel and the listener destroys the socket, so the client's request
+      // is aborted with no body — and onPause is called once (the turn-ender).
+      let pauseCount = 0;
+      let onClientToolCalls = 0;
+      const relay: ClientToolRelay = {
+        onClientTool: async () => {
+          onClientToolCalls += 1;
+          return "pendingApproval";
+        },
+        onPause: () => {
+          pauseCount += 1;
+        },
+      };
+      const { servers } = await build([clientSpec], relayDir, {
+        clientToolRelay: relay,
+      });
+      await assert.rejects(
+        async () => {
+          const res = await fetch(servers[0].url, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              accept: "application/json, text/event-stream",
+            },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 7,
+              method: "tools/call",
+              params: {
+                name: "request_connection",
+                arguments: { integration: "slack" },
+              },
+            }),
+          });
+          // No body is ever written for a paused call; reading it must fail (socket destroyed).
+          await res.text();
+        },
+        "the paused tools/call is aborted with no JSON-RPC result",
+      );
+      assert.equal(onClientToolCalls, 1, "the relay was consulted once");
+      assert.equal(pauseCount, 1, "onPause fired exactly once");
+    });
+
+    it("validates required args in the client branch (a normal MCP error, not a pause)", async () => {
+      let pauseCount = 0;
+      const relay: ClientToolRelay = {
+        onClientTool: async () => "pendingApproval",
+        onPause: () => {
+          pauseCount += 1;
+        },
+      };
+      const { servers } = await build([clientSpec], relayDir, {
+        clientToolRelay: relay,
+      });
+      const out = await rpc(servers[0].url, {
+        jsonrpc: "2.0",
+        id: 8,
+        method: "tools/call",
+        params: { name: "request_connection", arguments: {} }, // missing `integration`
+      });
+      assert.equal(out.result.isError, true, "an under-specified call is a tool error");
+      assert.match(out.result.content[0].text, /missing required argument\(s\): integration/);
+      assert.equal(pauseCount, 0, "an under-specified call never pauses");
+    });
+
+    it("resumes: returns the browser's structured output as MCP content", async () => {
+      const relay: ClientToolRelay = {
+        onClientTool: async () => ({ output: { connected: true, account: "a" } }),
+      };
+      const { servers } = await build([clientSpec], relayDir, {
+        clientToolRelay: relay,
+      });
+      const out = await rpc(servers[0].url, {
+        jsonrpc: "2.0",
+        id: 9,
+        method: "tools/call",
+        params: {
+          name: "request_connection",
+          arguments: { integration: "slack" },
+        },
+      });
+      assert.equal(out.result.isError, undefined, "a resolved client tool is not an error");
+      assert.equal(
+        out.result.content[0].text,
+        JSON.stringify({ connected: true, account: "a" }),
+      );
+    });
+
+    it("denies: a normal MCP tool error the model can recover from", async () => {
+      const relay: ClientToolRelay = { onClientTool: async () => "deny" };
+      const { servers } = await build([clientSpec], relayDir, {
+        clientToolRelay: relay,
+      });
+      const out = await rpc(servers[0].url, {
+        jsonrpc: "2.0",
+        id: 10,
+        method: "tools/call",
+        params: {
+          name: "request_connection",
+          arguments: { integration: "slack" },
+        },
+      });
+      assert.equal(out.result.isError, true);
+      assert.match(out.result.content[0].text, /was denied/);
     });
   });
 });

@@ -87,15 +87,16 @@ has an equivalent.
 ## 4. The interim fix implemented alongside these docs
 
 `engines/sandbox_agent/run-plan.ts` `buildRunPlan` now refuses, before any cwd or sandbox is
-created, any run where `!isPi && isDaytona && executableToolSpecsForRun.length > 0` —
+created, any run where `!isPi && isRemoteSandbox && toolSpecs.length > 0` —
 `REMOTE_TOOLS_UNSUPPORTED_MESSAGE`. This mirrors the existing not-implemented gates in the same
 file (`CODE_TOOL_UNSUPPORTED_MESSAGE`, `USER_MCP_UNSUPPORTED_MESSAGE`,
 `PI_USER_MCP_UNSUPPORTED_MESSAGE`, `FILESYSTEM_UNSUPPORTED_MESSAGE`,
 `LOCAL_NETWORK_UNSUPPORTED_MESSAGE`): fail loud with a single named message instead of silently
-dropping a declared capability. `executableToolSpecsForRun` (already computed earlier in the
-function via `executableToolSpecs(toolSpecs)`) excludes `client`-kind tools, which are
-browser-fulfilled and were never advertised over the internal channel in the first place
-(`tool-mcp-http.ts` `tools/list` filters them out too), so a client-only tool run is unaffected.
+dropping a declared capability. The gate counts ALL custom tools, `client` kind included: since
+the #4985 recut, client tools ride the same internal MCP channel on local Claude (advertised in
+`tools/list`, paused in `tools/call`), so on a remote sandbox they are exactly as undeliverable
+as gateway tools — the model would never see them. (The original #5047 gate exempted client
+tools because, pre-#4985, they were never routed through the channel at all.)
 The `mcp.ts` "delivered via the file relay" log is now conditioned on `isPi` so it can never again
 claim a delivery that isn't happening, as defense-in-depth against a future gate bypass (the
 run-plan gate should make the branch it guards dead code, but the log no longer trusts that).
