@@ -48,7 +48,7 @@ const apiKeysTests = () => {
         await scenarios.when("the user creates a new API key", async () => {
             await uiHelpers.clickTab("API Keys")
             await uiHelpers.clickButton("Create New")
-            await expect(page.locator(".ant-modal")).toBeVisible()
+            await expect(page.getByRole("dialog")).toBeVisible()
 
             const apiKeysPromise = apiHelpers.waitForApiResponse<APIKey[]>({
                 route: "/api/keys",
@@ -56,7 +56,7 @@ const apiKeysTests = () => {
             })
 
             await uiHelpers.confirmModal("Done")
-            await expect(page.locator(".ant-modal")).not.toBeVisible()
+            await expect(page.getByRole("dialog")).not.toBeVisible()
             apiKeys = await apiKeysPromise
         })
 
@@ -68,7 +68,7 @@ const apiKeysTests = () => {
             await uiHelpers.clickTab("Usage & Billing")
             await uiHelpers.clickTab("API Keys")
             await uiHelpers.clickTableRowIcon({rowText: apiKeys[0].prefix, icon: "delete"})
-            await expect(page.locator(".ant-modal")).toBeVisible()
+            await expect(page.getByRole("dialog")).toBeVisible()
 
             const apiKeyDeletePromise = apiHelpers.waitForApiResponse<{message: string}>({
                 route: /\/api\/keys/,
@@ -83,7 +83,7 @@ const apiKeysTests = () => {
         await scenarios.then(
             "the delete confirmation closes and the user remains on Settings",
             async () => {
-                await expect(page.locator(".ant-modal")).not.toBeVisible()
+                await expect(page.getByRole("dialog")).not.toBeVisible()
                 await expect(page).toHaveURL(/settings(\?tab=.*)?/)
             },
         )

@@ -115,6 +115,25 @@ const themeAwareColors = {
     colorWhite: v("colorWhite"),
 }
 
+// shadcn semantic tokens for app-layer files. Values come from
+// @agenta/primitive-ui/styles.css (:root/.dark), so both systems flip together.
+// Colors only — the radius scale stays v3 so antd screens are untouched.
+// Note: v3 cannot apply opacity modifiers (e.g. bg-destructive/90) to these.
+const shadcnTokens = {
+    background: "var(--background)",
+    foreground: "var(--foreground)",
+    card: {DEFAULT: "var(--card)", foreground: "var(--card-foreground)"},
+    popover: {DEFAULT: "var(--popover)", foreground: "var(--popover-foreground)"},
+    primary: {DEFAULT: "var(--primary)", foreground: "var(--primary-foreground)"},
+    secondary: {DEFAULT: "var(--secondary)", foreground: "var(--secondary-foreground)"},
+    muted: {DEFAULT: "var(--muted)", foreground: "var(--muted-foreground)"},
+    accent: {DEFAULT: "var(--accent)", foreground: "var(--accent-foreground)"},
+    destructive: "var(--destructive)",
+    border: "var(--border)",
+    input: "var(--input)",
+    ring: "var(--ring)",
+}
+
 export const createConfig = (content: string[] = []): Config => {
     return {
         darkMode: "selector",
@@ -145,6 +164,7 @@ export const createConfig = (content: string[] = []): Config => {
                     // Theme-aware scales (override the static antd-tailwind values
                     // above with CSS-variable-backed ones so dark mode flips them).
                     ...themeAwareColors,
+                    ...shadcnTokens,
                     // light mode
                     tremor: {
                         brand: {

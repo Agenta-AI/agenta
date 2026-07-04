@@ -1,11 +1,30 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {CopyOutlined, DeleteOutlined} from "@ant-design/icons"
-import {ArrowClockwise, GearSix, Plus} from "@phosphor-icons/react"
-import {Alert, Button, Modal, Table, Tooltip, Typography, theme} from "antd"
-import {ColumnsType} from "antd/es/table"
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@agenta/primitive-ui/components/alert-dialog"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {type ColumnDef, DataTable} from "@agenta/primitive-ui/components/data-table"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/primitive-ui/components/dialog"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
+import {ArrowClockwise, Copy, GearSix, Plus, Trash, WarningCircle} from "@phosphor-icons/react"
 
-import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useLoading} from "@/oss/hooks/useLoading"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -15,19 +34,15 @@ import {useOrgData} from "@/oss/state/org"
 
 import {Loading} from "./assets/constants"
 
-const {Text} = Typography
-const monospaceFontFamily = "ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace"
-const monospaceKeyStyle = {
-    fontFamily: monospaceFontFamily,
-    letterSpacing: "0.08em",
-    fontVariantLigatures: "none",
-} as const
+const monospaceKeyClass =
+    "font-mono tracking-[0.08em] [font-variant-ligatures:none] inline-block rounded border border-border bg-muted px-2 py-1 leading-none"
 
 const APIKeys: React.FC = () => {
     const [keys, setKeys] = useState<APIKey[]>([])
     const [isModalVisible, setIsModalVisible] = useState(false)
+    const [pendingDeletePrefix, setPendingDeletePrefix] = useState<string | null>(null)
+    const [createdKey, setCreatedKey] = useState<string | null>(null)
     const [loading, setLoading] = useLoading(Object.values(Loading))
-    const {token} = theme.useToken()
     const {canEditApiKeys, canViewApiKeys} = useProjectPermissions()
 
     const {selectedOrg} = useOrgData()
@@ -55,29 +70,21 @@ const APIKeys: React.FC = () => {
             })
     }, [canViewApiKeys, setLoading, workspaceId])
 
-    const deleteKey = useCallback(
-        (prefix: string) => {
-            if (!canEditApiKeys) return
+    const confirmDeleteKey = useCallback(async () => {
+        if (!canEditApiKeys || !pendingDeletePrefix) return
 
-            AlertPopup({
-                title: "Delete API Key",
-                message:
-                    "Are you sure you want to delete this API Key? This action is irreversible!",
-                onOk: async () => {
-                    setLoading(Loading.DELETE, true)
-                    await deleteApiKey(prefix)
-                        .then(() => {
-                            setKeys((keys) => keys.filter((key) => key.prefix !== prefix))
-                        })
-                        .catch(console.error)
-                        .finally(() => {
-                            setLoading(Loading.DELETE, false)
-                        })
-                },
+        const prefix = pendingDeletePrefix
+        setPendingDeletePrefix(null)
+        setLoading(Loading.DELETE, true)
+        await deleteApiKey(prefix)
+            .then(() => {
+                setKeys((keys) => keys.filter((key) => key.prefix !== prefix))
             })
-        },
-        [canEditApiKeys, setLoading],
-    )
+            .catch(console.error)
+            .finally(() => {
+                setLoading(Loading.DELETE, false)
+            })
+    }, [canEditApiKeys, pendingDeletePrefix, setLoading])
 
     const createKey = useCallback(() => {
         if (!canEditApiKeys) return
@@ -90,48 +97,14 @@ const APIKeys: React.FC = () => {
             createApiKey(workspaceId)
                 .then(({data}) => {
                     listKeys()
-                    AlertPopup({
-                        width: 650,
-                        type: "success",
-                        title: "API Key created",
-                        message: (
-                            <div>
-                                <div>
-                                    Make sure to copy your API Key now. You won’t be able to see it
-                                    again!
-                                </div>
-                                <div className="mt-[0.5rem] flex items-start gap-2">
-                                    <span
-                                        className="min-w-0 break-all"
-                                        style={{
-                                            ...monospaceKeyStyle,
-                                            color: token.colorTextSecondary,
-                                            fontWeight: 600,
-                                        }}
-                                    >
-                                        {data}
-                                    </span>
-                                    <span className="shrink-0">
-                                        <Tooltip title="Copy">
-                                            <CopyOutlined
-                                                onClick={() => copyToClipboard(data)}
-                                                style={{color: token.colorPrimary}}
-                                            />
-                                        </Tooltip>
-                                    </span>
-                                </div>
-                            </div>
-                        ),
-                        cancelText: null,
-                        okText: "Done",
-                    })
+                    setCreatedKey(data)
                 })
                 .catch(console.error)
                 .finally(() => {
                     setLoading(Loading.CREATE, false)
                 })
         }
-    }, [canEditApiKeys, listKeys, setLoading, token.colorPrimary, workspaceId])
+    }, [canEditApiKeys, listKeys, setLoading, workspaceId])
 
     useEffect(() => {
         if (!canViewApiKeys) {
@@ -142,52 +115,49 @@ const APIKeys: React.FC = () => {
         listKeys()
     }, [canViewApiKeys, listKeys])
 
-    const columns = useMemo<ColumnsType<APIKey>>(() => {
-        const baseColumns: ColumnsType<APIKey> = [
+    const columns = useMemo<ColumnDef<APIKey, unknown>[]>(() => {
+        const baseColumns: ColumnDef<APIKey, unknown>[] = [
             {
-                title: "API Key",
-                dataIndex: "prefix",
-                key: "prefix",
-                width: 400,
-                render: (value: string) => (
-                    <span
-                        style={monospaceKeyStyle}
-                        className="inline-block rounded border border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] px-2 py-1 text-[inherit] leading-none"
-                    >
-                        {value.padEnd(40, "*")}
-                    </span>
+                id: "prefix",
+                accessorKey: "prefix",
+                header: "API Key",
+                size: 400,
+                enableSorting: false,
+                cell: ({row}) => (
+                    <span className={monospaceKeyClass}>{row.original.prefix.padEnd(40, "*")}</span>
                 ),
             },
             {
-                title: "Created",
-                dataIndex: "created_at",
-                key: "created_at",
-                render: (value: string) => new Date(value).toLocaleDateString(),
+                id: "created_at",
+                accessorKey: "created_at",
+                header: "Created",
+                enableSorting: false,
+                cell: ({row}) => new Date(row.original.created_at).toLocaleDateString(),
             },
             {
-                title: "Expires",
-                dataIndex: "expiration_date",
-                key: "expiration_date",
-                render: (value: string) => {
+                id: "expiration_date",
+                accessorKey: "expiration_date",
+                header: "Expires",
+                enableSorting: false,
+                cell: ({row}) => {
+                    const value = row.original.expiration_date
                     const date = value ? new Date(value) : null
                     const hasExpired = date ? date < new Date() : false
                     return (
-                        <Text type={hasExpired ? "danger" : undefined}>
+                        <span className={hasExpired ? "text-destructive" : undefined}>
                             {hasExpired ? "Expired" : date ? date.toLocaleDateString() : "Never"}
-                        </Text>
+                        </span>
                     )
                 },
             },
             {
-                title: "Last Used",
-                dataIndex: "last_used_at",
-                key: "last_used_at",
-                render: (value: string) => {
-                    if (value) {
-                        return new Date(value).toLocaleString()
-                    }
-
-                    return "Never Used"
+                id: "last_used_at",
+                accessorKey: "last_used_at",
+                header: "Last Used",
+                enableSorting: false,
+                cell: ({row}) => {
+                    const value = row.original.last_used_at
+                    return value ? new Date(value).toLocaleString() : "Never Used"
                 },
             },
         ]
@@ -199,32 +169,39 @@ const APIKeys: React.FC = () => {
         return [
             ...baseColumns,
             {
-                title: <GearSix size={16} />,
-                key: "action",
-                width: 96,
-                fixed: "right" as const,
-                align: "center" as const,
-                render: (_: unknown, record: APIKey) => (
+                id: "action",
+                header: () => <GearSix size={16} className="mx-auto" />,
+                size: 96,
+                enableSorting: false,
+                cell: ({row}) => (
                     <div className="flex items-center justify-center gap-1">
-                        <Tooltip title="Delete">
-                            <DeleteOutlined
-                                onClick={() => deleteKey(record.prefix)}
-                                style={{color: token.colorError}}
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Delete API key"
+                                        onClick={() => setPendingDeletePrefix(row.original.prefix)}
+                                    >
+                                        <Trash className="text-destructive" />
+                                    </Button>
+                                }
                             />
+                            <TooltipContent>Delete</TooltipContent>
                         </Tooltip>
                     </div>
                 ),
             },
         ]
-    }, [canEditApiKeys, deleteKey, token.colorError])
+    }, [canEditApiKeys])
 
     if (!canViewApiKeys) {
         return (
-            <Alert
-                type="warning"
-                showIcon
-                message="You do not have access to API Keys in this project."
-            />
+            <Alert>
+                <WarningCircle />
+                <AlertTitle>You do not have access to API Keys in this project.</AlertTitle>
+            </Alert>
         )
     }
 
@@ -232,44 +209,120 @@ const APIKeys: React.FC = () => {
         <div className="flex flex-col gap-2">
             {canEditApiKeys ? (
                 <div className="flex items-center gap-2">
-                    <Button
-                        type="primary"
-                        size="small"
-                        loading={loading[Loading.CREATE]}
-                        icon={<Plus size={14} />}
-                        onClick={createKey}
-                    >
+                    <Button size="sm" disabled={loading[Loading.CREATE]} onClick={createKey}>
+                        {loading[Loading.CREATE] ? <Spinner /> : <Plus size={14} />}
                         Generate
                     </Button>
-                    <Tooltip title="Reload API keys">
-                        <Button
-                            icon={<ArrowClockwise size={14} />}
-                            type="text"
-                            size="small"
-                            aria-label="Reload API keys"
-                            loading={loading[Loading.LIST]}
-                            onClick={listKeys}
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Reload API keys"
+                                    disabled={loading[Loading.LIST]}
+                                    onClick={listKeys}
+                                >
+                                    {loading[Loading.LIST] ? (
+                                        <Spinner />
+                                    ) : (
+                                        <ArrowClockwise size={14} />
+                                    )}
+                                </Button>
+                            }
                         />
+                        <TooltipContent>Reload API keys</TooltipContent>
                     </Tooltip>
                 </div>
             ) : null}
-            <Table<APIKey>
-                dataSource={keys}
-                rowKey="prefix"
-                bordered
-                pagination={false}
-                loading={loading[Loading.LIST]}
+            <DataTable<APIKey>
                 columns={columns}
+                data={keys}
+                getRowId={(row) => row.prefix}
+                loading={loading[Loading.LIST]}
+                enableSorting={false}
             />
 
-            <Modal
-                title="Workspace ID Required"
-                open={isModalVisible}
-                onOk={() => setIsModalVisible(false)}
-                onCancel={() => setIsModalVisible(false)}
+            <Dialog open={isModalVisible} onOpenChange={setIsModalVisible}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Workspace ID Required</DialogTitle>
+                        <DialogDescription>
+                            Please provide a valid Workspace ID to proceed with creating an API Key.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button onClick={() => setIsModalVisible(false)}>OK</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <AlertDialog
+                open={pendingDeletePrefix !== null}
+                onOpenChange={(open) => {
+                    if (!open) setPendingDeletePrefix(null)
+                }}
             >
-                <p>Please provide a valid Workspace ID to proceed with creating an API Key.</p>
-            </Modal>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete API Key</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete this API Key? This action is
+                            irreversible!
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-white"
+                            onClick={confirmDeleteKey}
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <Dialog
+                open={createdKey !== null}
+                onOpenChange={(open) => {
+                    if (!open) setCreatedKey(null)
+                }}
+            >
+                <DialogContent className="sm:max-w-[650px]">
+                    <DialogHeader>
+                        <DialogTitle>API Key created</DialogTitle>
+                        <DialogDescription>
+                            Make sure to copy your API Key now. You won’t be able to see it again!
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex items-start gap-2">
+                        <span
+                            className={`${monospaceKeyClass} min-w-0 break-all font-semibold text-muted-foreground`}
+                        >
+                            {createdKey}
+                        </span>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Copy API key"
+                                        onClick={() => createdKey && copyToClipboard(createdKey)}
+                                    >
+                                        <Copy />
+                                    </Button>
+                                }
+                            />
+                            <TooltipContent>Copy</TooltipContent>
+                        </Tooltip>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={() => setCreatedKey(null)}>Done</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
