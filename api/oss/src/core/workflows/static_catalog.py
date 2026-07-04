@@ -18,14 +18,10 @@ from typing import Any, Dict, Optional, Tuple
 from uuid import UUID, uuid5, NAMESPACE_DNS
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
-    BUILD_YOUR_FIRST_APP_SKILL,
-    BUILD_YOUR_FIRST_APP_SLUG,
-    DISCOVER_AND_WIRE_TOOLS_SKILL,
-    DISCOVER_AND_WIRE_TOOLS_SLUG,
+    BUILD_AN_AGENT_SKILL,
+    BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SKILL,
     GETTING_STARTED_WITH_AGENTA_SLUG,
-    SET_UP_TRIGGERS_SKILL,
-    SET_UP_TRIGGERS_SLUG,
 )
 from agenta.sdk.agents.platform.workflow import (
     REQUEST_CONNECTION_TOOL_NAME,
@@ -143,22 +139,10 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
             "v1": _client_tool_revision(),
         },
     },
-    BUILD_YOUR_FIRST_APP_SLUG: {
+    BUILD_AN_AGENT_SLUG: {
         "latest": "v1",
         "versions": {
-            "v1": _skill_revision(BUILD_YOUR_FIRST_APP_SKILL),
-        },
-    },
-    DISCOVER_AND_WIRE_TOOLS_SLUG: {
-        "latest": "v1",
-        "versions": {
-            "v1": _skill_revision(DISCOVER_AND_WIRE_TOOLS_SKILL),
-        },
-    },
-    SET_UP_TRIGGERS_SLUG: {
-        "latest": "v1",
-        "versions": {
-            "v1": _skill_revision(SET_UP_TRIGGERS_SKILL),
+            "v1": _skill_revision(BUILD_AN_AGENT_SKILL),
         },
     },
 }

@@ -4,7 +4,10 @@ from uuid import uuid4
 
 import pytest
 
-from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
+from agenta.sdk.agents.adapters.agenta_builtins import (
+    BUILD_AN_AGENT_SLUG,
+    GETTING_STARTED_WITH_AGENTA_SLUG,
+)
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
@@ -30,6 +33,7 @@ EXPECTED_DEFAULT_BUILD_KIT_OPS = (
     "discover_tools",
     "commit_revision",
     "annotate_trace",
+    "query_spans",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
@@ -57,7 +61,7 @@ def _embed_slug(entry: dict) -> str | None:
     return workflow.get("slug")
 
 
-def test_agent_template_overlay_contains_platform_ops_authoring_skill_and_permissions():
+def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permissions():
     overlay = build_agent_template_overlay()
 
     platform_tools = [
@@ -73,19 +77,20 @@ def test_agent_template_overlay_contains_platform_ops_authoring_skill_and_permis
     ]
 
     authoring_skill = StaticWorkflowCatalog().retrieve_revision(
-        slug=GETTING_STARTED_WITH_AGENTA_SLUG
+        slug=BUILD_AN_AGENT_SLUG
     )
     assert overlay["skills"] == [
         {
             "name": authoring_skill.name,
             "@ag.embed": {
-                "@ag.references": {
-                    "workflow": {"slug": GETTING_STARTED_WITH_AGENTA_SLUG}
-                },
+                "@ag.references": {"workflow": {"slug": BUILD_AN_AGENT_SLUG}},
                 "@ag.selector": {"path": "parameters.skill"},
             },
         }
     ]
+    assert GETTING_STARTED_WITH_AGENTA_SLUG not in {
+        _embed_slug(skill) for skill in overlay["skills"]
+    }
     assert overlay["sandbox"] == {
         "permissions": {"write_files": "allow", "execute_code": "allow"}
     }
@@ -228,7 +233,7 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
     # The request_connection embed must coerce to a client tool, not a builtin.
     assert [tool.name for tool in client_tools] == ["request_connection"]
     assert client_tools[0].render == {"kind": "connect"}
-    assert [skill.name for skill in template.skills] == ["agenta-getting-started"]
+    assert [skill.name for skill in template.skills] == ["build-an-agent"]
 
 
 @pytest.mark.asyncio

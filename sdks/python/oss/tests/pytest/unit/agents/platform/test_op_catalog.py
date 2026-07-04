@@ -38,6 +38,7 @@ def test_catalog_ships_platform_builder_ops():
     assert set(PLATFORM_OPS) == {
         "discover_tools",
         "query_workflows",
+        "query_spans",
         "commit_revision",
         "annotate_trace",
         "discover_triggers",
@@ -184,6 +185,67 @@ async def test_discover_tools_wire_carries_call_not_call_ref(connection):
     assert wire["kind"] == "callback"
     assert "callRef" not in wire
     assert wire["call"]["path"] == "/api/tools/discover"
+
+
+async def test_query_spans_emits_project_scoped_read_call(connection):
+    # Project scoping comes from the caller credential on the endpoint; there is no target field
+    # for the model to supply and no run-context binding to inject.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="query_spans")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.kind == "callback"
+    assert spec.name == "query_spans"
+    assert spec.call_ref is None
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/spans/query"
+    assert spec.call.context is None
+    assert spec.read_only is True
+    assert spec.effective_permission() is None
+
+    assert set(spec.input_schema["properties"]) == {
+        "filtering",
+        "windowing",
+        "query_ref",
+        "query_variant_ref",
+        "query_revision_ref",
+    }
+    assert "required" not in spec.input_schema
+    assert {
+        "focus",
+        "format",
+        "filter",
+        "oldest",
+        "newest",
+        "limit",
+        "rate",
+    }.isdisjoint(spec.input_schema["properties"])
+
+    defs = spec.input_schema["$defs"]
+    filtering_schema = defs["Filtering"]
+    assert set(filtering_schema["properties"]) == {"operator", "conditions"}
+    condition_ref = filtering_schema["properties"]["conditions"]["items"]["anyOf"][0]
+    assert condition_ref == {"$ref": "#/$defs/Condition"}
+    condition_schema = defs["Condition"]
+    assert set(condition_schema["properties"]) == {
+        "field",
+        "key",
+        "value",
+        "operator",
+        "options",
+    }
+    assert condition_schema["required"] == ["field"]
+    assert "trace_id" in condition_schema["properties"]["field"]["description"]
+
+    assert set(defs["Windowing"]["properties"]) == {
+        "newest",
+        "oldest",
+        "next",
+        "limit",
+        "order",
+        "interval",
+        "rate",
+    }
 
 
 # --- resolver: commit_revision self-update binds + strips ---------------------

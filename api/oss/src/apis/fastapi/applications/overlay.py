@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
+from agenta.sdk.agents.adapters.agenta_builtins import BUILD_AN_AGENT_SLUG
 
 from oss.src.core.workflows.static_catalog import (
     STATIC_SLUG_PREFIX,
@@ -10,11 +10,12 @@ from oss.src.core.workflows.static_catalog import (
     _STATIC_WORKFLOWS,
 )
 
-# query_spans joins this tuple in slice 3; cut ops stay catalog opt-ins.
+# Cut ops stay catalog opt-ins.
 DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "discover_tools",
     "commit_revision",
     "annotate_trace",
+    "query_spans",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
@@ -81,11 +82,11 @@ def build_agent_template_overlay() -> Dict[str, Any]:
     catalog = StaticWorkflowCatalog()
 
     skills: List[Dict[str, Any]] = []
-    authoring_skill = catalog.retrieve_revision(slug=GETTING_STARTED_WITH_AGENTA_SLUG)
+    authoring_skill = catalog.retrieve_revision(slug=BUILD_AN_AGENT_SLUG)
     if authoring_skill:
         skills.append(
             _workflow_embed(
-                GETTING_STARTED_WITH_AGENTA_SLUG,
+                BUILD_AN_AGENT_SLUG,
                 name=authoring_skill.name,
                 selector_path="parameters.skill",
             )

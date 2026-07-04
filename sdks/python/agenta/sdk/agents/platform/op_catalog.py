@@ -244,6 +244,266 @@ _QUERY_WORKFLOWS_INPUT_SCHEMA: Dict[str, Any] = {
     },
 }
 
+# Spans query (read): inspect trace/span records for this project. Project scope comes from the
+# caller credential on the existing endpoint; there is no model-supplied project id and no $ctx
+# target field to bind.
+_QUERY_SPANS_DESCRIPTION = (
+    "Query span records in this project. Use it to verify a past run or scheduled trigger fire "
+    "actually executed its tools. Returns `{count, spans}` with flat spans, including span names, "
+    "status, attributes, events, and Agenta metrics. Filter by `trace_id` when you know it, or "
+    "bracket the test with `windowing.oldest`/`windowing.newest`; then read the tool-call spans "
+    "in order and confirm the terminal span completed without an error status."
+)
+_QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "$defs": {
+        "ComparisonOperator": {
+            "type": "string",
+            "enum": ["is", "is_not"],
+        },
+        "NumericOperator": {
+            "type": "string",
+            "enum": ["eq", "neq", "gt", "lt", "gte", "lte", "btwn"],
+        },
+        "StringOperator": {
+            "type": "string",
+            "enum": ["startswith", "endswith", "contains", "matches", "like"],
+        },
+        "DictOperator": {
+            "type": "string",
+            "enum": ["has", "has_not"],
+        },
+        "ListOperator": {
+            "type": "string",
+            "enum": ["in", "not_in"],
+        },
+        "ExistenceOperator": {
+            "type": "string",
+            "enum": ["exists", "not_exists"],
+        },
+        "LogicalOperator": {
+            "type": "string",
+            "enum": ["and", "or", "not", "nand", "nor"],
+        },
+        "TextOptions": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "case_sensitive": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": False,
+                },
+                "exact_match": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": False,
+                },
+            },
+        },
+        "ListOptions": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "all": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": False,
+                }
+            },
+        },
+        "Condition": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "field": {
+                    "type": "string",
+                    "description": (
+                        "Span field to filter, such as `trace_id`, `span_name`, "
+                        "`span_type`, `status_code`, `attributes`, or `content`."
+                    ),
+                },
+                "key": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": (
+                        "Optional nested key when filtering dictionary fields like "
+                        "`attributes`."
+                    ),
+                },
+                "value": {
+                    "anyOf": [
+                        {"type": "string"},
+                        {"type": "integer"},
+                        {"type": "number"},
+                        {"type": "boolean"},
+                        {"type": "array", "items": {}},
+                        {"type": "object", "additionalProperties": True},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Comparison value for the condition.",
+                },
+                "operator": {
+                    "anyOf": [
+                        {"$ref": "#/$defs/ComparisonOperator"},
+                        {"$ref": "#/$defs/NumericOperator"},
+                        {"$ref": "#/$defs/StringOperator"},
+                        {"$ref": "#/$defs/ListOperator"},
+                        {"$ref": "#/$defs/DictOperator"},
+                        {"$ref": "#/$defs/ExistenceOperator"},
+                        {"type": "null"},
+                    ],
+                    "default": "is",
+                },
+                "options": {
+                    "anyOf": [
+                        {"$ref": "#/$defs/TextOptions"},
+                        {"$ref": "#/$defs/ListOptions"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                },
+            },
+            "required": ["field"],
+        },
+        "Filtering": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "operator": {
+                    "$ref": "#/$defs/LogicalOperator",
+                    "default": "and",
+                    "description": "How to combine conditions.",
+                },
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "anyOf": [
+                            {"$ref": "#/$defs/Condition"},
+                            {"$ref": "#/$defs/Filtering"},
+                        ]
+                    },
+                    "default": [],
+                    "description": (
+                        "Filter objects, for example "
+                        '`[{"field": "trace_id", "operator": "is", "value": "..."}]`.'
+                    ),
+                },
+            },
+        },
+        "Windowing": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "newest": {
+                    "anyOf": [
+                        {"type": "string", "format": "date-time"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Window end time as an ISO timestamp.",
+                },
+                "oldest": {
+                    "anyOf": [
+                        {"type": "string", "format": "date-time"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Window start time as an ISO timestamp.",
+                },
+                "next": {
+                    "anyOf": [
+                        {"type": "string", "format": "uuid"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Cursor token returned by a prior query page.",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Maximum spans to return.",
+                },
+                "order": {
+                    "anyOf": [
+                        {"type": "string", "enum": ["ascending", "descending"]},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Sort order for the window.",
+                },
+                "interval": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Positive bucket interval for aggregate query windows.",
+                },
+                "rate": {
+                    "anyOf": [{"type": "number"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Optional sampling rate between 0.0 and 1.0.",
+                },
+            },
+        },
+        "Reference": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "version": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                },
+                "slug": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                },
+                "id": {
+                    "anyOf": [
+                        {"type": "string", "format": "uuid"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                },
+            },
+        },
+    },
+    "properties": {
+        "filtering": {
+            "anyOf": [{"$ref": "#/$defs/Filtering"}, {"type": "null"}],
+            "default": None,
+            "description": (
+                "Span-level conditions. For verification, filter on "
+                '`{"field": "trace_id", "operator": "is", "value": "<trace_id>"}` '
+                "when the trace id is known."
+            ),
+        },
+        "windowing": {
+            "anyOf": [{"$ref": "#/$defs/Windowing"}, {"type": "null"}],
+            "default": None,
+            "description": (
+                "Cursor pagination and time range. Bracket manual verification with "
+                "`oldest`/`newest` and set a sensible `limit`."
+            ),
+        },
+        "query_ref": {
+            "anyOf": [{"$ref": "#/$defs/Reference"}, {"type": "null"}],
+            "default": None,
+            "description": "Resolve filtering/windowing from a saved query.",
+        },
+        "query_variant_ref": {
+            "anyOf": [{"$ref": "#/$defs/Reference"}, {"type": "null"}],
+            "default": None,
+            "description": "Resolve from the latest revision of a specific query variant.",
+        },
+        "query_revision_ref": {
+            "anyOf": [{"$ref": "#/$defs/Reference"}, {"type": "null"}],
+            "default": None,
+            "description": (
+                "Resolve from a specific query revision. Returns `409` when the stored query "
+                "has `formatting.focus=trace`."
+            ),
+        },
+    },
+}
+
 # Commit revision (mutating, self-targeting): commit a new revision to the agent's OWN workflow
 # variant — "update myself". ``workflow_revision.workflow_variant_id`` is bound from run context
 # and stripped from the model-visible schema, so the agent can only ever target itself, never a
@@ -546,6 +806,14 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/workflows/query",
             input_schema=_QUERY_WORKFLOWS_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="query_spans",
+            description=_QUERY_SPANS_DESCRIPTION,
+            method="POST",
+            path="/api/spans/query",
+            input_schema=_QUERY_SPANS_INPUT_SCHEMA,
             read_only=True,
         ),
         PlatformOp(
