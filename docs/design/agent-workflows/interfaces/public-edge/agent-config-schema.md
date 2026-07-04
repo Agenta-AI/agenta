@@ -27,7 +27,7 @@ The fields and the full schema follow.
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
 | `permissions` | `{default: "allow" \| "ask" \| "deny" \| "allow_reads", rules?: [...]}` | `{default: "allow_reads"}` | The agent-wide policy. `allow_reads` runs read-hinted tools and asks for everything else; `allow` runs everything; `ask` asks for everything; `deny` runs nothing unless a tool explicitly allows it. `rules` are optional authored patterns (for example `Bash(rm:*)`) that override the default for matching harness builtins. |
 | `sandbox_permission` | `SandboxPermission \| null` | `null` (form pre-fills one) | The declared network and filesystem boundary. See [Sandbox permission](../in-service/sandbox-permission.md). |
-| `skills` | `(SkillConfig \| EmbedRef)[]` | one embedded default skill | Inline SKILL.md packages, or `@ag.embed` references the backend inlines before the runner sees them. |
+| `skills` | `(SkillConfig \| EmbedRef)[]` | `[]` (the playground overlay embeds the `build-an-agent` playbook) | Inline SKILL.md packages, or `@ag.embed` references the backend inlines before the runner sees them. |
 
 Note that `harness`, `sandbox`, and `permissions` are the run-selection fields. They
 live on `AgentConfig` itself, under `data.parameters.agent`, and the handler reads them in the
@@ -84,7 +84,7 @@ every field in its default state:
   "skills": [
     {
       "@ag.embed": {
-        "@ag.references": { "workflow": { "slug": "_agenta.agenta-getting-started" } },
+        "@ag.references": { "workflow": { "slug": "__ag__build_an_agent" } },
         "@ag.selector": { "path": "parameters.skill" }
       }
     }
@@ -92,15 +92,21 @@ every field in its default state:
 }
 ```
 
-The default skill is referenced by the reserved `_agenta.` slug, served from code by the
-platform catalog, never the database. The embed must reference the artifact (`workflow.slug`),
-which resolves to the latest revision; a bare revision slug with no version returns 500.
+The skill embed above comes from the playground **build-kit overlay**
+(`build_agent_template_overlay` in `api/oss/src/apis/fastapi/applications/overlay.py`), not
+from the bare default: the overlay adds the default platform ops (`DEFAULT_BUILD_KIT_OPS`),
+the `request_connection` client tool, and exactly one skill, the `build-an-agent` playbook,
+referenced by its reserved `__ag__` slug and served from code by the platform catalog, never
+the database. The embed must reference the artifact (`workflow.slug`), which resolves to the
+latest revision; a bare revision slug with no version returns 500. The `getting-started`
+skill is not embedded here; the `pi_agenta` harness force-unions it at run time
+(`AGENTA_FORCED_SKILLS`), so it is delivered once, not twice.
 
-This default has one source: `build_agent_v0_default(...)` in
+The bare default has one source: `build_agent_v0_default(...)` in
 `sdks/python/agenta/sdk/utils/types.py`. The SDK builtin interface
-(`agenta:builtin:agent:v0`) calls it bare; the service calls it with the two service-only
-choices as named args (`skill_slug` for the platform default skill, `include_sandbox_permission`
-for the declared Layer-2 boundary). A new default field changes the builder, not three copies.
+(`agenta:builtin:agent:v0`) and the service both call it without a skill;
+`include_sandbox_permission` adds the declared Layer-2 boundary. A new default field changes
+the builder, not three copies.
 
 ## Appendix: the full schema, all cases
 
@@ -153,7 +159,7 @@ Either form is valid:
 // platform: an existing Agenta endpoint exposed to the agent. `op` names a platform-op catalog
 // entry (the catalog owns description/endpoint/schema/bind/gate defaults). `permission` is
 // optional (null means inherit the policy; commit_revision's catalog default resolves to `ask`).
-{ "type": "platform", "op": "find_capabilities", "permission": null }
+{ "type": "platform", "op": "discover_tools", "permission": null }
 
 // @ag.embed (a different feature, not in the tool-authoring UI): inline the referenced value into
 // a concrete `client` tool config before the runner sees it (the backend's embed resolver does
