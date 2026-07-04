@@ -11,6 +11,7 @@
 import type {ReactNode} from "react"
 
 import {Button} from "antd"
+import clsx from "clsx"
 
 export interface SectionRailItem {
     value: string
@@ -27,6 +28,11 @@ export interface SectionRailProps {
     railWidth?: string
     /** Disable the rail toggles (e.g. a read-only revision). @default false */
     disabled?: boolean
+    /**
+     * Stretch to fill a bounded flex parent (`min-h-0 flex-1`) so the content panel can host an
+     * internally-scrolling child. @default false (content-flow, natural height — the drawer case).
+     */
+    fill?: boolean
     /** Right-hand content panel; separated from the rail by a left border. */
     children: ReactNode
 }
@@ -37,10 +43,11 @@ export function SectionRail({
     onChange,
     railWidth = "w-[116px]",
     disabled = false,
+    fill = false,
     children,
 }: SectionRailProps) {
     return (
-        <div className="flex gap-3">
+        <div className={clsx("flex gap-3", fill && "min-h-0 flex-1")}>
             <div className={`flex ${railWidth} shrink-0 flex-col gap-0.5`}>
                 {items.map((item) => {
                     const active = item.value === value
