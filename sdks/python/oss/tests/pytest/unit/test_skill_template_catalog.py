@@ -168,7 +168,7 @@ def test_agent_template_with_platform_tool_validates():
     agent_template = CATALOG_TYPES["agent-template"]
 
     config = _base_agent_template()
-    config["tools"] = [{"type": "platform", "op": "find_capabilities"}]
+    config["tools"] = [{"type": "platform", "op": "discover_tools"}]
 
     jsonschema.validate(config, agent_template)
 

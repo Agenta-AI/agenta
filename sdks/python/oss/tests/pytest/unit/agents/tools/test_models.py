@@ -58,9 +58,9 @@ def test_reference_tool_discriminator_is_reference():
 
 
 def test_platform_tool_discriminator():
-    config = PlatformToolConfig(op="find_capabilities")
+    config = PlatformToolConfig(op="discover_tools")
     assert config.type == "platform"
-    assert config.op == "find_capabilities"
+    assert config.op == "discover_tools"
 
 
 def test_platform_tool_requires_op():

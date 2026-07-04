@@ -70,6 +70,22 @@ def _call(name: str, arguments) -> ToolCall:
     )
 
 
+async def test_tools_agenta_call_ref_posted_to_tools_call_fails_loud(monkeypatch):
+    async def _allow(**_kwargs):
+        return True
+
+    monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
+
+    with pytest.raises(HTTPException) as caught:
+        await _router(FakeWorkflowsService(outputs={})).call_tool(
+            _request(),
+            body=_call("tools.agenta.discover_tools", {}),
+        )
+
+    assert caught.value.status_code == 400
+    assert "Invalid tool slug format" in caught.value.detail
+
+
 async def test_invokes_workflow_by_variant_slug_and_returns_outputs():
     workflows = FakeWorkflowsService(outputs={"summary": "ok"})
     router = _router(workflows)

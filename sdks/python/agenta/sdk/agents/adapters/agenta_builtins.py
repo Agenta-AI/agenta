@@ -119,7 +119,7 @@ exist yet.
 1. Clarify the goal. Ask what the app should do, what should start it (a message, a schedule,
    an outside event), and what tools or data it needs. Do not guess.
 2. See what exists. Call `query_workflows` to check the project for work you can reuse.
-3. Find the tools. Follow the `discover-and-wire-tools` skill. It calls `find_capabilities`
+3. Find the tools. Follow the `discover-and-wire-tools` skill. It calls `discover_tools`
    and reports which integrations need a connection.
 4. Connect the integrations. Hand the user the connection link, wait for them to finish, then
    re-check. You never connect on their behalf.
@@ -147,22 +147,19 @@ BUILD_YOUR_FIRST_APP_SKILL = SkillTemplate(
 )
 
 _DISCOVER_AND_WIRE_TOOLS_BODY = """\
-# Discover and wire tools with `find_capabilities`
+# Discover and wire tools with `discover_tools`
 
 You are configuring yourself as an app. Before you can act in the world, you need tools:
 the right integration actions, working connections, and the schemas your model will call.
-`find_capabilities` does the discovery in one step so you do not guess slugs or stitch the
+`discover_tools` does the discovery in one step so you do not guess slugs or stitch the
 catalog by hand.
 
 This skill is the discover -> resolve-connections -> configure -> test loop. It pairs with
 the configure step in the `build-your-first-app` skill: once the tools are chosen, commit
 the tools and instructions onto this agent.
 
-> **Availability (2026-06-27):** the server side is live, but the SDK does not yet declare
-> `find_capabilities` as a tool the model can call directly (that lands in Workstream A). Until
-> then, reach the same discovery from setup code: `POST /tools/discover` with
-> `{"use_cases": [...]}`, or `POST /tools/call` with call_ref `tools.agenta.find_capabilities`.
-> The response below is identical either way.
+> `discover_tools` is a platform tool the model can call directly. The response below is
+> the Agenta-native discovery contract.
 
 ## When to use it
 
@@ -175,11 +172,11 @@ schemas, the connection state per integration, and operating guidance.
 
 ### 1. Discover
 
-Call `find_capabilities` with one short fragment per capability the agent needs. Keep each
+Call `discover_tools` with one short fragment per capability the agent needs. Keep each
 fragment to a single action ("create a github issue"), not a whole workflow.
 
 ```jsonc
-find_capabilities({
+discover_tools({
   "use_cases": [
     "search github issues for a matching report",
     "create a github issue",
@@ -216,7 +213,7 @@ For each integration in `connections[]`:
 - **`ready`** — reuse it. The `slug` is already on `capability.tool.connection`. Nothing to do.
 - **`needs_auth`** (OAuth) — run the returned `connect` affordance
   (`POST /tools/connections/` with the given `body`). It returns a `redirect_url`. Surface that
-  link to the human and **pause** until they finish authorizing. Then re-run `find_capabilities`
+  link to the human and **pause** until they finish authorizing. Then re-run `discover_tools`
   (or check the connection) to confirm the integration flipped to `ready`.
 - **`needs_input`** (API key) — ask the human for the secret the integration needs, then create
   the connection with the `connect` affordance.
@@ -239,7 +236,7 @@ step 3.
 
 ## Triggers (listening for events) are a separate step
 
-`find_capabilities` covers **action** tools (do a thing). It does not discover triggers
+`discover_tools` covers **action** tools (do a thing). It does not discover triggers
 (listen for an event), because the engine has no semantic trigger search. If a use case reads
 like a trigger ("listen for new messages...", "when a new issue is created..."), the response
 flags it in `notes` and on that `capability.note`. Treat the listening half as a trigger
@@ -257,7 +254,7 @@ subscription with the `set-up-triggers` skill, and wire the action tools as usua
 DISCOVER_AND_WIRE_TOOLS_SKILL = SkillTemplate(
     name="discover-and-wire-tools",
     description=(
-        "Use find_capabilities to discover the right Agenta tools for an agent you are "
+        "Use discover_tools to discover the right Agenta tools for an agent you are "
         "configuring, report what each integration needs to connect, and wire the tools into "
         "this agent's template. Use when a setup/builder agent must turn a plain-language task "
         "into attached, connected, ready-to-run tools."
@@ -287,7 +284,7 @@ happens in a connected tool.
 
 ## Subscriptions (events)
 
-1. Find the event. Call `find_triggers` with a short keyword for the event you want.
+1. Find the event. Call `discover_triggers` with a short keyword for the event you want.
 2. Make sure the connection exists. A subscription needs a connected integration. If it is
    missing, run the connection round-trip first and wait.
 3. Map the event into the run inputs.

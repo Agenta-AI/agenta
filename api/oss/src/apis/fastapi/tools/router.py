@@ -49,11 +49,6 @@ from oss.src.core.tools.dtos import (
     #
     CapabilitiesResult,
 )
-from oss.src.core.tools.discovery import (
-    AGENTA_TOOL_CALL_REF_PREFIX,
-    FIND_CAPABILITIES_OP,
-    parse_find_capabilities_arguments,
-)
 from oss.src.core.tools.exceptions import (
     ActionNotFoundError,
     AdapterError,
@@ -1094,18 +1089,6 @@ class ToolsRouter:
         call_ref = body.data.function.name.replace("__", ".")
         if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
             return await self._call_workflow_tool(request=request, body=body)
-        if call_ref.startswith(AGENTA_TOOL_CALL_REF_PREFIX):
-            # Reserved discovery tools expose per-project connection state, so gate them
-            # with VIEW_TOOLS at the boundary on top of the outer RUN_TOOLS check.
-            has_view_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_view_permission:
-                raise FORBIDDEN_EXCEPTION
-            return await self._call_agenta_tool(request=request, body=body)
-
         # Parse tool slug — accept both dot and double-underscore formats.
         # Double-underscore is used for LLM function names where dots are forbidden.
         slug_parts = body.data.function.name.replace("__", ".").split(".")
@@ -1193,70 +1176,6 @@ class ToolsRouter:
         )
 
         return ToolCallResponse(call=result)
-
-    async def _call_agenta_tool(
-        self,
-        *,
-        request: Request,
-        body: ToolCall,
-    ) -> ToolCallResponse:
-        """Run a reserved ``tools.agenta.*`` platform tool. v1 op: find_capabilities.
-
-        Routed here from ``call_tool`` by the ``tools.agenta.`` prefix (so the reserved
-        tool is out of the Composio 5-segment namespace). Project scope comes from the
-        run's caller auth, exactly like the gateway path.
-        """
-        call_ref = body.data.function.name.replace("__", ".")
-        op = call_ref[len(AGENTA_TOOL_CALL_REF_PREFIX) :]
-        if op != FIND_CAPABILITIES_OP:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Unknown Agenta tool: {call_ref}",
-            )
-
-        arguments = body.data.function.arguments
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError as e:
-                log.warning(
-                    "Failed to parse find_capabilities arguments as JSON: %s", e
-                )
-                arguments = {}
-        elif not isinstance(arguments, dict):
-            arguments = {}
-
-        use_cases, provider, limit_alternatives = parse_find_capabilities_arguments(
-            arguments
-        )
-        if not use_cases:
-            raise HTTPException(
-                status_code=400,
-                detail="find_capabilities requires at least one use_case",
-            )
-
-        try:
-            result = await self.tools_service.discover_capabilities(
-                project_id=UUID(request.state.project_id),
-                use_cases=use_cases,
-                provider_key=provider,
-                limit_alternatives=limit_alternatives,
-            )
-        except DiscoveryUnsupportedError as e:
-            raise HTTPException(status_code=422, detail=e.message) from e
-
-        tool_result = ToolResult(
-            id=uuid4(),
-            data=ToolResultData(
-                tool_call_id=body.data.id,
-                content=json.dumps(result.model_dump(mode="json", exclude_none=True)),
-            ),
-            status=Status(
-                timestamp=datetime.now(timezone.utc),
-                code="STATUS_CODE_OK",
-            ),
-        )
-        return ToolCallResponse(call=tool_result)
 
     @staticmethod
     def _validate_slug_segments(*, segments: List[str]) -> None:

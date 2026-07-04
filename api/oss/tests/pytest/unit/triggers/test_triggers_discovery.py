@@ -1,4 +1,4 @@
-"""Unit tests for trigger event discovery (find_triggers)."""
+"""Unit tests for trigger event discovery (discover_triggers)."""
 
 from types import SimpleNamespace
 from uuid import uuid4

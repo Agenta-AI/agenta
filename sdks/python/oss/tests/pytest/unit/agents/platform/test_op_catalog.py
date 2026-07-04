@@ -6,7 +6,7 @@ and the per-op default permission/approval; the resolver (``AgentaPlatformToolRe
 config into a ``CallbackToolSpec`` carrying a direct ``call`` descriptor (no ``/tools/call`` hop).
 
 These tests cover: the catalog model's import-time validation, the resolver emitting a direct
-``call`` (find_capabilities), the self-update ``context_bindings`` stripping its bound field from the
+``call`` (discover_tools), the self-update ``context_bindings`` stripping its bound field from the
 model-visible schema, the catalog's permission/approval defaults and the config override, and the
 error paths (unknown op, missing API base).
 """
@@ -36,11 +36,11 @@ def _resolver(connection):
 
 def test_catalog_ships_platform_builder_ops():
     assert set(PLATFORM_OPS) == {
-        "find_capabilities",
+        "discover_tools",
         "query_workflows",
         "commit_revision",
         "annotate_trace",
-        "find_triggers",
+        "discover_triggers",
         "create_schedule",
         "create_subscription",
         "list_schedules",
@@ -58,9 +58,9 @@ def test_catalog_ships_platform_builder_ops():
 
 
 def test_reserved_id_uses_the_tools_agenta_namespace():
-    # Mirrors the reserved `tools.agenta.find_capabilities` precedent (PR #4884).
-    assert get_platform_op("find_capabilities").reserved_id == (
-        "tools.agenta.find_capabilities"
+    # Mirrors the reserved `tools.agenta.discover_tools` precedent (PR #4884).
+    assert get_platform_op("discover_tools").reserved_id == (
+        "tools.agenta.discover_tools"
     )
 
 
@@ -140,22 +140,22 @@ def test_unknown_op_raises_typed_error():
         get_platform_op("does_not_exist")
     assert caught.value.op == "does_not_exist"
     # The available ops are listed so the message is actionable.
-    assert "find_capabilities" in str(caught.value)
+    assert "discover_tools" in str(caught.value)
 
 
-# --- resolver: find_capabilities emits a direct call --------------------------
+# --- resolver: discover_tools emits a direct call --------------------------
 
 
-async def test_find_capabilities_emits_a_direct_call(connection):
-    # THE deferred item (PR #4884): find_capabilities becomes agent-usable as a direct call to
+async def test_discover_tools_emits_a_direct_call(connection):
+    # THE deferred item (PR #4884): discover_tools becomes agent-usable as a direct call to
     # POST /api/tools/discover, instead of the server-side /tools/call tools.agenta.* dispatch.
     resolution = await _resolver(connection).resolve(
-        [PlatformToolConfig(op="find_capabilities")]
+        [PlatformToolConfig(op="discover_tools")]
     )
     assert len(resolution.tool_specs) == 1
     spec = resolution.tool_specs[0]
     assert spec.kind == "callback"
-    assert spec.name == "find_capabilities"
+    assert spec.name == "discover_tools"
     # A direct call, NOT a gateway call_ref (the `call` XOR `call_ref` rule).
     assert spec.call_ref is None
     assert spec.call is not None
@@ -176,9 +176,9 @@ async def test_find_capabilities_emits_a_direct_call(connection):
     assert resolution.tool_callback.authorization == "Access tok"
 
 
-async def test_find_capabilities_wire_carries_call_not_call_ref(connection):
+async def test_discover_tools_wire_carries_call_not_call_ref(connection):
     resolution = await _resolver(connection).resolve(
-        [PlatformToolConfig(op="find_capabilities")]
+        [PlatformToolConfig(op="discover_tools")]
     )
     wire = resolution.tool_specs[0].to_wire()
     assert wire["kind"] == "callback"
@@ -260,7 +260,7 @@ async def test_annotate_trace_is_not_read_only(connection):
 
 async def test_trigger_builder_ops_have_expected_paths_and_defaults(connection):
     expected_paths = {
-        "find_triggers": ("POST", "/api/triggers/discover"),
+        "discover_triggers": ("POST", "/api/triggers/discover"),
         "create_schedule": ("POST", "/api/triggers/schedules/"),
         "create_subscription": ("POST", "/api/triggers/subscriptions/"),
         "list_schedules": ("GET", "/api/triggers/schedules/"),
@@ -276,7 +276,7 @@ async def test_trigger_builder_ops_have_expected_paths_and_defaults(connection):
         "resume_subscription": ("POST", "/api/triggers/subscriptions/{id}/start"),
     }
     read_only = {
-        "find_triggers",
+        "discover_triggers",
         "list_schedules",
         "list_subscriptions",
         "list_deliveries",
@@ -342,14 +342,14 @@ async def test_unknown_op_in_config_raises(connection):
 async def test_missing_api_base_raises_typed_error():
     resolver = _resolver(PlatformConnection())  # no base URL configured
     with pytest.raises(GatewayToolResolutionError, match="API base URL"):
-        await resolver.resolve([PlatformToolConfig(op="find_capabilities")])
+        await resolver.resolve([PlatformToolConfig(op="discover_tools")])
 
 
 async def test_duplicate_platform_tool_rejected(connection):
     with pytest.raises(GatewayToolResolutionError, match="Duplicate platform tool"):
         await _resolver(connection).resolve(
             [
-                PlatformToolConfig(op="find_capabilities"),
-                PlatformToolConfig(op="find_capabilities"),
+                PlatformToolConfig(op="discover_tools"),
+                PlatformToolConfig(op="discover_tools"),
             ]
         )

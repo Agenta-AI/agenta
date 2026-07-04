@@ -7,7 +7,7 @@ schema, any self-targeting fields bound from run context, and the default permis
 
 It mirrors two patterns already in the codebase:
 
-- the reserved ``tools.agenta.*`` namespace (PR #4884, ``find_capabilities``): a reserved op id
+- the reserved ``tools.agenta.*`` namespace: a reserved op id
   under ``tools.agenta.<op>`` with a code-defined description + input schema;
 - the evaluators catalog (``api/oss/src/resources/evaluators/evaluators.py``): a code-defined
   table of named ops with metadata, validated at import.
@@ -44,7 +44,7 @@ __all__ = [
     "get_platform_op",
 ]
 
-# Reserved namespace for a platform op's stable id (mirrors ``tools.agenta.find_capabilities``).
+# Reserved namespace for a platform op's stable id.
 # The model-visible tool name is the bare ``op``; ``reserved_id`` is the stable namespaced id.
 PLATFORM_OP_NAMESPACE = "tools.agenta."
 
@@ -120,7 +120,7 @@ class PlatformOp(BaseModel):
 
     @property
     def reserved_id(self) -> str:
-        """The stable reserved id, ``tools.agenta.<op>`` (the ``find_capabilities`` precedent)."""
+        """The stable reserved id, ``tools.agenta.<op>``."""
         return f"{PLATFORM_OP_NAMESPACE}{self.op}"
 
     def resolved_input_schema(self) -> Dict[str, Any]:
@@ -181,17 +181,16 @@ def _strip_field(schema: Dict[str, Any], dotted_path: str) -> None:
 # The catalog — the first, minimal-useful set of ops (more are a data add).
 # ---------------------------------------------------------------------------
 
-# Discovery (read). Migrates ``find_capabilities`` off the server-side ``/tools/call``
-# ``tools.agenta.*`` dispatch onto a direct call to ``POST /api/tools/discover`` (PR #4884 built
-# the server side). Description + input schema mirror ``api/oss/src/core/tools/discovery.py``
-# (copied here because the SDK must not import from the API).
-_FIND_CAPABILITIES_DESCRIPTION = (
+# Discovery (read). Direct call to ``POST /api/tools/discover``. Description + input schema
+# mirror ``api/oss/src/core/tools/discovery.py`` (copied here because the SDK must not import
+# from the API).
+_DISCOVER_TOOLS_DESCRIPTION = (
     "Discover the Agenta tools that fit a set of plain-language use cases. Returns the "
     "best-match tool per use case (with its input schema), companion/alternative tools, "
     "each integration's connection state and how to connect it, and operating guidance. "
     "Use it while wiring tools for an agent you are building."
 )
-_FIND_CAPABILITIES_INPUT_SCHEMA: Dict[str, Any] = {
+_DISCOVER_TOOLS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {
         "use_cases": {
@@ -372,12 +371,12 @@ _ANNOTATE_TRACE_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["references", "data"],
 }
 
-_FIND_TRIGGERS_DESCRIPTION = (
+_DISCOVER_TRIGGERS_DESCRIPTION = (
     "Discover trigger events that fit plain-language use cases. Returns the best-match "
     "event per use case with event_key, trigger_config schema, sample payload, connection "
     "state and connection instructions, alternatives, and setup guidance."
 )
-_FIND_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
+_DISCOVER_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {
         "use_cases": {
@@ -473,7 +472,7 @@ _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
             "properties": {
                 "event_key": {
                     "type": "string",
-                    "description": "Provider event key returned by find_triggers.",
+                    "description": "Provider event key returned by discover_triggers.",
                 },
                 "trigger_config": {
                     "type": "object",
@@ -504,7 +503,7 @@ _TEST_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
             "properties": {
                 "event_key": {
                     "type": "string",
-                    "description": "Provider event key returned by find_triggers.",
+                    "description": "Provider event key returned by discover_triggers.",
                 },
                 "trigger_config": {
                     "type": "object",
@@ -534,11 +533,11 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in (
         PlatformOp(
-            op="find_capabilities",
-            description=_FIND_CAPABILITIES_DESCRIPTION,
+            op="discover_tools",
+            description=_DISCOVER_TOOLS_DESCRIPTION,
             method="POST",
             path="/api/tools/discover",
-            input_schema=_FIND_CAPABILITIES_INPUT_SCHEMA,
+            input_schema=_DISCOVER_TOOLS_INPUT_SCHEMA,
             read_only=True,
         ),
         PlatformOp(
@@ -574,11 +573,11 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             read_only=False,
         ),
         PlatformOp(
-            op="find_triggers",
-            description=_FIND_TRIGGERS_DESCRIPTION,
+            op="discover_triggers",
+            description=_DISCOVER_TRIGGERS_DESCRIPTION,
             method="POST",
             path="/api/triggers/discover",
-            input_schema=_FIND_TRIGGERS_INPUT_SCHEMA,
+            input_schema=_DISCOVER_TRIGGERS_INPUT_SCHEMA,
             read_only=True,
         ),
         PlatformOp(

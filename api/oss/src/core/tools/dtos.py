@@ -231,10 +231,10 @@ class ToolsResolution(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Tool discovery (find_capabilities) — Agenta-native response contract
+# Tool discovery (discover_tools) — Agenta-native response contract
 # ---------------------------------------------------------------------------
 #
-# ``find_capabilities`` translates a Composio semantic search into Agenta terms so
+# ``discover_tools`` translates a Composio semantic search into Agenta terms so
 # the agent never sees Composio. See ``docs/design/agent-workflows/projects/
 # tool-discovery/design.md`` for the field-by-field mapping and the connection
 # state machine, and ``core/tools/discovery.py`` for the translation itself.
@@ -327,7 +327,7 @@ class CapabilityGuidance(BaseModel):
 
 
 class CapabilitiesResult(BaseModel):
-    """The ``find_capabilities`` response (Agenta-native)."""
+    """The ``discover_tools`` response (Agenta-native)."""
 
     capabilities: List[Capability] = Field(default_factory=list)
     connections: List[ConnectionRequirement] = Field(default_factory=list)

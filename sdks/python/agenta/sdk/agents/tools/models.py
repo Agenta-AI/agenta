@@ -239,7 +239,7 @@ class PlatformToolConfig(ToolConfigBase):
     type: Literal["platform"] = "platform"
     op: str = Field(
         min_length=1,
-        description="Which catalog op (existing endpoint) to expose, e.g. 'find_capabilities'.",
+        description="Which catalog op (existing endpoint) to expose, e.g. 'discover_tools'.",
     )
 
 
