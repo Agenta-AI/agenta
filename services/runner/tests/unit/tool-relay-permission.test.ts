@@ -11,6 +11,9 @@ import { join } from "node:path";
 
 import {
   localRelayHost,
+  RELAY_POLL_MAX_MS,
+  RELAY_POLL_MS,
+  relayPollDelayMs,
   startToolRelay,
   type ClientToolRelay,
   type RelayPermissions,
@@ -22,6 +25,20 @@ import {
   approvedCallKey,
   ConversationDecisions,
 } from "../../src/responder.ts";
+
+describe("relayPollDelayMs (idle backoff)", () => {
+  it("polls at the base rate while busy, then backs off geometrically up to the cap", () => {
+    // No idle polls -> base rate.
+    assert.equal(relayPollDelayMs(0), RELAY_POLL_MS);
+    assert.equal(relayPollDelayMs(4), RELAY_POLL_MS, "still base before the grow threshold");
+    // After the threshold the delay grows but never exceeds the cap.
+    assert.ok(relayPollDelayMs(5) > RELAY_POLL_MS, "grows once idle");
+    assert.ok(relayPollDelayMs(5) <= RELAY_POLL_MAX_MS);
+    assert.equal(relayPollDelayMs(100), RELAY_POLL_MAX_MS, "saturates at the cap");
+    // Monotonic non-decreasing.
+    assert.ok(relayPollDelayMs(6) >= relayPollDelayMs(5));
+  });
+});
 
 const codeSpec = (
   name: string,

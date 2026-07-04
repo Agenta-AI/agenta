@@ -43,6 +43,28 @@ export const RELAY_POLL_MS = Number(
 export const RELAY_TIMEOUT_MS = Number(
   process.env.AGENTA_AGENT_TOOLS_RELAY_TIMEOUT ?? 60000,
 );
+/**
+ * Idle-backoff cap for the runner relay poll. The loop polls `host.list(relayDir)` every
+ * `RELAY_POLL_MS` (300 ms) for the whole turn — on Daytona that `list` is a remote `ls` exec
+ * (~3×/s), now also for client-only runs that wait on a browser-fulfilled pause and produce no
+ * other tool traffic. After `RELAY_POLL_IDLE_GROW_AFTER` consecutive idle polls the delay grows
+ * geometrically up to this cap, so a quiet turn settles to ~1.5 s polls; the moment a request
+ * file appears the delay resets to `RELAY_POLL_MS`, so a real tool call is still picked up
+ * promptly.
+ */
+export const RELAY_POLL_MAX_MS = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_POLLING_MAX ?? 1500,
+);
+export const RELAY_POLL_IDLE_GROW_AFTER = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_IDLE_GROW_AFTER ?? 5,
+);
+
+/** The next poll delay given the count of consecutive idle polls (no new request seen). */
+export function relayPollDelayMs(idlePolls: number): number {
+  if (idlePolls < RELAY_POLL_IDLE_GROW_AFTER) return RELAY_POLL_MS;
+  const factor = 2 ** (idlePolls - RELAY_POLL_IDLE_GROW_AFTER + 1);
+  return Math.min(RELAY_POLL_MS * factor, RELAY_POLL_MAX_MS);
+}
 
 export interface RelayRequest {
   toolName: string;
@@ -281,18 +303,25 @@ export function startToolRelay(
   };
 
   const loop = (async () => {
+    // Idle-poll backoff: a quiet turn (e.g. waiting on a browser-fulfilled client-tool pause)
+    // grows the delay up to RELAY_POLL_MAX_MS instead of polling at 300 ms forever; any new
+    // request resets it. This cuts the remote `ls` rate on Daytona without delaying a real call.
+    let idlePolls = 0;
     while (active) {
+      let sawNew = false;
       try {
         const names = await host.list(relayDir);
         for (const name of names) {
           if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
           seen.add(name);
+          sawNew = true;
           inflight.push(handle(name));
         }
       } catch {
         // Transient (dir not created yet, or a poll raced sandbox teardown): retry.
       }
-      await sleep(RELAY_POLL_MS);
+      idlePolls = sawNew ? 0 : idlePolls + 1;
+      await sleep(relayPollDelayMs(idlePolls));
     }
     await Promise.allSettled(inflight);
   })();
