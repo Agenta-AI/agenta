@@ -7,13 +7,30 @@ import {
     type CustomSecretContent,
     type NamedSecretRow,
 } from "@agenta/entities/secret"
-import {message} from "@agenta/ui/app-message"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/primitive-ui/components/dialog"
+import {Input} from "@agenta/primitive-ui/components/input"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Textarea} from "@agenta/primitive-ui/components/textarea"
+import {ToggleGroup, ToggleGroupItem} from "@agenta/primitive-ui/components/toggle-group"
+import {toast} from "@agenta/primitive-ui/lib/toast"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Button, Input, Segmented, Select, Typography} from "antd"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {slugifyBase} from "@/oss/lib/utils/slugify"
 
 import {
@@ -93,7 +110,7 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
         const hasText = format === CustomSecretFormat.Text && textValue.trim().length > 0
         const hasKv = format === CustomSecretFormat.Json && kvRows.some((r) => r.key.trim())
         if (hasText || hasKv) {
-            message.warning("Switching format clears the current value — re-enter it below.")
+            toast.warning("Switching format clears the current value — re-enter it below.")
         }
         setFormat(next)
         setTextValue("")
@@ -146,7 +163,7 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
         const named = kvRows.filter((r) => r.key.trim())
         const keys = named.map((r) => r.key.trim())
         if (new Set(keys).size !== keys.length) {
-            message.error("Duplicate keys are not allowed.")
+            toast.error("Duplicate keys are not allowed.")
             return null
         }
         return rowsToObject(named)
@@ -154,7 +171,7 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
 
     const onSubmit = async () => {
         if (!name.trim()) {
-            message.error("Name is required.")
+            toast.error("Name is required.")
             return
         }
         const content = buildContent()
@@ -171,23 +188,15 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
                 id: selectedSecret?.id,
             })
             mutate()
-            message.success("The secret is saved")
+            toast.success("The secret is saved")
             onCancel()
         } catch (error) {
             console.error(error)
-            message.error("Failed to save the secret")
+            toast.error("Failed to save the secret")
         } finally {
             setSaving(false)
         }
     }
-
-    const formatOptions = useMemo(
-        () => [
-            {label: "Text", value: CustomSecretFormat.Text},
-            {label: "JSON", value: CustomSecretFormat.Json},
-        ],
-        [],
-    )
 
     const typeOptions = useMemo(() => PRIMITIVE_TYPES.map((t) => ({label: t, value: t})), [])
 
@@ -205,218 +214,261 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
     }, [kvRows])
 
     const hasDuplicateKeys = duplicateKeys.size > 0
+    const saveDisabled =
+        saving || (format === CustomSecretFormat.Json && jsonView === "grid" && hasDuplicateKeys)
 
     return (
-        <EnhancedModal
+        <Dialog
             open={open}
-            title={isEditing ? "Edit secret" : "Create secret"}
-            okText="Save"
-            okType="primary"
-            onOk={onSubmit}
-            confirmLoading={saving}
-            okButtonProps={{
-                disabled:
-                    format === CustomSecretFormat.Json && jsonView === "grid" && hasDuplicateKeys,
+            onOpenChange={(next) => {
+                if (!next) onCancel()
             }}
-            onCancel={onCancel}
         >
-            <div className="flex flex-col gap-4 ph-no-capture">
-                <div className="flex flex-col gap-1">
-                    <Typography.Text className="font-medium">Name</Typography.Text>
-                    <Input
-                        placeholder="e.g. GITHUB_TOKEN"
-                        value={name}
-                        onChange={(e) => onChangeName(e.target.value)}
-                    />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                    <Typography.Text className="font-medium">Slug</Typography.Text>
-                    <Input
-                        className="font-mono"
-                        placeholder="github-token"
-                        value={slug}
-                        disabled={isEditing}
-                        onChange={(e) => {
-                            setSlugTouched(true)
-                            setSlug(slugifyBase(e.target.value))
-                        }}
-                    />
-                    <Typography.Text type="secondary" className="text-xs">
-                        {isEditing
-                            ? "Slugs are immutable and cannot be changed after creation."
-                            : "URL-safe, unique per project. Leave blank to derive it from the name."}
-                    </Typography.Text>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                    <Typography.Text className="font-medium">Format</Typography.Text>
-                    <div className="flex items-center gap-3">
-                        <Segmented
-                            className="w-fit"
-                            options={formatOptions}
-                            value={format}
-                            onChange={(v) => onChangeFormat(v as CustomSecretFormatType)}
+            <DialogContent className="sm:max-w-[560px]">
+                <DialogHeader>
+                    <DialogTitle>{isEditing ? "Edit secret" : "Create secret"}</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-4 ph-no-capture">
+                    <div className="flex flex-col gap-1">
+                        <span className="font-medium">Name</span>
+                        <Input
+                            placeholder="e.g. GITHUB_TOKEN"
+                            value={name}
+                            onChange={(e) => onChangeName(e.target.value)}
                         />
-                        <Typography.Text type="secondary" className="text-xs">
-                            {format === CustomSecretFormat.Text
-                                ? "Any opaque string — stored verbatim as text"
-                                : "Key-value pairs — stored formatted as json"}
-                        </Typography.Text>
-                    </div>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-baseline gap-2">
-                            <Typography.Text className="font-medium">Content</Typography.Text>
-                            {format === CustomSecretFormat.Json &&
-                                jsonView === "grid" &&
-                                hasDuplicateKeys && (
-                                    <Typography.Text type="danger" className="text-xs">
-                                        Duplicate keys are not allowed.
-                                    </Typography.Text>
-                                )}
-                        </div>
-                        {format === CustomSecretFormat.Json && (
-                            <Segmented
-                                size="small"
-                                options={[
-                                    {label: "Pretty", value: "grid"},
-                                    {label: "Editor", value: "json"},
-                                ]}
-                                value={jsonView}
-                                onChange={(v) =>
-                                    v === "json" ? onSwitchToJson() : onSwitchToGrid()
-                                }
-                            />
-                        )}
                     </div>
 
-                    {format === CustomSecretFormat.Text ? (
-                        <Input.TextArea
-                            rows={4}
+                    <div className="flex flex-col gap-1">
+                        <span className="font-medium">Slug</span>
+                        <Input
                             className="font-mono"
-                            value={textValue}
-                            onChange={(e) => setTextValue(e.target.value)}
+                            placeholder="github-token"
+                            value={slug}
+                            disabled={isEditing}
+                            onChange={(e) => {
+                                setSlugTouched(true)
+                                setSlug(slugifyBase(e.target.value))
+                            }}
                         />
-                    ) : jsonView === "json" ? (
-                        <div className="flex flex-col gap-1">
-                            <SharedEditor
-                                initialValue={jsonText}
-                                value={jsonText}
-                                handleChange={(v) => {
-                                    setJsonText(v)
-                                    setJsonError(null)
+                        <span className="text-xs text-muted-foreground">
+                            {isEditing
+                                ? "Slugs are immutable and cannot be changed after creation."
+                                : "URL-safe, unique per project. Leave blank to derive it from the name."}
+                        </span>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <span className="font-medium">Format</span>
+                        <div className="flex items-center gap-3">
+                            <ToggleGroup
+                                variant="outline"
+                                value={[format]}
+                                onValueChange={(next) => {
+                                    const v = next[0] as CustomSecretFormatType | undefined
+                                    if (v && v !== format) onChangeFormat(v)
                                 }}
-                                editorType="border"
-                                editorProps={{
-                                    codeOnly: true,
-                                    language: "json",
-                                    showToolbar: false,
-                                }}
-                            />
-                            {jsonError && (
-                                <Typography.Text type="danger" className="text-xs">
-                                    {jsonError}
-                                </Typography.Text>
+                            >
+                                <ToggleGroupItem value={CustomSecretFormat.Text}>
+                                    Text
+                                </ToggleGroupItem>
+                                <ToggleGroupItem value={CustomSecretFormat.Json}>
+                                    JSON
+                                </ToggleGroupItem>
+                            </ToggleGroup>
+                            <span className="text-xs text-muted-foreground">
+                                {format === CustomSecretFormat.Text
+                                    ? "Any opaque string — stored verbatim as text"
+                                    : "Key-value pairs — stored formatted as json"}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-baseline gap-2">
+                                <span className="font-medium">Content</span>
+                                {format === CustomSecretFormat.Json &&
+                                    jsonView === "grid" &&
+                                    hasDuplicateKeys && (
+                                        <span className="text-xs text-destructive">
+                                            Duplicate keys are not allowed.
+                                        </span>
+                                    )}
+                            </div>
+                            {format === CustomSecretFormat.Json && (
+                                <ToggleGroup
+                                    variant="outline"
+                                    size="sm"
+                                    value={[jsonView]}
+                                    onValueChange={(next) => {
+                                        const v = next[0] as JsonView | undefined
+                                        if (!v || v === jsonView) return
+                                        if (v === "json") onSwitchToJson()
+                                        else onSwitchToGrid()
+                                    }}
+                                >
+                                    <ToggleGroupItem value="grid">Pretty</ToggleGroupItem>
+                                    <ToggleGroupItem value="json">Editor</ToggleGroupItem>
+                                </ToggleGroup>
                             )}
                         </div>
-                    ) : (
-                        <div className="flex flex-col gap-2">
-                            <div className="grid grid-cols-[1fr_1fr_120px_32px] gap-2">
-                                <Typography.Text type="secondary" className="text-xs">
-                                    Key
-                                </Typography.Text>
-                                <Typography.Text type="secondary" className="text-xs">
-                                    Value
-                                </Typography.Text>
-                                <Typography.Text type="secondary" className="text-xs">
-                                    Type
-                                </Typography.Text>
-                                <span />
+
+                        {format === CustomSecretFormat.Text ? (
+                            <Textarea
+                                rows={4}
+                                className="font-mono"
+                                value={textValue}
+                                onChange={(e) => setTextValue(e.target.value)}
+                            />
+                        ) : jsonView === "json" ? (
+                            <div className="flex flex-col gap-1">
+                                <SharedEditor
+                                    initialValue={jsonText}
+                                    value={jsonText}
+                                    handleChange={(v) => {
+                                        setJsonText(v)
+                                        setJsonError(null)
+                                    }}
+                                    editorType="border"
+                                    editorProps={{
+                                        codeOnly: true,
+                                        language: "json",
+                                        showToolbar: false,
+                                    }}
+                                />
+                                {jsonError && (
+                                    <span className="text-xs text-destructive">{jsonError}</span>
+                                )}
                             </div>
-                            {kvRows.map((row, idx) => {
-                                const type = primitiveTypeOf(row.value)
-                                return (
-                                    <div
-                                        key={idx}
-                                        className="grid grid-cols-[1fr_1fr_120px_32px] items-center gap-2"
-                                    >
-                                        <Input
-                                            className="font-mono"
-                                            placeholder="key"
-                                            status={
-                                                duplicateKeys.has(row.key.trim())
-                                                    ? "error"
-                                                    : undefined
-                                            }
-                                            value={row.key}
-                                            onChange={(e) => updateRow(idx, {key: e.target.value})}
-                                        />
-                                        {type === "null" ? (
-                                            <Input disabled className="font-mono" value="null" />
-                                        ) : type === "boolean" ? (
-                                            <Select
-                                                className="font-mono"
-                                                value={String(row.value)}
-                                                options={[
-                                                    {label: "true", value: "true"},
-                                                    {label: "false", value: "false"},
-                                                ]}
-                                                onChange={(v) =>
-                                                    updateRow(idx, {
-                                                        value: textToValue(v, "boolean"),
-                                                    })
-                                                }
-                                            />
-                                        ) : (
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                <div className="grid grid-cols-[1fr_1fr_120px_32px] gap-2">
+                                    <span className="text-xs text-muted-foreground">Key</span>
+                                    <span className="text-xs text-muted-foreground">Value</span>
+                                    <span className="text-xs text-muted-foreground">Type</span>
+                                    <span />
+                                </div>
+                                {kvRows.map((row, idx) => {
+                                    const type = primitiveTypeOf(row.value)
+                                    return (
+                                        <div
+                                            key={idx}
+                                            className="grid grid-cols-[1fr_1fr_120px_32px] items-center gap-2"
+                                        >
                                             <Input
                                                 className="font-mono"
-                                                placeholder="value"
-                                                type={type === "number" ? "number" : "text"}
-                                                value={valueToText(row.value)}
+                                                placeholder="key"
+                                                aria-invalid={duplicateKeys.has(row.key.trim())}
+                                                value={row.key}
                                                 onChange={(e) =>
-                                                    updateRow(idx, {
-                                                        value: textToValue(e.target.value, type),
-                                                    })
+                                                    updateRow(idx, {key: e.target.value})
                                                 }
                                             />
-                                        )}
-                                        <Select<PrimitiveType>
-                                            value={type}
-                                            options={typeOptions}
-                                            popupMatchSelectWidth={false}
-                                            onChange={(t) =>
-                                                updateRow(idx, {value: coerceToType(row.value, t)})
-                                            }
-                                            labelRender={() => <TypeChip variant={type} />}
-                                        />
-                                        <Button
-                                            type="text"
-                                            icon={<Trash />}
-                                            size="small"
-                                            disabled={kvRows.length === 1}
-                                            onClick={() =>
-                                                setKvRows(kvRows.filter((_, i) => i !== idx))
-                                            }
-                                        />
-                                    </div>
-                                )
-                            })}
-                            <Button
-                                type="dashed"
-                                size="small"
-                                icon={<Plus size={14} />}
-                                onClick={() => setKvRows([...kvRows, {key: "", value: ""}])}
-                            >
-                                Add field
-                            </Button>
-                        </div>
-                    )}
+                                            {type === "null" ? (
+                                                <Input
+                                                    disabled
+                                                    className="font-mono"
+                                                    value="null"
+                                                />
+                                            ) : type === "boolean" ? (
+                                                <Select
+                                                    value={String(row.value)}
+                                                    onValueChange={(v) =>
+                                                        updateRow(idx, {
+                                                            value: textToValue(
+                                                                String(v),
+                                                                "boolean",
+                                                            ),
+                                                        })
+                                                    }
+                                                >
+                                                    <SelectTrigger className="w-full font-mono">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="true">true</SelectItem>
+                                                        <SelectItem value="false">false</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            ) : (
+                                                <Input
+                                                    className="font-mono"
+                                                    placeholder="value"
+                                                    type={type === "number" ? "number" : "text"}
+                                                    value={valueToText(row.value)}
+                                                    onChange={(e) =>
+                                                        updateRow(idx, {
+                                                            value: textToValue(
+                                                                e.target.value,
+                                                                type,
+                                                            ),
+                                                        })
+                                                    }
+                                                />
+                                            )}
+                                            <Select
+                                                value={type}
+                                                onValueChange={(t) =>
+                                                    updateRow(idx, {
+                                                        value: coerceToType(
+                                                            row.value,
+                                                            t as PrimitiveType,
+                                                        ),
+                                                    })
+                                                }
+                                            >
+                                                <SelectTrigger className="w-full">
+                                                    <TypeChip variant={type} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {typeOptions.map((opt) => (
+                                                        <SelectItem
+                                                            key={opt.value}
+                                                            value={opt.value}
+                                                        >
+                                                            {opt.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                aria-label="Remove field"
+                                                disabled={kvRows.length === 1}
+                                                onClick={() =>
+                                                    setKvRows(kvRows.filter((_, i) => i !== idx))
+                                                }
+                                            >
+                                                <Trash />
+                                            </Button>
+                                        </div>
+                                    )
+                                })}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-dashed"
+                                    onClick={() => setKvRows([...kvRows, {key: "", value: ""}])}
+                                >
+                                    <Plus size={14} />
+                                    Add field
+                                </Button>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
-        </EnhancedModal>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onCancel} disabled={saving}>
+                        Cancel
+                    </Button>
+                    <Button onClick={onSubmit} disabled={saveDisabled}>
+                        {saving ? <Spinner /> : null}
+                        Save
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
 
