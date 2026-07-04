@@ -10,6 +10,7 @@ import {Inter} from "next/font/google"
 
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
 import {OnboardingProvider} from "@/oss/components/Onboarding"
+import PrimitiveUIProviders from "@/oss/components/PrimitiveUIProviders"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
@@ -72,15 +73,17 @@ export default function App({Component, pageProps, ...rest}: AppProps) {
                                 >
                                     <ThemeContextProvider>
                                         <AppComponent>
-                                            <ThemeContextBridge>
-                                                <PreloadQueries />
-                                                <Layout>
-                                                    <AppContextComponent />
-                                                    <Component {...pageProps} />
-                                                    <NoMobilePageWrapper />
-                                                </Layout>
-                                                <AppGlobalWrappers />
-                                            </ThemeContextBridge>
+                                            <PrimitiveUIProviders>
+                                                <ThemeContextBridge>
+                                                    <PreloadQueries />
+                                                    <Layout>
+                                                        <AppContextComponent />
+                                                        <Component {...pageProps} />
+                                                        <NoMobilePageWrapper />
+                                                    </Layout>
+                                                    <AppGlobalWrappers />
+                                                </ThemeContextBridge>
+                                            </PrimitiveUIProviders>
                                         </AppComponent>
                                     </ThemeContextProvider>
                                 </CustomPosthogProvider>
