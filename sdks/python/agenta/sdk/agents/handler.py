@@ -186,8 +186,25 @@ async def agent_event_stream(
     await harness.setup()
     run = await harness.stream(session_config, msgs)
     try:
+        event_stop_reason: Optional[str] = None
         async for event in run:
+            if event.type == "done":
+                event_stop_reason = (event.data or {}).get("stopReason")
             yield {"type": event.type, "data": event.data}
+        # The terminal result's stop_reason is authoritative: the runner's `done` event carries
+        # no stopReason for a HITL pause (the engine settles paused-vs-ended after the event
+        # stream closes, onto the terminal result only). When it disagrees with the streamed
+        # `done`, append a corrective terminal `done` so the egress finish frame can prefer it —
+        # the streaming analogue of agent_batch's `fold(events, stop_reason=result.stop_reason)`.
+        try:
+            terminal_stop_reason = run.result().stop_reason
+        except Exception:  # result unavailable on a failed/aborted stream
+            terminal_stop_reason = None
+        if (
+            terminal_stop_reason is not None
+            and terminal_stop_reason != event_stop_reason
+        ):
+            yield {"type": "done", "data": {"stopReason": terminal_stop_reason}}
     finally:
         try:
             record_usage(run.result().usage)
