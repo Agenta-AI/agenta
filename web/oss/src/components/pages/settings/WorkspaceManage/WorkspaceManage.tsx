@@ -1,8 +1,10 @@
 import {useMemo, useState, type FC} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {type ColumnDef, DataTable} from "@agenta/primitive-ui/components/data-table"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {GearSix, Plus} from "@phosphor-icons/react"
-import {Button, Input, Space, Spin, Table, Tag, Typography} from "antd"
-import {ColumnsType} from "antd/es/table"
 import dynamic from "next/dynamic"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
@@ -39,150 +41,149 @@ const WorkspaceManage: FC = () => {
     const organizationId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
 
-    const columns = useMemo(
-        () =>
-            (
-                [
-                    {
-                        dataIndex: ["user", "username"],
-                        key: "username",
-                        title: "Name",
-                        onHeaderCell: () => ({
-                            style: {minWidth: 180},
-                        }),
-                        render: (_, member) => {
-                            const {user} = member
-                            const name = user.username || getUsernameFromEmail(user.email)
-                            return (
-                                <Space>
-                                    <AvatarWithLabel name={name} />
-                                    {user.email === signedInUser?.email && (
-                                        <Tag color="processing">you</Tag>
-                                    )}
-                                </Space>
-                            )
-                        },
-                    },
-                    {
-                        dataIndex: ["user", "email"],
-                        key: "email",
-                        title: "Email",
-                        render: (_, member) => (
-                            <span className="font-mono text-xs">{member.user?.email}</span>
-                        ),
-                    },
-                    !isEE() || hasRBAC
-                        ? {
-                              dataIndex: "roles",
-                              key: "role",
-                              title: "Roles",
-                              render: (_, member) => (
-                                  <Roles
-                                      member={member}
-                                      signedInUser={signedInUser!}
-                                      organizationId={organizationId!}
-                                      workspaceId={workspaceId!}
-                                  />
-                              ),
-                          }
-                        : null,
-                    {
-                        dataIndex: ["user", "created_at"],
-                        key: "created_at",
-                        title: "Creation Date",
-                        onHeaderCell: () => ({
-                            style: {minWidth: 160},
-                        }),
-                        render: (_, member) => {
-                            const {user} = member
+    const columns = useMemo<ColumnDef<WorkspaceMember, unknown>[]>(() => {
+        const roleColumns: ColumnDef<WorkspaceMember, unknown>[] =
+            !isEE() || hasRBAC
+                ? [
+                      {
+                          id: "role",
+                          accessorFn: (member) => member.roles,
+                          header: "Roles",
+                          enableSorting: false,
+                          cell: ({row}) => (
+                              <Roles
+                                  member={row.original}
+                                  signedInUser={signedInUser!}
+                                  organizationId={organizationId!}
+                                  workspaceId={workspaceId!}
+                              />
+                          ),
+                      },
+                  ]
+                : []
 
-                            const isMember = !("status" in user) || user.status === "member"
-                            let color = "warning"
-                            let text = "Invitation Pending"
-                            if (user.status === "expired") {
-                                color = "error"
-                                text = "Invitation Expired"
-                            }
-                            return (
-                                <Space orientation="vertical">
-                                    <Typography.Text>
-                                        {formatDay({date: user.created_at})}
-                                    </Typography.Text>
-                                    {!isMember && <Tag color={color}>{text}</Tag>}
-                                </Space>
-                            )
-                        },
-                    },
-                    {
-                        title: <GearSix size={16} />,
-                        key: "key",
-                        width: 61,
-                        fixed: "right",
-                        align: "center",
-                        render: (_, member) => {
-                            const isSelf =
-                                member.user?.id === signedInUser?.id ||
-                                member.user?.email === signedInUser?.email
-                            const isOwner = member.user?.id === selectedOrg?.owner_id
-                            return (
-                                <Actions
-                                    member={member}
-                                    hidden={!isSelf && isOwner}
-                                    selfMenu={isSelf}
-                                    organizationId={organizationId!}
-                                    workspaceId={workspaceId!}
-                                    onResendInvite={(data: any) => {
-                                        if (!isEmailInvitationsEnabled() && data.uri) {
-                                            setInvitedUserData(data)
-                                            setIsInvitedUserLinkModalOpen(true)
-                                        }
-                                    }}
-                                />
-                            )
-                        },
-                    },
-                ] as ColumnsType<WorkspaceMember>
-            ).filter(Boolean),
-        [selectedOrg?.id],
-    )
+        return [
+            {
+                id: "username",
+                accessorFn: (member) => member.user.username,
+                header: "Name",
+                size: 180,
+                enableSorting: false,
+                cell: ({row}) => {
+                    const member = row.original
+                    const {user} = member
+                    const name = user.username || getUsernameFromEmail(user.email)
+                    return (
+                        <div className="flex items-center gap-2">
+                            <AvatarWithLabel name={name} />
+                            {user.email === signedInUser?.email && (
+                                <Badge variant="secondary">you</Badge>
+                            )}
+                        </div>
+                    )
+                },
+            },
+            {
+                id: "email",
+                accessorFn: (member) => member.user.email,
+                header: "Email",
+                enableSorting: false,
+                cell: ({row}) => (
+                    <span className="font-mono text-xs">{row.original.user?.email}</span>
+                ),
+            },
+            ...roleColumns,
+            {
+                id: "created_at",
+                accessorFn: (member) => member.user.created_at,
+                header: "Creation Date",
+                size: 160,
+                enableSorting: false,
+                cell: ({row}) => {
+                    const member = row.original
+                    const {user} = member
+
+                    const isMember = !("status" in user) || user.status === "member"
+                    let color = "warning"
+                    let text = "Invitation Pending"
+                    if (user.status === "expired") {
+                        color = "error"
+                        text = "Invitation Expired"
+                    }
+                    return (
+                        <div className="flex flex-col gap-1">
+                            <span>{formatDay({date: user.created_at})}</span>
+                            {!isMember && (
+                                <Badge variant={color === "error" ? "destructive" : "outline"}>
+                                    {text}
+                                </Badge>
+                            )}
+                        </div>
+                    )
+                },
+            },
+            {
+                id: "actions",
+                header: () => <GearSix size={16} className="mx-auto" />,
+                size: 61,
+                enableSorting: false,
+                cell: ({row}) => {
+                    const member = row.original
+                    const isSelf =
+                        member.user?.id === signedInUser?.id ||
+                        member.user?.email === signedInUser?.email
+                    const isOwner = member.user?.id === selectedOrg?.owner_id
+                    return (
+                        <Actions
+                            member={member}
+                            hidden={!isSelf && isOwner}
+                            selfMenu={isSelf}
+                            organizationId={organizationId!}
+                            workspaceId={workspaceId!}
+                            onResendInvite={(data) => {
+                                if (!isEmailInvitationsEnabled() && data.uri) {
+                                    setInvitedUserData(data)
+                                    setIsInvitedUserLinkModalOpen(true)
+                                }
+                            }}
+                        />
+                    )
+                },
+            },
+        ]
+    }, [selectedOrg?.id])
 
     return (
         <section className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
                 {canInviteMembers && (
-                    <Button
-                        type="primary"
-                        icon={<Plus size={14} className="mt-0.2" />}
-                        onClick={() => setIsInviteModalOpen(true)}
-                    >
+                    <Button size="sm" onClick={() => setIsInviteModalOpen(true)}>
+                        <Plus size={14} className="mt-0.2" />
                         Invite Members
                     </Button>
                 )}
 
-                <Input.Search
+                <Input
+                    type="search"
                     placeholder="Search"
                     className="w-[400px]"
-                    allowClear
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
 
-            <Spin spinning={loading}>
-                <Table<WorkspaceMember>
-                    dataSource={filteredMembers}
-                    rowKey={(record) => record.user.id}
-                    columns={columns}
-                    pagination={false}
-                    bordered
-                    scroll={{x: true}}
-                />
-            </Spin>
+            <DataTable<WorkspaceMember>
+                data={filteredMembers}
+                getRowId={(member) => member.user.id}
+                columns={columns}
+                loading={loading}
+                enableSorting={false}
+            />
 
             <InviteUsersModal
                 setQueryInviteModalOpen={setQueryInviteModalOpen}
                 open={queryInviteModalOpen === "open" || isInviteModalOpen}
-                onCancel={() => setIsInviteModalOpen(false)}
+                onClose={() => setIsInviteModalOpen(false)}
                 workspaceId={workspaceId!}
                 onSuccess={(data) => {
                     if (!isEmailInvitationsEnabled() && data?.uri) {
@@ -194,7 +195,7 @@ const WorkspaceManage: FC = () => {
             {!isEmailInvitationsEnabled() && (
                 <InvitedUserLinkModal
                     open={isInvitedUserLinkModalOpen}
-                    onCancel={() => {
+                    onClose={() => {
                         setIsInvitedUserLinkModalOpen(false)
                         refetch()
                     }}

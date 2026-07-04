@@ -1,12 +1,28 @@
 import {useState} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/primitive-ui/components/dialog"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {Input} from "@agenta/primitive-ui/components/input"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
+import {toast} from "@agenta/primitive-ui/lib/toast"
 import type {User} from "@agenta/shared/types"
-import {message} from "@agenta/ui/app-message"
-import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
-import {ArrowClockwise, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "antd"
+import {ArrowClockwise, Check, DotsThree, PencilSimple, Trash} from "@phosphor-icons/react"
 
-import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import ConfirmDialog, {type ConfirmRequest} from "@/oss/components/ConfirmDialog"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
@@ -22,23 +38,32 @@ import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 
-export const Actions: React.FC<{
+interface ActionsProps {
     member: WorkspaceMember
     hidden?: boolean
     organizationId: string
     workspaceId: string
-    onResendInvite: any
+    onResendInvite: (data: {email: string; uri: string}) => void
     selfMenu?: boolean
-}> = ({member, hidden, organizationId, workspaceId, onResendInvite, selfMenu}) => {
+}
+
+export const Actions: React.FC<ActionsProps> = ({
+    member,
+    hidden,
+    organizationId,
+    workspaceId,
+    onResendInvite,
+    selfMenu,
+}) => {
     const {user} = member
     const isMember = user.status === "member"
     const {canModifyRoles, canInviteMembers} = useWorkspacePermissions()
-
     const [resendLoading, setResendLoading] = useState(false)
-    const {refetch} = useOrgData()
-    const {refetch: refetchProfile} = useProfileData()
     const [renameOpen, setRenameOpen] = useState(false)
     const [renameValue, setRenameValue] = useState(user.username || "")
+    const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
+    const {refetch} = useOrgData()
+    const {refetch: refetchProfile} = useProfileData()
 
     if (hidden && !selfMenu) return null
     if (!selfMenu && !canInviteMembers && !canModifyRoles) return null
@@ -51,7 +76,7 @@ export const Actions: React.FC<{
                 if (!isEmailInvitationsEnabled() && typeof res.url === "string") {
                     onResendInvite({email: user.email, uri: res.url})
                 } else {
-                    message.success("Invitation sent!")
+                    toast.success("Invitation sent!")
                 }
             })
             .then(() => refetch())
@@ -61,115 +86,119 @@ export const Actions: React.FC<{
 
     const handleRemove = () => {
         if (!organizationId || !user.email || !workspaceId) return
-        AlertPopup({
+        setConfirm({
             title: "Remove member",
             message: `Are you sure you want to remove ${user.username} from this workspace?`,
+            okText: "Remove",
+            danger: true,
             onOk: () =>
                 removeFromWorkspace({organizationId, workspaceId, email: user.email}, true).then(
                     () => refetch(),
                 ),
-            okText: "Remove",
         })
     }
 
     const handleRename = async () => {
         const nextValue = renameValue.trim()
         if (!nextValue) {
-            message.error("Username is required.")
+            toast.error("Username is required.")
             return
         }
 
         try {
             await updateUsername(nextValue)
             await Promise.all([refetchProfile(), refetch()])
-            message.success("Username updated")
+            toast.success("Username updated")
             setRenameOpen(false)
         } catch (error: any) {
             const detail =
                 error?.response?.data?.detail || error?.message || "Unable to update username"
-            message.error(detail)
+            toast.error(detail)
         }
     }
 
     return (
         <>
-            <Dropdown
-                trigger={["click"]}
-                styles={{
-                    root: {
-                        width: 180,
-                    },
-                }}
-                menu={{
-                    items: selfMenu
-                        ? [
-                              {
-                                  key: "rename",
-                                  label: "Rename",
-                                  icon: <EditOutlined />,
-                                  onClick: (e: any) => {
-                                      e.domEvent.stopPropagation()
-                                      setRenameValue(user.username || "")
-                                      setRenameOpen(true)
-                                  },
-                              },
-                          ]
-                        : [
-                              ...(!isMember && canInviteMembers
-                                  ? [
-                                        {
-                                            key: "resend_invite",
-                                            label: "Resend invitation",
-                                            icon: <ArrowClockwise size={16} />,
-                                            onClick: (e: any) => {
-                                                e.domEvent.stopPropagation()
-                                                handleResendInvite()
-                                            },
-                                        },
-                                    ]
-                                  : []),
-                              ...(canModifyRoles
-                                  ? [
-                                        {
-                                            key: "remove",
-                                            label: "Remove",
-                                            icon: <Trash size={16} />,
-                                            danger: true,
-                                            onClick: (e: any) => {
-                                                e.domEvent.stopPropagation()
-                                                handleRemove()
-                                            },
-                                        },
-                                    ]
-                                  : []),
-                          ],
-                }}
-            >
-                <Button
-                    onClick={(e) => e.stopPropagation()}
-                    type="text"
-                    icon={<MoreOutlined />}
-                    loading={resendLoading}
-                />
-            </Dropdown>
+            <DropdownMenu>
+                <DropdownMenuTrigger
+                    render={
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Member actions"
+                            onClick={(event) => event.stopPropagation()}
+                            disabled={resendLoading}
+                        />
+                    }
+                >
+                    {resendLoading ? <Spinner /> : <DotsThree />}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                    {selfMenu ? (
+                        <DropdownMenuItem
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                setRenameValue(user.username || "")
+                                setRenameOpen(true)
+                            }}
+                        >
+                            <PencilSimple />
+                            Rename
+                        </DropdownMenuItem>
+                    ) : (
+                        <>
+                            {!isMember && canInviteMembers && (
+                                <DropdownMenuItem
+                                    onClick={(event) => {
+                                        event.stopPropagation()
+                                        handleResendInvite()
+                                    }}
+                                >
+                                    <ArrowClockwise />
+                                    Resend invitation
+                                </DropdownMenuItem>
+                            )}
+                            {canModifyRoles && (
+                                <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={(event) => {
+                                        event.stopPropagation()
+                                        handleRemove()
+                                    }}
+                                >
+                                    <Trash />
+                                    Remove
+                                </DropdownMenuItem>
+                            )}
+                        </>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
 
-            <Modal
-                title="Rename your username"
-                open={renameOpen}
-                okText="Save"
-                onCancel={() => setRenameOpen(false)}
-                onOk={handleRename}
-                confirmLoading={false}
-                destroyOnHidden
-                centered
-            >
-                <Input
-                    autoFocus
-                    value={renameValue}
-                    onChange={(event) => setRenameValue(event.target.value)}
-                    placeholder="New username"
-                />
-            </Modal>
+            <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Rename your username</DialogTitle>
+                    </DialogHeader>
+                    <Input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(event) => setRenameValue(event.target.value)}
+                        placeholder="New username"
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter") handleRename()
+                        }}
+                    />
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRenameOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleRename}>Save</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />
         </>
     )
 }
@@ -212,48 +241,53 @@ export const Roles: React.FC<{
                     ),
             )
             await refetch()
-            message.success("Workspace role updated")
+            toast.success("Workspace role updated")
         } catch (error) {
             console.error("Failed to change the role:", error)
-            message.error("Failed to update workspace role")
+            toast.error("Failed to update workspace role")
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <>
+        <div className="flex items-center gap-1">
             {role && (
-                <Tooltip title={role.role_description}>
-                    <Tag icon={loading && <SyncOutlined spin />}>
+                <Tooltip>
+                    <TooltipTrigger render={<Badge variant="outline" />}>
+                        {loading ? <Spinner className="size-3" /> : null}
                         {snakeToTitle(role.role_name)}
-                    </Tag>
+                    </TooltipTrigger>
+                    <TooltipContent>{role.role_description}</TooltipContent>
                 </Tooltip>
             )}
             {!readOnly && !loading && canModifyRoles && (
-                <Dropdown
-                    trigger={["click"]}
-                    menu={{
-                        selectedKeys: [role?.role_name],
-                        items: roles.map((role) => ({
-                            key: role.role_name,
-                            label: (
-                                <Space orientation="vertical" size={0}>
-                                    <Typography.Text className="text-sm">
-                                        {snakeToTitle(role.role_name || "")}
-                                    </Typography.Text>
-                                    <Typography.Text type="secondary">
-                                        {role.role_description}
-                                    </Typography.Text>
-                                </Space>
-                            ),
-                            onClick: () => handleChangeRole(role.role_name),
-                        })),
-                    }}
-                >
-                    <EditOutlined style={{cursor: "pointer"}} />
-                </Dropdown>
+                <DropdownMenu>
+                    <DropdownMenuTrigger
+                        render={<Button variant="ghost" size="icon-sm" aria-label="Change role" />}
+                    >
+                        <PencilSimple />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-64">
+                        {roles.map((roleOption) => (
+                            <DropdownMenuItem
+                                key={roleOption.role_name}
+                                onClick={() => handleChangeRole(roleOption.role_name)}
+                            >
+                                <div className="flex flex-1 flex-col">
+                                    <span className="text-sm">
+                                        {snakeToTitle(roleOption.role_name || "")}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {roleOption.role_description}
+                                    </span>
+                                </div>
+                                {roleOption.role_name === role?.role_name ? <Check /> : null}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             )}
-        </>
+        </div>
     )
 }

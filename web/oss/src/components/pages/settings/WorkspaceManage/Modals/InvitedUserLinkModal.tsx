@@ -1,78 +1,80 @@
 import {useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/primitive-ui/components/dialog"
 import {Check, Copy} from "@phosphor-icons/react"
-import {Button, Modal, Typography} from "antd"
 
 import AvatarWithLabel from "../assets/AvatarWithLabel"
 
 import {InvitedUserLinkModalProps} from "./assets/types"
 
-const InvitedUserLinkModal = ({invitedUserData, ...props}: InvitedUserLinkModalProps) => {
+const InvitedUserLinkModal = ({invitedUserData, open, onClose}: InvitedUserLinkModalProps) => {
     const [isCopied, setIsCopied] = useState(false)
 
-    const formattedURi = useMemo(() => {
+    const formattedUri = useMemo(() => {
         try {
             const uri = new URL(invitedUserData?.uri.replaceAll('"', ""))
             return uri.href
-        } catch (error) {
+        } catch {
             return invitedUserData?.uri
         }
     }, [invitedUserData])
 
     const onCopyLink = async () => {
         setIsCopied(true)
-
-        await navigator.clipboard.writeText(formattedURi)
-
-        setTimeout(() => {
-            setIsCopied(false)
-        }, 2000)
+        await navigator.clipboard.writeText(formattedUri)
+        setTimeout(() => setIsCopied(false), 2000)
     }
 
     const onCopyLinkAndClose = async () => {
         await onCopyLink()
-        props.onCancel?.({} as any)
+        onClose()
     }
 
     return (
-        <Modal
-            title="Invited user link"
-            okText="Copy & Close"
-            okButtonProps={{type: "default"}}
-            cancelButtonProps={{className: "hidden"}}
-            onOk={onCopyLinkAndClose}
-            destroyOnHidden
-            centered
-            {...props}
+        <Dialog
+            open={open}
+            onOpenChange={(next) => {
+                if (!next) onClose()
+            }}
         >
-            <section className="flex flex-col gap-4">
-                <Typography.Text>
-                    Share the link with the user that you have invited.
-                </Typography.Text>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Invited user link</DialogTitle>
+                </DialogHeader>
+                <section className="flex flex-col gap-4">
+                    <span>Share the link with the user that you have invited.</span>
 
-                <div className="flex flex-col gap-1">
-                    <Typography.Text className="font-medium">Member name</Typography.Text>
-
-                    <AvatarWithLabel name={invitedUserData?.email} />
-                </div>
-
-                <div className="py-1 px-3 rounded-md gap-2 bg-[var(--ag-c-0517290A)]">
-                    <div className="flex items-center justify-between">
-                        <Typography.Text className="font-medium">Invited link</Typography.Text>
-                        <Button
-                            type="link"
-                            icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
-                            className="px-0"
-                            onClick={onCopyLinkAndClose}
-                        >
-                            {isCopied ? "Copied" : "Copy"}
-                        </Button>
+                    <div className="flex flex-col gap-1">
+                        <span className="font-medium">Member name</span>
+                        <AvatarWithLabel name={invitedUserData?.email} />
                     </div>
 
-                    <Typography.Text>{formattedURi}</Typography.Text>
-                </div>
-            </section>
-        </Modal>
+                    <div className="flex flex-col gap-2 rounded-md bg-muted px-3 py-2">
+                        <div className="flex items-center justify-between">
+                            <span className="font-medium">Invited link</span>
+                            <Button variant="ghost" size="sm" onClick={onCopyLink}>
+                                {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                                {isCopied ? "Copied" : "Copy"}
+                            </Button>
+                        </div>
+                        <span className="break-all">{formattedUri}</span>
+                    </div>
+                </section>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onCopyLinkAndClose}>
+                        <Copy size={14} />
+                        Copy & Close
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
 

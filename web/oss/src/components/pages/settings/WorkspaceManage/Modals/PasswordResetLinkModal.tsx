@@ -1,7 +1,15 @@
 import {useState} from "react"
 
-import {Check, Copy} from "@phosphor-icons/react"
-import {Alert, Button, Modal, Typography} from "antd"
+import {Alert, AlertDescription, AlertTitle} from "@agenta/primitive-ui/components/alert"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/primitive-ui/components/dialog"
+import {Check, Copy, Warning} from "@phosphor-icons/react"
 
 import AvatarWithLabel from "../assets/AvatarWithLabel"
 
@@ -10,77 +18,70 @@ import {PasswordResetLinkModalProps} from "./assets/types"
 const PasswordResetLinkModal = ({
     username,
     generatedLink,
-    ...props
+    open,
+    onClose,
 }: PasswordResetLinkModalProps) => {
     const [isCopied, setIsCopied] = useState(false)
 
     const onCopyLink = () => {
         setIsCopied(true)
-
         navigator.clipboard.writeText(generatedLink)
-        setTimeout(() => {
-            setIsCopied(false)
-        }, 2000)
+        setTimeout(() => setIsCopied(false), 2000)
     }
 
     const onCopyLinkAndClose = () => {
         onCopyLink()
-        props.onCancel?.({} as any)
+        onClose()
     }
 
     return (
-        <Modal
-            title="Password reset link"
-            okText="Copy & Close"
-            okButtonProps={{type: "default"}}
-            cancelButtonProps={{className: "hidden"}}
-            onOk={onCopyLinkAndClose}
-            destroyOnHidden
-            centered
-            {...props}
+        <Dialog
+            open={open}
+            onOpenChange={(next) => {
+                if (!next) onClose()
+            }}
         >
-            <section className="flex flex-col gap-4">
-                <Typography.Text>
-                    Share the link with your team member so that they may reset their password.
-                </Typography.Text>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Password reset link</DialogTitle>
+                </DialogHeader>
+                <section className="flex flex-col gap-4">
+                    <span>
+                        Share the link with your team member so that they may reset their password.
+                    </span>
 
-                <div className="flex flex-col gap-1">
-                    <Typography.Text className="font-medium">Member name</Typography.Text>
-                    <AvatarWithLabel name={username} />
-                </div>
-
-                <div className="py-1 px-3 rounded-md gap-2 bg-[var(--ag-c-0517290A)]">
-                    <div className="flex items-center justify-between">
-                        <Typography.Text className="font-medium">
-                            Password reset link
-                        </Typography.Text>
-                        <Button
-                            type="link"
-                            icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
-                            className="px-0"
-                            onClick={onCopyLink}
-                        >
-                            {isCopied ? "Copied" : "Copy"}
-                        </Button>
+                    <div className="flex flex-col gap-1">
+                        <span className="font-medium">Member name</span>
+                        <AvatarWithLabel name={username} />
                     </div>
-                    <Typography.Text>{generatedLink}</Typography.Text>
-                </div>
 
-                <Alert
-                    showIcon
-                    type="warning"
-                    message={
-                        <div className="flex flex-col">
-                            <Typography.Text className="font-medium">Warning:</Typography.Text>
-                            <Typography.Text>
-                                You will not be able to generate link again once this modal is
-                                closed.
-                            </Typography.Text>
+                    <div className="flex flex-col gap-2 rounded-md bg-muted px-3 py-2">
+                        <div className="flex items-center justify-between">
+                            <span className="font-medium">Password reset link</span>
+                            <Button variant="ghost" size="sm" onClick={onCopyLink}>
+                                {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                                {isCopied ? "Copied" : "Copy"}
+                            </Button>
                         </div>
-                    }
-                />
-            </section>
-        </Modal>
+                        <span className="break-all">{generatedLink}</span>
+                    </div>
+
+                    <Alert>
+                        <Warning />
+                        <AlertTitle>Warning:</AlertTitle>
+                        <AlertDescription>
+                            You will not be able to generate link again once this modal is closed.
+                        </AlertDescription>
+                    </Alert>
+                </section>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onCopyLinkAndClose}>
+                        <Copy size={14} />
+                        Copy & Close
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
 

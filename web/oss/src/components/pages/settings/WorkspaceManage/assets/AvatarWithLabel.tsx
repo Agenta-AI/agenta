@@ -1,13 +1,11 @@
 import {InitialsAvatar} from "@agenta/ui"
-import {Space, Typography} from "antd"
 
 const AvatarWithLabel = ({name}: {name: string | undefined}) => {
     return (
-        <Space>
+        <div className="flex items-center gap-2">
             <InitialsAvatar size="small" name={name as string} />
-
-            <Typography.Text>{name}</Typography.Text>
-        </Space>
+            <span>{name}</span>
+        </div>
     )
 }
 

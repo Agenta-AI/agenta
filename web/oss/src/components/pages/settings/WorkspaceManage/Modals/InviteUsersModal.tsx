@@ -1,9 +1,29 @@
-import {useCallback, useState, useMemo, type FC} from "react"
+import {useCallback, useMemo, useState, type FC} from "react"
 
-import {message} from "@agenta/ui/app-message"
-import {MinusCircleOutlined} from "@ant-design/icons"
-import {Alert, Form, Input, Modal, Select, Space, Typography, theme} from "antd"
+import {Alert, AlertDescription} from "@agenta/primitive-ui/components/alert"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/primitive-ui/components/dialog"
+import {Form, FormField, FormList, useAppForm} from "@agenta/primitive-ui/components/form"
+import {Input} from "@agenta/primitive-ui/components/input"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {toast} from "@agenta/primitive-ui/lib/toast"
+import {MinusCircle} from "@phosphor-icons/react"
 import Link from "next/link"
+import {z} from "zod"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
@@ -13,30 +33,58 @@ import {inviteToWorkspace} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 
-import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
+import {InviteUsersModalProps} from "./assets/types"
 
-const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoading}) => {
+const inviteSchema = z.object({
+    emails: z.array(z.object({value: z.email("Please enter a valid email")})).min(1),
+    role: z.string().nullable(),
+})
+
+type InviteFormValues = z.input<typeof inviteSchema>
+
+const InviteUsersModal: FC<InviteUsersModalProps> = ({
+    onSuccess,
+    workspaceId,
+    setQueryInviteModalOpen,
+    open,
+    onClose,
+}) => {
+    const [loading, setLoading] = useState(false)
     const {selectedOrg, refetch} = useOrgData()
     const {roles} = useWorkspaceRoles()
     const {hasRBAC} = useEntitlements()
-    const {token} = theme.useToken()
     const organizationId = selectedOrg?.id
+    const canSelectRole = !isEE() || hasRBAC
+    const form = useAppForm({
+        schema: inviteSchema,
+        defaultValues: {
+            emails: [{value: ""}],
+            role: canSelectRole ? "viewer" : null,
+        },
+    })
 
-    const filteredRoles = useMemo(() => {
-        // Always filter out "owner" role from invite dropdown
-        return roles.filter((role) => role.role_name !== "owner")
-    }, [roles])
+    const filteredRoles = useMemo(() => roles.filter((role) => role.role_name !== "owner"), [roles])
 
-    const onSubmit = useCallback(
-        ({emails, role}: {emails: string[]; role: string | null}) => {
+    useLazyEffect(() => {
+        if (open) {
+            form.reset({emails: [{value: ""}], role: canSelectRole ? "viewer" : null})
+        }
+    }, [open])
+
+    const handleClose = useCallback(() => {
+        onClose()
+        setQueryInviteModalOpen("")
+    }, [onClose, setQueryInviteModalOpen])
+
+    const handleSubmit = useCallback(
+        ({emails, role}: InviteFormValues) => {
             if (!organizationId) return
 
             setLoading(true)
-
             inviteToWorkspace(
                 {
-                    data: emails.map((email) => ({
-                        email,
+                    data: emails.map(({value}) => ({
+                        email: value,
                         ...(role ? {roles: [role]} : {}),
                     })),
                     organizationId,
@@ -46,17 +94,15 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
             )
                 .then((responses) => {
                     if (!isEmailInvitationsEnabled() && typeof responses.url === "string") {
-                        onSuccess?.({
-                            email: emails[0],
-                            uri: responses.url,
-                        })
+                        onSuccess?.({email: emails[0].value, uri: responses.url})
                     } else {
-                        message.success("Invitations sent!")
+                        toast.success("Invitations sent!")
                         onSuccess?.(null)
                         refetch()
                     }
 
-                    form.resetFields()
+                    form.reset()
+                    handleClose()
                 })
                 .catch((error: any) => {
                     const detail = error?.response?.data?.detail
@@ -71,7 +117,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     const isDomainRestricted =
                         typeof detailMessage === "string" &&
                         detailMessage.toLowerCase().includes("domain")
-                    message.error(
+                    toast.error(
                         isDomainRestricted
                             ? "Only verified domains are allowed in this organization."
                             : detailMessage,
@@ -79,154 +125,119 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                 })
                 .finally(() => setLoading(false))
         },
-        [organizationId],
+        [form, handleClose, onSuccess, organizationId, refetch, workspaceId],
     )
 
     return (
-        <Form form={form} onFinish={onSubmit}>
-            <Form.List name="emails" initialValue={[""]}>
-                {(fields, {add, remove}) => (
-                    <>
-                        {fields.map(({key, name, ...restField}) => (
-                            <Space
-                                key={key}
-                                align="baseline"
-                                className="w-full [&_>.ant-space-item:nth-child(1)]:flex-1 [&_.ant-form-item]:mb-3"
-                            >
-                                <Form.Item
-                                    {...restField}
-                                    name={name}
-                                    rules={[
-                                        {required: true, message: "Please enter email"},
-                                        {type: "email", message: "Please enter a valid email"},
-                                    ]}
-                                >
-                                    <Input type="email" placeholder="member@organization.com" />
-                                </Form.Item>
-                                {fields.length > 1 && (
-                                    <MinusCircleOutlined
-                                        className="text-xl"
-                                        style={{color: token.colorTextSecondary}}
-                                        onClick={() => remove(name)}
-                                    />
-                                )}
-                            </Space>
-                        ))}
-
-                        {/* NOTE: The code disables the ability to invite multiple users at once due to the complexity of handling partial failures, entitlement limits, and lifecycle management. The marginal benefit of saving a few clicks does not justify the added complexity.
-                         */}
-                        {/* <Form.Item>
-                            <Button
-                                type="dashed"
-                                onClick={() => add()}
-                                block
-                                icon={<PlusOutlined />}
-                                disabled={!isDemo()}
-                            >
-                                Add another
-                            </Button>
-                        </Form.Item> */}
-                    </>
-                )}
-            </Form.List>
-            {!isEE() || hasRBAC ? (
-                <Form.Item
-                    name="role"
-                    rules={[{required: true, message: "Please select a role"}]}
-                    initialValue="viewer"
-                    className="mb-1"
-                >
-                    <Select
-                        allowClear
-                        className="w-full"
-                        placeholder="Select role"
-                        options={filteredRoles.map((role) => ({
-                            label: snakeToTitle(role.role_name || ""),
-                            value: role.role_name,
-                            desc: role.role_description,
-                        }))}
-                        optionRender={(option) => (
-                            <Space orientation="vertical" size="small">
-                                <Typography.Text>{option.label}</Typography.Text>
-                                <Typography.Text className="text-wrap" type="secondary">
-                                    {option.data.desc}
-                                </Typography.Text>
-                            </Space>
-                        )}
-                        optionLabelProp="label"
-                    />
-                </Form.Item>
-            ) : (
-                <Alert
-                    message={
-                        <div className="flex flex-col">
-                            <Typography.Text>
-                                Role selection is only available for Business and Enterprise plans.
-                            </Typography.Text>
-
-                            <Link
-                                href={"https://agenta.ai/pricing"}
-                                target="_blank"
-                                className="font-medium"
-                            >
-                                Click here to learn more
-                            </Link>
-                        </div>
-                    }
-                    type="warning"
-                    showIcon
-                />
-            )}
-        </Form>
-    )
-}
-
-const InviteUsersModal: FC<InviteUsersModalProps> = ({
-    onSuccess,
-    workspaceId,
-    setQueryInviteModalOpen,
-    ...props
-}) => {
-    const [form] = Form.useForm()
-    const [loading, setLoading] = useState(false)
-    const {hasRBAC} = useEntitlements()
-
-    useLazyEffect(() => {
-        if (props.open) form.resetFields()
-    }, [props.open])
-
-    const onCancel = () => {
-        props.onCancel?.({} as any)
-        setQueryInviteModalOpen("")
-    }
-
-    return (
-        <Modal
-            {...props}
-            title="Invite Members"
-            onOk={form.submit}
-            okText="Invite"
-            okButtonProps={{loading}}
-            width={450}
-            onCancel={onCancel}
-            destroyOnHidden
+        <Dialog
+            open={open}
+            onOpenChange={(next) => {
+                if (!next) handleClose()
+            }}
         >
-            <Typography.Paragraph type="secondary">
-                Invite members to your team by entering their emails.{" "}
-                {isEE() && !hasRBAC
-                    ? "Role-based access control is available on Business and Enterprise plans."
-                    : "You can specify the roles to control the access level of the invited members on Agenta."}
-            </Typography.Paragraph>
-            <InviteForm
-                form={form}
-                onSuccess={(data) => {
-                    onSuccess?.(data)
-                    props.onCancel?.(undefined as any)
-                }}
-                workspaceId={workspaceId}
-                setLoading={setLoading}
-            />
-        </Modal>
+            <DialogContent className="sm:max-w-[450px]">
+                <DialogHeader>
+                    <DialogTitle>Invite Members</DialogTitle>
+                    <DialogDescription>
+                        Invite members to your team by entering their emails.{" "}
+                        {isEE() && !hasRBAC
+                            ? "Role-based access control is available on Business and Enterprise plans."
+                            : "You can specify the roles to control the access level of the invited members on Agenta."}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <Form id="invite-members-form" form={form} onSubmit={handleSubmit}>
+                    <FormList<InviteFormValues, "emails"> name="emails">
+                        {(fields, {remove}) => (
+                            <div className="flex flex-col gap-3">
+                                {fields.map((field, index) => (
+                                    <div key={field.id} className="flex items-start gap-2">
+                                        <FormField
+                                            name={`emails.${index}.value`}
+                                            className="flex-1"
+                                        >
+                                            {(inputField) => (
+                                                <Input
+                                                    {...inputField}
+                                                    type="email"
+                                                    placeholder="member@organization.com"
+                                                />
+                                            )}
+                                        </FormField>
+                                        {fields.length > 1 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                aria-label="Remove email"
+                                                onClick={() => remove(index)}
+                                            >
+                                                <MinusCircle />
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </FormList>
+
+                    {canSelectRole ? (
+                        <FormField name="role" required>
+                            {(field) => (
+                                <Select
+                                    value={field.value ?? undefined}
+                                    onValueChange={field.onChange}
+                                >
+                                    <SelectTrigger className="w-full" aria-label="Role">
+                                        <SelectValue placeholder="Select role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {filteredRoles.map((role) => (
+                                            <SelectItem key={role.role_name} value={role.role_name}>
+                                                <span className="flex flex-col">
+                                                    <span>
+                                                        {snakeToTitle(role.role_name || "")}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {role.role_description}
+                                                    </span>
+                                                </span>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </FormField>
+                    ) : (
+                        <Alert>
+                            <AlertDescription className="flex flex-col">
+                                <span>
+                                    Role selection is only available for Business and Enterprise
+                                    plans.
+                                </span>
+                                <Link
+                                    href="https://agenta.ai/pricing"
+                                    target="_blank"
+                                    className="font-medium"
+                                >
+                                    Click here to learn more
+                                </Link>
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                </Form>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={handleClose} disabled={loading}>
+                        Cancel
+                    </Button>
+                    <Button type="submit" form="invite-members-form" disabled={loading}>
+                        {loading ? <Spinner /> : null}
+                        Invite
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
 
