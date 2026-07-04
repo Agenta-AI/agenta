@@ -1,9 +1,28 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
-import {MoreOutlined} from "@ant-design/icons"
-import {ArrowClockwise, GearSix, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Table, Tag, Tooltip, Typography, message} from "antd"
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {type ColumnDef, DataTable} from "@agenta/primitive-ui/components/data-table"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
+import {toast} from "@agenta/primitive-ui/lib/toast"
+import {
+    ArrowClockwise,
+    DotsThree,
+    GearSix,
+    PencilSimpleLine,
+    Play,
+    Plus,
+    Trash,
+} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 
 import DeleteWebhookModal from "@/oss/components/Webhooks/Modals/DeleteWebhookModal"
@@ -113,7 +132,7 @@ const Webhooks: React.FC = () => {
                 handleTestResult(response)
             } catch (error) {
                 console.error(error)
-                message.error(WEBHOOK_TEST_FAILURE_MESSAGE, 10)
+                toast.error(WEBHOOK_TEST_FAILURE_MESSAGE, {duration: 10_000})
             } finally {
                 setTestingWebhookId(null)
             }
@@ -133,135 +152,135 @@ const Webhooks: React.FC = () => {
         setEditingWebhook(undefined)
     }, [setIsDrawerOpen, setEditingWebhook])
 
-    const columns = useMemo(
+    const columns: ColumnDef<WebhookSubscription, unknown>[] = useMemo(
         () => [
             {
-                title: "Name",
-                dataIndex: "name",
-                key: "name",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (name: string | undefined) => (
-                    <Typography.Text>{name || "-"}</Typography.Text>
-                ),
+                id: "name",
+                accessorKey: "name",
+                header: "Name",
+                minSize: 160,
+                enableSorting: false,
+                cell: ({row}) => <span>{row.original.name || "-"}</span>,
             },
             {
-                title: "Type",
-                key: "provider",
-                onHeaderCell: () => ({
-                    style: {minWidth: 100},
-                }),
-                render: (_: any, record: WebhookSubscription) => {
-                    const provider = getProviderLabel(record.data?.url)
+                id: "provider",
+                header: "Type",
+                minSize: 100,
+                enableSorting: false,
+                cell: ({row}) => {
+                    const provider = getProviderLabel(row.original.data?.url)
+                    return <span>{provider === "github" ? "GitHub" : "Webhook"}</span>
+                },
+            },
+            {
+                id: "url",
+                header: "Target",
+                minSize: 160,
+                enableSorting: false,
+                cell: ({row}) => {
+                    const url = row.original.data?.url
                     return (
-                        <Typography.Text>
-                            {provider === "github" ? "GitHub" : "Webhook"}
-                        </Typography.Text>
+                        <span className="inline-block max-w-[320px] truncate" title={url}>
+                            {formatDestination(url)}
+                        </span>
                     )
                 },
             },
             {
-                title: "Target",
-                dataIndex: ["data", "url"],
-                key: "url",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (url?: string) => (
-                    <Typography.Text ellipsis style={{maxWidth: 320}} title={url}>
-                        {formatDestination(url)}
-                    </Typography.Text>
-                ),
-            },
-            {
-                title: "Events",
-                dataIndex: ["data", "event_types"],
-                key: "events",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (events?: string[]) => {
-                    const value = events?.join(", ") || "-"
+                id: "events",
+                header: "Events",
+                minSize: 160,
+                enableSorting: false,
+                cell: ({row}) => {
+                    const value = row.original.data?.event_types?.join(", ") || "-"
                     return (
-                        <Typography.Text ellipsis style={{maxWidth: 260}} title={value}>
+                        <span className="inline-block max-w-[260px] truncate" title={value}>
                             {value}
-                        </Typography.Text>
+                        </span>
                     )
                 },
             },
             {
-                title: "Status",
-                key: "status",
-                onHeaderCell: () => ({
-                    style: {minWidth: 100},
-                }),
-                render: (_: any, record: WebhookSubscription) =>
-                    isWebhookActive(record) ? <Tag color="green">Active</Tag> : <Tag>Paused</Tag>,
+                id: "status",
+                header: "Status",
+                minSize: 100,
+                enableSorting: false,
+                cell: ({row}) =>
+                    isWebhookActive(row.original) ? (
+                        <Badge>Active</Badge>
+                    ) : (
+                        <Badge variant="secondary">Paused</Badge>
+                    ),
             },
             {
-                title: <GearSix size={16} />,
-                key: "actions",
-                width: 96,
-                fixed: "right" as const,
-                align: "center" as const,
-                render: (_: any, record: WebhookSubscription) => (
-                    <div className="flex items-center justify-center gap-1">
-                        <ActiveToggle
-                            active={isWebhookActive(record)}
-                            onToggle={handleToggle(record)}
-                            activatedMessage="Webhook resumed"
-                            pausedMessage="Webhook paused"
-                            errorMessage="Failed to update webhook"
-                        />
-                        <Dropdown
-                            trigger={["click"]}
-                            styles={{root: {width: 180}}}
-                            menu={{
-                                items: [
-                                    {
-                                        key: "test",
-                                        label: "Test",
-                                        icon: <Play size={16} />,
-                                        disabled: testingWebhookId !== null,
-                                        onClick: (e: any) => {
-                                            e.domEvent.stopPropagation()
-                                            handleTestWebhook(record)
-                                        },
-                                    },
-                                    {
-                                        key: "edit",
-                                        label: "Edit",
-                                        icon: <PencilSimpleLine size={16} />,
-                                        onClick: (e: any) => {
-                                            e.domEvent.stopPropagation()
-                                            handleEdit(record)
-                                        },
-                                    },
-                                    {type: "divider" as const},
-                                    {
-                                        key: "delete",
-                                        label: "Delete",
-                                        icon: <Trash size={16} />,
-                                        danger: true,
-                                        onClick: (e: any) => {
-                                            e.domEvent.stopPropagation()
-                                            handleDeleteClick(record)
-                                        },
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button
-                                type="text"
-                                icon={<MoreOutlined />}
-                                loading={testingWebhookId === record.id}
-                                aria-label="Open webhook actions"
-                                onClick={(e) => e.stopPropagation()}
+                id: "actions",
+                header: () => <GearSix size={16} className="mx-auto" />,
+                size: 96,
+                enableSorting: false,
+                cell: ({row}) => {
+                    const record = row.original
+                    return (
+                        <div className="flex items-center justify-center gap-1">
+                            <ActiveToggle
+                                active={isWebhookActive(record)}
+                                onToggle={handleToggle(record)}
+                                activatedMessage="Webhook resumed"
+                                pausedMessage="Webhook paused"
+                                errorMessage="Failed to update webhook"
                             />
-                        </Dropdown>
-                    </div>
-                ),
+                            <DropdownMenu>
+                                <DropdownMenuTrigger
+                                    render={
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="Open webhook actions"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            {testingWebhookId === record.id ? (
+                                                <Spinner />
+                                            ) : (
+                                                <DotsThree size={16} />
+                                            )}
+                                        </Button>
+                                    }
+                                />
+                                <DropdownMenuContent className="w-[180px]" align="end">
+                                    <DropdownMenuItem
+                                        disabled={testingWebhookId !== null}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleTestWebhook(record)
+                                        }}
+                                    >
+                                        <Play size={16} />
+                                        Test
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleEdit(record)
+                                        }}
+                                    >
+                                        <PencilSimpleLine size={16} />
+                                        Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleDeleteClick(record)
+                                        }}
+                                    >
+                                        <Trash size={16} />
+                                        Delete
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    )
+                },
             },
         ],
         [handleDeleteClick, handleEdit, handleTestWebhook, handleToggle, testingWebhookId],
@@ -270,37 +289,35 @@ const Webhooks: React.FC = () => {
     return (
         <section className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-                <Button
-                    type="primary"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    onClick={handleCreate}
-                >
+                <Button size="sm" onClick={handleCreate}>
+                    <Plus size={14} />
                     Subscribe
                 </Button>
-                <Tooltip title="Reload all webhooks">
-                    <Button
-                        icon={<ArrowClockwise size={14} />}
-                        type="text"
-                        size="small"
-                        aria-label="Reload all webhooks"
-                        loading={reloading}
-                        onClick={reloadAll}
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Reload all webhooks"
+                                disabled={reloading}
+                                onClick={reloadAll}
+                            >
+                                {reloading ? <Spinner /> : <ArrowClockwise size={14} />}
+                            </Button>
+                        }
                     />
+                    <TooltipContent>Reload all webhooks</TooltipContent>
                 </Tooltip>
             </div>
 
-            <Table
+            <DataTable<WebhookSubscription>
                 columns={columns}
-                dataSource={webhooks ?? []}
+                data={webhooks ?? []}
                 loading={isLoading}
-                rowKey="id"
-                bordered
-                pagination={false}
-                onRow={(record) => ({
-                    onClick: () => handleEdit(record),
-                    style: {cursor: "pointer"},
-                })}
+                getRowId={(record) => record.id}
+                enableSorting={false}
+                onRowClick={(row) => handleEdit(row.original)}
             />
 
             <WebhookDrawer onSuccess={handleModalSuccess} />
