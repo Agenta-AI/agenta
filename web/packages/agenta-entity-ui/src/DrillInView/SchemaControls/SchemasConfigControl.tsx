@@ -6,7 +6,7 @@ import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CopySimple} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 
 const SCHEMA_FIELDS = ["parameters", "inputs", "outputs"] as const
@@ -57,9 +57,7 @@ const SchemaEditor = memo(function SchemaEditor({
 
     const header = (
         <div className="w-full flex items-start justify-between py-1">
-            <Typography.Text strong className="text-sm pl-2">
-                {FIELD_LABELS[field]}
-            </Typography.Text>
+            <span className="text-sm pl-2 font-semibold">{FIELD_LABELS[field]}</span>
             <div className="flex items-center gap-1 shrink-0">
                 <Tooltip title="Copy">
                     <Button

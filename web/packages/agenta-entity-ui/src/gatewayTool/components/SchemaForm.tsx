@@ -3,7 +3,7 @@ import {forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState}
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, InputNumber, Switch, Select, Typography} from "antd"
+import {Button, Collapse, Form, Input, InputNumber, Switch, Select} from "antd"
 import type {FormInstance} from "antd"
 
 export interface SchemaFormHandle {
@@ -84,9 +84,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
 
         if (fields.length === 0 && !jsonMode) {
             return (
-                <Typography.Text type="secondary" className="text-xs">
-                    No input parameters required.
-                </Typography.Text>
+                <span className="text-xs text-muted-foreground">No input parameters required.</span>
             )
         }
 
@@ -105,11 +103,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             disabled={disabled}
                         />
                     </div>
-                    {jsonError && (
-                        <Typography.Text type="danger" className="text-xs">
-                            {jsonError}
-                        </Typography.Text>
-                    )}
+                    {jsonError && <span className="text-xs text-destructive">{jsonError}</span>}
                 </div>
             )
         }
@@ -143,9 +137,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                   {
                                       key: "optional",
                                       label: (
-                                          <Typography.Text type="secondary" className="text-xs">
+                                          <span className="text-xs text-muted-foreground">
                                               Optional ({optionalFields.length})
-                                          </Typography.Text>
+                                          </span>
                                       ),
                                       children: optionalFields.map((field) => (
                                           <SchemaFormField key={field.name} field={field} />
@@ -212,9 +206,9 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
                 {field.required && <span className="text-red-500 ml-1">*</span>}
             </span>
             {field.description && (
-                <Typography.Text type="secondary" className="!text-[11px] font-normal leading-snug">
+                <span className="!text-[11px] font-normal leading-snug text-muted-foreground">
                     {field.description}
-                </Typography.Text>
+                </span>
             )}
         </div>
     )
@@ -242,12 +236,9 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
                                     {field.required && <span className="text-red-500 ml-1">*</span>}
                                 </span>
                                 {field.description && (
-                                    <Typography.Text
-                                        type="secondary"
-                                        className="!text-xs leading-snug"
-                                    >
+                                    <span className="!text-xs leading-snug text-muted-foreground">
                                         {field.description}
-                                    </Typography.Text>
+                                    </span>
                                 )}
                             </div>
                         ),
@@ -374,12 +365,9 @@ function ArrayField({
                         {field.required && <span className="text-red-500 ml-1">*</span>}
                     </span>
                     {field.description && (
-                        <Typography.Text
-                            type="secondary"
-                            className="!text-[11px] font-normal leading-snug"
-                        >
+                        <span className="!text-[11px] font-normal leading-snug text-muted-foreground">
                             {field.description}
-                        </Typography.Text>
+                        </span>
                     )}
                 </div>
             </div>
@@ -403,9 +391,7 @@ function ArrayField({
                 {(fields, {add, remove}) => (
                     <div className="flex flex-col gap-2">
                         {fields.length === 0 && (
-                            <Typography.Text type="secondary" className="text-xs">
-                                No items added
-                            </Typography.Text>
+                            <span className="text-xs text-muted-foreground">No items added</span>
                         )}
 
                         {fields.map(({key, name, ...restField}) =>
@@ -490,7 +476,7 @@ function ArrayObjectItem({
                     key: "item",
                     label: (
                         <div className="flex items-center justify-between w-full">
-                            <Typography.Text className="text-xs">Item {name + 1}</Typography.Text>
+                            <span className="text-xs">Item {name + 1}</span>
                         </div>
                     ),
                     extra: (
@@ -528,9 +514,7 @@ function ArrayObjectItem({
                                         {
                                             key: "nested",
                                             label: (
-                                                <Typography.Text className="font-medium">
-                                                    {child.label}
-                                                </Typography.Text>
+                                                <span className="font-medium">{child.label}</span>
                                             ),
                                             children: child.children.map((gc) => (
                                                 <Form.Item

@@ -19,7 +19,7 @@ import type {SchemaProperty} from "@agenta/entities/shared"
 import {EnhancedModal, ModalFooter} from "@agenta/ui/components/modal"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Button, Select, Typography} from "antd"
+import {Button, Select} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom, type PrimitiveAtom} from "jotai"
 import {atomWithReset} from "jotai/utils"
@@ -265,10 +265,10 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
                         />
                     }
                 >
-                    <Typography.Text className="mb-2 block">
+                    <span className="mb-2 block">
                         Define the JSON schema for the structured output. The model will return
                         responses that conform to this schema.
-                    </Typography.Text>
+                    </span>
                     <div className="flex flex-col w-full gap-1 [&_.agenta-shared-editor]:box-border [&_.agenta-shared-editor]:!overflow-y-auto [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-code]:!pt-0 [&_.editor-code]:!pb-0 [&_.code-segment:first-child>br]:hidden">
                         {editorContent}
                     </div>

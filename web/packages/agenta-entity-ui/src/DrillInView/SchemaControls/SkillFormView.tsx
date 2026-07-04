@@ -17,7 +17,7 @@ import {useState} from "react"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {File as FileIcon, Info, Plus, Trash} from "@phosphor-icons/react"
-import {Input, Switch, Tooltip, Typography} from "antd"
+import {Input, Switch, Tooltip} from "antd"
 
 import {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
 import {MarkdownEditor} from "./MarkdownEditor"
@@ -50,7 +50,7 @@ function ToggleRow({
     return (
         <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-1">
-                <Typography.Text className="text-xs font-medium">{label}</Typography.Text>
+                <span className="text-xs font-medium">{label}</span>
                 <Tooltip title={description}>
                     <Info size={13} className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
                 </Tooltip>
@@ -185,7 +185,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
             {/* Left: full-height file list (SKILL.md pinned) with the drop zone pinned to the bottom. */}
             <div className="ag-drawer-rail flex h-full w-44 shrink-0 flex-col gap-2 border-0 border-r border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pr-3">
                 <div className="flex shrink-0 items-center justify-between gap-1">
-                    <Typography.Text className="text-xs font-medium">Files</Typography.Text>
+                    <span className="text-xs font-medium">Files</span>
                     {!disabled ? (
                         <Tooltip title="Add a file">
                             <button
@@ -285,9 +285,9 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                             />
                             <Tooltip title="Mark executable (sandbox policy must also allow it)">
                                 <span className="flex shrink-0 items-center gap-1">
-                                    <Typography.Text type="secondary" className="font-mono text-xs">
+                                    <span className="font-mono text-xs text-muted-foreground">
                                         +x
-                                    </Typography.Text>
+                                    </span>
                                     <Switch
                                         checked={Boolean(activeFile?.executable)}
                                         onChange={(v) =>

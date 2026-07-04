@@ -7,7 +7,7 @@ import {type ReactNode} from "react"
 
 import {cn} from "@agenta/ui/styles"
 import {CaretRight, Trash} from "@phosphor-icons/react"
-import {Tag, Tooltip, Typography} from "antd"
+import {Tag, Tooltip} from "antd"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
 
@@ -123,12 +123,9 @@ export function ItemRow({
                     {descriptor.name}
                 </div>
                 {descriptor.description ? (
-                    <Typography.Text
-                        type="secondary"
-                        className="block truncate text-xs leading-tight"
-                    >
+                    <span className="block truncate text-xs leading-tight text-muted-foreground">
                         {descriptor.description}
-                    </Typography.Text>
+                    </span>
                 ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -203,12 +200,9 @@ export function ItemChildRow({
                     {descriptor.name}
                 </div>
                 {descriptor.description ? (
-                    <Typography.Text
-                        type="secondary"
-                        className="block truncate text-[11px] leading-snug"
-                    >
+                    <span className="block truncate text-[11px] leading-snug text-muted-foreground">
                         {descriptor.description}
-                    </Typography.Text>
+                    </span>
                 ) : null}
             </div>
             <div
@@ -283,19 +277,14 @@ export function InstructionsFileRow({
                     <span className="truncate font-mono text-[13px] font-medium leading-tight">
                         {filename}
                     </span>
-                    <Typography.Text type="secondary" className="shrink-0 text-[11px]">
-                        {meta}
-                    </Typography.Text>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">{meta}</span>
                     {status ? <StatusTag status={status} /> : null}
                 </div>
                 {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
                     clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}
-                <Typography.Text
-                    type="secondary"
-                    className="mt-1 line-clamp-2 text-xs leading-snug"
-                >
+                <span className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">
                     {descriptor.description}
-                </Typography.Text>
+                </span>
             </div>
             <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
         </div>

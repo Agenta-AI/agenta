@@ -9,7 +9,6 @@
 import {useState} from "react"
 
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Typography} from "antd"
 
 export interface JsonObjectEditorProps {
     /** Current object value. Serialized to seed the editor on mount. */
@@ -62,11 +61,7 @@ export function JsonObjectEditor({
                     syncWithInitialValueChanges
                 />
             </div>
-            {error ? (
-                <Typography.Text type="danger" className="text-xs">
-                    {error}
-                </Typography.Text>
-            ) : null}
+            {error ? <span className="text-xs text-destructive">{error}</span> : null}
         </div>
     )
 }

@@ -10,9 +10,7 @@ import {memo} from "react"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {cn, textColors} from "@agenta/ui/styles"
 import {Info} from "@phosphor-icons/react"
-import {Switch, Tooltip, Typography} from "antd"
-
-const {Text} = Typography
+import {Switch, Tooltip} from "antd"
 
 export interface BooleanToggleControlProps {
     /** The schema property (used for description) */
@@ -61,7 +59,7 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
         <div className={cn("flex items-center justify-between gap-3", className)}>
             <div className="flex items-center gap-1">
                 {label && (
-                    <Text className={cn("font-medium text-xs", textColors.primary)}>{label}</Text>
+                    <span className={cn("font-medium text-xs", textColors.primary)}>{label}</span>
                 )}
                 {showTooltipIcon && (
                     <Tooltip title={tooltipText} placement="right">

@@ -23,7 +23,7 @@ import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/pres
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, GraphIcon, MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
@@ -320,9 +320,9 @@ function GatewayToolHeaderIdentity({
                     className="h-6 w-6 rounded object-contain shrink-0"
                 />
             ) : null}
-            <Typography.Text className="truncate">
+            <span className="truncate">
                 {integrationKey} / {actionLabel} / {connectionLabel}
-            </Typography.Text>
+            </span>
         </div>
     )
 }
@@ -400,19 +400,17 @@ const ToolHeader = memo(function ToolHeader({
                             <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--ag-c-F8FAFC)]">
                                 <GraphIcon size={14} />
                             </span>
-                            <Typography.Text strong className="text-sm truncate">
+                            <span className="text-sm truncate font-semibold">
                                 {name || referenceSlug || "Workflow tool"}
-                            </Typography.Text>
+                            </span>
                             {referenceSlug && (
-                                <Typography.Text type="secondary" className="text-xs truncate">
+                                <span className="text-xs truncate text-muted-foreground">
                                     / {referenceSlug}
-                                </Typography.Text>
+                                </span>
                             )}
                         </div>
                         {desc ? (
-                            <Typography.Text type="secondary" className="text-xs">
-                                {desc}
-                            </Typography.Text>
+                            <span className="text-xs text-muted-foreground">{desc}</span>
                         ) : null}
                     </div>
                 ) : isBuiltinTool ? (
@@ -423,33 +421,27 @@ const ToolHeader = memo(function ToolHeader({
                                     {builtinIcon}
                                 </span>
                             )}
-                            {builtinProviderLabel && (
-                                <Typography.Text>{builtinProviderLabel}</Typography.Text>
-                            )}
+                            {builtinProviderLabel && <span>{builtinProviderLabel}</span>}
                         </div>
 
                         {builtinToolLabel && (
                             <>
-                                {builtinProviderLabel && <Typography.Text>/</Typography.Text>}
-                                <Typography.Text type="secondary">
-                                    {builtinToolLabel}
-                                </Typography.Text>
+                                {builtinProviderLabel && <span>/</span>}
+                                <span className="text-muted-foreground">{builtinToolLabel}</span>
                             </>
                         )}
                     </div>
                 ) : (
                     <div className="flex flex-col gap-0.5">
-                        <Typography.Text strong className="text-sm truncate">
+                        <span className="text-sm truncate font-semibold">
                             {name || "Function Name"}
-                        </Typography.Text>
+                        </span>
                         {desc ? (
-                            <Typography.Text type="secondary" className="text-xs">
-                                {desc}
-                            </Typography.Text>
+                            <span className="text-xs text-muted-foreground">{desc}</span>
                         ) : (
-                            <Typography.Text type="secondary" className="text-xs opacity-50">
+                            <span className="text-xs opacity-50 text-muted-foreground">
                                 Function Description
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                 )}

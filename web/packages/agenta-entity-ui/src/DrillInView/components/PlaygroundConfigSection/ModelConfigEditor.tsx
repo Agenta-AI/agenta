@@ -3,7 +3,7 @@ import {memo} from "react"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Select, Typography} from "antd"
+import {Select} from "antd"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
 import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
@@ -43,9 +43,7 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
         if (enumValues && enumValues.length > 0) {
             return (
                 <div key={key} className="flex flex-col gap-1">
-                    <Typography.Text className="font-medium">
-                        {formatLabel(schema.title || key)}
-                    </Typography.Text>
+                    <span className="font-medium">{formatLabel(schema.title || key)}</span>
                     <Select
                         value={(value?.[key] as string | null) ?? undefined}
                         onChange={(v) => onChange(key, v ?? null)}

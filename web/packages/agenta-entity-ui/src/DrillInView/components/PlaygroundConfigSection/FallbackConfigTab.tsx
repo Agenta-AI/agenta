@@ -3,7 +3,7 @@ import {memo} from "react"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {CaretRight, X} from "@phosphor-icons/react"
-import {Button, Select, Tooltip, Typography} from "antd"
+import {Button, Select, Tooltip} from "antd"
 
 interface PolicyOption {
     label: string
@@ -54,8 +54,8 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
         <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text>{policyTitle}</Typography.Text>
-                    <Typography.Text type="secondary">{policyDescription}</Typography.Text>
+                    <span>{policyTitle}</span>
+                    <span className="text-muted-foreground">{policyDescription}</span>
                 </div>
                 <Select
                     size="small"
@@ -71,9 +71,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                             <div className="flex items-center justify-between gap-3">
                                 <span>{option.label}</span>
                                 {description && (
-                                    <Typography.Text type="secondary">
-                                        {description}
-                                    </Typography.Text>
+                                    <span className="text-muted-foreground">{description}</span>
                                 )}
                             </div>
                         )
@@ -82,8 +80,8 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
             </div>
             <div className="flex flex-col gap-2">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text>{fallbackConfigsTitle}</Typography.Text>
-                    <Typography.Text type="secondary" className="leading-snug">
+                    <span>{fallbackConfigsTitle}</span>
+                    <span className="leading-snug text-muted-foreground">
                         {fallbackConfigsDescription}{" "}
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
@@ -93,7 +91,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                         >
                             Learn more
                         </a>
-                    </Typography.Text>
+                    </span>
                 </div>
                 {fallbackConfigs.map((config, index) => (
                     <div

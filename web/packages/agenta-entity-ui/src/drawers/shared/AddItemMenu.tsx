@@ -10,7 +10,7 @@
 import {memo, useCallback, useState, type ReactNode} from "react"
 
 import {CaretRight, Plus} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Tooltip} from "antd"
 
 export interface AddItemMenuItem {
     key: string
@@ -33,9 +33,9 @@ export interface AddItemGroup {
 
 function GroupLabel({children}: {children: ReactNode}) {
     return (
-        <Typography.Text className="block px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+        <span className="block px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
             {children}
-        </Typography.Text>
+        </span>
     )
 }
 

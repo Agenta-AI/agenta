@@ -21,7 +21,7 @@ import {VersionBadge} from "@agenta/ui/components/presentational"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
-import {Input, Alert, Typography, Radio, Button, Tag} from "antd"
+import {Input, Alert, Radio, Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
@@ -45,11 +45,6 @@ import {
 } from "../state"
 
 import AgentChangesSummary from "./changes/AgentChangesSummary"
-
-// Lazy load DiffView to avoid bundling Lexical editor in _app chunk
-// const DiffView = dynamic(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
-
-const {Text} = Typography
 
 export interface CommitModeOption {
     id: string
@@ -325,15 +320,15 @@ export function EntityCommitContent({
                                 </div>
                             )}
                             {!slugFieldError && !slugValidationError && (
-                                <Text className={cn(textColors.tertiary)}>
+                                <span className={cn(textColors.tertiary)}>
                                     Edit freely - use the regenerate button to add a random suffix
                                     back.
-                                </Text>
+                                </span>
                             )}
                         </>
                     ) : (
                         <div className="flex min-w-0 items-center gap-2">
-                            <Text className="shrink-0 font-medium">Slug:</Text>
+                            <span className="shrink-0 font-medium">Slug:</span>
                             <Tag
                                 className="min-w-0 max-w-[min(220px,calc(100%-88px))] truncate bg-gray-100 font-mono text-gray-500"
                                 title={entitySlug}
@@ -376,9 +371,9 @@ export function EntityCommitContent({
                 )}
             >
                 {isAgentCommit ? (
-                    <Text className="shrink-0 text-base font-semibold">
+                    <span className="shrink-0 text-base font-semibold">
                         {actionLabel} {appName || originalEntityName}
-                    </Text>
+                    </span>
                 ) : null}
 
                 {/* Body scrolls so a tall variant form can't squeeze the message textarea;
@@ -404,7 +399,7 @@ export function EntityCommitContent({
                         >
                             {(selectedMode ?? "version") === "variant" ? (
                                 <div className="flex flex-col gap-3">
-                                    <Text
+                                    <span
                                         className={cn(
                                             "text-xs leading-relaxed",
                                             textColors.secondary,
@@ -415,7 +410,7 @@ export function EntityCommitContent({
                                             {appName || originalEntityName}
                                         </span>{" "}
                                         stays on v{context.versionInfo.currentVersion}.
-                                    </Text>
+                                    </span>
                                     {nameEditorInRail ? (
                                         <div className="border-t border-[var(--ag-colorBorderSecondary)] pt-3">
                                             {nameSlugEditor}
@@ -423,7 +418,7 @@ export function EntityCommitContent({
                                     ) : null}
                                 </div>
                             ) : (
-                                <Text
+                                <span
                                     className={cn("text-xs leading-relaxed", textColors.secondary)}
                                 >
                                     Saves as{" "}
@@ -432,7 +427,7 @@ export function EntityCommitContent({
                                     </span>
                                     . Everyone using {appName || originalEntityName} gets your
                                     changes.
-                                </Text>
+                                </span>
                             )}
                         </SectionRail>
                     )}
@@ -441,12 +436,12 @@ export function EntityCommitContent({
                     since there's no existing entity to show version transitions for */}
                     {context?.versionInfo && actionLabel === "Commit" && !isAgentCommit && (
                         <div className="rounded-lg border border-zinc-2 bg-zinc-1 p-3">
-                            <Text className={textColors.secondary}>
+                            <span className={textColors.secondary}>
                                 {selectedMode === "variant"
                                     ? "This will create a new variant from "
                                     : "This will create a new revision of "}
                                 <span className="font-medium">{originalEntityName}</span>.
-                            </Text>
+                            </span>
                             <div className="mt-2 flex items-center gap-2 min-w-0">
                                 <span className="flex items-center gap-1 min-w-0">
                                     <span
@@ -597,17 +592,17 @@ export function EntityCommitContent({
             ) : hasDiffData ? (
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-2 bg-zinc-1">
                     <div className="flex items-center justify-between border-b border-zinc-2 bg-zinc-1 px-3 py-2 shrink-0">
-                        <Text
+                        <span
                             className={cn(
                                 "text-xs font-semibold uppercase tracking-wide",
                                 textColors.secondary,
                             )}
                         >
                             Changes preview
-                        </Text>
-                        <Text className={cn("text-xs", textColors.quaternary)}>
+                        </span>
+                        <span className={cn("text-xs", textColors.quaternary)}>
                             {formatCount(totalChanges, "change")}
-                        </Text>
+                        </span>
                     </div>
                     <div className="flex-1 overflow-auto">
                         <DiffView

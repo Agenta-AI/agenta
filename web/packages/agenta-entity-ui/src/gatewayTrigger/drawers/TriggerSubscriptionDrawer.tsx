@@ -51,7 +51,7 @@ import {
     Plus,
     Tag,
 } from "@phosphor-icons/react"
-import {Button, Form, Input, Spin, Tooltip, Typography} from "antd"
+import {Button, Form, Input, Spin, Tooltip} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {AppLogo} from "../../drawers/shared/CatalogAppCard"
@@ -1161,9 +1161,9 @@ function SourceField({
                 </button>
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                <span className="!text-[11px] leading-snug text-muted-foreground">
                     Event filters
-                </Typography.Text>
+                </span>
                 {triggerConfigSchema ? (
                     <div className="max-w-prose">
                         <SchemaForm
@@ -1174,9 +1174,9 @@ function SourceField({
                         />
                     </div>
                 ) : (
-                    <Typography.Text type="secondary" className="!text-[11px]">
+                    <span className="!text-[11px] text-muted-foreground">
                         No filters for this event.
-                    </Typography.Text>
+                    </span>
                 )}
             </div>
         </div>
@@ -1575,15 +1575,13 @@ function InputsMappingField({
                     dimensions={{width: "100%", height: 120}}
                 />
             </div>
-            <Typography.Text type="secondary" className="mt-1 block !text-[11px] leading-snug">
+            <span className="mt-1 block !text-[11px] leading-snug text-muted-foreground">
                 String values are selectors against the event payload: <code>$.path</code>{" "}
                 (JSONPath), <code>/path</code> (JSON Pointer), or a literal.
-            </Typography.Text>
+            </span>
             {payloadKeys.length > 0 && (
                 <div className="mt-1 flex flex-wrap items-center gap-1">
-                    <Typography.Text type="secondary" className="!text-[11px]">
-                        Available:
-                    </Typography.Text>
+                    <span className="!text-[11px] text-muted-foreground">Available:</span>
                     {payloadKeys.slice(0, 12).map((k) => (
                         <code
                             key={k}
@@ -1593,9 +1591,9 @@ function InputsMappingField({
                         </code>
                     ))}
                     {payloadKeys.length > 12 && (
-                        <Typography.Text type="secondary" className="!text-[11px]">
+                        <span className="!text-[11px] text-muted-foreground">
                             +{payloadKeys.length - 12} more
-                        </Typography.Text>
+                        </span>
                     )}
                 </div>
             )}
@@ -1610,18 +1608,16 @@ function InputsMappingField({
                             <span className="text-[var(--ag-colorTextTertiary)]">→</span>
                             {leaf.isSelector ? (
                                 leaf.resolved === undefined ? (
-                                    <Typography.Text type="warning" className="!text-[11px]">
+                                    <span className="!text-[11px] text-amber-600 dark:text-amber-400">
                                         no sample value
-                                    </Typography.Text>
+                                    </span>
                                 ) : (
                                     <code className="max-w-[280px] truncate text-[var(--ag-colorSuccess)]">
                                         {leaf.resolved}
                                     </code>
                                 )
                             ) : (
-                                <Typography.Text type="secondary" className="!text-[11px]">
-                                    literal
-                                </Typography.Text>
+                                <span className="!text-[11px] text-muted-foreground">literal</span>
                             )}
                         </div>
                     ))}
@@ -1741,9 +1737,9 @@ function MappingSection({
         return (
             <div className="flex min-w-0 flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                    <span className="!text-[11px] leading-snug text-muted-foreground">
                         Map the event into the workflow inputs (JSON).
-                    </Typography.Text>
+                    </span>
                     <EventSourcePicker
                         placement="bottomRight"
                         trigger={
@@ -1773,11 +1769,11 @@ function MappingSection({
 
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+            <span className="!text-[11px] leading-snug text-muted-foreground">
                 {isChat
                     ? "Write the message your agent receives. Click a field to drop in its live value."
                     : "Build the agent's input from the event. Click a field to drop in its live value."}
-            </Typography.Text>
+            </span>
 
             {raw ? (
                 <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorder)]">
@@ -1795,12 +1791,9 @@ function MappingSection({
                     {/* Left rail = the data (event fields + live values), like the other sections' rails. */}
                     <div className="flex w-[200px] shrink-0 flex-col gap-1">
                         <div className="flex items-center justify-between gap-2">
-                            <Typography.Text
-                                type="secondary"
-                                className="!text-[11px] font-medium uppercase tracking-wide"
-                            >
+                            <span className="!text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                                 Event fields
-                            </Typography.Text>
+                            </span>
                             <EventSourcePicker
                                 placement="bottomRight"
                                 trigger={
@@ -1862,12 +1855,9 @@ function MappingSection({
 
                     {/* Right = the message built from that data (divider mirrors the other sections). */}
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                        <Typography.Text
-                            type="secondary"
-                            className="!text-[11px] font-medium uppercase tracking-wide"
-                        >
+                        <span className="!text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                             Message
-                        </Typography.Text>
+                        </span>
                         <PillEditor
                             value={template}
                             onChange={setTpl}
@@ -1910,11 +1900,7 @@ function MappingSection({
                 {raw ? "← Back to composer" : "Advanced · raw JSON"}
             </button>
 
-            {error && (
-                <Typography.Text type="danger" className="!text-[11px]">
-                    {error}
-                </Typography.Text>
-            )}
+            {error && <span className="!text-[11px] text-destructive">{error}</span>}
         </div>
     )
 }

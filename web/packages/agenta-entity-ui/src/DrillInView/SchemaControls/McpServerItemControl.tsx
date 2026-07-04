@@ -14,7 +14,7 @@ import {memo, useCallback, useEffect, useRef, useState} from "react"
 import {safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 
 export interface McpServerItemControlProps {
@@ -92,9 +92,7 @@ export const McpServerItemControl = memo(function McpServerItemControl({
 
     const header = (
         <div className="w-full flex items-center justify-between py-1">
-            <Typography.Text strong className="text-sm truncate">
-                {name}
-            </Typography.Text>
+            <span className="text-sm truncate font-semibold">{name}</span>
             {!disabled && onDelete && (
                 <Tooltip title="Remove">
                     <Button

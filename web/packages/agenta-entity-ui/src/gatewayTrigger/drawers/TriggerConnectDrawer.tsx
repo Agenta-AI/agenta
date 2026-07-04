@@ -4,7 +4,7 @@ import {createTriggerConnection, fetchTriggerConnection} from "@agenta/entities/
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
 import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
-import {Divider, Form, Input, message, Select, Tooltip, Typography} from "antd"
+import {Divider, Form, Input, message, Select, Tooltip} from "antd"
 import Image from "next/image"
 
 const DEFAULT_PROVIDER = "composio"
@@ -185,13 +185,11 @@ export default function TriggerConnectDrawer({
                         />
                     )}
                     <div className="flex flex-col min-w-0">
-                        <Typography.Text strong className="leading-snug">
-                            {integrationName}
-                        </Typography.Text>
+                        <span className="leading-snug font-semibold">{integrationName}</span>
                         {integrationDescription && (
-                            <Typography.Text type="secondary" className="!text-xs line-clamp-2">
+                            <span className="!text-xs line-clamp-2 text-muted-foreground">
                                 {integrationDescription}
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                 </div>

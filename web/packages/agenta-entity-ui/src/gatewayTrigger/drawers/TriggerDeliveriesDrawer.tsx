@@ -8,7 +8,7 @@ import {
     type TriggerDeliveryRow,
 } from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
+import {CopyButton, EnhancedModal, ModalContent} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
     createStandardColumns,
@@ -16,7 +16,7 @@ import {
     useTableManager,
 } from "@agenta/ui/table"
 import {Code, Play} from "@phosphor-icons/react"
-import {Empty, Tag, Tooltip, Typography, message} from "antd"
+import {Empty, Tag, Tooltip, message} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtom, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -124,13 +124,16 @@ export default function TriggerDeliveriesDrawer() {
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
                         return (
-                            <Typography.Text
-                                className="!text-xs"
-                                copyable={{text: record.event_id}}
-                                ellipsis
-                            >
-                                {record.event_id}
-                            </Typography.Text>
+                            <div className="flex min-w-0 items-center gap-1">
+                                <span className="truncate !text-xs">{record.event_id}</span>
+                                <CopyButton
+                                    text={record.event_id}
+                                    buttonText={null}
+                                    icon
+                                    type="text"
+                                    size="small"
+                                />
+                            </div>
                         )
                     },
                 },
@@ -143,20 +146,16 @@ export default function TriggerDeliveriesDrawer() {
                         if (record.__isSkeleton) return null
                         if (record.data?.error) {
                             return (
-                                <Typography.Text type="danger" className="!text-xs" ellipsis>
+                                <span className="!text-xs text-destructive truncate">
                                     {record.data.error}
-                                </Typography.Text>
+                                </span>
                             )
                         }
                         const result = record.data?.result
                         if (!result || Object.keys(result).length === 0) {
-                            return <Typography.Text type="secondary">-</Typography.Text>
+                            return <span className="text-muted-foreground">-</span>
                         }
-                        return (
-                            <Typography.Text className="!text-xs" ellipsis>
-                                {JSON.stringify(result)}
-                            </Typography.Text>
-                        )
+                        return <span className="!text-xs truncate">{JSON.stringify(result)}</span>
                     },
                 },
                 {
@@ -168,9 +167,9 @@ export default function TriggerDeliveriesDrawer() {
                         if (record.__isSkeleton) return null
                         const ts = record.status?.timestamp ?? record.created_at
                         return (
-                            <Typography.Text className="!text-xs">
+                            <span className="!text-xs">
                                 {ts ? new Date(ts).toLocaleString() : "-"}
-                            </Typography.Text>
+                            </span>
                         )
                     },
                 },

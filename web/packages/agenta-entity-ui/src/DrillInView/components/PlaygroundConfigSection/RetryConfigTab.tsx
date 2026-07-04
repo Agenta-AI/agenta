@@ -2,7 +2,7 @@ import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
-import {Select, Tooltip, Typography} from "antd"
+import {Select, Tooltip} from "antd"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
 import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
@@ -87,8 +87,8 @@ export const RetryConfigTab = memo(function RetryConfigTab({
             )}
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text>{policyTitle}</Typography.Text>
-                    <Typography.Text type="secondary" className="leading-snug">
+                    <span>{policyTitle}</span>
+                    <span className="leading-snug text-muted-foreground">
                         {policyDescription}{" "}
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
@@ -98,7 +98,7 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                         >
                             Learn more
                         </a>
-                    </Typography.Text>
+                    </span>
                 </div>
                 <Tooltip title={!isPolicyEnabled ? retryRequiredMessage : undefined}>
                     <span>
@@ -118,9 +118,9 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                                     <div className="flex items-center justify-between gap-3">
                                         <span>{option.label}</span>
                                         {description && (
-                                            <Typography.Text type="secondary">
+                                            <span className="text-muted-foreground">
                                                 {description}
-                                            </Typography.Text>
+                                            </span>
                                         )}
                                     </div>
                                 )

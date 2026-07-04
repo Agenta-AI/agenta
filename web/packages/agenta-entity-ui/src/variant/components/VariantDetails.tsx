@@ -1,5 +1,5 @@
 import {DraftTag} from "@agenta/ui/components"
-import {Dropdown, Space, Tag, Typography} from "antd"
+import {Dropdown, Space, Tag} from "antd"
 import type {MenuProps} from "antd"
 
 interface VariantDetailsProps {
@@ -38,7 +38,7 @@ const VariantDetails = ({
     }
     return (
         <Space size={4}>
-            {variantName ? <Typography>{variantName}</Typography> : null}
+            {variantName ? <span>{variantName}</span> : null}
             {revision !== undefined &&
                 revision !== null &&
                 revision !== "" &&
@@ -47,7 +47,7 @@ const VariantDetails = ({
                         v{revision}
                     </Tag>
                 ) : (
-                    <Typography.Text>v{revision}</Typography.Text>
+                    <span>v{revision}</span>
                 ))}
 
             {hasChanges ? (

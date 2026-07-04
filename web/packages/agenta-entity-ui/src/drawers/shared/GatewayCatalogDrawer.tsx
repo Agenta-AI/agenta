@@ -23,7 +23,7 @@ import {
     Plus,
 } from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Card, Divider, Dropdown, Empty, Input, Spin, Tag, Typography} from "antd"
+import {Button, Card, Divider, Dropdown, Empty, Input, Spin, Tag} from "antd"
 import Image from "next/image"
 
 import {AppCard} from "./CatalogAppCard"
@@ -98,18 +98,18 @@ export interface CatalogConfig<I, T, C> {
 }
 
 function ExpandableText({text}: {text: string}) {
+    const [expanded, setExpanded] = useState(false)
     return (
-        <Typography.Paragraph
-            type="secondary"
-            className="!mb-0 !text-xs"
-            ellipsis={{
-                rows: 3,
-                expandable: "collapsible",
-                symbol: (expanded) => (expanded ? "see less" : "see more"),
-            }}
-        >
-            {text}
-        </Typography.Paragraph>
+        <div className="text-xs text-muted-foreground">
+            <p className={expanded ? "mb-0" : "mb-0 line-clamp-3"}>{text}</p>
+            <button
+                type="button"
+                className="border-0 bg-transparent p-0 text-xs text-primary hover:underline"
+                onClick={() => setExpanded((value) => !value)}
+            >
+                {expanded ? "see less" : "see more"}
+            </button>
+        </div>
     )
 }
 
@@ -235,9 +235,7 @@ function IntegrationsView<I, T, C>({
             {hasConnections && (
                 <div className="flex w-[280px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
                     <div className="shrink-0 px-4 pb-2 pt-4">
-                        <Typography.Text type="secondary" className="text-xs">
-                            Your connections
-                        </Typography.Text>
+                        <span className="text-xs text-muted-foreground">Your connections</span>
                     </div>
                     <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-3 pb-2">
                         {connections.map((conn) => {
@@ -308,9 +306,9 @@ function IntegrationsView<I, T, C>({
 
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <div className="flex shrink-0 flex-col gap-2 px-6 pb-3 pt-4">
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-xs text-muted-foreground">
                         {hasConnections ? "Or connect a new app" : "Connect an app"}
-                    </Typography.Text>
+                    </span>
                     <Input
                         placeholder={config.appsSearchPlaceholder}
                         prefix={<MagnifyingGlass size={16} />}
@@ -319,9 +317,9 @@ function IntegrationsView<I, T, C>({
                         allowClear
                         onClear={() => onSearch("")}
                     />
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-xs text-muted-foreground">
                         {total} integration{total !== 1 ? "s" : ""}
-                    </Typography.Text>
+                    </span>
                 </div>
 
                 <Divider className="!m-0" />
@@ -484,9 +482,9 @@ function ItemsView<I, T, C>({
                             unoptimized
                         />
                     )}
-                    <Typography.Text strong className="flex-1 truncate">
+                    <span className="flex-1 truncate font-semibold">
                         {adapter.integration.name(integration)}
-                    </Typography.Text>
+                    </span>
                     <div className="shrink-0">
                         {connectionMenu && connections.length > 0 ? (
                             <Dropdown.Button
@@ -517,9 +515,9 @@ function ItemsView<I, T, C>({
                     onClear={() => onSearch("")}
                 />
 
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground">
                     {total} item{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
             <Divider className="!m-0" />
@@ -565,10 +563,10 @@ function ItemsView<I, T, C>({
                                         <div className="flex items-start gap-2">
                                             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                                                 <div className="flex items-center gap-2">
-                                                    <Typography.Text strong className="truncate">
+                                                    <span className="truncate font-semibold">
                                                         {adapter.item.name(item) ||
                                                             adapter.item.key(item)}
-                                                    </Typography.Text>
+                                                    </span>
                                                     {categories?.slice(0, 2).map((c) => (
                                                         <Tag key={c} className="text-xs">
                                                             {c}
@@ -576,12 +574,9 @@ function ItemsView<I, T, C>({
                                                     ))}
                                                 </div>
                                                 {itemDescription && (
-                                                    <Typography.Text
-                                                        type="secondary"
-                                                        className="text-xs"
-                                                    >
+                                                    <span className="text-xs text-muted-foreground">
                                                         {itemDescription}
-                                                    </Typography.Text>
+                                                    </span>
                                                 )}
                                             </div>
                                             <span className="mt-0.5">

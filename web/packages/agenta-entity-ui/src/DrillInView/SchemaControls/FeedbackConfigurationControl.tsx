@@ -13,7 +13,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Info, Plus, Trash} from "@phosphor-icons/react"
-import {Alert, Button, Input, InputNumber, Select, Switch, Tooltip, Typography} from "antd"
+import {Alert, Button, Input, InputNumber, Select, Switch, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -568,9 +568,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                 <div className="mb-4">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1">
-                            <Typography.Text className="font-medium text-xs">
-                                Categories
-                            </Typography.Text>
+                            <span className="font-medium text-xs">Categories</span>
                             <Tooltip title="Define the possible category values for the evaluation">
                                 <Info
                                     size={12}
@@ -624,9 +622,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             {/* Include reasoning */}
             <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-1">
-                    <Typography.Text className="font-medium text-xs">
-                        Include reasoning
-                    </Typography.Text>
+                    <span className="font-medium text-xs">Include reasoning</span>
                     <Tooltip title="When enabled, the evaluator will also provide a comment explaining the score">
                         <Info size={12} className="text-gray-400 cursor-help" aria-hidden="true" />
                     </Tooltip>

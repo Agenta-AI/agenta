@@ -31,7 +31,7 @@ import {
     Plus,
     Sparkle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Empty, Input, Spin, Typography} from "antd"
+import {Button, Dropdown, Empty, Input, Spin} from "antd"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, type ToolObj} from "./toolUtils"
@@ -233,9 +233,9 @@ function SectionHeader({icon, title, right}: {icon: ReactNode; title: string; ri
         <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-zinc-500 flex items-center">{icon}</span>
-                <Typography.Text className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                     {title}
-                </Typography.Text>
+                </span>
             </div>
             {right}
         </div>
@@ -1027,9 +1027,9 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                     />
                 ) : (
                     <div className="h-full flex items-center justify-center px-4 text-center">
-                        <Typography.Text type="secondary" className="text-xs">
+                        <span className="text-xs text-muted-foreground">
                             Hover a provider or connected integration to browse tools.
-                        </Typography.Text>
+                        </span>
                     </div>
                 )}
             </div>

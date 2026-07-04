@@ -8,7 +8,7 @@
 import {memo, useState, useMemo} from "react"
 
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Divider, Input, Menu, Radio, Typography} from "antd"
+import {Divider, Input, Menu, Radio} from "antd"
 import yaml from "js-yaml"
 
 import type {PresetContentProps} from "./types"
@@ -65,9 +65,7 @@ export const PresetContent = memo(function PresetContent({
             {/* Right content - preview */}
             <div className="flex flex-col gap-4 flex-1 h-full overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 sticky top-0 z-10 bg-[var(--ag-c-FFFFFF)]">
-                    <Typography.Text className="text-lg font-medium -mt-1">
-                        Select a Preset
-                    </Typography.Text>
+                    <span className="text-lg font-medium -mt-1">Select a Preset</span>
                     <Radio.Group
                         value={format}
                         onChange={(e) => setFormat(e.target.value as "yaml" | "json")}

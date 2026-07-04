@@ -7,7 +7,7 @@
 
 import {useMemo} from "react"
 
-import {Alert, Typography} from "antd"
+import {Alert} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {Trash2} from "lucide-react"
 
@@ -19,8 +19,6 @@ import {
     deleteModalBlockedAtom,
     deleteModalErrorAtom,
 } from "../state"
-
-const {Text} = Typography
 
 /**
  * EntityDeleteContent
@@ -40,9 +38,9 @@ export function EntityDeleteContent() {
     return (
         <div className="flex flex-col gap-4">
             {/* Confirmation message */}
-            <Text>
+            <span>
                 Are you sure you want to delete the following? This action cannot be undone.
-            </Text>
+            </span>
 
             {/* Entity groups */}
             {groups.map((group) => (
@@ -73,7 +71,7 @@ export function EntityDeleteContent() {
                     message="Cannot Delete"
                     description={
                         <div>
-                            <Text>The following items cannot be deleted:</Text>
+                            <span>The following items cannot be deleted:</span>
                             <ul className="list-disc list-inside m-0 pl-0 mt-2">
                                 {blocked.map((entity) => (
                                     <li key={entity.id}>
@@ -117,9 +115,9 @@ function EntityGroupDisplay({group}: EntityGroupDisplayProps) {
                 ) : (
                     <Trash2 size={16} className="text-gray-500" />
                 )}
-                <Text strong className="text-gray-700">
+                <span className="text-gray-700 font-semibold">
                     {group.displayLabel} ({group.entities.length})
-                </Text>
+                </span>
             </div>
             <ul className="list-disc list-inside m-0 pl-4 space-y-1">
                 {group.entities.map((entity) => (

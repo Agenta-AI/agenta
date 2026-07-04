@@ -13,7 +13,7 @@ import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {ScrollSentinel} from "@agenta/ui"
 import {ArrowClockwise, ArrowLeft, Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
-import {Button, Input, Spin, Tooltip, Typography} from "antd"
+import {Button, Input, Spin, Tooltip} from "antd"
 
 import {AppCard, AppLogo} from "./CatalogAppCard"
 
@@ -640,12 +640,9 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                             )
                                         })()}
                                     <div className="mb-2 mt-4 flex items-center justify-between gap-2">
-                                        <Typography.Text
-                                            type="secondary"
-                                            className="!text-[10px] uppercase !tracking-wide"
-                                        >
+                                        <span className="!text-[10px] uppercase !tracking-wide text-muted-foreground">
                                             {props.itemsLabel}
-                                        </Typography.Text>
+                                        </span>
                                         {selectedIntegration && (
                                             <button
                                                 type="button"

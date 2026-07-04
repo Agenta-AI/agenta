@@ -12,7 +12,7 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Check, Cube, EyeSlash, Key, Lightbulb, ShieldCheck, Warning} from "@phosphor-icons/react"
-import {Select, Typography} from "antd"
+import {Select} from "antd"
 import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../../drawers/shared/RailField"
@@ -527,16 +527,16 @@ export function useModelHarness({
                 value={connection.mode}
                 onChange={(m) => writeModel({mode: m as ConnectionMode})}
             >
-                <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                <span className="text-[11px] leading-snug text-muted-foreground">
                     {authDescription}
-                </Typography.Text>
+                </span>
                 {authConnectionField}
             </SectionRail>
         ) : (
             <div className="flex flex-col gap-2">
-                <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                <span className="text-[11px] leading-snug text-muted-foreground">
                     {authDescription}
-                </Typography.Text>
+                </span>
                 {authConnectionField}
             </div>
         )
@@ -577,9 +577,9 @@ export function useModelHarness({
                     }
                     summaryCollapsedOnly
                 >
-                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                    <span className="text-[11px] leading-snug text-muted-foreground">
                         Where the model credential comes from when this agent runs.
-                    </Typography.Text>
+                    </span>
                     {authControls}
                 </ConfigAccordionSection>
             ) : null}
@@ -593,9 +593,9 @@ export function useModelHarness({
                     summary={sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined}
                     summaryCollapsedOnly
                 >
-                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                    <span className="text-[11px] leading-snug text-muted-foreground">
                         Where the agent&apos;s tools and code run, and what that sandbox may touch.
-                    </Typography.Text>
+                    </span>
                     {sandboxProps.kind ? (
                         <RailField label="Sandbox" align="center">
                             <EnumSelectControl
@@ -635,9 +635,9 @@ export function useModelHarness({
                     summary="Auto"
                     summaryCollapsedOnly
                 >
-                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                    <span className="text-[11px] leading-snug text-muted-foreground">
                         What the agent may do on its own before it must ask.
-                    </Typography.Text>
+                    </span>
                     {headlessSchema ? (
                         <RailField label="Policy" align="center">
                             {isPiHarness ? (

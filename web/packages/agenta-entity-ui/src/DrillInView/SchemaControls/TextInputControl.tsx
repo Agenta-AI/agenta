@@ -10,7 +10,7 @@ import {memo, useCallback, useEffect, useState} from "react"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Input, Typography} from "antd"
+import {Input} from "antd"
 
 const {TextArea} = Input
 
@@ -136,11 +136,11 @@ export const TextInputControl = memo(function TextInputControl({
         >
             {inputContent}
             {(maxLength || minLength) && (
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground">
                     {minLength && `Min: ${minLength}`}
                     {minLength && maxLength && " / "}
                     {maxLength && `Max: ${maxLength}`}
-                </Typography.Text>
+                </span>
             )}
         </LabeledField>
     )

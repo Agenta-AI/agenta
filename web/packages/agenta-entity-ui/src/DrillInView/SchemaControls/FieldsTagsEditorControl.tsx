@@ -16,11 +16,9 @@ import {memo, useCallback, useState} from "react"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
-import {Button, Input, Tag, Tooltip, Typography} from "antd"
+import {Button, Input, Tag, Tooltip} from "antd"
 
 import {useFieldsDetection} from "./FieldsDetectionContext"
-
-const {Text} = Typography
 
 export interface FieldsTagsEditorControlProps {
     schema?: SchemaProperty | null
@@ -121,9 +119,9 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                     ))}
 
                     {fields.length === 0 && (
-                        <Text className="text-[var(--ant-color-text-secondary)] text-xs">
+                        <span className="text-[var(--ant-color-text-secondary)] text-xs">
                             Add fields to compare
-                        </Text>
+                        </span>
                     )}
                 </div>
 
@@ -139,9 +137,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             onKeyDown={handleInputKeyDown}
                             suffix={
                                 <Tooltip title="Use dot notation for nested fields (e.g., user.name)">
-                                    <Text type="secondary" className="text-[11px]">
-                                        ?
-                                    </Text>
+                                    <span className="text-[11px] text-muted-foreground">?</span>
                                 </Tooltip>
                             }
                         />
@@ -158,9 +154,9 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
 
                 {/* Helper text + Detect from testcase button */}
                 <div className="flex items-start justify-between gap-3">
-                    <Text type="secondary" className="text-[11px] pt-0.5">
+                    <span className="text-[11px] pt-0.5 text-muted-foreground">
                         Each field creates a column with value 0 (no match) or 1 (match)
-                    </Text>
+                    </span>
                     {!disabled && detectFieldsFromTestcase && (
                         <Button
                             size="small"

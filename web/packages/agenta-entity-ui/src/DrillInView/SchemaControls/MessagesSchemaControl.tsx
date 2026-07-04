@@ -15,7 +15,6 @@ import {memo, useCallback, useMemo} from "react"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
-import {Typography} from "antd"
 import clsx from "clsx"
 
 export interface MessagesSchemaControlProps {
@@ -175,24 +174,16 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
     if (disabled && (!value || (Array.isArray(value) && value.length === 0))) {
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
-                {label && (
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                )}
-                <Typography.Text type="secondary" className="text-xs">
-                    No messages
-                </Typography.Text>
+                {label && <span className="text-sm font-medium">{label}</span>}
+                <span className="text-xs text-muted-foreground">No messages</span>
             </div>
         )
     }
 
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
-            {label && <Typography.Text className="text-sm font-medium">{label}</Typography.Text>}
-            {description && (
-                <Typography.Text type="secondary" className="text-xs">
-                    {description}
-                </Typography.Text>
-            )}
+            {label && <span className="text-sm font-medium">{label}</span>}
+            {description && <span className="text-xs text-muted-foreground">{description}</span>}
             <ChatMessageList
                 messages={normalizedMessages}
                 onChange={handleChange}

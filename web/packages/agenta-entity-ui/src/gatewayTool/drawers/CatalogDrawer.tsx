@@ -18,7 +18,7 @@ import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Badge, Button, Card, Divider, Dropdown, Empty, Input, Spin, Tag, Typography} from "antd"
+import {Badge, Button, Card, Divider, Dropdown, Empty, Input, Spin, Tag} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -31,18 +31,18 @@ type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDet
 // ---------------------------------------------------------------------------
 
 function ExpandableText({text}: {text: string}) {
+    const [expanded, setExpanded] = useState(false)
     return (
-        <Typography.Paragraph
-            type="secondary"
-            className="!text-xs !mb-0"
-            ellipsis={{
-                rows: 3,
-                expandable: "collapsible",
-                symbol: (expanded) => (expanded ? "see less" : "see more"),
-            }}
-        >
-            {text}
-        </Typography.Paragraph>
+        <div className="text-xs text-muted-foreground">
+            <p className={expanded ? "mb-0" : "mb-0 line-clamp-3"}>{text}</p>
+            <button
+                type="button"
+                className="border-0 bg-transparent p-0 text-xs text-primary hover:underline"
+                onClick={() => setExpanded((value) => !value)}
+            >
+                {expanded ? "see less" : "see more"}
+            </button>
+        </div>
     )
 }
 
@@ -168,9 +168,9 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                     allowClear
                     onClear={() => search.onChange("")}
                 />
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground">
                     {total} integration{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
             <Divider className="!m-0" />
@@ -216,9 +216,9 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                                         )}
                                         <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
-                                                <Typography.Text strong className="truncate">
+                                                <span className="truncate font-semibold">
                                                     {integration.name}
-                                                </Typography.Text>
+                                                </span>
                                                 {integration.actions_count != null && (
                                                     <Badge
                                                         count={`${integration.actions_count} actions`}
@@ -228,12 +228,9 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                                                 )}
                                             </div>
                                             {integration.description && (
-                                                <Typography.Text
-                                                    type="secondary"
-                                                    className="text-xs line-clamp-2"
-                                                >
+                                                <span className="text-xs line-clamp-2 text-muted-foreground">
                                                     {integration.description}
-                                                </Typography.Text>
+                                                </span>
                                             )}
                                         </div>
                                     </div>
@@ -348,9 +345,7 @@ function ActionsView({
                             unoptimized
                         />
                     )}
-                    <Typography.Text strong className="truncate flex-1">
-                        {integration.name}
-                    </Typography.Text>
+                    <span className="truncate flex-1 font-semibold">{integration.name}</span>
                     <div className="shrink-0">
                         {connections.length > 0 ? (
                             <Dropdown.Button
@@ -381,9 +376,9 @@ function ActionsView({
                     onClear={() => search.onChange("")}
                 />
 
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground">
                     {total} action{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
             <Divider className="!m-0" />
@@ -413,9 +408,9 @@ function ActionsView({
                                 <Card hoverable className="cursor-pointer" size="small">
                                     <div className="flex flex-col gap-0.5">
                                         <div className="flex items-center gap-2">
-                                            <Typography.Text strong className="truncate">
+                                            <span className="truncate font-semibold">
                                                 {action.name}
-                                            </Typography.Text>
+                                            </span>
                                             {action.categories?.slice(0, 2).map((c) => (
                                                 <Tag key={c} className="text-xs">
                                                     {c}
@@ -423,9 +418,9 @@ function ActionsView({
                                             ))}
                                         </div>
                                         {action.description && (
-                                            <Typography.Text type="secondary" className="text-xs">
+                                            <span className="text-xs text-muted-foreground">
                                                 {action.description}
-                                            </Typography.Text>
+                                            </span>
                                         )}
                                     </div>
                                 </Card>

@@ -14,7 +14,7 @@ import React, {useCallback, useId} from "react"
 
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
 import {cn} from "@agenta/ui/styles"
-import {Divider, Empty, Popover, Spin, Tooltip, Typography} from "antd"
+import {Divider, Empty, Popover, Spin, Tooltip} from "antd"
 
 import {useListPopoverMode} from "../../../hooks"
 import type {EntitySelectionResult} from "../../../types"
@@ -171,9 +171,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                 <>
                     <Divider className="!my-1" />
                     <div className="px-1 py-1">
-                        <Typography.Text className="text-xs font-medium text-gray-500">
-                            {sectionLabel}
-                        </Typography.Text>
+                        <span className="text-xs font-medium text-gray-500">{sectionLabel}</span>
                     </div>
                 </>
             )}

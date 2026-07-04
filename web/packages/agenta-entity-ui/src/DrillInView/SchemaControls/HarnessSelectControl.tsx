@@ -20,7 +20,7 @@ import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatEnumLabel} from "@agenta/shared/utils"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Select, Typography} from "antd"
+import {Select} from "antd"
 
 interface HarnessMeta {
     label: string
@@ -170,7 +170,7 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
                     return (
                         <span className="flex items-center gap-2 py-0.5">
                             <HarnessAvatar meta={meta} size={22} />
-                            <Typography.Text>{meta.label}</Typography.Text>
+                            <span>{meta.label}</span>
                         </span>
                     )
                 }}

@@ -11,7 +11,7 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, MagnifyingGlass} from "@phosphor-icons/react"
-import {Card, Divider, Empty, Form, Input, Spin, Tag, Typography} from "antd"
+import {Card, Divider, Empty, Form, Input, Spin, Tag} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import SchemaForm from "../../gatewayTool/components/SchemaForm"
@@ -112,9 +112,9 @@ function EventsView({
                     allowClear
                     onClear={() => search.onChange("")}
                 />
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground">
                     {total} event{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
             <Divider className="!m-0" />
@@ -148,9 +148,9 @@ function EventsView({
                                 >
                                     <div className="flex flex-col gap-0.5">
                                         <div className="flex items-center gap-2">
-                                            <Typography.Text strong className="truncate">
+                                            <span className="truncate font-semibold">
                                                 {event.name}
-                                            </Typography.Text>
+                                            </span>
                                             {event.categories?.slice(0, 2).map((c) => (
                                                 <Tag key={c} className="text-xs">
                                                     {c}
@@ -158,9 +158,9 @@ function EventsView({
                                             ))}
                                         </div>
                                         {event.description && (
-                                            <Typography.Text type="secondary" className="text-xs">
+                                            <span className="text-xs text-muted-foreground">
                                                 {event.description}
-                                            </Typography.Text>
+                                            </span>
                                         )}
                                     </div>
                                 </Card>
@@ -217,23 +217,17 @@ function EventDetailView({
                     >
                         <ArrowLeft size={16} />
                     </button>
-                    <Typography.Text strong className="truncate flex-1">
-                        {event.name}
-                    </Typography.Text>
+                    <span className="truncate flex-1 font-semibold">{event.name}</span>
                 </div>
                 {event.description && (
-                    <Typography.Paragraph type="secondary" className="!text-xs !mb-0">
-                        {event.description}
-                    </Typography.Paragraph>
+                    <p className="!text-xs !mb-0 text-muted-foreground">{event.description}</p>
                 )}
             </div>
 
             <Divider className="!m-0" />
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                <Typography.Text className="text-sm font-medium">
-                    Trigger configuration
-                </Typography.Text>
+                <span className="text-sm font-medium">Trigger configuration</span>
                 <div className="mt-3">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-8">

@@ -16,7 +16,6 @@ import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
-import {Typography} from "antd"
 import clsx from "clsx"
 
 import {AgentTemplateControl} from "./AgentTemplateControl"
@@ -487,16 +486,14 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
             // For objects, show indicator that user should navigate into it
             return (
                 <div className={clsx("flex flex-col gap-1", className)}>
-                    <Typography.Text className="text-sm font-medium">
-                        {displayLabel}
-                    </Typography.Text>
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-sm font-medium">{displayLabel}</span>
+                    <span className="text-xs text-muted-foreground">
                         Object with{" "}
                         {resolvedSchema?.properties
                             ? Object.keys(resolvedSchema.properties).length
                             : 0}{" "}
                         properties (click to expand)
-                    </Typography.Text>
+                    </span>
                 </div>
             )
 
@@ -518,12 +515,10 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
             // For arrays, show indicator that user should navigate into it
             return (
                 <div className={clsx("flex flex-col gap-1", className)}>
-                    <Typography.Text className="text-sm font-medium">
-                        {displayLabel}
-                    </Typography.Text>
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-sm font-medium">{displayLabel}</span>
+                    <span className="text-xs text-muted-foreground">
                         Array with {Array.isArray(value) ? value.length : 0} items (click to expand)
-                    </Typography.Text>
+                    </span>
                 </div>
             )
 

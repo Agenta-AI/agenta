@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
 import {Plus, X} from "@phosphor-icons/react"
-import {Button, Spin, Typography} from "antd"
+import {Button, Spin} from "antd"
 
 // Draft list ids are prefixed so they're distinguishable from real entity ids.
 export const DRAFT_PREFIX = "draft:"
@@ -158,12 +158,9 @@ export function MasterDetailRail({
                     <div className="flex flex-col gap-0.5">
                         {children}
                         {isEmpty && (
-                            <Typography.Text
-                                type="secondary"
-                                className="!text-[11px] block px-2 py-3 leading-snug"
-                            >
+                            <span className="!text-[11px] block px-2 py-3 leading-snug text-muted-foreground">
                                 {emptyText}
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                 )}

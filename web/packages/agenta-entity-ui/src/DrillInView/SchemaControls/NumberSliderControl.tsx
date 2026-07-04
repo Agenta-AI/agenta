@@ -13,9 +13,7 @@ import {memo, useCallback, useEffect, useState} from "react"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
 import {X} from "@phosphor-icons/react"
-import {Button, InputNumber, Slider, Tooltip, Typography} from "antd"
-
-const {Text} = Typography
+import {Button, InputNumber, Slider, Tooltip} from "antd"
 
 export interface NumberSliderControlProps {
     /** The schema property defining constraints (min, max, type) */
@@ -129,7 +127,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     const content = (
         <div className={cn(flexLayouts.column, gapClasses.xs, className)}>
             <div className={cn(flexLayouts.rowCenter, "justify-between")}>
-                <Text className={cn("font-medium", textColors.primary)}>{label}</Text>
+                <span className={cn("font-medium", textColors.primary)}>{label}</span>
                 <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
                     <InputNumber
                         min={min}

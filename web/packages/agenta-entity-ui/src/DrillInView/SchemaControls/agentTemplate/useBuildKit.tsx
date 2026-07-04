@@ -22,7 +22,7 @@ import {
 } from "@agenta/entities/workflow"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {Warning, Wrench} from "@phosphor-icons/react"
-import {Switch, Tag, Tooltip, Typography} from "antd"
+import {Switch, Tag, Tooltip} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {RailField} from "../../../drawers/shared/RailField"
@@ -191,10 +191,10 @@ export function useBuildKit({
                 />
             }
         >
-            <Typography.Text type="secondary" className="text-[11px] leading-snug">
+            <span className="text-[11px] leading-snug text-muted-foreground">
                 These playground-only tools, skills, and permissions help the assistant build and
                 revise this agent. None of this is part of the published agent.
-            </Typography.Text>
+            </span>
             {!buildKitEnabled ? (
                 <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-[11.5px] leading-snug text-[var(--ant-color-info-text)]">
                     The assistant can no longer create files, run code, or edit the agent here.

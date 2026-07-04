@@ -8,7 +8,7 @@ import {
 } from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {CopySimple} from "@phosphor-icons/react"
-import {Alert, Button, Form, Input, InputNumber, message, Typography} from "antd"
+import {Alert, Button, Form, Input, InputNumber, message} from "antd"
 
 interface Props {
     result: ToolResult | null
@@ -147,9 +147,9 @@ function OutputField({field, data}: {field: FormFieldDescriptor; data: Record<st
         <div className="flex flex-col leading-tight">
             <span>{field.label}</span>
             {field.description && (
-                <Typography.Text type="secondary" className="!text-[11px] font-normal leading-snug">
+                <span className="!text-[11px] font-normal leading-snug text-muted-foreground">
                     {field.description}
-                </Typography.Text>
+                </span>
             )}
         </div>
     )

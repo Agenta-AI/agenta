@@ -20,7 +20,7 @@ import {memo, useCallback, useEffect, useRef, useState} from "react"
 import {isPlainObject, safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {MinusCircle} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip, Typography} from "antd"
+import {Button, Tag, Tooltip} from "antd"
 import clsx from "clsx"
 
 export interface SkillTemplateControlProps {
@@ -158,9 +158,7 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
     const header = (
         <div className="w-full flex items-center justify-between gap-2 py-1">
             <div className="flex items-center gap-2 min-w-0">
-                <Typography.Text strong className="text-sm truncate">
-                    {name}
-                </Typography.Text>
+                <span className="text-sm truncate font-semibold">{name}</span>
                 {embed && <Tag color="blue">@ag.embed</Tag>}
             </div>
             {!disabled && onDelete && (
@@ -190,20 +188,16 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
                 )}
             >
                 <div className="flex items-center gap-2 min-w-0">
-                    <Typography.Text strong className="text-sm truncate">
-                        {name}
-                    </Typography.Text>
+                    <span className="text-sm truncate font-semibold">{name}</span>
                     <Tag color="default">Static skill</Tag>
                     {version && <Tag color="default">{version}</Tag>}
                 </div>
                 {slug && (
-                    <Typography.Text type="secondary" className="text-xs font-mono truncate">
-                        {slug}
-                    </Typography.Text>
+                    <span className="text-xs font-mono truncate text-muted-foreground">{slug}</span>
                 )}
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground">
                     Provided by Agenta. This skill cannot be edited or removed.
-                </Typography.Text>
+                </span>
             </div>
         )
     }

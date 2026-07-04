@@ -44,7 +44,7 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Tabs, Tooltip, Typography} from "antd"
+import {Button, Tabs, Tooltip} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue, useStore} from "jotai"
 
@@ -636,9 +636,9 @@ export function AgentTemplateControl({
     return (
         <div className={cn("flex flex-col", className)}>
             {sections.length === 0 ? (
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground">
                     No agent configuration fields are available for this schema.
-                </Typography.Text>
+                </span>
             ) : layout === "tabs" ? (
                 // Tabs renders each section's body inline (no drawer), so edits are live. Drawer
                 // sections supply a trimmed `inlineContent` so the tab shows just their controls.

@@ -6,7 +6,7 @@ import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CopySimple} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 
 type EditorLanguage = "python" | "javascript" | "typescript"
@@ -40,9 +40,7 @@ const ScriptEditor = memo(function ScriptEditor({
 
     const header = (
         <div className="w-full flex items-start justify-between py-1">
-            <Typography.Text strong className="text-sm pl-2">
-                Script
-            </Typography.Text>
+            <span className="text-sm pl-2 font-semibold">Script</span>
             <div className="flex items-center gap-1 shrink-0">
                 <Tooltip title="Copy">
                     <Button

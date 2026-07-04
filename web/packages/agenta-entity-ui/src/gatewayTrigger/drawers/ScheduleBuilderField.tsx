@@ -14,18 +14,7 @@ import {
 import {dayjs} from "@agenta/shared/utils"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {Plus} from "@phosphor-icons/react"
-import {
-    Alert,
-    Button,
-    Form,
-    Input,
-    InputNumber,
-    Select,
-    Tag,
-    TimePicker,
-    Typography,
-    message,
-} from "antd"
+import {Alert, Button, Form, Input, InputNumber, Select, Tag, TimePicker, message} from "antd"
 
 const CADENCES: {value: CronCadence; label: string}[] = [
     {value: "hourly", label: "Hourly"},
@@ -348,13 +337,13 @@ function CronEditor({
                 onChange={(e) => onChange(e.target.value)}
                 status={valid ? undefined : "error"}
             />
-            <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+            <span className="!text-[11px] leading-snug text-muted-foreground">
                 5-field cron in UTC (e.g. <code>0 9 * * *</code> = every day at 09:00 UTC).
-            </Typography.Text>
+            </span>
             {match && (
-                <Typography.Link className="!text-[11px]" onClick={() => onUseBuilder(match)}>
+                <a className="!text-[11px]" onClick={() => onUseBuilder(match)}>
                     This is a {cadenceLabel(match)} schedule — use the builder
-                </Typography.Link>
+                </a>
             )}
         </div>
     )
@@ -432,11 +421,7 @@ function TimesField({
 }
 
 function FieldLabel({children}: {children: ReactNode}) {
-    return (
-        <Typography.Text type="secondary" className="!text-xs">
-            {children}
-        </Typography.Text>
-    )
+    return <span className="!text-xs text-muted-foreground">{children}</span>
 }
 
 function toggle(list: number[], value: number): number[] {

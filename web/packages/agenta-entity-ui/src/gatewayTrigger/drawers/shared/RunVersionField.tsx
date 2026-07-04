@@ -1,4 +1,4 @@
-import {Select, Typography} from "antd"
+import {Select} from "antd"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
 import {
@@ -112,9 +112,9 @@ export function RunVersionField({
         >
             {bindMode === "revision" ? (
                 <>
-                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                    <span className="!text-[11px] leading-snug text-muted-foreground">
                         {revisionHint}
-                    </Typography.Text>
+                    </span>
                     <EntityPicker<WorkflowRevisionSelectionResult>
                         variant="popover-cascader"
                         adapter={revisionAdapter}
@@ -125,9 +125,9 @@ export function RunVersionField({
                 </>
             ) : (
                 <>
-                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                    <span className="!text-[11px] leading-snug text-muted-foreground">
                         {envHint}
-                    </Typography.Text>
+                    </span>
                     <Select
                         placeholder="Select an environment"
                         className="w-full max-w-prose"

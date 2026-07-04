@@ -32,9 +32,7 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Tag, Typography} from "antd"
-
-const {Text} = Typography
+import {Tag} from "antd"
 
 const INLINE_TEXT_DIFF_LINES = 6
 const SUBGROUP_VISIBLE = 5
@@ -354,12 +352,12 @@ export default function AgentChangesSummary({
                         Changes
                     </button>
                 ) : (
-                    <Text className="text-xs font-semibold">
+                    <span className="text-xs font-semibold">
                         What&apos;s changing
                         <span className={cn("ml-1.5 font-normal", textColors.tertiary)}>
                             {totalChanges} {totalChanges === 1 ? "change" : "changes"}
                         </span>
-                    </Text>
+                    </span>
                 )}
                 {view.kind === "summary" ? (
                     <button

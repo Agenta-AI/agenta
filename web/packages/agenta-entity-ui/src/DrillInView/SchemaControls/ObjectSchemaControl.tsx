@@ -18,7 +18,7 @@ import {memo, useMemo, useState} from "react"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 
 // Forward declaration - actual component imported to avoid circular deps
@@ -146,12 +146,8 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (!schema?.properties || propertyKeys.length === 0) {
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
-                {showHeader && (
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                )}
-                <Typography.Text type="secondary" className="text-xs">
-                    No properties defined
-                </Typography.Text>
+                {showHeader && <span className="text-sm font-medium">{label}</span>}
+                <span className="text-xs text-muted-foreground">No properties defined</span>
             </div>
         )
     }
@@ -160,13 +156,11 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (specialType === "tool_configuration") {
         return (
             <div className={clsx("flex flex-col gap-2", className)}>
-                {showHeader && (
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                )}
+                {showHeader && <span className="text-sm font-medium">{label}</span>}
                 <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-xs text-muted-foreground">
                         Tool Configuration (JSON Editor)
-                    </Typography.Text>
+                    </span>
                     <pre className="text-xs mt-2 overflow-auto max-h-[200px]">
                         {JSON.stringify(value, null, 2)}
                     </pre>
@@ -179,9 +173,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (!SchemaPropertyRenderer) {
         return (
             <div className={clsx("flex flex-col gap-2", className)}>
-                {showHeader && (
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                )}
+                {showHeader && <span className="text-sm font-medium">{label}</span>}
                 <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-[200px]">
                     {JSON.stringify(value, null, 2)}
                 </pre>
@@ -219,7 +211,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (showHeader) {
         const headerContent = (
             <div className="flex items-center gap-2 mb-2">
-                <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
+                <span className="text-sm font-medium">{label}</span>
             </div>
         )
 
@@ -277,7 +269,7 @@ export const CollapsibleObjectControl = memo(function CollapsibleObjectControl({
                     <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
                         {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
                     </span>
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
+                    <span className="text-sm font-medium">{label}</span>
                 </Button>
             </Tooltip>
 

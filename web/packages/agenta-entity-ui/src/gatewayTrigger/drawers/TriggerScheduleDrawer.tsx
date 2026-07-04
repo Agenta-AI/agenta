@@ -33,7 +33,7 @@ import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Editor} from "@agenta/ui/editor"
 import {CalendarBlank, ChatText, Clock, GitBranch, Play, Tag} from "@phosphor-icons/react"
-import {Button, DatePicker, Form, Input, Popover, Spin, Tooltip, Typography} from "antd"
+import {Button, DatePicker, Form, Input, Popover, Spin, Tooltip} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {DrawerFooter} from "../../drawers/shared/DrawerFooter"
@@ -1009,10 +1009,10 @@ function WindowField({
                     />
                 </div>
             </div>
-            <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+            <span className="!text-[11px] leading-snug text-muted-foreground">
                 Schedule fires only within [start, end). Leave either empty for no bound; past end
                 auto-stops it.
-            </Typography.Text>
+            </span>
         </div>
     )
 }
@@ -1062,12 +1062,9 @@ function MessageComposer({
     if (rawMode) {
         return (
             <div className="flex flex-col gap-1.5">
-                <Typography.Link
-                    className="!text-[11px] self-start"
-                    onClick={() => setRawMode(false)}
-                >
+                <a className="!text-[11px] self-start" onClick={() => setRawMode(false)}>
                     ← Back to message
-                </Typography.Link>
+                </a>
                 <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorder)]">
                     <Editor
                         initialValue={inputsText || "{}"}
@@ -1079,14 +1076,13 @@ function MessageComposer({
                         disabled={disabled}
                     />
                 </div>
-                <Typography.Text
-                    type={rawValid ? "secondary" : "danger"}
-                    className="!text-[11px] leading-snug"
+                <span
+                    className={`!text-[11px] leading-snug ${rawValid ? "text-muted-foreground" : "text-destructive"}`}
                 >
                     {rawValid
                         ? "Raw inputs sent to the workflow each tick (JSON)."
                         : "Invalid JSON."}
-                </Typography.Text>
+                </span>
             </div>
         )
     }
@@ -1104,16 +1100,13 @@ function MessageComposer({
                 disabled={disabled}
             />
             <div className="flex items-center justify-between gap-2">
-                <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                <span className="!text-[11px] leading-snug text-muted-foreground">
                     Sent to the agent{" "}
                     {isChat ? "as the user message" : `as the "${primaryKey}" input`} on each run.
-                </Typography.Text>
-                <Typography.Link
-                    className="!shrink-0 !text-[11px]"
-                    onClick={() => setRawMode(true)}
-                >
+                </span>
+                <a className="!shrink-0 !text-[11px]" onClick={() => setRawMode(true)}>
                     Advanced — raw JSON
-                </Typography.Link>
+                </a>
             </div>
         </div>
     )

@@ -14,7 +14,7 @@ import {dayjs} from "@agenta/shared/utils"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowClockwise, Play, Trash, XCircle} from "@phosphor-icons/react"
-import {Button, Descriptions, Divider, Spin, Typography} from "antd"
+import {Button, Descriptions, Divider, Spin} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import ConnectionStatusBadge from "../components/ConnectionStatusBadge"
@@ -183,18 +183,18 @@ export default function ConnectionManagerDrawer() {
                         <Spin />
                     </div>
                 ) : !connection ? (
-                    <Typography.Text type="secondary">Connection not found.</Typography.Text>
+                    <span className="text-muted-foreground">Connection not found.</span>
                 ) : (
                     <>
                         {/* Header */}
                         <div className="flex items-center gap-3">
                             <div className="flex-1">
-                                <Typography.Title level={5} className="!mb-0">
+                                <h5 className="!mb-0 text-sm font-semibold leading-normal">
                                     {connection.name || connection.slug}
-                                </Typography.Title>
-                                <Typography.Text type="secondary" className="text-xs">
+                                </h5>
+                                <span className="text-xs text-muted-foreground">
                                     {connection.integration_key}
-                                </Typography.Text>
+                                </span>
                             </div>
                             <ConnectionStatusBadge connection={connection} />
                         </div>
@@ -241,9 +241,7 @@ export default function ConnectionManagerDrawer() {
                         <Divider className="my-1" />
 
                         {/* Actions */}
-                        <Typography.Text strong className="text-sm">
-                            Actions
-                        </Typography.Text>
+                        <span className="text-sm font-semibold">Actions</span>
                         <div className="flex flex-col gap-2">
                             <Button
                                 icon={<Play size={14} />}

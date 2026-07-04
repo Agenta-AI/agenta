@@ -21,19 +21,7 @@ import {
     MagnifyingGlass,
     Play,
 } from "@phosphor-icons/react"
-import {
-    Button,
-    Card,
-    Divider,
-    Empty,
-    Form,
-    Input,
-    message,
-    Segmented,
-    Spin,
-    Tag,
-    Typography,
-} from "antd"
+import {Button, Card, Divider, Empty, Form, Input, message, Segmented, Spin, Tag} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -174,12 +162,12 @@ function ActionPickerStep({
                         />
                     )}
                     <div className="flex flex-col min-w-0 flex-1">
-                        <Typography.Text strong className="truncate">
+                        <span className="truncate font-semibold">
                             {integrationName || integrationKey}
-                        </Typography.Text>
-                        <Typography.Text type="secondary" className="text-xs truncate">
+                        </span>
+                        <span className="text-xs truncate text-muted-foreground">
                             Connection: {connectionSlug}
-                        </Typography.Text>
+                        </span>
                     </div>
                 </div>
 
@@ -192,9 +180,9 @@ function ActionPickerStep({
                     onClear={() => search.onChange("")}
                 />
 
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground">
                     {total} action{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
             <Divider className="!m-0" />
@@ -229,9 +217,9 @@ function ActionPickerStep({
                                 >
                                     <div className="flex flex-col gap-0.5">
                                         <div className="flex items-center gap-2">
-                                            <Typography.Text strong className="truncate">
+                                            <span className="truncate font-semibold">
                                                 {action.name}
-                                            </Typography.Text>
+                                            </span>
                                             {action.categories?.slice(0, 2).map((c) => (
                                                 <Tag key={c} className="text-xs">
                                                     {c}
@@ -239,12 +227,9 @@ function ActionPickerStep({
                                             ))}
                                         </div>
                                         {action.description && (
-                                            <Typography.Text
-                                                type="secondary"
-                                                className="text-xs line-clamp-2"
-                                            >
+                                            <span className="text-xs line-clamp-2 text-muted-foreground">
                                                 {action.description}
-                                            </Typography.Text>
+                                            </span>
                                         )}
                                     </div>
                                 </Card>
@@ -366,18 +351,12 @@ function ActionDetailStep({
                         />
                     )}
                     {integrationName && (
-                        <Typography.Text type="secondary" className="shrink-0">
-                            {integrationName}
-                        </Typography.Text>
+                        <span className="shrink-0 text-muted-foreground">{integrationName}</span>
                     )}
-                    {integrationName && (
-                        <Typography.Text type="secondary" className="shrink-0">
-                            /
-                        </Typography.Text>
-                    )}
-                    <Typography.Text strong className="truncate flex-1">
+                    {integrationName && <span className="shrink-0 text-muted-foreground">/</span>}
+                    <span className="truncate flex-1 font-semibold">
                         {detailLoading ? "Loading…" : displayName}
-                    </Typography.Text>
+                    </span>
                     <Segmented
                         size="small"
                         value={viewMode}
@@ -389,13 +368,9 @@ function ActionDetailStep({
                     />
                 </div>
                 {action?.description && (
-                    <Typography.Text type="secondary" className="text-xs">
-                        {action.description}
-                    </Typography.Text>
+                    <span className="text-xs text-muted-foreground">{action.description}</span>
                 )}
-                <Typography.Text type="secondary" className="text-xs">
-                    Connection: {connectionSlug}
-                </Typography.Text>
+                <span className="text-xs text-muted-foreground">Connection: {connectionSlug}</span>
             </div>
 
             <Divider className="!m-0" />
@@ -414,9 +389,7 @@ function ActionDetailStep({
                         {/* Inputs section */}
                         <div className="flex flex-col gap-2">
                             <div className="flex items-center justify-between">
-                                <Typography.Text strong className="text-sm">
-                                    Inputs
-                                </Typography.Text>
+                                <span className="text-sm font-semibold">Inputs</span>
                                 {!jsonMode && (
                                     <Button
                                         type="text"
@@ -451,9 +424,7 @@ function ActionDetailStep({
 
                         {/* Outputs section */}
                         <div className="flex flex-col gap-2">
-                            <Typography.Text strong className="text-sm">
-                                Outputs
-                            </Typography.Text>
+                            <span className="text-sm font-semibold">Outputs</span>
                             {result || error ? (
                                 <ResultViewer
                                     result={result}
@@ -463,9 +434,9 @@ function ActionDetailStep({
                                 />
                             ) : (
                                 <div className="rounded-lg border border-dashed border-gray-300 p-4 text-center">
-                                    <Typography.Text type="secondary" className="text-xs">
+                                    <span className="text-xs text-muted-foreground">
                                         Run the action to see results
-                                    </Typography.Text>
+                                    </span>
                                 </div>
                             )}
                         </div>

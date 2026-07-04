@@ -34,7 +34,7 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowLeft, CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
-import {Button, Dropdown, Popover, Tabs, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Popover, Tabs, Tooltip} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
@@ -1340,13 +1340,13 @@ function PlaygroundConfigSection({
                                 className="flex items-center justify-center"
                             />
                         )}
-                        <Typography.Text className="truncate font-medium">
+                        <span className="truncate font-medium">
                             {fallbackDetail
                                 ? fallbackDetail.mode === "new"
                                     ? "Add Fallback Model"
                                     : "Edit Fallback Model"
                                 : "Configure"}
-                        </Typography.Text>
+                        </span>
                         {fallbackDetail?.mode === "new" && (
                             <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
                                 new
