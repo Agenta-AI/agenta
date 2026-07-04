@@ -13,7 +13,10 @@
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import factory from "../../src/extensions/agenta.ts";
+import factory, {
+  normalizeBuiltinGrants,
+  replaceActiveBuiltinTools,
+} from "../../src/extensions/agenta.ts";
 
 const TOOL_ENV = [
   "AGENTA_AGENT_TOOLS_PUBLIC_SPECS",
@@ -22,16 +25,32 @@ const TOOL_ENV = [
   "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
   "AGENTA_AGENT_USAGE_CAPTURE_PATH",
   "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED",
+  "AGENTA_AGENT_BUILTIN_GATING",
+  "AGENTA_AGENT_BUILTIN_GRANTS",
 ];
 
-function fakePi() {
+function fakePi(opts: { activeTools?: string[]; allTools?: string[] } = {}) {
   const registered: any[] = [];
+  const handlers: Record<string, any[]> = {};
+  let activeTools = opts.activeTools ?? [];
   return {
     registered,
+    handlers,
     registerTool(spec: any) {
       registered.push(spec);
     },
-    on() {},
+    on(event: string, handler: any) {
+      (handlers[event] ??= []).push(handler);
+    },
+    getActiveTools() {
+      return activeTools;
+    },
+    getAllTools() {
+      return (opts.allTools ?? []).map((name) => ({ name }));
+    },
+    setActiveTools(next: string[]) {
+      activeTools = next;
+    },
   };
 }
 
@@ -96,6 +115,85 @@ describe("agenta extension tool registration", () => {
       pi.registered.length,
       0,
       "no tool env => registers nothing (no silent partial state)",
+    );
+  });
+
+  it("does not register builtin gating hooks when gating env is absent", () => {
+    clearEnv();
+    const pi = fakePi();
+    factory(pi as any);
+    assert.equal(pi.handlers.before_agent_start?.length ?? 0, 0);
+    assert.equal(pi.handlers.tool_call?.length ?? 0, 0);
+  });
+
+  it("registers builtin gating hooks for a gating-only run", () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_BUILTIN_GATING = "true";
+    process.env.AGENTA_AGENT_BUILTIN_GRANTS = "read";
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    assert.equal(pi.registered.length, 0);
+    assert.equal(pi.handlers.before_agent_start?.length ?? 0, 1);
+    assert.equal(pi.handlers.tool_call?.length ?? 0, 1);
+  });
+
+  it("removes non-granted builtins from the active set at before_agent_start", async () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_BUILTIN_GATING = "1";
+    process.env.AGENTA_AGENT_BUILTIN_GRANTS = "read,write";
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+
+    const pi = fakePi({
+      activeTools: ["read", "bash", "edit", "write", "custom_tool"],
+      allTools: [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "grep",
+        "find",
+        "ls",
+        "custom_tool",
+      ],
+    });
+    factory(pi as any);
+
+    await pi.handlers.before_agent_start[0]({});
+
+    assert.deepEqual(pi.getActiveTools(), ["read", "write", "custom_tool"]);
+  });
+
+  it("validates builtin grants by de-duping and dropping unknown names", () => {
+    const logs: string[] = [];
+
+    const grants = normalizeBuiltinGrants(
+      "read,unknown,read,Find,BASH,unknown",
+      (message) => logs.push(message),
+    );
+
+    assert.deepEqual(grants, ["read", "find", "bash"]);
+    assert.deepEqual(logs, ["dropping unknown builtin grant 'unknown'"]);
+  });
+
+  it("replaces only the builtin portion of the active tool set", () => {
+    assert.deepEqual(
+      replaceActiveBuiltinTools(
+        ["custom_before", "read", "bash", "custom_after"],
+        [
+          { name: "read" },
+          { name: "bash" },
+          { name: "edit" },
+          { name: "write" },
+          { name: "grep" },
+          { name: "custom_before" },
+          { name: "custom_after" },
+        ],
+        ["read", "grep"],
+      ),
+      ["custom_before", "read", "grep", "custom_after"],
     );
   });
 

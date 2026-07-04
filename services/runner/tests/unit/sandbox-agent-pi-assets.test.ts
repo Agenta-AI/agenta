@@ -141,6 +141,19 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
   });
 
+  it("sets builtin gating env and relay dir without custom tools", () => {
+    const env = buildPiExtensionEnv({} as AgentRunRequest, false, {
+      relayDir: "/tmp/relay",
+      builtinGatingActive: true,
+      builtinGrants: ["read", "write"],
+    });
+
+    assert.equal(env.AGENTA_AGENT_BUILTIN_GATING, "1");
+    assert.equal(env.AGENTA_AGENT_BUILTIN_GRANTS, "read,write");
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+  });
+
   it("accepts snake_case tool schemas from older Python wire payloads", () => {
     const env = buildPiExtensionEnv(
       {
