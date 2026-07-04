@@ -14,6 +14,7 @@ import {
     eventTimestampRangeFilterAtom,
     type EventTableRow,
 } from "@agenta/entities/event"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {dayjs} from "@agenta/shared/utils"
 import {
     createActionsColumn,
@@ -21,7 +22,8 @@ import {
     type TableScopeConfig,
 } from "@agenta/ui/table"
 import {Eye} from "@phosphor-icons/react"
-import {Skeleton} from "antd"
+// Type-only: the InfiniteVirtualTable shell's column API is antd's — goes with
+// that shell's own migration workstream.
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -38,7 +40,7 @@ import {
 } from "./AuditEventCells"
 import AuditLogFilters from "./AuditLogFilters"
 
-const SkeletonCell = () => <Skeleton.Input active size="small" className="w-full" />
+const SkeletonCell = () => <Skeleton className="h-5 w-full" />
 
 // Mirror the relative presets offered by QuickDateRangePicker. Keep this in
 // sync with SORT_PRESETS there — including the `month` presets — so Refresh can

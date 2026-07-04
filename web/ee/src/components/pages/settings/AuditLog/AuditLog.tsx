@@ -13,7 +13,7 @@
  * This component lives in EE because audit event querying is an EE feature.
  */
 
-import {Spin} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 
 import {UpgradePrompt} from "@/oss/components/pages/settings/Organization/UpgradePrompt"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
@@ -42,7 +42,7 @@ const AuditLogGated = () => {
     if (isLoading) {
         return (
             <div className="flex flex-1 min-h-0 items-center justify-center">
-                <Spin />
+                <Spinner />
             </div>
         )
     }

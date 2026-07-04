@@ -13,9 +13,10 @@
 
 import type {Event} from "@agenta/entities/event"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
 import {dayjs} from "@agenta/shared/utils"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {Tag, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
 import {UserReference} from "@/oss/components/References/UserReference"
@@ -40,10 +41,17 @@ export const EventTimestampCell = ({eventId}: {eventId: string}) => {
     if (!event) return <Dash />
 
     return (
-        <Tooltip title={dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss.SSS")}>
-            <Tag className="m-0 font-mono text-xs whitespace-nowrap" bordered>
-                {dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss")}
-            </Tag>
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <Badge variant="outline" className="font-mono text-xs whitespace-nowrap">
+                        {dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss")}
+                    </Badge>
+                }
+            />
+            <TooltipContent>
+                {dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss.SSS")}
+            </TooltipContent>
         </Tooltip>
     )
 }
@@ -54,9 +62,9 @@ export const EventTypeCell = ({eventId}: {eventId: string}) => {
     if (!event) return <Dash />
 
     return (
-        <Tag className="m-0 font-mono text-xs" bordered>
+        <Badge variant="outline" className="font-mono text-xs">
             {event.event_type}
-        </Tag>
+        </Badge>
     )
 }
 
@@ -79,9 +87,9 @@ export const CountCell = ({eventId}: {eventId: string}) => {
     if (count === null) return <Dash />
 
     return (
-        <Tag className="m-0 font-mono text-xs tabular-nums" bordered>
+        <Badge variant="outline" className="font-mono text-xs tabular-nums">
             {count}
-        </Tag>
+        </Badge>
     )
 }
 
@@ -92,9 +100,9 @@ export const EventIdCell = ({eventId}: {eventId: string}) => {
 
     return (
         <TooltipWithCopyAction copyText={event.event_id || ""} title="Copy event id">
-            <Tag className="m-0 font-mono text-xs whitespace-nowrap" bordered>
+            <Badge variant="outline" className="font-mono text-xs whitespace-nowrap">
                 {event.event_id}
-            </Tag>
+            </Badge>
         </TooltipWithCopyAction>
     )
 }

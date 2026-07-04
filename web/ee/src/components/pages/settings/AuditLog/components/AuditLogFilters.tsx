@@ -17,11 +17,14 @@ import {
     requestIdFilterAtom,
     requestTypeFilterAtom,
 } from "@agenta/entities/event"
-import {ArrowsClockwiseIcon} from "@phosphor-icons/react"
-import {Cascader, Input} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
+import {ArrowsClockwiseIcon, XCircle} from "@phosphor-icons/react"
+// Cascader has no shadcn counterpart yet — replaced in the composites workstream.
+import {Cascader} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
 
 const HIDDEN_EVENT_TYPE_PREFIXES = ["applications.revisions.", "evaluators.revisions."]
@@ -115,12 +118,21 @@ const AuditLogFilters = ({onRefresh}: AuditLogFiltersProps) => {
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            <EnhancedButton
-                aria-label="Refresh audit log data"
-                icon={<ArrowsClockwiseIcon size={14} className="mt-[0.8px]" />}
-                onClick={handleRefresh}
-                tooltipProps={{title: "Refresh data"}}
-            />
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <Button
+                            variant="outline"
+                            size="icon-sm"
+                            aria-label="Refresh audit log data"
+                            onClick={handleRefresh}
+                        >
+                            <ArrowsClockwiseIcon size={14} />
+                        </Button>
+                    }
+                />
+                <TooltipContent>Refresh data</TooltipContent>
+            </Tooltip>
             <QuickDateRangePicker value={timestampRange} onChange={setTimestampRange} />
             <Cascader
                 allowClear
@@ -135,13 +147,24 @@ const AuditLogFilters = ({onRefresh}: AuditLogFiltersProps) => {
                 }}
                 options={EVENT_TYPE_OPTIONS}
             />
-            <Input
-                allowClear
-                className="w-[290px] font-mono"
-                placeholder="ID"
-                value={eventIdDraft}
-                onChange={(event) => setEventIdDraft(event.target.value)}
-            />
+            <div className="relative w-[290px]">
+                <Input
+                    className="font-mono pe-7"
+                    placeholder="ID"
+                    value={eventIdDraft}
+                    onChange={(event) => setEventIdDraft(event.target.value)}
+                />
+                {eventIdDraft && (
+                    <button
+                        type="button"
+                        aria-label="Clear ID filter"
+                        onClick={() => setEventIdDraft("")}
+                        className="absolute end-2 top-1/2 -translate-y-1/2 flex items-center border-0 bg-transparent p-0 cursor-pointer text-gray-400 hover:text-gray-600"
+                    >
+                        <XCircle size={14} weight="fill" />
+                    </button>
+                )}
+            </div>
         </div>
     )
 }
