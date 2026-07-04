@@ -4,6 +4,7 @@ packages:
   - 'tests'
   - 'packages/*'
 allowBuilds:
+  '@parcel/watcher': false
   '@swc/core': true
   browser-tabs-lock: false
   core-js: true

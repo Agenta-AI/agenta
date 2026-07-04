@@ -36,6 +36,10 @@ COPY --parents packages/*/package.json ./
 # so its source must be present before `pnpm install` runs.
 COPY packages/agenta-api-client/ ./packages/agenta-api-client/
 
+# agenta-primitive-ui builds its Tailwind v4 CSS (dist/styles.css) via `prepare`,
+# so its source must also be present before `pnpm install` runs.
+COPY packages/agenta-primitive-ui/ ./packages/agenta-primitive-ui/
+
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm fetch --frozen-lockfile
 

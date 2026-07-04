@@ -123,7 +123,8 @@ export const createConfig = (content: string[] = []): Config => {
             // Path to Tremor module
             "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
             // Path to @agenta packages
-            "../packages/agenta-primitive-ui/src/**/*.{js,ts,jsx,tsx}",
+            // agenta-primitive-ui is intentionally NOT scanned: it compiles its own
+            // Tailwind v4 CSS (dist/styles.css); scanning it here would emit conflicting v3 utilities.
             "../packages/agenta-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-annotation-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-entity-ui/src/**/*.{js,ts,jsx,tsx}",

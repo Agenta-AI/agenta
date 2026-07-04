@@ -1,5 +1,6 @@
 import "@/oss/assets/custom-resize-handle.css"
 import "@/oss/styles/globals.css"
+import "@agenta/primitive-ui/styles.css"
 import "react-resizable/css/styles.css"
 
 import AppPage from "@/oss/components/pages/_app"

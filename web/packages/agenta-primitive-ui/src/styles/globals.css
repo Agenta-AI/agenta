@@ -1,4 +1,7 @@
-@import "tailwindcss";
+/* No-preflight Tailwind: the host app (antd, preflight disabled) must not be reset. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -117,17 +120,42 @@
     --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Scoped preflight: shadcn components carry data-slot; never reset the antd-owned page. */
 @layer base {
-    * {
-        @apply border-border outline-ring/50;
+    [data-slot],
+    [data-slot] *,
+    [data-slot] *::before,
+    [data-slot] *::after {
+        box-sizing: border-box;
+        border-width: 0;
+        border-style: solid;
+        border-color: var(--border);
+        outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
     }
 
-    body {
-        @apply bg-background text-foreground;
+    button[data-slot],
+    [data-slot] button {
+        font: inherit;
+        color: inherit;
+        background-color: transparent;
+        margin: 0;
+        padding: 0;
     }
 
-    button:not(:disabled),
-    [role="button"]:not(:disabled) {
+    button[data-slot]:not(:disabled),
+    [data-slot] button:not(:disabled),
+    [data-slot][role="button"]:not(:disabled) {
         cursor: pointer;
+    }
+
+    input[data-slot],
+    textarea[data-slot],
+    select[data-slot],
+    [data-slot] input,
+    [data-slot] textarea,
+    [data-slot] select {
+        font: inherit;
+        color: inherit;
+        margin: 0;
     }
 }

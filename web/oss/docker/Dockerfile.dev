@@ -30,7 +30,6 @@ COPY oss/package.json ./oss/yarn.lock* ./oss/package-lock.json* ./oss/pnpm-lock.
 
 # Copy workspace package manifests (required for workspace:* resolution)
 COPY packages/agenta-shared/package.json ./packages/agenta-shared/
-COPY packages/agenta-primitive-ui/package.json ./packages/agenta-primitive-ui/
 COPY packages/agenta-ui/package.json ./packages/agenta-ui/
 COPY packages/agenta-entities/package.json ./packages/agenta-entities/
 COPY packages/agenta-entity-ui/package.json ./packages/agenta-entity-ui/
@@ -44,6 +43,9 @@ COPY packages/agenta-sdk/package.json ./packages/agenta-sdk/
 # Its source (src/, tsconfig.json) must be present before `pnpm i` runs, so we
 # copy the whole directory here rather than just the manifest.
 COPY packages/agenta-api-client/ ./packages/agenta-api-client/
+# `agenta-primitive-ui` builds its Tailwind v4 CSS (dist/styles.css) in `prepare`,
+# so it needs the same full-copy-before-install treatment.
+COPY packages/agenta-primitive-ui/ ./packages/agenta-primitive-ui/
 
 # Copy shared package config files (required by package tsconfigs)
 COPY packages/tsconfig.base.json ./packages/
@@ -75,8 +77,6 @@ COPY --chown=agenta:agenta packages/agenta-sdk/tsconfig.json ./packages/agenta-s
 # so no second source copy is needed here.
 COPY --chown=agenta:agenta packages/agenta-shared/src ./packages/agenta-shared/src
 COPY --chown=agenta:agenta packages/agenta-shared/tsconfig.json ./packages/agenta-shared/
-COPY --chown=agenta:agenta packages/agenta-primitive-ui/src ./packages/agenta-primitive-ui/src
-COPY --chown=agenta:agenta packages/agenta-primitive-ui/tsconfig.json ./packages/agenta-primitive-ui/
 COPY --chown=agenta:agenta packages/agenta-ui/src ./packages/agenta-ui/src
 COPY --chown=agenta:agenta packages/agenta-ui/tsconfig.json ./packages/agenta-ui/
 COPY --chown=agenta:agenta packages/agenta-entities/src ./packages/agenta-entities/src
