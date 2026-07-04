@@ -28,6 +28,7 @@ const config = {
             "@agenta/entity-ui",
             "@agenta/playground",
             "@agenta/playground-ui",
+            "@agenta/primitive-ui",
             "@agenta/annotation",
             "@agenta/annotation-ui",
         ],

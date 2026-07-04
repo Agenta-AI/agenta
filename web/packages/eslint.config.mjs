@@ -48,6 +48,7 @@ const config = [
                     alwaysTryTypes: true,
                     project: [
                         path.join(__dirname, "agenta-entities/tsconfig.json"),
+                        path.join(__dirname, "agenta-primitive-ui/tsconfig.json"),
                         path.join(__dirname, "agenta-ui/tsconfig.json"),
                         path.join(__dirname, "agenta-shared/tsconfig.json"),
                     ],

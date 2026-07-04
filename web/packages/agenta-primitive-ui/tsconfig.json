@@ -1,0 +1,13 @@
+{
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "rootDir": "src",
+        "tsBuildInfoFile": ".tsbuildinfo",
+        "paths": {
+            "@agenta/primitive-ui/*": ["./src/*"]
+        }
+    },
+    "include": ["src/**/*.ts", "src/**/*.tsx", "../css-modules.d.ts"],
+    "exclude": ["node_modules", "dist"]
+}

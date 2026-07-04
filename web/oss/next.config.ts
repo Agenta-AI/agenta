@@ -65,6 +65,7 @@ const COMMON_CONFIG: NextConfig = {
             "@agenta/entity-ui",
             "@agenta/playground",
             "@agenta/playground-ui",
+            "@agenta/primitive-ui",
             "@agenta/annotation",
             "@agenta/annotation-ui",
             // Icon libraries - ensure tree-shaking works for individual icon imports
@@ -82,6 +83,7 @@ const COMMON_CONFIG: NextConfig = {
         "@agenta/entity-ui",
         "@agenta/playground",
         "@agenta/playground-ui",
+        "@agenta/primitive-ui",
         "@agenta/annotation",
         "@agenta/annotation-ui",
         ...(!isDevelopment

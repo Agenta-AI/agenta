@@ -30,6 +30,7 @@ COPY oss/package.json ./oss/yarn.lock* ./oss/package-lock.json* ./oss/pnpm-lock.
 
 # Copy workspace package manifests (required for workspace:* resolution)
 COPY packages/agenta-shared/package.json ./packages/agenta-shared/
+COPY packages/agenta-primitive-ui/package.json ./packages/agenta-primitive-ui/
 COPY packages/agenta-ui/package.json ./packages/agenta-ui/
 COPY packages/agenta-entities/package.json ./packages/agenta-entities/
 COPY packages/agenta-entity-ui/package.json ./packages/agenta-entity-ui/
@@ -74,6 +75,8 @@ COPY --chown=agenta:agenta packages/agenta-sdk/tsconfig.json ./packages/agenta-s
 # so no second source copy is needed here.
 COPY --chown=agenta:agenta packages/agenta-shared/src ./packages/agenta-shared/src
 COPY --chown=agenta:agenta packages/agenta-shared/tsconfig.json ./packages/agenta-shared/
+COPY --chown=agenta:agenta packages/agenta-primitive-ui/src ./packages/agenta-primitive-ui/src
+COPY --chown=agenta:agenta packages/agenta-primitive-ui/tsconfig.json ./packages/agenta-primitive-ui/
 COPY --chown=agenta:agenta packages/agenta-ui/src ./packages/agenta-ui/src
 COPY --chown=agenta:agenta packages/agenta-ui/tsconfig.json ./packages/agenta-ui/
 COPY --chown=agenta:agenta packages/agenta-entities/src ./packages/agenta-entities/src

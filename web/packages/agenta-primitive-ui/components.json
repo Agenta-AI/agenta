@@ -1,0 +1,23 @@
+{
+    "$schema": "https://ui.shadcn.com/schema.json",
+    "style": "radix-nova",
+    "rsc": true,
+    "tsx": true,
+    "tailwind": {
+        "config": "",
+        "css": "src/styles/globals.css",
+        "baseColor": "neutral",
+        "cssVariables": true
+    },
+    "iconLibrary": "phosphor",
+    "aliases": {
+        "components": "@agenta/primitive-ui/components",
+        "utils": "@agenta/primitive-ui/lib/utils",
+        "hooks": "@agenta/primitive-ui/hooks",
+        "lib": "@agenta/primitive-ui/lib",
+        "ui": "@agenta/primitive-ui/components"
+    },
+    "rtl": true,
+    "menuColor": "default",
+    "menuAccent": "subtle"
+}
