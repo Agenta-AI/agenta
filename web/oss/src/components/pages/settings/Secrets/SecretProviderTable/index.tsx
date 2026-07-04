@@ -1,11 +1,14 @@
 import {useMemo, useState} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {type ColumnDef, DataTable} from "@agenta/primitive-ui/components/data-table"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
 import type {LlmProvider} from "@agenta/shared/types"
 import {LLMIconMap} from "@agenta/ui"
 import {ArrowClockwise, GearSix, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Table, Tag, Tooltip, Typography} from "antd"
-import {ColumnsType} from "antd/es/table"
 
 import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
 import ConfigureProviderModal from "@/oss/components/ModelRegistry/Modals/ConfigureProviderModal"
@@ -21,16 +24,15 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
 
     const isCustom = type === "custom"
 
-    const columns: ColumnsType<LlmProvider> = useMemo(
+    const columns: ColumnDef<LlmProvider, unknown>[] = useMemo(
         () => [
             {
-                title: "Name",
-                dataIndex: "name",
-                key: "name",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (_, record) => {
+                id: "name",
+                accessorKey: "name",
+                header: "Name",
+                minSize: 160,
+                cell: ({row}) => {
+                    const record = row.original
                     const Icon = LLMIconMap[record.title as string]
 
                     return isCustom ? (
@@ -45,113 +47,90 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
             ...(!isCustom
                 ? [
                       {
-                          title: "API Key",
-                          dataIndex: "key",
-                          key: "apiKey",
-                          onHeaderCell: () => ({
-                              style: {minWidth: 160},
-                          }),
-                          render: (_: any, record: LlmProvider) => {
+                          id: "apiKey",
+                          accessorKey: "key",
+                          header: "API Key",
+                          minSize: 160,
+                          cell: ({row}: {row: {original: LlmProvider}}) => {
+                              const record = row.original
                               const key = record.key as string
                               const displayKey = key.slice(0, 3) + "..." + key.slice(-3)
 
-                              return (
-                                  <>
-                                      {record.key ? (
-                                          <Typography.Text>{displayKey}</Typography.Text>
-                                      ) : (
-                                          <Button
-                                              size="small"
-                                              onClick={(e) => {
-                                                  e.stopPropagation()
-                                                  setIsAddProviderSecretModalOpen(true)
-                                                  setSelectedProvider(record)
-                                              }}
-                                          >
-                                              Configure now
-                                          </Button>
-                                      )}
-                                  </>
+                              return record.key ? (
+                                  <span>{displayKey}</span>
+                              ) : (
+                                  <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                          e.stopPropagation()
+                                          setIsAddProviderSecretModalOpen(true)
+                                          setSelectedProvider(record)
+                                      }}
+                                  >
+                                      Configure now
+                                  </Button>
                               )
                           },
-                      },
+                      } satisfies ColumnDef<LlmProvider, unknown>,
                   ]
                 : []),
             ...(isCustom
                 ? [
                       {
-                          title: "Provider",
-                          dataIndex: "provider",
-                          key: "provider",
-                          onHeaderCell: () => ({
-                              style: {minWidth: 160},
-                          }),
-                          render: (_: any, record: LlmProvider) => {
-                              return (
-                                  <div className="flex flex-col items-start gap-1">
-                                      <Tag
-                                          variant="filled"
-                                          color="default"
-                                          className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                                      >
-                                          {record?.provider}
-                                      </Tag>
-                                  </div>
-                              )
-                          },
-                      },
+                          id: "provider",
+                          accessorKey: "provider",
+                          header: "Provider",
+                          minSize: 160,
+                          cell: ({row}: {row: {original: LlmProvider}}) => (
+                              <div className="flex flex-col items-start gap-1">
+                                  <Badge variant="secondary">{row.original?.provider}</Badge>
+                              </div>
+                          ),
+                      } satisfies ColumnDef<LlmProvider, unknown>,
                       {
-                          title: "Models",
-                          dataIndex: "models",
-                          key: "models",
-                          onHeaderCell: () => ({
-                              style: {minWidth: 200},
-                          }),
-                          render: (_: any, record: LlmProvider) => {
-                              const models = record?.models ?? []
+                          id: "models",
+                          accessorKey: "models",
+                          header: "Models",
+                          minSize: 200,
+                          cell: ({row}: {row: {original: LlmProvider}}) => {
+                              const models = row.original?.models ?? []
 
                               if (models.length === 0) {
-                                  return <Typography.Text type="secondary">-</Typography.Text>
+                                  return <span className="text-muted-foreground">-</span>
                               }
 
                               return (
                                   <div className="flex flex-wrap items-start gap-1">
                                       {models.map((model) => (
-                                          <Tag
-                                              key={model}
-                                              variant="filled"
-                                              color="default"
-                                              className="bg-[#0517290F] px-2 py-[1px] m-0"
-                                          >
+                                          <Badge key={model} variant="secondary">
                                               {model}
-                                          </Tag>
+                                          </Badge>
                                       ))}
                                   </div>
                               )
                           },
-                      },
+                      } satisfies ColumnDef<LlmProvider, unknown>,
                   ]
                 : []),
             {
-                title: "Created at",
-                dataIndex: "created_at",
-                key: "created_at",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (_, record) => {
+                id: "created_at",
+                accessorKey: "created_at",
+                header: "Created at",
+                minSize: 160,
+                cell: ({row}) => {
+                    const record = row.original
                     return record.created_at
                         ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
                         : "-"
                 },
             },
             {
-                title: <GearSix size={16} />,
-                key: "key",
-                width: 96,
-                fixed: "right",
-                align: "center",
-                render: (_, record) => {
+                id: "actions",
+                header: () => <GearSix size={16} className="mx-auto" />,
+                size: 96,
+                cell: ({row}) => {
+                    const record = row.original
                     if ((!isCustom && record.key) || isCustom) {
                         return (
                             <div className="flex items-center justify-center gap-1">
@@ -161,11 +140,12 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                         setIsDeleteModalOpen(true)
                                         setSelectedProvider(record)
                                     }}
-                                    color="danger"
-                                    variant="text"
-                                    icon={<Trash />}
-                                    size="small"
-                                />
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Delete provider"
+                                >
+                                    <Trash className="text-destructive" />
+                                </Button>
                                 <Button
                                     onClick={(e) => {
                                         e.stopPropagation()
@@ -176,15 +156,16 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                         }
                                         setSelectedProvider(record)
                                     }}
-                                    type="text"
-                                    icon={<PencilSimpleLine />}
-                                    size="small"
-                                />
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Edit provider"
+                                >
+                                    <PencilSimpleLine />
+                                </Button>
                             </div>
                         )
-                    } else {
-                        return null
                     }
+                    return null
                 },
             },
         ],
@@ -197,43 +178,46 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                 {/* Standard's label is a disabled pill so both sections' header rows match height. */}
                 <div className="flex items-center gap-2">
                     {isCustom ? (
-                        <Button
-                            icon={<Plus size={14} />}
-                            type="primary"
-                            size="small"
-                            onClick={() => setIsConfigProviderOpen(true)}
-                        >
+                        <Button size="sm" onClick={() => setIsConfigProviderOpen(true)}>
+                            <Plus size={14} />
                             Custom Provider
                         </Button>
                     ) : (
                         <Button
-                            size="small"
+                            variant="ghost"
+                            size="sm"
                             disabled
-                            className="!bg-transparent !text-[var(--ant-color-text-secondary)] !cursor-default"
+                            className="!bg-transparent !text-muted-foreground !cursor-default disabled:opacity-100"
                         >
                             Standard providers
                         </Button>
                     )}
-                    <Tooltip title="Reload providers">
-                        <Button
-                            icon={<ArrowClockwise size={14} />}
-                            type="text"
-                            size="small"
-                            aria-label="Reload providers"
-                            loading={loading}
-                            onClick={mutate}
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Reload providers"
+                                    disabled={loading}
+                                    onClick={() => mutate()}
+                                >
+                                    {loading ? <Spinner /> : <ArrowClockwise size={14} />}
+                                </Button>
+                            }
                         />
+                        <TooltipContent>Reload providers</TooltipContent>
                     </Tooltip>
                 </div>
-                <Table
-                    className="ph-no-capture"
-                    columns={columns}
-                    dataSource={isCustom ? customRowSecrets : secrets}
-                    rowKey={(record) => record.id || record.title || record.name || ""}
-                    bordered
-                    pagination={false}
-                    loading={loading}
-                />
+                <div className="ph-no-capture">
+                    <DataTable<LlmProvider>
+                        columns={columns}
+                        data={isCustom ? customRowSecrets : secrets}
+                        getRowId={(record) => record.id || record.title || record.name || ""}
+                        loading={loading}
+                        enableSorting={false}
+                    />
+                </div>
             </section>
 
             <DeleteProviderModal
