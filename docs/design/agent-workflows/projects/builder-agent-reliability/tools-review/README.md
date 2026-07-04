@@ -7,9 +7,9 @@ Status: research and proposal, 2026-07-03. One decision made (op renames, see "A
 - Inside Agenta the playground agent gets 18 platform ops + `request_connection` (19 tools), all injected unconditionally by `overlay.py`. The lab's successful runs used about 7 capabilities. The other ~12 are lifecycle management or unproven.
 - The outside kit won because it is small, ordered, and self-verifying. Its killer tool is `test-agent.sh`: one streaming invoke with OUTPUT, an ordered TOOLS line, APPROVAL gates, and the RESOLVED config from the trace.
 - Inside Agenta there is no self-test or verify tool. That is the biggest gap. A platform op can only wrap one existing endpoint, so `test_run` needs a new composite endpoint.
-- Cut the pause/resume family (4 ops) and `query_workflows` from the default overlay. Demote `test_subscription`. Keep removes for cleanup and retry.
+- Cut the pause/resume family (4 ops) and `query_workflows` from the default overlay. Keep `test_subscription` (revised per Mahmoud, 2026-07-03). Keep removes for cleanup and retry.
 - Renaming to one verb per capability (`discover_tools` / `discover_triggers` inside, matching the outside scripts) is decided: hard migrate, no aliases.
-- Recommended unified set: 12 tools inside (8 core + 4 event ops), 11 scripts outside.
+- Recommended unified set: 13 tools inside (8 core + 5 event ops), 11 scripts outside.
 
 ## Read next
 

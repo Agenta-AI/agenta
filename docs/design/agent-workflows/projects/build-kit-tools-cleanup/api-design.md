@@ -109,7 +109,8 @@ In the tools domain (`core/tools/` service code, dispatched from the tool-call p
    Digest output, the ordered tool list, and approval gates straight from the body.
    The batch call still blocks until the run ends (the server drains the stream), so
    the duration cap below stands unchanged.
-4. Query `POST /api/spans/query` (route: `tracing/router.py:97-98`), with the lab's
+4. Query `POST /api/spans/query` (route registered at `tracing/router.py:97-107`; the
+   `query_spans` handler at `tracing/router.py:314`), with the lab's
    retry (spans flush a second or two late), ONLY for what the body does not settle:
    returned-output verification of gated writes, and the resolved config.
 5. Digest into the response above. Pull `resolved` from the trace the way
@@ -186,10 +187,12 @@ rather than a new endpoint.
 
 ## How the contract changes under the other homes
 
-- **Option A (gateway-style)**: identical model-visible contract. The spec carries
-  `callRef: "tools.agenta.test_run"` and the same context binding; only the catalog's
-  internal mode differs. This is why A and C are runtime-equivalent.
-- **Option B (runner composite)**: the request/response stays, but verdict rules, span
+- **Option A' (the gateway config arm)**: identical model-visible contract. The spec
+  carries `callRef: "tools.agenta.test_run"` and the same context binding; only the
+  declaring config surface differs. This is why A' and C are runtime-equivalent (the
+  field-level comparison is in
+  [tool-home-options.md](tool-home-options.md#a-vs-c-concretely)).
+- **Option B (runner composite; rejected by Mahmoud, 2026-07-04)**: the request/response stays, but verdict rules, span
   digesting, and the retry live in TypeScript; `resolved` comes from the runner's own
   view instead of the trace; and the invoke needs a new `/api`-side route or a loosened
   SSRF guard first. The recursion guard weakens (the runner cannot mark the child run's

@@ -1,7 +1,8 @@
 # Skills port: one ordered playbook replaces the three authoring skills
 
-Status: proposal, 2026-07-03. Ports the proven outside playbook
-(`/home/mahmoud/code/agent-creation-lab/kit/BUILD-AGENT.md`) into the inside skill set.
+Status: proposal, 2026-07-03; revised 2026-07-04 after review round 1 (the overlay now
+carries ONE skill, see "The shape"). Ports the proven outside playbook (the
+agent-creation-lab repo's `kit/BUILD-AGENT.md`) into the inside skill set.
 
 ## Why one skill instead of four
 
@@ -20,18 +21,44 @@ getting-started (`agenta_builtins.py:320`), and nothing else references the othe
 slugs (evidence: [research.md](research.md) gotcha 1; verify live). So this port is also
 an attach fix: the new playbook must actually ride the overlay.
 
-## The shape
+## The shape (revised, review round 1)
 
-- **`agenta-getting-started` stays** as the forced baseline (unchanged scope: platform
-  manners, not building).
-- **One new skill, working name `build-an-agent`**, replaces `build-your-first-app`,
-  `discover-and-wire-tools`, and `set-up-triggers`. Hard migrate: delete the three
-  `SkillTemplate`s, their slugs, and their static-catalog rows
-  (`api/oss/src/core/workflows/static_catalog.py:146-156`); register the new slug
-  (`__ag__build_an_agent`); embed it in the overlay next to getting-started.
+Mahmoud's review asked the right question: if the goal is ONE skill, why keep
+`agenta-getting-started` here at all? Answer: it does not belong to the build kit, and
+the first draft wrongly kept it in the overlay. The two skills serve different
+populations on different delivery paths:
+
+- `agenta-getting-started` is the platform-manners baseline for EVERY Agenta agent,
+  including deployed agents that never build anything. It is harness-forced:
+  `AGENTA_FORCED_SKILLS` (`agenta_builtins.py:320`) is unioned into every `pi_agenta`
+  run by `force_skills` (`adapters/harnesses.py:140`).
+- The playbook is build knowledge: it matters only to the playground agent configuring
+  itself, and it rides the build-kit overlay.
+
+Today the overlay ALSO embeds getting-started (`overlay.py:69-78`), so a `pi_agenta`
+build-kit run receives it twice (embed + force; `force_skills` de-dupes by name, so the
+duplication is waste, not breakage). The revised shape removes the overlap:
+
+- **The overlay embeds exactly ONE skill: the playbook** (working name `build-an-agent`).
+  The builder sees one authoring skill, full stop.
+- **`agenta-getting-started` leaves the overlay** and stays where it already lives: the
+  harness-forced set, universal and not build-specific. Delivering platform manners is
+  the harness's job; the build kit stops carrying it.
+- **The playbook replaces `build-your-first-app`, `discover-and-wire-tools`, and
+  `set-up-triggers`.** Hard migrate: delete the three `SkillTemplate`s, their slugs, and
+  their static-catalog rows (`api/oss/src/core/workflows/static_catalog.py:146-156`);
+  register the new slug (`__ag__build_an_agent`).
 - The body is the inside translation of BUILD-AGENT.md. Same spine, adjusted for the
   self-targeting asymmetry: inside, the agent configures ITSELF (`commit_revision`), it
   does not create another app, and its tools are platform ops, not scripts.
+
+Alternative, flagged for Mahmoud: getting-started's body is thin (four conventions,
+roughly twenty lines, `agenta_builtins.py:74-92`). Folding those lines into the harness
+preamble (`AGENTA_PREAMBLE`) and deleting the skill entirely would make the playbook the
+only platform skill anywhere. The default proposal keeps getting-started forced and only
+removes it from the overlay, because forcing rides the `pi_agenta` harness alone
+(`harnesses.py:140`); how manners reach other harnesses is that lane's question, not the
+build kit's.
 
 ## Proposed body outline (structure, not final prose)
 
@@ -91,7 +118,7 @@ builtins it never needed; the rule gives the model an explicit fence.
 | `build-your-first-app` | The 8-step flow, stop points | Playbook steps 1-7 (tightened; "see what exists" via `query_workflows` is DROPPED with the overlay cut) |
 | `discover-and-wire-tools` | The discover -> connect -> configure loop, response-reading guide, good habits | Playbook steps 4.2-4.4 and the footguns. The stale availability note (`agenta_builtins.py:161-165`) is deleted, not ported. The long response-field walkthrough shrinks: the op description plus the response itself carry that weight |
 | `set-up-triggers` | Cron rules, subscription flow, confirm-it-works | Playbook step 4.6. The "map the sample event and run yourself on it" idea folds into the test step |
-| `agenta-getting-started` | Platform manners | Unchanged, stays forced |
+| `agenta-getting-started` | Platform manners | Content unchanged; leaves the overlay, stays harness-forced (see "The shape") |
 
 Renames land inside the new body from day one (`discover_tools`, `discover_triggers`),
 so no skill text ever names the old ops.
@@ -99,13 +126,22 @@ so no skill text ever names the old ops.
 ## Delivery (make "attached" true this time)
 
 - Add the new `SkillTemplate` + slug in `agenta_builtins.py`; register it in
-  `static_catalog.py`; embed it in `build_agent_template_overlay()`'s skills list next to
-  getting-started (`overlay.py:69-78`).
-- Do NOT add it to `AGENTA_FORCED_SKILLS`: forcing rides the `pi_agenta` harness only
-  (`adapters/harnesses.py:140`), and the playground builder may run any harness. The
-  overlay is the delivery path that reaches every playground run.
-- Update `test_build_kit_overlay.py` to assert both skill embeds, and
-  `test_static_catalog.py` for the new/deleted rows.
+  `static_catalog.py`; make it the ONLY entry in `build_agent_template_overlay()`'s
+  skills list (`overlay.py:69-78`; getting-started leaves the overlay, see "The shape").
+- Do NOT add it to `AGENTA_FORCED_SKILLS`: the playbook is build knowledge, not a
+  universal baseline, and forcing rides the `pi_agenta` harness only
+  (`adapters/harnesses.py:140`).
+- Scope claim, stated precisely: the overlay reaches build-kit-enabled playground runs
+  only. The request path applies the overlay when the build kit is on and returns the
+  config unchanged when it is off (both cases are pinned in the FE request tests,
+  `agentRequest.test.ts`). Deployed and committed agents never carry the overlay; that is
+  by design (the recursion guard in [api-design.md](api-design.md) leans on it).
+- Hard-migrate sweep (same slice as the deletion): search existing revisions and dev data
+  for skill embeds referencing the three deleted slugs, and rewrite or drop them. Aliases
+  stay rejected (decided 2026-07-03, pre-production); the sweep IS the migration, so the
+  slice is not done until the sweep comes back empty.
+- Update `test_build_kit_overlay.py` to assert exactly one skill embed (the playbook),
+  and `test_static_catalog.py` for the new/deleted rows.
 
 ## Skill-size check
 

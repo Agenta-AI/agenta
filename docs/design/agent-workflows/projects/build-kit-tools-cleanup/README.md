@@ -5,8 +5,8 @@ Design workspace, 2026-07-03. Docs only; all code changes batch into one PR afte
 Clean up and redesign the playground build kit: the "inside" tool set a playground agent
 uses to build itself. Executes the verdicts from the
 [builder tooling review](../builder-agent-reliability/tools-review/README.md) and ports
-the agent-creation-lab playbook
-(`/home/mahmoud/code/agent-creation-lab/kit/BUILD-AGENT.md`) into the inside skills.
+the agent-creation-lab playbook (the lab repo's `kit/BUILD-AGENT.md`) into the inside
+skills.
 
 ## TL;DR
 
@@ -17,13 +17,16 @@ the agent-creation-lab playbook
 - **The headline call**: logic-bearing internal tools (`test_run`) should run as
   server-side handlers on the existing tool-call plane, registered through the platform
   catalog, with the relay gaining generic run-context injection. Not a composite resource
-  endpoint, not runner-side logic. The four options and the argument:
+  endpoint, not runner-side logic (runner-side is rejected: review round 1). After round
+  1 the live choice is between two declarations of the same runtime design (A' vs C);
+  the field-level comparison and the recommendation:
   [tool-home-options.md](tool-home-options.md).
 - `test_run` contract (verdicts ported from the lab's `check-tools.sh`) and the
   `query_spans` stopgap: [api-design.md](api-design.md).
 - One ordered playbook skill replaces the three cross-referencing authoring skills, which
-  research suggests were never actually delivered to the agent:
-  [skills-port.md](skills-port.md).
+  research suggests were never actually delivered to the agent. After round 1 the overlay
+  carries ONLY the playbook; `agenta-getting-started` stays harness-forced and leaves the
+  overlay: [skills-port.md](skills-port.md).
 - **Hard constraint**: zero approval-semantics changes; `op_catalog.py` edits sequence
   behind the in-flight [approval-boundary](../approval-boundary/) lane. See the
   coordination section of [plan.md](plan.md).

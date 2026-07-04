@@ -90,9 +90,12 @@ Exit: the builder can verify a past run's tool spans end to end.
 - `agenta_builtins.py`: add the `build-an-agent` `SkillTemplate` + slug; delete the three
   old templates, slugs, and bodies ([skills-port.md](skills-port.md) has the outline and
   the two rules). Persona/preamble per Mahmoud's call on the proposal there.
-- `static_catalog.py`: swap the rows; `overlay.py`: embed the new skill next to
-  getting-started.
-- Tests: `test_static_catalog.py`, `test_build_kit_overlay.py` (two skill embeds),
+- `static_catalog.py`: swap the rows; `overlay.py`: the new skill becomes the overlay's
+  ONLY skill embed (getting-started leaves the overlay and stays harness-forced;
+  review round 1, see [skills-port.md](skills-port.md) "The shape").
+- Hard-migrate sweep: search existing revisions/dev data for embeds of the three deleted
+  slugs; rewrite or drop them (no aliases, decided 2026-07-03).
+- Tests: `test_static_catalog.py`, `test_build_kit_overlay.py` (exactly one skill embed),
   `test_skill_template_catalog.py`.
 - Docs sync: `documentation/skills.md` (the skill catalog list, if it names the four),
   and the builder-agent-reliability workspace pointer.
