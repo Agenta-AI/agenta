@@ -14,6 +14,11 @@ transcript). test_run digest simplified accordingly in api-design.md; silent-fal
 proposed), Option B rejected, A'-vs-C field-level comparison added, the overlay now
 carries only the playbook skill.
 
+2026-07-04 (slice 5a review fix): Recorded the 5a -> 5b contract in
+api-design.md. 5a leaves recursion header propagation, child cancellation and
+`trace_id` on timeout, runner `timeoutMs` honoring, and default-on
+`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` to 5b.
+
 2026-07-04 (later): #5041 (approval-boundary) MERGED. `op_catalog.py` is no longer
 contended; approval for new ops is expressed by the `read_only` hint under the merged
 permission plan (write + no explicit permission → ask). The coordination constraint
