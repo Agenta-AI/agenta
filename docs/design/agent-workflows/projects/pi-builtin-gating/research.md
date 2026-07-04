@@ -140,3 +140,31 @@ the re-issued call, anchored on `toolName` and canonical `args`. This is the sam
 relay-ask flow already uses and that was live-QA'd for custom tools. Whether Pi re-issues a
 builtin call after the block is the one behavior this design has not yet verified live; it is
 the top open risk (design.md, plan.md Phase 0).
+
+## Native tool-selection surfaces (review round 1)
+
+Mahmoud asked why the grant list is not written into Pi's configuration the way Claude gets
+`.claude/settings.json`. Verified answer: Pi has native tool selection, but no surface of it
+is reachable on our path.
+
+- **Settings file: does not exist.** Pi's full settings reference
+  (`@earendil-works/pi-coding-agent/docs/settings.md`) has no tools field of any kind. The
+  resources it knows are extensions, skills, packages, prompts, and themes. So the per-run
+  agent dir the runner already materializes cannot express a builtin grant.
+- **CLI flags: exist, honored in RPC mode.** `--tools`, `--no-builtin-tools`, `--no-tools`,
+  `--exclude-tools` (dist/cli/args.js:79-95); mapped into session options in dist/main.js
+  (330-340, 556-558) for every mode including `--mode rpc`.
+- **SDK: exists.** `CreateAgentSessionOptions.tools?: string[]` (dist/core/sdk.d.ts:11-46).
+  The deleted in-process engine passed exactly this (`toolAllowlist` in the old runPi.ts,
+  removed in 0e71bd0f7a).
+- **The chain that drops it:** the runner calls `sandbox.createSession({ agent, cwd,
+  sessionInit })` (sandbox_agent.ts:634-638); sandbox-agent's `SessionCreateRequest` has no
+  tools field (sandbox-agent dist/index.d.ts:2950-2960); ACP `session/new` carries only
+  `cwd` and `mcpServers` (types.gen.d.ts:1480); pi-acp hard-codes pi's argv to
+  `--mode rpc --no-themes` (pi-acp dist/index.js:134-136) and reads no `_meta`. No env var
+  reaches tool selection either (no `PI_*TOOL*` variable exists).
+- **Consequence:** the extension (inside the spawned pi process) is the only layer we control
+  downstream of the fixed argv, which is why `setActiveTools` is the enforcement mechanism in
+  this slice. The upstream follow-up that replaces it: a `tools` field on sandbox-agent's
+  `SessionCreateRequest` forwarded by pi-acp into pi's argv, or an env passthrough in pi-acp
+  (it already spawns pi with the inherited environment, index.js:138).

@@ -93,7 +93,31 @@ instead of a new `"builtin"` value; preserve non-builtin active tools when editi
 set; first-class `builtinGatingActive` + `builtinGrants` on `RunPlan`; lowercase Pi builtin
 rule names versus Claude-style `Bash(...)`.
 
-Nits folded in: response field renamed `decision` -> `effect` to avoid colliding with the
+Nits folded in (the `effect` rename was later reversed in review round 1, see below): response field renamed `decision` -> `effect` to avoid colliding with the
 permission module's `allow | deny`; validate `AGENTA_AGENT_BUILTIN_GRANTS` (de-dupe, known
 seven, drop-and-log unknowns). Codex also confirmed the pending-and-block double effect is
 sound because `toolRelay.stop()` drains inflight handlers before teardown.
+
+## Review round 1 (Mahmoud, 2026-07-04)
+
+Four comments on design.md, all folded:
+
+- **The hook does policy only.** The grant check came out of the `tool_call` handler. A
+  non-granted builtin is simply absent from Pi's active tool set, so no call fires and
+  nothing is checked twice.
+- **No duplicated configuration.** The author's builtin selection stays the single source
+  (the existing config and wire `tools` field). Asked why the grant is not written into Pi's
+  config the way Claude gets settings.json: verified that Pi has no settings-file surface
+  for tools at all, and its native surfaces (the `--tools` launch flag, the SDK's
+  `createAgentSession({tools})`) are dropped by every layer of the sandbox-agent/ACP chain
+  (evidence in research.md, "Native tool-selection surfaces"). The extension's
+  `setActiveTools` is therefore the only reachable enforcement point today. The durable
+  upstream fix (a `tools` field on sandbox-agent's SessionCreateRequest forwarded by pi-acp
+  into pi's argv) is filed as a follow-up; when it lands, the extension edit disappears and
+  the same config flows declaratively.
+- **Nomenclature aligned.** The permission response now transports `decide()`'s verdict
+  verbatim (`verdict: "allow" | "deny" | "pendingApproval"`) instead of the invented
+  `effect: allow | block`. The mapping to Pi's `{ block: true }` lives in the extension hook
+  at the Pi boundary.
+- **Extension context added.** design.md now opens with what our extension does today
+  (registers relay-backed custom tools, flushes tracing and usage on `agent_end`).

@@ -3,22 +3,57 @@
 ## The shape of the thing
 
 Pi fires a `tool_call` event before it runs any tool, and the handler can block. We add that
-handler to our extension. For each builtin call the handler does two checks in order:
+handler to our extension, and it does one job: the per-call policy check. For each builtin
+call it asks the runner: allow, deny, or ask? The runner decides with the real name and real
+arguments in `decide()`, then the handler enforces the answer.
 
-1. **Grant.** Is this builtin one the author enabled? If not, the call never runs.
-2. **Policy.** For a granted builtin, ask the runner: allow, deny, or ask? The runner
-   decides with the real name and real arguments in `decide()`, then the handler enforces the
-   answer.
+Which builtins exist at all is a separate question with a separate mechanism (next section).
+The hook never re-checks the grant: a non-granted builtin is not in Pi's active tool set, so
+no call for it ever fires.
 
 The runner decides. The extension only reports and enforces. That is the whole design in one
 line, and it is the line that keeps the "one decision module" doctrine intact.
 
-## The grant list: shape Pi's active-tool set at turn start
+### What our extension does today
 
-The cleanest way to enforce "which builtins exist" is to not offer the non-granted ones at
-all. Pi exposes `pi.setActiveTools([...])` and `getActiveTools()` / `getAllTools()` on the
-extension API (research.md). When gating is active, the extension sets the active set so that
-only the granted builtins remain, and the model never sees a non-granted builtin.
+Two things, neither about permissions. It registers the resolved custom and relay tools with
+`pi.registerTool`, so the model can call them and each call round-trips to the runner through
+the relay directory. And it flushes tracing and usage data on `agent_end`. The bundle
+(`dist/extensions/agenta.js`) is installed into the per-run agent dir on every run, local and
+Daytona. This design adds the `tool_call` policy hook and the active-tool-set edit to that
+same bundle; nothing else about the extension changes.
+
+## The grant list: one config, enforced at the only layer we can reach
+
+The author's builtin selection already exists and stays the single source of truth: the
+builtin entries in the agent config, shipped on the wire as `tools` ("built-in tools to
+enable"). This design adds no second configuration. The open question was only where to
+enforce the one that exists, because today nothing does (the wire field lost its last reader
+in `0e71bd0f7a`).
+
+The declarative route (write the grant into a Pi config file, the way Claude gets
+`.claude/settings.json`) does not exist: Pi's settings schema has no tool field of any kind
+(its settings.md covers extensions, skills, packages, prompts, and themes; see research.md,
+"Native tool-selection surfaces"). Pi does take a grant list natively, but only at process
+launch: `pi --tools read,bash,...` (args.js:79-95), or `createAgentSession({ tools })` in the
+SDK, which is exactly what the deleted in-process engine passed. Neither is reachable on our
+path. The runner talks to sandbox-agent, whose `SessionCreateRequest` has no tools field; the
+ACP `session/new` schema carries only `cwd` and `mcpServers`; and pi-acp hard-codes pi's argv
+(`--mode rpc --no-themes`, pi-acp index.js:134). Every layer between the runner and the flag
+drops it.
+
+That leaves one enforcement point we control today: our extension, which runs inside the
+already-spawned pi process. Pi exposes `pi.setActiveTools([...])` and `getActiveTools()` /
+`getAllTools()` on the extension API (research.md). When gating is active, the extension sets
+the active set so that only the granted builtins remain, and the model never sees a
+non-granted builtin.
+
+The durable fix is upstream, and it is filed as a follow-up rather than built here: a `tools`
+field on sandbox-agent's `SessionCreateRequest`, forwarded by pi-acp into pi's argv (or an
+env-driven passthrough in pi-acp, which already inherits the runner-controlled environment).
+When that lands, the extension's active-set edit disappears and the same config flows
+declaratively. The author config, the wire field, and the playground control are identical in
+both worlds; only the enforcement mechanism moves.
 
 Two corrections from the Codex review shape how this is done:
 
@@ -33,10 +68,8 @@ Two corrections from the Codex review shape how this is done:
   full set with `getAllTools()`, and replace only the seven builtins' slice with the granted
   subset. Non-builtin tools pass through untouched.
 
-This maps the grant gap to the mechanism that fits it. The `tools` field means "built-in
-tools to enable", which is exactly what an active-tool allowlist expresses. The `tool_call`
-hook is then free to handle only the second question, the per-call policy on the tools that
-are enabled.
+The `tool_call` hook is then free to handle only the per-call policy on the tools that are
+enabled; the grant never needs re-checking at call time.
 
 A fallback exists if `before_agent_start` proves too late to hide a tool from the model: the
 `tool_call` hook blocks any builtin not in the grant list, with a reason that says the tool is
@@ -69,8 +102,8 @@ The TS types are a real discriminated union, not "RelayResponse plus an optional
 execute response and a permission response mean different things, so they are distinct types
 keyed by `kind`. The permission response also carries `kind: "permission"` (or is parsed
 through a dedicated `PermissionRelayResponse` validator) so that the existing `relayToolCall`
-path can never mis-read one. Without that, a permission response `{ ok: true, effect:
-"block" }` would look to `relayToolCall` like an empty successful tool result.
+path can never mis-read one. Without that, a permission response `{ ok: true, verdict:
+"deny" }` would look to `relayToolCall` like an empty successful tool result.
 
 **Response record** (`<id>.res.json`, its own permission variant):
 
@@ -78,16 +111,16 @@ path can never mis-read one. Without that, a permission response `{ ok: true, ef
 | --- | --- | --- |
 | `kind: "permission"` | protocol / routing | Marks this as a permission response so no other reader parses it as a tool result. |
 | `ok` | protocol | False on a runner-side error; the handler then fails closed per the failure-mode table below. |
-| `effect: "allow" \| "block"` | control | The single bit the handler acts on. Named `effect`, not `decision`, to avoid colliding with the permission module's own `"allow" \| "deny"` decisions. |
+| `verdict: "allow" \| "deny" \| "pendingApproval"` | control | The decision module's own verdict, transported verbatim. The hook maps anything but `allow` to Pi's `{ block: true }`. Named after `decide()`'s vocabulary so the wire and the module read the same. |
 | `reason?` | data | The text shown to the model on a block, reusing the authored-deny and policy-deny wording from relay.ts. |
 
-Note there is no `"pending"` value on the wire. Pending collapses to `block` with a reason,
-because on a builtin **Pi is the executor**. The runner cannot withhold execution the way it
-does for a custom tool; the only way to stop Pi from running the builtin is for the hook to
-return `{ block: true }`. So a pending decision produces two effects at once: the runner
-pauses the turn through `onPendingApproval` (the normal ask path), and it writes a `block`
-response so the hook stops the native call. On resume the model re-issues and the stored
-decision replays. See the flow and the risk below.
+The wire carries `pendingApproval` verbatim, but in Pi it lands as a block, because on a
+builtin **Pi is the executor**. The runner cannot withhold execution the way it does for a
+custom tool; the only way to stop Pi from running the builtin is for the hook to return
+`{ block: true }`. So a pending verdict produces two things at once: the runner pauses the
+turn through `onPendingApproval` (the normal ask path), and the hook blocks the native call.
+On resume the model re-issues and the stored decision replays. See the flow and the risk
+below.
 
 ### Why a discriminator rather than a second file suffix
 
@@ -111,11 +144,11 @@ The runner's permission branch builds a `GateDescriptor` from the record:
 - `specPermission` and `serverPermission`: unset. A builtin has no resolved spec and no MCP
   server, so its permission comes from pattern rules and the global default only.
 
-Then it calls the same `decide(gate, permissionPlan, decisions)` the relay already uses, and
-maps the verdict: `allow` -> write `{ effect: "allow" }`; `deny` -> write `{ effect: "block",
-reason }`; `pendingApproval` -> call `onPendingApproval` and write `{ effect: "block",
-reason }`. The pending-to-block mapping lives in the permission-record handler, not in the
-descriptor.
+Then it calls the same `decide(gate, permissionPlan, decisions)` the relay already uses and
+writes the verdict verbatim: `allow` -> `{ verdict: "allow" }`; `deny` -> `{ verdict: "deny",
+reason }`; `pendingApproval` -> call `onPendingApproval`, then `{ verdict: "pendingApproval",
+reason }`. The verdict-to-block mapping lives in the extension hook at the Pi boundary, the
+one place that knows Pi's `{ block: true }` mechanics.
 
 ### The executor question: reuse `"harness"`, not a new value
 
@@ -189,22 +222,22 @@ Consider an agent with `bash: ask` and a user watching the playground.
 
 1. The model calls `bash` with `{ command: "npm test" }`. Pi fires `tool_call` before running
    it.
-2. The extension hook sees `bash` is granted, so it moves to the policy check. It writes a
-   permission record `{ kind: "permission", toolName: "bash", toolCallId, args: { command:
+2. The extension hook fires (a non-granted builtin would not be in the active set, so no
+   grant check happens here). It writes a permission record `{ kind: "permission", toolName: "bash", toolCallId, args: { command:
    "npm test" } }` and polls for the response.
-3. The runner loop reads the record, builds the `GateDescriptor` (`executor: "builtin"`,
+3. The runner loop reads the record, builds the `GateDescriptor` (`executor: "harness"`,
    `readOnlyHint: false` from the table, real args), and calls `decide()`. The effective
    permission is `ask`, and no stored decision exists, so the verdict is `pendingApproval`.
 4. The runner calls `onPendingApproval`. It acquires the single-pending latch, marks the
    paused tool call, emits the `interaction_request` event the playground renders as
    Approve/Deny, records the durable interaction, and pauses the turn. It also writes the
-   response `{ kind: "permission", effect: "block", reason: "Waiting for approval of bash." }`.
+   response `{ kind: "permission", verdict: "pendingApproval", reason: "Waiting for approval of bash." }`.
 5. The hook reads the block and returns `{ block: true, reason }`. Pi does not run the shell
    command. The turn is already pausing, so the model does not act on the reason this turn.
 6. The user clicks Approve. The run resumes. The stored decision now holds `allow` for this
    builtin and these args.
 7. The model re-issues the `bash` call. The hook checks again, the runner's `decide()` finds
-   the stored `allow`, and the response is `{ kind: "permission", effect: "allow" }`. The hook
+   the stored `allow`, and the response is `{ kind: "permission", verdict: "allow" }`. The hook
    returns nothing, Pi runs the command, and the turn continues.
 
 For `deny` the flow stops at step 3 with a straight block and the deny reason. For `allow`
@@ -239,8 +272,8 @@ pins that.
 sequentially, then runs them concurrently. Two builtins in one assistant message can both be
 pending. The latch lets only the first raise an approval event. The second still needs a
 response so its hook does not hang, so on a pending-but-latch-held call the runner writes
-`{ kind: "permission", effect: "block", reason: "Another approval is pending; retry after it
-resolves." }`. The second call is refused this turn and re-issued later.
+`{ kind: "permission", verdict: "pendingApproval", reason: "Another approval is pending;
+retry after it resolves." }`. The second call is refused this turn and re-issued later.
 
 This needs a small contract change the Codex review flagged: `RelayPermissions.onPendingApproval`
 returns `void` today (relay.ts:69), so a caller cannot tell whether it actually raised the

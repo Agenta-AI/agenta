@@ -32,8 +32,8 @@ saves days.
 
 - Extend the relay records into a real discriminated union keyed by `kind` (`"execute"` vs
   `"permission"`), not a shared type with optional fields (`services/runner/src/tools/relay.ts`
-  types at lines 46-55). The permission response carries `kind: "permission"`, `ok`, `effect:
-  "allow" | "block"`, and `reason?`. Parse it through a dedicated validator so the existing
+  types at lines 46-55). The permission response carries `kind: "permission"`, `ok`, `verdict:
+  "allow" | "deny" | "pendingApproval"`, and `reason?`. Parse it through a dedicated validator so the existing
   `relayToolCall` path can never mis-read a permission response as a tool result.
 - In `startToolRelay`'s `handle` (relay.ts:312), branch on `kind`. For `"permission"`: build
   the `GateDescriptor` (`executor: "harness"`, `toolName`, `readOnlyHint` from the new builtin
