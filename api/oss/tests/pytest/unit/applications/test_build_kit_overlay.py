@@ -6,11 +6,15 @@ import pytest
 
 from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
 from agenta.sdk.agents.dtos import AgentTemplate
+from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.tools.models import ClientToolConfig, PlatformToolConfig
 
 from oss.src.apis.fastapi.applications import router as applications_router_module
-from oss.src.apis.fastapi.applications.overlay import build_agent_template_overlay
+from oss.src.apis.fastapi.applications.overlay import (
+    DEFAULT_BUILD_KIT_OPS,
+    build_agent_template_overlay,
+)
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.core.applications.dtos import SimpleApplication
 from oss.src.core.embeds.service import EmbedsService
@@ -20,6 +24,30 @@ from oss.src.core.workflows.static_catalog import (
     STATIC_SLUG_PREFIX,
     StaticWorkflowCatalog,
     _STATIC_WORKFLOWS,
+)
+
+EXPECTED_DEFAULT_BUILD_KIT_OPS = (
+    "discover_tools",
+    "commit_revision",
+    "annotate_trace",
+    "discover_triggers",
+    "create_schedule",
+    "create_subscription",
+    "list_schedules",
+    "list_deliveries",
+    "test_subscription",
+    "remove_schedule",
+    "remove_subscription",
+)
+
+CUT_BUILD_KIT_OPS = (
+    "pause_schedule",
+    "resume_schedule",
+    "pause_subscription",
+    "resume_subscription",
+    "query_workflows",
+    "list_connections",
+    "list_subscriptions",
 )
 
 
@@ -37,8 +65,11 @@ def test_agent_template_overlay_contains_platform_ops_authoring_skill_and_permis
         for tool in overlay["tools"]
         if isinstance(tool, dict) and tool.get("type") == "platform"
     ]
+    assert DEFAULT_BUILD_KIT_OPS == EXPECTED_DEFAULT_BUILD_KIT_OPS
+    assert set(DEFAULT_BUILD_KIT_OPS) <= set(PLATFORM_OPS)
+    assert set(DEFAULT_BUILD_KIT_OPS).isdisjoint(CUT_BUILD_KIT_OPS)
     assert platform_tools == [
-        {"type": "platform", "op": op_name} for op_name in PLATFORM_OPS
+        {"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS
     ]
 
     authoring_skill = StaticWorkflowCatalog().retrieve_revision(
@@ -140,7 +171,15 @@ async def test_fetch_simple_application_includes_build_kit_context(monkeypatch):
     # The overlay is now a typed `AgentTemplateOverlay`; its JSON projection is the wire payload and
     # must match the platform-built overlay dict byte for byte.
     assert overlay is not None
-    assert overlay.model_dump(mode="json") == build_agent_template_overlay()
+    overlay_payload = overlay.model_dump(mode="json")
+    response_platform_ops = [
+        tool["op"]
+        for tool in overlay_payload["tools"]
+        if isinstance(tool, dict) and tool.get("type") == "platform"
+    ]
+    assert set(response_platform_ops) == set(DEFAULT_BUILD_KIT_OPS)
+    assert response_platform_ops == list(DEFAULT_BUILD_KIT_OPS)
+    assert overlay_payload == build_agent_template_overlay()
 
 
 @pytest.mark.asyncio
@@ -185,8 +224,24 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
     client_tools = [
         tool for tool in template.tools if isinstance(tool, ClientToolConfig)
     ]
-    assert any(tool.op == "find_capabilities" for tool in platform_ops)
+    assert [tool.op for tool in platform_ops] == list(DEFAULT_BUILD_KIT_OPS)
     # The request_connection embed must coerce to a client tool, not a builtin.
     assert [tool.name for tool in client_tools] == ["request_connection"]
     assert client_tools[0].render == {"kind": "connect"}
     assert [skill.name for skill in template.skills] == ["agenta-getting-started"]
+
+
+@pytest.mark.asyncio
+async def test_cut_overlay_ops_still_resolve_when_authored_explicitly():
+    resolver = AgentaPlatformToolResolver(
+        connection=PlatformConnection(
+            base_url="https://api.example/api",
+            authorization="Access tok",
+        )
+    )
+
+    resolution = await resolver.resolve(
+        [PlatformToolConfig(op=op) for op in CUT_BUILD_KIT_OPS]
+    )
+
+    assert {spec.name for spec in resolution.tool_specs} == set(CUT_BUILD_KIT_OPS)

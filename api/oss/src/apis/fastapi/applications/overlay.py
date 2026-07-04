@@ -3,12 +3,26 @@
 from typing import Any, Dict, List, Optional
 
 from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
-from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 
 from oss.src.core.workflows.static_catalog import (
     STATIC_SLUG_PREFIX,
     StaticWorkflowCatalog,
     _STATIC_WORKFLOWS,
+)
+
+# query_spans joins this tuple in slice 3; cut ops stay catalog opt-ins.
+DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
+    "discover_tools",
+    "commit_revision",
+    "annotate_trace",
+    "discover_triggers",
+    "create_schedule",
+    "create_subscription",
+    "list_schedules",
+    "list_deliveries",
+    "test_subscription",
+    "remove_schedule",
+    "remove_subscription",
 )
 
 
@@ -79,7 +93,7 @@ def build_agent_template_overlay() -> Dict[str, Any]:
 
     return {
         "tools": [
-            *[{"type": "platform", "op": op_name} for op_name in PLATFORM_OPS],
+            *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
             *_reserved_static_tool_embeds(catalog),
         ],
         "skills": skills,
