@@ -174,6 +174,16 @@ The runner's permission branch builds a `GateDescriptor` from the record:
 - `specPermission` and `serverPermission`: unset. A builtin has no resolved spec and no MCP
   server, so its permission comes from pattern rules and the global default only.
 
+**Match projection (from the Phase 0 spike).** The model sometimes adds a benign optional
+parameter on re-issue (observed once in thirteen spike runs: `timeout: 10` appeared on a
+`bash` call). Full-args matching would miss and re-prompt, which is safe but needless
+friction. The builtin table therefore also owns a per-builtin match projection used ONLY for
+stored-decision matching: `bash` matches on `command` alone (the command carries the full
+semantics; a timeout cannot change what runs), while `edit` and `write` keep full canonical
+args (a content change must never auto-match a stale approval), and the read-only builtins
+keep full args too. The projection never affects the permission decision itself, only the
+resume-match key.
+
 **Case normalization.** Authored rules use the Claude-style capitalized vocabulary, for example
 `Bash(npm:*)`, because that vocabulary was written for Claude's tool names. Pi's builtin names
 are lowercase (`bash`, `read`, `edit`). Left alone, a `Bash(...)` rule would never match a Pi

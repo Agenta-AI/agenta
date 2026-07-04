@@ -172,3 +172,17 @@ technical adds. All seven folded into design.md, plan.md, and research.md:
 
 The three technical adds, the prompt-ordering assert, the protocol-version pin, and case
 normalization, came from Codex reading Pi's shipped source, not from re-reading our own docs.
+
+## Phase 0 spike, stage A: PASSED (2026-07-04)
+
+Host-local Pi (openai-codex subscription, gpt-5.4-mini), 13 runs, throwaway block-once
+extension. Results: cross-turn re-issue after an approval message 3/3 with byte-identical
+args; same-turn retry 0/10 regardless of reason wording (a blocked call is terminal for its
+turn, which suits the pause design: the turn tears down anyway); zero double executions, zero
+pre-approval executions. One finding: 1/13 runs added a spontaneous optional param
+(`timeout: 10` on bash), so the design gains a per-builtin match projection (bash matches on
+`command` alone; edit/write keep full args). Evidence: scratchpad pi-spike run logs.
+
+Gate call: stage A passes the model-behavior question, so the build proceeds. The plan's
+full 5-of-5 bar through the real runner pause and teardown runs as the live-QA acceptance
+once phases 1-3 land; a failure there still stops the ship.

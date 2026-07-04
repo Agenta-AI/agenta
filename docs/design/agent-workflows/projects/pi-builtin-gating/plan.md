@@ -44,9 +44,10 @@ materially different design and needs sign-off before it is built.
   On pending, call `onPendingApproval` first, then write `{ verdict: "pendingApproval", reason
   }` verbatim, the same as `decide()` returned. This handler never writes a block; the
   verdict-to-block mapping lives in the extension hook at the Pi boundary.
-- Add the builtin read-only table next to `decide()` in
-  `services/runner/src/permission-plan.ts`. No new `GateExecutor` value; builtins use
-  `"harness"`.
+- Add the builtin identity table next to `decide()` in
+  `services/runner/src/permission-plan.ts`: canonical rule name, read-only bit, and the
+  match projection (bash -> `command` only; every other builtin -> full canonical args).
+  No new `GateExecutor` value; builtins use `"harness"`.
 - Change `RelayPermissions.onPendingApproval` (relay.ts:69) to return whether it emitted the
   approval event (a boolean or `{ emitted }`), so the handler writes the plain
   waiting-for-approval reason when it emitted and the another-approval-pending reason when the
