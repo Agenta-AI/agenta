@@ -216,20 +216,25 @@ async def agent_run_to_vercel_parts(
             elif etype == "error":
                 yield {"type": "error", "errorText": data.get("message", "")}
             elif etype == "done":
-                stop_reason = data.get("stopReason")
+                # Last non-null stop reason wins; see the routing-layer twin's `done` note.
+                reason = data.get("stopReason")
+                if reason is not None:
+                    stop_reason = reason
     except Exception as exc:
         yield {"type": "error", "errorText": str(exc)}
         return
 
-    if usage is None or trace_id is None:
-        result = _safe_result(run)
-        if result is not None:
-            if usage is None:
-                usage = _usage_metadata(result.usage or {})
-                if stop_reason is None:
-                    stop_reason = result.stop_reason
-            if trace_id is None:
-                trace_id = result.trace_id
+    # The terminal AgentResult is authoritative. Its stop_reason wins over the `done` event's,
+    # which the live runner leaves empty on a HITL pause (mirrors fold's terminal-wins
+    # precedence); usage/trace_id fall back to it only when the stream carried neither.
+    result = _safe_result(run)
+    if result is not None:
+        if result.stop_reason is not None:
+            stop_reason = result.stop_reason
+        if usage is None:
+            usage = _usage_metadata(result.usage or {})
+        if trace_id is None:
+            trace_id = result.trace_id
 
     yield {"type": "finish-step"}
     finish: Dict[str, Any] = {"type": "finish"}
@@ -414,7 +419,14 @@ async def agent_stream_to_vercel_stream(
             elif etype == "error":
                 yield {"type": "error", "errorText": data.get("message", "")}
             elif etype == "done":
-                stop_reason = data.get("stopReason")
+                # Prefer the LAST non-null stop reason. The handler appends a corrective
+                # terminal `done` after the runner's `done` when the authoritative result
+                # disagrees — the runner omits stopReason on a HITL pause — so the terminal
+                # value wins, while a null-carrying `done` never clobbers a real earlier one.
+                # Mirrors fold's terminal-wins precedence (agent_batch / fold.py).
+                reason = data.get("stopReason")
+                if reason is not None:
+                    stop_reason = reason
     except Exception as exc:
         yield {"type": "error", "errorText": str(exc)}
         return

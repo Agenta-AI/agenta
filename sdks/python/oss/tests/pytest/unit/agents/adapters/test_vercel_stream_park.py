@@ -641,3 +641,77 @@ async def test_repeat_tool_call_refreshes_input_without_a_second_start() -> None
     # The refresh precedes the result — input is settled before output arrives.
     types = [p.get("type") for p in parts]
     assert types.index("tool-input-available") < types.index("tool-output-available")
+
+
+# ---------------------------------------------------------------------------
+# finishReason precedence: the terminal result's stop_reason is authoritative.
+#
+# The live runner settles paused-vs-ended AFTER the event stream closes, so its `done`
+# event carries NO stopReason — only the terminal result record does. The finish frame must
+# therefore prefer the terminal result's stop_reason over the `done` event's, mirroring the
+# batch `fold(events, stop_reason=result.stop_reason)` precedence. (adapters/vercel/stream.py)
+# ---------------------------------------------------------------------------
+
+
+def _run(events, result) -> AgentStream:
+    records = [{"kind": "event", "event": e} for e in events]
+    records.append({"kind": "result", "result": result})
+    return AgentStream(_records(records))
+
+
+@pytest.mark.asyncio
+async def test_terminal_paused_wins_when_done_has_no_stop_reason() -> None:
+    """(a) A paused turn whose `done` event omits stopReason (the real live-runner shape) but
+    whose terminal result says ``paused`` -> the finish frame carries the paused reason
+    (mapped to the AI SDK ``other``)."""
+    run = _run(
+        events=[
+            {"type": "message", "text": "one moment"},
+            {"type": "done"},  # runner omits stopReason on a HITL pause
+        ],
+        result={"ok": True, "output": "", "stopReason": "paused", "sessionId": "c1"},
+    )
+    parts = [part async for part in agent_run_to_vercel_parts(run)]
+    finish = parts[-1]
+    assert finish["type"] == "finish"
+    assert finish["finishReason"] == "other"
+
+
+@pytest.mark.asyncio
+async def test_normal_turn_finish_reason_unchanged() -> None:
+    """(b) A normal completion (done + terminal both ``stop``) still finishes ``stop``."""
+    run = _run(
+        events=[
+            {"type": "message", "text": "here you go"},
+            {"type": "done", "stopReason": "stop"},
+        ],
+        result={
+            "ok": True,
+            "output": "here you go",
+            "stopReason": "stop",
+            "sessionId": "c1",
+        },
+    )
+    parts = [part async for part in agent_run_to_vercel_parts(run)]
+    finish = parts[-1]
+    assert finish["type"] == "finish"
+    assert finish["finishReason"] == "stop"
+
+
+@pytest.mark.asyncio
+async def test_done_stop_reason_honored_when_terminal_has_none() -> None:
+    """(c) When the terminal result carries NO stop_reason, the `done` event's value is the
+    fallback and is still honored — terminal-wins only applies when the terminal value exists."""
+    run = _run(
+        events=[
+            {"type": "message", "text": "done thinking"},
+            {"type": "done", "stopReason": "end_turn"},
+        ],
+        # terminal result omits stopReason -> stop_reason is None
+        result={"ok": True, "output": "done thinking", "sessionId": "c1"},
+    )
+    parts = [part async for part in agent_run_to_vercel_parts(run)]
+    finish = parts[-1]
+    assert finish["type"] == "finish"
+    # end_turn maps to the AI SDK `stop`.
+    assert finish["finishReason"] == "stop"
