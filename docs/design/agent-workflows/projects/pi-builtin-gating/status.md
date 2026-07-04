@@ -2,9 +2,8 @@
 
 ## State
 
-Design awaiting Mahmoud's review. No code has shipped. This workspace is the design and the
-plan. The build starts after the design is approved and after the Phase 0 spike confirms Pi
-re-issues a blocked builtin.
+Implemented and live-QA'd (2026-07-04). PR finalization is pending the #4985 merge: six
+files' hunks are frozen until then (see build-notes.md).
 
 ## Decision log
 
@@ -186,3 +185,49 @@ pre-approval executions. One finding: 1/13 runs added a spontaneous optional par
 Gate call: stage A passes the model-behavior question, so the build proceeds. The plan's
 full 5-of-5 bar through the real runner pause and teardown runs as the live-QA acceptance
 once phases 1-3 land; a failure there still stops the ship.
+
+## Live QA (full pass)
+
+Full live QA ran against the real runner pause and teardown, past the Phase 0 host-local
+spike.
+
+- **S1 5/5 bar met, over six live runs.** Each run showed one prompt, no execution before
+  approval, exactly one execution after approval, and stable canonical arguments across the
+  pause and resume.
+- **Deny, read-free, grant-enforcement, deny-all, and fast-path scenarios all pass.** A
+  denied builtin call is refused and never runs. A read-only builtin call under
+  `allow_reads` runs without a prompt. A builtin outside the grant list is absent from Pi's
+  active tool set, so the model cannot call it at all. A blanket `deny` policy blocks every
+  builtin. A run with gating inactive skips the relay round-trip entirely.
+- **The headless paused envelope carries the tool.** A paused batch response's interaction
+  payload names the pending tool as `bash`, so a headless caller can tell which call is
+  waiting without guessing.
+- **Custom-tool relay regression is clean.** The existing relay path for gateway and code
+  tools still works with the new permission-record branch alongside it, verified with an
+  unguessable-token proof that a permission record and a tool-execute record never cross
+  each other's handling.
+
+## Follow-ups (filed, not this PR)
+
+- **Denied tool card shows an "approved" badge.** A frontend label bug: the card for a
+  denied builtin call still shows the "approved" badge. The underlying behavior is correct
+  (the call is refused), so this is cosmetic.
+- **The executed builtin block renders an empty command input on the resumed turn.** The
+  SSE `tool-input` events stop delivering the command text at `""` once the turn resumes
+  after approval. Execution itself uses the right arguments; only the rendered card is
+  affected. Cosmetic.
+- **An approval persists for identical re-calls across turns in one session.** Each turn
+  rebuilds the stored decisions from the transcript, so a call approved once keeps matching
+  on later turns in the same session, not just the one it was approved for. This behavior is
+  inherited from the approval-boundary design, not new here. Whether "once" should mean
+  "once per turn" instead of "once per session" is an open decision.
+- **A headless batch invoke without `x-ag-messages-format: vercel` fails with a 500.** The
+  error is "No user message to send" where a 4xx would better signal a caller mistake. This
+  is a service developer-experience gap, not a gating bug.
+- **Hardening candidate: fail loud when a gating-active turn ends with zero permission
+  records.** The `protocol: 1` pin catches an old runner talking to a new extension bundle,
+  but not the reverse: a new runner talking to an old extension bundle writes no permission
+  record at all, so the pin has nothing to reject and gating silently does not exist. A
+  policy that must gate could detect this directly: if a turn is gating-active but produces
+  zero permission records, fail loud instead of succeeding silently. The live sidecar hit
+  exactly this case, from an image-baked stale `dist/` bundle.

@@ -60,7 +60,10 @@ because the effective permission is resolved before the stored decision is consu
 `ApprovalResponder` is Gate 2, for tools the harness gates natively (Claude Code's
 `.claude/settings.json` layer decides first; anything it leaves undecided reaches this
 responder over ACP). The tool relay (`services/runner/src/tools/relay.ts`) is Gate 3, for
-tools the runner executes itself (gateway, code, client). Both gates call the same
+tools the runner executes itself (gateway, code, client) and, since the pi-builtin-gating
+slice, for Pi's own builtins too: the bundled Pi extension's `tool_call` hook reports each
+builtin call over the relay directory as a permission record, and the relay decides it
+through this same `decide()` before answering. Both gates call the same
 `effectivePermission`/`decide` pair from `permission-plan.ts`, so they can never disagree
 about a tool's permission. The relay only needs to enforce on Pi, since Claude's Gate 1 and
 Gate 2 already decide before a call reaches the relay.

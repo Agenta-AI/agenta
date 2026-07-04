@@ -93,13 +93,22 @@ analysis that diagnosed the live loop.
   the terminal result's value; the live stream path should too. Display is unaffected (the
   FE keys off the `interaction_request` part), so this is wire-fidelity, not UX.
 
-- **Selection-time enforcement for Pi builtins.** Pi's native tools never reach a
-  runner gate, so today the global policy modes do not bind them (headless QA proved
-  `default: deny` does not stop a granted `bash`). The design: filter `builtin_names`
-  at resolution by effective permission, using a small read-only table for Pi's seven
-  builtins (`read/grep/find/ls` read, `bash/edit/write` write); `deny` and un-pausable
-  `ask` exclude the builtin (deny-by-omission is Pi's one native control). Until then,
-  a per-builtin `permission` is dropped with a logged warning instead of silently.
+- **Selection-time enforcement for Pi builtins. SHIPPED**, by the pi-builtin-gating slice
+  (implemented and live-QA'd 2026-07-04). At the time this follow-up was written, Pi's
+  native tools never reached a runner gate, so the global policy modes did not bind them.
+  The shipped design supersedes the selection-time sketch below with call-time gating: the
+  bundled Pi extension's `tool_call` hook reports each builtin call over the relay
+  directory, and the runner decides it through the same shared `decide()` the relay already
+  used for gateway and code tools, pausing on `ask` exactly like any other tool. The grant
+  list (which builtins an author selects) is still enforced at selection time, through the
+  extension's active-tool-set edit at `before_agent_start`, so a non-granted builtin is
+  simply absent from the model's tools. See
+  `docs/design/agent-workflows/projects/pi-builtin-gating/` for the full design and status.
+  The original sketch, for context: filter `builtin_names` at resolution by effective
+  permission, using a small read-only table for Pi's seven builtins (`read/grep/find/ls`
+  read, `bash/edit/write` write); `deny` and un-pausable `ask` exclude the builtin
+  (deny-by-omission is Pi's one native control). Until then, a per-builtin `permission` is
+  dropped with a logged warning instead of silently.
 
 ## Known unknowns
 

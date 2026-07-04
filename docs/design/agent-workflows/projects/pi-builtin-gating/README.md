@@ -1,11 +1,15 @@
 # Pi builtin gating: route native tools through the permission relay
 
 Pi ships seven native builtin tools (`read`, `bash`, `edit`, `write`, `grep`, `find`,
-`ls`). Today they run outside our permission system. The author cannot say "ask before
-`bash`", and the "which builtins are enabled" list the UI shows does nothing. This
-workspace explains why, picks a design, and lays out the build.
+`ls`). Before this work they ran outside our permission system. The author could not say
+"ask before `bash`", and the "which builtins are enabled" list the UI shows did nothing.
+This workspace explains why, picks a design, and lays out the build.
 
-Everything here is documentation and planning. No code ships with this PR.
+This PR now ships BOTH the workspace and the implementation: the runner-side permission
+record and builtin identity table, the extension's policy hook and grant enforcement, the
+env plumbing, and the test suite. status.md tracks the live state (implemented,
+live-QA'd, S1 5/5 bar met); build-notes.md records how the build actually went. The two
+gaps below are written in the present tense of the design phase; they are both closed.
 
 ## The two gaps
 
