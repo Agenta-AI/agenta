@@ -22,7 +22,7 @@
  */
 import type { ResolvedToolSpec } from "../protocol.ts";
 import type { McpServerHttp } from "../engines/sandbox_agent/mcp.ts";
-import type { ClientToolRelay } from "./relay.ts";
+import type { ClientToolRelay } from "./client-tool-relay.ts";
 import { startInternalToolMcpServer } from "./tool-mcp-http.ts";
 
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";

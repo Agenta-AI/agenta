@@ -40,7 +40,7 @@ import type { AddressInfo } from "node:net";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "./callback.ts";
 import { runResolvedTool } from "./dispatch.ts";
-import type { ClientToolRelay } from "./relay.ts";
+import type { ClientToolRelay } from "./client-tool-relay.ts";
 import { assertRequiredArguments, specInputSchema } from "./spec-schema.ts";
 
 type Log = (message: string) => void;
@@ -59,13 +59,16 @@ const MAX_BODY_BYTES = 1_000_000;
  * interaction (`onClientTool`) and the handler then ends the turn (`onPause` -> the engine's
  * pause controller), so the turn ends `paused`.
  */
-const MCP_PARKED = Symbol("mcp-parked");
+const MCP_PAUSED = Symbol("mcp-paused");
 
 /** Options for the internal MCP server: the client-tool relay and an engine abort signal. */
 export interface InternalToolMcpServerOptions {
   /** When set, a `client` tool call is paused through this relay instead of relayed/executed. */
   clientToolRelay?: ClientToolRelay;
-  /** Fired by the engine on pause/teardown; destroys any in-flight request so none settles late. */
+  /** Fired by the engine on pause/teardown; destroys any in-flight request SOCKET so no
+   *  response settles late. It does NOT cancel the execution: a `runResolvedTool` dispatch
+   *  already running keeps running server-side to completion (its result is just never
+   *  written). Threading this signal into dispatch is a known follow-up. */
   signal?: AbortSignal;
   log?: Log;
 }
@@ -91,7 +94,7 @@ function mcpToolError(id: unknown, err: unknown): unknown {
 
 /**
  * Handle one MCP JSON-RPC message. Returns the JSON-RPC response object, `undefined` for a
- * notification (no `id`), or the `MCP_PARKED` sentinel for a paused client tool (the listener
+ * notification (no `id`), or the `MCP_PAUSED` sentinel for a paused client tool (the listener
  * then aborts the request with no body). Takes the specs and relay dir in-process rather than
  * from env, and dispatches a non-`client` `tools/call` to `runResolvedTool`.
  */
@@ -102,7 +105,7 @@ async function handle(
   relayDir: string,
   clientToolRelay: ClientToolRelay | undefined,
   log: Log,
-): Promise<unknown | undefined | typeof MCP_PARKED> {
+): Promise<unknown | undefined | typeof MCP_PAUSED> {
   const { id, method, params } = message ?? {};
 
   // Notifications (no id, e.g. notifications/initialized) need no response.
@@ -184,8 +187,8 @@ async function handle(
       const decision = await clientToolRelay.onClientTool(request);
       if (decision === "pendingApproval") {
         clientToolRelay.onPause?.(request);
-        // No JSON-RPC result: the request listener aborts this in-flight request (see MCP_PARKED).
-        return MCP_PARKED;
+        // No JSON-RPC result: the request listener aborts this in-flight request (see MCP_PAUSED).
+        return MCP_PAUSED;
       }
       if (decision === "deny") {
         return mcpToolError(id, new Error(`Client tool '${spec.name}' was denied.`));
@@ -278,7 +281,7 @@ export function startInternalToolMcpServer(
   const active = new Set<ServerResponse>();
 
   /** Abort a paused request: destroy the socket with no body written, so nothing settles late. */
-  const abortParked = (res: ServerResponse): void => {
+  const abortPaused = (res: ServerResponse): void => {
     active.delete(res);
     res.destroy();
   };
@@ -319,8 +322,8 @@ export function startInternalToolMcpServer(
             ),
           );
           // A paused client tool in the batch aborts the whole request (no result for any).
-          if (responses.some((r) => r === MCP_PARKED)) {
-            abortParked(res);
+          if (responses.some((r) => r === MCP_PAUSED)) {
+            abortPaused(res);
             return;
           }
           const out = responses.filter((r) => r !== undefined);
@@ -342,9 +345,9 @@ export function startInternalToolMcpServer(
           clientToolRelay,
           log,
         );
-        if (response === MCP_PARKED) {
+        if (response === MCP_PAUSED) {
           // Paused client tool: emit NO JSON-RPC result, abort the in-flight request.
-          abortParked(res);
+          abortPaused(res);
           return;
         }
         if (response === undefined) {
@@ -377,6 +380,9 @@ export function startInternalToolMcpServer(
 
   // Belt and suspenders: on pause/teardown the engine fires this signal; destroy every in-flight
   // request so a handler that has not yet returned cannot write a result after the turn ended.
+  // SOCKETS only: a `runResolvedTool` execution already dispatched keeps running server-side —
+  // this abort suppresses its response, it does not stop it (signal-threading into dispatch is a
+  // known follow-up).
   const onAbort = (): void => {
     for (const res of [...active]) res.destroy();
     active.clear();

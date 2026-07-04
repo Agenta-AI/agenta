@@ -20,7 +20,7 @@ import { approvedCallKey, type Responder } from "../../responder.ts";
 import type {
   ClientToolRelay,
   ClientToolRelayRequest,
-} from "../../tools/relay.ts";
+} from "../../tools/client-tool-relay.ts";
 
 type EmitRun = { emitEvent: (event: AgentEvent) => void };
 
@@ -29,18 +29,53 @@ type EmitRun = { emitEvent: (event: AgentEvent) => void };
  * tool-call id Claude surfaced on the event stream, so the paused `client_tool` interaction
  * attaches to Claude's actual tool-call bubble (and `markPausedToolCall` suppresses that
  * bubble's late teardown frames, the F-024 lineage). Populated from `session.onEvent`
- * `tool_call` updates; the MCP-minted id / name+args is the cold-replay fallback when the
- * stream had no matching call. Best-effort and first-write-wins (a later identical call never
- * re-homes an id).
+ * `tool_call` updates. Claude's ACP adapter titles an internal-MCP tool
+ * `mcp__agenta-tools__<name>` while `lookup()` is called with the bare spec name, so `record()`
+ * strips that prefix and indexes under the bare name. A `lookup()` match CONSUMES the id
+ * (per-key FIFO): a duplicate identical call correlates to its OWN recorded id, never re-homing
+ * a first, already-settled call's id. Best-effort; the MCP-minted id / name+args is the
+ * cold-replay fallback when the stream had no matching call.
  */
 export interface ToolCallCorrelationIndex {
   record(update: unknown): void;
   lookup(toolName: string | undefined, input: unknown): string | undefined;
 }
 
+/**
+ * Strip the harness's MCP tool prefix (`mcp__<server>__`) so an ACP title indexes under the
+ * bare spec name `lookup()` receives. The lazy match ends the prefix at the FIRST `__` after
+ * the server name, so a TOOL name that itself contains `__` survives intact (our server name,
+ * `agenta-tools`, contains no `__`; a server name that did would truncate ambiguously).
+ */
+function bareToolName(title: string): string {
+  return title.replace(/^mcp__.+?__/, "");
+}
+
 export function createToolCallCorrelationIndex(): ToolCallCorrelationIndex {
-  const byArgsKey = new Map<string, string>();
-  const byName = new Map<string, string>();
+  // One entry object is shared by both maps, so consuming a match via either key retires it
+  // everywhere at once (no stale id left behind in the other queue).
+  type Entry = { id: string; consumed: boolean };
+  const byArgsKey = new Map<string, Entry[]>();
+  const byName = new Map<string, Entry[]>();
+  const recordedIds = new Set<string>();
+  const push = (map: Map<string, Entry[]>, key: string, entry: Entry): void => {
+    const queue = map.get(key);
+    if (queue) queue.push(entry);
+    else map.set(key, [entry]);
+  };
+  const take = (
+    map: Map<string, Entry[]>,
+    key: string | undefined,
+  ): string | undefined => {
+    if (!key) return undefined;
+    for (const entry of map.get(key) ?? []) {
+      if (!entry.consumed) {
+        entry.consumed = true;
+        return entry.id;
+      }
+    }
+    return undefined;
+  };
   return {
     record(update) {
       const u = update as
@@ -48,35 +83,30 @@ export function createToolCallCorrelationIndex(): ToolCallCorrelationIndex {
             sessionUpdate?: unknown;
             toolCallId?: unknown;
             title?: unknown;
-            kind?: unknown;
             rawInput?: unknown;
           }
         | undefined;
       if (!u || u.sessionUpdate !== "tool_call") return;
       const toolCallId =
         typeof u.toolCallId === "string" && u.toolCallId ? u.toolCallId : undefined;
-      if (!toolCallId) return;
+      // Each ACP call is recorded once (a re-sent frame for the same id must not enqueue twice).
+      if (!toolCallId || recordedIds.has(toolCallId)) return;
+      // The name comes from the ACP `title` only. ACP `kind` is a CATEGORY (read/fetch/execute/
+      // other), not a name — indexing under it could mis-correlate unrelated calls.
       const name =
-        typeof u.title === "string" && u.title
-          ? u.title
-          : typeof u.kind === "string" && u.kind
-            ? u.kind
-            : undefined;
+        typeof u.title === "string" && u.title ? bareToolName(u.title) : undefined;
+      if (!name) return;
+      recordedIds.add(toolCallId);
+      const entry: Entry = { id: toolCallId, consumed: false };
       const argsKey = approvedCallKey(name, u.rawInput);
-      if (argsKey && !byArgsKey.has(argsKey)) byArgsKey.set(argsKey, toolCallId);
-      if (name && !byName.has(name)) byName.set(name, toolCallId);
+      if (argsKey) push(byArgsKey, argsKey, entry);
+      push(byName, name, entry);
     },
     lookup(toolName, input) {
-      const argsKey = approvedCallKey(toolName, input);
-      if (argsKey) {
-        const hit = byArgsKey.get(argsKey);
-        if (hit) return hit;
-      }
-      if (toolName) {
-        const hit = byName.get(toolName);
-        if (hit) return hit;
-      }
-      return undefined;
+      return (
+        take(byArgsKey, approvedCallKey(toolName, input)) ??
+        take(byName, toolName ? toolName : undefined)
+      );
     },
   };
 }
@@ -84,7 +114,8 @@ export function createToolCallCorrelationIndex(): ToolCallCorrelationIndex {
 export interface ClientToolInteractionParams {
   /** The interaction id (the FE matches a reply by it). */
   id: string;
-  /** The runner/relay-minted tool-call id; overridden by the correlated ACP id when one exists. */
+  /** The tool-call id to attach to — already correlated by the caller (`buildClientToolRelay`
+   *  resolves the real ACP id when an index is wired; otherwise the channel-minted id). */
   toolCallId?: string;
   toolName?: string;
   input?: unknown;
@@ -92,29 +123,28 @@ export interface ClientToolInteractionParams {
 }
 
 /**
- * THE single definition of the `interaction_request kind=client_tool` payload. Emits both the
- * top-level fields and a synthesized `toolCall` sub-object the Vercel egress reads (it tolerates
- * either), and substitutes the correlated ACP tool-call id when the index has one.
+ * The `interaction_request kind=client_tool` emit for the RELAY/MCP delivery paths (Pi file
+ * relay + Claude internal MCP), owned by this seam. The ACP-gate path has its OWN emit site
+ * with a richer ACP-native payload (`acp-interactions.ts` `pauseClientTool`, which forwards the
+ * harness's toolCall object) — two sites, one per gate. This one emits both the top-level
+ * fields and a synthesized `toolCall` sub-object the Vercel egress reads (it tolerates either).
  */
 export function emitClientToolInteraction(
   run: EmitRun,
   params: ClientToolInteractionParams,
-  toolCallIndex?: ToolCallCorrelationIndex,
 ): void {
-  const correlatedId =
-    toolCallIndex?.lookup(params.toolName, params.input) ?? params.toolCallId;
   run.emitEvent({
     type: "interaction_request",
     id: params.id,
     kind: "client_tool",
     payload: {
-      toolCallId: correlatedId,
+      toolCallId: params.toolCallId,
       toolName: params.toolName,
       input: params.input,
       render: params.render,
       toolCall: {
-        id: correlatedId,
-        toolCallId: correlatedId,
+        id: params.toolCallId,
+        toolCallId: params.toolCallId,
         name: params.toolName,
         rawInput: params.input,
         input: params.input,
@@ -149,7 +179,9 @@ export interface BuildClientToolRelayInput {
     toolArgs: unknown,
     kind: "user_approval" | "client_tool",
   ) => void;
-  /** Claude only: maps the call to its real ACP tool-call id. Omit for Pi (relay id is exact). */
+  /** Non-Pi harness (Claude): maps the call to its real ACP tool-call id. Omit for Pi (the
+   *  relay-minted id is already exact). The relay resolves the id ONCE per pending call and
+   *  hands the result to `markPausedToolCall` and the emit — the single correlation owner. */
   toolCallIndex?: ToolCallCorrelationIndex;
   log?: (message: string) => void;
 }

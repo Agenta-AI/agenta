@@ -33,8 +33,8 @@ import {
 import {
   RELAY_REQ_SUFFIX,
   RELAY_RES_SUFFIX,
-  type ClientToolRelay,
 } from "../../src/tools/relay.ts";
+import type { ClientToolRelay } from "../../src/tools/client-tool-relay.ts";
 import type { ResolvedToolSpec } from "../../src/protocol.ts";
 
 const relayDir = "/tmp/agenta-tools";
@@ -391,6 +391,51 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       );
       assert.equal(onClientToolCalls, 1, "the relay was consulted once");
       assert.equal(pauseCount, 1, "onPause fired exactly once");
+    });
+
+    it("a duplicate POST with the same JSON-RPC id after a pause is also aborted, never answered", async () => {
+      // Pins the no-retry assumption at the HANDLER level: if the MCP client ever re-sent a
+      // destroyed tools/call (same JSON-RPC id), the duplicate must get the same no-body abort —
+      // each POST independently consults the relay, and nothing is answered from cached state,
+      // so a duplicate can never double-consume a stored browser output.
+      let onClientToolCalls = 0;
+      let outputsServed = 0;
+      const relay: ClientToolRelay = {
+        onClientTool: async () => {
+          onClientToolCalls += 1;
+          // The paused turn has no stored output; every ask pauses. If the handler ever served
+          // a result for the duplicate anyway, outputsServed would flag it below.
+          return "pendingApproval";
+        },
+        onPause: () => {},
+      };
+      const { servers } = await build([clientSpec], relayDir, {
+        clientToolRelay: relay,
+      });
+      const post = async (): Promise<void> => {
+        const res = await fetch(servers[0].url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json, text/event-stream",
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 7, // the SAME JSON-RPC id both times (a retry, not a new call)
+            method: "tools/call",
+            params: {
+              name: "request_connection",
+              arguments: { integration: "slack" },
+            },
+          }),
+        });
+        outputsServed += 1; // only reachable if a body was actually answered
+        await res.text();
+      };
+      await assert.rejects(post, "the first paused tools/call is aborted");
+      await assert.rejects(post, "the duplicate (same id) is aborted too");
+      assert.equal(onClientToolCalls, 2, "each POST consults the relay independently");
+      assert.equal(outputsServed, 0, "neither request was ever answered with a result");
     });
 
     it("validates required args in the client branch (a normal MCP error, not a pause)", async () => {

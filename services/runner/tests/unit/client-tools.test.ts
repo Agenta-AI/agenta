@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 
 import type { AgentEvent } from "../../src/protocol.ts";
 import type { ClientToolVerdict, Responder } from "../../src/responder.ts";
-import type { ClientToolRelayRequest } from "../../src/tools/relay.ts";
+import type { ClientToolRelayRequest } from "../../src/tools/client-tool-relay.ts";
 import { PendingApprovalLatch } from "../../src/permission-plan.ts";
 import {
   buildClientToolRelay,
@@ -77,7 +77,49 @@ describe("createToolCallCorrelationIndex", () => {
       "acp-real-1",
       "name+args resolves the real id",
     );
-    // Bare-name fallback when the args differ but the name matched a recorded call.
+  });
+
+  it("normalizes the mcp__<server>__ title prefix so a bare-name lookup hits (Claude ACP)", () => {
+    // Claude's ACP adapter titles an internal-MCP tool `mcp__agenta-tools__<name>`, but
+    // lookup() is called with the bare spec name — without normalization every lookup missed
+    // and the minted UUID fallback always won (making suppression + widget attachment inert).
+    const index = createToolCallCorrelationIndex();
+    index.record({
+      sessionUpdate: "tool_call",
+      toolCallId: "acp-real-1",
+      title: "mcp__agenta-tools__request_connection",
+      rawInput: { integration: "slack" },
+    });
+    assert.equal(
+      index.lookup("request_connection", { integration: "slack" }),
+      "acp-real-1",
+      "the prefixed title indexes under the bare name (args match)",
+    );
+  });
+
+  it("prefix normalization survives a tool name that itself contains __", () => {
+    const index = createToolCallCorrelationIndex();
+    index.record({
+      sessionUpdate: "tool_call",
+      toolCallId: "acp-real-1",
+      title: "mcp__agenta-tools__my__tool",
+      rawInput: {},
+    });
+    assert.equal(
+      index.lookup("my__tool", {}),
+      "acp-real-1",
+      "the lazy prefix strip ends at the FIRST __ after the server name",
+    );
+  });
+
+  it("falls back to the bare name when the args differ", () => {
+    const index = createToolCallCorrelationIndex();
+    index.record({
+      sessionUpdate: "tool_call",
+      toolCallId: "acp-real-1",
+      title: "request_connection",
+      rawInput: { integration: "slack" },
+    });
     assert.equal(
       index.lookup("request_connection", { integration: "github" }),
       "acp-real-1",
@@ -85,13 +127,49 @@ describe("createToolCallCorrelationIndex", () => {
     );
   });
 
-  it("ignores non-tool_call updates and is first-write-wins", () => {
+  it("consumes a matched id: two identical calls correlate to id-1 then id-2, then miss", () => {
+    // First-write-wins would correlate a duplicate identical call to the FIRST call's ACP id
+    // (already settled), mis-marking suppression. A match consumes its id instead (per-key FIFO,
+    // symmetric with the client-output FIFO).
+    const index = createToolCallCorrelationIndex();
+    index.record({ sessionUpdate: "tool_call", toolCallId: "id-1", title: "t", rawInput: {} });
+    index.record({ sessionUpdate: "tool_call", toolCallId: "id-2", title: "t", rawInput: {} });
+    assert.equal(index.lookup("t", {}), "id-1", "first lookup takes the first id");
+    assert.equal(index.lookup("t", {}), "id-2", "second lookup takes the second id");
+    assert.equal(index.lookup("t", {}), undefined, "both consumed -> miss");
+  });
+
+  it("a consume via the args key also retires the id from the name queue", () => {
+    const index = createToolCallCorrelationIndex();
+    index.record({
+      sessionUpdate: "tool_call",
+      toolCallId: "id-1",
+      title: "t",
+      rawInput: { a: 1 },
+    });
+    assert.equal(index.lookup("t", { a: 1 }), "id-1", "consumed via name+args");
+    assert.equal(
+      index.lookup("t", { b: 2 }),
+      undefined,
+      "the name fallback must not resurrect a consumed id",
+    );
+  });
+
+  it("ignores non-tool_call updates and re-sent frames for the same id", () => {
     const index = createToolCallCorrelationIndex();
     index.record({ sessionUpdate: "agent_message_chunk", text: "hi" });
     assert.equal(index.lookup("x", {}), undefined, "no record -> no id");
     index.record({ sessionUpdate: "tool_call", toolCallId: "id-1", title: "t" });
-    index.record({ sessionUpdate: "tool_call", toolCallId: "id-2", title: "t" });
-    assert.equal(index.lookup("t", {}), "id-1", "first write wins");
+    index.record({ sessionUpdate: "tool_call", toolCallId: "id-1", title: "t" });
+    assert.equal(index.lookup("t", {}), "id-1");
+    assert.equal(index.lookup("t", {}), undefined, "a re-sent frame does not enqueue twice");
+  });
+
+  it("does NOT index under the ACP kind (a category, not a name)", () => {
+    // `kind` is read/fetch/execute/other; indexing under it mis-correlated unrelated calls.
+    const index = createToolCallCorrelationIndex();
+    index.record({ sessionUpdate: "tool_call", toolCallId: "id-1", kind: "execute" });
+    assert.equal(index.lookup("execute", {}), undefined, "kind-only frames are not indexed");
   });
 });
 
@@ -126,39 +204,19 @@ describe("emitClientToolInteraction", () => {
     assert.equal(ev.payload.toolCall.kind, "client");
   });
 
-  it("substitutes the correlated ACP id when the index has one", () => {
+  it("emits exactly the id it is given (correlation is the relay's job, not the emitter's)", () => {
+    // buildClientToolRelay resolves the correlated ACP id ONCE and passes it in; the emitter
+    // has no index path of its own (the relay-level test below covers the substitution).
     const { run, events } = collect();
-    const index = createToolCallCorrelationIndex();
-    index.record({
-      sessionUpdate: "tool_call",
-      toolCallId: "acp-real",
-      title: "request_connection",
-      rawInput: { integration: "slack" },
+    emitClientToolInteraction(run, {
+      id: "i-1",
+      toolCallId: "already-correlated",
+      toolName: "request_connection",
+      input: {},
     });
-    emitClientToolInteraction(
-      run,
-      {
-        id: "i-1",
-        toolCallId: "minted-fallback",
-        toolName: "request_connection",
-        input: { integration: "slack" },
-      },
-      index,
-    );
     const ev = events[0] as any;
-    assert.equal(ev.payload.toolCallId, "acp-real", "correlated id wins over the minted one");
-    assert.equal(ev.payload.toolCall.id, "acp-real");
-  });
-
-  it("falls back to the minted id when the index has no match", () => {
-    const { run, events } = collect();
-    const index = createToolCallCorrelationIndex(); // empty
-    emitClientToolInteraction(
-      run,
-      { id: "i-1", toolCallId: "minted", toolName: "request_connection", input: {} },
-      index,
-    );
-    assert.equal((events[0] as any).payload.toolCallId, "minted");
+    assert.equal(ev.payload.toolCallId, "already-correlated");
+    assert.equal(ev.payload.toolCall.id, "already-correlated");
   });
 });
 

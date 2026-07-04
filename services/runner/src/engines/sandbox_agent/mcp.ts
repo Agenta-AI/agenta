@@ -8,7 +8,7 @@ import {
   USER_MCP_UNSUPPORTED_MESSAGE,
   type McpServerStdio,
 } from "../../tools/mcp-bridge.ts";
-import type { ClientToolRelay } from "../../tools/relay.ts";
+import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
 
 type Log = (message: string) => void;
 
