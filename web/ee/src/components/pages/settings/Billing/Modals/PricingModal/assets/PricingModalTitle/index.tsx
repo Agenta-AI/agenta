@@ -1,13 +1,19 @@
 import {memo} from "react"
 
-import {Button, Typography} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
 
 const PricingModalTitle = () => {
     return (
         <div className="w-full flex items-center justify-between">
-            <Typography.Text className="text-[16px] font-[600]">Plans</Typography.Text>
+            <span className="text-base font-semibold">Plans</span>
 
-            <Button className="mr-6" href="https://agenta.ai/pricing" target="_blank">
+            <Button
+                variant="outline"
+                className="mr-8"
+                render={
+                    <a href="https://agenta.ai/pricing" target="_blank" rel="noopener noreferrer" />
+                }
+            >
                 View comparison
             </Button>
         </div>

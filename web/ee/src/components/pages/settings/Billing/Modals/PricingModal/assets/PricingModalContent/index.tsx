@@ -1,7 +1,7 @@
 import {useCallback, useState} from "react"
 
-import {message} from "@agenta/ui/app-message"
-import {Spin, Typography} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {toast} from "@agenta/primitive-ui/lib/toast"
 import {useAtomValue} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
@@ -58,7 +58,7 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
                     onCloseModal()
                 }, 500)
             } catch (error) {
-                message.error(
+                toast.error(
                     "An error occurred while processing the checkout. Please try again later or contact support if the issue persists.",
                 )
             } finally {
@@ -82,14 +82,14 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
     if (isLoadingPlan) {
         return (
             <div className="w-full h-[400px] flex items-center justify-center">
-                <Spin spinning={isLoadingPlan}></Spin>
+                <Spinner />
             </div>
         )
     }
 
     return (
-        <section className="mx-auto flex flex-col gap-2 mt-4">
-            <Typography.Text className=" font-medium">Choose your plan</Typography.Text>
+        <section className="mx-auto flex flex-col gap-2 mt-4 w-full">
+            <span className="font-medium">Choose your plan</span>
             <div className="flex flex-col md:flex-row gap-4">
                 {plans?.map((plan) => (
                     <PricingCard

@@ -1,6 +1,14 @@
 import {memo, useMemo} from "react"
 
-import {Card, Button, Typography} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Card,
+    CardContent,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+} from "@agenta/primitive-ui/components/card"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {useAtomValue} from "jotai"
 
 import {currentCatalogEntryAtom, freePlanSlugAtom} from "@/oss/state/access/atoms"
@@ -34,22 +42,43 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
 
     return (
         <Card
-            hoverable
             key={plan.plan}
-            className={`relative w-full md:w-1/3 hover:z-10`}
-            title={plan.title}
-            classNames={{
-                body: "!p-3 flex-1",
-                header: "!p-3 !min-h-0",
-                actions: "!p-3  [&_li]:!m-0",
-            }}
-            rootClassName="flex flex-col justify-between"
-            actions={[
-                isThisPlanCustom ? (
+            size="sm"
+            className="relative w-full md:w-1/3 hover:z-10 flex flex-col justify-between transition-shadow hover:shadow-md"
+        >
+            <CardHeader className="border-b [.border-b]:pb-3">
+                <CardTitle className="text-sm font-medium">{plan.title}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1">
+                <div className="flex flex-col h-[300px]">
+                    <div className="flex flex-col gap-1">
+                        <span className="text-lg font-bold">
+                            {plan.price
+                                ? `${plan.price.base?.starting_at ? "Starts at " : ""} $
+                            ${plan.price?.base?.amount} /month`
+                                : "Contact us"}
+                        </span>
+
+                        <span className="font-medium text-sm">{plan.description}</span>
+                    </div>
+
+                    <ul className="list-disc pl-5 overflow-auto">
+                        {plan.features?.map((point, idx) => {
+                            return (
+                                <li className="text-[var(--ag-c-586673)]" key={idx}>
+                                    {point}
+                                </li>
+                            )
+                        })}
+                    </ul>
+                </div>
+            </CardContent>
+            <CardFooter>
+                {isThisPlanCustom ? (
                     <Button
                         disabled={isDisabled}
                         className="w-full"
-                        type={isCurrentPlanCustom ? "link" : "primary"}
+                        variant={isCurrentPlanCustom ? "link" : "default"}
                         onClick={() =>
                             window.open("https://cal.com/mahmoud-mabrouk-ogzgey/demo", "_blank")
                         }
@@ -58,51 +87,26 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
                     </Button>
                 ) : (
                     <Button
-                        disabled={isDisabled}
-                        loading={_isLoading}
+                        disabled={isDisabled || _isLoading}
                         className="w-full"
                         onClick={() => onOptionClick(plan)}
-                        type={
+                        variant={
                             currentPlan?.plan === plan.plan
                                 ? "link"
                                 : isThisPlanFree
-                                  ? "text"
-                                  : "default"
+                                  ? "ghost"
+                                  : "outline"
                         }
                     >
+                        {_isLoading ? <Spinner /> : null}
                         {currentPlan?.plan === plan.plan
                             ? "Current plan"
                             : isThisPlanFree
                               ? `Move to ${plan.title}`
                               : `Upgrade to ${plan.title}`}
                     </Button>
-                ),
-            ]}
-        >
-            <div className="flex flex-col h-[300px]">
-                <div className="flex flex-col gap-1">
-                    <Typography.Text className="text-lg font-bold">
-                        {plan.price
-                            ? `${plan.price.base?.starting_at ? "Starts at " : ""} $
-                            ${plan.price?.base?.amount} /month`
-                            : "Contact us"}
-                    </Typography.Text>
-
-                    <Typography.Text className="font-medium text-sm">
-                        {plan.description}
-                    </Typography.Text>
-                </div>
-
-                <ul className="-ml-5 overflow-auto">
-                    {plan.features?.map((point, idx) => {
-                        return (
-                            <li className="text-[var(--ag-c-586673)]" key={idx}>
-                                {point}
-                            </li>
-                        )
-                    })}
-                </ul>
-            </div>
+                )}
+            </CardFooter>
         </Card>
     )
 }

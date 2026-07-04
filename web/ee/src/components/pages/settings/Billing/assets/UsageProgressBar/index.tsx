@@ -1,7 +1,6 @@
 import {memo} from "react"
 
-import {WarningFilled} from "@ant-design/icons"
-import {Space, Typography} from "antd"
+import {Warning} from "@phosphor-icons/react"
 
 import {UsageProgressBarProps} from "../types"
 
@@ -40,19 +39,18 @@ const UsageProgressBar = ({
 
     return (
         <div className="w-full flex flex-col gap-1">
-            <Typography.Text className="text-[var(--ag-c-586673)] font-medium capitalize">
+            <span className="text-[var(--ag-c-586673)] font-medium capitalize">
                 {prettifyLabel(label)}
                 {suffix}{" "}
-                {!isUnlimited && value >= limit && <WarningFilled className="text-yellow-500" />}
-            </Typography.Text>
+                {!isUnlimited && value >= limit && (
+                    <Warning weight="fill" className="inline-block text-yellow-500" size={14} />
+                )}
+            </span>
 
-            <Space>
-                <Typography.Text className="text-sm font-medium">{`${value} / ${limit ? limit : "-"}`}</Typography.Text>
-                <Typography.Text
-                    type="secondary"
-                    className="font-medium"
-                >{`${free ? `(${value > free ? free : value} / ${free} free)` : ``}`}</Typography.Text>
-            </Space>
+            <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{`${value} / ${limit ? limit : "-"}`}</span>
+                <span className="font-medium text-muted-foreground">{`${free ? `(${value > free ? free : value} / ${free} free)` : ``}`}</span>
+            </div>
         </div>
     )
 }

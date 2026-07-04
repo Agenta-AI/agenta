@@ -1,26 +1,35 @@
-import clsx from "clsx"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/primitive-ui/components/dialog"
 import dynamic from "next/dynamic"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import PricingModalTitle from "./assets/PricingModalTitle"
 import {PricingModalProps} from "./assets/types"
 const PricingModalContent = dynamic(() => import("./assets/PricingModalContent"), {ssr: false})
 
-const PricingModal = ({onCancelSubscription, ...props}: PricingModalProps) => {
+const PricingModal = ({open, onClose, onCancelSubscription}: PricingModalProps) => {
     return (
-        <EnhancedModal
-            className={clsx("[&_.ant-modal-close]:top-[19px]", props.className)}
-            width={1200}
-            title={<PricingModalTitle />}
-            footer={null}
-            {...props}
+        <Dialog
+            open={open}
+            onOpenChange={(next) => {
+                if (!next) onClose()
+            }}
         >
-            <PricingModalContent
-                onCloseModal={() => props.onCancel?.({} as any)}
-                onCancelSubscription={onCancelSubscription}
-            />
-        </EnhancedModal>
+            <DialogContent className="sm:max-w-[1200px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>
+                        <PricingModalTitle />
+                    </DialogTitle>
+                </DialogHeader>
+                <PricingModalContent
+                    onCloseModal={onClose}
+                    onCancelSubscription={onCancelSubscription}
+                />
+            </DialogContent>
+        </Dialog>
     )
 }
 

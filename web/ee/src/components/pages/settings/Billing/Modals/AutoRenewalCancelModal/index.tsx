@@ -1,9 +1,17 @@
 import {useCallback, useState} from "react"
 
-import {message} from "@agenta/ui/app-message"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/primitive-ui/components/dialog"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {toast} from "@agenta/primitive-ui/lib/toast"
 import dynamic from "next/dynamic"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {cancelSubscription, useSubscriptionData, useUsageData} from "@/oss/services/billing"
 
 import {AutoRenewalCancelModalProps} from "./assets/types"
@@ -13,13 +21,18 @@ const AutoRenewalCancelModalContent = dynamic(
     {ssr: false},
 )
 
-const AutoRenewalCancelModal = ({...props}: AutoRenewalCancelModalProps) => {
+const AutoRenewalCancelModal = ({open, onClose}: AutoRenewalCancelModalProps) => {
     const [selectOption, setSelectOption] = useState("")
     const [inputOption, setInputOption] = useState("")
     const [isLoading, setIsLoading] = useState(false)
 
     const {mutateSubscription} = useSubscriptionData()
     const {mutateUsage} = useUsageData()
+
+    const handleClose = useCallback(() => {
+        onClose()
+        setSelectOption("")
+    }, [onClose])
 
     const onConfirmCancel = useCallback(async () => {
         // TODO: add posthog here to send the select form option data
@@ -28,46 +41,61 @@ const AutoRenewalCancelModal = ({...props}: AutoRenewalCancelModalProps) => {
             const data = await cancelSubscription()
 
             if (data.data.status === "success") {
-                message.success("Your subscription has been successfully canceled.")
+                toast.success("Your subscription has been successfully canceled.")
                 setTimeout(() => {
                     mutateUsage()
                     mutateSubscription()
-                    props.onCancel?.({} as any)
+                    handleClose()
                 }, 500)
             } else {
-                message.error(
+                toast.error(
                     "We were unable to cancel your subscription. Please try again later or contact support if the issue persists.",
                 )
             }
         } catch (error) {
-            message.error(
+            toast.error(
                 "An error occurred while processing your request. Please try again later or contact support if the issue persists.",
             )
         } finally {
             setIsLoading(false)
         }
-    }, [mutateSubscription, mutateUsage, cancelSubscription])
+    }, [mutateSubscription, mutateUsage, cancelSubscription, handleClose])
 
     return (
-        <EnhancedModal
-            title="We’re curious why you’re cancelling auto-renewal?"
-            okText="Confirm"
-            closable={false}
-            confirmLoading={isLoading}
-            onOk={onConfirmCancel}
-            okButtonProps={{
-                disabled: !selectOption || (selectOption == "something-else" && !inputOption),
+        <Dialog
+            open={open}
+            onOpenChange={(next) => {
+                if (!next) handleClose()
             }}
-            afterClose={() => setSelectOption("")}
-            {...props}
         >
-            <AutoRenewalCancelModalContent
-                value={selectOption}
-                onChange={(e) => setSelectOption(e.target.value)}
-                inputValue={inputOption}
-                onChangeInput={(e) => setInputOption(e.target.value)}
-            />
-        </EnhancedModal>
+            <DialogContent showCloseButton={false}>
+                <DialogHeader>
+                    <DialogTitle>We’re curious why you’re cancelling auto-renewal?</DialogTitle>
+                </DialogHeader>
+                <AutoRenewalCancelModalContent
+                    value={selectOption}
+                    onChange={setSelectOption}
+                    inputValue={inputOption}
+                    onChangeInput={(e) => setInputOption(e.target.value)}
+                />
+                <DialogFooter>
+                    <Button variant="outline" onClick={handleClose}>
+                        Cancel
+                    </Button>
+                    <Button
+                        disabled={
+                            !selectOption ||
+                            (selectOption == "something-else" && !inputOption) ||
+                            isLoading
+                        }
+                        onClick={onConfirmCancel}
+                    >
+                        {isLoading ? <Spinner /> : null}
+                        Confirm
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
 

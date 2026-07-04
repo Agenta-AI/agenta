@@ -1,8 +1,8 @@
-import {ModalProps} from "antd"
-
 import {BillingPlan, SubscriptionType} from "@/oss/services/billing/types"
 
-export interface PricingModalProps extends ModalProps {
+export interface PricingModalProps {
+    open: boolean
+    onClose: () => void
     onCancelSubscription: () => void
 }
 
