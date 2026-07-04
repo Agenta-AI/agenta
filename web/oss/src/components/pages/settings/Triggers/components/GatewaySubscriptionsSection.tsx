@@ -11,10 +11,23 @@ import {
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
 import {ActiveToggle, TriggerSubscriptionDrawer} from "@agenta/entity-ui/gatewayTrigger"
-import {MoreOutlined} from "@ant-design/icons"
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {type ColumnDef, DataTable} from "@agenta/primitive-ui/components/data-table"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
+import {toast} from "@agenta/primitive-ui/lib/toast"
 import {
     ArrowClockwise,
     ArrowsClockwise,
+    DotsThree,
     GearSix,
     ListChecks,
     PencilSimpleLine,
@@ -22,8 +35,6 @@ import {
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Table, Tag, Tooltip, Typography, message} from "antd"
-import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
@@ -65,9 +76,9 @@ export default function GatewaySubscriptionsSection() {
             if (!record.id) return
             try {
                 await revoke(record.id)
-                message.success("Subscription revoked")
+                toast.success("Subscription revoked")
             } catch {
-                message.error("Failed to revoke subscription")
+                toast.error("Failed to revoke subscription")
             }
         },
         [revoke],
@@ -78,9 +89,9 @@ export default function GatewaySubscriptionsSection() {
             if (!record.id) return
             try {
                 await refresh(record.id)
-                message.success("Subscription refreshed")
+                toast.success("Subscription refreshed")
             } catch {
-                message.error("Failed to refresh subscription")
+                toast.error("Failed to refresh subscription")
             }
         },
         [refresh],
@@ -91,9 +102,9 @@ export default function GatewaySubscriptionsSection() {
             if (!record.id) return
             try {
                 await remove(record.id)
-                message.success("Subscription deleted")
+                toast.success("Subscription deleted")
             } catch {
-                message.error("Failed to delete subscription")
+                toast.error("Failed to delete subscription")
             }
         },
         [remove],
@@ -107,144 +118,147 @@ export default function GatewaySubscriptionsSection() {
         [setActive],
     )
 
-    const columns: ColumnsType<TriggerSubscription> = useMemo(
+    const columns: ColumnDef<TriggerSubscription, unknown>[] = useMemo(
         () => [
             {
-                title: "Name",
-                key: "name",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (_, record) => (
-                    <Typography.Text>{record.name || record.id || "-"}</Typography.Text>
+                id: "name",
+                header: "Name",
+                minSize: 160,
+                enableSorting: false,
+                cell: ({row}) => <span>{row.original.name || row.original.id || "-"}</span>,
+            },
+            {
+                id: "connection",
+                header: "Connection",
+                minSize: 160,
+                enableSorting: false,
+                cell: ({row}) => <span>{connectionLabel(row.original.connection_id)}</span>,
+            },
+            {
+                id: "event",
+                header: "Event",
+                minSize: 160,
+                enableSorting: false,
+                cell: ({row}) => (
+                    <Badge variant="secondary">{row.original.data?.event_key ?? "-"}</Badge>
                 ),
             },
             {
-                title: "Connection",
-                key: "connection",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (_, record) => (
-                    <Typography.Text>{connectionLabel(record.connection_id)}</Typography.Text>
-                ),
-            },
-            {
-                title: "Event",
-                key: "event",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (_, record) => (
-                    <Tag
-                        bordered={false}
-                        color="default"
-                        className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                    >
-                        {record.data?.event_key ?? "-"}
-                    </Tag>
-                ),
-            },
-            {
-                title: "Status",
-                key: "status",
-                onHeaderCell: () => ({style: {minWidth: 120}}),
-                render: (_, record) =>
-                    // WP1: top-level `enabled`/`valid` are gone; read flags.
-                    !isEntityValid(record) ? (
-                        <Tag color="red">Invalid</Tag>
-                    ) : isEntityActive(record) ? (
-                        <Tag color="green">Active</Tag>
+                id: "status",
+                header: "Status",
+                minSize: 120,
+                enableSorting: false,
+                // WP1: top-level `enabled`/`valid` are gone; read flags.
+                cell: ({row}) =>
+                    !isEntityValid(row.original) ? (
+                        <Badge variant="destructive">Invalid</Badge>
+                    ) : isEntityActive(row.original) ? (
+                        <Badge>Active</Badge>
                     ) : (
-                        <Tag>Paused</Tag>
+                        <Badge variant="secondary">Paused</Badge>
                     ),
             },
             {
-                title: "Created at",
-                dataIndex: "created_at",
-                key: "created_at",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (value: string) =>
-                    value ? formatDay({date: value, outputFormat: "YYYY-MM-DD HH:mm"}) : "-",
+                id: "created_at",
+                accessorKey: "created_at",
+                header: "Created at",
+                minSize: 160,
+                enableSorting: false,
+                cell: ({row}) =>
+                    row.original.created_at
+                        ? formatDay({
+                              date: row.original.created_at,
+                              outputFormat: "YYYY-MM-DD HH:mm",
+                          })
+                        : "-",
             },
             {
-                title: <GearSix size={16} />,
-                key: "actions",
-                width: 96,
-                fixed: "right" as const,
-                align: "center" as const,
-                render: (_, record) => (
-                    <div className="flex items-center justify-center gap-1">
-                        <ActiveToggle
-                            active={isEntityActive(record)}
-                            onToggle={handleToggle(record)}
-                            disabled={!record.id || !isEntityValid(record)}
-                            activatedMessage="Subscription resumed"
-                            pausedMessage="Subscription paused"
-                            errorMessage="Failed to update subscription"
-                        />
-                        <Dropdown
-                            trigger={["click"]}
-                            styles={{root: {width: 180}}}
-                            menu={{
-                                items: [
-                                    {
-                                        key: "deliveries",
-                                        label: "View deliveries",
-                                        icon: <ListChecks size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
+                id: "actions",
+                header: () => <GearSix size={16} className="mx-auto" />,
+                size: 96,
+                enableSorting: false,
+                cell: ({row}) => {
+                    const record = row.original
+                    return (
+                        <div className="flex items-center justify-center gap-1">
+                            <ActiveToggle
+                                active={isEntityActive(record)}
+                                onToggle={handleToggle(record)}
+                                disabled={!record.id || !isEntityValid(record)}
+                                activatedMessage="Subscription resumed"
+                                pausedMessage="Subscription paused"
+                                errorMessage="Failed to update subscription"
+                            />
+                            <DropdownMenu>
+                                <DropdownMenuTrigger
+                                    render={
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="Open subscription actions"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <DotsThree size={16} />
+                                        </Button>
+                                    }
+                                />
+                                <DropdownMenuContent className="w-[180px]" align="end">
+                                    <DropdownMenuItem
+                                        onClick={(e) => {
+                                            e.stopPropagation()
                                             if (record.id)
                                                 openDeliveries({
                                                     owner: {kind: "subscription", id: record.id},
                                                     name: record.name ?? undefined,
                                                 })
-                                        },
-                                    },
-                                    {
-                                        key: "edit",
-                                        label: "Edit",
-                                        icon: <PencilSimpleLine size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
+                                        }}
+                                    >
+                                        <ListChecks size={16} />
+                                        View deliveries
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={(e) => {
+                                            e.stopPropagation()
                                             handleEdit(record)
-                                        },
-                                    },
-                                    {
-                                        key: "refresh",
-                                        label: "Refresh",
-                                        icon: <ArrowsClockwise size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
+                                        }}
+                                    >
+                                        <PencilSimpleLine size={16} />
+                                        Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={(e) => {
+                                            e.stopPropagation()
                                             handleRefresh(record)
-                                        },
-                                    },
-                                    {type: "divider" as const},
-                                    {
-                                        key: "revoke",
-                                        label: "Revoke",
-                                        icon: <XCircle size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
+                                        }}
+                                    >
+                                        <ArrowsClockwise size={16} />
+                                        Refresh
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        onClick={(e) => {
+                                            e.stopPropagation()
                                             handleRevoke(record)
-                                        },
-                                    },
-                                    {
-                                        key: "delete",
-                                        label: "Delete",
-                                        icon: <Trash size={16} />,
-                                        danger: true,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
+                                        }}
+                                    >
+                                        <XCircle size={16} />
+                                        Revoke
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
                                             handleDelete(record)
-                                        },
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button
-                                type="text"
-                                icon={<MoreOutlined />}
-                                aria-label="Open subscription actions"
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                        </Dropdown>
-                    </div>
-                ),
+                                        }}
+                                    >
+                                        <Trash size={16} />
+                                        Delete
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    )
+                },
             },
         ],
         [
@@ -262,40 +276,40 @@ export default function GatewaySubscriptionsSection() {
         <>
             <section className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                    <Button
-                        type="primary"
-                        size="small"
-                        icon={<Plus size={14} />}
-                        onClick={handleCreate}
-                        disabled={connections.length === 0}
-                    >
+                    <Button size="sm" onClick={handleCreate} disabled={connections.length === 0}>
+                        <Plus size={14} />
                         Subscribe
                     </Button>
-                    <Tooltip title="Reload all subscriptions">
-                        <Button
-                            icon={<ArrowClockwise size={14} />}
-                            type="text"
-                            size="small"
-                            aria-label="Reload all subscriptions"
-                            loading={reloading}
-                            onClick={reloadAll}
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Reload all subscriptions"
+                                    disabled={reloading}
+                                    onClick={reloadAll}
+                                >
+                                    {reloading ? <Spinner /> : <ArrowClockwise size={14} />}
+                                </Button>
+                            }
                         />
+                        <TooltipContent>Reload all subscriptions</TooltipContent>
                     </Tooltip>
                 </div>
 
-                <Table<TriggerSubscription>
-                    className="ph-no-capture"
-                    columns={columns}
-                    dataSource={subscriptions}
-                    rowKey={(record) => record.id ?? record.slug ?? record.data?.event_key ?? ""}
-                    bordered
-                    pagination={false}
-                    loading={isLoading || isMutating}
-                    onRow={(record) => ({
-                        onClick: () => handleEdit(record),
-                        className: "cursor-pointer",
-                    })}
-                />
+                <div className="ph-no-capture">
+                    <DataTable<TriggerSubscription>
+                        columns={columns}
+                        data={subscriptions}
+                        getRowId={(record) =>
+                            record.id ?? record.slug ?? record.data?.event_key ?? ""
+                        }
+                        loading={isLoading || isMutating}
+                        enableSorting={false}
+                        onRowClick={(row) => handleEdit(row.original)}
+                    />
+                </div>
             </section>
 
             <TriggerSubscriptionDrawer />
