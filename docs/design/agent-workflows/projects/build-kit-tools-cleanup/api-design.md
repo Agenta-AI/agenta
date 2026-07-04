@@ -1,7 +1,10 @@
 # API design: `test_run` and the `query_spans` stopgap
 
-Status: contract on paper, 2026-07-03. Shaped by [tool-home-options.md](tool-home-options.md)'s
-recommendation (Option C: a server-side handler on the tool-call plane). The
+Status: contract on paper, 2026-07-03; **Option C confirmed by Mahmoud 2026-07-04**
+(a server-side handler on the tool-call plane, declared from the platform catalog;
+see [tool-home-options.md](tool-home-options.md)). Shape and stopgap proceed on their
+recommendations as provisional defaults flagged for PR review ([status.md](status.md)).
+Citations re-verified 2026-07-04 against the post-#5041/#5064 tree. The
 design-interfaces skill's role taxonomy is applied throughout: every field is placed by
 what it IS (input, policy, context, output, metadata), not by feature.
 
@@ -17,8 +20,13 @@ ordered tool list, approval gates, the resolved config, and a verdict.
 ## The tool contract (model-visible)
 
 Catalog entry: `op="test_run"`, `handler="test_run"` (Option C mode),
-`read_only=False` (it spends tokens and can fire external writes; the approval default
-follows from the hint, owned by the approval-boundary model). Context binding:
+`read_only=False` (it spends tokens and can fire external writes) and NO explicit
+`permission`. Under the merged permission plan (#5041) that is all it takes to default
+to approval: the runner's gate resolves spec permission → server permission → authored
+rules → plan default (`permission-plan.ts` `effectivePermission`); the default plan is
+`allow_reads`, under which a non-read-hinted tool resolves to `ask` →
+`pendingApproval`. The author can still override per tool via `permission` in the
+config. Zero approval machinery changes. Context binding:
 `workflow_variant_id -> $ctx.workflow.variant.id`, stripped from the model schema like
 every binding (`op_catalog.py:126-143`).
 
@@ -135,7 +143,7 @@ In the tools domain (`core/tools/` service code, dispatched from the tool-call p
   skill tells the agent to warn the user (same convention as `test_subscription`'s
   blocking behavior note in the tools-review).
 
-## Shape decision (open decision 2) {#shape-decision}
+## Shape decision (provisional default: sync + delta, flagged for PR review) {#shape-decision}
 
 The three candidates, with the timeout facts from [research.md](research.md) gotcha 3
 (`TOOL_CALL_TIMEOUT_MS` 30s, `RELAY_TIMEOUT_MS` 60s):
@@ -152,7 +160,7 @@ change (the sync call starts returning early with `status: "running"` and the po
 ships), not a redesign. The lab evidence says sync fits today, and one tool call is the
 shape the model handles most reliably.
 
-## The `query_spans` stopgap (open decision 3) {#the-query_spans-stopgap}
+## The `query_spans` stopgap (provisional default: ship now, flagged for PR review) {#the-query_spans-stopgap}
 
 A read op over the existing spans query, shippable regardless of, and before, `test_run`:
 

@@ -1,7 +1,9 @@
 # Status
 
-**State: design docs written, awaiting Mahmoud's review.** Date: 2026-07-03. No code
-changed. Deliverable of this round: this workspace.
+**State: implementation starting.** Date: 2026-07-04. Phase 0 (reconcile plan with the
+post-merge tree) done; the slice plan in [plan.md](plan.md) is reconciled against
+big-agents after #5041, #5064, #5059, #5047. Citation drift ledger:
+[research.md](research.md), "2026-07-04 reconciliation".
 
 2026-07-04: JP's #5064 landed (invoke negotiation; batch = fold(stream), full
 transcript). test_run digest simplified accordingly in api-design.md; silent-fallback
@@ -12,51 +14,53 @@ transcript). test_run digest simplified accordingly in api-design.md; silent-fal
 proposed), Option B rejected, A'-vs-C field-level comparison added, the overlay now
 carries only the playbook skill.
 
+2026-07-04 (later): #5041 (approval-boundary) MERGED. `op_catalog.py` is no longer
+contended; approval for new ops is expressed by the `read_only` hint under the merged
+permission plan (write + no explicit permission → ask). The coordination constraint
+moved from `op_catalog.py` to the runner/wire surface; see plan.md.
+
 ## Decided (do not relitigate)
 
 1. Hard-migrate renames, no aliases: `find_capabilities` -> `discover_tools`,
    `find_triggers` -> `discover_triggers` (Mahmoud, 2026-07-03).
 2. Cut from the default overlay, keep in catalog: `pause_schedule`, `resume_schedule`,
    `pause_subscription`, `resume_subscription`, `query_workflows`, `list_connections`,
-   `list_subscriptions` (recommended: cut it from the overlay, keep the op; see
-   [research.md](research.md) gotcha 6).
+   `list_subscriptions` (see [research.md](research.md) gotcha 6).
 3. Keep `test_subscription` (Mahmoud, 2026-07-03).
-4. One PR for all code changes; docs only until the plan is approved.
+4. One PR for all code changes, on one GitButler lane; slices as commits.
 5. No business logic in the runner; the runner just runs the agents. Option B is closed
    (Mahmoud, 2026-07-04).
 6. "Gateway" means "runs through the Agenta gateway"; Agenta-implemented actions belong
    on that plane by design (Mahmoud, 2026-07-04). The rename of the term is proposed, not
-   decided: see [tool-home-options.md](tool-home-options.md), rename proposal.
+   decided: see [tool-home-options.md](tool-home-options.md), rename proposal — now
+   slice 6 (rename-or-defer, decided at PR review).
+7. **Option C confirmed (Mahmoud, 2026-07-04)**: `test_run` and future logic-bearing
+   internal tools are declared from the platform catalog via a `handler` mode and run
+   as server-side handlers on the tool-call plane, with generic relay `$ctx` injection
+   on `callRef` specs.
 
-## Open (Mahmoud answers; recommendations written)
+## Provisional defaults (proceeding; flagged for PR review, not relitigated in-flight)
 
-| Decision | Recommendation | Where |
+| Call | Default in effect | Where argued |
 |---|---|---|
-| overlay-scope: static 12-13 vs conditional event pack | Static 13 now; conditionality needs machinery that does not exist (`build_agent_template_overlay()` takes no request context) and adds a new failure mode | [research.md](research.md#overlay-scope) |
-| test-run-shape: sync+delta vs committed-only vs async pair | Sync + delta with a duration cap and per-op timeout plumbing; `test_id` reserved so the async pair is an additive fallback | [api-design.md](api-design.md#shape-decision) |
-| spans-stopgap: ship `query_spans` now vs hold for `test_run` | Ship now (slice 3); pure data add, independent of the home decision, still useful after `test_run` for reading scheduled fires | [api-design.md](api-design.md#the-query_spans-stopgap) |
+| overlay-scope | **Static 13** (8 core + 5 event, seven ops cut); conditionality deferred | [research.md](research.md#overlay-scope) |
+| test-run-shape | **Sync + delta**, 120s cap, per-op `timeout_ms` plumbing; `test_id` reserved so an async pair stays additive | [api-design.md](api-design.md#shape-decision) |
+| spans-stopgap | **Ship `query_spans` now** (slice 3); pure data add, still useful after `test_run` for reading scheduled fires | [api-design.md](api-design.md#the-query_spans-stopgap) |
 
-Plus the headline question this workspace exists to settle, now narrowed to two
-declarations of the same runtime design (B rejected, D still the rejected framing):
+## Coordination (current, post-#5041)
 
-| Question | Recommendation | Where |
-|---|---|---|
-| A' (gateway config arm, provider `agenta`) vs C (platform catalog `handler` mode)? | **Option C**: same wire, same server handler, same relay `$ctx` injection either way; C changes nothing the author sees and keeps internal-op metadata in the registry that already owns it. Codex second opinion pending as a PR comment | [tool-home-options.md](tool-home-options.md), "A' vs C, concretely" |
-| Rename the "gateway" executor term? | `server` (mirrors `client`; names the execution locus, not the pipe); `hosted` and `platform_run` considered and argued against | [tool-home-options.md](tool-home-options.md), rename proposal |
+- **`op_catalog.py` is FREE.** The approval-boundary lane merged and archived; the file
+  is identical to the workspace base. Post a board row before editing anyway.
+- **The runner/wire surface is contended** (slice 5 + slice 1's docs sweep): the applied
+  `feat/claude-client-tools-recut` lane owns `relay.ts` / `protocol.ts` / `responder.ts`
+  / `spec-schema.ts` + fresh `documentation/tools.md` and interface-page edits; a
+  second session's UNCOMMITTED pi-builtin-gating WIP sits on `relay.ts` /
+  `permission-plan.ts` / `responder.ts` / `sandbox_agent.ts`. Sequence per plan.md
+  coordination constraint 2 (lease, wait for the WIP to land, expect hunk-locking).
+- `docs/agent-skill-packaging` lane overlaps slice 4 in subject (docs-only); sync
+  direction before finalizing the playbook body.
 
-## Blocked on coordination
-
-- **`op_catalog.py` is contended.** The approval-boundary lane is implementing against
-  it today (permission model rework). This project's edits to that file (two key renames;
-  the `handler` mode) sequence AFTER their lane lands or with the owner's explicit ack,
-  via `docs/design/agent-workflows/scratch/agent-coordination.md`. No approval-semantics
-  change of any kind from this project. Details: [plan.md](plan.md), coordination
-  constraint.
-- The slice-5 wire change (`context` next to `callRef`, per-op `timeout_ms`) touches
-  `protocol.ts`/`wire.py`/golden fixtures; check the board for runner leases before
-  starting.
-
-## To verify live before implementation
+## To verify live before the PR leans on it
 
 - Gotcha 1: whether a fresh playground run actually resolves only the getting-started
   skill (the other three authoring skills appear undelivered; evidence in
@@ -67,8 +71,22 @@ declarations of the same runtime design (B rejected, D still the rejected framin
 
 - [README.md](README.md) - index.
 - [context.md](context.md) - why, goals, non-goals, decisions.
-- [research.md](research.md) - executor architecture, rename/cut inventory, gotchas.
-- [tool-home-options.md](tool-home-options.md) - the four homes, recommendation.
+- [research.md](research.md) - executor architecture, rename/cut inventory, gotchas,
+  2026-07-04 reconciliation ledger.
+- [tool-home-options.md](tool-home-options.md) - the four homes; Option C confirmed.
 - [api-design.md](api-design.md) - `test_run` contract + `query_spans` stopgap.
 - [skills-port.md](skills-port.md) - the playbook skill.
 - [plan.md](plan.md) - slices, coordination, tests-and-docs discipline.
+
+## Slice 1 Deferred Touch-Points
+
+2026-07-04: Slice 1 code sweep intentionally did not edit the docs/interface and FE surfaces
+owned by other lanes. Deferred old-op references remain in:
+
+- `docs/design/agent-workflows/documentation/tools.md`
+- `docs/design/agent-workflows/interfaces/README.md`
+- `docs/design/agent-workflows/interfaces/cross-service/runner-to-tool-callback.md`
+- `docs/design/agent-workflows/interfaces/in-service/tool-models-and-resolution.md`
+- `docs/design/agent-workflows/interfaces/public-edge/agent-config-schema.md`
+- `web/packages/agenta-playground/tests/unit/agentRequest.test.ts` (5 op fixture literals)
+- generated-client docstrings: `web/packages/agenta-api-client/src/generated/api/types/CapabilitiesResult.ts` and `clients/python/agenta_client/types/capabilities_result.py` (fixed at next codegen)
