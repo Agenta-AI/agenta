@@ -32,7 +32,7 @@ from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agenta.sdk.agents.tools.errors import UnknownPlatformOpError
-from agenta.sdk.agents.tools.models import Permission, ToolCall
+from agenta.sdk.agents.tools.models import ToolCall
 from agenta.sdk.utils.types import CATALOG_TYPES
 
 from ._schema import expand_type_refs
@@ -83,10 +83,8 @@ class PlatformOp(BaseModel):
     context_bindings: Dict[str, str] = Field(default_factory=dict)
     # Where the model's args land in the request body (a dotted deep-set path; absent = the root).
     args_into: Optional[str] = None
-    # Per-op defaults; the config's ``needs_approval`` / ``permission`` override these when set.
-    # Mutating ops default to approval (``ask``); reads default to auto-allow (``allow``).
-    default_permission: Optional[Permission] = None
-    default_needs_approval: bool = False
+    # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
+    read_only: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> "PlatformOp":
@@ -309,6 +307,71 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["workflow_revision"],
 }
 
+# Annotate trace (mutating, self-targeting): record an annotation (evaluation feedback) on the
+# agent's OWN current run trace — "grade myself". ``annotation.links.invocation.trace_id`` /
+# ``.span_id`` are bound from run context ($ctx.trace.*) so the agent always annotates its own run
+# and can never retarget another trace (the same self-targeting guarantee ``commit_revision`` gives
+# via $ctx.workflow.variant.id). Unlike ``commit_revision``, this is additive self-metadata (it does
+# not mutate the agent's config) — but it IS a write (``read_only=False``), so under the default
+# ``allow_reads`` policy it prompts unless the author sets an explicit ``allow``.
+_ANNOTATE_TRACE_DESCRIPTION = (
+    "Record an annotation (evaluation feedback) on your own current run's trace — grade "
+    "yourself. Supply `references.evaluator.slug` naming the annotation category (e.g. "
+    "'self_reflection', 'quality') and the `data.outputs` you are recording (scores, "
+    "labels, notes). Reuse a stable slug across runs: a new slug auto-creates a simple "
+    "evaluator in your project. The trace and span you annotate are your own current run, "
+    "filled automatically — you cannot annotate a different trace."
+)
+_ANNOTATE_TRACE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    # Closed so the model cannot smuggle `links` past the self-target binding
+    # ($ctx.trace.trace_id / .span_id); only the cataloged fields are accepted.
+    "additionalProperties": False,
+    "properties": {
+        "references": {
+            "type": "object",
+            "additionalProperties": False,
+            "description": "What this annotation evaluates against.",
+            "properties": {
+                "evaluator": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "description": (
+                        "Names the annotation category. Auto-created as a simple "
+                        "evaluator if the slug is new, so reuse a stable slug."
+                    ),
+                    "properties": {
+                        "slug": {
+                            "type": "string",
+                            "description": "Stable evaluator slug, e.g. 'self_reflection'.",
+                        }
+                    },
+                    "required": ["slug"],
+                }
+            },
+            "required": ["evaluator"],
+        },
+        "data": {
+            "type": "object",
+            "additionalProperties": False,
+            "description": "The annotation payload.",
+            "properties": {
+                "outputs": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "description": (
+                        "The annotation content you are recording (scores, labels, notes)."
+                    ),
+                }
+            },
+            "required": ["outputs"],
+        },
+        # links.invocation.{trace_id,span_id} are bound from run context ($ctx.trace.*) and
+        # never model-supplied; see context_bindings on the op below.
+    },
+    "required": ["references", "data"],
+}
+
 _FIND_TRIGGERS_DESCRIPTION = (
     "Discover trigger events that fit plain-language use cases. Returns the best-match "
     "event per use case with event_key, trigger_config schema, sample payload, connection "
@@ -476,8 +539,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/tools/discover",
             input_schema=_FIND_CAPABILITIES_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="query_workflows",
@@ -485,8 +547,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/workflows/query",
             input_schema=_QUERY_WORKFLOWS_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="commit_revision",
@@ -497,8 +558,20 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             context_bindings={
                 "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
             },
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
+        ),
+        PlatformOp(
+            op="annotate_trace",
+            description=_ANNOTATE_TRACE_DESCRIPTION,
+            method="POST",
+            path="/api/annotations/",
+            input_schema=_ANNOTATE_TRACE_INPUT_SCHEMA,
+            context_bindings={
+                "annotation.links.invocation.trace_id": "$ctx.trace.trace_id",
+                "annotation.links.invocation.span_id": "$ctx.trace.span_id",
+            },
+            args_into="annotation",
+            read_only=False,
         ),
         PlatformOp(
             op="find_triggers",
@@ -506,8 +579,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/discover",
             input_schema=_FIND_TRIGGERS_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="create_schedule",
@@ -519,8 +591,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
                 "schedule.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
             },
             args_into="schedule",
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="create_subscription",
@@ -532,8 +603,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
                 "subscription.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
             },
             args_into="subscription",
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="list_schedules",
@@ -541,8 +611,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="GET",
             path="/api/triggers/schedules/",
             input_schema=_EMPTY_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="list_subscriptions",
@@ -550,8 +619,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="GET",
             path="/api/triggers/subscriptions/",
             input_schema=_EMPTY_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="list_deliveries",
@@ -559,8 +627,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="GET",
             path="/api/triggers/deliveries",
             input_schema=_EMPTY_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="list_connections",
@@ -568,8 +635,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/connections/query",
             input_schema=_EMPTY_INPUT_SCHEMA,
-            default_permission="allow",
-            default_needs_approval=False,
+            read_only=True,
         ),
         PlatformOp(
             op="test_subscription",
@@ -578,8 +644,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             path="/api/triggers/subscriptions/test",
             input_schema=_TEST_SUBSCRIPTION_INPUT_SCHEMA,
             args_into="subscription",
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="remove_schedule",
@@ -587,8 +652,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="DELETE",
             path="/api/triggers/schedules/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="remove_subscription",
@@ -596,8 +660,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="DELETE",
             path="/api/triggers/subscriptions/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="pause_schedule",
@@ -605,8 +668,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/schedules/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="resume_schedule",
@@ -614,8 +676,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/schedules/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="pause_subscription",
@@ -623,8 +684,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/subscriptions/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
         PlatformOp(
             op="resume_subscription",
@@ -632,8 +692,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/triggers/subscriptions/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
-            default_permission="ask",
-            default_needs_approval=True,
+            read_only=False,
         ),
     )
 }

@@ -523,8 +523,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     // ── #4920 Application 1: refresh the config on a committed revision ──
     // When the agent commits a new revision of itself, the backend emits a one-way
-    // `data-committed-revision` part (same channel as `data-trace`), in BOTH the gated approval path
-    // and the direct `needs_approval=false` path. On receipt we invalidate the latest-revision and
+    // `data-committed-revision` part (same channel as `data-trace`), whether the tool asked first
+    // or ran directly. On receipt we invalidate the latest-revision and
     // inspect caches so the config panel, section drawers, and build-kit view all re-read the new
     // config. Deduped by revision id so a re-render (token stream) doesn't re-invalidate.
     const committedRevisionsSeenRef = useRef<Set<string>>(new Set())

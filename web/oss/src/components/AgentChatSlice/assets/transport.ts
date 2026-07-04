@@ -41,7 +41,7 @@ const stubConfig = () => ({
             tools: [],
             mcps: [],
             harness: {kind: "pi_core"},
-            runner: {kind: "sidecar", interactions: {headless: "auto"}},
+            runner: {kind: "sidecar", permissions: {default: "allow_reads"}},
             sandbox: {kind: "local"},
         },
     },
@@ -78,7 +78,7 @@ const configFor = (appId?: string | null) => {
     const withDefaults = (t: Record<string, unknown>): Record<string, unknown> => ({
         ...t,
         harness: withSection(t.harness, {kind: "pi_core"}),
-        runner: withSection(t.runner, {kind: "sidecar", interactions: {headless: "auto"}}),
+        runner: withSection(t.runner, {kind: "sidecar", permissions: {default: "allow_reads"}}),
         sandbox: withSection(t.sandbox, {kind: "local"}),
     })
     const parameters =

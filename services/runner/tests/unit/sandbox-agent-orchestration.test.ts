@@ -9,6 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
+import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
+import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
   runSandboxAgent,
@@ -26,6 +28,8 @@ interface FakeOptions {
   promptResult?: Record<string, unknown>;
   promptEvent?: Record<string, unknown>;
   promptEvents?: Array<Record<string, unknown>>;
+  afterPromptEvents?: () => Promise<void> | void;
+  postPermissionEvents?: Array<Record<string, unknown>>;
   streamUsage?: Record<string, number>;
   output?: string;
   promptError?: Error;
@@ -89,12 +93,17 @@ function fakeHarness(options: FakeOptions = {}) {
         options.promptEvent ?? { payload: { update: { kind: "noop" } } },
       ];
       for (const event of promptEvents) eventHandler?.(event);
+      await options.afterPromptEvents?.();
       if (options.emitPermission) {
         permissionHandler?.({
           id: "perm-1",
           availableReplies: ["once", "always", "reject"],
           toolCall: { toolCallId: "tool-1", name: "edit" },
         });
+      }
+      if (options.postPermissionEvents?.length) {
+        if (options.emitPermission) await flushPromises();
+        for (const event of options.postPermissionEvents) eventHandler?.(event);
       }
       if (options.promptError) throw options.promptError;
       if (options.hangPrompt) {
@@ -232,16 +241,30 @@ function fakeHarness(options: FakeOptions = {}) {
     sandboxRelayHost: (() => "sandbox-relay-host") as any,
     responderFactory: () => ({
       async onPermission() {
-        return options.permissionDecision ?? "allow";
+        return { kind: options.permissionDecision ?? "allow" } as const;
       },
       async onClientTool() {
-        return "deny" as const;
+        return { kind: "deny" } as const;
       },
     }),
   };
 
   return { calls, deps, events };
 }
+
+describe("PendingApprovalPauseController", () => {
+  it("tracks paused tool-call ids", () => {
+    const pause = new PendingApprovalPauseController(() => {});
+
+    assert.equal(pause.isPausedToolCall(undefined), false);
+    assert.equal(pause.isPausedToolCall("tool-1"), false);
+
+    pause.markPausedToolCall("tool-1");
+
+    assert.equal(pause.isPausedToolCall("tool-1"), true);
+    assert.equal(pause.isPausedToolCall("tool-2"), false);
+  });
+});
 
 describe("runSandboxAgent orchestration", () => {
   it("returns a successful one-shot result and cleans up acquired resources", async () => {
@@ -482,19 +505,7 @@ describe("runSandboxAgent orchestration", () => {
     if (!result.ok) return;
     assert.deepEqual(
       result.events?.filter((event) => event.type === "interaction_request"),
-      [
-        {
-          type: "interaction_request",
-          id: "perm-1",
-          kind: "user_approval",
-          payload: {
-            toolCallId: "tool-1",
-            toolCall: { toolCallId: "tool-1", name: "edit" },
-            availableReplies: ["once", "always", "reject"],
-            options: undefined,
-          },
-        },
-      ],
+      [],
     );
     // allow -> once (per-call grant), never always: a turn-wide grant would skip re-gating.
     assert.deepEqual(calls.permissionReplies, [
@@ -520,22 +531,23 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.deepEqual(calls.toolRelayArgs?.slice(0, 6), [
+    assert.deepEqual(calls.toolRelayArgs?.slice(0, 4), [
       "local-relay-host",
       // Relay scratch lives off the geesefs mount: host tmpdir/agenta/relay/<cwd basename>.
       join(tmpdir(), "agenta", "relay", "agenta-fake-cwd"),
       [{ name: "server_tool", kind: "callback" }],
       undefined,
-      // Layer 3 (S3b): the resolved permission policy threaded into the relay. No
-      // `permissionPolicy` on the request -> the headless default `auto`.
-      "auto",
-      // No runContext on the request.
-      undefined,
     ]);
+    const relayPermissions = calls.toolRelayArgs?.[4] as any;
+    assert.equal(relayPermissions.enforce, true, "Pi enforces at the relay");
+    assert.equal(typeof relayPermissions.decide, "function");
+    assert.equal(typeof relayPermissions.onPendingApproval, "function");
+    // No runContext on the request.
+    assert.equal(calls.toolRelayArgs?.[5], undefined);
     // Trailing arg is the relay callbacks object (client-tool + park handlers).
     assert.deepEqual(
       Object.keys((calls.toolRelayArgs?.[6] ?? {}) as object).sort(),
-      ["onClientTool", "onPark"],
+      ["onClientTool", "onPause"],
     );
     assert.equal(
       calls.toolRelayStops,
@@ -567,6 +579,11 @@ describe("runSandboxAgent orchestration", () => {
       result.ok,
       true,
       "the run succeeds; gateway tools reach Claude",
+    );
+    assert.equal(
+      (calls.toolRelayArgs?.[4] as any)?.enforce,
+      false,
+      "Claude gates before the relay, so the relay does not re-enforce",
     );
     const mcpServers =
       calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
@@ -848,17 +865,16 @@ describe("runSandboxAgent orchestration", () => {
   });
 });
 
-// These exercise the engine's DEFAULT responder (HITLResponder) by dropping the
-// `responderFactory` override the fake otherwise installs, so we test the real cross-turn
-// wiring: headless parity, the park, and the resume.
-describe("runSandboxAgent default HITL responder wiring", () => {
+// These exercise the engine's default ApprovalResponder by dropping the `responderFactory`
+// override the fake otherwise installs, so we test the real allow, pause, and resume wiring.
+describe("runSandboxAgent default ApprovalResponder wiring", () => {
   function depsWithDefaultResponder() {
     const { calls, deps } = fakeHarness({ emitPermission: true });
-    delete deps.responderFactory; // fall through to the engine's HITLResponder
+    delete deps.responderFactory; // fall through to the engine's ApprovalResponder
     return { calls, deps };
   }
 
-  it("headless (/invoke: no sessionId, no decisions) auto-allows — no regression", async () => {
+  it("absent permissions use allow_reads and pause an unrated gate", async () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
@@ -873,20 +889,19 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     await flushPromises();
 
     assert.equal(result.ok, true);
-    // Headless auto-allow gates each call individually, so once (this call) is equivalent to
-    // the old always and strictly safer — no turn-wide grant that skips re-gating.
-    assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "once" },
-    ]);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.deepEqual(calls.permissionReplies, []);
   });
 
-  it("human surface (/messages: sessionId set) with no decision PARKS the tool, no harness reply (F-024)", async () => {
+  it("effective ask with no decision pauses the tool, no harness reply (F-024)", async () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
       {
         harness: "claude",
         sessionId: "conv-1",
+        permissions: { default: "ask" },
         messages: [{ role: "user", content: "edit the file" }],
       },
       undefined,
@@ -912,6 +927,98 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     assert.deepEqual(calls.permissionReplies, []);
   });
 
+  it("drops teardown tool updates after a Pi relay approval pause while keeping other ids", async () => {
+    const relayPause = { fire: () => {} };
+    const { calls, deps } = fakeHarness({
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-1",
+              title: "approval_needed",
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-2",
+              title: "other_tool",
+            },
+          },
+        },
+      ],
+      afterPromptEvents: () => relayPause.fire(),
+      postPermissionEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call_update",
+              toolCallId: "tool-1",
+              status: "failed",
+              content: [{ content: { type: "text", text: "aborted" } }],
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call_update",
+              toolCallId: "tool-2",
+              status: "failed",
+              content: [{ content: { type: "text", text: "other failed" } }],
+            },
+          },
+        },
+      ],
+    });
+    deps.createOtel = createSandboxAgentOtel as any;
+    relayPause.fire = () => {
+      const relayPermissions = calls.toolRelayArgs?.[4] as any;
+      relayPermissions.onPendingApproval({
+        toolCallId: "tool-1",
+        toolName: "approval_needed",
+        args: { path: "a" },
+      });
+    };
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "use the tool" }],
+        customTools: [
+          { name: "approval_needed", kind: "callback", permission: "ask" },
+        ],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.deepEqual(
+      result.events
+        ?.filter((event) => event.type === "interaction_request")
+        .map((event) => ({ id: (event as any).id, kind: (event as any).kind })),
+      [{ id: "tool-1", kind: "user_approval" }],
+    );
+    assert.deepEqual(
+      result.events
+        ?.filter((event) => event.type === "tool_result")
+        .map((event) => ({
+          id: (event as any).id,
+          output: (event as any).output,
+          isError: (event as any).isError,
+        })),
+      [{ id: "tool-2", output: "other failed", isError: true }],
+    );
+  });
+
   it("park ENDS the turn even when the prompt hangs: terminal stopReason 'paused', no harness reply (F-040)", async () => {
     // The real regression: Claude does NOT end a turn on an unanswered gate, so without the
     // park->cancel path `session.prompt()` blocks forever and the run never returns. With
@@ -922,7 +1029,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
         emitPermission: true,
         hangPrompt: true,
       });
-      delete deps.responderFactory; // engine HITLResponder -> parks (human surface, no decision)
+      delete deps.responderFactory; // engine ApprovalResponder -> pauses (effective ask, no decision)
       return { calls, deps };
     })();
 
@@ -930,6 +1037,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
       {
         harness: "claude",
         sessionId: "conv-1",
+        permissions: { default: "ask" },
         messages: [{ role: "user", content: "edit the file" }],
       },
       undefined,
@@ -971,6 +1079,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
       {
         harness: "claude",
         sessionId: "conv-1",
+        permissions: { default: "ask" },
         messages: [{ role: "user", content: "edit the file" }],
       },
       undefined,
@@ -995,6 +1104,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
       {
         harness: "claude",
         sessionId: "conv-1",
+        permissions: { default: "ask" },
         messages: [
           { role: "user", content: "edit the file" },
           {

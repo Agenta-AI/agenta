@@ -277,9 +277,11 @@ Move the `session.onPermissionRequest` wiring into a helper:
 attachPermissionResponder({ session, run, responder });
 ```
 
-The engine should choose the default `PolicyResponder`, but the helper should accept a
+The engine should choose the default `ApprovalResponder` (`PolicyResponder`/`HITLResponder`
+were later merged into this one responder; see
+[projects/approval-boundary/](../approval-boundary/)), but the helper should accept a
 responder for future HITL tests. Add a unit test with a fake session to assert it emits
-`interaction_request` and calls `respondPermission`.
+`interaction_request` only on pause and calls `respondPermission`.
 
 ### `usage.ts`
 

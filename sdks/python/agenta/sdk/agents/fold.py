@@ -12,11 +12,40 @@ Message = Dict[str, Any]
 FoldedEvent = Dict[str, Any]
 
 
-def fold(events: Iterable[FoldedEvent]) -> Dict[str, Any]:
-    """Fold a full event turn into ``{messages, stop_reason, pending_interaction}``."""
+def _pending_tool_name(interaction: Dict[str, Any]) -> Optional[str]:
+    """The paused tool's name, from the interaction payload's stable-first candidates.
+
+    Relay/client pauses carry ``payload.toolName`` (the spec name); harness gates carry an
+    ACP ``toolCall`` whose ``name``/``title``/``kind`` may each be a display label rather
+    than a name, so they are fallbacks in that order (see the approval-boundary workspace).
+    """
+    payload = interaction.get("payload")
+    if not isinstance(payload, dict):
+        return None
+    name = payload.get("toolName")
+    if isinstance(name, str) and name:
+        return name
+    tool_call = payload.get("toolCall")
+    if isinstance(tool_call, dict):
+        for key in ("name", "title", "kind"):
+            value = tool_call.get(key)
+            if isinstance(value, str) and value:
+                return value
+    return None
+
+
+def fold(
+    events: Iterable[FoldedEvent], *, stop_reason: Optional[str] = None
+) -> Dict[str, Any]:
+    """Fold a full event turn into ``{messages, stop_reason, pending_interaction}``.
+
+    ``stop_reason`` is the terminal result's value when the caller holds one; it wins over
+    the event-derived value because the runner's ``done`` event carries no ``stopReason``
+    today (the engine settles it after the pause race, onto the terminal result only).
+    """
     messages: List[Message] = []
     open_text: Dict[Any, int] = {}  # message_start id -> index into `messages`
-    stop_reason: Optional[str] = None
+    event_stop_reason: Optional[str] = None
     last_interaction_request: Optional[Dict[str, Any]] = None
 
     for event in events:
@@ -58,14 +87,22 @@ def fold(events: Iterable[FoldedEvent]) -> Dict[str, Any]:
         elif etype == "interaction_request":
             last_interaction_request = data
         elif etype == "done":
-            stop_reason = data.get("stopReason")
+            event_stop_reason = data.get("stopReason")
         # thought_start/thought_delta/thought_end, data, file, usage, error: no message.
 
-    pending_interaction = last_interaction_request if stop_reason == "paused" else None
+    resolved_stop = stop_reason if stop_reason is not None else event_stop_reason
+    pending_interaction: Optional[Dict[str, Any]] = None
+    if resolved_stop == "paused" and last_interaction_request is not None:
+        # Superset of the raw interaction_request data plus the derived `tool` name, so
+        # headless callers can act on `{id, tool}` without parsing the ACP payload.
+        pending_interaction = dict(last_interaction_request)
+        pending_interaction.setdefault(
+            "tool", _pending_tool_name(last_interaction_request)
+        )
 
     return {
         "messages": messages,
-        "stop_reason": stop_reason,
+        "stop_reason": resolved_stop,
         "pending_interaction": pending_interaction,
     }
 

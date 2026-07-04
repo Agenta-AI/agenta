@@ -11,7 +11,7 @@ the order it runs in is itself a contract.
 The handler (`_agent` in `app.py`) takes the workflow envelope's pieces:
 
 - `parameters`: carries the agent config under `agent`. The run-selection fields (`harness`,
-  `sandbox`, `permission_policy`) live on that same `agent` object.
+  `sandbox`, `runner.permissions.default`) live on that same `agent` object.
 - `messages` or `inputs.messages`: the turn history (it checks `messages` first).
 - `stream`: batch versus streaming.
 - `session_id`: the external conversation id.
@@ -19,7 +19,8 @@ The handler (`_agent` in `app.py`) takes the workflow envelope's pieces:
 ## What it does, in order
 
 1. Parse the config: `AgentConfig.from_params(params, defaults=...)`. One parse covers
-   everything, including the run-selection fields (`harness`, `sandbox`, `permission_policy`).
+   everything, including the run-selection fields (`harness`, `sandbox`,
+   `runner.permissions.default`).
 2. Convert the request messages to neutral `Message[]`.
 3. Resolve tools into builtin names, runnable specs, and a tool callback.
 4. Resolve MCP servers.

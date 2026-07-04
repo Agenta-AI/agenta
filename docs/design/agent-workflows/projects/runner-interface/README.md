@@ -226,7 +226,7 @@ Type: `AgentRunRequest` in `services/agent/src/protocol.ts`, hand-mirrored in
 | `customTools` | ResolvedToolSpec[] | Resolved runnable tools (gateway callback, code, or client). |
 | `toolCallback` | ToolCallbackContext | Where callback tools POST back. Required when `customTools` is set. |
 | `mcpServers` | McpServerConfig[] | User-declared MCP servers, secret env already injected. Omitted entirely when there are none. |
-| `permissionPolicy` | string | `auto` (default) or `deny`, for permission-gating harnesses. |
+| `permissions` | `{default: string, rules?: [...]}` | The agent-wide policy: `default` is one of `allow`, `ask`, `deny`, `allow_reads` (the default mode); optional `rules` are authored patterns (for example `Bash(rm:*)`) that override `default` for matching harness builtins. Read by the runner's shared decision function (`permission-plan.ts`), consulted by both the ACP responder and the tool relay. |
 | `systemPrompt` | string | Pi only: replace Pi's base system prompt. `AGENTS.md` is still appended after it. |
 | `appendSystemPrompt` | string | Pi only: append to Pi's base prompt without replacing it. |
 | `prompt` | string | Optional explicit latest turn. Falls back to the last user message in `messages`. |
@@ -237,9 +237,9 @@ Type: `AgentRunRequest` in `services/agent/src/protocol.ts`, hand-mirrored in
 `request_to_wire` does not list tool, prompt, or MCP fields literally. It spreads three
 harness-shaped helpers off the config object:
 
-- `config.wire_tools()` shapes `tools` / `customTools` / `toolCallback` / `permissionPolicy`
-  per harness. Pi sends built-ins plus native specs and no gating; Claude sends MCP-delivered
-  specs plus the permission policy. This is why the Pi and Claude golden requests differ.
+- `config.wire_tools()` shapes `tools` / `customTools` / `toolCallback` / `permissions`
+  per harness. Pi and Claude both send the same `permissions` block now; they still differ
+  in tool shape (Pi sends built-ins plus native specs, Claude sends MCP-delivered specs).
 - `config.wire_prompt()` adds `systemPrompt` / `appendSystemPrompt` only for harnesses that
   expose them (Pi). It is empty otherwise.
 - `config.wire_mcp()` adds `mcpServers` only when the user declared some, so a tool-free run's
@@ -256,7 +256,9 @@ A tool the service already resolved. Three orthogonal axes:
   the Composio key stays server-side); `code` runs `code` in a sandbox subprocess with `env`
   (scoped resolved secrets); `client` is fulfilled by the browser across a turn boundary.
   Absent means `callback` for back-compat.
-- `needsApproval`: gate the call on a human yes/no.
+- `permission`: `allow`, `ask`, `deny`, or unset (inherit the agent's policy). The runner's
+  shared decision function resolves the effective value; there is no separate
+  `needsApproval` field.
 - `render`: a generative-UI hint (`component`, `source`, or `spec`).
 
 `callRef` is set for `callback` tools only (the slug the bridge sends back). `runtime` / `code`
@@ -297,15 +299,15 @@ From `golden/run_request.pi.json`:
     "endpoint": "https://api.example/tools/call",
     "authorization": "Access tok-123"
   },
-  "permissionPolicy": "auto",
+  "permissions": {"default": "allow_reads"},
   "systemPrompt": "You are Pi.",
   "appendSystemPrompt": "Be terse."
 }
 ```
 
 The Claude golden (`run_request.claude.json`) differs as the harness shaping predicts: no
-`tools` built-ins beyond an empty list, no Pi prompt overrides, `permissionPolicy: "deny"`,
-and `backend: "sandbox-agent"`.
+`tools` built-ins beyond an empty list, no Pi prompt overrides, `permissions: {"default":
+"deny"}`, and `backend: "sandbox-agent"`.
 
 ## 8. The `/run` result and the event model
 

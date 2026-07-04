@@ -132,7 +132,46 @@ def test_fold_paused_turn_sets_pending_interaction():
         "id": "req-1",
         "kind": "user_approval",
         "payload": {"toolCallId": "t1"},
+        "tool": None,  # payload names no tool; the raw data is still there to parse
     }
+
+
+def test_fold_terminal_stop_reason_wins_over_done_event():
+    # The live runner's `done` event carries NO stopReason; only the terminal result
+    # knows the turn paused. The caller passes it in and the pause still surfaces.
+    events = [
+        {
+            "type": "interaction_request",
+            "data": {
+                "id": "req-9",
+                "kind": "user_approval",
+                "payload": {"toolName": "deleteFile", "toolCallId": "t9"},
+            },
+        },
+        {"type": "done", "data": {}},
+    ]
+    result = fold(events, stop_reason="paused")
+    assert result["stop_reason"] == "paused"
+    assert result["pending_interaction"]["id"] == "req-9"
+    assert result["pending_interaction"]["tool"] == "deleteFile"
+
+
+def test_fold_pending_tool_falls_back_to_acp_tool_call_name():
+    # Harness gates carry an ACP toolCall instead of a spec toolName; name/title/kind
+    # are the fallback candidates in that order.
+    events = [
+        {
+            "type": "interaction_request",
+            "data": {
+                "id": "req-2",
+                "kind": "user_approval",
+                "payload": {"toolCall": {"title": "Delete a file", "kind": "edit"}},
+            },
+        },
+        _done("paused"),
+    ]
+    result = fold(events)
+    assert result["pending_interaction"]["tool"] == "Delete a file"
 
 
 def test_fold_interaction_request_without_pause_is_not_pending():

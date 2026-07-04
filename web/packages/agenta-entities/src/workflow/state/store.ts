@@ -2591,9 +2591,9 @@ export function invalidateWorkflowRevisionsByVariantCache(
  * latest-revision query (the config panel + section drawers re-read the new config) and the inspect
  * query (harness-capabilities / any inspect-derived view).
  *
- * Fired on the one-way `data-committed-revision` stream signal (which the backend emits in BOTH the
- * gated approval path and the direct `needs_approval=false` path), not on approval — so a single
- * emit point covers both. The payload's ids aren't needed: a prefix invalidation refetches every
+ * Fired on the one-way `data-committed-revision` stream signal (which the backend emits after
+ * committed revisions whether the tool asked first or ran directly), not on approval — so a
+ * single emit point covers both. The payload's ids aren't needed: a prefix invalidation refetches every
  * active observer, which is exactly the set the playground has mounted.
  */
 export function invalidateAgentCommittedRevisionCache(options?: StoreOptions) {

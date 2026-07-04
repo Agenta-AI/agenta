@@ -27,7 +27,7 @@ Keeping these separate is the key to deciding what to surface and how.
 | `tool_schemas[slug].input_schema` | Validates the tool and its inputs. | Load-bearing. This is what the model sees to call the tool. | `input_schema` on the resolved tool spec (`ToolResolveResponse.custom[].input_schema`) | Yes, same schema our catalog `/tools/{slug}` returns |
 | `tool_schemas[slug].description` | Context. | The tool description the model reads. | tool `description` | Yes |
 | `recommended_plan_steps` | Reveals the FULL tool set and order the task needs, not just the obvious action. | Becomes its operating procedure. | Draft `agents_md` content + a checklist of tools to include | Guidance, not a typed concept. References slugs; map to friendly names |
-| `known_pitfalls` | Informs guardrails (e.g. non-idempotent -> set `needs_approval`). | "Things to avoid" in `agents_md`. | `agents_md` guidance; optionally per-tool `needs_approval`/`permission` | Guidance |
+| `known_pitfalls` | Informs guardrails (e.g. non-idempotent -> set `permission: "ask"`). | "Things to avoid" in `agents_md`. | `agents_md` guidance; optionally per-tool `permission` | Guidance |
 | `difficulty` | Signal: auto-proceed vs ask for human review. | No. | metadata | Coarse |
 | `execution_guidance`, `next_steps_guidance` | The next action: resolve connections first, then run. | No. | Drives our connection-resolution + create flow | Translate (do not pass Composio tool names through) |
 | `toolkit_connection_statuses[].has_active_connection` | Critical. Drives reuse / initiate / ask-user. | No. | Agenta connection state, resolved against `gateway_connections` for the project | Yes IF we pass `user_id = project_id` |

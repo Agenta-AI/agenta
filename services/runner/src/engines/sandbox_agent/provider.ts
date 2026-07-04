@@ -36,7 +36,7 @@ export function daytonaNetworkFields(
  * 15 minutes is the Daytona SDK's own documented default and sits comfortably beyond a normal
  * run (an actively prompting sandbox is BUSY, not idle, so this measures leaked-and-idle time,
  * not total run time). Override with `DAYTONA_AUTOSTOP` if runs idle
- * longer (e.g. long parked HITL turns).
+ * longer (e.g. long paused HITL turns).
  */
 export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
 

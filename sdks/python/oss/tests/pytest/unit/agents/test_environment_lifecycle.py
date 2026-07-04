@@ -104,6 +104,30 @@ async def test_prompt_runs_and_tears_down(make_env):
     assert env.backend.sessions[0].destroyed is True  # torn down on the happy path
 
 
+async def test_stream_threads_terminal_usage_and_stop_reason(make_env):
+    env = make_env(
+        result=AgentResult(
+            output="done",
+            usage={"total": 3},
+            stop_reason="paused",
+            session_id="sess-new",
+        )
+    )
+    harness = PiHarness(env)
+    config = _config()
+
+    run = await harness.stream(config, [Message(role="user", content="hi")])
+    async for _ in run:
+        pass
+    result = run.result()
+
+    assert result.output == "done"
+    assert result.usage == {"total": 3}
+    assert result.stop_reason == "paused"
+    assert config.session_id == "sess-new"
+    assert env.backend.sessions[0].destroyed is True
+
+
 async def test_prompt_destroys_session_even_when_it_raises(make_env):
     env = make_env(raise_on_prompt=True)
     harness = PiHarness(env)

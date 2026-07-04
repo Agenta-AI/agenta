@@ -31,7 +31,8 @@ import type {
   RunContext,
   ToolCallbackContext,
 } from "../protocol.ts";
-import type { ClientToolOutcome, PermissionPolicy } from "../responder.ts";
+import type { GateDescriptor, Verdict } from "../permission-plan.ts";
+import type { ClientToolOutcome } from "../responder.ts";
 
 export const RELAY_REQ_SUFFIX = ".req.json";
 export const RELAY_RES_SUFFIX = ".res.json";
@@ -59,11 +60,24 @@ export interface ClientToolRelayRequest {
   input: unknown;
   spec: ResolvedToolSpec;
 }
+export interface RelayPermissions {
+  /** False when the harness raises its own gates first (Claude); the relay then executes
+   *  what reaches it. True when the relay is the only gate (Pi). */
+  enforce: boolean;
+  decide: (gate: GateDescriptor) => Verdict;
+  /** Called when an ask pauses at the relay: emit the approval event and pause the turn. */
+  onPendingApproval: (info: {
+    toolCallId: string;
+    toolName: string;
+    args: unknown;
+  }) => void;
+}
+
 export interface ClientToolRelay {
   onClientTool: (request: ClientToolRelayRequest) => Promise<ClientToolOutcome>;
-  onPark?: (request: ClientToolRelayRequest) => void;
+  onPause?: (request: ClientToolRelayRequest) => void;
 }
-const CLIENT_TOOL_PARKED = Symbol("client-tool-parked");
+const PAUSED = Symbol("paused");
 
 function objectSchema(schema: unknown): Record<string, unknown> | undefined {
   return schema && typeof schema === "object" && !Array.isArray(schema)
@@ -130,26 +144,6 @@ export function sanitizeRelayId(id: string): string {
 
 export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/**
- * Layer 3 enforcement (S3b): resolve a resolved-tool spec's `permission` to a concrete
- * runner-side decision. `allow` runs, `deny` never runs; `ask` and an UNSET permission
- * degrade to the run's headless `permissionPolicy` (`auto` -> allow, `deny` -> deny).
- *
- * Resolved tools (code / gateway-callback) run runner-side via the relay, harness-agnostic, so
- * this is where their permission is enforced (Claude builtins are enforced at Layer 1 via
- * .claude/settings.json instead). Surfacing an `ask` to a live human is the cross-turn HITL
- * path (S5); here `ask` is a headless run, so it collapses onto the policy.
- */
-export function resolvePermission(
-  permission: string | undefined,
-  policy: PermissionPolicy,
-): "allow" | "deny" {
-  if (permission === "allow") return "allow";
-  if (permission === "deny") return "deny";
-  // `ask` or unset: headless, so defer to the run policy.
-  // TODO(S5): surface ask to HITL instead of collapsing onto permissionPolicy.
-  return policy === "deny" ? "deny" : "allow";
-}
 
 export interface RelayHost {
   list: (dir: string) => Promise<string[]>;
@@ -200,12 +194,12 @@ async function executeRelayedTool(
   spec: ResolvedToolSpec,
   req: RelayRequest,
   callback: ToolCallbackContext | undefined,
-  policy: PermissionPolicy,
+  permissions: RelayPermissions,
   runContext: RunContext | undefined,
   clientToolRelay: ClientToolRelay | undefined,
-): Promise<string | typeof CLIENT_TOOL_PARKED> {
-  assertRequiredArguments(spec, req.args);
+): Promise<string | typeof PAUSED> {
   if (spec.kind === "client") {
+    assertRequiredArguments(spec, req.args);
     if (!clientToolRelay) {
       throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
     }
@@ -218,26 +212,51 @@ async function executeRelayedTool(
       spec,
     };
     const decision = await clientToolRelay.onClientTool(request);
-    if (decision === "park") {
-      clientToolRelay.onPark?.(request);
-      return CLIENT_TOOL_PARKED;
+    if (decision === "pendingApproval") {
+      clientToolRelay.onPause?.(request);
+      return PAUSED;
     }
     if (decision === "deny") {
       return `Client tool '${spec.name}' was denied.`;
     }
     return JSON.stringify(decision.output ?? {});
   }
-  // Layer 3 enforcement (S3b): gate the call on the spec's permission before it runs.
-  // `deny` returns a refusal string (not a throw) so the harness folds it into the tool
-  // result and the model loop continues. `ask`/unset degrade to the headless policy.
-  const decision = resolvePermission(spec.permission, policy);
-  if (decision === "deny") {
-    if (spec.permission === "deny") {
-      return `Tool '${spec.name}' is denied by policy.`;
+
+  if (permissions.enforce) {
+    const gate: GateDescriptor = {
+      executor: "relay",
+      toolName: spec.name,
+      specPermission: spec.permission,
+      readOnlyHint: spec.readOnly,
+      args: req.args,
+    };
+    const verdict = permissions.decide(gate);
+    if (verdict.kind === "deny") {
+      if (spec.permission === "deny") {
+        return `Tool '${spec.name}' is denied by policy.`;
+      }
+      return `Tool '${spec.name}' is denied by the permission policy.`;
     }
-    // ask/unset that the headless policy refused. TODO(S5): surface ask to HITL.
-    return `Tool '${spec.name}' requires approval; denied in headless mode.`;
+    if (verdict.kind === "pendingApproval") {
+      permissions.onPendingApproval({
+        toolCallId: req.toolCallId,
+        toolName: spec.name,
+        args: req.args,
+      });
+      return PAUSED;
+    }
   }
+
+  return executeAllowedRelayedTool(spec, req, callback, runContext);
+}
+
+async function executeAllowedRelayedTool(
+  spec: ResolvedToolSpec,
+  req: RelayRequest,
+  callback: ToolCallbackContext | undefined,
+  runContext: RunContext | undefined,
+): Promise<string> {
+  assertRequiredArguments(spec, req.args);
   if (spec.kind === "code") {
     return runCodeTool(spec.runtime, spec.code ?? "", spec.env, req.args);
   }
@@ -281,7 +300,7 @@ export function startToolRelay(
   relayDir: string,
   specs: ResolvedToolSpec[],
   callback: ToolCallbackContext | undefined,
-  policy: PermissionPolicy,
+  permissions: RelayPermissions,
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
 ): { stop: () => Promise<void> } {
@@ -302,11 +321,11 @@ export function startToolRelay(
         spec,
         { ...req, toolCallId: req.toolCallId ?? id },
         callback,
-        policy,
+        permissions,
         runContext,
         clientToolRelay,
       );
-      if (text === CLIENT_TOOL_PARKED) return;
+      if (text === PAUSED) return;
       res = { ok: true, text };
     } catch (err) {
       res = { ok: false, error: err instanceof Error ? err.message : String(err) };

@@ -65,7 +65,7 @@ KNOWN_REQUEST_KEYS = {
     "customTools",
     "mcpServers",
     "toolCallback",
-    "permissionPolicy",
+    "permissions",
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
@@ -166,7 +166,7 @@ def _claude_payload():
         model="claude-sonnet-4-6",
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
-        permission_policy="deny",
+        permission_default="deny",
         skills=[dict(_SKILL)],
         harness_permissions={
             "default_mode": "acceptEdits",
@@ -206,8 +206,8 @@ def _agenta_payload():
 def test_request_to_wire_agenta_carries_skills_and_pi_shape():
     payload = _agenta_payload()
     assert set(payload) <= KNOWN_REQUEST_KEYS
-    # Agenta is a Pi config: same tool shape, never gates, exposes the prompt overrides...
-    assert payload["permissionPolicy"] == "auto"
+    # Agenta is a Pi config: same tool shape and shared permission plan, plus prompt overrides.
+    assert payload["permissions"] == {"default": "allow_reads"}
     assert payload["tools"] == ["read", "bash"]
     assert payload["appendSystemPrompt"] == "You are an Agenta agent."
     # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
@@ -238,8 +238,6 @@ def test_request_to_wire_pi_matches_golden(golden):
     assert payload == golden("run_request.pi_core.json")
     # The Composio read-only hint rides the wire as camelCase `readOnly`.
     assert payload["customTools"][0]["readOnly"] is True
-    # No explicit author permission + read_only=True -> derived `allow` rides the wire.
-    assert payload["customTools"][0]["permission"] == "allow"
     # The direct-call tool rides the wire carrying its `call` descriptor and NO `callRef`
     # (the `call` XOR `callRef` rule). The descriptor keeps method/path/body and the snake_case
     # `args_into`; `context` is unset so it is omitted. Plumbing only — the runner forwards it
@@ -379,11 +377,17 @@ def test_request_to_wire_claude_matches_golden(golden):
     assert payload["context"] is None
     assert payload["telemetry"] is None
     assert "trace" not in payload
-    # No explicit author permission + read_only=True -> derived `allow` rides the wire.
-    assert payload["customTools"][0]["permission"] == "allow"
     # Claude-specific invariants the golden encodes, asserted explicitly so a failure reads clearly.
     assert payload["tools"] == []  # Claude has no Pi built-ins
-    assert payload["permissionPolicy"] == "deny"  # Claude gates tool use
+    assert payload["permissions"] == {
+        "default": "deny",
+        "rules": [
+            {"pattern": "WebFetch", "permission": "deny"},
+            {"pattern": "Read", "permission": "allow"},
+            {"pattern": "Bash(npm run:*)", "permission": "allow"},
+        ],
+    }
+    assert "permissionPolicy" not in payload
     assert "systemPrompt" not in payload  # Claude exposes no prompt overrides
     assert "appendSystemPrompt" not in payload
     # Claude carries resolved inline skills on the same `skills` seam Pi uses (the runner
@@ -396,9 +400,8 @@ def test_request_to_wire_claude_matches_golden(golden):
     assert "sandboxPermission" not in payload
     # The claude adapter (Python) translated the author's permissions slice into a rendered
     # `.claude/settings.json`, carried on the generic `harnessFiles` seam. The runner writes it blind.
-    # The `allow` list also carries the per-resolved-tool rule for the internal `agenta-tools` MCP
-    # server (F-046): `_CUSTOM_TOOL` is a read-only callback tool -> effective `allow` ->
-    # `mcp__agenta-tools__get_user`, so Claude runs it instead of parking on its own permission gate.
+    # Under a `deny` default, the unset resolved tool renders a deny rule for Claude's internal
+    # `agenta-tools` MCP server.
     assert payload["harnessFiles"] == [
         {
             "path": ".claude/settings.json",
@@ -409,15 +412,49 @@ def test_request_to_wire_claude_matches_golden(golden):
                         "allow": [
                             "Read",
                             "Bash(npm run:*)",
-                            "mcp__agenta-tools__get_user",
                         ],
-                        "deny": ["WebFetch"],
+                        "deny": ["WebFetch", "mcp__agenta-tools__get_user"],
                     }
                 },
                 indent=2,
             ),
         }
     ]
+
+
+def test_author_permission_rules_exclude_mcp_from_wire_but_keep_settings():
+    config = ClaudeAgentTemplate(
+        harness_permissions={
+            "deny": ["mcp__github__delete_issue", "Bash(rm:*)"],
+            "ask": ["mcp__github__create_issue", "Write"],
+            "allow": ["Read"],
+        }
+    )
+    payload = request_to_wire(
+        harness=HarnessType.CLAUDE,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    assert payload["permissions"] == {
+        "default": "allow_reads",
+        "rules": [
+            {"pattern": "Bash(rm:*)", "permission": "deny"},
+            {"pattern": "Write", "permission": "ask"},
+            {"pattern": "Read", "permission": "allow"},
+        ],
+    }
+    settings = json.loads(payload["harnessFiles"][0]["content"])
+    assert settings["permissions"]["deny"] == [
+        "mcp__github__delete_issue",
+        "Bash(rm:*)",
+    ]
+    assert settings["permissions"]["ask"] == [
+        "mcp__github__create_issue",
+        "Write",
+    ]
+    assert settings["permissions"]["allow"] == ["Read"]
 
 
 def test_request_to_wire_has_no_prompt_key():
@@ -498,15 +535,16 @@ def test_request_to_wire_omits_resolved_connection_when_none():
     assert payload["model"] == "gpt-5.5"
 
 
-def test_pi_permission_policy_is_always_auto():
-    # Pi never gates tool use, regardless of any requested policy.
+def test_pi_permissions_default_to_allow_reads():
+    # Pi ships the same default permission plan as the other harnesses.
     payload = request_to_wire(
         harness=HarnessType.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
-    assert payload["permissionPolicy"] == "auto"
+    assert payload["permissions"] == {"default": "allow_reads"}
+    assert "permissionPolicy" not in payload
 
 
 def test_result_from_wire_parses_ok(golden):
@@ -592,7 +630,7 @@ def test_result_from_wire_minimal_ok():
 
 def test_request_to_wire_carries_code_client_and_mcp_specs():
     # The three-axes surface reaches the wire intact: a code spec keeps its executor fields
-    # (kind/runtime/code/env) and the orthogonal axes (needsApproval/render); a client spec
+    # (kind/runtime/code/env) and the orthogonal render axis; a client spec
     # has no callRef; user MCP servers ride `mcpServers`.
     config = PiAgentTemplate(
         custom_tools=[
@@ -604,7 +642,6 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
                 "runtime": "python",
                 "code": "def main(): return 1",
                 "env": {"STRIPE_API_KEY": "sk"},
-                "needsApproval": True,
                 "render": {"kind": "component", "component": "Calc"},
             },
             {
@@ -636,7 +673,7 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
     assert code["runtime"] == "python"
     assert code["code"] == "def main(): return 1"
     assert code["env"] == {"STRIPE_API_KEY": "sk"}
-    assert code["needsApproval"] is True
+    assert "needsApproval" not in code
     assert code["render"] == {"kind": "component", "component": "Calc"}
     client = next(t for t in payload["customTools"] if t["name"] == "pick")
     assert client["kind"] == "client"
@@ -756,3 +793,10 @@ def test_request_to_wire_carries_sandbox_permission_allowlist():
         "network": {"mode": "allowlist", "allowlist": ["10.0.0.0/8"]},
         "enforcement": "strict",
     }
+
+
+def test_permission_policy_absent_from_serialized_session_config():
+    pi_payload = _pi_payload()
+    claude_payload = _claude_payload()
+    assert "permissionPolicy" not in json.dumps(pi_payload)
+    assert "permissionPolicy" not in json.dumps(claude_payload)

@@ -1,5 +1,7 @@
 # Research: current state and insertion points
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 Self-contained map of how the runtime governs an agent today and where the three layers attach.
 All claims trace to code or installed package source. The deep web/exec/read/write current-state
 cut lives in `../../scratch/capability-map.md`; this doc adds the enforcement mechanics and the

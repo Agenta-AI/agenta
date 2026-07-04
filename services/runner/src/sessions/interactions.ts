@@ -120,7 +120,7 @@ export async function resolveInteraction(
 
 /**
  * At the start of a new session turn, cancel prior turns' still-pending gates: if the user
- * sent a new message instead of answering a parked approval, that gate is orphaned. Spares
+ * sent a new message instead of answering a pending approval, that gate is orphaned. Spares
  * the current turn's own gates via `turn_id`. Fire-and-forget, single attempt — best effort,
  * never blocks the turn.
  */

@@ -150,7 +150,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             agent=agent_template,
             secrets=secrets,
             resolved_connection=resolved_connection,
-            permission_policy=agent_template.permission_policy,
+            permission_default=agent_template.permission_default,
             trace=comp.trace_context(),
             run_context=comp.run_context(),
             session_id=session_id,
@@ -216,7 +216,9 @@ async def agent_batch(
         await harness.cleanup()
     record_usage(result.usage)
 
-    folded = fold(events)
+    # The terminal result's stop_reason is authoritative: the runner's `done` event carries
+    # no stopReason (the engine settles paused-vs-ended after the event stream closes).
+    folded = fold(events, stop_reason=result.stop_reason)
     out_messages = folded["messages"]
     if trim:
         out_messages = trim_to_trailing_unit(out_messages)

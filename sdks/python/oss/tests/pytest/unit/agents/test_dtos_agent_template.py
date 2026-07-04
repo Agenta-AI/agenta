@@ -4,7 +4,7 @@ The handler parses whatever the playground or a stored template sends into one `
 This file locks the nested agent-template envelope (``{agent, harness, runner, sandbox}``), the
 ``prompt`` prompt-template shape for a bare chat run, the defaults fall-through, the selected
 harness's ``permissions`` / ``extras`` slice, and the execution selectors (``harness.kind`` /
-``sandbox.kind`` / ``runner.interactions.headless``, which live on ``AgentTemplate`` rather than a
+``sandbox.kind`` / ``runner.permissions.default``, which live on ``AgentTemplate`` rather than a
 separate ``RunSelection``).
 """
 
@@ -31,7 +31,7 @@ def test_from_params_agent_template_at_parameters_agent():
                 "llm": {"model": "M"},
                 "tools": [{"type": "builtin", "name": "read"}],
                 "harness": {"kind": "claude", "extras": {"system": "S"}},
-                "runner": {"interactions": {"headless": "deny"}},
+                "runner": {"permissions": {"default": "deny"}},
                 "sandbox": {"kind": "daytona"},
             },
         },
@@ -43,7 +43,7 @@ def test_from_params_agent_template_at_parameters_agent():
     assert config.harness == "claude"
     assert config.harness_extras == {"system": "S"}
     assert config.sandbox == "daytona"
-    assert config.permission_policy == "deny"
+    assert config.permission_default == "deny"
 
 
 def test_from_params_bare_template():
@@ -230,10 +230,10 @@ def test_harness_slice_explicit_empty_clears_defaults():
 
 def test_run_selection_defaults():
     config = AgentTemplate.from_params({})
-    assert (config.harness, config.sandbox, config.permission_policy) == (
+    assert (config.harness, config.sandbox, config.permission_default) == (
         "pi_core",
         "local",
-        "auto",
+        "allow_reads",
     )
 
 
@@ -242,14 +242,36 @@ def test_run_selection_reads_envelope_sections_and_lowercases():
         {
             "harness": {"kind": "Claude"},
             "sandbox": {"kind": "Daytona"},
-            "runner": {"interactions": {"headless": "Deny"}},
+            "runner": {"permissions": {"default": "Deny"}},
         }
     )
-    assert (config.harness, config.sandbox, config.permission_policy) == (
+    assert (config.harness, config.sandbox, config.permission_default) == (
         "claude",
         "daytona",
         "deny",
     )
+
+
+def test_run_selection_reads_all_permission_modes_case_insensitive():
+    for mode in ("allow", "ask", "deny", "allow_reads"):
+        config = AgentTemplate.from_params(
+            {"runner": {"permissions": {"default": mode.upper()}}}
+        )
+        assert config.permission_default == mode
+
+
+def test_run_selection_unknown_permission_falls_back_to_allow_reads():
+    config = AgentTemplate.from_params(
+        {"runner": {"permissions": {"default": "surprise"}}}
+    )
+    assert config.permission_default == "allow_reads"
+
+
+def test_run_selection_ignores_legacy_runner_interactions():
+    config = AgentTemplate.from_params(
+        {"runner": {"interactions": {"headless": "deny"}}}
+    )
+    assert config.permission_default == "allow_reads"
 
 
 def test_run_selection_honors_defaults():

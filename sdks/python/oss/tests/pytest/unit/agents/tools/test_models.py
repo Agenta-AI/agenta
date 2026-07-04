@@ -10,7 +10,7 @@ from agenta.sdk.agents.tools import (
     PlatformToolConfig,
     ReferenceToolConfig,
 )
-from agenta.sdk.agents.tools.models import coerce_tool_spec
+from agenta.sdk.agents.tools.models import coerce_tool_spec, effective_permission
 
 
 def test_reference_tool_variant_call_ref_grammar():
@@ -57,15 +57,10 @@ def test_reference_tool_discriminator_is_reference():
     assert config.type == "reference"
 
 
-def test_platform_tool_discriminator_and_optional_approval():
-    # type:"platform" is its own arm of the ToolConfig union. needs_approval is optional (None =
-    # use the catalog's per-op default), unlike the base where it defaults to False.
+def test_platform_tool_discriminator():
     config = PlatformToolConfig(op="find_capabilities")
     assert config.type == "platform"
     assert config.op == "find_capabilities"
-    assert config.needs_approval is None
-    # An explicit override is preserved.
-    assert PlatformToolConfig(op="x", needs_approval=True).needs_approval is True
 
 
 def test_platform_tool_requires_op():
@@ -90,7 +85,6 @@ def test_code_spec_serializes_only_runner_fields():
         runtime="python",
         code="def main(): return 1",
         env={"TOKEN": "secret"},
-        needs_approval=True,
         render={"kind": "component", "component": "Calculator"},
     )
     assert spec.to_wire() == {
@@ -101,10 +95,7 @@ def test_code_spec_serializes_only_runner_fields():
         "runtime": "python",
         "code": "def main(): return 1",
         "env": {"TOKEN": "secret"},
-        "needsApproval": True,
         "render": {"kind": "component", "component": "Calculator"},
-        # needs_approval with no explicit permission -> derived `ask`.
-        "permission": "ask",
     }
 
 
@@ -172,7 +163,7 @@ def test_secret_values_are_hidden_from_repr():
     assert "do-not-print" not in repr(spec)
 
 
-# --- Layer-3 permission default ladder (S3a) -----------------------------------------
+# --- Layer-3 permission and runner-mode helper ---------------------------------------
 
 
 def _spec(**kwargs):
@@ -184,48 +175,57 @@ def _spec(**kwargs):
     )
 
 
-def test_permission_explicit_author_value_wins():
-    # An explicit author permission wins over any read_only/needs_approval default.
-    spec = _spec(read_only=False, permission="allow")
+def test_tool_spec_effective_permission_is_explicit_only():
+    spec = _spec(read_only=True, permission="allow")
     assert spec.effective_permission() == "allow"
     assert spec.to_wire()["permission"] == "allow"
 
-
-def test_permission_default_from_read_only_true_is_allow():
-    spec = _spec(read_only=True)
-    assert spec.effective_permission() == "allow"
-    assert spec.to_wire()["permission"] == "allow"
-
-
-def test_permission_default_from_read_only_false_is_ask():
-    spec = _spec(read_only=False)
-    assert spec.effective_permission() == "ask"
-    assert spec.to_wire()["permission"] == "ask"
+    inherited = _spec(read_only=True)
+    assert inherited.effective_permission() is None
+    assert "permission" not in inherited.to_wire()
+    assert inherited.to_wire()["readOnly"] is True
 
 
-def test_permission_needs_approval_beats_read_only_auto_allow():
-    # needs_approval (no explicit permission) forces `ask` even when read_only would allow.
-    spec = _spec(read_only=True, needs_approval=True)
-    assert spec.effective_permission() == "ask"
-    assert spec.to_wire()["permission"] == "ask"
+@pytest.mark.parametrize(
+    ("spec_permission", "read_only", "mode", "expected"),
+    [
+        ("deny", True, "allow", "deny"),
+        (None, True, "allow_reads", "allow"),
+        (None, False, "allow_reads", "ask"),
+        (None, None, "allow_reads", "ask"),
+        (None, True, "allow", "allow"),
+        (None, False, "allow", "allow"),
+        (None, None, "ask", "ask"),
+        (None, True, "deny", "deny"),
+    ],
+)
+def test_effective_permission_helper_truth_table(
+    spec_permission, read_only, mode, expected
+):
+    assert effective_permission(spec_permission, read_only, mode) == expected
 
 
-def test_permission_absent_when_all_unset():
-    # read_only is None and nothing explicit -> no permission on the wire (runner falls back).
-    spec = _spec()
-    assert spec.effective_permission() is None
-    assert "permission" not in spec.to_wire()
-
-
-def test_permission_accepts_fe_permission_mode_alias():
-    # The playground writes `permission_mode` into agenta_metadata; the spec deserializes it.
+def test_legacy_permission_fields_are_ignored_on_specs():
     spec = CallbackToolSpec.model_validate(
         {
             "name": "t",
             "description": "t",
             "callRef": "tools.composio.x.Y.c1",
             "permission_mode": "deny",
+            "needsApproval": True,
         }
     )
-    assert spec.permission == "deny"
-    assert spec.to_wire()["permission"] == "deny"
+    assert spec.permission is None
+    assert "permission" not in spec.to_wire()
+    assert "needsApproval" not in spec.to_wire()
+
+
+def test_builtin_tool_permission_is_dropped_not_enforced():
+    # Builtins are granted by selection; a per-builtin permission has no enforcement
+    # point on Pi, so the config drops it (with a warning) instead of lying.
+    from agenta.sdk.agents.tools.models import BuiltinToolConfig
+
+    config = BuiltinToolConfig.model_validate(
+        {"type": "builtin", "name": "bash", "permission": "deny"}
+    )
+    assert config.permission is None

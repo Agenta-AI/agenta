@@ -11,7 +11,7 @@ A harness doesn't only emit tool calls — it raises **reverse-RPC interaction r
 something must answer: a permission gate today, **elicitation (input)** and **client-side
 tools** later. The runner already models this as an `interaction_request` event of
 `kind: "permission" | "input" | "client_tool"` with an `id` (the reply token), and already
-resolves them cross-turn (`HITLResponder`: stored decision by tool-call id, or by tool
+resolves them cross-turn (`ApprovalResponder`: stored decision by tool-call id, or by tool
 name+args for cold-replay).
 
 What's missing is everything **on the Agenta side of that boundary**: there is no durable
@@ -287,7 +287,7 @@ NOT `/sessions/{id}/…`; `session_id` is a filter param). Two tiers:
   point for competing answers** (multiple tabs + API) — there is no second lock on the
   interactions row.
 - **sessions-persistence** — detached-resolve works because the decision rides `/invoke` and
-  the next turn resumes (`HITLResponder` reads it). Without durable sessions it replays cold
+  the next turn resumes (`ApprovalResponder` reads it). Without durable sessions it replays cold
   (PER-4) — still correct, slower.
 - **records** — the `interaction_request` is a record event and is the **render
   source** (replay the record to show the question). The interaction record is the

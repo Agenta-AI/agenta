@@ -16,14 +16,54 @@ from pydantic import (
 )
 
 
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
+
 def _empty_object_schema() -> Dict[str, Any]:
     return {"type": "object", "properties": {}}
 
 
 # Layer-3 per-tool permission: ``allow`` runs with no prompt, ``ask`` raises a
-# human-in-the-loop request, ``deny`` never runs. Absent means "fall back to the global
-# ``permissionPolicy`` default" (the runner resolves that, in a later slice).
+# human-in-the-loop request, ``deny`` never runs. Absent means "inherit the runner policy".
 Permission = Literal["allow", "ask", "deny"]
+PermissionMode = Literal["allow", "ask", "deny", "allow_reads"]
+
+# The deleted pre-redesign vocabulary, still present in old dev-DB drafts. These literals
+# are the only place the SDK may spell them.
+_LEGACY_PERMISSION_KEYS = frozenset(
+    {
+        "needs_approval",
+        "needsApproval",
+        "permission_mode",
+        "permissionMode",
+    }
+)
+
+
+def _drop_legacy_permission_keys(data: Any) -> Any:
+    # Old POC drafts can still be present in dev DBs; tolerate and ignore them.
+    if isinstance(data, dict):
+        return {
+            key: value
+            for key, value in data.items()
+            if key not in _LEGACY_PERMISSION_KEYS
+        }
+    return data
+
+
+def effective_permission(
+    spec_permission: Optional[Permission],
+    read_only: Optional[bool],
+    mode: PermissionMode,
+) -> Permission:
+    """Resolve the runner permission semantics for one tool gate."""
+    if spec_permission is not None:
+        return spec_permission
+    if mode == "allow_reads":
+        return "allow" if read_only is True else "ask"
+    return mode
 
 
 class ToolConfigBase(BaseModel):
@@ -31,24 +71,35 @@ class ToolConfigBase(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    needs_approval: bool = False
     render: Optional[Dict[str, Any]] = None
-    # Layer-3 permission the author set on this tool. Mirrors
-    # ``ToolSpecBase.permission``: accepts ``permission_mode``/``permissionMode`` too (the keys
-    # the playground writes), so an FE-set value deserializes onto the ``extra="forbid"`` config
-    # without a breaking change. ``_apply_tool_metadata`` then carries it onto the resolved spec.
-    permission: Optional[Permission] = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "permission", "permission_mode", "permissionMode"
-        ),
-        serialization_alias="permission",
-    )
+    permission: Optional[Permission] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _ignore_legacy_permission_keys(cls, data: Any) -> Any:
+        return _drop_legacy_permission_keys(data)
 
 
 class BuiltinToolConfig(ToolConfigBase):
     type: Literal["builtin"] = "builtin"
     name: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _drop_unenforceable_permission(self) -> "BuiltinToolConfig":
+        # Harness builtins are granted by SELECTION (present = runs, absent = does not
+        # exist); no runner gate sees them on Pi, so a per-builtin permission cannot be
+        # enforced and keeping it would be a dead knob an author mistakes for a deny.
+        # Selection-time enforcement (filter builtin_names by effective permission) is
+        # the designed follow-up; until then the field is dropped loudly.
+        if self.permission is not None:
+            log.warning(
+                "builtin tool %r: per-tool permission %r is not enforceable and was "
+                "ignored; control builtins by selection (or a harness settings rule)",
+                self.name,
+                self.permission,
+            )
+            self.permission = None
+        return self
 
 
 class GatewayToolConfig(ToolConfigBase):
@@ -177,29 +228,19 @@ class ReferenceToolConfig(ToolConfigBase):
 class PlatformToolConfig(ToolConfigBase):
     """An existing Agenta endpoint exposed to the agent as a tool (the ``type:"platform"`` config).
 
-    A platform tool is a thin wrapper over an EXISTING Agenta endpoint — no new endpoint, no hidden
-    logic. The author names which endpoint to expose via ``op`` (a key in the platform-op catalog,
-    ``agenta.sdk.agents.platform.op_catalog``); the catalog owns everything else: the model-facing
-    description, the endpoint (method + relative path), the request input schema, any self-targeting
-    fields bound from run context (``context_bindings``), and the default permission/approval.
+    A platform tool is a thin wrapper over an EXISTING Agenta endpoint. The author names which
+    endpoint to expose via ``op``; the catalog owns the description, endpoint, request schema,
+    self-targeting context bindings, and the ``read_only`` hint.
 
     ``resolve_tools`` turns it into a ``CallbackToolSpec`` carrying a direct ``call`` descriptor
     (not a ``call_ref``): the runner calls the existing endpoint directly with the run's caller
-    credential, no ``/tools/call`` hop.
-
-    ``needs_approval`` / ``permission`` are optional here (unlike the base, where ``needs_approval``
-    defaults to ``False``): unset means "use the catalog's per-op default", so a mutating op like
-    ``commit_revision`` defaults to approval while a read like ``find_capabilities`` defaults to
-    auto-allow. An author value overrides the default."""
+    credential, no ``/tools/call`` hop."""
 
     type: Literal["platform"] = "platform"
     op: str = Field(
         min_length=1,
         description="Which catalog op (existing endpoint) to expose, e.g. 'find_capabilities'.",
     )
-    # Override the base ``needs_approval: bool = False`` to optional so an unset value falls back to
-    # the catalog's per-op default rather than silently forcing "no approval" on a mutating op.
-    needs_approval: Optional[bool] = None
 
 
 ToolConfig = Annotated[
@@ -247,49 +288,22 @@ class ToolSpecBase(BaseModel):
         validation_alias=AliasChoices("input_schema", "inputSchema"),
         serialization_alias="inputSchema",
     )
-    needs_approval: bool = Field(
-        default=False,
-        validation_alias=AliasChoices("needs_approval", "needsApproval"),
-        serialization_alias="needsApproval",
-    )
     render: Optional[Dict[str, Any]] = None
     read_only: Optional[bool] = Field(
         default=None,
         validation_alias=AliasChoices("read_only", "readOnly"),
         serialization_alias="readOnly",
     )
-    # Layer-3 permission the author set on this tool. Accepts ``permission_mode``
-    # too, the key the playground writes into ``agenta_metadata``, so an FE-set value
-    # deserializes without a later breaking change. Unset means "no explicit author choice";
-    # ``effective_permission`` then derives a default from ``read_only`` / ``needs_approval``.
-    permission: Optional[Permission] = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "permission", "permission_mode", "permissionMode"
-        ),
-        serialization_alias="permission",
-    )
+    permission: Optional[Permission] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _ignore_legacy_permission_keys(cls, data: Any) -> Any:
+        return _drop_legacy_permission_keys(data)
 
     def effective_permission(self) -> Optional[Permission]:
-        """Resolve the permission that rides the wire, by this precedence:
-
-        1. An explicit author ``permission`` wins outright.
-        2. Else, when ``needs_approval`` is set, the default is ``"ask"`` (approval beats the
-           read-only auto-allow: an author who asked to be prompted still gets prompted).
-        3. Else, default from ``read_only``: ``True`` -> ``"allow"`` (read-only tools are safe to
-           auto-run), ``False`` -> ``"ask"`` (mutating tools prompt).
-        4. Else (``read_only`` is ``None`` and nothing explicit) -> ``None`` (unset), so the runner
-           falls back to the global ``permissionPolicy`` default in a later slice.
-        """
-        if self.permission is not None:
-            return self.permission
-        if self.needs_approval:
-            return "ask"
-        if self.read_only is True:
-            return "allow"
-        if self.read_only is False:
-            return "ask"
-        return None
+        """Return only the author's explicit permission, if one was set."""
+        return self.permission
 
     def to_wire(self) -> Dict[str, Any]:
         wire = self.model_dump(
@@ -297,15 +311,8 @@ class ToolSpecBase(BaseModel):
             by_alias=True,
             exclude_none=True,
         )
-        if not self.needs_approval:
-            wire.pop("needsApproval", None)
         if not wire.get("env"):
             wire.pop("env", None)
-        permission = self.effective_permission()
-        if permission is not None:
-            wire["permission"] = permission
-        else:
-            wire.pop("permission", None)
         return wire
 
 

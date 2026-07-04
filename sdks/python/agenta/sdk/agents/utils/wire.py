@@ -18,10 +18,11 @@ the wire models) plus ``protocol.ts`` and the goldens — the tests catch a one-
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Literal, Optional, Sequence, TypedDict
 
 from agenta.sdk.utils.logging import get_module_logger
 
+from ..permission_rules import PermissionRule
 from ..dtos import (
     Event,
     AgentResult,
@@ -34,6 +35,14 @@ from ..dtos import (
 )
 
 log = get_module_logger(__name__)
+
+PermissionMode = Literal["allow", "ask", "deny", "allow_reads"]
+
+
+class PermissionsConfig(TypedDict, total=False):
+    default: PermissionMode
+    rules: List[PermissionRule]
+
 
 # The user-facing error must not carry an internal stack/path dump. Cap the surfaced line and
 # strip the patterns that leak implementation detail; the full text is logged, never shown.

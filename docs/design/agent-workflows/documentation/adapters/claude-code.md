@@ -63,20 +63,25 @@ The first is static, written before the session starts: the claude adapter rende
 delivered on the `harnessFiles` wire seam) whose `permissions.allow` / `permissions.ask` /
 `permissions.deny` lists Claude Code reads via `settingSources`. Each backend-resolved EXECUTABLE
 tool (callback/code) gets a per-tool rule `mcp__agenta-tools__<name>`, because that is how Claude
-addresses a tool of the internal `agenta-tools` MCP server above. A tool whose
-`effective_permission()` is `allow` gets an allow rule, so Claude runs it without raising a gate;
-`deny` gets a deny rule; `ask` or unset gets no allow rule, so the gate still fires.
+addresses a tool of the internal `agenta-tools` MCP server above. A tool whose effective
+permission is `allow` (an explicit `allow`, or a read-hinted tool under the `allow_reads`
+policy) gets an allow rule, so Claude runs it without raising a gate; `deny` gets a deny
+rule; `ask` or unset gets no allow rule, so the gate still fires.
 
-The second is dynamic: a gate that does fire arrives at `session.onPermissionRequest`, where the
-runner answers for the (absent) human. When a human surface exists the runner parks the undecided
-gate for a HITL approval round-trip; otherwise it falls to the per-run permission policy (auto or
-deny). Pi does not need this hook because Pi does not gate tools this way.
+The second is dynamic: a gate that does fire arrives at `session.onPermissionRequest`, where
+the runner's `ApprovalResponder` (`services/runner/src/responder.ts`) answers it. The verdict
+comes from the shared decision module (`services/runner/src/permission-plan.ts`): the tool's
+explicit permission wins, then a matching authored rule, then the policy mode in
+`permissions.default`. `allow` approves the call, `deny` refuses it, and `ask` pauses the
+turn, emits one approval request, and waits for a human. Pi never raises this hook; on Pi
+the tool relay enforces the same decision function.
 
-Both layers are needed because Claude's gate fires BEFORE the runner relay that would otherwise
-honor an `allow`. Without the settings.json rule, an `allow` resolved tool always parked
-(finding F-046); the rule is what lets it run. The `ask`/unset path is left to the gate on
-purpose, so HITL approval is preserved. Note that `permission_policy: "auto"` is NOT a blanket
-bypass — it still means "gate, then HITL or policy", not "allow everything".
+Both layers are needed because Claude's gate fires BEFORE the runner relay that would
+otherwise honor an `allow`. Without the settings.json rule, an `allow` resolved tool always
+paused (finding F-046); the rule is what lets it run. The `ask`/unset path is left to the
+gate on purpose, so human approval is preserved. Note that `permissions.default: "allow"` is
+not a per-tool override: a tool set to `ask` or `deny` keeps its own verdict, because the
+explicit per-tool permission always beats the policy mode.
 
 ## Tracing from the event stream
 

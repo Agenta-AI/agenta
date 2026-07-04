@@ -1,5 +1,7 @@
 # Context
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 ## Why this work exists
 
 Human-in-the-loop tool approval is the interactive contract of the agent playground. A run

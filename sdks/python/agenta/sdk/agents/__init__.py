@@ -66,7 +66,7 @@ from .dtos import (
     HarnessType,
     Message,
     NetworkEgress,
-    PermissionPolicy,
+    PermissionMode,
     PiAgentTemplate,
     RunContext,
     RunContextReference,
@@ -176,7 +176,7 @@ __all__ = [
     "RunContextWorkflow",
     "RunContextTrace",
     "ToolCallback",
-    "PermissionPolicy",
+    "PermissionMode",
     "SandboxPermission",
     "NetworkEgress",
     # Canonical tools API

@@ -1,15 +1,15 @@
 import { Agent, fetch as undiciFetch } from "undici";
 
 /**
- * HITL parks the ACP HTTP connection open for human-timescale delays: when a tool call needs
+ * HITL pauses keep the ACP HTTP connection open for human-timescale delays: when a tool call needs
  * approval, the runner holds the in-flight `prompt` request while it waits for the human to
- * click Approve/Deny, then resumes the same parked turn. Node's global `fetch` (undici) ships
+ * click Approve/Deny, then resumes the same paused turn. Node's global `fetch` (undici) ships
  * a DEFAULT `headersTimeout` (~5 min) and `bodyTimeout`; once it fires undici calls
  * `failReadable()` and the ACP stream dies with `UND_ERR_HEADERS_TIMEOUT`, killing both the
- * parked turn and the resume turn. A plain chat completes in seconds so it never trips this.
+ * paused turn and the resume turn. A plain chat completes in seconds so it never trips this.
  *
  * The fix is to drive the ACP HTTP client through an undici dispatcher whose timeouts are
- * disabled (0) or set to a long park window, instead of the default. We scope it to the ACP
+ * disabled (0) or set to a long pause window, instead of the default. We scope it to the ACP
  * fetch the `sandbox-agent` SDK uses rather than touching the global dispatcher, so unrelated
  * HTTP keeps its safe defaults.
  */
@@ -24,10 +24,10 @@ function envTimeoutMs(name: string): number {
 
 /**
  * Build the long-timeout undici dispatcher used for ACP HTTP. `headersTimeout` is the one that
- * reaps a parked turn (no response headers arrive while the human deliberates); `bodyTimeout`
- * guards the streamed body. Both default to disabled so a park held for any human-timescale
+ * reaps a paused turn (no response headers arrive while the human deliberates); `bodyTimeout`
+ * guards the streamed body. Both default to disabled so a pause held for any human-timescale
  * delay is never reaped. `keepAliveTimeout`/`keepAliveMaxTimeout` are raised so the connection
- * is not pooled-closed mid-park either.
+ * is not pooled-closed mid-pause either.
  */
 export function createAcpDispatcher(): Agent {
   const headersTimeout = envTimeoutMs("SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS");

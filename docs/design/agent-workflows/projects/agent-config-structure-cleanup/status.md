@@ -6,19 +6,21 @@ Source: PR #4821 review comments 2 / 7 / 8 (approved).
 
 1. Collapse the run-selection fields (`harness`, `sandbox`, `permission_policy`) from the
    separate `RunSelection` DTO INTO `AgentConfig`. They live under `data.parameters.agent`,
-   not as siblings of `agent`. Retire `RunSelection`.
+   not as siblings of `agent`. Retire `RunSelection`. (`permission_policy` was later renamed
+   `runner.permissions.default`; see [projects/approval-boundary/](../approval-boundary/).)
 2. Rename the per-harness options bag `harness_options` -> `harness_kwargs` (a dict keyed by
-   harness name; `permission_policy` stays the sidecar action-permission, now inside AgentConfig).
+   harness name; the action-permission field stayed the sidecar's, now inside AgentConfig).
 
 POC: no back-compat, no deprecation shims. Change shapes cleanly.
 
 ## Wire impact
 
-NONE. The `/run` payload keeps `harness`, `sandbox`, `permissionPolicy` exactly as today:
-`harness`/`sandbox` are passed to `request_to_wire(harness=, sandbox=)` by the harness adapter
-(from `make_harness` + `select_backend`); `permissionPolicy` rides `wire_tools()` on the
-per-harness config. This is an envelope/config-placement + parsing change, not a wire change.
-Golden fixtures unchanged.
+NONE at the time. The `/run` payload kept `harness`, `sandbox`, `permissionPolicy` exactly as
+before this change: `harness`/`sandbox` were passed to `request_to_wire(harness=, sandbox=)` by
+the harness adapter (from `make_harness` + `select_backend`); `permissionPolicy` rode
+`wire_tools()` on the per-harness config. This was an envelope/config-placement + parsing
+change, not a wire change. Golden fixtures unchanged. (The wire field is now `permissions`;
+see [projects/approval-boundary/](../approval-boundary/) for the later redesign.)
 
 ## Coordination
 

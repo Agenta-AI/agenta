@@ -185,7 +185,6 @@ const normalizeAgentToolShape = (tool: unknown): unknown => {
             ? fn.parameters
             : {type: "object", properties: {}}
     if (t.permission !== undefined) client.permission = t.permission
-    if (t.needs_approval !== undefined) client.needs_approval = t.needs_approval
     return client
 }
 
@@ -240,7 +239,7 @@ const hasAnswer = (message: unknown): boolean => {
  *
  * `config` is the full `parameters`; the template lives at `parameters.agent` (the definition flat
  * plus nested `harness` / `runner` / `sandbox` sections). The execution sections are defaulted
- * (harness `pi_core`, runner `sidecar` answering headless interactions `auto`, sandbox `local`) so a
+ * (harness `pi_core`, runner `sidecar` with the default permission policy, sandbox `local`) so a
  * config that omits them still runs; a value the resolved config carries always wins (spread last).
  * The definition fields are passed through untouched.
  */
@@ -254,15 +253,22 @@ const withSection = (
         : {}),
 })
 
-const withTemplateDefaults = (template: Record<string, unknown>): Record<string, unknown> => ({
-    ...template,
-    harness: withSection(template.harness, {kind: "pi_core"}),
-    runner: withSection(template.runner, {
-        kind: "sidecar",
-        interactions: {headless: "auto"},
-    }),
-    sandbox: withSection(template.sandbox, {kind: "local"}),
-})
+const withTemplateDefaults = (template: Record<string, unknown>): Record<string, unknown> => {
+    const runnerSection = template.runner
+    const runner = withSection(runnerSection, {kind: "sidecar"})
+    // `permissions` is itself nested — merge it separately so a caller-supplied `rules`-only
+    // object still carries the fallback `default` instead of replacing it wholesale.
+    const permissionsSection =
+        runnerSection && typeof runnerSection === "object" && !Array.isArray(runnerSection)
+            ? (runnerSection as Record<string, unknown>).permissions
+            : undefined
+    return {
+        ...template,
+        harness: withSection(template.harness, {kind: "pi_core"}),
+        runner: {...runner, permissions: withSection(permissionsSection, {default: "allow_reads"})},
+        sandbox: withSection(template.sandbox, {kind: "local"}),
+    }
+}
 
 const withAgentRunDefaults = (config: Record<string, unknown>): Record<string, unknown> => {
     const template = config.agent

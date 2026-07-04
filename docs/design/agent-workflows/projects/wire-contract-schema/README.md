@@ -112,7 +112,7 @@ The contract has four families. This is what a single schema has to cover.
 | model + connection | `model`, `provider`, `connection {mode, slug?}`, `deployment`, `endpoint {baseUrl?, apiVersion?, region?, headers?}`, `credentialMode`, `secrets` |
 | turn | `prompt`, `messages` (`ChatMessage[]`) |
 | tools + skills | `tools` (string[]), `customTools` (`ResolvedToolSpec[]`), `toolCallback`, `mcpServers`, `skills` (`WireSkill[]`) |
-| policy + files | `permissionPolicy`, `sandboxPermission`, `harnessFiles` (`[{path, content}]`) |
+| policy + files | `permissions` (`{default, rules?}`), `sandboxPermission`, `harnessFiles` (`[{path, content}]`) |
 | tracing | `trace` (`TraceContext`) |
 
 Shape notes (the current serializer behavior, **not** a back-compat constraint — this is a
@@ -139,7 +139,7 @@ must keep events **open/forward-compatible**, not closed.
 ### 3.4 Sub-objects
 
 `ResolvedToolSpec` (the three-axis tool surface: `kind`/`runtime`/`code`/`env`/`callRef`,
-`needsApproval`, `render`, `readOnly`, `permission`), `ToolCallbackContext`, `McpServerConfig`,
+`render`, `readOnly`, `permission`), `ToolCallbackContext`, `McpServerConfig`,
 `SandboxPermission` (nested `network`, `filesystem`, `enforcement`), `HarnessCapabilities` (11
 boolean flags), `TraceContext`, `WireSkill` + `WireSkillFile`, `ContentBlock`, `ChatMessage`,
 `AgentUsage`, `RenderHint`.
@@ -147,7 +147,7 @@ boolean flags), `TraceContext`, `WireSkill` + `WireSkillFile`, `ContentBlock`, `
 ### 3.5 The existing golden/test machinery
 
 - `golden/run_request.pi.json` (full Pi shape: tools, skills, sandboxPermission, prompt overrides),
-  `golden/run_request.claude.json` (Claude shape: empty `tools`, `permissionPolicy:"deny"`,
+  `golden/run_request.claude.json` (Claude shape: empty `tools`, `permissions: {default: "deny"}`,
   `harnessFiles` with rendered `.claude/settings.json`).
 - `golden/run_result.ok.json` (includes a typeless event to pin the drop behavior),
   `golden/run_result.error.json` (`{"ok": false, "error": "model exploded"}`).

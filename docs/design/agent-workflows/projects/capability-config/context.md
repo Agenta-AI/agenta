@@ -1,5 +1,7 @@
 # Context
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 ## Why this work exists
 
 Every agent run has to be governed. The author needs to say what the agent may touch, and the

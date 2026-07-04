@@ -43,7 +43,6 @@ class FakeGatewayResolver:
                     name=tool.name or f"{tool.integration}__{tool.action}",
                     description=tool.name or tool.action,
                     call_ref=tool.reference,
-                    needs_approval=tool.needs_approval,
                     render=tool.render,
                     permission=tool.permission,
                 )
@@ -71,7 +70,6 @@ class FakeWorkflowResolver:
                     description=tool.description or tool.tool_name,
                     input_schema=tool.input_schema,
                     call_ref=tool.call_ref,
-                    needs_approval=tool.needs_approval,
                     render=tool.render,
                     permission=tool.permission,
                 )
@@ -160,13 +158,11 @@ async def test_gateway_metadata_survives_resolution():
                 integration="github",
                 action="GET_USER",
                 connection="c1",
-                needs_approval=True,
                 render={"kind": "component", "component": "User"},
             )
         ]
     )
     spec = resolved.tool_specs[0]
-    assert spec.needs_approval is True
     assert spec.render == {"kind": "component", "component": "User"}
 
 
@@ -257,10 +253,9 @@ async def test_reference_tool_requires_injected_resolver():
 
 async def test_reference_tool_axes_survive_resolution():
     resolved = await ToolResolver(workflow_resolver=FakeWorkflowResolver()).resolve(
-        [ReferenceToolConfig(slug="wf", needs_approval=True, permission="ask")]
+        [ReferenceToolConfig(slug="wf", permission="ask")]
     )
     spec = resolved.tool_specs[0]
-    assert spec.needs_approval is True
     assert spec.permission == "ask"
 
 

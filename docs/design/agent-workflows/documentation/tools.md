@@ -35,7 +35,7 @@ shares two fields through `ToolConfigBase`, and then a `type` discriminator pick
 | `code` | `name`, `runtime` (`python`/`node`), `script`, `input_schema`, `secrets` | An inline snippet the author writes, with named vault secrets injected. |
 | `client` | `name`, `input_schema` | A tool the browser fulfils, like "ask the user to pick a date." |
 | `reference` | `ref_by` (`variant`/`environment`), `slug`, optional `environment`/`version`, optional `name`/`description`/`input_schema` | A workflow referenced as a tool (see below); the service runs the referenced workflow revision when the model calls it. |
-| `platform` | `op` (a platform-op catalog key), optional `needs_approval`/`permission` | An existing Agenta endpoint exposed to the agent (e.g. `find_capabilities`, `query_workflows`, `commit_revision`); the runner calls the endpoint directly. See [Platform tools](#platform-tools-existing-agenta-endpoints) below. |
+| `platform` | `op` (a platform-op catalog key), optional `permission` | An existing Agenta endpoint exposed to the agent (e.g. `find_capabilities`, `query_workflows`, `commit_revision`); the runner calls the endpoint directly. See [Platform tools](#platform-tools-existing-agenta-endpoints) below. |
 
 A tool can also be a **workflow** referenced as a tool:
 
@@ -58,7 +58,7 @@ has no special case for reference tools; all tool-specific mapping lives in `res
 A tool can also be a **platform** tool — an existing Agenta endpoint exposed to the agent:
 
 - **`type: "platform"`** — a `PlatformToolConfig`. The author writes only `{type:"platform", op}`
-  (plus optional `needs_approval`/`permission`); the `op` names an entry in the platform-op catalog
+  (plus optional `permission`); the `op` names an entry in the platform-op catalog
   (`sdks/python/agenta/sdk/agents/platform/op_catalog.py`), which owns everything else: the
   model-facing description, the endpoint (method + relative path), the input schema, any
   self-targeting fields bound from run context, and the per-op default permission/approval.
@@ -78,11 +78,14 @@ extensible without new branches everywhere.
 
 - **Executor (`type` at config time, `kind` at runtime):** who fulfils a call. This is the
   axis that decides *where execution happens*, and the rest of this page is mostly about it.
-- **`needs_approval`:** whether a call waits for a human yes/no before it runs. Default false.
+- **`permission`:** `allow`, `ask`, or `deny`, or left unset to inherit the agent's policy.
+  Decides whether a call waits for a human yes/no before it runs. See
+  [Approval and rendering](#approval-and-rendering) below.
 - **`render`:** an optional generative-UI hint so the frontend can draw the call and its
   result as something richer than text.
 
-A code tool can need approval. A gateway tool can carry a render hint. The axes compose.
+A code tool can carry its own permission. A gateway tool can carry a render hint. The axes
+compose.
 
 The executor axis is named `type` in the committed config and `kind` on the resolved spec. The
 rename is deliberate: config talks about where a tool *comes from* (`gateway`), while runtime
@@ -332,12 +335,44 @@ options.
 These are the other two axes, and they ride alongside execution rather than changing where it
 happens.
 
-**`needs_approval`** gates a call on a human answer. Only permission-gating harnesses honor it.
-Claude over ACP raises a permission request, which the runner surfaces as an
-`interaction_request` of kind `permission` and answers through a `PolicyResponder`
-(`services/agent/src/responder.ts`). With no human at the keyboard, the policy auto-approves by
-default because the tools are backend-resolved and trusted, and a per-run policy or env
-override can flip it to deny. Pi has no permission concept, so the flag is a no-op there.
+**`permission`** gates a call on a human answer. Each tool carries `allow`, `ask`, `deny`, or
+nothing (inherit). A run request also carries an agent-wide policy,
+`permissions: {default: "allow"|"ask"|"deny"|"allow_reads", rules?}`. One shared decision
+module in the runner, `services/runner/src/permission-plan.ts`, resolves a tool's effective
+permission: the tool's own explicit setting wins; failing that, an authored rule match; failing
+that, the policy mode. Under `allow_reads` (the default), a tool's read-only hint decides: reads
+run, everything else asks.
+
+Two gates consult this same decision:
+
+- **The ACP responder**, `ApprovalResponder` in `services/runner/src/responder.ts`, answers
+  permission requests that a gating harness raises itself. Claude Code is the only harness that
+  raises these today: it checks its own settings file first, and only an undecided call reaches
+  the responder.
+- **The tool relay**, `services/runner/src/tools/relay.ts`, enforces permission on tools the
+  runner executes directly (gateway, code). It only needs to, because on Claude the harness
+  settings file plus the ACP responder already decide before a call reaches the relay. On Pi
+  there is no harness-side gate, so the relay is the only enforcement point, and it now gives Pi
+  the same human-in-the-loop behavior Claude gets.
+
+Client tools are a carve-out from that same ladder. They are decided by the responder's
+`onClientTool` (consulted at the ACP gate on Claude, and by the relay on Pi), not by the
+policy-and-rules path above: a client tool with no `permission` of its own defaults to
+`allow` under every policy mode except `deny`, where it is blocked. An explicit `permission`
+always wins, in both directions: `allow` runs even under a `deny` policy, and `ask`/`deny`
+bind even under `allow`. The reasoning is that a client tool's only job is to reach the
+browser, so folding it into `ask`/`allow_reads` defaults would strand it.
+
+Either gate answers `allow` by running the tool with no extra event, `deny` by refusing it, or
+`ask` by pausing the turn (the wire's `stopReason: "paused"`) and emitting exactly one
+`interaction_request(user_approval)` event. The event fires only when the run actually pauses;
+an allow or deny produces no extra event, only the ordinary `tool_call`/`tool_result` pair. On
+resume, the harness re-issues the call and the runner matches it on a stable anchor (the spec's
+own name for relay tools, the recorded tool call name for Claude gates, canonicalized arguments
+on both), never on a display title that can drift. A match consumes the stored decision once; a
+mismatch is a visibly new approval prompt, never a silent loop and never an auto-deny.
+`SANDBOX_AGENT_DENY_PERMISSIONS=true` is an operator kill-switch that forces the effective
+policy to deny everywhere.
 
 **`render`** is a generative-UI hint. The runner does not act on it; it copies the hint from the
 spec onto the `tool_call` and `tool_result` events so the egress can project it to the frontend
@@ -360,7 +395,7 @@ Each catalog entry (`PlatformOp`, a typed model validated at import) maps an `op
 | `method`, `path` | The existing endpoint to call: `GET`/`POST` and a relative `/api/...` path. |
 | `input_schema` / `input_schema_ref` | The request input schema — inline JSON Schema, or a `CATALOG_TYPES` key (expanded via `x-ag-type-ref`). Exactly one. |
 | `context_bindings` | Self-targeting fields: an endpoint body path → a `$ctx.<key>` run-context token. Stripped from the model schema; emitted as `call.context`. |
-| `default_permission`, `default_needs_approval` | Per-op gate. Mutating ops default to approval; reads to auto-allow. The config's `needs_approval`/`permission` override. |
+| `read_only` | A bool hint, not a gate value. Under the `allow_reads` policy default it decides the op's effective permission: `true` runs without asking, anything else asks. The tool's own explicit `permission` (`allow`/`ask`/`deny`) always overrides this hint. |
 
 Each op has a stable reserved id, `tools.agenta.<op>` (the same namespace as the original
 `find_capabilities`). The first, minimal-useful set of ops:
@@ -448,7 +483,9 @@ The contract and the field-by-field Composio→Agenta mapping live in the
 | Pi native delivery | `services/agent/src/extensions/agenta.ts` |
 | `agenta-tools` server for non-Pi harnesses | `services/agent/src/tools/mcp-bridge.ts`, `services/agent/src/tools/mcp-server.ts` |
 | Capability probe | `services/agent/src/engines/sandbox_agent/capabilities.ts` |
-| Permission policy | `services/agent/src/responder.ts` |
+| Permission decision (shared by both gates) | `services/runner/src/permission-plan.ts` |
+| ACP responder (`ApprovalResponder`) | `services/runner/src/responder.ts` |
+| Tool relay enforcement | `services/runner/src/tools/relay.ts` |
 
 ## Status and known gaps
 
@@ -457,8 +494,9 @@ The contract and the field-by-field Composio→Agenta mapping live in the
   Agenta are the default harnesses, so `mcp_servers` is a silent no-op for most runs. It would
   reach Claude only. Do not confuse this with the `agenta-tools` server, which is an internal
   tool-delivery vehicle for Claude, not a user MCP server.
-- `needs_approval` is honored only by permission-gating harnesses (Claude over ACP). It is a
-  no-op on Pi.
+- A tool's `permission` is honored on both harnesses now. Claude checks its rendered settings
+  file first, then the ACP responder; Pi has no native gate, so the relay enforces it directly.
+  An `ask` pauses the run and asks a human on either harness.
 - Gateway tools support only the `composio` provider today; other providers raise.
 - The `render` hint is plumbed end to end on the runner side, but full frontend projection of
   every render kind is still in progress.

@@ -79,14 +79,12 @@ async def test_tool_axes_carry_onto_spec(connection):
         [
             ReferenceToolConfig(
                 slug="wf",
-                needs_approval=True,
                 render={"kind": "component", "component": "Card"},
                 permission="ask",
             )
         ]
     )
     spec = resolution.tool_specs[0]
-    assert spec.needs_approval is True
     assert spec.render == {"kind": "component", "component": "Card"}
     assert spec.permission == "ask"
 

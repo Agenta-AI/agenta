@@ -39,6 +39,7 @@ def test_catalog_ships_platform_builder_ops():
         "find_capabilities",
         "query_workflows",
         "commit_revision",
+        "annotate_trace",
         "find_triggers",
         "create_schedule",
         "create_subscription",
@@ -168,9 +169,8 @@ async def test_find_capabilities_emits_a_direct_call(connection):
         "limit_alternatives",
     }
     assert spec.input_schema["required"] == ["use_cases"]
-    # A read op defaults to auto-allow and no approval.
-    assert spec.needs_approval is False
-    assert spec.effective_permission() == "allow"
+    assert spec.read_only is True
+    assert spec.effective_permission() is None
     # The shared callback gives the runner the origin to resolve the relative path against.
     assert resolution.tool_callback.endpoint == "https://api.x/api/tools/call"
     assert resolution.tool_callback.authorization == "Access tok"
@@ -212,14 +212,50 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     assert "parameters.agent" in delta["properties"]["set"]["description"]
 
 
-async def test_commit_revision_defaults_to_approval(connection):
-    # A mutating op defaults to needs_approval=True -> effective `ask` (self-update is gated).
+async def test_commit_revision_is_not_read_only(connection):
     resolution = await _resolver(connection).resolve(
         [PlatformToolConfig(op="commit_revision")]
     )
     spec = resolution.tool_specs[0]
-    assert spec.needs_approval is True
-    assert spec.effective_permission() == "ask"
+    assert spec.read_only is False
+    assert spec.effective_permission() is None
+
+
+# --- resolver: annotate_trace self-targets its own trace/span -----------------
+
+
+async def test_annotate_trace_binds_own_trace_and_hides_links(connection):
+    # "Grade myself": the run's own trace_id/span_id are bound from run context and never
+    # model-supplied, so the agent can only ever annotate its OWN current trace.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="annotate_trace")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/annotations/"
+    assert spec.call.args_into == "annotation"
+    # Both self-target ids ride as call.context — the runner fills them from runContext at dispatch.
+    assert spec.call.context == {
+        "annotation.links.invocation.trace_id": "$ctx.trace.trace_id",
+        "annotation.links.invocation.span_id": "$ctx.trace.span_id",
+    }
+    # The model supplies only the payload (an evaluator slug + the outputs); `links` is never
+    # exposed, and the schema is closed so the model cannot smuggle its own target.
+    props = spec.input_schema["properties"]
+    assert set(props) == {"references", "data"}
+    assert "links" not in props
+    assert spec.input_schema["additionalProperties"] is False
+    assert props["references"]["properties"]["evaluator"]["required"] == ["slug"]
+    assert props["data"]["properties"]["outputs"]["additionalProperties"] is True
+
+
+async def test_annotate_trace_is_not_read_only(connection):
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="annotate_trace")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.read_only is False
+    assert spec.effective_permission() is None
 
 
 async def test_trigger_builder_ops_have_expected_paths_and_defaults(connection):
@@ -239,16 +275,12 @@ async def test_trigger_builder_ops_have_expected_paths_and_defaults(connection):
         "pause_subscription": ("POST", "/api/triggers/subscriptions/{id}/stop"),
         "resume_subscription": ("POST", "/api/triggers/subscriptions/{id}/start"),
     }
-    gated = {
-        "create_schedule",
-        "create_subscription",
-        "test_subscription",
-        "remove_schedule",
-        "remove_subscription",
-        "pause_schedule",
-        "resume_schedule",
-        "pause_subscription",
-        "resume_subscription",
+    read_only = {
+        "find_triggers",
+        "list_schedules",
+        "list_subscriptions",
+        "list_deliveries",
+        "list_connections",
     }
 
     resolution = await _resolver(connection).resolve(
@@ -259,12 +291,8 @@ async def test_trigger_builder_ops_have_expected_paths_and_defaults(connection):
     for name, (method, path) in expected_paths.items():
         assert specs[name].call.method == method
         assert specs[name].call.path == path
-        if name in gated:
-            assert specs[name].needs_approval is True
-            assert specs[name].effective_permission() == "ask"
-        else:
-            assert specs[name].needs_approval is False
-            assert specs[name].effective_permission() == "allow"
+        assert specs[name].read_only is (name in read_only)
+        assert specs[name].effective_permission() is None
 
 
 async def test_create_trigger_ops_bind_self_target_and_hide_destination(connection):
@@ -294,17 +322,12 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     assert "selector" not in data_props
 
 
-async def test_config_permission_overrides_the_catalog_default(connection):
-    # An author override beats the catalog default (here: force-allow a normally-gated op).
+async def test_config_permission_rides_with_catalog_read_only_hint(connection):
     resolution = await _resolver(connection).resolve(
-        [
-            PlatformToolConfig(
-                op="commit_revision", needs_approval=False, permission="allow"
-            )
-        ]
+        [PlatformToolConfig(op="commit_revision", permission="allow")]
     )
     spec = resolution.tool_specs[0]
-    assert spec.needs_approval is False
+    assert spec.read_only is False
     assert spec.effective_permission() == "allow"
 
 

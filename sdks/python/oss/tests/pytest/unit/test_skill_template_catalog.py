@@ -70,7 +70,7 @@ def _base_agent_template() -> dict:
         "tools": [],
         "mcps": [],
         "harness": {"kind": "pi_core"},
-        "runner": {"kind": "sidecar", "interactions": {"headless": "auto"}},
+        "runner": {"kind": "sidecar", "permissions": {"default": "allow_reads"}},
         "sandbox": {
             "kind": "local",
             "permissions": {

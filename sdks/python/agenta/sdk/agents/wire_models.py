@@ -242,8 +242,8 @@ class WireResolvedToolSpec(_WireModel):
     """A resolved tool the runner delivers to the harness (the three-axis tool surface).
 
     ``kind`` is the executor axis (``callback`` / ``code`` / ``client`` / ``builtin``);
-    ``needsApproval`` / ``render`` are the orthogonal axes; ``callRef`` / ``runtime`` / ``code``
-    / ``env`` are executor-specific. ``call`` is the direct-call descriptor a callback tool carries
+    ``render`` is an orthogonal display hint; ``callRef`` / ``runtime`` / ``code`` / ``env`` are
+    executor-specific. ``call`` is the direct-call descriptor a callback tool carries
     instead of ``callRef`` (direct-call tools, Phase 1). Extra fields are allowed so an executor
     variant the schema has not enumerated still validates.
     """
@@ -257,10 +257,19 @@ class WireResolvedToolSpec(_WireModel):
     runtime: Optional[str] = None
     code: Optional[str] = None
     env: Optional[Dict[str, str]] = None
-    needs_approval: Optional[bool] = Field(default=None, alias="needsApproval")
     render: Optional[WireRenderHint] = None
     read_only: Optional[bool] = Field(default=None, alias="readOnly")
     permission: Optional[str] = None
+
+
+class WirePermissionRule(_WireModel):
+    pattern: str
+    permission: str
+
+
+class WirePermissions(_WireModel):
+    default: Literal["allow", "ask", "deny", "allow_reads"] = "allow_reads"
+    rules: Optional[List[WirePermissionRule]] = None
 
 
 class WireMcpServer(_WireModel):
@@ -424,7 +433,7 @@ class WireRunRequest(_WireModel):
     mcp_servers: Optional[List[WireMcpServer]] = Field(default=None, alias="mcpServers")
     skills: Optional[List[WireSkill]] = None
     # Policy + prompt overrides + files.
-    permission_policy: Optional[str] = Field(default=None, alias="permissionPolicy")
+    permissions: Optional[WirePermissions] = None
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     append_system_prompt: Optional[str] = Field(
         default=None, alias="appendSystemPrompt"

@@ -27,8 +27,7 @@ that honors ``allow``. Emitting an ``allow`` rule here is the only way an ``allo
 runs on Claude instead of always parking. ``ask``/unset emits no allow rule (the gate stays raised
 -> HITL park preserved); ``deny`` emits a deny rule (which also closes a local-Claude execution
 gap). ``client`` tools are browser-fulfilled, never delivered over this channel, so they are
-excluded. NOTE: this does NOT make ``permission_policy:"auto"`` a blanket bypass; ``auto`` still
-means "gate -> HITL/policy".
+excluded. The runner policy supplies the default permission when a tool has no explicit value.
 """
 
 from __future__ import annotations
@@ -36,9 +35,13 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Sequence
 
+from ..permission_rules import CLAUDE_PERMISSION_MODES, parse_author_permissions
+from ..tools.models import PermissionMode, effective_permission
+
 # Claude Code's four permission modes (its ``permissions.defaultMode``); any other authored value
 # is dropped.
-PERMISSION_MODES = frozenset({"default", "acceptEdits", "plan", "bypassPermissions"})
+PERMISSION_MODES = CLAUDE_PERMISSION_MODES
+_parse_author_permissions = parse_author_permissions
 
 # Where the rendered settings land, relative to the session cwd.
 SETTINGS_PATH = ".claude/settings.json"
@@ -53,33 +56,6 @@ SETTINGS_PATH = ".claude/settings.json"
 #   - ``services/agent/src/engines/sandbox_agent/mcp.ts``
 # If the runner renames this server, this constant must change with it.
 INTERNAL_TOOL_MCP_SERVER = "agenta-tools"
-
-
-def _string_list(value: Any) -> List[str]:
-    """Keep only the string entries of an authored allow/deny/ask value; default to ``[]``."""
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, str)]
-
-
-def _parse_author_permissions(slice_: Any) -> Dict[str, Any]:
-    """Parse the untyped author block from the harness's ``permissions`` slice.
-
-    ``default_mode`` (also accepted as ``defaultMode``) survives only when it is one of the four
-    valid modes; ``allow``/``deny``/``ask`` become string lists. This is where the claude-specific
-    knowledge of that slice lives. Returns ``{mode?, allow, deny, ask}`` (mode omitted when unset
-    or invalid).
-    """
-    if not isinstance(slice_, dict):
-        return {"allow": [], "deny": [], "ask": []}
-    out: Dict[str, Any] = {}
-    mode = slice_.get("default_mode", slice_.get("defaultMode"))
-    if isinstance(mode, str) and mode in PERMISSION_MODES:
-        out["mode"] = mode
-    out["allow"] = _string_list(slice_.get("allow"))
-    out["deny"] = _string_list(slice_.get("deny"))
-    out["ask"] = _string_list(slice_.get("ask"))
-    return out
 
 
 def _dedupe(values: Sequence[str]) -> List[str]:
@@ -138,6 +114,10 @@ def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
         permission = _get(server, "permission")
         if not permission or not name:
             continue
+        if name == INTERNAL_TOOL_MCP_SERVER:
+            # Reserved for backend-resolved tools; a user server rule like ``mcp__agenta-tools``
+            # would collide with resolved-tool rules ``mcp__agenta-tools__<tool>``.
+            continue
         rule = f"mcp__{name}"
         if permission == "allow":
             allow.append(rule)
@@ -148,16 +128,19 @@ def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
     return {"allow": allow, "ask": ask, "deny": deny}
 
 
-def _rules_from_tool_specs(tool_specs: Any) -> Dict[str, List[str]]:
+def _rules_from_tool_specs(
+    tool_specs: Any, permission_default: PermissionMode
+) -> Dict[str, List[str]]:
     """Derive per-tool Claude rules from each resolved EXECUTABLE tool's Layer-3 ``permission`` (F-046).
 
     Mirrors :func:`_rules_from_mcp_permissions`, but per-tool against the fixed internal server name
     ``agenta-tools``: a callback/code tool is delivered to Claude as a tool of that MCP server, so
-    its rule is ``mcp__agenta-tools__<name>``. The tool's :meth:`ToolSpec.effective_permission`
-    (the single source of the allow/ask/deny ladder) routes it to the matching list; a tool whose
-    effective permission is unset (``None``) contributes nothing (falls back to the global
-    ``permission_policy``). ``client`` tools are browser-fulfilled and never delivered over this
-    channel, so they are excluded (this mirrors the runner's ``mcp-bridge`` filter). Accepts a list
+    its rule is ``mcp__agenta-tools__<name>``. The standalone
+    :func:`~agenta.sdk.agents.tools.models.effective_permission` ladder (explicit permission,
+    else read-only under ``allow_reads``, else the runner mode) routes it to the matching list. Unset tools
+    only render a rule when the runner mode needs an explicit Claude allow/deny rule. ``client``
+    tools are browser-fulfilled and never delivered over this channel, so they are excluded (this
+    mirrors the runner's ``mcp-bridge`` filter). Accepts a list
     of :class:`~agenta.sdk.agents.tools.models.ToolSpec` or plain dicts (coerced to a spec so the
     same permission ladder applies).
     """
@@ -176,8 +159,10 @@ def _rules_from_tool_specs(tool_specs: Any) -> Dict[str, List[str]]:
             continue
         if spec.kind == "client":
             continue
-        permission = spec.effective_permission()
-        if not permission:
+        permission = effective_permission(
+            spec.permission, spec.read_only, permission_default
+        )
+        if spec.permission is None and permission == "ask":
             continue
         rule = f"mcp__{INTERNAL_TOOL_MCP_SERVER}__{spec.name}"
         if permission == "allow":
@@ -203,6 +188,7 @@ def build_claude_settings_files(
     sandbox_permission: Any = None,
     mcp_servers: Any = None,
     tool_specs: Any = None,
+    permission_default: PermissionMode = "allow_reads",
 ) -> List[Dict[str, str]]:
     """Build the Claude ``settings.json`` as a generic ``harnessFiles`` entry, or ``[]`` if none.
 
@@ -223,7 +209,7 @@ def build_claude_settings_files(
     # keeps first-seen order, so an author rule wins its position and derived rules append.
     sandbox_rules = _rules_from_sandbox_permission(sandbox_permission)
     mcp_rules = _rules_from_mcp_permissions(mcp_servers)
-    tool_rules = _rules_from_tool_specs(tool_specs)
+    tool_rules = _rules_from_tool_specs(tool_specs, permission_default)
 
     allow = _dedupe(
         [*author["allow"], *mcp_rules.get("allow", []), *tool_rules.get("allow", [])]
