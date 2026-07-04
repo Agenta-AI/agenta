@@ -131,6 +131,15 @@ redisDurable:
 #       size: 20Gi
 
 # ================================================================== #
+# agentRunner — agent runner sidecar. enableMcp controls
+# AGENTA_AGENT_MCPS_ENABLED (on by default). See values.schema.json for
+# the full agentRunner shape.
+# ================================================================== #
+# agentRunner:
+#   enabled: true
+#   enableMcp: true
+
+# ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md
 # `streams`/`queues` = selector lists; empty ⇒ all loops in that kind.
 # ================================================================== #
