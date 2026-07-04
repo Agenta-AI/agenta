@@ -4,7 +4,7 @@ import {CodeHighlightNode, CodeNode} from "@lexical/code"
 import {HistoryExtension} from "@lexical/history"
 import {LinkNode} from "@lexical/link"
 import {ListItemNode, ListNode} from "@lexical/list"
-import {$convertFromMarkdownString} from "@lexical/markdown"
+import {$convertFromMarkdownString, $convertToMarkdownString} from "@lexical/markdown"
 import {AutoFocusPlugin} from "@lexical/react/LexicalAutoFocusPlugin"
 import {ClickableLinkPlugin} from "@lexical/react/LexicalClickableLinkPlugin"
 import {ContentEditable} from "@lexical/react/LexicalContentEditable"
@@ -32,6 +32,8 @@ export interface RichChatInputHandle {
     focus: () => void
     clear: () => void
     setMarkdown: (markdown: string) => void
+    /** Read the current content as markdown without submitting (e.g. non-Enter actions). */
+    getMarkdown: () => string
 }
 
 export interface RichChatInputProps {
@@ -50,6 +52,8 @@ export interface RichChatInputProps {
     header?: ReactNode
     /** Slot below the shortcut row (e.g. a queued-messages / stop-streaming row). */
     footer?: ReactNode
+    /** Trailing slot in the toolbar row, right-aligned (e.g. custom submit actions). */
+    trailing?: ReactNode
     /** Files pasted into the editor (clipboard images/files). */
     onPasteFile?: (files: FileList) => void
     /** Keep the send button enabled with empty text (e.g. attachments pending) — sends "". */
@@ -60,6 +64,14 @@ export interface RichChatInputProps {
     streaming?: boolean
     /** Abort the in-flight stream (used while `streaming`). */
     onStop?: () => void
+    /** Min-height class for the editor area (default `min-h-[72px]`). */
+    minHeightClassName?: string
+    /** Font-size class for the editor text + placeholder (default `text-xs`). */
+    textSizeClassName?: string
+    /** Hide just the Bold/Italic/Send/Newline shortcut hints (keep prefix + trailing). */
+    hideShortcutHints?: boolean
+    /** Whether plain Enter submits. Default true (chat); set false for description-style inputs. */
+    submitOnEnter?: boolean
 }
 
 // Static: RichText gives Cmd+B/I + block behavior, History gives undo/redo, list
@@ -95,11 +107,16 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             prefix,
             header,
             footer,
+            trailing,
             onPasteFile,
             sendForceEnabled,
             hideSendButton,
             streaming,
             onStop,
+            minHeightClassName = "min-h-[72px]",
+            textSizeClassName = "text-xs",
+            hideShortcutHints = false,
+            submitOnEnter = true,
         },
         ref,
     ) {
@@ -128,6 +145,10 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         $convertFromMarkdownString(markdown, CHAT_TRANSFORMERS)
                         $getRoot().selectEnd()
                     }),
+                getMarkdown: () =>
+                    editorRef.current
+                        ?.getEditorState()
+                        .read(() => $convertToMarkdownString(CHAT_TRANSFORMERS)) ?? "",
             }),
             [],
         )
@@ -164,9 +185,18 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         <ContentEditable
                             aria-label="Chat message"
                             aria-placeholder={placeholder}
-                            className="max-h-40 min-h-[72px] overflow-y-auto break-words px-3 py-2.5 text-xs leading-relaxed text-[var(--ag-colorText)] outline-none"
+                            className={clsx(
+                                "max-h-40 overflow-y-auto break-words px-3 py-2.5 leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                textSizeClassName,
+                                minHeightClassName,
+                            )}
                             placeholder={
-                                <div className="pointer-events-none absolute left-3 top-2.5 select-none text-xs text-[var(--ag-composer-placeholder)]">
+                                <div
+                                    className={clsx(
+                                        "pointer-events-none absolute left-3 top-2.5 select-none text-[var(--ag-composer-placeholder)]",
+                                        textSizeClassName,
+                                    )}
+                                >
                                     {placeholder}
                                 </div>
                             }
@@ -175,12 +205,14 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
 
                     <div className="flex items-center gap-2 px-2 py-1.5">
                         {prefix}
-                        <div className="flex flex-wrap items-center gap-2.5">
-                            <ShortcutHint keys={`${modKey} B`} label="Bold" />
-                            <ShortcutHint keys={`${modKey} I`} label="Italic" />
-                            <ShortcutHint keys="↵" label="Send" />
-                            <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
-                        </div>
+                        {hideShortcutHints ? null : (
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <ShortcutHint keys={`${modKey} B`} label="Bold" />
+                                <ShortcutHint keys={`${modKey} I`} label="Italic" />
+                                <ShortcutHint keys="↵" label="Send" />
+                                <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
+                            </div>
+                        )}
                         <div className="ml-auto flex items-center gap-2">
                             {/* Only show a counter when there's a limit to track against, or when the
                                 user has actually typed — a lone "0" beside the button is just clutter. */}
@@ -207,6 +239,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     onStop={onStop}
                                 />
                             )}
+                            {trailing}
                         </div>
                     </div>
 
@@ -227,7 +260,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     <MarkdownShortcutPlugin transformers={CHAT_TRANSFORMERS} />
                     {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
                     <CodeFencePlugin />
-                    <SubmitPlugin onSubmit={onSubmit} />
+                    {submitOnEnter ? <SubmitPlugin onSubmit={onSubmit} /> : null}
                     <CharacterCountPlugin onCountChange={setCount} />
                 </div>
             </LexicalExtensionComposer>
