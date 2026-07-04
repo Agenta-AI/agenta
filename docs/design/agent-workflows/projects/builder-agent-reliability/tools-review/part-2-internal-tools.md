@@ -149,10 +149,12 @@ its job is "verify the committed config as a headless run before you schedule it
 
 ### Why it cannot be composed from existing ops, and the `query_spans` stopgap
 
-A platform op is one same-origin request under `/api`. `test-agent.sh` composes: a
-streaming invoke on the agent **service** mount (`/services/agent/v0/invoke`, outside
-`/api`, so `directCallUrl` rejects it), stream parsing, then a retried trace fetch. None
-of that fits the descriptor. Two ways in:
+A platform op is one same-origin request under `/api`. One piece of the old composition
+dropped out: since #5064 (invoke negotiation), a non-streaming invoke returns the full
+turn, so stream parsing is no longer needed. What remains still exceeds a
+single-endpoint descriptor: an invoke on the agent **service** mount
+(`/services/agent/v0/invoke`, outside `/api`, so `directCallUrl` rejects it), a retried
+spans fetch, and a verdict digest. The conclusion stands. Two ways in:
 
 1. **Stopgap, pure data add today:** a read op `query_spans` over `POST /api/spans/query`
    (what `check-tools.sh` wraps). Gives the inside agent span-level verification of its
@@ -178,8 +180,9 @@ of that fits the descriptor. Two ways in:
 
 - **Server behavior:** hydrate the committed revision (reuse the same
   `_ensure_request_revision` path triggers use), apply the optional delta in memory,
-  invoke the agent service server-side with a streaming accept, collect the events,
-  query the spans, and return a digest. This is `test-agent.sh` productized.
+  invoke the agent service server-side (one non-streaming call returns the full turn
+  since #5064), query the spans, and return a digest. This is `test-agent.sh`
+  productized.
 - **Response** (mirrors the script's five lines):
 
   ```jsonc

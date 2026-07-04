@@ -48,8 +48,8 @@ Response (mirrors the lab script's five lines plus the verdict):
 ```jsonc
 {
   // output: what the run said and did.
-  "output": "…",                                       // assembled assistant text; may be empty on a tool-call ending
-  "tools": [                                           // ordered, from spans (ground truth)
+  "output": "…",                                       // assembled assistant text; the last message may be a tool message
+  "tools": [                                           // ordered, from the invoke transcript (#5064); spans confirm "returned"
     { "name": "github__LIST_COMMITS", "called": true, "returned": true },
     { "name": "slack__SEND_MESSAGE",  "called": true, "returned": true }
   ],
@@ -81,8 +81,12 @@ Verdict semantics, ported from `check-tools.sh` (lab kit, lines 31-37) and the
   result is not visible (the gated-write case `check-tools.sh` exists for).
 - `failed` - the invoke errored, or tool spans carry error markers.
 
-An empty `output` with a healthy `tools` list is NOT a failure (lab rule: read the TOOLS
-line, not just OUTPUT). The description and the skill both say so.
+The old defect behind this design (batch `output` came back empty when the run ended on
+a tool call) is fixed by #5064: the batch response now returns the full turn. The rule
+that survives is milder: the last message may be a tool message, so the assembled text
+can legitimately end on tool activity. The tools list (which tools were called, in what
+order) now comes from the invoke body; spans stay the ground truth for "returned with
+output" on gated writes. The description and the skill both say so.
 
 ## Server behavior (the Option C handler)
 
@@ -94,13 +98,23 @@ In the tools domain (`core/tools/` service code, dispatched from the tool-call p
 2. Apply the optional `delta` in memory (never persisted).
 3. Invoke the agent service headless, reusing `_prepare_invoke`'s pattern: sign an
    internal `Secret` token (`workflows/service.py:2054-2062`), POST
-   `{service_url}/invoke`. Prefer the streaming accept and drain, so tool calls and
-   approval gates come from the event stream (what `test-agent.sh` parses); fall back to
-   a spans query when the stream lacks them.
-4. Query `POST /api/spans/query` (route: `tracing/router.py:97-98`) for the run's trace,
-   with the lab's retry (spans flush a second or two late).
+   `{service_url}/invoke`. One non-streaming call is enough since #5064 (invoke
+   negotiation; canonical contract in
+   [docs/designs/invoke-negotiations/specs.md](../../../../designs/invoke-negotiations/specs.md)).
+   The batch response carries the full turn by default
+   (`x-ag-messages-transcript: full`): `data.outputs.messages` holds the assistant
+   text plus a `role: "tool"` entry for every tool call (`tool_call_id`, `tool_name`,
+   `input`) and tool result (`content`, `is_error`), in order, alongside
+   `stop_reason` and, when the run paused, `pending_interaction` with the gated tool.
+   Digest output, the ordered tool list, and approval gates straight from the body.
+   The batch call still blocks until the run ends (the server drains the stream), so
+   the duration cap below stands unchanged.
+4. Query `POST /api/spans/query` (route: `tracing/router.py:97-98`), with the lab's
+   retry (spans flush a second or two late), ONLY for what the body does not settle:
+   returned-output verification of gated writes, and the resolved config.
 5. Digest into the response above. Pull `resolved` from the trace the way
-   `test-agent.sh` does.
+   `test-agent.sh` does (still trace-only; #5057's runner log line is a debug aid,
+   not a source).
 
 ### Guards
 

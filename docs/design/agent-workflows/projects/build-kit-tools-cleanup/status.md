@@ -3,6 +3,10 @@
 **State: design docs written, awaiting Mahmoud's review.** Date: 2026-07-03. No code
 changed. Deliverable of this round: this workspace.
 
+2026-07-04: JP's #5064 landed (invoke negotiation; batch = fold(stream), full
+transcript). test_run digest simplified accordingly in api-design.md; silent-fallback
+(#5002) still open; resolved still trace-only.
+
 ## Decided (do not relitigate)
 
 1. Hard-migrate renames, no aliases: `find_capabilities` -> `discover_tools`,
