@@ -703,6 +703,7 @@ export async function runSandboxAgent(
       token: string,
       toolName: string | undefined,
       toolArgs: unknown,
+      kind: "user_approval" | "client_tool" = "user_approval",
     ): void => {
       const cred = runCredential(request);
       if (!cred) return;
@@ -715,7 +716,7 @@ export async function runSandboxAgent(
         sessionId,
         request.turnId ?? "",
         token,
-        "user_approval",
+        kind,
         { request: { tool: toolName ?? token, args: toolArgs }, references },
         () => cred,
       );
@@ -829,6 +830,7 @@ export async function runSandboxAgent(
                   },
                 },
               });
+              recordPendingInteraction(id, toolName, input, "client_tool");
             }
             return "pendingApproval";
           },

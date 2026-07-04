@@ -87,6 +87,12 @@ analysis that diagnosed the live loop.
 
 ## Follow-ups (filed, not in this PR)
 
+- **Live-stream `finishReason` on a pause.** The Vercel stream adapter derives
+  `finishReason` from the `done` event's `stopReason`, which the live runner never
+  populates (the engine settles paused-vs-ended after the stream closes). Batch now takes
+  the terminal result's value; the live stream path should too. Display is unaffected (the
+  FE keys off the `interaction_request` part), so this is wire-fidelity, not UX.
+
 - **Selection-time enforcement for Pi builtins.** Pi's native tools never reach a
   runner gate, so today the global policy modes do not bind them (headless QA proved
   `default: deny` does not stop a granted `bash`). The design: filter `builtin_names`

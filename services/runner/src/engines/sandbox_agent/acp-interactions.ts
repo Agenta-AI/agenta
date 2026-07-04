@@ -29,6 +29,7 @@ export interface AttachPermissionResponderInput {
     token: string,
     toolName: string | undefined,
     toolArgs: unknown,
+    kind: "user_approval" | "client_tool",
   ) => void;
   /** Called after a stored decision was successfully forwarded to the harness. */
   onResolveInteraction?: (token: string) => void;
@@ -54,12 +55,26 @@ export function attachPermissionResponder({
     });
   });
 
+  // The emitted payload carries a COPY of the ACP toolCall stamped with `resolvedName` (the
+  // gate's stable anchor). The Vercel egress prefers it over the drift-prone title/kind
+  // display fields, so the approval part names the tool exactly as the responder keys it.
+  // The inbound ACP object itself is never mutated.
+  const stampResolvedName = (toolCall: any, gate: GateDescriptor): any => {
+    if (!toolCall || typeof toolCall !== "object" || !gate.toolName)
+      return toolCall;
+    return { ...toolCall, resolvedName: gate.toolName };
+  };
+
   // A pause sends NO harness reply, ever. Replying `reject` would make Claude emit a failed
   // tool call ("User refused permission") whose `tool_result {isError}` overwrites the
   // approval prompt on the same tool-call id (the F-024 clobber). The turn instead ends via
   // `onPause` (session teardown resolves the RPC as cancelled, not rejected) and the next
   // turn's stored decision answers the re-raised gate.
-  const pauseUserApproval = (req: any, id: string, gate: GateDescriptor): void => {
+  const pauseUserApproval = (
+    req: any,
+    id: string,
+    gate: GateDescriptor,
+  ): void => {
     if (!latch.tryAcquire()) return;
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
     const eventId = interactionEventId(id, toolCallId);
@@ -70,12 +85,12 @@ export function attachPermissionResponder({
       kind: "user_approval",
       payload: {
         toolCallId,
-        toolCall: req?.toolCall,
+        toolCall: stampResolvedName(req?.toolCall, gate),
         availableReplies: stringArray(req?.availableReplies),
         options: req?.options,
       },
     });
-    onCreateInteraction?.(eventId, gate.toolName, gate.args);
+    onCreateInteraction?.(eventId, gate.toolName, gate.args, "user_approval");
     onPause?.();
   };
 
@@ -95,13 +110,13 @@ export function attachPermissionResponder({
       kind: "client_tool",
       payload: {
         toolCallId,
-        toolCall: req?.toolCall,
+        toolCall: stampResolvedName(req?.toolCall, gate),
         toolName: gate.toolName,
         input: gate.args,
         render: spec.render,
       },
     });
-    onCreateInteraction?.(eventId, gate.toolName, gate.args);
+    onCreateInteraction?.(eventId, gate.toolName, gate.args, "client_tool");
     onPause?.();
   };
 
@@ -116,7 +131,9 @@ export function attachPermissionResponder({
         decisionToReply(decision, availableReplies) as any,
       );
     } catch (err) {
-      log?.(`[HITL] reply failed id=${id} decision=${decision}: ${errorMessage(err)}`);
+      log?.(
+        `[HITL] reply failed id=${id} decision=${decision}: ${errorMessage(err)}`,
+      );
       onPause?.();
       return;
     }
@@ -134,7 +151,9 @@ export function attachPermissionResponder({
         clientToolReply(verdict, availableReplies) as any,
       );
     } catch (err) {
-      log?.(`[HITL] reply failed id=${id} decision=${verdict.kind}: ${errorMessage(err)}`);
+      log?.(
+        `[HITL] reply failed id=${id} decision=${verdict.kind}: ${errorMessage(err)}`,
+      );
       onPause?.();
     }
   };
@@ -159,7 +178,10 @@ export function attachPermissionResponder({
             title: toolCall?.title,
             kind: toolCall?.kind,
             executor: gate.executor,
-            argKeys: args && typeof args === "object" ? Object.keys(args) : typeof args,
+            argKeys:
+              args && typeof args === "object"
+                ? Object.keys(args)
+                : typeof args,
           }),
       );
     }
@@ -202,7 +224,8 @@ function recordedToolName(
   run: { events?: () => AgentEvent[] },
   toolCallId: unknown,
 ): string | undefined {
-  if (typeof toolCallId !== "string" || !toolCallId || !run.events) return undefined;
+  if (typeof toolCallId !== "string" || !toolCallId || !run.events)
+    return undefined;
   let name: string | undefined;
   for (const event of run.events()) {
     if (event.type === "tool_call" && event.id === toolCallId && event.name) {
@@ -231,8 +254,11 @@ function buildGateDescriptor(
     executor: spec?.kind === "client" ? "client" : spec ? "relay" : "harness",
     toolName,
     specPermission,
-    serverPermission: spec ? undefined : serverPermissionFor(toolName, serverPermissions),
-    readOnlyHint: typeof spec?.readOnly === "boolean" ? spec.readOnly : undefined,
+    serverPermission: spec
+      ? undefined
+      : serverPermissionFor(toolName, serverPermissions),
+    readOnlyHint:
+      typeof spec?.readOnly === "boolean" ? spec.readOnly : undefined,
     args,
   };
 }
@@ -257,7 +283,11 @@ type ToolSpecLike = {
 };
 
 function resolvedSpecOf(toolCall: any): ToolSpecLike | undefined {
-  const spec = toolCall?.spec ?? toolCall?.toolSpec ?? toolCall?.resolvedTool ?? toolCall?.tool;
+  const spec =
+    toolCall?.spec ??
+    toolCall?.toolSpec ??
+    toolCall?.resolvedTool ??
+    toolCall?.tool;
   return spec && typeof spec === "object" ? (spec as ToolSpecLike) : undefined;
 }
 
@@ -269,7 +299,9 @@ function firstString(values: unknown[]): string | undefined {
 }
 
 function toolPermission(value: unknown): ToolPermission | undefined {
-  return value === "allow" || value === "ask" || value === "deny" ? value : undefined;
+  return value === "allow" || value === "ask" || value === "deny"
+    ? value
+    : undefined;
 }
 
 function stringValue(value: unknown): string | undefined {

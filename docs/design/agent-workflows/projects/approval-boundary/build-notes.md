@@ -189,3 +189,18 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   MCP-server-permission step to three doc precedence ladders. `permission-responder.md`
   needed no change (it already documented the step). Skipped as noise: comment-style nits
   on `PiSettingsControl`.
+- **Codex xhigh pre-merge review of the rebase (3 findings, all addressed).**
+  (1) The ours-wins resolution dropped upstream's `resolvedName` stamping while the SDK's
+  Vercel egress prefers exactly that field; restored WITHOUT upstream's object mutation —
+  both pause sites now emit a stamped COPY of the ACP toolCall (`resolvedName` = the gate's
+  stable anchor), so the approval part names the tool exactly as the responder keys it.
+  (2) Client-tool pause persistence completed: `onCreateInteraction` now threads a `kind`
+  (`user_approval` | `client_tool`) so ACP client-tool rows stop masquerading as approvals,
+  and the Pi relay's client-tool pause seeds the interactions row at all (it never did,
+  pre-dating the rebase). (3) A `services/oss` integration test still asserted the deleted
+  `needs_approval`/`needsApproval` vocabulary (missed by unit-only sweeps); rewritten to
+  `permission: "ask"`. Codex also confirmed: apiBase keeper correct across call sites, the
+  fold patch source-compatible, runtime code clean of deleted identifiers. Noted follow-up:
+  the live Vercel stream's `finishReason` still reads only `done.stopReason`
+  (adapters/vercel/stream.py:417), so a live paused stream may omit `finishReason: paused`
+  while batch is fixed; the FE keys off the interaction part, so display is unaffected.

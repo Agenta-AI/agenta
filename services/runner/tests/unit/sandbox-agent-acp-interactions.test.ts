@@ -17,7 +17,10 @@ function flushPromises(): Promise<void> {
 }
 
 function makeSession(
-  respondPermission: (id: string, reply: string) => Promise<void> | void = async () => {},
+  respondPermission: (
+    id: string,
+    reply: string,
+  ) => Promise<void> | void = async () => {},
 ) {
   let handler: ((req: any) => void) | undefined;
   return {
@@ -108,7 +111,12 @@ describe("attachPermissionResponder", () => {
       replies.push({ id, reply });
     });
     const events: AgentEvent[] = [];
-    const created: Array<{ token: string; toolName?: string; args: unknown }> = [];
+    const created: Array<{
+      token: string;
+      toolName?: string;
+      args: unknown;
+      kind: string;
+    }> = [];
     const pausedToolCalls: string[] = [];
     let pauses = 0;
 
@@ -120,8 +128,8 @@ describe("attachPermissionResponder", () => {
       onPause: () => {
         pauses += 1;
       },
-      onCreateInteraction: (token, toolName, args) => {
-        created.push({ token, toolName, args });
+      onCreateInteraction: (token, toolName, args, kind) => {
+        created.push({ token, toolName, args, kind });
       },
       onPausedToolCall: (id) => {
         pausedToolCalls.push(id);
@@ -139,7 +147,12 @@ describe("attachPermissionResponder", () => {
     assert.equal(pauses, 1);
     assert.deepEqual(pausedToolCalls, ["tool-9"]);
     assert.deepEqual(created, [
-      { token: "perm-pause", toolName: "edit", args: { path: "a" } },
+      {
+        token: "perm-pause",
+        toolName: "edit",
+        args: { path: "a" },
+        kind: "user_approval",
+      },
     ]);
     assert.deepEqual(events, [
       {
@@ -148,7 +161,13 @@ describe("attachPermissionResponder", () => {
         kind: "user_approval",
         payload: {
           toolCallId: "tool-9",
-          toolCall: { toolCallId: "tool-9", name: "edit", input: { path: "a" } },
+          // a stamped COPY: the egress prefers resolvedName over drift-prone display fields
+          toolCall: {
+            toolCallId: "tool-9",
+            name: "edit",
+            input: { path: "a" },
+            resolvedName: "edit",
+          },
           availableReplies: ["once", "always", "reject"],
           options: { cwd: "/repo" },
         },
@@ -241,22 +260,24 @@ describe("attachPermissionResponder", () => {
     });
     const events: AgentEvent[] = [];
     const pausedToolCalls: string[] = [];
-    const created: Array<{ token: string; toolName?: string; args: unknown }> = [];
+    const created: Array<{
+      token: string;
+      toolName?: string;
+      args: unknown;
+      kind: string;
+    }> = [];
     let pauses = 0;
 
     attachPermissionResponder({
       session,
       run: { emitEvent: (event) => events.push(event) },
-      responder: fakeResponder(
-        { kind: "deny" },
-        { kind: "pendingApproval" },
-      ),
+      responder: fakeResponder({ kind: "deny" }, { kind: "pendingApproval" }),
       latch: new PendingApprovalLatch(),
       onPause: () => {
         pauses += 1;
       },
-      onCreateInteraction: (token, toolName, args) => {
-        created.push({ token, toolName, args });
+      onCreateInteraction: (token, toolName, args, kind) => {
+        created.push({ token, toolName, args, kind });
       },
       onPausedToolCall: (id) => {
         pausedToolCalls.push(id);
@@ -287,6 +308,7 @@ describe("attachPermissionResponder", () => {
         token: "client-1",
         toolName: "request_connection",
         args: { integration: "slack" },
+        kind: "client_tool",
       },
     ]);
     assert.deepEqual(events, [
@@ -304,6 +326,7 @@ describe("attachPermissionResponder", () => {
               name: "request_connection",
               render: { kind: "component", component: "connect" },
             },
+            resolvedName: "request_connection",
           },
           toolName: "request_connection",
           input: { integration: "slack" },
