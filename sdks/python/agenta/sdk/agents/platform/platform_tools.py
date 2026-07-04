@@ -16,6 +16,7 @@ same way.
 
 from __future__ import annotations
 
+import os
 from typing import Optional, Sequence
 
 from agenta.sdk.agents.tools import (
@@ -31,6 +32,16 @@ from .connection import PlatformConnection
 from .op_catalog import get_platform_op
 
 log = get_module_logger(__name__)
+
+_ENABLE_PLATFORM_HANDLERS_ENV = "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS"
+_TRUTHY_ENV_VALUES = {"1", "true", "t", "y", "yes", "on", "enable", "enabled"}
+
+
+def _platform_handlers_enabled() -> bool:
+    return (
+        os.getenv(_ENABLE_PLATFORM_HANDLERS_ENV, "").strip().lower()
+        in _TRUTHY_ENV_VALUES
+    )
 
 
 class AgentaPlatformToolResolver:
@@ -69,17 +80,42 @@ class AgentaPlatformToolResolver:
                 raise error
             seen.add(op.op)
 
-            tool_specs.append(
-                CallbackToolSpec(
-                    name=op.op,
-                    description=op.description,
-                    input_schema=op.resolved_input_schema(),
-                    call=op.to_call(),
-                    render=tool_config.render,
-                    permission=tool_config.permission,
-                    read_only=op.read_only,
+            if op.handler is not None:
+                if not _platform_handlers_enabled():
+                    error = GatewayToolResolutionError(
+                        f"Platform handler-mode op '{op.op}' requires "
+                        f"{_ENABLE_PLATFORM_HANDLERS_ENV}=true before it can resolve.",
+                        reference=op.reserved_id,
+                    )
+                    log.warning("agent: %s", error)
+                    raise error
+
+                tool_specs.append(
+                    CallbackToolSpec(
+                        name=op.op,
+                        description=op.description,
+                        input_schema=op.resolved_input_schema(),
+                        call_ref=op.to_call_ref(),
+                        context_bindings=dict(op.context_bindings) or None,
+                        timeout_ms=op.timeout_ms,
+                        render=tool_config.render,
+                        permission=tool_config.permission,
+                        read_only=op.read_only,
+                    )
                 )
-            )
+            else:
+                tool_specs.append(
+                    CallbackToolSpec(
+                        name=op.op,
+                        description=op.description,
+                        input_schema=op.resolved_input_schema(),
+                        call=op.to_call(),
+                        timeout_ms=op.timeout_ms,
+                        render=tool_config.render,
+                        permission=tool_config.permission,
+                        read_only=op.read_only,
+                    )
+                )
 
         return GatewayToolResolution(
             tool_specs=tool_specs,

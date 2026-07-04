@@ -57,7 +57,8 @@ def _router(workflows_service):
 
 def _request():
     return SimpleNamespace(
-        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4()))
+        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        headers={},
     )
 
 
@@ -70,7 +71,9 @@ def _call(name: str, arguments) -> ToolCall:
     )
 
 
-async def test_tools_agenta_call_ref_posted_to_tools_call_fails_loud(monkeypatch):
+async def test_unknown_tools_agenta_call_ref_posted_to_tools_call_fails_loud(
+    monkeypatch,
+):
     async def _allow(**_kwargs):
         return True
 
@@ -79,11 +82,11 @@ async def test_tools_agenta_call_ref_posted_to_tools_call_fails_loud(monkeypatch
     with pytest.raises(HTTPException) as caught:
         await _router(FakeWorkflowsService(outputs={})).call_tool(
             _request(),
-            body=_call("tools.agenta.discover_tools", {}),
+            body=_call("tools.agenta.unknown", {}),
         )
 
-    assert caught.value.status_code == 400
-    assert "Invalid tool slug format" in caught.value.detail
+    assert caught.value.status_code == 404
+    assert "Unknown reserved Agenta tool handler" in caught.value.detail
 
 
 async def test_invokes_workflow_by_variant_slug_and_returns_outputs():

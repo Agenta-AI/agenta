@@ -254,6 +254,10 @@ class WireResolvedToolSpec(_WireModel):
     kind: Optional[str] = None
     call_ref: Optional[str] = Field(default=None, alias="callRef")
     call: Optional[WireToolCall] = None
+    context_bindings: Optional[Dict[str, str]] = Field(
+        default=None, alias="contextBindings"
+    )
+    timeout_ms: Optional[int] = Field(default=None, alias="timeoutMs")
     runtime: Optional[str] = None
     code: Optional[str] = None
     env: Optional[Dict[str, str]] = None

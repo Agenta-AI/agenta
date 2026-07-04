@@ -39,6 +39,7 @@ def test_catalog_ships_platform_builder_ops():
         "discover_tools",
         "query_workflows",
         "query_spans",
+        "test_run",
         "commit_revision",
         "annotate_trace",
         "discover_triggers",
@@ -87,6 +88,37 @@ def test_op_input_schema_ref_must_be_a_known_catalog_key():
             method="POST",
             path="/api/x",
             input_schema_ref="not-a-real-type",
+        )
+
+
+def test_op_requires_exactly_one_target_mode():
+    with pytest.raises(ValidationError, match="method.*path.*handler"):
+        PlatformOp(op="x", description="d", input_schema={"type": "object"})
+    with pytest.raises(ValidationError, match="method.*path.*handler"):
+        PlatformOp(
+            op="x",
+            description="d",
+            method="POST",
+            path="/api/x",
+            handler="tools.agenta.test_run",
+            input_schema={"type": "object"},
+        )
+    with pytest.raises(ValidationError, match="method.*path"):
+        PlatformOp(
+            op="x",
+            description="d",
+            method="POST",
+            input_schema={"type": "object"},
+        )
+
+
+def test_op_handler_must_be_allowlisted():
+    with pytest.raises(ValidationError, match="allowlisted"):
+        PlatformOp(
+            op="x",
+            description="d",
+            handler="tools.agenta.unknown",
+            input_schema={"type": "object"},
         )
 
 
@@ -185,6 +217,51 @@ async def test_discover_tools_wire_carries_call_not_call_ref(connection):
     assert wire["kind"] == "callback"
     assert "callRef" not in wire
     assert wire["call"]["path"] == "/api/tools/discover"
+
+
+async def test_test_run_handler_call_ref_requires_platform_handlers_flag(connection):
+    with pytest.raises(
+        GatewayToolResolutionError,
+        match="AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS",
+    ):
+        await _resolver(connection).resolve([PlatformToolConfig(op="test_run")])
+
+
+async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout(
+    connection, monkeypatch
+):
+    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "true")
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="test_run")]
+    )
+    spec = resolution.tool_specs[0]
+
+    assert spec.kind == "callback"
+    assert spec.name == "test_run"
+    assert spec.call is None
+    assert spec.call_ref == "tools.agenta.test_run"
+    assert spec.context_bindings == {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id"
+    }
+    assert spec.timeout_ms == 120000
+    assert spec.read_only is False
+    assert spec.effective_permission() is None
+    assert "target" not in spec.input_schema["properties"]
+    assert set(spec.input_schema["properties"]) == {
+        "inputs",
+        "delta",
+        "expectations",
+    }
+    assert spec.input_schema["required"] == ["inputs"]
+    assert spec.input_schema["properties"]["inputs"]["required"] == ["messages"]
+
+    wire = spec.to_wire()
+    assert wire["callRef"] == "tools.agenta.test_run"
+    assert wire["contextBindings"] == {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id"
+    }
+    assert wire["timeoutMs"] == 120000
+    assert "call" not in wire
 
 
 async def test_query_spans_emits_project_scoped_read_call(connection):

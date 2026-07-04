@@ -64,6 +64,13 @@ from oss.src.core.tools.service import (
 )
 from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.tracing.service import TracingService
+from oss.src.core.tools.platform_handlers import (
+    TEST_RUN_CALL_REF,
+    PlatformToolHandlerError,
+    dispatch_platform_tool_handler,
+    is_reserved_agenta_call_ref,
+)
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -84,6 +91,15 @@ _WORKFLOW_CALL_REF_PREFIX = "workflow."
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
 
 log = get_module_logger(__name__)
+
+
+def _test_run_arguments_include_delta(arguments: object) -> bool:
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            return False
+    return isinstance(arguments, dict) and arguments.get("delta") is not None
 
 
 def handle_adapter_exceptions():
@@ -135,12 +151,14 @@ class ToolsRouter:
         *,
         tools_service: ToolsService,
         workflows_service: Optional[WorkflowsService] = None,
+        tracing_service: Optional[TracingService] = None,
     ):
         self.tools_service = tools_service
         # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
         # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
         # Optional so a deployment that wires only the tools service still serves gateway tools.
         self.workflows_service = workflows_service
+        self.tracing_service = tracing_service
 
         self.router = APIRouter()
 
@@ -1087,6 +1105,12 @@ class ToolsRouter:
         # ``workflow.{slug}[.{version}]`` call_ref and runs a workflow revision server-side; a
         # Composio gateway tool carries the 5-segment ``tools.*`` slug and runs via the adapter.
         call_ref = body.data.function.name.replace("__", ".")
+        if is_reserved_agenta_call_ref(call_ref):
+            return await self._call_reserved_agenta_tool(
+                request=request,
+                body=body,
+                call_ref=call_ref,
+            )
         if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
             return await self._call_workflow_tool(request=request, body=body)
         # Parse tool slug — accept both dot and double-underscore formats.
@@ -1172,6 +1196,51 @@ class ToolsRouter:
                 if execution_result.successful
                 else "STATUS_CODE_ERROR",
                 message=execution_result.error,
+            ),
+        )
+
+        return ToolCallResponse(call=result)
+
+    async def _call_reserved_agenta_tool(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+        call_ref: str,
+    ) -> ToolCallResponse:
+        if call_ref == TEST_RUN_CALL_REF and _test_run_arguments_include_delta(
+            body.data.function.arguments
+        ):
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_WORKFLOWS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        try:
+            response = await dispatch_platform_tool_handler(
+                call_ref=call_ref,
+                arguments=body.data.function.arguments,
+                headers=request.headers,
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                workflows_service=self.workflows_service,
+                tracing_service=self.tracing_service,
+            )
+        except PlatformToolHandlerError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.message) from e
+
+        result = ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=response.model_dump_json(exclude_none=True),
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_OK",
             ),
         )
 

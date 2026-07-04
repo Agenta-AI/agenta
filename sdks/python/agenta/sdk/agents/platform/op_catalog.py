@@ -51,6 +51,7 @@ PLATFORM_OP_NAMESPACE = "tools.agenta."
 # Every ``context_bindings`` value addresses the run-context namespace through this token prefix
 # (e.g. ``$ctx.workflow.variant.id``); the runner resolves it at dispatch (see ``RunContext``).
 _CTX_TOKEN_PREFIX = "$ctx."
+_HANDLER_PREFIXES = ("tools.agenta.test_run",)
 
 
 class PlatformOp(BaseModel):
@@ -68,10 +69,13 @@ class PlatformOp(BaseModel):
     description: str = Field(
         min_length=1, description="Model-facing description (SDK-owned)."
     )
-    method: Literal["GET", "POST", "DELETE"]
+    method: Optional[Literal["GET", "POST", "DELETE"]] = None
     # An EXISTING Agenta endpoint, as a path relative to the API origin (e.g. ``/api/tools/discover``).
     # The runner binds the origin to the run's own Agenta and confines the path to the API mount.
-    path: str = Field(min_length=1)
+    path: Optional[str] = Field(default=None, min_length=1)
+    # A server-side handler call-ref in the reserved Agenta namespace. Handler-mode ops still go
+    # through `/tools/call`, but the business logic lives behind the registered Python handler.
+    handler: Optional[str] = Field(default=None, min_length=1)
     # Exactly one of the two below. ``input_schema`` is an inline JSON Schema (SDK-owned); it MAY
     # carry ``x-ag-type-ref`` markers, expanded against ``CATALOG_TYPES`` at resolve time.
     # ``input_schema_ref`` names a whole catalog type by key (the endpoint's request schema).
@@ -85,6 +89,8 @@ class PlatformOp(BaseModel):
     args_into: Optional[str] = None
     # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
     read_only: bool = False
+    # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
+    timeout_ms: Optional[int] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def _check(self) -> "PlatformOp":
@@ -101,11 +107,31 @@ class PlatformOp(BaseModel):
                 f"platform op '{self.op}' input_schema_ref '{self.input_schema_ref}' "
                 "is not a known CATALOG_TYPES key"
             )
-        if not self.path.startswith("/") or self.path.startswith("//"):
+
+        has_direct_target = self.method is not None or self.path is not None
+        has_handler_target = self.handler is not None
+        if has_direct_target == has_handler_target:
+            raise ValueError(
+                f"platform op '{self.op}' must set exactly one of "
+                "`method` + `path` or `handler`"
+            )
+        if has_direct_target and (self.method is None or self.path is None):
+            raise ValueError(
+                f"platform op '{self.op}' must set both `method` and `path` "
+                "for endpoint mode"
+            )
+        if self.path is not None and (
+            not self.path.startswith("/") or self.path.startswith("//")
+        ):
             raise ValueError(
                 f"platform op '{self.op}' path '{self.path}' must be a relative path "
                 "starting with a single '/'"
             )
+        if self.handler is not None and not self.handler.startswith(_HANDLER_PREFIXES):
+            raise ValueError(
+                f"platform op '{self.op}' handler '{self.handler}' is not allowlisted"
+            )
+
         for field, token in self.context_bindings.items():
             if not field:
                 raise ValueError(
@@ -143,9 +169,9 @@ class PlatformOp(BaseModel):
         return schema
 
     def to_call(self) -> ToolCall:
-        """The direct ``call`` descriptor: the endpoint to hit, where args land, and the
-        context bindings (emitted as ``context`` so the runner fills bound fields from run
-        context at dispatch)."""
+        """The direct ``call`` descriptor for endpoint-mode ops."""
+        if self.method is None or self.path is None or self.handler is not None:
+            raise ValueError(f"platform op '{self.op}' is not an endpoint-mode op")
         return ToolCall(
             method=self.method,
             path=self.path,
@@ -153,16 +179,24 @@ class PlatformOp(BaseModel):
             args_into=self.args_into,
         )
 
+    def to_call_ref(self) -> str:
+        """The reserved ``callRef`` for handler-mode ops."""
+        if self.handler is None:
+            raise ValueError(f"platform op '{self.op}' is not a handler-mode op")
+        return self.handler
+
 
 def _strip_field(schema: Dict[str, Any], dotted_path: str) -> None:
     """Delete the property at ``dotted_path`` from a JSON Schema's ``properties`` tree, in place,
     and drop it from the enclosing ``required`` list. A path that does not resolve is a no-op."""
     parts = dotted_path.split(".")
     node: Any = schema
+    stack: list[tuple[Dict[str, Any], str]] = []
     for part in parts[:-1]:
         properties = node.get("properties") if isinstance(node, dict) else None
         if not isinstance(properties, dict) or part not in properties:
             return
+        stack.append((node, part))
         node = properties[part]
     if not isinstance(node, dict):
         return
@@ -175,6 +209,25 @@ def _strip_field(schema: Dict[str, Any], dotted_path: str) -> None:
         required.remove(leaf)
         if not required:
             node.pop("required", None)
+
+    while stack and _is_empty_object_schema(node):
+        parent, part = stack.pop()
+        parent_props = parent.get("properties")
+        if isinstance(parent_props, dict):
+            parent_props.pop(part, None)
+        parent_required = parent.get("required")
+        if isinstance(parent_required, list) and part in parent_required:
+            parent_required.remove(part)
+            if not parent_required:
+                parent.pop("required", None)
+        node = parent
+
+
+def _is_empty_object_schema(node: Any) -> bool:
+    if not isinstance(node, dict):
+        return False
+    properties = node.get("properties")
+    return isinstance(properties, dict) and not properties and not node.get("required")
 
 
 # ---------------------------------------------------------------------------
@@ -776,6 +829,70 @@ _TEST_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["connection_id", "data"],
 }
 
+_TEST_RUN_DESCRIPTION = (
+    "Run this agent headlessly once against test messages and return its output, tools, "
+    "approval gates, resolved execution metadata, trace id, and verdict. The target workflow "
+    "variant is filled automatically from the current run context and cannot be retargeted. "
+    "This is a real run: external write tools may perform their action if approved."
+)
+_TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "target": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "workflow_variant_id": {
+                    "type": "string",
+                    "description": "Server-bound current workflow variant id.",
+                }
+            },
+            "required": ["workflow_variant_id"],
+        },
+        "inputs": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "messages": {
+                    "x-ag-type-ref": "messages",
+                    "description": "Test conversation messages for the headless run.",
+                }
+            },
+            "required": ["messages"],
+        },
+        "delta": {
+            "type": "object",
+            "additionalProperties": False,
+            "description": "Optional uncommitted revision delta to apply in memory before the test.",
+            "properties": {
+                "set": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "description": "Partial revision data tree deep-merged onto the committed revision.",
+                },
+                "remove": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Dotted paths to delete from the revision data tree.",
+                },
+            },
+        },
+        "expectations": {
+            "type": "object",
+            "additionalProperties": False,
+            "description": "Optional checks that define a passing test run.",
+            "properties": {
+                "terminal_tool": {
+                    "type": "string",
+                    "description": "Expected final/terminal tool name that must run and return.",
+                }
+            },
+        },
+    },
+    "required": ["target", "inputs"],
+}
+
 _EMPTY_INPUT_SCHEMA: Dict[str, Any] = {"type": "object", "properties": {}}
 _TRIGGER_ID_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -815,6 +932,15 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             path="/api/spans/query",
             input_schema=_QUERY_SPANS_INPUT_SCHEMA,
             read_only=True,
+        ),
+        PlatformOp(
+            op="test_run",
+            description=_TEST_RUN_DESCRIPTION,
+            handler="tools.agenta.test_run",
+            input_schema=_TEST_RUN_INPUT_SCHEMA,
+            context_bindings={"target.workflow_variant_id": "$ctx.workflow.variant.id"},
+            read_only=False,
+            timeout_ms=120000,
         ),
         PlatformOp(
             op="commit_revision",

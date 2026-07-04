@@ -363,6 +363,18 @@ class CallbackToolSpec(ToolSpecBase):
     # Direct-call descriptor (direct-call tools, Phase 1). When set the runner calls the endpoint
     # directly instead of the gateway. Plumbing only: nothing emits or dispatches it yet.
     call: Optional[ToolCall] = None
+    # Handler-mode callback specs use the same gateway executor as `call_ref`, but carry run-context
+    # bindings at the spec level so the relay can inject them before posting to `/tools/call`.
+    context_bindings: Optional[Dict[str, str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("context_bindings", "contextBindings"),
+        serialization_alias="contextBindings",
+    )
+    timeout_ms: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("timeout_ms", "timeoutMs"),
+        serialization_alias="timeoutMs",
+    )
 
     @model_validator(mode="after")
     def _check_call_target(self) -> "CallbackToolSpec":
