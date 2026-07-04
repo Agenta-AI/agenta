@@ -43,18 +43,20 @@ export const FILESYSTEM_UNSUPPORTED_MESSAGE =
   "remove sandbox_permission.filesystem.";
 
 /**
- * A non-Pi harness (MCP-only tool delivery) on a remote (Daytona) sandbox cannot receive
- * gateway/custom tools at all today (F1, audit finding): the internal tool-MCP channel is a
- * runner-loopback (`127.0.0.1`) HTTP server, unreachable from inside the sandbox, so
- * `buildSessionMcpServers` skips it on Daytona; the fallback path (the file relay) has a
+ * A non-Pi harness (MCP-only tool delivery) on a remote sandbox cannot receive gateway/custom
+ * tools at all today (F1, audit finding): the internal tool-MCP channel is a runner-loopback
+ * (`127.0.0.1`) HTTP server, unreachable from inside a remote sandbox, so
+ * `buildSessionMcpServers` skips it there; the fallback path (the file relay) has a
  * sandbox-side writer ONLY inside Pi's bundled extension (`extensions/agenta.ts`
  * `registerTools`), which no other harness loads. Before this gate, the run proceeded anyway,
  * `mcp.ts` logged a false "delivered via the file relay", and the harness silently received
  * zero tools with `ok:true` (the silent-tool-drop bug). Refuse loud instead, mirroring the
- * other not-implemented gates above.
+ * other not-implemented gates above. The gate keys on "not local" rather than "is daytona" so
+ * a NEW remote provider (e.g. the in-flight E2B one) fails closed with this error until tool
+ * delivery is proven there, instead of silently re-opening F1 one provider over.
  */
 export const REMOTE_TOOLS_UNSUPPORTED_MESSAGE =
-  "Tools are not supported for a non-Pi harness on a remote (daytona) sandbox: the internal " +
+  "Tools are not supported for a non-Pi harness on a remote sandbox: the internal " +
   "tool-MCP channel is loopback-only (unreachable from inside the sandbox), and there is no " +
   "in-sandbox relay client for this harness (only Pi's bundled extension writes the file " +
   "relay). Run on the local sandbox, use the Pi harness, or remove the tools. Tracked in " +
@@ -206,6 +208,11 @@ export function buildRunPlan(
 
   const isPi = acpAgent === "pi";
   const isDaytona = sandboxId === "daytona";
+  // Any non-local sandbox counts as remote for the F1 tools gate below. An unknown provider id
+  // currently falls through to the LOCAL cwd/provider path further down, but for tool delivery
+  // it must fail CLOSED: a future provider (E2B et al.) has no proven delivery path until it
+  // ships one, and "unknown" must not silently behave like "reachable loopback".
+  const isRemoteSandbox = sandboxId !== "local";
 
   const secrets = request.secrets ?? {};
   const legacyHarnessApiKeyVar =
@@ -262,14 +269,17 @@ export function buildRunPlan(
     return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
   }
 
-  // F1 (audit finding, silent-tool-drop): a non-Pi harness on a remote (Daytona) sandbox has NO
-  // working delivery path for gateway/custom tools. The internal tool-MCP is loopback-only
-  // (unreachable from inside the sandbox), and the file-relay fallback has a sandbox-side writer
-  // only inside Pi's bundled extension. Before this gate the run proceeded, silently dropped
-  // every tool, and still returned `ok:true`. Refuse up front, the way the other not-implemented
-  // gates above do. `executableToolSpecsForRun` excludes `client` tools (browser-fulfilled, never
-  // routed through this channel), matching what the internal MCP channel actually advertises.
-  if (!isPi && isDaytona && executableToolSpecsForRun.length > 0) {
+  // F1 (audit finding, silent-tool-drop): a non-Pi harness on a remote sandbox has NO working
+  // delivery path for gateway/custom tools. The internal tool-MCP is loopback-only (unreachable
+  // from inside the sandbox), and the file-relay fallback has a sandbox-side writer only inside
+  // Pi's bundled extension. Before this gate the run proceeded, silently dropped every tool, and
+  // still returned `ok:true`. Refuse up front, the way the other not-implemented gates above do,
+  // and fail CLOSED for any non-local provider (see `isRemoteSandbox`) so a new remote provider
+  // cannot silently re-open F1. `executableToolSpecsForRun` excludes `client` tools
+  // (browser-fulfilled, never routed through this channel), matching what the internal MCP
+  // channel actually advertises; #4985 moves client tools onto that channel and owns tightening
+  // this exemption when it lands.
+  if (!isPi && isRemoteSandbox && executableToolSpecsForRun.length > 0) {
     return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
   }
 

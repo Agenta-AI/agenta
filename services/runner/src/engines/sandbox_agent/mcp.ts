@@ -233,15 +233,17 @@ export async function buildSessionMcpServers({
   const internal = isDaytona
     ? { servers: [], close: async () => {} }
     : await buildToolMcpServers(toolSpecs, relayDir, log);
-  // Only Pi has a sandbox-side file-relay writer (its bundled extension); this line runs after
-  // the `isPi` early-return above, so it is dead for a harness that could actually claim relay
-  // delivery. Kept as a defense-in-depth check — a future change to the early-return above must
-  // not resurrect the F1 false log ("delivered via the file relay" for a harness with no relay
-  // writer). `run-plan.ts` refuses this combination before it ever reaches here.
-  if (isDaytona && toolSpecs.length > 0 && isPi) {
+  // Only Pi has a sandbox-side file-relay writer (its bundled extension), and Pi never reaches
+  // this point (the `isPi` early-return above), so no harness that gets here has ANY delivery
+  // path on Daytona. `run-plan.ts` (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`) refuses that combination
+  // before a session is built; if it ever reaches here anyway, log the honest fact — the
+  // advertisement was skipped — and never claim a file-relay delivery that isn't happening
+  // (the F1 false log).
+  if (isDaytona && toolSpecs.length > 0) {
     log(
-      `daytona: ${toolSpecs.length} gateway tool(s) delivered via the file relay, not a ` +
-        `loopback MCP URL (unreachable from the sandbox)`,
+      `daytona: skipped the loopback tool-MCP advertisement for ${toolSpecs.length} tool(s) ` +
+        `(runner loopback unreachable from the sandbox; no delivery path for this harness — ` +
+        `run-plan should have refused this run)`,
     );
   }
   // Layer 2: USER MCP capability (stdio disabled, http delivered; do not merge with Layer 1).

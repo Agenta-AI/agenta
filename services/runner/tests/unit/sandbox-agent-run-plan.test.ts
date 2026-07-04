@@ -440,9 +440,29 @@ describe("buildRunPlan", () => {
 
       assert.equal(result.ok, false);
       if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote \(daytona\) sandbox/);
+      assert.match(result.error, /non-Pi harness on a remote sandbox/);
       assert.match(result.error, /docs\/design\/agent-workflows\/projects\/remote-tools-delivery\//);
       assert.equal(created, false, "fails before any cwd is created (up-front gate)");
+    });
+
+    it("refuses claude x UNKNOWN remote provider x tools (fails closed, not open)", () => {
+      // The gate keys on `sandbox !== "local"`, not `sandbox === "daytona"`, so a new remote
+      // provider (the in-flight E2B one, or anything after it) is refused with the same loud
+      // error until it ships a proven tool-delivery path — instead of silently re-opening the
+      // F1 zero-tools drop one provider over.
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "e2b",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "/tmp/local-cwd" },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /non-Pi harness on a remote sandbox/);
     });
 
     it("allows claude x daytona x NO tools", () => {
