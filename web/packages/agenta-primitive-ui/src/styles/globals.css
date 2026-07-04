@@ -1,7 +1,9 @@
 /* No-preflight Tailwind: the host app (antd, preflight disabled) must not be reset. */
-@layer theme, base, components, utilities;
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities);
+/* Layer names must NOT be base/components/utilities: the host app's Tailwind v3
+   PostCSS pass treats those as its own directives and errors on the compiled output. */
+@layer pui-theme, pui-base, pui-components, pui-utilities;
+@import "tailwindcss/theme.css" layer(pui-theme);
+@import "tailwindcss/utilities.css" layer(pui-utilities);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -121,7 +123,7 @@
 }
 
 /* Scoped preflight: shadcn components carry data-slot; never reset the antd-owned page. */
-@layer base {
+@layer pui-base {
     [data-slot],
     [data-slot] *,
     [data-slot] *::before,
