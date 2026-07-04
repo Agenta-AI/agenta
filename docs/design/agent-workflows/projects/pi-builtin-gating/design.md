@@ -84,14 +84,27 @@ Two corrections from the Codex review shape how this is done:
   activate one that was off. Read the current active set with `getActiveTools()`, read the
   full set with `getAllTools()`, and replace only the seven builtins' slice with the granted
   subset. Non-builtin tools pass through untouched.
+- **`before_agent_start` handlers chain on a stale prompt copy.** Pi runs every registered
+  `before_agent_start` handler in turn, and each receives the current system prompt and may
+  return a replacement. A handler that built its replacement from a copy it captured before
+  our edit ran can hand back a prompt that still lists a builtin we just removed, silently
+  leaking it back in after `setActiveTools` already rebuilt the base prompt. The Phase 2 build
+  must assert, in a test, that a removed builtin's name is absent from the *final* system
+  prompt of the turn, not just from the value our own handler returns. Other extensions calling
+  `setActiveTools` again after ours, to re-enable a builtin we removed, is out of scope for this
+  slice: every run we install carries exactly one extension, ours. That becomes a real ordering
+  question the day a user-supplied Pi extension ships alongside ours, and is noted here so it is
+  not forgotten then.
 
 The `tool_call` hook is then free to handle only the per-call policy on the tools that are
 enabled; the grant never needs re-checking at call time.
 
-A fallback exists if `before_agent_start` proves too late to hide a tool from the model: the
-`tool_call` hook blocks any builtin not in the grant list, with a reason that says the tool is
-not enabled. This is strictly weaker (the model can try and fail), so the active-set approach
-is primary and block-in-hook is the backstop. Phase 2 picks one after a live check.
+The `tool_call` hook never checks the grant. A non-granted builtin is not in the active set,
+so no call for it ever fires, and there is nothing for the hook to check. If a call for a
+non-granted builtin somehow does fire anyway, that means the active-set edit did not take
+(a bug in the `before_agent_start` path), and it surfaces there, on the policy side, not as a
+second grant check in the hook. Phase 2 verifies live that `before_agent_start` actually hides
+the tool from the model for the current turn.
 
 ## The permission record on the relay protocol
 
@@ -154,12 +167,22 @@ through its own validator, both folded in above.
 The runner's permission branch builds a `GateDescriptor` from the record:
 
 - `executor`: `"harness"` (see the executor question below).
-- `toolName`: the builtin name from the record.
+- `toolName`: the builtin name from the record, normalized (see below).
 - `readOnlyHint`: looked up in the runner-side table (`read`, `grep`, `find`, `ls` = read;
   `bash`, `edit`, `write` = write). Not sent by the sandbox. Classification stays runner-side.
 - `args`: the real arguments from the record.
 - `specPermission` and `serverPermission`: unset. A builtin has no resolved spec and no MCP
   server, so its permission comes from pattern rules and the global default only.
+
+**Case normalization.** Authored rules use the Claude-style capitalized vocabulary, for example
+`Bash(npm:*)`, because that vocabulary was written for Claude's tool names. Pi's builtin names
+are lowercase (`bash`, `read`, `edit`). Left alone, a `Bash(...)` rule would never match a Pi
+`bash` call, and gating would silently fall through to the global default instead of the
+authored rule. The permission-record handler normalizes the builtin name through the same
+runner-side table that supplies `readOnlyHint`: one table maps a Pi builtin name to both its
+canonical rule name and its read-only bit, so `Bash(npm:*)` matches a Pi `bash` call regardless
+of which casing the author used. That table is the single place builtin identity lives; nothing
+else invents a second mapping between Pi's names and the authored rule vocabulary.
 
 Then it calls the same `decide(gate, permissionPlan, decisions)` the relay already uses and
 writes the verdict verbatim: `allow` -> `{ verdict: "allow" }`; `deny` -> `{ verdict: "deny",
@@ -174,10 +197,11 @@ names the *component* that executes the tool. Pi runs its own builtins, so the e
 component is the harness. `executor: "harness"` is the honest value. The things I thought
 justified a new value are real but belong elsewhere:
 
-- **Pending means block here, not withhold.** True, but that is post-decision handling. It
-  lives in the permission-record handler that writes the response, not in the descriptor. The
-  handler knows it is servicing a builtin permission record and writes a block on pending; the
-  descriptor does not need to encode it.
+- **Pending means block here, not withhold.** True, but that is post-decision handling, and it
+  is split across two places, not owned by the descriptor. The runner-side handler writes the
+  verdict verbatim (`{ verdict: "pendingApproval", reason }`); the extension hook, the one place
+  that knows Pi's `{ block: true }` mechanics, maps that verdict to a block. The descriptor does
+  not need to encode either half.
 - **`readOnlyHint` has a different source.** Also true, but it is resolved before the
   descriptor is built. The handler looks it up in the runner table and sets the field. The
   descriptor just carries the resolved hint, same as for any tool.
@@ -202,8 +226,8 @@ nothing. Proposed variables, read by the extension:
   extension live.
 - `AGENTA_AGENT_BUILTIN_GRANTS`: a JSON array of the granted builtin names, from
   `request.tools`, de-duped and filtered to the seven known builtin names. Drives the
-  active-set edit and the grant check. Decide explicitly whether an unknown name is dropped or
-  fails the run closed; the lean is to drop unknowns and log.
+  active-set edit, the only place the grant is enforced. Decide explicitly whether an unknown
+  name is dropped or fails the run closed; the lean is to drop unknowns and log.
 - `AGENTA_AGENT_TOOLS_RELAY_DIR`: already exists. Reused for the permission records. Must now
   be set when gating is active even with zero custom tools.
 
@@ -249,17 +273,19 @@ Consider an agent with `bash: ask` and a user watching the playground.
    paused tool call, emits the `interaction_request` event the playground renders as
    Approve/Deny, records the durable interaction, and pauses the turn. It also writes the
    response `{ kind: "permission", verdict: "pendingApproval", reason: "Waiting for approval of bash." }`.
-5. The hook reads the block and returns `{ block: true, reason }`. Pi does not run the shell
-   command. The turn is already pausing, so the model does not act on the reason this turn.
+5. The hook reads the `pendingApproval` verdict, verbatim as the runner wrote it, and maps it
+   to `{ block: true, reason }`. Pi does not run the shell command. The turn is already
+   pausing, so the model does not act on the reason this turn.
 6. The user clicks Approve. The run resumes. The stored decision now holds `allow` for this
    builtin and these args.
 7. The model re-issues the `bash` call. The hook checks again, the runner's `decide()` finds
    the stored `allow`, and the response is `{ kind: "permission", verdict: "allow" }`. The hook
-   returns nothing, Pi runs the command, and the turn continues.
+   maps `allow` to nothing (no block), Pi runs the command, and the turn continues.
 
-For `deny` the flow stops at step 3 with a straight block and the deny reason. For `allow`
-the hook writes and reads a round-trip that always says allow; that is the overhead the
-gating-active predicate exists to avoid on all-`allow` runs.
+For `deny` the flow stops at step 3: the runner writes `{ verdict: "deny", reason }` verbatim
+and the hook maps it to a block with the deny reason. For `allow` the hook writes and reads a
+round-trip that always says allow; that is the overhead the gating-active predicate exists to
+avoid on all-`allow` runs.
 
 ## Failure modes
 
@@ -314,6 +340,16 @@ rule that an unparseable policy asks rather than runs (permission-plan.ts:74).
 mid-poll when that happens. It dies with the sandbox, which is fine: the decision already
 emitted its event and paused the turn on the runner side. The runner-side response write may
 race the teardown; the write is best-effort and the resume path does not depend on it.
+
+**Version skew between the runner and the baked extension bundle.** The runner installs a
+pre-built bundle, `dist/extensions/agenta.js`, not the source tree. A stale bundle means the
+gating hook and the active-set edit silently do not exist in the running agent, even though the
+runner-side code looks correct. This exact class of bug bit us before, when a stale bundle
+silently dropped custom tools. The permission record carries a `protocol: 1` field to catch it
+mechanically rather than relying on remembering to rebuild: the runner's permission-record
+handler fails closed (verdict `deny`, logged loudly) on a missing or unrecognized protocol
+version, and the extension hook treats a malformed or version-mismatched response the same way.
+A version bump on either side without the matching bump on the other fails loud, not silent.
 
 ## What stays out of the sandbox
 

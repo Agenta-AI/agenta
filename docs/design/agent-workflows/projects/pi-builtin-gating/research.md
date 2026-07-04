@@ -119,8 +119,12 @@ from one assistant message are preflighted sequentially, then executed concurren
 `pi.setActiveTools([...])` on the extension API, and `--no-builtin-tools` /
 `noTools: "builtin"` to start with builtins off. `setActiveTools` takes the full enabled set,
 including custom and extension tool names (`sdk.md:553`). This gives a second, cleaner
-mechanism for the grant list: set the active set to exactly the granted builtins plus our
-registered custom tools, so the model never sees a non-granted builtin at all. See design.md.
+mechanism for the grant list, corrected from an earlier draft of this idea: not "set the active
+set to the granted builtins plus our registered custom tools" (that would drop or wrongly
+activate any tool this extension did not itself register, including another extension's
+tools), but read `getActiveTools()` and `getAllTools()` first, then replace only the seven
+builtins' slice with the granted subset and leave every non-builtin tool exactly as it was.
+The model never sees a non-granted builtin, and no other tool is touched. See design.md.
 
 ## Read-only classification lives runner-side
 

@@ -26,10 +26,12 @@ snapshot forever.
 
 **Executor reuses `"harness"` (settled, was open).** The first draft leaned toward a new
 `GateExecutor` value `"builtin"`. The Codex review argued that `executor` names the executing
-*component*, and Pi runs its own builtins, so the honest value is `"harness"`. The
-pending-to-block mapping and the read-only lookup are post-decision handling that lives in the
-builtin permission-record handler, not in the descriptor. Accepted. No new enum value; add a
-named `toolClass`/`gateSource` dimension later only if resume anchoring ever needs it.
+*component*, and Pi runs its own builtins, so the honest value is `"harness"`. Pending-to-block
+mapping and the read-only lookup are post-decision handling that does not belong in the
+descriptor: the runner-side permission-record handler writes the verdict verbatim, and the
+extension hook, at the Pi boundary, maps that verdict to Pi's `{ block: true }`. Accepted. No
+new enum value; add a named `toolClass`/`gateSource` dimension later only if resume anchoring
+ever needs it.
 
 **Grant list via `setActiveTools`, at `before_agent_start` (leaning yes, open).** The grant
 gap maps most cleanly to Pi's active-tool allowlist, so the model never sees a non-granted
@@ -131,3 +133,42 @@ settings field, so the folder carries code instead of a config line. Portability
 a design goal: the same agent dir enforces the same grant under native `pi` use, outside our
 ACP path. Considered and rejected: a `pi` binary shim in the sandbox image (image-coupled,
 breaks native use) and waiting for the upstream passthrough (leaves the grant dead, ACP-only).
+
+## Codex re-review (round 2)
+
+**Verdict: fix first.** Codex re-read the workspace, found stale text left over from earlier
+drafts and three underspecified risks, and read Pi's shipped source again to source the three
+technical adds. All seven folded into design.md, plan.md, and research.md:
+
+1. Purged stale hook-side grant language. The `tool_call` hook does policy only; it never
+   checks the grant. A non-granted builtin is absent from the active set, so no call fires; if
+   one somehow does, that is a bug in the active-set edit, not a second grant check.
+2. Fixed block-mapping location inconsistencies. The runner writes `decide()`'s verdict
+   verbatim; only the extension hook, at the Pi boundary, maps a non-allow verdict to Pi's
+   `{ block: true }`. Several passages had drifted into saying the runner handler writes or
+   owns a block.
+3. Added the prompt-ordering mitigation for `setActiveTools`. `before_agent_start` handlers
+   chain on a system prompt each may replace from a stale copy, so a later handler can leak a
+   removed builtin back into the prompt. Phase 2 now asserts the removed builtin's name is
+   absent from the turn's final system prompt. A second extension re-enabling a builtin after
+   ours is declared out of scope for this slice (we install exactly one extension), noted as a
+   real question the day a user-supplied extension ships.
+4. Corrected the stale "set active tools to granted builtins plus our registered custom tools"
+   idea in research.md to the actual mechanism: read `getActiveTools()`/`getAllTools()`,
+   replace only the seven builtins' slice, leave every non-builtin tool untouched.
+5. Added a version-skew failure mode. The runner installs a pre-built bundle; a stale bundle
+   means gating silently does not exist, the same class of bug that once silently dropped
+   custom tools. The permission record now carries `protocol: 1`; both sides fail closed (deny,
+   logged) on a missing or unknown version. Plan.md adds a build/CI guard that the bundle is
+   rebuilt when `src/extensions` changes, plus the protocol-version pin test.
+6. Sharpened Phase 0's pass condition: 5 of 5 spike runs must show the approved builtin
+   executing exactly once after resume, never before approval, with matching canonical args,
+   with the resumed transcript recorded as evidence. Anything else fails the phase and the
+   design goes back to the owner.
+7. Added case normalization for rule matching: authored rules use Claude-style capitalized
+   names (`Bash(...)`), Pi's builtins are lowercase (`bash`). The permission-record handler now
+   normalizes through the same runner-side table that supplies `readOnlyHint`, so `Bash(npm:*)`
+   matches a Pi `bash` call. That table is the single place builtin identity lives.
+
+The three technical adds, the prompt-ordering assert, the protocol-version pin, and case
+normalization, came from Codex reading Pi's shipped source, not from re-reading our own docs.

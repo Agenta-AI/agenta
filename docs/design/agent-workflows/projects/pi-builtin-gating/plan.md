@@ -22,11 +22,14 @@ Steps:
   error tool result, so re-issue is a pure model-behavior outcome; confirm it on the real
   resume path, not in isolation.
 
-Exit: either "Pi re-issues reliably" (proceed), or "Pi needs the retry-nudge reason"
-(proceed, and make that reason the default), or "Pi does not re-issue" (stop and rethink;
-the fallback would be to hold the turn open on the hook side rather than block, which is a
-different design and would go back to you before any build). This phase is a few hours and
-saves days.
+Pass condition: run the spike 5 times through the real runner pause and teardown. Phase 0
+PASSES only if, across all 5 of 5 runs, the approved builtin executes exactly once after
+resume, never before approval, with the same canonical args each time (so the stored decision
+matches). Record the resumed transcript from each run as evidence. Any run that misses the bar,
+a double execution, a pre-approval execution, an args mismatch, or no re-issue at all, fails
+the phase. On any failure, stop and take the design back to the owner rather than patching
+around it; the fallback (holding the turn open on the hook side instead of blocking) is a
+materially different design and needs sign-off before it is built.
 
 ## Phase 1: the relay permission record and the runner decision
 
@@ -38,8 +41,9 @@ saves days.
 - In `startToolRelay`'s `handle` (relay.ts:312), branch on `kind`. For `"permission"`: build
   the `GateDescriptor` (`executor: "harness"`, `toolName`, `readOnlyHint` from the new builtin
   table, `args`), call `decide`, and write a response on **every** branch, including pending.
-  On pending, call `onPendingApproval` first, then write the block response. The
-  pending-to-block mapping lives in this handler.
+  On pending, call `onPendingApproval` first, then write `{ verdict: "pendingApproval", reason
+  }` verbatim, the same as `decide()` returned. This handler never writes a block; the
+  verdict-to-block mapping lives in the extension hook at the Pi boundary.
 - Add the builtin read-only table next to `decide()` in
   `services/runner/src/permission-plan.ts`. No new `GateExecutor` value; builtins use
   `"harness"`.
@@ -48,7 +52,8 @@ saves days.
   waiting-for-approval reason when it emitted and the another-approval-pending reason when the
   latch was already held.
 - Unit tests: allow, deny, and pending each produce the right response record; a pending
-  record both calls `onPendingApproval` and writes a block; a latch-held pending writes the
+  record both calls `onPendingApproval` and writes the `pendingApproval` verdict verbatim
+  (never a block, the handler does not map verdicts); a latch-held pending writes the
   another-approval reason; an all-`allow` policy produces allow for `bash`; a read builtin
   (`grep`) allows under `allow_reads` while a write builtin (`write`) asks; a `bash(git:*)`
   prefix rule matches on the real command argument.
@@ -58,8 +63,8 @@ saves days.
 - Add `hasBuiltinGating` to the extension's inertness guard (agenta.ts:165) so a gating-only
   run (no custom tools, no tracing, no usage) does not early-return before registering the hook.
 - Add the `tool_call` hook to `services/runner/src/extensions/agenta.ts`, registered only
-  when `AGENTA_AGENT_BUILTIN_GATING` is set. Narrow with `isToolCallEventType`. For a builtin:
-  grant check first, then write a permission record through a new
+  when `AGENTA_AGENT_BUILTIN_GATING` is set. Narrow with `isToolCallEventType`. For a builtin,
+  the hook does policy only, no grant check: it writes a permission record through a new
   `relayPermissionCheck(dir, toolName, toolCallId, args)` helper in `dispatch.ts` (sibling of
   `relayToolCall`, reusing `sanitizeRelayId`, `RELAY_POLL_MS`, `RELAY_TIMEOUT_MS`, and a
   dedicated permission-response validator). Return `{ block: true, reason }` on block, nothing
@@ -67,15 +72,24 @@ saves days.
 - Grant enforcement: shape the active tool set at `before_agent_start` (not extension init,
   where Pi stubs the action methods). Read `getActiveTools()` and `getAllTools()` and replace
   only the builtin portion with the granted subset, so user and local extension tools pass
-  through untouched. Verify it affects the current turn's system prompt. Keep the block-in-hook
-  path as the documented fallback if `before_agent_start` is too late to hide a tool.
+  through untouched. A non-granted builtin is then absent from the active set, so its
+  `tool_call` never fires; there is no second grant check anywhere else.
+- Prompt-ordering guard: `before_agent_start` handlers chain, and a later handler can hand back
+  a system prompt built from a stale copy that still lists a builtin we just removed. Assert,
+  in a test, that a removed builtin's name is absent from the *final* system prompt of the
+  turn (after every registered handler has run), not only from the value our own handler
+  returns. Re-enabling a builtin from a second extension's `setActiveTools` call is out of
+  scope for this slice (every run installs exactly one extension, ours); noted for the day a
+  user-supplied extension ships alongside ours.
 - Validate `AGENTA_AGENT_BUILTIN_GRANTS`: de-dupe, keep only the seven known builtin names, and
   drop-and-log unknowns.
 - Rebuild the bundle (`scripts/build-extension.mjs`) so the local and Daytona installs carry
   the hook.
-- Tests: the hook blocks a non-granted builtin; a granted builtin round-trips a permission
-  record; the hook is absent when the gating env is unset (the inert path); a gating-only run
-  still registers the hook (the inertness-guard fix).
+- Tests: a non-granted builtin is absent from Pi's active tool set after `before_agent_start`,
+  and therefore its `tool_call` never fires; a granted builtin round-trips a permission record;
+  the hook is absent when the gating env is unset (the inert path); a gating-only run still
+  registers the hook (the inertness-guard fix); a removed builtin's name is absent from the
+  final system prompt of the turn (the prompt-ordering guard above).
 
 ## Phase 3: env plumbing and always-on relay when gating is active
 
@@ -108,10 +122,18 @@ saves days.
   builtin `/run` and replay it without a live LLM, so the wiring cannot silently regress the
   way the grant list did in `0e71bd0f7a`.
 - Re-enable the grant list assertion: a run whose `tools` omits `bash` cannot call `bash`.
-- Case sensitivity: pattern rules match case-sensitively today, and existing tests use
-  Claude-style `Bash(npm run:*)` while Pi emits lowercase `bash`. Either normalize the known
-  builtin rule aliases or document that Pi builtin rules must be lowercase, and add a test for
-  both spellings so a `Bash(...)` rule does not silently miss a Pi `bash` call.
+- Case normalization: add the runner-side table that maps a Pi builtin name to both its
+  canonical rule name and its read-only bit (the same table `readOnlyHint` comes from), and
+  route the permission-record handler's `toolName` through it before calling `decide`. Test
+  that an authored `Bash(npm:*)` rule matches a Pi `bash` call, so a `Bash(...)` rule does not
+  silently miss a lowercase Pi call.
+- Version skew guard: add a `protocol: 1` field to the permission record. Test that the
+  runner's permission-record handler fails closed (verdict `deny`, logged) on a missing or
+  unknown protocol version, and that the extension hook treats a malformed or
+  version-mismatched response the same way. Add a build/CI guard, reusing the existing
+  `build:extension` step, that fails when `dist/extensions/agenta.js` is stale relative to
+  `src/extensions` (source changed, bundle not rebuilt), so a stale-bundle regression like the
+  one that silently dropped custom tools cannot recur for gating.
 
 ## Phase 5: live validation across the matrix
 
