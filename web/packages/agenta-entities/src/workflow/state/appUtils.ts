@@ -201,7 +201,8 @@ export async function createEphemeralAppFromTemplate({
         flags: {
             is_managed: false,
             is_custom: false,
-            is_llm: true,
+            // Handler-key flag; must be false for agents (key "agent"), else workflowType() types it "llm".
+            is_llm: type !== "agent",
             is_hook: false,
             is_code: false,
             is_match: false,
