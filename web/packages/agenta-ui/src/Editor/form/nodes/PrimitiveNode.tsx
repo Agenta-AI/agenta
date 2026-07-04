@@ -1,8 +1,9 @@
 import {type FC, type ReactNode} from "react"
 
-import {Form, Input, InputNumber, Switch, Typography} from "antd"
+import {Form, Input, InputNumber, Switch} from "antd"
 import clsx from "clsx"
 
+import {EditableText} from "../../../components/presentational/editable/EditableText"
 import TreeRow from "../shared/TreeRow"
 
 import {BaseNodeProps, CustomRenderFn} from "./NodeTypes"
@@ -10,8 +11,6 @@ import {BaseNodeProps, CustomRenderFn} from "./NodeTypes"
 export interface PrimitiveNodeProps extends BaseNodeProps {
     customRender?: CustomRenderFn
 }
-
-const {Text} = Typography
 
 const PrimitiveNodeComponent: FC<PrimitiveNodeProps> = ({
     className,
@@ -31,24 +30,20 @@ const PrimitiveNodeComponent: FC<PrimitiveNodeProps> = ({
     return (
         <TreeRow depth={depth} className={clsx("primitive", className)}>
             {typeof k === "number" ? (
-                <Text className="text-xs font-semibold leading-5 mr-1">{k}</Text>
+                <span className="text-xs font-semibold leading-5 mr-1">{k}</span>
             ) : (
-                <Text
+                <EditableText
+                    value={k}
+                    monospace={false}
+                    tooltip="Click to rename"
                     className="text-xs font-semibold leading-5 mr-1"
-                    editable={{
-                        icon: null,
-                        triggerType: ["text"],
-                        autoSize: true,
-                        onChange: (newKey) => {
-                            const trimmed = newKey.trim()
-                            if (trimmed && trimmed !== k) {
-                                handleRename(path, trimmed)
-                            }
-                        },
+                    onChange={(newKey) => {
+                        const trimmed = newKey.trim()
+                        if (trimmed && trimmed !== k) {
+                            handleRename(path, trimmed)
+                        }
                     }}
-                >
-                    {k}
-                </Text>
+                />
             )}
             <Form.Item
                 name={path}

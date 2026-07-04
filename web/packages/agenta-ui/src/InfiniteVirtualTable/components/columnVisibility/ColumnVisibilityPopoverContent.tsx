@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {FolderOpenOutlined, FileOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
-import {Button, Input, Tree, Typography} from "antd"
+import {Button, Input, Tree} from "antd"
 import type {DataNode} from "antd/es/tree"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
@@ -118,9 +118,9 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             return {
                 title:
                     typeof label === "string" ? (
-                        <Typography.Text className={hasChildren ? "font-semibold" : ""} ellipsis>
+                        <span className={`${hasChildren ? "font-semibold" : ""} truncate`}>
                             {label}
-                        </Typography.Text>
+                        </span>
                     ) : (
                         label
                     ),
@@ -252,9 +252,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             />
 
             <div className="flex flex-col gap-1">
-                <Typography.Text className="text-xs font-medium uppercase text-zinc-6">
-                    Visibility
-                </Typography.Text>
+                <span className="text-xs font-medium uppercase text-zinc-6">Visibility</span>
                 <div className="flex flex-wrap gap-1.5">
                     <Button size="small" onClick={handleExpandAll}>
                         Expand all

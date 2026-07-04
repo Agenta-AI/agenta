@@ -28,12 +28,10 @@
 
 import React, {useMemo} from "react"
 
-import {Select, Typography} from "antd"
+import {Select} from "antd"
 import type {DefaultOptionType} from "antd/es/select"
 
 import {cn, textColors} from "../../utils/styles"
-
-const {Text} = Typography
 
 // ============================================================================
 // TYPES
@@ -301,12 +299,12 @@ export function HierarchyLevelSelect<T>({
     return (
         <div className={cn("flex flex-col min-w-0", className)}>
             {showLabel && label && (
-                <Text className={cn("text-xs mb-1 block", textColors.secondary)}>
+                <span className={cn("text-xs mb-1 block", textColors.secondary)}>
                     {label}
                     {showAutoIndicator && isAutoSelected && (
                         <span className="text-zinc-400 ml-1">(auto)</span>
                     )}
-                </Text>
+                </span>
             )}
             <Select<string, HierarchyLevelSelectOption>
                 className="w-full"

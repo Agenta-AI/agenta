@@ -2,7 +2,7 @@ import type {ComponentType, ReactNode} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, DownloadSimple} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 
@@ -12,7 +12,7 @@ import type {InfiniteTableRowBase} from "../types"
 
 // Default fallback for UserReference - just shows the userId
 const DefaultUserReference = ({userId}: {userId: string | null | undefined}) => {
-    if (!userId) return <Typography.Text type="secondary">—</Typography.Text>
+    if (!userId) return <span className="text-muted-foreground">—</span>
     return <span className="truncate">{userId}</span>
 }
 

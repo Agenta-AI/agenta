@@ -25,9 +25,7 @@
 
 import {useState, useEffect, useCallback} from "react"
 
-import {Input, Tooltip, Typography} from "antd"
-
-const {Text} = Typography
+import {Input, Tooltip} from "antd"
 
 export interface EditableTextProps {
     /** Current value */
@@ -136,14 +134,14 @@ export function EditableText({
 
     return (
         <Tooltip title={tooltip}>
-            <Text
+            <span
                 className={`text-sm cursor-pointer hover:text-blue-600 hover:underline ${
                     monospace ? "font-mono" : ""
                 } ${className}`}
                 onClick={handleStartEdit}
             >
                 {value || <span className="text-gray-400 italic">{placeholder}</span>}
-            </Text>
+            </span>
         </Tooltip>
     )
 }

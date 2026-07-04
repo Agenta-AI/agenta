@@ -24,11 +24,9 @@
 import {memo} from "react"
 
 import {Lightning, Table, Database} from "@phosphor-icons/react"
-import {Select, Typography} from "antd"
+import {Select} from "antd"
 
 import {cn} from "../../../utils/styles"
-
-const {Text} = Typography
 
 // ============================================================================
 // TYPES
@@ -132,9 +130,9 @@ export const PathSelectorDropdown = memo(function PathSelectorDropdown({
                                 : defaultSourceIcon(p.source, iconSize)}
                             <span className="truncate">{p.label}</span>
                         </div>
-                        <Text type="secondary" className="text-xs ml-2">
+                        <span className="text-xs ml-2 text-muted-foreground">
                             {p.valueType || p.type || ""}
-                        </Text>
+                        </span>
                     </div>
                 ),
             }))}

@@ -17,11 +17,9 @@
 import type {ReactNode} from "react"
 
 import {InfoCircleOutlined} from "@ant-design/icons"
-import {Tooltip, Typography} from "antd"
+import {Tooltip} from "antd"
 
 import {cn, flexLayouts, gapClasses, textColors, textSizes} from "../../../utils/styles"
-
-const {Text} = Typography
 
 // ============================================================================
 // TYPES
@@ -87,7 +85,7 @@ export function LabeledField({
         >
             {label && (
                 <div className="flex items-center gap-1">
-                    <Text
+                    <span
                         className={cn(
                             "font-medium",
                             textColors.primary,
@@ -96,7 +94,7 @@ export function LabeledField({
                         )}
                     >
                         {label}
-                    </Text>
+                    </span>
                     {showTooltipIcon && (
                         <Tooltip title={description} placement={tooltipPlacement}>
                             <InfoCircleOutlined

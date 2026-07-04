@@ -21,7 +21,7 @@ import {useEffect, useMemo, useRef, useState} from "react"
 import {generateId} from "@agenta/shared/utils"
 import {LoadingOutlined, MinusCircleOutlined} from "@ant-design/icons"
 import {Image as ImageIcon} from "@phosphor-icons/react"
-import {Button, Input, Progress, Spin, Typography, Upload} from "antd"
+import {Button, Input, Progress, Spin, Upload} from "antd"
 import type {UploadFile} from "antd"
 import clsx from "clsx"
 
@@ -223,12 +223,12 @@ const PromptImageUpload = ({
                 )}
 
                 <div className="flex flex-col w-full items-start">
-                    <Typography.Text>
+                    <span>
                         Drag an image here or{" "}
                         <Button type="link" className="p-0 underline" onClick={triggerUpload}>
                             upload a file
                         </Button>
-                    </Typography.Text>
+                    </span>
 
                     {!isUploading && (
                         <Input
@@ -247,11 +247,7 @@ const PromptImageUpload = ({
                         <Progress size="small" percent={imageFile?.percent} showInfo={false} />
                     )}
 
-                    {error && (
-                        <Typography.Text className="text-[var(--ag-c-D61010)] mt-1">
-                            {error}
-                        </Typography.Text>
-                    )}
+                    {error && <span className="text-[var(--ag-c-D61010)] mt-1">{error}</span>}
                 </div>
             </div>
         )

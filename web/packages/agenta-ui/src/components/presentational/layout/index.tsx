@@ -27,8 +27,6 @@
 
 import type {ReactNode} from "react"
 
-import {Typography} from "antd"
-
 import {
     borderColors,
     cn,
@@ -38,8 +36,6 @@ import {
     textColors,
     textSizes,
 } from "../../../utils/styles"
-
-const {Text} = Typography
 
 // ============================================================================
 // TYPES
@@ -106,8 +102,8 @@ export function NumberedStep({number, title, subtitle, children, className}: Num
         >
             <div className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
                 <span className={cn("font-medium", textColors.tertiary)}>{number}.</span>
-                <Text className={cn("font-medium", textSizes.sm, textColors.primary)}>{title}</Text>
-                {subtitle && <Text className={textColors.tertiary}>{subtitle}</Text>}
+                <span className={cn("font-medium", textSizes.sm, textColors.primary)}>{title}</span>
+                {subtitle && <span className={textColors.tertiary}>{subtitle}</span>}
             </div>
             {children}
         </div>

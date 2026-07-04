@@ -1,6 +1,6 @@
-import type {ReactNode} from "react"
+import type {ElementType, ReactNode} from "react"
 
-import {Tabs, Typography, type TabsProps} from "antd"
+import {Tabs, type TabsProps} from "antd"
 import clsx from "clsx"
 
 export interface PageLayoutProps {
@@ -22,6 +22,14 @@ const PageLayout = ({
     className,
     headerClassName,
 }: PageLayoutProps) => {
+    const TitleTag = `h${titleLevel}` as ElementType
+    const titleClass = {
+        1: "text-2xl font-semibold leading-tight",
+        2: "text-xl font-semibold leading-tight",
+        3: "text-lg font-semibold leading-snug",
+        4: "text-base font-semibold leading-snug",
+        5: "text-sm font-semibold leading-normal",
+    }[titleLevel]
     const titleText = typeof title === "string" || typeof title === "number" ? String(title) : ""
     const headerTabsContent = headerTabsProps ? (
         <Tabs {...headerTabsProps} className={clsx(headerTabsProps.className)} />
@@ -45,13 +53,12 @@ const PageLayout = ({
                     )}
                 >
                     <div className="min-w-0 flex-1">
-                        <Typography.Title
-                            className="!m-0 font-medium truncate"
-                            level={titleLevel}
+                        <TitleTag
+                            className={clsx("!m-0 truncate", titleClass)}
                             title={titleText || undefined}
                         >
                             {title}
-                        </Typography.Title>
+                        </TitleTag>
                     </div>
                     {headerTabsContent ? (
                         <div className="flex items-center justify-end [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-tab-btn]:font-medium [&_.ant-tabs-tab-btn]:text-[14px] [&_.ant-tabs-tab-btn]:leading-[1.5714285714] [&_.ant-tabs-tab-btn]:inline-flex [&_.ant-tabs-tab-btn]:items-center [&_.ant-tabs-tab-btn]:gap-2">

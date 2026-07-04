@@ -1,10 +1,10 @@
 import {type FC, Fragment, useCallback} from "react"
 
 import {PlusOutlined, DeleteOutlined} from "@ant-design/icons"
-import {Typography} from "antd"
 import {Dropdown} from "antd"
 import clsx from "clsx"
 
+import {EditableText} from "../../../components/presentational/editable/EditableText"
 import styles from "../FormView.module.css"
 import NodeHeader from "../shared/NodeHeader"
 import TreeRow from "../shared/TreeRow"
@@ -15,8 +15,6 @@ import renderNode from "./renderNode"
 interface ObjectNodeProps extends BaseNodeProps {
     value: Record<string, unknown>
 }
-
-const {Text} = Typography
 
 const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
     const {
@@ -159,21 +157,18 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                         </Dropdown>
                     </div>
 
-                    <Text
+                    <EditableText
+                        value={String(k)}
+                        monospace={false}
+                        tooltip="Click to rename"
                         className="text-xs font-semibold leading-5 mr-1"
-                        editable={{
-                            icon: null,
-                            triggerType: ["text"],
-                            onChange: (newKey) => {
-                                const trimmed = newKey.trim()
-                                if (trimmed && trimmed !== k) {
-                                    handleRename(path, trimmed)
-                                }
-                            },
+                        onChange={(newKey) => {
+                            const trimmed = newKey.trim()
+                            if (trimmed && trimmed !== k) {
+                                handleRename(path, trimmed)
+                            }
                         }}
-                    >
-                        {k}
-                    </Text>
+                    />
                 </NodeHeader>
             </div>
             {!collapsed.has(pathKey) &&

@@ -16,12 +16,11 @@
 
 import {memo} from "react"
 
-import {Input, Typography} from "antd"
+import {Input} from "antd"
 
 import {cn, textColors} from "../../../utils/styles"
 
 const {TextArea} = Input
-const {Text} = Typography
 
 /** Default max length for commit/deploy messages */
 export const COMMIT_MESSAGE_MAX_LENGTH = 500
@@ -72,7 +71,7 @@ export const CommitMessageInput = memo(function CommitMessageInput({
 }: CommitMessageInputProps) {
     return (
         <div className={cn("flex flex-col gap-1", fill && "min-h-0 flex-1", className)}>
-            <Text className="font-medium">
+            <span className="font-medium">
                 {label}
                 {showOptional && (
                     <>
@@ -80,7 +79,7 @@ export const CommitMessageInput = memo(function CommitMessageInput({
                         <span className={textColors.quaternary}>(optional)</span>
                     </>
                 )}
-            </Text>
+            </span>
             <TextArea
                 placeholder={placeholder}
                 className={cn(

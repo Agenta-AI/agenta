@@ -7,7 +7,7 @@
 import React, {useCallback, useMemo, useState} from "react"
 
 import {FileArchive, FilePdf, FileText, Image as ImageIcon} from "@phosphor-icons/react"
-import {Popover, Typography, Button, message} from "antd"
+import {Popover, Button, message} from "antd"
 import {
     DecoratorNode,
     EditorConfig,
@@ -18,8 +18,6 @@ import {
 } from "lexical"
 
 import {copyToClipboard} from "../../../../utils/copyToClipboard"
-
-const {Text} = Typography
 
 /** Regex to detect base64 data URLs */
 const BASE64_DATA_URL_REGEX = /^"?data:([^;]+);base64,([A-Za-z0-9+/=]{50,})"?$/
@@ -173,7 +171,7 @@ function Base64Component({
     const popoverContent = (
         <div className="max-w-[400px]">
             <div className="flex items-center justify-between gap-4 mb-3">
-                <Text strong>{fileTypeLabel}</Text>
+                <span className="font-semibold">{fileTypeLabel}</span>
                 <Button size="small" onClick={handleCopy}>
                     {copied ? "Copied!" : "Copy"}
                 </Button>
@@ -196,9 +194,7 @@ function Base64Component({
                 ) : (
                     <div className="flex flex-col items-center gap-2 p-6">
                         <FileTypeIcon mimeType={mimeType} size={48} />
-                        <Text type="secondary" className="text-xs">
-                            {fileTypeLabel}
-                        </Text>
+                        <span className="text-xs text-muted-foreground">{fileTypeLabel}</span>
                     </div>
                 )}
             </div>

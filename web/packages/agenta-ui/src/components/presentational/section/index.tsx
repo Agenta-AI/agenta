@@ -22,11 +22,9 @@
 
 import type {CSSProperties, PropsWithChildren, ReactNode} from "react"
 
-import {Skeleton, Typography} from "antd"
+import {Skeleton} from "antd"
 
 import {cn} from "../../../utils/styles"
-
-const {Text} = Typography
 
 // ============================================================================
 // TYPES
@@ -140,9 +138,11 @@ export function SectionHeaderRow({left, right, align = "center"}: SectionHeaderR
  */
 export function SectionLabel({children, className}: SectionLabelProps) {
     return (
-        <Text type="secondary" className={cn("uppercase font-semibold text-xs", className)}>
+        <span
+            className={`${cn("uppercase font-semibold text-xs", className) ?? ""} text-muted-foreground`}
+        >
             {children}
-        </Text>
+        </span>
     )
 }
 

@@ -1,10 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {Typography} from "antd"
-
 import {truncateContent} from "./utils"
-
-const {Text} = Typography
 
 interface TextCellContentProps {
     /** Text value to render */
@@ -34,7 +30,7 @@ const TextCellContent = memo(
         }, [value, truncate, maxLines, maxChars])
 
         return (
-            <Text className={`text-xs whitespace-pre-wrap ${className ?? ""}`}>{displayValue}</Text>
+            <span className={`text-xs whitespace-pre-wrap ${className ?? ""}`}>{displayValue}</span>
         )
     },
 )

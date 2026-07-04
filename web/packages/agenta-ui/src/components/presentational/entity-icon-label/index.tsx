@@ -29,8 +29,6 @@
 
 import type {ReactNode} from "react"
 
-import {Typography} from "antd"
-
 import {
     bgColors,
     borderColors,
@@ -44,8 +42,6 @@ import {
 } from "../../../utils/styles"
 import {StatusTag, type QueryStatus, type ExecutionStatus} from "../status"
 import {VersionBadge} from "../version"
-
-const {Text} = Typography
 
 // ============================================================================
 // TYPES
@@ -179,17 +175,21 @@ export function EntityIconLabel({
             </div>
             <div className="min-w-0">
                 <div className={cn(flexLayouts.rowCenter, gapClasses.sm, "flex-wrap")}>
-                    <Text strong className={iconSize === "sm" ? textSizes.sm : textSizes.base}>
+                    <span
+                        className={`${iconSize === "sm" ? textSizes.sm : textSizes.base} font-semibold`}
+                    >
                         {label}
-                    </Text>
+                    </span>
                     {version !== undefined && <VersionBadge version={version} variant="chip" />}
                     {status && <StatusTag status={status} />}
                     {extra}
                 </div>
                 {subtitle && (
-                    <Text type="secondary" className={cn(textSizes.xs, "capitalize")}>
+                    <span
+                        className={`${cn(textSizes.xs, "capitalize") ?? ""} text-muted-foreground`}
+                    >
                         {subtitle}
-                    </Text>
+                    </span>
                 )}
             </div>
         </div>

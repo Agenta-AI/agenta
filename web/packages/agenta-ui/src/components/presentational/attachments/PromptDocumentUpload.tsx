@@ -20,7 +20,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
 import {MinusCircleOutlined} from "@ant-design/icons"
 import {FileArchive} from "@phosphor-icons/react"
-import {Button, Input, Typography, Upload} from "antd"
+import {Button, Input, Upload} from "antd"
 import clsx from "clsx"
 
 // ============================================================================
@@ -168,7 +168,7 @@ const PromptDocumentUpload = ({
                             )}
                         />
                         <div className="flex flex-col items-start gap-1 w-full">
-                            <Typography.Text>
+                            <span>
                                 Drag a PDF here or{" "}
                                 <Button
                                     type="link"
@@ -177,7 +177,7 @@ const PromptDocumentUpload = ({
                                 >
                                     upload a file
                                 </Button>
-                            </Typography.Text>
+                            </span>
                             <Input
                                 disabled={disabled}
                                 placeholder="(Optionally) Enter a valid URL."
@@ -198,21 +198,16 @@ const PromptDocumentUpload = ({
                             />
 
                             {isUrl(displayValue) && (
-                                <Typography.Link
+                                <a
                                     href={displayValue}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-start"
-                                    type="secondary"
+                                    className="text-start text-muted-foreground"
                                 >
                                     Preview: document
-                                </Typography.Link>
+                                </a>
                             )}
-                            {error && (
-                                <Typography.Text className="text-[var(--ag-c-D61010)]">
-                                    {error}
-                                </Typography.Text>
-                            )}
+                            {error && <span className="text-[var(--ag-c-D61010)]">{error}</span>}
                         </div>
                     </div>
                     <Button

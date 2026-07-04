@@ -29,12 +29,10 @@
 import {type ReactNode, useCallback, useState} from "react"
 
 import {CaretDown, CaretRight, Lock} from "@phosphor-icons/react"
-import {Tooltip, Typography} from "antd"
+import {Tooltip} from "antd"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
-
-const {Text} = Typography
 
 export type SectionIndicatorTone = "draft" | "invalid" | "incomplete"
 
@@ -210,24 +208,21 @@ export function ConfigAccordionSection({
                             </span>
                         </Tooltip>
                     ) : null}
-                    <Text
+                    <span
                         className={cn(
                             "truncate font-medium",
                             size === "compact" ? "text-xs" : "text-sm",
                         )}
                     >
                         {title}
-                    </Text>
+                    </span>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
                     {summary && (!summaryCollapsedOnly || !isOpen) ? (
-                        <Text
-                            type="secondary"
-                            className="max-w-[220px] truncate text-right text-xs"
-                        >
+                        <span className="max-w-[220px] truncate text-right text-xs text-muted-foreground">
                             {summary}
-                        </Text>
+                        </span>
                     ) : null}
                     {extra ? (
                         <span

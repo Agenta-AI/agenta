@@ -8,7 +8,7 @@ import React, {type KeyboardEvent, useCallback, useMemo, useState} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {TextAlignLeft, ArrowSquareOut} from "@phosphor-icons/react"
-import {Popover, Typography, Button, message} from "antd"
+import {Popover, Button, message} from "antd"
 import {
     DecoratorNode,
     EditorConfig,
@@ -19,8 +19,6 @@ import {
 } from "lexical"
 
 import {useDrillInContext} from "../context/DrillInContext"
-
-const {Text} = Typography
 
 /** Minimum length for a string to be considered "long" and truncated */
 const MIN_LENGTH_FOR_TRUNCATION = 200
@@ -231,10 +229,10 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
             <div className="flex items-center justify-between gap-4 mb-3">
                 <div className="flex items-center gap-2">
                     <TextAlignLeft size={16} className="text-gray-500" />
-                    <Text strong>Long Text</Text>
-                    <Text type="secondary" className="text-xs">
+                    <span className="font-semibold">Long Text</span>
+                    <span className="text-xs text-muted-foreground">
                         ({formatCharCount(parsed.charCount)})
-                    </Text>
+                    </span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button size="small" onClick={handleCopy}>
@@ -259,9 +257,9 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
 
             {/* Full Text Content */}
             <div className="bg-gray-50 rounded-lg p-3 max-h-[300px] overflow-y-auto">
-                <Text className="text-xs whitespace-pre-wrap break-words font-mono">
+                <span className="text-xs whitespace-pre-wrap break-words font-mono">
                     {parsed.fullValue}
-                </Text>
+                </span>
             </div>
         </div>
     )

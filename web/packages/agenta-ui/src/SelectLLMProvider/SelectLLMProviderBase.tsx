@@ -1,7 +1,7 @@
 import React, {useMemo, useRef, useState, useEffect} from "react"
 
 import {CaretRight, X} from "@phosphor-icons/react"
-import {Input, InputRef, Popover, Select, Tooltip, Typography} from "antd"
+import {Input, InputRef, Popover, Select, Tooltip} from "antd"
 import clsx from "clsx"
 
 import {LLMIconMap} from "../LLMIcons"
@@ -132,20 +132,16 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
                     <div className="flex justify-between gap-4">
-                        <Typography.Text className="text-[10px] text-nowrap">
-                            Input:
-                        </Typography.Text>
-                        <Typography.Text className="text-[10px] text-nowrap">
+                        <span className="text-[10px] text-nowrap">Input:</span>
+                        <span className="text-[10px] text-nowrap">
                             ${formatCost(metadata.input as number)} / 1M
-                        </Typography.Text>
+                        </span>
                     </div>
                     <div className="flex justify-between gap-4">
-                        <Typography.Text className="text-[10px] text-nowrap">
-                            Output:{" "}
-                        </Typography.Text>
-                        <Typography.Text className="text-[10px] text-nowrap">
+                        <span className="text-[10px] text-nowrap">Output: </span>
+                        <span className="text-[10px] text-nowrap">
                             ${formatCost(metadata.output as number)} / 1M
-                        </Typography.Text>
+                        </span>
                     </div>
                 </>
             )}

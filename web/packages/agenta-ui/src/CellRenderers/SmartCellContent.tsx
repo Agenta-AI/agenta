@@ -1,7 +1,5 @@
 import {memo, useMemo} from "react"
 
-import {Typography} from "antd"
-
 import {useRowHeightContext} from "../InfiniteVirtualTable/context/RowHeightContext"
 
 import CellContentPopover from "./CellContentPopover"
@@ -15,8 +13,6 @@ import {
     type ChatExtractionPreference,
     type ChatPreviewStrategy,
 } from "./utils"
-
-const {Text} = Typography
 
 interface SmartCellContentProps {
     /** Value to render - auto-detects type */
@@ -87,9 +83,7 @@ const SmartCellContent = memo(
         if (value === undefined || value === null || value === "") {
             return (
                 <div className={`${className}`}>
-                    <Text type="secondary" className="text-xs">
-                        —
-                    </Text>
+                    <span className="text-xs text-muted-foreground">—</span>
                 </div>
             )
         }
