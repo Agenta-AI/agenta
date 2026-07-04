@@ -16,7 +16,6 @@ from agenta.sdk.agents import (
     AgentTemplate,
     AgentResult,
     ConnectionNotFoundError,
-    Event,
     ConnectionResolutionError,
     Event,
     GatewayToolResolutionError,
@@ -123,26 +122,25 @@ async def test_invoke_returns_assistant_message(patched):
 
 
 async def test_batch_paused_run_surfaces_pending_interaction(monkeypatch, fake_backend):
+    # The realistic paused stream: the runner's `done` event carries NO stopReason (the
+    # engine settles paused-vs-ended after the event stream closes, onto the terminal
+    # result only), so the envelope's pause metadata must come from result.stop_reason.
+    interaction = {
+        "id": "perm_1",
+        "kind": "user_approval",
+        "payload": {
+            "toolCallId": "call_1",
+            "toolCall": {"toolCallId": "call_1", "name": "deleteFile"},
+        },
+    }
     backend = fake_backend(
         result=AgentResult(
             output="waiting",
             stop_reason="paused",
             events=[
-                Event(
-                    type="interaction_request",
-                    data={
-                        "type": "interaction_request",
-                        "id": "perm_1",
-                        "kind": "user_approval",
-                        "payload": {
-                            "toolCallId": "call_1",
-                            "toolCall": {
-                                "toolCallId": "call_1",
-                                "name": "deleteFile",
-                            },
-                        },
-                    },
-                )
+                Event(type="message", data={"text": "waiting"}),
+                Event(type="interaction_request", data=interaction),
+                Event(type="done", data={}),
             ],
         )
     )
@@ -153,7 +151,10 @@ async def test_batch_paused_run_surfaces_pending_interaction(monkeypatch, fake_b
     assert body == {
         "messages": [{"role": "assistant", "content": "waiting"}],
         "stop_reason": "paused",
-        "pending_interaction": {"id": "perm_1", "tool": "deleteFile"},
+        # the raw interaction data (the wire event carries its `type` inline) + derived tool
+        "pending_interaction": dict(
+            interaction, type="interaction_request", tool="deleteFile"
+        ),
     }
 
 
