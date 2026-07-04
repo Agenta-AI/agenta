@@ -17,7 +17,13 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -67,7 +73,9 @@ function stubFetch(body: string, ok = true, status = 200): CapturedFetch[] {
   const calls: CapturedFetch[] = [];
   globalThis.fetch = (async (url: any, init: any) => {
     calls.push({ url: String(url), init: init ?? {} });
-    return new Response(body, { status: ok ? status : status >= 400 ? status : 500 });
+    return new Response(body, {
+      status: ok ? status : status >= 400 ? status : 500,
+    });
   }) as typeof fetch;
   return calls;
 }
@@ -147,7 +155,10 @@ describe("assembleBody", () => {
       path: "/api/x",
       args_into: "__proto__.polluted",
     };
-    assert.throws(() => assembleBody(call, true), /unsafe path segment '__proto__'/);
+    assert.throws(
+      () => assembleBody(call, true),
+      /unsafe path segment '__proto__'/,
+    );
     assert.equal(({} as any).polluted, undefined);
   });
 
@@ -246,7 +257,10 @@ describe("assembleBody context binding", () => {
     };
     const body = assembleBody(
       call,
-      { workflow_variant_id: "someone-elses", parameters: { temperature: 0.2 } },
+      {
+        workflow_variant_id: "someone-elses",
+        parameters: { temperature: 0.2 },
+      },
       RUN_CONTEXT,
     );
     // Bound to the run's OWN variant, not the model's attempt.
@@ -305,14 +319,20 @@ describe("resolveCtxToken", () => {
       resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.variant.missing"),
       undefined,
     );
-    assert.equal(resolveCtxToken(RUN_CONTEXT, "workflow.variant.id"), undefined);
+    assert.equal(
+      resolveCtxToken(RUN_CONTEXT, "workflow.variant.id"),
+      undefined,
+    );
     assert.equal(resolveCtxToken(undefined, "$ctx.trace.trace_id"), undefined);
   });
 
   it("rejects unsafe / inherited segments in the token (prototype-safe at the source)", () => {
     // The token is untrusted: it must never walk the prototype chain out of the run-context blob,
     // even though `__proto__`/`constructor` resolve on any object.
-    assert.equal(resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.__proto__"), undefined);
+    assert.equal(
+      resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.__proto__"),
+      undefined,
+    );
     assert.equal(
       resolveCtxToken(RUN_CONTEXT, "$ctx.__proto__.polluted"),
       undefined,
@@ -353,7 +373,10 @@ describe("deepSet / deepMerge", () => {
     assert.deepEqual(target, { a: { c: 2 }, keep: 3 });
     deepDelete(target, "x.y.z"); // missing parent -> no-op, no throw
     assert.deepEqual(target, { a: { c: 2 }, keep: 3 });
-    assert.throws(() => deepDelete(target, "__proto__.polluted"), /unsafe path segment/);
+    assert.throws(
+      () => deepDelete(target, "__proto__.polluted"),
+      /unsafe path segment/,
+    );
   });
 });
 
@@ -398,7 +421,10 @@ describe("directCallUrl", () => {
       },
       { id: "sched 1" },
     );
-    assert.equal(url, "https://agenta.example/api/triggers/schedules/sched%201");
+    assert.equal(
+      url,
+      "https://agenta.example/api/triggers/schedules/sched%201",
+    );
   });
 
   it("rejects a missing path parameter", () => {
@@ -453,7 +479,8 @@ describe("directCallUrl", () => {
     // `/api/%2e%2e/admin` URL-normalizes to `/admin`: the literal `..` check misses it, but the
     // mount confinement (after resolution) rejects it.
     assert.throws(
-      () => directCallUrl(ENDPOINT, { method: "POST", path: "/api/%2e%2e/admin" }),
+      () =>
+        directCallUrl(ENDPOINT, { method: "POST", path: "/api/%2e%2e/admin" }),
       /is outside the Agenta API mount '\/api'/,
     );
   });
@@ -471,7 +498,11 @@ describe("directCallUrl", () => {
 
   it("rejects a protocol-relative path", () => {
     assert.throws(
-      () => directCallUrl(ENDPOINT, { method: "POST", path: "//evil.example/api/x" }),
+      () =>
+        directCallUrl(ENDPOINT, {
+          method: "POST",
+          path: "//evil.example/api/x",
+        }),
       /must be an absolute path starting with a single '\/'/,
     );
   });
@@ -493,7 +524,9 @@ describe("directCallUrl", () => {
 
 describe("pathParamNames", () => {
   it("extracts the {name} tokens from a path", () => {
-    assert.deepEqual(pathParamNames("/api/triggers/schedules/{id}/stop"), ["id"]);
+    assert.deepEqual(pathParamNames("/api/triggers/schedules/{id}/stop"), [
+      "id",
+    ]);
     assert.deepEqual(pathParamNames("/api/x/{a}/y/{b.c}"), ["a", "b.c"]);
   });
 
@@ -549,7 +582,7 @@ async function relayOnce(
       {
         enforce: false,
         decide: () => ({ kind: "allow" }),
-        onPendingApproval: () => {},
+        onPendingApproval: () => ({ emitted: false }),
       },
       runContext,
     );
@@ -603,13 +636,19 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
     const res = await relayOnce(
       selfSpec,
       { endpoint: ENDPOINT, authorization: "ApiKey secret" },
-      { workflow_variant_id: "someone-elses", parameters: { temperature: 0.2 } },
+      {
+        workflow_variant_id: "someone-elses",
+        parameters: { temperature: 0.2 },
+      },
       RUN_CONTEXT,
     );
 
     assert.equal(res.ok, true);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, "https://agenta.example/api/workflows/revisions/commit");
+    assert.equal(
+      calls[0].url,
+      "https://agenta.example/api/workflows/revisions/commit",
+    );
     assert.deepEqual(JSON.parse(calls[0].init.body as string), {
       workflow_variant_id: "own-variant", // bound to the run's own variant, not the model's
       parameters: { temperature: 0.2 },
@@ -634,7 +673,10 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
 
     assert.equal(res.ok, true);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, "https://agenta.example/api/triggers/schedules/sched_1/stop");
+    assert.equal(
+      calls[0].url,
+      "https://agenta.example/api/triggers/schedules/sched_1/stop",
+    );
     assert.deepEqual(JSON.parse(calls[0].init.body as string), {});
   });
 

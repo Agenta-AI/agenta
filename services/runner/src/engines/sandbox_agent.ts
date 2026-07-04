@@ -770,7 +770,7 @@ export async function runSandboxAgent(
       enforce: plan.isPi,
       decide: (gate) => decide(gate, permissionPlan, decisions),
       onPendingApproval: ({ toolCallId, toolName, args }) => {
-        if (!latch.tryAcquire()) return;
+        if (!latch.tryAcquire()) return { emitted: false };
         pause.markPausedToolCall(toolCallId);
         run.emitEvent({
           type: "interaction_request",
@@ -790,6 +790,7 @@ export async function runSandboxAgent(
         });
         recordPendingInteraction(toolCallId, toolName, args);
         pause.pause();
+        return { emitted: true };
       },
     };
     const serverPermissions = serverPermissionsFromRequest(request);
