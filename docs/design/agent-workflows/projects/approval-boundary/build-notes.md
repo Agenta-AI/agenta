@@ -156,3 +156,36 @@ decisions unless it contradicts an owner call". Newest last. Read together with
   args record, which on a multi-string-field tool could be the wrong field; tighten to
   the known argument name (e.g. `command`) if phase 3's derived rules ever target such a
   tool. Prefix rules on uninspectable args deliberately fail toward the default.
+
+## 2026-07-04 (post-review: rebase onto big-agents + CodeRabbit round)
+
+- **Rebased onto post-#5064 `big-agents` via `but pull` + per-commit `but resolve`.** Six
+  conflicted commits (2a, 2b, 3, 4a, 5, clobber fix); the runner files resolved ours-wins per
+  the audit, then one reconciliation commit re-added upstream's non-superseded keepers
+  (shared `apiBase` module from the #5059 URL-contract fix, two log lines). The rebased PR
+  diff is exactly the reviewed file set plus three SDK files from the reconciliation.
+- **Found and fixed a real integration bug in #5064's batch fold.** JP's `agent_batch`
+  derives `stop_reason` from the stream's `done` event, but the live runner emits `done`
+  with NO `stopReason` (the engine settles paused-vs-ended after the event stream closes,
+  onto the terminal result only) — so a real paused run would have dropped `stop_reason`
+  and `pending_interaction` from the batch envelope. Fix: `fold(events, stop_reason=...)`
+  gives the terminal result's value precedence; the service pause test now pins the
+  realistic stream shape (a `done` event with no stopReason). His fold otherwise already
+  carried our phase-4a envelope contract; `pending_interaction` keeps his richer raw shape
+  plus a derived top-level `tool` name (superset of both contracts).
+- **JP's new `handler.py` passed `permission_policy=`, a field phase 3 deleted** — the
+  auto-merge trap git cannot flag. Caught by a deleted-identifier sweep over every
+  upstream-changed file; fixed to `permission_default`.
+- **CodeRabbit round (10 findings triaged).** Two real code bugs confirmed and fixed:
+  (1) the playground's `withSection` shallow merge dropped `permissions.default` from the
+  /invoke body when an author supplied rules-only permissions (fixed with a nested merge +
+  test); (2) `pauseClientTool` never seeded the durable interactions plane — only
+  `pauseUserApproval` did — violating "every pause leaves a row" (fixed + pinned in the
+  client-tool pending test). Also: deduped `ToolPermission`/`PermissionRule` (wire.py now
+  imports from `permission_rules.py`; the reverse direction would cycle through `dtos`),
+  fixed the `annotate_trace` comment that still claimed auto-allow (it is a write under
+  `allow_reads` — deliberate), the `claude_settings` docstring naming the wrong callable,
+  made `mcp/models.py`'s legacy keys greppable literals, and added the missing
+  MCP-server-permission step to three doc precedence ladders. `permission-responder.md`
+  needed no change (it already documented the step). Skipped as noise: comment-style nits
+  on `PiSettingsControl`.

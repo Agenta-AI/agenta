@@ -76,11 +76,12 @@ explicit `permission`; when it is unset, the spec sends nothing and the `read_on
 rides alongside as a separate field. The runner resolves the rest: its shared decision
 function (`services/runner/src/permission-plan.ts`) looks up, in order:
 
-1. an explicit `permission` wins,
-2. else an authored builtin rule match (`runner.permissions.rules`),
-3. else, under the `allow_reads` policy mode, the `read_only` hint (`true` to `allow`, unset
+1. an explicit `permission` on the tool wins,
+2. else the owning MCP server's explicit `permission` (for MCP-backed tools),
+3. else an authored builtin rule match (`runner.permissions.rules`),
+4. else, under the `allow_reads` policy mode, the `read_only` hint (`true` to `allow`, unset
    or `false` to `ask`),
-4. else the global policy mode (`allow`/`ask`/`deny`).
+5. else the global policy mode (`allow`/`ask`/`deny`).
 
 ## Secret injection
 
@@ -94,8 +95,9 @@ secret; their provider key stays server-side and the call routes back through `/
   `ReferenceToolConfig`, its `ref_by` axes, `PlatformToolConfig`, `ToolCall`, and `call_ref`),
   carrying the author's explicit `permission` and the `read_only` hint.
 - `services/runner/src/permission-plan.ts`: the shared decision function that resolves a
-  tool's effective permission at run time (explicit permission, then rule match, then the
-  `allow_reads` read-only check, then the global policy).
+  tool's effective permission at run time (explicit tool permission, then the owning MCP
+  server's permission, then rule match, then the `allow_reads` read-only check, then the
+  global policy).
 - `sdks/python/agenta/sdk/agents/tools/compat.py`: coerces legacy/typed tool dicts (a
   `type: "reference"` or `type: "platform"` dict parses straight into its config model).
 - `sdks/python/agenta/sdk/agents/platform/gateway.py`: gateway resolution to a `call_ref`.

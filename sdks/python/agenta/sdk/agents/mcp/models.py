@@ -12,7 +12,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # server inherits the runner policy.
 Permission = Literal["allow", "ask", "deny"]
 
-_LEGACY_PERMISSION_KEYS = frozenset({"permission" + "_mode", "permission" + "Mode"})
+# The deleted pre-redesign vocabulary, still present in old dev-DB drafts. Literal on
+# purpose so the legacy spelling stays greppable.
+_LEGACY_PERMISSION_KEYS = frozenset({"permission_mode", "permissionMode"})
 
 
 def _drop_legacy_permission_keys(data: Any) -> Any:

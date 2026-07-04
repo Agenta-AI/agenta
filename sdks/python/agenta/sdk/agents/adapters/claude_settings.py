@@ -135,8 +135,9 @@ def _rules_from_tool_specs(
 
     Mirrors :func:`_rules_from_mcp_permissions`, but per-tool against the fixed internal server name
     ``agenta-tools``: a callback/code tool is delivered to Claude as a tool of that MCP server, so
-    its rule is ``mcp__agenta-tools__<name>``. The tool's :meth:`ToolSpec.effective_permission`
-    (the single source of the allow/ask/deny ladder) routes it to the matching list. Unset tools
+    its rule is ``mcp__agenta-tools__<name>``. The standalone
+    :func:`~agenta.sdk.agents.tools.models.effective_permission` ladder (explicit permission,
+    else read-only under ``allow_reads``, else the runner mode) routes it to the matching list. Unset tools
     only render a rule when the runner mode needs an explicit Claude allow/deny rule. ``client``
     tools are browser-fulfilled and never delivered over this channel, so they are excluded (this
     mirrors the runner's ``mcp-bridge`` filter). Accepts a list

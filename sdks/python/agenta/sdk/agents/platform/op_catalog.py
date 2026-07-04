@@ -312,7 +312,8 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
 # ``.span_id`` are bound from run context ($ctx.trace.*) so the agent always annotates its own run
 # and can never retarget another trace (the same self-targeting guarantee ``commit_revision`` gives
 # via $ctx.workflow.variant.id). Unlike ``commit_revision``, this is additive self-metadata (it does
-# not mutate the agent's config), so it defaults to auto-allow / no approval.
+# not mutate the agent's config) — but it IS a write (``read_only=False``), so under the default
+# ``allow_reads`` policy it prompts unless the author sets an explicit ``allow``.
 _ANNOTATE_TRACE_DESCRIPTION = (
     "Record an annotation (evaluation feedback) on your own current run's trace — grade "
     "yourself. Supply `references.evaluator.slug` naming the annotation category (e.g. "

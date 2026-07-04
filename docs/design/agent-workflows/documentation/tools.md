@@ -355,13 +355,13 @@ Two gates consult this same decision:
   there is no harness-side gate, so the relay is the only enforcement point, and it now gives Pi
   the same human-in-the-loop behavior Claude gets.
 
-Client tools are a carve-out from that same ladder. They are still decided by
-`ApprovalResponder`, but not by the policy-and-rules path above: a client tool defaults to
-`allow` no matter what the policy mode is, unless its own `permission` says otherwise or the
-policy's `default` is `deny` (which still blocks everything). The reasoning is that a client
-tool's only job is to reach the browser, so folding it into `ask`/`allow_reads` defaults would
-strand it. Setting `permission: "ask"` or `"deny"` on a client tool still works; it just is not
-the policy's doing.
+Client tools are a carve-out from that same ladder. They are decided by the responder's
+`onClientTool` (consulted at the ACP gate on Claude, and by the relay on Pi), not by the
+policy-and-rules path above: a client tool with no `permission` of its own defaults to
+`allow` under every policy mode except `deny`, where it is blocked. An explicit `permission`
+always wins, in both directions: `allow` runs even under a `deny` policy, and `ask`/`deny`
+bind even under `allow`. The reasoning is that a client tool's only job is to reach the
+browser, so folding it into `ask`/`allow_reads` defaults would strand it.
 
 Either gate answers `allow` by running the tool with no extra event, `deny` by refusing it, or
 `ask` by pausing the turn (the wire's `stopReason: "paused"`) and emitting exactly one

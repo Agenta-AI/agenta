@@ -253,15 +253,22 @@ const withSection = (
         : {}),
 })
 
-const withTemplateDefaults = (template: Record<string, unknown>): Record<string, unknown> => ({
-    ...template,
-    harness: withSection(template.harness, {kind: "pi_core"}),
-    runner: withSection(template.runner, {
-        kind: "sidecar",
-        permissions: {default: "allow_reads"},
-    }),
-    sandbox: withSection(template.sandbox, {kind: "local"}),
-})
+const withTemplateDefaults = (template: Record<string, unknown>): Record<string, unknown> => {
+    const runnerSection = template.runner
+    const runner = withSection(runnerSection, {kind: "sidecar"})
+    // `permissions` is itself nested — merge it separately so a caller-supplied `rules`-only
+    // object still carries the fallback `default` instead of replacing it wholesale.
+    const permissionsSection =
+        runnerSection && typeof runnerSection === "object" && !Array.isArray(runnerSection)
+            ? (runnerSection as Record<string, unknown>).permissions
+            : undefined
+    return {
+        ...template,
+        harness: withSection(template.harness, {kind: "pi_core"}),
+        runner: {...runner, permissions: withSection(permissionsSection, {default: "allow_reads"})},
+        sandbox: withSection(template.sandbox, {kind: "local"}),
+    }
+}
 
 const withAgentRunDefaults = (config: Record<string, unknown>): Record<string, unknown> => {
     const template = config.agent

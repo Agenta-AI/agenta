@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, TypedDict
 
 from agenta.sdk.utils.logging import get_module_logger
 
+from ..permission_rules import PermissionRule
 from ..dtos import (
     Event,
     AgentResult,
@@ -36,12 +37,6 @@ from ..dtos import (
 log = get_module_logger(__name__)
 
 PermissionMode = Literal["allow", "ask", "deny", "allow_reads"]
-ToolPermission = Literal["allow", "ask", "deny"]
-
-
-class PermissionRule(TypedDict):
-    pattern: str
-    permission: ToolPermission
 
 
 class PermissionsConfig(TypedDict, total=False):

@@ -101,6 +101,7 @@ export function attachPermissionResponder({
         render: spec.render,
       },
     });
+    onCreateInteraction?.(eventId, gate.toolName, gate.args);
     onPause?.();
   };
 

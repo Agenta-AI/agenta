@@ -234,13 +234,14 @@ describe("attachPermissionResponder", () => {
     assert.equal((events[0] as any).id, "tool-fallback");
   });
 
-  it("client tool pending forwards to the browser and pauses", async () => {
+  it("client tool pending forwards to the browser, creates the interaction, and pauses", async () => {
     const replies: Array<{ id: string; reply: string }> = [];
     const { session, emit } = makeSession(async (id, reply) => {
       replies.push({ id, reply });
     });
     const events: AgentEvent[] = [];
     const pausedToolCalls: string[] = [];
+    const created: Array<{ token: string; toolName?: string; args: unknown }> = [];
     let pauses = 0;
 
     attachPermissionResponder({
@@ -253,6 +254,9 @@ describe("attachPermissionResponder", () => {
       latch: new PendingApprovalLatch(),
       onPause: () => {
         pauses += 1;
+      },
+      onCreateInteraction: (token, toolName, args) => {
+        created.push({ token, toolName, args });
       },
       onPausedToolCall: (id) => {
         pausedToolCalls.push(id);
@@ -276,6 +280,15 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(replies, []);
     assert.equal(pauses, 1);
     assert.deepEqual(pausedToolCalls, ["tool-client"]);
+    // A client-tool pause seeds the durable interactions plane exactly like a
+    // user-approval pause: every pause leaves a row, whichever gate paused.
+    assert.deepEqual(created, [
+      {
+        token: "client-1",
+        toolName: "request_connection",
+        args: { integration: "slack" },
+      },
+    ]);
     assert.deepEqual(events, [
       {
         type: "interaction_request",

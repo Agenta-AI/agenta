@@ -171,7 +171,8 @@ the tool-specific mapping. See [Tool models and
 resolution](../in-service/tool-models-and-resolution.md).
 
 `permission` is `"allow" | "ask" | "deny"`, or unset to inherit. When unset, the runner's
-shared decision function resolves it: an authored rule match wins if one applies, else the
+shared decision function resolves it: for an MCP-backed tool the owning server's explicit
+`permission` wins first, else an authored rule match applies, else the
 policy's `default` mode decides (`allow_reads` consults the tool's `read_only` hint: `true`
 resolves to `allow`, no hint or `false` resolves to `ask`). There is no `needs_approval`
 field and no separate per-tool defaulting step; one function resolves every tool the same
