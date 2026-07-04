@@ -55,6 +55,23 @@ When that lands, the extension's active-set edit disappears and the same config 
 declaratively. The author config, the wire field, and the playground control are identical in
 both worlds; only the enforcement mechanism moves.
 
+### The folder is the delivery vehicle either way
+
+We do use folders, exactly as the setup path does for skills and prompts: the extension ships
+inside the per-run agent dir. The folder route and the extension route are the same route.
+What Pi lacks is only a declarative settings field for tools, so the folder must carry a
+small piece of code instead of a config line. If Pi grows that field, the folder carries
+config and nothing else moves.
+
+That shape buys a property the review named as a goal in its own right: portability. Any Pi
+process that loads the agent dir enforces the same grant, whether pi-acp spawned it under our
+runner or someone runs `pi` natively against the same directory. The configuration travels
+with the folder, not with our transport. The two non-ACP alternatives fail exactly this test:
+a `pi` binary shim in the sandbox image (wrap the real binary, inject `--tools` from a
+runner-set env var) reaches the native flag today but couples enforcement to our images and
+breaks native use; waiting for the upstream passthrough leaves the grant dead in the meantime
+and only ever helps runs that go through sandbox-agent.
+
 Two corrections from the Codex review shape how this is done:
 
 - **Not at extension init.** Pi's loader stubs the action methods while the factory loads, so

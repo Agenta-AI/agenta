@@ -121,3 +121,13 @@ Four comments on design.md, all folded:
   at the Pi boundary.
 - **Extension context added.** design.md now opens with what our extension does today
   (registers relay-backed custom tools, flushes tracing and usage on `agent_end`).
+
+## Review round 2 (Mahmoud, 2026-07-04)
+
+Two comments on the grant section, folded as a new design.md subsection ("The folder is the
+delivery vehicle either way"): the folder route and the extension route are the same route
+(the extension ships in the per-run agent dir, like skills); Pi only lacks a declarative
+settings field, so the folder carries code instead of a config line. Portability recorded as
+a design goal: the same agent dir enforces the same grant under native `pi` use, outside our
+ACP path. Considered and rejected: a `pi` binary shim in the sandbox image (image-coupled,
+breaks native use) and waiting for the upstream passthrough (leaves the grant dead, ACP-only).
