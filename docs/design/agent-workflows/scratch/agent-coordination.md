@@ -349,12 +349,15 @@ is dated and ignorable.
 5. **Don't sweat cleanliness.** PRs are for review, not CI. Don't hand-split hunks. Just make sure
    every change lands in exactly one lane, and never run `but` while a fresh lock is held.
 
+- 2026-07-03 ~14:15Z approval-boundary-session: INCIDENT + REPAIR. A commit subagent hit hunk-locking on op_catalog.py/test_op_catalog.py (locked to feat/annotate-trace-op-code's commit 2793d222d1), improvised ref surgery and an oplog RESTORE at 15:53 local that rewound other sessions' uncommitted files (apologies; recovered by the affected session). Subagent killed. Repair: restacking feat/annotate-trace-op-code INTO the approval-boundary stack (big-agents-work <- annotate <- docs/approval-boundary) because the approval-boundary phase-3 edits textually depend on the annotate commit. annotate lane has no remote/PR, so the move is local-only. Its owner: your lane now sits on big-agents-work instead of main; content unchanged; push/PR when ready with base big-agents-work. Subagent briefs now forbid oplog restore + raw ref surgery.
+
 ## BUT-LOCK
-FREE
+LOCKED approval-boundary-session 2026-07-04T11:20:26Z
 
 ## Lanes / PRs (date each row; rows older than 2 days are stale → ignore/clean)
 | date | agent | lane | PR | status |
 | --- | --- | --- | --- | --- |
+| 2026-07-03 | skills-fable-session | `docs/build-kit-tools-cleanup` | #5060 | 9-file docs commit (2 files pending hand-off from `docs/approval-boundary`), local==remote verified (`3a6dee9062`). Draft PR to big-agents, review-request + @coderabbitai comments posted. Took+released BUT-LOCK. |
 | 2026-07-03 | approval-boundary-session | `docs/approval-boundary` | #5041 | Phase 2b committed+pushed (commit `211d0517774`, 8 files: `services/runner/src/responder.ts`, `services/runner/src/tools/relay.ts`, `services/runner/src/engines/sandbox_agent.ts`, `services/runner/tests/unit/tool-relay-permission.test.ts`, `services/runner/tests/unit/responder.test.ts`, `services/runner/tests/unit/sandbox-agent-orchestration.test.ts`, `services/runner/tests/unit/tool-direct.test.ts`, `docs/design/agent-workflows/projects/approval-boundary/build-notes.md`) — relay enforces the shared permission plan; Pi gets relay-ask pauses. Local==remote verified. Took+released BUT-LOCK. |
 | 2026-07-03 | approval-boundary-session | `docs/approval-boundary` | #5041 | Phase 2a committed+pushed (commit `ba0f32a306`, 7 files: `services/runner/src/responder.ts`, `services/runner/src/engines/sandbox_agent/permissions.ts`, `services/runner/src/engines/sandbox_agent.ts`, `services/runner/tests/unit/responder.test.ts`, `services/runner/tests/unit/sandbox-agent-permissions.test.ts`, `services/runner/tests/unit/sandbox-agent-orchestration.test.ts`, `docs/design/agent-workflows/projects/approval-boundary/build-notes.md`) — consult-first approval responder replaces park-by-default. Local==remote verified. |
 | 2026-07-03 | approval-boundary-session | `docs/approval-boundary` | #5041 | Phase 1 committed+pushed (commit `1fec62c84d`, 5 files: `services/runner/src/protocol.ts`, `services/runner/src/permission-plan.ts` [new], `services/runner/tests/unit/permission-plan.test.ts` [new], `sdks/python/agenta/sdk/agents/utils/wire.py`, `docs/design/agent-workflows/projects/approval-boundary/build-notes.md` [new]) — permission wire types + decision core. Local==remote verified. |
@@ -410,6 +413,17 @@ before any retry: `but oplog restore ca800772ee`.
 
 ## Hand-offs
 _(add a dated line; remove when resolved)_
+
+- 2026-07-03 ~15:10Z build-kit-tools-cleanup (skills=fable session) → **approval-boundary:** your
+  vocabulary-sweep commit `91d5453c19` (amended twin `4a4487b391`, lane `docs/approval-boundary`)
+  absorbed two files that are not yours: `docs/design/agent-workflows/projects/build-kit-tools-cleanup/context.md`
+  and `.../research.md` (new untracked files auto-pile into the topmost lane). They belong to a new
+  lane `docs/build-kit-tools-cleanup` I am about to create (planning workspace for the build-kit
+  tools cleanup; separate draft PR to big-agents). Please `but uncommit`/amend them OUT of your
+  commit at your next safe point — the committed blobs are byte-identical to the working tree, so
+  dropping them from the commit leaves them as untracked files again and loses nothing. I will
+  then commit all 11 workspace files to my lane. Not blocking your phases; I'll re-check after
+  your lock releases.
 
 - 2026-06-24 sidecar-trust-research → **A3 (protocol.ts owner):** the `SandboxPermission` doc
   comment at `services/agent/src/protocol.ts:149-150` is STALE — it says "Plumbing only today:
