@@ -1,9 +1,47 @@
 # Status
 
-**State: implementation starting.** Date: 2026-07-04. Phase 0 (reconcile plan with the
-post-merge tree) done; the slice plan in [plan.md](plan.md) is reconciled against
-big-agents after #5041, #5064, #5059, #5047. Citation drift ledger:
-[research.md](research.md), "2026-07-04 reconciliation".
+**State: landed (server half).** Date: 2026-07-04. Slices 1-5a are committed on the
+GitButler lane `feat/build-kit-tools-cleanup` (4 commits, `a8a7a1e170..61cf1751b9`), with
+tests green (api changed-domain suites 250 passed; sdk unit 1596 passed) and the docs sweep
+folded in. Slice 5b (the runner half of `test_run`) and slice 6 (the `gateway` -> `server`
+rename) are deferred; see the open-issues entries below.
+
+## Shipped (slices 1-5a)
+
+1. **Renames, hard.** `find_capabilities` -> `discover_tools`, `find_triggers` ->
+   `discover_triggers`, no aliases. The legacy reserved `/tools/call`
+   `tools.agenta.find_capabilities` route is deleted. Dev-DB revision sweep script at
+   [scripts/sweep_platform_op_renames.py](scripts/sweep_platform_op_renames.py).
+2. **Overlay cut.** Explicit `DEFAULT_BUILD_KIT_OPS` (12 ops) plus the
+   `request_connection` client tool. Cut from the default (still catalog opt-ins):
+   pause/resume x4, `query_workflows`, `list_connections`, `list_subscriptions`.
+3. **`query_spans`.** New read op over `POST /api/spans/query`; schema mirrors
+   `SpansQueryRequest`, pinned by a drift contract test.
+4. **One playbook skill.** `build-an-agent` (slug `__ag__build_an_agent`) replaces
+   build-your-first-app + discover-and-wire-tools + set-up-triggers. The overlay embeds
+   ONLY the playbook; `getting-started` stays harness-forced, so it is no longer
+   double-delivered.
+5. **`test_run`, server half.** `PlatformOp` handler mode (`method`+`path` XOR `handler`),
+   resolver emits `callRef` + `contextBindings` + `timeoutMs` specs flag-gated OFF
+   (`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`), `/tools/call` reserved-registry dispatch, and
+   the tools-domain composite handler (delta requires `EDIT_WORKFLOWS`, recursion marker
+   inert until 5b, 120s ceiling, terminal-result-wins verdict). NOT in the overlay yet.
+   Plus an SDK resolver fix: inline parameters-less revisions now seed the default
+   template, aligning the inline and reference paths (found live: a fresh playground app's
+   committed revision broke `test_run`'s child invoke).
+
+## Deferred
+
+- **Slice 5b** (runner `callRef` dispatch + spec-level context injection + `timeoutMs` +
+  overlay flip + flag default-on): see the open-issues entry
+  "[Land the runner half of test_run](../../scratch/open-issues.md)".
+- **Slice 6** (`gateway` -> `server` rename; Codex review scoped it to docs/UI labels):
+  see the open-issues entry "[Decide and execute the gateway -> server rename](../../scratch/open-issues.md)".
+- FE fixture sweep (`agentRequest.test.ts` op literals) and generated-client docstrings:
+  fixed at next codegen; noted in the PR.
+
+Earlier reconcile notes (Phase 0 against #5041, #5064, #5059, #5047): citation drift
+ledger in [research.md](research.md), "2026-07-04 reconciliation".
 
 2026-07-04: JP's #5064 landed (invoke negotiation; batch = fold(stream), full
 transcript). test_run digest simplified accordingly in api-design.md; silent-fallback
@@ -67,10 +105,10 @@ moved from `op_catalog.py` to the runner/wire surface; see plan.md.
 
 ## To verify live before the PR leans on it
 
-- Gotcha 1: whether a fresh playground run actually resolves only the getting-started
-  skill (the other three authoring skills appear undelivered; evidence in
-  [research.md](research.md) gotcha 1). Feed the result back to
-  builder-agent-reliability either way.
+- Gotcha 1: OVERTAKEN by slice 4. The three authoring skills are deleted; the overlay
+  embeds only the playbook and getting-started is harness-forced, so the double-delivery
+  question no longer applies. Live verification (2026-07-04) confirmed a fresh playground
+  agent resolves getting-started (forced) + the playbook (overlay).
 
 ## Folder
 
@@ -85,13 +123,14 @@ moved from `op_catalog.py` to the runner/wire surface; see plan.md.
 
 ## Slice 1 Deferred Touch-Points
 
-2026-07-04: Slice 1 code sweep intentionally did not edit the docs/interface and FE surfaces
-owned by other lanes. Deferred old-op references remain in:
+2026-07-04 (Phase 5 docs sweep): the five docs/interface pages are now updated in this
+lane (`documentation/tools.md`, `interfaces/README.md`,
+`cross-service/runner-to-tool-callback.md`, `in-service/tool-models-and-resolution.md`,
+`public-edge/agent-config-schema.md`, plus `documentation/agent-configuration.md` for the
+skills story). Still deferred:
 
-- `docs/design/agent-workflows/documentation/tools.md`
-- `docs/design/agent-workflows/interfaces/README.md`
-- `docs/design/agent-workflows/interfaces/cross-service/runner-to-tool-callback.md`
-- `docs/design/agent-workflows/interfaces/in-service/tool-models-and-resolution.md`
-- `docs/design/agent-workflows/interfaces/public-edge/agent-config-schema.md`
 - `web/packages/agenta-playground/tests/unit/agentRequest.test.ts` (5 op fixture literals)
 - generated-client docstrings: `web/packages/agenta-api-client/src/generated/api/types/CapabilitiesResult.ts` and `clients/python/agenta_client/types/capabilities_result.py` (fixed at next codegen)
+
+## Deferred / follow-ups
+- Live gap (environment-flavored): child invokes through the local in-process -> sub-sidecar path return trace_id=None (sidecar persist/heartbeat 401s), leaving test_run's resolved/span digest empty on this path; follow up on the tracing link, not a build-kit code bug (2026-07-04 live verify).

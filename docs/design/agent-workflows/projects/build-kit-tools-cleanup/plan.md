@@ -1,15 +1,25 @@
 # Plan: build-kit tools cleanup
 
-Status: implementing, 2026-07-04 (Phase 0 reconcile done; plan reconciled against the
-post-#5041/#5064/#5059 tree). Everything below batches into **one PR on one GitButler
-lane** (decided); the slices are ordered commits inside that PR, each independently green
-(tests + docs sync per slice), so review reads slice by slice and a late slice can be
-dropped without unwinding the early ones.
+Status: landed (server half), 2026-07-04. Slices 1-4 and the server sub-slices of slice 5
+(5a) are committed on the lane `feat/build-kit-tools-cleanup`, one commit per slice group:
+
+- Slice 1 (renames + sweep): **LANDED** (`a8a7a1e170`)
+- Slice 2 (overlay cut): **LANDED** (`e8b6eb129c`)
+- Slices 3-4 (`query_spans` + skills port): **LANDED** (`25d73b4386`)
+- Slice 5a (`test_run` server half, flag-gated off): **LANDED** (`61cf1751b9`)
+- Slice 5b (runner half: `callRef` dispatch, context injection, `timeoutMs`, overlay flip,
+  flag default-on): **DEFERRED** (open-issues entry in
+  [scratch/open-issues.md](../../scratch/open-issues.md))
+- Slice 6 (`gateway` -> `server` rename): **DEFERRED** (same log; Codex review scoped it
+  to docs/UI labels only)
+
+Everything landed batches into **one PR on one GitButler lane** (decided); the slices are
+ordered commits inside that PR, each independently green, so review reads slice by slice.
 
 Decisions: all closed. Option C confirmed (Mahmoud, 2026-07-04). The three formerly-open
-calls proceed on their recommendations as provisional defaults, flagged for PR review:
-static-13 overlay, sync+delta `test_run`, `query_spans` ships now. See
-[status.md](status.md).
+calls proceeded on their recommendations as provisional defaults, flagged for PR review:
+a static overlay (the 12 ops in `DEFAULT_BUILD_KIT_OPS`), sync+delta `test_run`, and
+`query_spans` shipping now. See [status.md](status.md).
 
 ## What merged under this plan (2026-07-04 reconcile)
 
@@ -79,7 +89,7 @@ Full citation drift ledger: [research.md](research.md), "2026-07-04 reconciliati
    runner sub-slice sequences behind the relay/protocol coordination above; slice 6 is
    last (or dropped).
 
-## Slice 1: renames + sweep (hard migrate, no aliases)
+## Slice 1: renames + sweep (hard migrate, no aliases) [LANDED]
 
 - `op_catalog.py`: rename the two op keys (`find_capabilities` → `discover_tools`,
   entry at 536-543; `find_triggers` → `discover_triggers`, entry at 576-583) and their
@@ -123,7 +133,7 @@ design-history docs (projects/ and scratch/ archives stay as-is) and the deferre
 generated clients; sweep script leaves zero old-key tools in dev revisions; suites
 green (`sdks/python`, `api`, web unit).
 
-## Slice 2: overlay cut (static 13)
+## Slice 2: overlay cut (static default list) [LANDED, 12 ops]
 
 - Add an explicit `DEFAULT_BUILD_KIT_OPS` tuple to
   `api/oss/src/apis/fastapi/applications/overlay.py` (the `PLATFORM_OPS` iteration at
@@ -140,7 +150,7 @@ green (`sdks/python`, `api`, web unit).
 Acceptance: a fresh playground application response carries exactly the approved list;
 cut ops resolve via explicit config.
 
-## Slice 3: `query_spans` (provisional: ship now)
+## Slice 3: `query_spans` (provisional: ship now) [LANDED]
 
 - One catalog entry (`read_only=True`, `POST /api/spans/query`; route registered at
   `api/oss/src/apis/fastapi/tracing/router.py:97-107`, handler at :314), one
@@ -152,7 +162,7 @@ cut ops resolve via explicit config.
 
 Acceptance: the builder verifies a past run's tool spans end to end through the tool.
 
-## Slice 4: skills port (single playbook, single overlay embed)
+## Slice 4: skills port (single playbook, single overlay embed) [LANDED]
 
 - `sdks/.../adapters/agenta_builtins.py`: add the `build-an-agent` `SkillTemplate` +
   slug (`__ag__build_an_agent`); delete the three old templates, slugs, and bodies
@@ -182,7 +192,13 @@ Acceptance: the builder verifies a past run's tool spans end to end through the 
 Acceptance: a fresh playground agent resolves getting-started (forced) + the playbook
 (overlay), no old slug resolves anywhere, dev sweep empty.
 
-## Slice 5: `test_run` end to end (Option C, confirmed; largest slice)
+## Slice 5: `test_run` end to end (Option C, confirmed; largest slice) [5a LANDED, 5b DEFERRED]
+
+What landed (5a) is the server half: catalog handler mode (item 2), the SDK side of the
+wire fields (spec-level `contextBindings`/`timeoutMs`, item 1 without the runner mirrors),
+and the server handler + reserved-registry dispatch (item 4). Resolution of handler-mode
+ops is flag-gated off (`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`) until 5b lands the runner
+half (item 3), the `protocol.ts`/golden mirrors, and the overlay + playbook flip (item 5).
 
 Sequencing gate: coordinate the runner/wire surface first (constraint 2 above).
 
@@ -235,7 +251,7 @@ Acceptance: the lab's capstone scenario run inside — build, `test_run`, read `
 schedule; both wire contract tests green; a gated write in the child run surfaces in
 `approvals` and verdict `unconfirmed`.
 
-## Slice 6: `gateway` → `server` executor rename, or explicit defer
+## Slice 6: `gateway` → `server` executor rename, or explicit defer [DEFERRED, defer-todo filed]
 
 The rename proposal ([tool-home-options.md](tool-home-options.md)) is proposed, not
 decided. Two outcomes, decided at PR review:
