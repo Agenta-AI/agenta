@@ -194,6 +194,41 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       );
     });
 
+    it("advertises a snake-case input_schema as a NON-empty schema (empty-schema regression)", async () => {
+      // Platform-catalog tools carry snake-case `input_schema`. The advertisement used to read
+      // only camelCase `s.inputSchema`, so Claude got EMPTY_OBJECT_SCHEMA and no argument schema.
+      const specs = [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "platform.commit_revision",
+          input_schema: {
+            type: "object",
+            required: ["workflow_revision"],
+            properties: { workflow_revision: { type: "object" } },
+          },
+        },
+      ] as unknown as ResolvedToolSpec[];
+      const { servers } = await build(specs, relayDir);
+      const list = await rpc(servers[0].url, {
+        jsonrpc: "2.0",
+        id: 9,
+        method: "tools/list",
+      });
+      const tool = list.result.tools[0];
+      assert.equal(tool.name, "commit_revision");
+      assert.deepEqual(tool.inputSchema, {
+        type: "object",
+        required: ["workflow_revision"],
+        properties: { workflow_revision: { type: "object" } },
+      });
+      assert.notDeepEqual(
+        tool.inputSchema,
+        { type: "object", properties: {} },
+        "must not advertise the empty fallback schema",
+      );
+    });
+
     it("routes tools/call through the relay dir (server-side execution)", async () => {
       const dir = mkdtempSync(join(tmpdir(), "agenta-tool-relay-"));
       try {

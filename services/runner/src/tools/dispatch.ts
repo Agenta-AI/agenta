@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
+import { assertRequiredArguments } from "./spec-schema.ts";
 import {
   RELAY_POLL_MS,
   RELAY_REQ_SUFFIX,
@@ -46,64 +47,6 @@ export interface RunResolvedToolOpts {
   relayDir?: string;
   /** Caller cancellation, combined with the per-tool timeout. */
   signal?: AbortSignal;
-}
-
-function objectSchema(schema: unknown): Record<string, unknown> | undefined {
-  return schema && typeof schema === "object" && !Array.isArray(schema)
-    ? (schema as Record<string, unknown>)
-    : undefined;
-}
-
-function requiredFields(schema: unknown): string[] {
-  const object = objectSchema(schema);
-  const required = object?.required;
-  return Array.isArray(required)
-    ? required.filter((field): field is string => typeof field === "string")
-    : [];
-}
-
-function specInputSchema(spec: ResolvedToolSpec): Record<string, unknown> | null | undefined {
-  return (
-    spec.inputSchema ??
-    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
-      .input_schema
-  );
-}
-
-function missingRequiredFields(
-  schema: unknown,
-  value: unknown,
-  path: string[] = [],
-): string[] {
-  const object = objectSchema(schema);
-  if (!object) return [];
-
-  const missing: string[] = [];
-  const required = requiredFields(object);
-  const record = objectSchema(value);
-  for (const field of required) {
-    if (!record || record[field] === undefined || record[field] === null) {
-      missing.push([...path, field].join("."));
-    }
-  }
-
-  const properties = objectSchema(object.properties);
-  if (!properties || !record) return missing;
-  for (const [field, childSchema] of Object.entries(properties)) {
-    if (record[field] !== undefined && record[field] !== null) {
-      missing.push(...missingRequiredFields(childSchema, record[field], [...path, field]));
-    }
-  }
-  return missing;
-}
-
-function assertRequiredArguments(spec: ResolvedToolSpec, params: unknown): void {
-  const missing = missingRequiredFields(specInputSchema(spec), params);
-  if (missing.length === 0) return;
-  throw new Error(
-    `Tool '${spec.name}' missing required argument(s): ${missing.join(", ")}. ` +
-      "Retry the tool call with those argument fields populated.",
-  );
 }
 
 /**
