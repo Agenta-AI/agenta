@@ -12,6 +12,9 @@ export const processEnv = {
     // Default request-contract track for the agent chat slice: "uimessage" (Track A) or
     // "agenta" (Track B). The page also has a runtime toggle.
     NEXT_PUBLIC_AGENT_CHAT_TRACK: process.env.NEXT_PUBLIC_AGENT_CHAT_TRACK,
+    // Feature flag for the new agent onboarding Home. When "true", the Home route
+    // renders the onboarding page instead of the legacy AppManagement dashboard.
+    NEXT_PUBLIC_AGENT_ONBOARDING: process.env.NEXT_PUBLIC_AGENT_ONBOARDING,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,
