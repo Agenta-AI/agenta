@@ -1,8 +1,9 @@
 import React from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {FolderFilled} from "@ant-design/icons"
 import {TrashIcon} from "@phosphor-icons/react"
-import {Modal, Button} from "antd"
+import {Button} from "antd"
 
 interface DeleteFolderModalProps {
     open: boolean
@@ -20,7 +21,7 @@ const DeleteFolderModal = ({
     confirmLoading,
 }: DeleteFolderModalProps) => {
     return (
-        <Modal open={open} onCancel={onCancel} footer={null} destroyOnHidden centered>
+        <EnhancedModal open={open} onCancel={onCancel} footer={null} destroyOnHidden centered>
             <div className="flex flex-col gap-4">
                 <div className="text-xl font-semibold">Are you sure you want to delete?</div>
 
@@ -47,7 +48,7 @@ const DeleteFolderModal = ({
                     </Button>
                 </div>
             </div>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

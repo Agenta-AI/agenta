@@ -2,10 +2,9 @@ import {useState} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Trash} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import {DeleteProviderModalProps} from "./assets/types"
 

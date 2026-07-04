@@ -9,6 +9,7 @@ import {
     isOnlineCapableEvaluator,
 } from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
 import dayjs from "dayjs"
 import type {Dayjs} from "dayjs"
@@ -18,7 +19,6 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {v4 as uuidv4} from "uuid"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
 import type {Filter} from "@/oss/lib/Types"
 

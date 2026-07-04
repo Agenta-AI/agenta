@@ -62,6 +62,7 @@
         "uuid": ">=9.0.0"
     },
     "dependencies": {
+        "@agenta/primitive-ui": "workspace:../agenta-primitive-ui",
         "@agenta/shared": "workspace:../agenta-shared",
         "@ant-design/icons": "^6.1.0",
         "@lexical/code": "^0.46.0",

@@ -1,4 +1,4 @@
-import {Modal} from "antd"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 
 export type CustomWorkflowModalProps = {
     open: boolean
@@ -9,4 +9,4 @@ export type CustomWorkflowModalProps = {
     onSuccess?: () => Promise<void>
     /** Called to trigger template creation (create mode only) */
     onCreateApp?: () => void
-} & Omit<React.ComponentProps<typeof Modal>, "open" | "onCancel">
+} & Omit<React.ComponentProps<typeof EnhancedModal>, "open" | "onCancel">

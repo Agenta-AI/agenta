@@ -1,11 +1,11 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useLocalStorage} from "usehooks-ts"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getProjectValues} from "@/oss/state/project"
 

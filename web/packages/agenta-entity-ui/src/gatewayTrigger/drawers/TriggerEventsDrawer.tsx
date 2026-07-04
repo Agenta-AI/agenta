@@ -9,8 +9,9 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, MagnifyingGlass} from "@phosphor-icons/react"
-import {Card, Divider, Drawer, Empty, Form, Input, Spin, Tag, Typography} from "antd"
+import {Card, Divider, Empty, Form, Input, Spin, Tag, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import SchemaForm from "../../gatewayTool/components/SchemaForm"
@@ -37,7 +38,7 @@ export default function TriggerEventsDrawer() {
     }, [])
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={open}
             onClose={handleClose}
             title={
@@ -66,7 +67,7 @@ export default function TriggerEventsDrawer() {
                 ) : (
                     <EventsView integrationKey={state.integrationKey} onSelect={setSelectedEvent} />
                 ))}
-        </Drawer>
+        </EnhancedDrawer>
     )
 }
 

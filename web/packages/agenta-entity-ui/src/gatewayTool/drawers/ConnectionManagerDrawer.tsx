@@ -12,8 +12,9 @@ import {
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
 import {dayjs} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowClockwise, Play, Trash, XCircle} from "@phosphor-icons/react"
-import {Button, Descriptions, Divider, Drawer, Spin, Typography} from "antd"
+import {Button, Descriptions, Divider, Spin, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import ConnectionStatusBadge from "../components/ConnectionStatusBadge"
@@ -167,7 +168,7 @@ export default function ConnectionManagerDrawer() {
     const isValid = isConnectionValid(connection)
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={open}
             onClose={handleClose}
             title="Connection Details"
@@ -276,6 +277,6 @@ export default function ConnectionManagerDrawer() {
                     </>
                 )}
             </div>
-        </Drawer>
+        </EnhancedDrawer>
     )
 }

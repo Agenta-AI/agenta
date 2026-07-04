@@ -1,4 +1,4 @@
-import {Drawer} from "antd"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import clsx from "clsx"
 
 import ConfigurationTable from "./components/ConfigurationTable"
@@ -7,12 +7,12 @@ import {CustomWorkflowHistoryProps} from "./types"
 
 const CustomWorkflowHistory = ({...props}: CustomWorkflowHistoryProps) => {
     return (
-        <Drawer title="Configuration History" styles={{wrapper: {width: 1200}}} {...props}>
+        <EnhancedDrawer title="Configuration History" styles={{wrapper: {width: 1200}}} {...props}>
             <div className={clsx(["flex gap-6 p-6"])}>
                 <ConfigurationTable />
                 <ConfigurationView />
             </div>
-        </Drawer>
+        </EnhancedDrawer>
     )
 }
 

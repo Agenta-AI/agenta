@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react"
 
-import {Input, Modal, Typography} from "antd"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Input, Typography} from "antd"
 
 import type {ChangesSummary} from "../hooks/types"
 
@@ -88,7 +89,7 @@ export function TestcaseModals(props: TestcaseModalsProps) {
     return (
         <>
             {/* Rename Modal */}
-            <Modal
+            <EnhancedModal
                 title="Edit Testset Details"
                 open={isRenameModalOpen}
                 onOk={handleRenameConfirm}
@@ -120,7 +121,7 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                         />
                     </div>
                 </div>
-            </Modal>
+            </EnhancedModal>
 
             {/* Commit Modal */}
             <CommitTestsetModal
@@ -134,7 +135,7 @@ export function TestcaseModals(props: TestcaseModalsProps) {
             />
 
             {/* Add Column Modal */}
-            <Modal
+            <EnhancedModal
                 title="Add Column"
                 open={isAddColumnModalOpen}
                 onOk={handleAddColumn}
@@ -165,7 +166,7 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                         <code className="bg-gray-100 px-1 rounded">parent</code> group.
                     </Typography.Text>
                 </div>
-            </Modal>
+            </EnhancedModal>
         </>
     )
 }

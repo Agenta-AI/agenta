@@ -12,6 +12,7 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
     ArrowLeft,
     BracketsRound,
@@ -24,7 +25,6 @@ import {
     Button,
     Card,
     Divider,
-    Drawer,
     Empty,
     Form,
     Input,
@@ -82,7 +82,7 @@ export default function ToolExecutionDrawer() {
     const drawerTitle = step === 2 ? "Test Action" : "Select Action"
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={open}
             onClose={handleClose}
             title={drawerTitle}
@@ -118,7 +118,7 @@ export default function ToolExecutionDrawer() {
                         onBack={handleBack}
                     />
                 ))}
-        </Drawer>
+        </EnhancedDrawer>
     )
 }
 

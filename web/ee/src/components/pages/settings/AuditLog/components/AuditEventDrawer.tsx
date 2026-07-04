@@ -13,10 +13,10 @@ import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Empty, EmptyDescription, EmptyHeader} from "@agenta/primitive-ui/components/empty"
 import {dayjs} from "@agenta/shared/utils"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Copy} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {UserReference} from "@/oss/components/References/UserReference"
 
 import {auditDrawerOpenAtom, selectedEventIdAtom} from "../state"

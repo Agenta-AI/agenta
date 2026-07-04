@@ -34,6 +34,7 @@ import {
     extractBasicStats,
     type ChatExtractionPreference,
 } from "@agenta/ui/cell-renderers"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
     EXPORT_RESOLVE_SKIP,
     InfiniteVirtualTableFeatureShell,
@@ -51,7 +52,7 @@ import {
     Eye,
     Plus,
 } from "@phosphor-icons/react"
-import {Button, Drawer, Input, Skeleton, Tag, Tooltip, Typography, message} from "antd"
+import {Button, Input, Skeleton, Tag, Tooltip, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -1064,7 +1065,7 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
     }, [isTrace, navigation.openTraceDetail, handleViewTrace])
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={open}
             onClose={onClose}
             title={
@@ -1104,7 +1105,7 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
                     </div>
                 </div>
             )}
-        </Drawer>
+        </EnhancedDrawer>
     )
 })
 

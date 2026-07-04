@@ -1,11 +1,12 @@
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Rocket} from "@phosphor-icons/react"
-import {Modal, Typography} from "antd"
+import {Typography} from "antd"
 
 type DeploymentRevertModalProps = {
     revisionVersion: number
     environmentName: string
     variantName: string | null
-} & React.ComponentProps<typeof Modal>
+} & React.ComponentProps<typeof EnhancedModal>
 
 const DeploymentRevertModal = ({
     environmentName,
@@ -14,7 +15,7 @@ const DeploymentRevertModal = ({
     ...props
 }: DeploymentRevertModalProps) => {
     return (
-        <Modal
+        <EnhancedModal
             className="[&_.ant-modal-footer]:flex [&_.ant-modal-footer]:items-center [&_.ant-modal-footer]:justify-end"
             okText={
                 <div className="flex gap-2 items-center">
@@ -48,7 +49,7 @@ const DeploymentRevertModal = ({
                     </div>
                 </div>
             </div>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

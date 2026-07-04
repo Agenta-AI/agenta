@@ -1,13 +1,14 @@
 import {ComponentProps, ReactNode, useMemo, useState} from "react"
 
 import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
-import {Button, Divider, Drawer} from "antd"
+import {Button, Divider} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {deploymentsDrawerStateAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {currentAppAtom} from "@/oss/state/app"
 
 import UseApiContent from "../../assets/UseApiContent"
@@ -27,7 +28,7 @@ type DeploymentsDrawerProps = {
     mainContentClassName?: string
     drawerVariantId?: string
     mode?: "deployment" | "variant"
-} & ComponentProps<typeof Drawer>
+} & ComponentProps<typeof EnhancedDrawer>
 
 interface DeploymentsDrawerTitleProps extends Pick<
     DeploymentsDrawerProps,

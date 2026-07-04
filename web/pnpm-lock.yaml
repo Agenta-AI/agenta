@@ -1319,6 +1319,9 @@ importers:
 
   packages/agenta-ui:
     dependencies:
+      '@agenta/primitive-ui':
+        specifier: workspace:../agenta-primitive-ui
+        version: link:../agenta-primitive-ui
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared

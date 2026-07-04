@@ -21,13 +21,13 @@ import {
     getWorkflowCommitCallbacks,
 } from "@agenta/entities/workflow"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowsIn, ArrowsOut} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {evaluatorConfigEntityIdsAtom} from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
 import EvaluatorRunControls from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorRunControls"
 import SelectAppEmptyState from "@/oss/components/Evaluators/components/ConfigureEvaluator/SelectAppEmptyState"

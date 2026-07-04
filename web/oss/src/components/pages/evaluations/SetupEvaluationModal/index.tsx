@@ -1,10 +1,10 @@
 import {useState} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined} from "@ant-design/icons"
 import {Book, Play} from "@phosphor-icons/react"
 import {Button, ModalProps, Typography} from "antd"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
 import {
     modalBodyClass,

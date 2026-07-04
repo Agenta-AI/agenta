@@ -1,6 +1,7 @@
 import React, {Dispatch, SetStateAction} from "react"
 
-import {Input, Modal} from "antd"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Input} from "antd"
 
 export interface FolderModalState {
     name: string
@@ -35,7 +36,7 @@ const NewFolderModal = ({
     okText = "Create",
 }: NewFolderModalProps) => {
     return (
-        <Modal
+        <EnhancedModal
             title={title}
             open={open}
             onCancel={onCancel}
@@ -65,7 +66,7 @@ const NewFolderModal = ({
                     <span className="font-medium">Folder path:</span> {folderPath}
                 </div>
             </div>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

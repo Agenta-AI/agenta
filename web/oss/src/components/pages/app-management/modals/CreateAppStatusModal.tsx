@@ -1,7 +1,8 @@
 import {useEffect} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Check, CircleNotch, ExclamationMark} from "@phosphor-icons/react"
-import {Modal, Typography, theme} from "antd"
+import {Typography, theme} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -22,7 +23,7 @@ interface Props {
     appName: string
 }
 
-const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>> = ({
+const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof EnhancedModal>> = ({
     loading,
     onErrorRetry,
     onTimeoutRetry,
@@ -141,7 +142,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     }, [props.open, goToPlayground, navigationTarget, setNavigationTarget, resetAppCreation])
 
     return (
-        <Modal
+        <EnhancedModal
             destroyOnHidden
             onOk={onOk}
             okText={"Retry"}
@@ -202,7 +203,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                     ))}
                 </div>
             </section>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

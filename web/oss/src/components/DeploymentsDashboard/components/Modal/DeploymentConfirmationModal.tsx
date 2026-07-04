@@ -2,8 +2,9 @@ import {ComponentProps, Dispatch, SetStateAction} from "react"
 
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {CommitMessageInput, EnhancedModal} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined} from "@ant-design/icons"
-import {Button, Modal, Space, Typography} from "antd"
+import {Button, Space, Typography} from "antd"
 
 import type {DeploymentVariantInfo} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 
@@ -14,7 +15,7 @@ type DeploymentConfirmationModalProps = {
     variant?: DeploymentVariantInfo
     envName: string
     actionType?: "deploy" | "revert"
-} & ComponentProps<typeof Modal>
+} & ComponentProps<typeof EnhancedModal>
 
 const DeploymentConfirmationModalContent = ({
     variant,

@@ -1,9 +1,8 @@
 import {useCallback, memo, useState} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined} from "@ant-design/icons"
 import dynamic from "next/dynamic"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import type {NewEvaluationModalGenericProps} from "./types"
 

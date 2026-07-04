@@ -1,7 +1,7 @@
 /**
  * ImagePreview Component
  *
- * A clickable image thumbnail that opens an Ant Design Modal with a larger preview.
+ * A clickable image thumbnail that opens a modal with a larger preview.
  * Handles base64 data URIs, blob URLs, and regular image URLs with safety validation.
  *
  * @example
@@ -21,7 +21,8 @@ import {useCallback, useMemo, useState} from "react"
 import type {KeyboardEvent, MouseEvent} from "react"
 
 import {MagnifyingGlassPlus} from "@phosphor-icons/react"
-import {Modal} from "antd"
+
+import {EnhancedModal} from "../../EnhancedModal"
 
 import ImageWithFallback from "./ImageWithFallback"
 import {resolveSafeImagePreviewSrc} from "./utils"
@@ -48,7 +49,7 @@ export interface ImagePreviewProps {
 // ============================================================================
 
 /**
- * Small clickable image thumbnail that opens an Ant Design Modal with a larger preview.
+ * Small clickable image thumbnail that opens a larger preview.
  */
 const ImagePreview = ({
     src,
@@ -102,7 +103,7 @@ const ImagePreview = ({
                     <MagnifyingGlassPlus size={16} weight="bold" />
                 </div>
             </div>
-            <Modal
+            <EnhancedModal
                 open={open}
                 footer={null}
                 onCancel={handleCancel}
@@ -117,7 +118,7 @@ const ImagePreview = ({
                         className="w-full h-full max-h-[600px] max-w-[800px] object-contain"
                     />
                 )}
-            </Modal>
+            </EnhancedModal>
         </>
     )
 }

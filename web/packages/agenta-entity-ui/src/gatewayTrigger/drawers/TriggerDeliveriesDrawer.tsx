@@ -9,13 +9,14 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     useTableManager,
 } from "@agenta/ui/table"
 import {Code, Play} from "@phosphor-icons/react"
-import {Drawer, Empty, Tag, Tooltip, Typography, message} from "antd"
+import {Empty, Tag, Tooltip, Typography, message} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtom, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -221,7 +222,7 @@ export default function TriggerDeliveriesDrawer() {
     )
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={open}
             onClose={() => {
                 // This drawer stays mounted (atom-driven), so the payload-modal state
@@ -265,6 +266,6 @@ export default function TriggerDeliveriesDrawer() {
                     </pre>
                 </ModalContent>
             </EnhancedModal>
-        </Drawer>
+        </EnhancedDrawer>
     )
 }

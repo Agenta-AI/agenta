@@ -1,8 +1,9 @@
 import {memo, useEffect, useRef, useState} from "react"
 
 import {CommitMessageInput} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Modal, Typography} from "antd"
+import {Typography} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -96,7 +97,7 @@ const CommitTestsetModal = ({
     const hasDiffData = displaySummary?.originalData && displaySummary?.modifiedData
 
     return (
-        <Modal
+        <EnhancedModal
             title="Commit Changes"
             open={open}
             onOk={handleCommit}
@@ -180,7 +181,7 @@ const CommitTestsetModal = ({
                     </div>
                 )}
             </div>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

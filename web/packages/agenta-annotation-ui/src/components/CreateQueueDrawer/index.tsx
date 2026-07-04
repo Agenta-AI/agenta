@@ -9,7 +9,8 @@ import {evaluatorWorkflowMetaMapAtom} from "@agenta/entities/workflow"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {projectIdAtom} from "@agenta/shared/state"
 import {ModalContent, ModalFooter, message} from "@agenta/ui"
-import {Divider, Drawer, Form, Input, Select, Typography} from "antd"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Divider, Form, Input, Select, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigationSafe} from "../../context"
@@ -469,7 +470,7 @@ const CreateQueueDrawer = ({
     }, [setSelection])
 
     return (
-        <Drawer
+        <EnhancedDrawer
             title="Create annotation queue"
             open={open}
             onClose={handleClose}
@@ -507,7 +508,7 @@ const CreateQueueDrawer = ({
                     feedbackCreateLabel={feedbackCreateLabel}
                 />
             ) : null}
-        </Drawer>
+        </EnhancedDrawer>
     )
 }
 

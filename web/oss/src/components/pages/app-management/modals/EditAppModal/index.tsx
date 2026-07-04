@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {invalidateWorkflowsListCache, updateWorkflow} from "@agenta/entities/workflow"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CheckOutlined} from "@ant-design/icons"
-import {Input, Modal, Typography} from "antd"
+import {Input, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -59,7 +60,7 @@ const EditAppModal = () => {
     }, [appDetails, appNameInput, mutate, closeModal, onRenamed])
 
     return (
-        <Modal
+        <EnhancedModal
             centered
             destroyOnHidden
             okButtonProps={{
@@ -91,7 +92,7 @@ const EditAppModal = () => {
                     <div className={clsx("text-red", "ml-2")}>App name already exists</div>
                 )}
             </div>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

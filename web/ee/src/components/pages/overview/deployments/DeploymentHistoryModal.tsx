@@ -8,9 +8,10 @@ import {
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {ClockCounterClockwise, GearSix} from "@phosphor-icons/react"
-import {Button, Dropdown, Modal, Space, Spin, Table, Tag, Typography} from "antd"
+import {Button, Dropdown, Space, Spin, Table, Tag, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -59,7 +60,7 @@ type DeploymentHistoryModalProps = {
     currentAppRevisionId: string | null
     appId: string
     appSlug: string | null
-} & React.ComponentProps<typeof Modal>
+} & React.ComponentProps<typeof EnhancedModal>
 
 // ============================================================================
 // HELPERS
@@ -360,7 +361,7 @@ const DeploymentHistoryModal = ({
 
     return (
         <>
-            <Modal
+            <EnhancedModal
                 footer={null}
                 closeIcon={null}
                 destroyOnHidden
@@ -486,7 +487,7 @@ const DeploymentHistoryModal = ({
                         )}
                     </div>
                 </div>
-            </Modal>
+            </EnhancedModal>
 
             {revertRow && (
                 <DeploymentRevertModal

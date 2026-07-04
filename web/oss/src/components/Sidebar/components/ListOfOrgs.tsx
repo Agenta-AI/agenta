@@ -1,6 +1,7 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {InitialsAvatar} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArrowsLeftRight, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
@@ -10,7 +11,6 @@ import {
     Form,
     Input,
     MenuProps,
-    Modal,
     Select,
     Tag,
     Typography,
@@ -623,7 +623,7 @@ const ListOfOrgs = ({
                 }}
             />
 
-            <Modal
+            <EnhancedModal
                 title="Create Organization"
                 open={isCreateModalOpen}
                 okText="Create"
@@ -649,9 +649,9 @@ const ListOfOrgs = ({
                         <Input placeholder="Organization name" autoFocus />
                     </Form.Item>
                 </Form>
-            </Modal>
+            </EnhancedModal>
 
-            <Modal
+            <EnhancedModal
                 title="Rename Organization"
                 open={isRenameModalOpen}
                 okText="Save"
@@ -684,9 +684,9 @@ const ListOfOrgs = ({
                         <Input placeholder="Organization name" autoFocus />
                     </Form.Item>
                 </Form>
-            </Modal>
+            </EnhancedModal>
 
-            <Modal
+            <EnhancedModal
                 title="Transfer Ownership"
                 open={isTransferModalOpen}
                 okText="Transfer"
@@ -777,9 +777,9 @@ const ListOfOrgs = ({
                         />
                     </Form.Item>
                 </Form>
-            </Modal>
+            </EnhancedModal>
 
-            <Modal
+            <EnhancedModal
                 title="Delete Organization"
                 open={isDeleteModalOpen}
                 okText="Delete"
@@ -858,7 +858,7 @@ const ListOfOrgs = ({
                         />
                     </div>
                 </div>
-            </Modal>
+            </EnhancedModal>
         </div>
     )
 }

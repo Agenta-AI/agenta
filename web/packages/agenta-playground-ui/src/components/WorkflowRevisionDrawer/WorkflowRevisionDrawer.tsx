@@ -1,3 +1,8 @@
+import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
+
+import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {useAtomValue, useSetAtom} from "jotai"
+
 /**
  * WorkflowRevisionDrawer
  *
@@ -15,10 +20,6 @@
  * - Clicks on `.variant-table-row` are ignored — the row click handler sets the
  *   URL param, which swaps drawer content without closing.
  */
-import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
-
-import {Drawer} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
 
 import DrawerContent from "./DrawerContent"
 import DrawerHeader from "./DrawerHeader"
@@ -103,7 +104,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
     if (!shouldRender) return null
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={isOpen}
             closable={false}
             mask={showBlurredMask ? {blur: true} : false}
@@ -121,7 +122,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
                     <DrawerContent entityId={entityId} playgroundContent={playgroundContent} />
                 </div>
             )}
-        </Drawer>
+        </EnhancedDrawer>
     )
 }
 

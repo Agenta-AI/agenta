@@ -1,8 +1,9 @@
 import {useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
-import {Alert, Button, Modal, Popover, Typography, Upload, UploadFile} from "antd"
+import {Alert, Button, Popover, Typography, Upload, UploadFile} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {FilePreviewTable} from "@/oss/components/pages/testset/modals/components/FilePreviewTable"
@@ -219,7 +220,7 @@ export function ImportTestsetRevisionModal({
     }
 
     return (
-        <Modal
+        <EnhancedModal
             title="Import file as new revision"
             open={open}
             onCancel={handleClose}
@@ -324,7 +325,7 @@ export function ImportTestsetRevisionModal({
                     </>
                 )}
             </section>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

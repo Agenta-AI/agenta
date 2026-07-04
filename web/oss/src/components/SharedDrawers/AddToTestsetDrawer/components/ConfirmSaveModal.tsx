@@ -1,4 +1,5 @@
-import {Modal, Tag, Typography} from "antd"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Tag, Typography} from "antd"
 
 import {TestsetColumn} from "../assets/types"
 
@@ -28,7 +29,7 @@ export function ConfirmSaveModal({
         .map((item) => item.column)
 
     return (
-        <Modal
+        <EnhancedModal
             open={isConfirmSave}
             onCancel={() => setIsConfirmSave(false)}
             title="Add new columns to testset"
@@ -56,6 +57,6 @@ export function ConfirmSaveModal({
                     </div>
                 </div>
             </div>
-        </Modal>
+        </EnhancedModal>
     )
 }

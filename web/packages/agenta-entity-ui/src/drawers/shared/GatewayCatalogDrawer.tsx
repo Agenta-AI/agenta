@@ -12,6 +12,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
     ArrowLeft,
     CaretDown,
@@ -22,7 +23,7 @@ import {
     Plus,
 } from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Card, Divider, Drawer, Dropdown, Empty, Input, Spin, Tag, Typography} from "antd"
+import {Button, Card, Divider, Dropdown, Empty, Input, Spin, Tag, Typography} from "antd"
 import Image from "next/image"
 
 import {AppCard} from "./CatalogAppCard"
@@ -651,7 +652,7 @@ export function GatewayCatalogDrawer<I, T, C>({
 
     return (
         <>
-            <Drawer
+            <EnhancedDrawer
                 open={open}
                 onClose={handleClose}
                 title={config.title(selected)}
@@ -677,7 +678,7 @@ export function GatewayCatalogDrawer<I, T, C>({
                 ) : (
                     <IntegrationsView adapter={adapter} config={config} onSelect={setSelected} />
                 )}
-            </Drawer>
+            </EnhancedDrawer>
 
             {connectFor &&
                 config.renderConnect(connectFor, {

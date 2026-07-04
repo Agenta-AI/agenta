@@ -3,8 +3,9 @@ import {SetStateAction, useMemo, useState} from "react"
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import type {Workflow} from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CaretRight} from "@phosphor-icons/react"
-import {Input, Modal, Table, Tag, Typography} from "antd"
+import {Input, Table, Tag, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
@@ -20,7 +21,7 @@ type ChangeVariantModalProps = {
     selectedEnvironment: AppEnvironmentDeployment
     setOpenChangeVariantModal: (value: SetStateAction<boolean>) => void
     loadEnvironments: () => Promise<void>
-} & React.ComponentProps<typeof Modal>
+} & React.ComponentProps<typeof EnhancedModal>
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -61,7 +62,7 @@ const ChangeVariantModal = ({
 
     return (
         <>
-            <Modal width={520} centered destroyOnHidden footer={null} {...props}>
+            <EnhancedModal width={520} centered destroyOnHidden footer={null} {...props}>
                 <div>
                     <Typography.Text className={classes.title}>
                         Deploy to {selectedEnvironment.name}
@@ -124,7 +125,7 @@ const ChangeVariantModal = ({
                         />
                     </div>
                 </div>
-            </Modal>
+            </EnhancedModal>
             {selectedVariant && (
                 <DeploymentModal
                     selectedEnvironment={selectedEnvironment}

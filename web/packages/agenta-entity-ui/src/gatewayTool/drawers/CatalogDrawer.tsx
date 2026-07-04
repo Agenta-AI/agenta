@@ -15,21 +15,10 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {
-    Badge,
-    Button,
-    Card,
-    Divider,
-    Drawer,
-    Dropdown,
-    Empty,
-    Input,
-    Spin,
-    Tag,
-    Typography,
-} from "antd"
+import {Badge, Button, Card, Divider, Dropdown, Empty, Input, Spin, Tag, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -101,7 +90,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
 
     return (
         <>
-            <Drawer
+            <EnhancedDrawer
                 open={open}
                 onClose={handleClose}
                 title={selectedIntegration ? "Browse Actions" : "Browse Integrations"}
@@ -125,7 +114,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
                 ) : (
                     <IntegrationsView onSelect={setSelectedIntegration} />
                 )}
-            </Drawer>
+            </EnhancedDrawer>
 
             {connectIntegration && (
                 <ConnectDrawer

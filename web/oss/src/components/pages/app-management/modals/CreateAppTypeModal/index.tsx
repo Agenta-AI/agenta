@@ -21,11 +21,10 @@ import {memo, useCallback, useRef, useState, useTransition} from "react"
 import {createEphemeralAppFromTemplate, type AppType} from "@agenta/entities/workflow"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {cn, textColors, borderColors} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Typography, message} from "antd"
 import {useSetAtom} from "jotai"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import {getAppTypeIcon} from "../../../prompts/assets/iconHelpers"
 

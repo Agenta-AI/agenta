@@ -1,8 +1,9 @@
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Modal, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Input, Tooltip, Typography} from "antd"
 
 interface EditableColumnHeaderProps {
     columnKey: string
@@ -147,7 +148,7 @@ const EditableColumnHeader = ({
                 )}
             </div>
 
-            <Modal
+            <EnhancedModal
                 title="Rename Column"
                 open={isRenameModalOpen}
                 onOk={handleRename}
@@ -182,9 +183,9 @@ const EditableColumnHeader = ({
                         <code className="bg-gray-100 px-1 rounded">parent</code> group.
                     </Typography.Text>
                 </div>
-            </Modal>
+            </EnhancedModal>
 
-            <Modal
+            <EnhancedModal
                 title="Delete Column"
                 open={isDeleteModalOpen}
                 onOk={handleDelete}
@@ -198,7 +199,7 @@ const EditableColumnHeader = ({
                     Are you sure you want to delete the column &quot;{columnName}&quot;? This will
                     remove the column from all testcases.
                 </Typography.Text>
-            </Modal>
+            </EnhancedModal>
         </>
     )
 }

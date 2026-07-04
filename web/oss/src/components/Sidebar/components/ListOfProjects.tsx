@@ -1,19 +1,10 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {InitialsAvatar} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {
-    ButtonProps,
-    Dropdown,
-    DropdownProps,
-    Form,
-    Input,
-    MenuProps,
-    Modal,
-    Tag,
-    message,
-} from "antd"
+import {ButtonProps, Dropdown, DropdownProps, Form, Input, MenuProps, Tag, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -502,7 +493,7 @@ const ListOfProjects = ({
                 </div>
             )}
 
-            <Modal
+            <EnhancedModal
                 title="Create project"
                 open={isCreateModalOpen}
                 okText="Create"
@@ -528,9 +519,9 @@ const ListOfProjects = ({
                         <Input placeholder="Project name" autoFocus />
                     </Form.Item>
                 </Form>
-            </Modal>
+            </EnhancedModal>
 
-            <Modal
+            <EnhancedModal
                 title="Rename project"
                 open={isRenameModalOpen}
                 okText="Save"
@@ -563,7 +554,7 @@ const ListOfProjects = ({
                         <Input placeholder="Project name" autoFocus />
                     </Form.Item>
                 </Form>
-            </Modal>
+            </EnhancedModal>
         </>
     )
 }

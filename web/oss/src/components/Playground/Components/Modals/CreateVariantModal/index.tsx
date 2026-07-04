@@ -3,11 +3,11 @@ import {type FC, useState, useCallback, useMemo} from "react"
 import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
 import groupBy from "lodash/groupBy"
 import dynamic from "next/dynamic"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {CreateVariantModalProps} from "./types"

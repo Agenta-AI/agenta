@@ -2,6 +2,7 @@ import {useMemo, useState} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {
     ArrowRight,
@@ -12,7 +13,7 @@ import {
     Rocket,
     Swap,
 } from "@phosphor-icons/react"
-import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography} from "antd"
+import {Button, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -126,7 +127,7 @@ const DeploymentDrawer = ({
 
     return (
         <>
-            <Drawer
+            <EnhancedDrawer
                 width={720}
                 {...props}
                 destroyOnHidden
@@ -284,7 +285,7 @@ const DeploymentDrawer = ({
                         </Button>
                     </div>
                 )}
-            </Drawer>
+            </EnhancedDrawer>
 
             <DeploymentHistoryModal
                 open={isHistoryModalOpen}

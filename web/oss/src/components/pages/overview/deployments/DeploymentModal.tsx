@@ -4,8 +4,9 @@ import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {publishMutationAtom} from "@agenta/entities/runnable"
 import type {Workflow} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Rocket} from "@phosphor-icons/react"
-import {Modal, Typography} from "antd"
+import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 type DeploymentModalProps = {
@@ -13,7 +14,7 @@ type DeploymentModalProps = {
     selectedVariant: Workflow
     loadEnvironments: () => Promise<void>
     setIsDeploymentModalOpen: (value: React.SetStateAction<boolean>) => void
-} & React.ComponentProps<typeof Modal>
+} & React.ComponentProps<typeof EnhancedModal>
 
 const DeploymentModal = ({
     selectedEnvironment,
@@ -49,7 +50,7 @@ const DeploymentModal = ({
     }, [selectedEnvironment, selectedVariant, publish, setIsDeploymentModalOpen])
 
     return (
-        <Modal
+        <EnhancedModal
             className="[&_.ant-modal-footer]:flex [&_.ant-modal-footer]:items-center [&_.ant-modal-footer]:justify-end"
             okText={
                 <div className="flex gap-2 items-center">
@@ -80,7 +81,7 @@ const DeploymentModal = ({
                     </div>
                 </div>
             </div>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

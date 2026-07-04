@@ -1,8 +1,8 @@
 import {useState} from "react"
 
 import {deletePreviewTrace} from "@agenta/entities/trace"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {DeleteOutlined} from "@ant-design/icons"
-import {Modal} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import Router from "next/router"
 
@@ -65,7 +65,7 @@ const DeleteTraceModal = () => {
         }
     }
     return (
-        <Modal
+        <EnhancedModal
             centered
             destroyOnHidden
             width={400}
@@ -79,7 +79,7 @@ const DeleteTraceModal = () => {
             onOk={handleDelete}
         >
             This action is not reversible.
-        </Modal>
+        </EnhancedModal>
     )
 }
 

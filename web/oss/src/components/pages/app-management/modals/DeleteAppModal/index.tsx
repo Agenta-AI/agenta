@@ -2,7 +2,7 @@ import {useCallback} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
-import {Modal} from "antd"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -56,7 +56,7 @@ const DeleteAppModal = (props = {}) => {
     }, [appCount, appDetails, setLoading, mutateApps, onArchived, closeModal, router, baseAppURL])
 
     return (
-        <Modal
+        <EnhancedModal
             {...props}
             title={appCount === 1 ? "Archive app" : "Archive apps"}
             open={open}
@@ -81,7 +81,7 @@ const DeleteAppModal = (props = {}) => {
                     </ul>
                 </div>
             )}
-        </Modal>
+        </EnhancedModal>
     )
 }
 

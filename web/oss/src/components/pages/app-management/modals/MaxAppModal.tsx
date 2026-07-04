@@ -1,13 +1,14 @@
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Phone, SlackLogo} from "@phosphor-icons/react"
-import {Button, Modal, Typography} from "antd"
+import {Button, Typography} from "antd"
 import Image from "next/image"
 import Link from "next/link"
 
-type Props = React.ComponentProps<typeof Modal> & {}
+type Props = React.ComponentProps<typeof EnhancedModal> & {}
 
 const MaxAppModal: React.FC<Props> = ({...props}) => {
     return (
-        <Modal
+        <EnhancedModal
             rootClassName="[&_.ant-modal-content]:rounded-2xl [&_.ant-modal-close]:top-[17px]"
             centered
             footer={null}
@@ -55,7 +56,7 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
                     </Link>
                 </div>
             </section>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

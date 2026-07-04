@@ -1,8 +1,9 @@
 import {Dispatch, SetStateAction, useMemo, useState} from "react"
 
 import {testsetMolecule} from "@agenta/entities/testset"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArchiveIcon} from "@phosphor-icons/react"
-import {message, Modal, ModalProps} from "antd"
+import {message, ModalProps} from "antd"
 import {KeyedMutator} from "swr"
 
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
@@ -149,7 +150,7 @@ const DeleteTestset = ({
     }
 
     return (
-        <Modal
+        <EnhancedModal
             destroyOnHidden
             title="Are you sure?"
             okText="Archive"
@@ -160,7 +161,7 @@ const DeleteTestset = ({
             {...props}
         >
             {renderContent()}
-        </Modal>
+        </EnhancedModal>
     )
 }
 

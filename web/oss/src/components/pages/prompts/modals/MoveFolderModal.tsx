@@ -1,6 +1,7 @@
 import React from "react"
 
-import {Modal, Space, Tree} from "antd"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Space, Tree} from "antd"
 import {DataNode} from "antd/es/tree"
 
 interface MoveFolderModalProps {
@@ -29,7 +30,7 @@ const MoveFolderModal = ({
     disabledConfirm,
 }: MoveFolderModalProps) => {
     return (
-        <Modal
+        <EnhancedModal
             title="Move to folder"
             width={600}
             open={open}
@@ -59,7 +60,7 @@ const MoveFolderModal = ({
                     </div>
                 </Space>
             </div>
-        </Modal>
+        </EnhancedModal>
     )
 }
 
