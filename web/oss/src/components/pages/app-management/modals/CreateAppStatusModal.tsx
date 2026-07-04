@@ -2,7 +2,7 @@ import {useEffect} from "react"
 
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Check, CircleNotch, ExclamationMark} from "@phosphor-icons/react"
-import {Typography, theme} from "antd"
+import {theme} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -12,8 +12,6 @@ import {resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import type {AppCreationStatus} from "@/oss/state/appCreation/status"
 
 import CustomAppCreationLoader from "./CustomAppCreationLoader"
-
-const {Text} = Typography
 
 interface Props {
     loading: boolean
@@ -165,14 +163,14 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Enhance
                                     className="mb-2"
                                     style={{color: colorError}}
                                 />
-                                <Text className="text-colorTextSecondary">
+                                <span className="text-colorTextSecondary">
                                     Oops, something went wrong.
-                                </Text>
-                                <Text className="text-colorTextSecondary mx-6 text-center">
+                                </span>
+                                <span className="text-colorTextSecondary mx-6 text-center">
                                     {isError && getErrorMessage(details)}{" "}
                                     {isTimeout &&
                                         'The app took too long to start. Press the "Retry" button if you want to try again.'}
-                                </Text>
+                                </span>
                             </div>
                         ) : (
                             <CustomAppCreationLoader isFinish={isSuccess} />
@@ -181,9 +179,9 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Enhance
                 </div>
 
                 <div className="p-6 grid gap-[10px]">
-                    <Text className="leading-[1.5714285714285714] text-[16px] font-semibold">
+                    <span className="leading-[1.5714285714285714] text-[16px] font-semibold">
                         Creating your new app
-                    </Text>
+                    </span>
                     {Object.values(messages).map(({type, message}) => (
                         <div className="flex items-center gap-2" key={message}>
                             {type === "success" ? (
@@ -193,12 +191,12 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Enhance
                             ) : (
                                 <CircleNotch size={16} className="animate-spin" />
                             )}
-                            <Text style={{color: type === "error" ? colorError : ""}}>
+                            <span style={{color: type === "error" ? colorError : ""}}>
                                 {message}{" "}
                                 {message == "Adding application" && (
                                     <span className="font-medium">{appName}</span>
                                 )}
-                            </Text>
+                            </span>
                         </div>
                     ))}
                 </div>

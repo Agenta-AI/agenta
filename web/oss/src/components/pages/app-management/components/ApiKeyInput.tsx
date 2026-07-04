@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {Button, Input, Space, Typography} from "antd"
+import {Button, Input, Space} from "antd"
 
 import {createApiKey} from "@/oss/services/apiKeys/api"
 import {fetchAllProjects} from "@/oss/services/project"
@@ -112,7 +112,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
 
     return (
         <Space orientation="vertical" size={0}>
-            <Typography.Text className="font-medium">Create or enter your API key</Typography.Text>
+            <span className="font-medium">Create or enter your API key</span>
             <Space>
                 <Input
                     className="w-[300px]"

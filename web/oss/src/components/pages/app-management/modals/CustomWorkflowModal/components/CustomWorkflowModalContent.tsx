@@ -6,7 +6,7 @@ import {removeTrailingSlash} from "@agenta/shared/utils"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CloseOutlined} from "@ant-design/icons"
 import {Scroll} from "@phosphor-icons/react"
-import {Typography, Space, Button, notification} from "antd"
+import {Space, Button, notification} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {updateVariant} from "@/oss/services/app-selector/api"
@@ -20,11 +20,8 @@ import {
 
 import CustomWorkflowModalFooter from "./CustomWorkflowModalFooter"
 
-const {Text} = Typography
-
 const modalClass = "flex flex-col gap-6"
-const headerTextClass =
-    "[&_.ant-typography]:leading-[1.5714285714285714] [&_.ant-typography]:text-base [&_.ant-typography]:font-semibold"
+const headerTextClass = "leading-[1.5714285714285714] text-base font-semibold"
 const labelClass = "font-medium leading-[1.6666666666666667]"
 
 interface CustomWorkflowModalContentProps {
@@ -174,38 +171,39 @@ const CustomWorkflowModalContent = ({
             <div className="flex items-center justify-between">
                 <Space className={headerTextClass}>
                     {configureWorkflow ? (
-                        <Typography.Text>Configure</Typography.Text>
+                        <span className={headerTextClass}>Configure</span>
                     ) : (
-                        <Typography.Text>Custom workflow</Typography.Text>
+                        <span className={headerTextClass}>Custom workflow</span>
                     )}
                 </Space>
 
                 <Space>
                     {!configureWorkflow && (
-                        <Typography.Link
+                        <a
                             href="https://agenta.ai/docs/custom-workflows/quick-start"
                             target="_blank"
+                            rel="noreferrer"
                         >
                             <Button icon={<Scroll size={14} className="mt-[2px]" />} size="small">
                                 Tutorial
                             </Button>
-                        </Typography.Link>
+                        </a>
                     )}
                     <Button onClick={onCancel} type="text" icon={<CloseOutlined />} />
                 </Space>
             </div>
 
             {!configureWorkflow && (
-                <Text>
+                <span>
                     Connect your own AI service to Agenta to use our evaluation tools with your
                     code. Your application will remain on your infrastructure while Agenta
                     communicates with it through the URL you provide.
-                </Text>
+                </span>
             )}
 
             <div className="space-y-1">
                 <SharedEditor
-                    header={<Typography className={labelClass}>App name *</Typography>}
+                    header={<span className={labelClass}>App name *</span>}
                     initialValue={values.appName}
                     handleChange={(value) => {
                         setValues((draft) => {
@@ -224,7 +222,7 @@ const CustomWorkflowModalContent = ({
                 />
 
                 {appNameExist && (
-                    <Typography.Text
+                    <span
                         style={{
                             color: "red",
                             fontSize: "12px",
@@ -233,12 +231,12 @@ const CustomWorkflowModalContent = ({
                         }}
                     >
                         App name already exists
-                    </Typography.Text>
+                    </span>
                 )}
             </div>
 
             <SharedEditor
-                header={<Typography className={labelClass}>Workflow URL *</Typography>}
+                header={<span className={labelClass}>Workflow URL *</span>}
                 initialValue={workflowUrlInput}
                 handleChange={(value) => {
                     setValues((draft) => {

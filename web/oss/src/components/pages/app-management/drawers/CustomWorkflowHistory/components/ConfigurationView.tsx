@@ -1,17 +1,17 @@
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import clsx from "clsx"
 
 const ConfigurationView = () => {
     return (
         <div className={clsx(["flex-1 flex flex-col gap-6"])}>
             <div className={clsx(["flex items-center justify-between"])}>
-                <Typography className="font-medium text-sm">Configuration</Typography>
+                <span className="font-medium text-sm">Configuration</span>
                 <Button>Revert</Button>
             </div>
 
             <SharedEditor
-                header={<Typography className={clsx(["font-[500]"])}>App name *</Typography>}
+                header={<span className={clsx(["font-[500]"])}>App name *</span>}
                 initialValue={"custom_app"}
                 handleChange={() => {}}
                 state="readOnly"
@@ -22,7 +22,7 @@ const ConfigurationView = () => {
             />
 
             <SharedEditor
-                header={<Typography className={clsx(["font-[500]"])}>Workflow URL *</Typography>}
+                header={<span className={clsx(["font-[500]"])}>Workflow URL *</span>}
                 initialValue={"http://localhost/services/custom"}
                 handleChange={() => {}}
                 state="readOnly"
@@ -33,7 +33,7 @@ const ConfigurationView = () => {
             />
 
             <SharedEditor
-                header={<Typography className={clsx(["font-[500]"])}>Description</Typography>}
+                header={<span className={clsx(["font-[500]"])}>Description</span>}
                 initialValue={""}
                 handleChange={() => {}}
                 state="readOnly"

@@ -23,12 +23,10 @@ import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-rev
 import {cn, textColors, borderColors} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Typography, message} from "antd"
+import {message} from "antd"
 import {useSetAtom} from "jotai"
 
 import {getAppTypeIcon} from "../../../prompts/assets/iconHelpers"
-
-const {Title, Text} = Typography
 
 interface CreateAppTypeOption {
     type: AppType
@@ -116,10 +114,10 @@ const CreateAppTypeModal = ({open, onCancel}: CreateAppTypeModalProps) => {
             data-testid="create-app-type-modal"
         >
             <div className="flex flex-col gap-2 mb-6">
-                <Title level={4} className="!mb-0">
-                    Create a new prompt
-                </Title>
-                <Text type="secondary">Choose the type of app you want to build.</Text>
+                <h4 className="!mb-0 text-base font-semibold leading-snug">Create a new prompt</h4>
+                <span className="text-muted-foreground">
+                    Choose the type of app you want to build.
+                </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -168,10 +166,10 @@ const CreateAppTypeModal = ({open, onCancel}: CreateAppTypeModalProps) => {
                                 />
                             </div>
                             <div className="flex flex-col gap-1">
-                                <Text className="font-medium">{option.label}</Text>
-                                <Text type="secondary" className="text-xs">
+                                <span className="font-medium">{option.label}</span>
+                                <span className="text-xs text-muted-foreground">
                                     {option.description}
-                                </Text>
+                                </span>
                             </div>
                         </button>
                     )

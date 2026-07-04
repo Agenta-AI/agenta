@@ -9,7 +9,7 @@ import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-rev
 import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Popover, Typography, message} from "antd"
+import {Button, Popover, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {getAppTypeIcon} from "../../../prompts/assets/iconHelpers"
@@ -120,9 +120,7 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
         () => (
             <div className="w-[380px]" data-testid="create-app-dropdown-content">
                 <div className="px-4 pt-3 pb-2">
-                    <Typography.Text className="text-[14px] leading-[22px] font-[500]">
-                        Select app type
-                    </Typography.Text>
+                    <span className="text-[14px] leading-[22px] font-[500]">Select app type</span>
                 </div>
                 <div className="flex flex-col">
                     {ITEMS.map((item) => {
@@ -156,9 +154,7 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
                                 </span>
                                 <div className="flex flex-col gap-1 min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
-                                        <Typography.Text className="text-xs font-medium">
-                                            {item.label}
-                                        </Typography.Text>
+                                        <span className="text-xs font-medium">{item.label}</span>
                                         {!disabled && (
                                             <ArrowRight
                                                 size={12}
@@ -171,11 +167,11 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
                                             />
                                         )}
                                     </div>
-                                    <Typography.Text
+                                    <span
                                         className={cn("text-xs line-clamp-1", textColors.tertiary)}
                                     >
                                         {item.description}
-                                    </Typography.Text>
+                                    </span>
                                 </div>
                             </button>
                         )

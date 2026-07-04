@@ -14,6 +14,14 @@ const TYPE_CLASS = {
     success: "text-emerald-600 dark:text-emerald-400",
     warning: "text-amber-600 dark:text-amber-400",
 }
+const TITLE_CLASS = {
+    1: "text-2xl font-semibold leading-tight",
+    2: "text-xl font-semibold leading-tight",
+    3: "text-lg font-semibold leading-snug",
+    4: "text-base font-semibold leading-snug",
+    5: "text-sm font-semibold leading-normal",
+    6: "text-sm font-semibold leading-normal",
+}
 const ALLOWED_NATIVE_PROPS = new Set([
     "className",
     "style",
@@ -311,6 +319,15 @@ function transform(file) {
                         classes.push("rounded bg-muted px-1 py-0.5 font-mono text-sm")
                     }
                     if (name === "ellipsis" && staticBoolean(property)) classes.push("truncate")
+                }
+                if (component === "Title") {
+                    const levelAttribute = node.attributes.properties.find(
+                        (property) =>
+                            ts.isJsxAttribute(property) &&
+                            property.name.getText(sourceFile) === "level",
+                    )
+                    const level = levelAttribute ? staticNumber(levelAttribute) : 1
+                    classes.unshift(TITLE_CLASS[level ?? 1])
                 }
                 const classText = classes.filter(Boolean).join(" ")
                 if (classText) {

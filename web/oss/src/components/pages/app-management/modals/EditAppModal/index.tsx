@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {invalidateWorkflowsListCache, updateWorkflow} from "@agenta/entities/workflow"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CheckOutlined} from "@ant-design/icons"
-import {Input, Typography} from "antd"
+import {Input} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -70,11 +70,7 @@ const EditAppModal = () => {
             }}
             onOk={handleEditAppName}
             okText={"Confirm"}
-            title={
-                <Typography.Text className="text-base leading-normal font-semibold">
-                    Rename App
-                </Typography.Text>
-            }
+            title={<span className="text-base leading-normal font-semibold">Rename App</span>}
             open={open}
             onCancel={closeModal}
         >

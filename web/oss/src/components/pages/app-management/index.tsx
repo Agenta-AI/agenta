@@ -2,7 +2,6 @@ import {useCallback, useEffect, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
-import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -79,9 +78,7 @@ const AppManagement: React.FC = () => {
                 ) : (
                     <>
                         {welcomeCardsDismissed && (
-                            <Typography.Title level={5} className="!m-0">
-                                Home
-                            </Typography.Title>
+                            <h5 className="!m-0 text-sm font-semibold leading-normal">Home</h5>
                         )}
 
                         <WelcomeCardsSection

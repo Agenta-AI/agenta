@@ -1,6 +1,6 @@
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Phone, SlackLogo} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -26,16 +26,14 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
                     />
                 </div>
                 <div className="flex flex-col gap-4">
-                    <Typography.Title level={4}>
+                    <h4 className="text-base font-semibold leading-snug">
                         Hey, it seems like you have reached your free limit.{" "}
-                    </Typography.Title>
-                    <Typography.Text>
+                    </h4>
+                    <span>
                         To create more applications, please schedule a call to get full access to
                         the platform.
-                    </Typography.Text>
-                    <Typography.Text>
-                        Got any questions? Feel free to reach out to our support in Slack.
-                    </Typography.Text>
+                    </span>
+                    <span>Got any questions? Feel free to reach out to our support in Slack.</span>
                 </div>
 
                 <div className="flex items-center justify-end gap-2 mt-5">

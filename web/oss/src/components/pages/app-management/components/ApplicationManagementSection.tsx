@@ -4,7 +4,7 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {Tray} from "@phosphor-icons/react"
-import {Button, Empty, Space, Typography, message} from "antd"
+import {Button, Empty, Space, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -31,8 +31,6 @@ interface ApplicationManagementSectionProps {
     mode?: "active" | "archived"
     agentScope?: boolean
 }
-
-const {Title} = Typography
 const PAGE_SIZE = 10
 
 const ApplicationManagementSection = ({
@@ -184,9 +182,7 @@ const ApplicationManagementSection = ({
         <div className="flex flex-col gap-2">
             {!isArchived ? (
                 <div className="flex items-center justify-between gap-3">
-                    <Title level={2} className="!my-0">
-                        Applications
-                    </Title>
+                    <h2 className="!my-0 text-xl font-semibold leading-tight">Applications</h2>
                     {totalAppCount == 0 ? (
                         <Button
                             icon={<Tray size={14} />}

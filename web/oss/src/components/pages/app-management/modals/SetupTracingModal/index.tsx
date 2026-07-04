@@ -1,9 +1,9 @@
 import {useMemo, useState} from "react"
 
-import {EnhancedModal} from "@agenta/ui/components/modal"
+import {EnhancedModal, type EnhancedModalProps} from "@agenta/ui/components/modal"
 import {CloseOutlined, LinkOutlined} from "@ant-design/icons"
 import {Book, Play} from "@phosphor-icons/react"
-import {Button, ModalProps, Tabs, TabsProps, Typography} from "antd"
+import {Button, Tabs, TabsProps} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
@@ -11,17 +11,10 @@ import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {generateCodeBlocks} from "./assets/generateCodeBlocks"
 
-export const modalContainerClass =
-    "[transition:width_0.3s_ease] [&>div]:h-full [&_.ant-modal-container]:p-0 " +
-    "[&_h1.ant-typography]:text-xl [&_h1.ant-typography]:leading-[1.4] [&_h1.ant-typography]:font-medium " +
-    "[&_span.ant-typography]:text-sm [&_span.ant-typography]:leading-[1.5714285714285714] " +
-    "[&_.ant-modal-content]:h-full [&_.ant-modal-content]:overflow-y-hidden [&_.ant-modal-content]:rounded-2xl " +
-    "[&_.ant-modal-content]:p-0 [&_.ant-modal-body]:h-full"
+export const modalContainerClass = "overflow-hidden rounded-2xl p-0 transition-[width] duration-300"
 
 export const modalHeaderClass =
-    "flex items-center gap-3 py-4 px-6 [border-bottom:1px_solid_var(--ag-colorBorderSecondary)] " +
-    "[&_.ant-typography]:flex-1 [&_.ant-typography]:text-sm [&_.ant-typography]:leading-[1.5714285714285714] " +
-    "[&_.ant-typography]:font-medium"
+    "flex items-center gap-3 py-4 px-6 [border-bottom:1px_solid_var(--ag-colorBorderSecondary)]"
 
 export const modalBodyClass =
     "flex flex-col h-full overflow-y-auto gap-3 py-3 px-6 [&_.ant-tabs-tab-btn]:flex " +
@@ -39,15 +32,13 @@ const TracingTabContent = dynamic(
     },
 )
 
-const {Text, Title} = Typography
-
 export const SetupTracingModalContent = ({
     isModal = true,
     isPostLogin = false,
     ...props
 }: {
     isModal?: boolean
-    onCancel: ModalProps["onCancel"]
+    onCancel: EnhancedModalProps["onCancel"]
     isPostLogin?: boolean
 }) => {
     const [apiKeyValue, setApiKeyValue] = useState("")
@@ -125,10 +116,10 @@ export const SetupTracingModalContent = ({
             icon: <LinkOutlined />,
             children: (
                 <div className="flex flex-col gap-6 items-center justify-center py-12">
-                    <Text className="text-center" style={{fontSize: 16}}>
+                    <span className="text-center text-base">
                         Looking for other integrations? We support many more frameworks and
                         libraries.
-                    </Text>
+                    </span>
                     <Button
                         type="primary"
                         size="large"
@@ -152,7 +143,9 @@ export const SetupTracingModalContent = ({
                         type="text"
                         icon={<CloseOutlined />}
                     />
-                    <Text>Set up tracing</Text>
+                    <span className="flex-1 text-sm font-medium leading-[1.5714285714285714]">
+                        Set up tracing
+                    </span>
 
                     <div className="flex gap-2 items-center">
                         <Button
@@ -175,7 +168,7 @@ export const SetupTracingModalContent = ({
             <div className={modalBodyClass}>
                 <div className={clsx("flex flex-col gap-1", isPostLogin && "mb-8")}>
                     <div className="flex justify-between items-center">
-                        <Title style={{margin: 0}}>Setup Tracing</Title>
+                        <h1 className="m-0 text-xl font-medium leading-[1.4]">Setup Tracing</h1>
                         {isPostLogin && (
                             <div className="flex items-center gap-2">
                                 <Button
@@ -195,9 +188,9 @@ export const SetupTracingModalContent = ({
                             </div>
                         )}
                     </div>
-                    <Text>
+                    <span className="text-sm leading-[1.5714285714285714]">
                         Debug effectively, bootstrap testsets, monitor and compare app versions
-                    </Text>
+                    </span>
                 </div>
                 <Tabs defaultActiveKey="openai" items={items} className={tabsClass} />
             </div>
@@ -205,7 +198,7 @@ export const SetupTracingModalContent = ({
     )
 }
 
-const SetupTracingModal = (props: ModalProps) => {
+const SetupTracingModal = (props: EnhancedModalProps) => {
     return (
         <EnhancedModal
             footer={null}
@@ -213,6 +206,7 @@ const SetupTracingModal = (props: ModalProps) => {
             className={modalContainerClass}
             width={720}
             closeIcon={null}
+            classNames={{body: "h-full overflow-hidden p-0"}}
             styles={{
                 container: {
                     height: 832,

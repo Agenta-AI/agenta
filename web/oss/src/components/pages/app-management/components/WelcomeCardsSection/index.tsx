@@ -1,7 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {XIcon} from "@phosphor-icons/react"
-import {Button, Typography, message} from "antd"
+import {Button, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -109,10 +109,8 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
         <div className="flex flex-col gap-8 rounded-lg bg-[var(--ag-c-F5F7FA)] p-6">
             <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-col">
-                    <Typography className="!text-xl !font-medium">Welcome,</Typography>
-                    <Typography className="!text-[32px] !font-semibold">
-                        What do you want to do?
-                    </Typography>
+                    <span className="!text-xl !font-medium">Welcome,</span>
+                    <span className="!text-[32px] !font-semibold">What do you want to do?</span>
                 </div>
                 <Button
                     type="text"

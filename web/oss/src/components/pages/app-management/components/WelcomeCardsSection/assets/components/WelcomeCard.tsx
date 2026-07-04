@@ -1,5 +1,5 @@
 import {ArrowUpRightIcon} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 
 interface WelcomeCardProps {
     title: string
@@ -15,10 +15,8 @@ const WelcomeCard = ({title, subtitle, onClick, hidden}: WelcomeCardProps) => {
     return (
         <div onClick={onClick} className={hidden ? "hidden" : welcomeCardContainerClass}>
             <div className="flex flex-1 flex-col gap-1 p-4">
-                <Typography.Text className="!text-base !font-medium">{title}</Typography.Text>
-                <Typography.Text className="!text-sm !text-[var(--ag-c-586673)]">
-                    {subtitle}
-                </Typography.Text>
+                <span className="!text-base !font-medium">{title}</span>
+                <span className="!text-sm !text-[var(--ag-c-586673)]">{subtitle}</span>
             </div>
             <div className="flex items-end justify-end p-4">
                 <Button

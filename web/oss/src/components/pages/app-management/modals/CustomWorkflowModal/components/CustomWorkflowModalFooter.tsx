@@ -1,7 +1,7 @@
 import {memo} from "react"
 
 import {CheckCircleOutlined, ExclamationCircleOutlined, LinkOutlined} from "@ant-design/icons"
-import {Button, notification, Space, Tooltip, Typography} from "antd"
+import {Button, notification, Space, Tooltip} from "antd"
 
 const CustomWorkflowModalFooter = ({
     handleEditCustomUrl,
@@ -57,13 +57,13 @@ const CustomWorkflowModalFooter = ({
                     {testConnectionStatus.success && (
                         <>
                             <CheckCircleOutlined style={{color: "green"}} />
-                            <Typography.Text type="secondary">Success</Typography.Text>
+                            <span className="text-muted-foreground">Success</span>
                         </>
                     )}
                     {testConnectionStatus.error && (
                         <>
                             <ExclamationCircleOutlined style={{color: "red"}} />
-                            <Typography.Text type="secondary">Failure</Typography.Text>
+                            <span className="text-muted-foreground">Failure</span>
                         </>
                     )}
                 </div>
