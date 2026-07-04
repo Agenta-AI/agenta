@@ -1,12 +1,14 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {type ColumnDef, DataTable} from "@agenta/primitive-ui/components/data-table"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
 import {ArrowClockwise, GearSix, Trash} from "@phosphor-icons/react"
-import {Button, Table, Tag, Tooltip, Typography} from "antd"
-import type {ColumnsType} from "antd/es/table"
 
-import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import ConfirmDialog, {type ConfirmRequest} from "@/oss/components/ConfirmDialog"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 import {useToolsConnections} from "../hooks/useToolsConnections"
@@ -29,13 +31,16 @@ const AUTH_SCHEME_LABELS: Record<string, string> = {
 
 export default function ConnectionsList({integrationKey, connections}: Props) {
     const {handleDelete, handleRefresh, invalidate} = useToolsConnections(integrationKey)
+    const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
 
     const confirmDelete = (connection: ToolConnection) => {
         if (!connection.id) return
-        AlertPopup({
+        setConfirm({
             title: "Delete Connection",
             message:
                 "Are you sure you want to delete this connection? This action is irreversible.",
+            danger: true,
+            okText: "Delete",
             onOk: () => handleDelete(connection.id as string),
         })
     }
@@ -65,88 +70,109 @@ export default function ConnectionsList({integrationKey, connections}: Props) {
         }, 1000)
     }
 
-    const columns: ColumnsType<ToolConnection> = useMemo(
+    const columns: ColumnDef<ToolConnection, unknown>[] = useMemo(
         () => [
             {
-                title: "Name",
-                dataIndex: "slug",
-                key: "slug",
-                render: (slug: string, record) => (
-                    <Typography.Text>{record.name || slug}</Typography.Text>
-                ),
+                id: "slug",
+                accessorKey: "slug",
+                header: "Name",
+                enableSorting: false,
+                cell: ({row}) => <span>{row.original.name || row.original.slug}</span>,
             },
             {
-                title: "Status",
-                key: "status",
-                width: 120,
-                render: (_, record) => <ConnectionStatusBadge connection={record} />,
+                id: "status",
+                header: "Status",
+                size: 120,
+                enableSorting: false,
+                cell: ({row}) => <ConnectionStatusBadge connection={row.original} />,
             },
             {
-                title: "Auth",
-                key: "auth_scheme",
-                width: 100,
-                render: (_, record) => {
+                id: "auth_scheme",
+                header: "Auth",
+                size: 100,
+                enableSorting: false,
+                cell: ({row}) => {
                     const scheme =
-                        typeof record.data?.auth_scheme === "string"
-                            ? record.data.auth_scheme
+                        typeof row.original.data?.auth_scheme === "string"
+                            ? row.original.data.auth_scheme
                             : undefined
-                    if (!scheme) return <Typography.Text type="secondary">—</Typography.Text>
-                    return <Tag>{AUTH_SCHEME_LABELS[scheme] ?? scheme}</Tag>
+                    if (!scheme) return <span className="text-muted-foreground">—</span>
+                    return <Badge variant="outline">{AUTH_SCHEME_LABELS[scheme] ?? scheme}</Badge>
                 },
             },
             {
-                title: "Created",
-                dataIndex: "created_at",
-                key: "created_at",
-                width: 180,
-                render: (value: string) =>
-                    value ? formatDay({date: value, outputFormat: "YYYY-MM-DD HH:mm"}) : "-",
+                id: "created_at",
+                accessorKey: "created_at",
+                header: "Created",
+                size: 180,
+                enableSorting: false,
+                cell: ({row}) =>
+                    row.original.created_at
+                        ? formatDay({
+                              date: row.original.created_at,
+                              outputFormat: "YYYY-MM-DD HH:mm",
+                          })
+                        : "-",
             },
             {
-                title: <GearSix size={16} />,
-                key: "actions",
-                width: 80,
-                align: "center" as const,
-                render: (_, record) => (
-                    <div className="flex items-center gap-1">
-                        <Tooltip title="Refresh">
-                            <Button
-                                type="text"
-                                size="small"
-                                aria-label="Refresh connection"
-                                icon={<ArrowClockwise size={14} />}
-                                onClick={() => void onRefresh(record)}
-                                disabled={!record.id}
-                            />
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                            <Button
-                                type="text"
-                                size="small"
-                                color="danger"
-                                variant="text"
-                                aria-label="Delete connection"
-                                icon={<Trash size={14} />}
-                                onClick={() => confirmDelete(record)}
-                                disabled={!record.id}
-                            />
-                        </Tooltip>
-                    </div>
-                ),
+                id: "actions",
+                header: () => <GearSix size={16} className="mx-auto" />,
+                size: 80,
+                enableSorting: false,
+                cell: ({row}) => {
+                    const record = row.original
+                    return (
+                        <div className="flex items-center gap-1">
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="Refresh connection"
+                                            onClick={() => void onRefresh(record)}
+                                            disabled={!record.id}
+                                        >
+                                            <ArrowClockwise size={14} />
+                                        </Button>
+                                    }
+                                />
+                                <TooltipContent>Refresh</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="Delete connection"
+                                            onClick={() => confirmDelete(record)}
+                                            disabled={!record.id}
+                                        >
+                                            <Trash size={14} className="text-destructive" />
+                                        </Button>
+                                    }
+                                />
+                                <TooltipContent>Delete</TooltipContent>
+                            </Tooltip>
+                        </div>
+                    )
+                },
             },
         ],
         [handleDelete, handleRefresh],
     )
 
     return (
-        <Table<ToolConnection>
-            dataSource={connections}
-            columns={columns}
-            rowKey="slug"
-            pagination={false}
-            size="small"
-            bordered
-            locale={{emptyText: "No connections yet"}}
-        />
+        <>
+            <DataTable<ToolConnection>
+                columns={columns}
+                data={connections}
+                getRowId={(record) => record.slug ?? record.id ?? ""}
+                enableSorting={false}
+                emptyText="No connections yet"
+            />
+            <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />
+        </>
     )
 }

@@ -1,7 +1,8 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {ArrowLeft, Plus} from "@phosphor-icons/react"
-import {Button, Spin, Typography} from "antd"
 import Image from "next/image"
 
 import {useIntegrationDetail} from "../hooks/useIntegrationDetail"
@@ -22,7 +23,7 @@ export default function IntegrationDetail({integrationKey, onBack}: Props) {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Spin />
+                <Spinner />
             </div>
         )
     }
@@ -33,12 +34,9 @@ export default function IntegrationDetail({integrationKey, onBack}: Props) {
         <section className="flex flex-col gap-6">
             {/* Header */}
             <div className="flex items-center gap-3">
-                <Button
-                    type="text"
-                    aria-label="Go back"
-                    icon={<ArrowLeft size={16} />}
-                    onClick={onBack}
-                />
+                <Button variant="ghost" size="icon-sm" aria-label="Go back" onClick={onBack}>
+                    <ArrowLeft size={16} />
+                </Button>
                 {integration.logo && (
                     <Image
                         src={integration.logo}
@@ -50,13 +48,11 @@ export default function IntegrationDetail({integrationKey, onBack}: Props) {
                     />
                 )}
                 <div>
-                    <Typography.Title level={5} className="!mb-0">
-                        {integration.name}
-                    </Typography.Title>
+                    <h5 className="text-base font-semibold">{integration.name}</h5>
                     {integration.description && (
-                        <Typography.Text type="secondary" className="text-xs">
+                        <span className="text-xs text-muted-foreground">
                             {integration.description}
-                        </Typography.Text>
+                        </span>
                     )}
                 </div>
             </div>
@@ -64,13 +60,9 @@ export default function IntegrationDetail({integrationKey, onBack}: Props) {
             {/* Connections section */}
             <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                    <Typography.Text className="text-sm font-medium">Connections</Typography.Text>
-                    <Button
-                        type="primary"
-                        size="small"
-                        icon={<Plus size={14} />}
-                        onClick={() => setIsConnectModalOpen(true)}
-                    >
+                    <span className="text-sm font-medium">Connections</span>
+                    <Button size="sm" onClick={() => setIsConnectModalOpen(true)}>
+                        <Plus size={14} />
                         Connect
                     </Button>
                 </div>
@@ -79,9 +71,9 @@ export default function IntegrationDetail({integrationKey, onBack}: Props) {
 
             {/* Actions section */}
             <div className="flex flex-col gap-2">
-                <Typography.Text className="text-sm font-medium">
+                <span className="text-sm font-medium">
                     Available Actions ({integration.actions_count})
-                </Typography.Text>
+                </span>
                 <ActionsList actions={actions} />
             </div>
 

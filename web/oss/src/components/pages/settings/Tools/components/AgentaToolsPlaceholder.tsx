@@ -1,14 +1,10 @@
-import {Typography} from "antd"
-
 export default function AgentaToolsPlaceholder() {
     return (
         <section className="flex flex-col gap-2">
-            <Typography.Title level={5} className="!mb-0">
-                Agenta Tools
-            </Typography.Title>
-            <Typography.Text type="secondary">
+            <h5 className="text-base font-semibold">Agenta Tools</h5>
+            <span className="text-muted-foreground">
                 Coming soon — built-in Agenta tool integrations.
-            </Typography.Text>
+            </span>
         </section>
     )
 }

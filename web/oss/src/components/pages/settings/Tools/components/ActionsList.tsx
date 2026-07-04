@@ -1,54 +1,68 @@
 import {useMemo} from "react"
 
 import type {ToolCatalogAction} from "@agenta/entities/gatewayTool"
-import {Table, Tag, Typography} from "antd"
-import type {ColumnsType} from "antd/es/table"
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {type ColumnDef, DataTable} from "@agenta/primitive-ui/components/data-table"
 
 interface Props {
     actions: ToolCatalogAction[]
 }
 
 export default function ActionsList({actions}: Props) {
-    const columns: ColumnsType<ToolCatalogAction> = useMemo(
+    const columns: ColumnDef<ToolCatalogAction, unknown>[] = useMemo(
         () => [
             {
-                title: "Name",
-                dataIndex: "name",
-                key: "name",
-                render: (name: string) => <Typography.Text>{name}</Typography.Text>,
+                id: "name",
+                accessorKey: "name",
+                header: "Name",
+                enableSorting: false,
+                cell: ({row}) => <span>{row.original.name}</span>,
             },
             {
-                title: "Description",
-                dataIndex: "description",
-                key: "description",
-                ellipsis: true,
-                render: (desc: string) => (
-                    <Typography.Text type="secondary">{desc || "-"}</Typography.Text>
+                id: "description",
+                accessorKey: "description",
+                header: "Description",
+                enableSorting: false,
+                cell: ({row}) => (
+                    <span
+                        className="inline-block max-w-[420px] truncate text-muted-foreground"
+                        title={row.original.description || undefined}
+                    >
+                        {row.original.description || "-"}
+                    </span>
                 ),
             },
             {
-                title: "Categories",
-                dataIndex: "categories",
-                key: "categories",
-                render: (categories: string[] | undefined) =>
-                    categories && categories.length > 0 ? (
-                        categories.map((category) => <Tag key={category}>{category}</Tag>)
+                id: "categories",
+                accessorKey: "categories",
+                header: "Categories",
+                enableSorting: false,
+                cell: ({row}) => {
+                    const categories = row.original.categories
+                    return categories && categories.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                            {categories.map((category) => (
+                                <Badge key={category} variant="outline">
+                                    {category}
+                                </Badge>
+                            ))}
+                        </div>
                     ) : (
                         <span>-</span>
-                    ),
+                    )
+                },
             },
         ],
         [],
     )
 
     return (
-        <Table<ToolCatalogAction>
-            dataSource={actions}
+        <DataTable<ToolCatalogAction>
             columns={columns}
-            rowKey="key"
-            pagination={actions.length > 20 ? {pageSize: 20} : false}
-            size="small"
-            bordered
+            data={actions}
+            getRowId={(record) => record.key}
+            enableSorting={false}
+            pageSize={actions.length > 20 ? 20 : undefined}
         />
     )
 }

@@ -5,6 +5,7 @@ import {useState} from "react"
 import {
     flexRender,
     getCoreRowModel,
+    getPaginationRowModel,
     getSortedRowModel,
     useReactTable,
     type ColumnDef,
@@ -15,6 +16,7 @@ import {
 
 import {cn} from "@agenta/primitive-ui/lib/utils"
 
+import {Button} from "./button"
 import {Spinner} from "./spinner"
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "./table"
 
@@ -34,6 +36,8 @@ export interface DataTableProps<TData> {
     onRowClick?: (row: Row<TData>) => void
     emptyText?: React.ReactNode
     className?: string
+    /** Client-side pagination; omit to render all rows. */
+    pageSize?: number
     /** Reserved: virtualized rendering lands with the large-table migrations. */
     virtualized?: boolean
 }
@@ -48,6 +52,7 @@ export function DataTable<TData>({
     onRowClick,
     emptyText = "No data",
     className,
+    pageSize,
 }: DataTableProps<TData>) {
     const [sorting, setSorting] = useState<SortingState>([])
     const [selection, setSelection] = useState<RowSelectionState>({})
@@ -63,6 +68,8 @@ export function DataTable<TData>({
         enableSorting,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
+        getPaginationRowModel: pageSize ? getPaginationRowModel() : undefined,
+        initialState: pageSize ? {pagination: {pageSize}} : undefined,
     })
 
     return (
@@ -138,6 +145,29 @@ export function DataTable<TData>({
                     )}
                 </TableBody>
             </Table>
+            {pageSize && table.getPageCount() > 1 && (
+                <div className="flex items-center justify-end gap-2 py-2">
+                    <span className="text-xs text-muted-foreground">
+                        Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!table.getCanPreviousPage()}
+                        onClick={() => table.previousPage()}
+                    >
+                        Previous
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!table.getCanNextPage()}
+                        onClick={() => table.nextPage()}
+                    >
+                        Next
+                    </Button>
+                </div>
+            )}
         </div>
     )
 }

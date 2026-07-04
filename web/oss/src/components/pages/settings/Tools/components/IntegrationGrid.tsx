@@ -1,8 +1,11 @@
 import {useState, useMemo} from "react"
 
 import type {ToolCatalogIntegration} from "@agenta/entities/gatewayTool"
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
+import {Empty, EmptyDescription, EmptyHeader} from "@agenta/primitive-ui/components/empty"
+import {Input} from "@agenta/primitive-ui/components/input"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {MagnifyingGlass} from "@phosphor-icons/react"
-import {Card, Empty, Input, Spin, Typography} from "antd"
 import Image from "next/image"
 
 import {useToolsIntegrations} from "../hooks/useToolsIntegrations"
@@ -29,24 +32,32 @@ export default function IntegrationGrid({onSelect}: Props) {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Spin />
+                <Spinner />
             </div>
         )
     }
 
     return (
         <section className="flex flex-col gap-4">
-            <Input
-                placeholder="Search integrations…"
-                prefix={<MagnifyingGlass size={16} />}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="max-w-[320px]"
-                allowClear
-            />
+            <div className="relative max-w-[320px]">
+                <MagnifyingGlass
+                    size={16}
+                    className="pointer-events-none absolute start-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                    placeholder="Search integrations…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="ps-8"
+                />
+            </div>
 
             {filtered.length === 0 ? (
-                <Empty description="No integrations found" />
+                <Empty>
+                    <EmptyHeader>
+                        <EmptyDescription>No integrations found</EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filtered.map((integration) => (
@@ -70,31 +81,31 @@ function IntegrationCard({
     onClick: () => void
 }) {
     return (
-        <Card hoverable onClick={onClick} className="cursor-pointer" size="small">
-            <div className="flex items-start gap-3">
-                {integration.logo && (
-                    <Image
-                        src={integration.logo}
-                        alt={integration.name}
-                        width={32}
-                        height={32}
-                        className="w-8 h-8 rounded object-contain shrink-0"
-                        unoptimized
-                    />
-                )}
-                <div className="flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                        <Typography.Text strong className="truncate">
-                            {integration.name}
-                        </Typography.Text>
-                    </div>
-                    {integration.description && (
-                        <Typography.Text type="secondary" className="text-xs line-clamp-2">
-                            {integration.description}
-                        </Typography.Text>
+        <Card onClick={onClick} className="cursor-pointer py-3 transition-colors hover:border-ring">
+            <CardContent className="px-3">
+                <div className="flex items-start gap-3">
+                    {integration.logo && (
+                        <Image
+                            src={integration.logo}
+                            alt={integration.name}
+                            width={32}
+                            height={32}
+                            className="w-8 h-8 rounded object-contain shrink-0"
+                            unoptimized
+                        />
                     )}
+                    <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                            <span className="truncate font-semibold">{integration.name}</span>
+                        </div>
+                        {integration.description && (
+                            <span className="text-xs text-muted-foreground line-clamp-2">
+                                {integration.description}
+                            </span>
+                        )}
+                    </div>
                 </div>
-            </div>
+            </CardContent>
         </Card>
     )
 }

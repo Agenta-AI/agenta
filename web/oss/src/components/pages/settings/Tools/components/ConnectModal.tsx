@@ -1,7 +1,24 @@
 import {useCallback, useState} from "react"
 
-import {EnhancedModal as Modal} from "@agenta/ui"
-import {Button, Form, Input, Select} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/primitive-ui/components/dialog"
+import {Form, FormField, useAppForm} from "@agenta/primitive-ui/components/form"
+import {Input} from "@agenta/primitive-ui/components/input"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {z} from "zod"
 
 import {useToolsConnections, type CreateConnectionInput} from "../hooks/useToolsConnections"
 
@@ -14,6 +31,11 @@ interface Props {
 }
 
 type AuthMode = "oauth" | "api_key"
+
+const connectSchema = z.object({
+    slug: z.string().min(1, "Required"),
+    name: z.string().optional(),
+})
 
 function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
     const modes: AuthMode[] = []
@@ -37,105 +59,121 @@ export default function ConnectModal({
 }: Props) {
     const {handleCreate, invalidate} = useToolsConnections(integrationKey)
     const [loading, setLoading] = useState(false)
-    const [form] = Form.useForm()
+    const form = useAppForm({schema: connectSchema, defaultValues: {slug: "", name: ""}})
 
     const availableModes = resolveAvailableModes(authSchemes)
     const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
 
     const handleClose = useCallback(() => {
-        form.resetFields()
+        form.reset()
         setLoading(false)
         onClose()
     }, [form, onClose])
 
-    const handleSubmit = useCallback(async () => {
-        try {
-            const values = await form.validateFields()
-            setLoading(true)
+    const handleSubmit = useCallback(
+        async (values: z.input<typeof connectSchema>) => {
+            try {
+                setLoading(true)
 
-            const payload: CreateConnectionInput = {
-                slug: values.slug,
-                name: values.name || values.slug,
-                mode: selectedMode,
-            }
-
-            const result = await handleCreate(payload)
-            const redirectUrl =
-                typeof result.connection?.data?.redirect_url === "string"
-                    ? result.connection.data.redirect_url
-                    : undefined
-
-            if (redirectUrl) {
-                // OAuth and API key both authorize on the provider's hosted redirect UI.
-                const popup = window.open(
-                    redirectUrl,
-                    "tools_oauth",
-                    "width=600,height=700,popup=yes",
-                )
-
-                if (!popup) {
-                    setLoading(false)
-                    return
+                const payload: CreateConnectionInput = {
+                    slug: values.slug,
+                    name: values.name || values.slug,
+                    mode: selectedMode,
                 }
 
-                const pollTimer = setInterval(() => {
-                    if (popup.closed) {
-                        clearInterval(pollTimer)
-                        window.focus()
-                        invalidate()
-                        handleClose()
+                const result = await handleCreate(payload)
+                const redirectUrl =
+                    typeof result.connection?.data?.redirect_url === "string"
+                        ? result.connection.data.redirect_url
+                        : undefined
+
+                if (redirectUrl) {
+                    // OAuth and API key both authorize on the provider's hosted redirect UI.
+                    const popup = window.open(
+                        redirectUrl,
+                        "tools_oauth",
+                        "width=600,height=700,popup=yes",
+                    )
+
+                    if (!popup) {
+                        setLoading(false)
+                        return
                     }
-                }, 1000)
-            } else {
-                // No-auth toolkit: connection created immediately, no redirect.
-                handleClose()
+
+                    const pollTimer = setInterval(() => {
+                        if (popup.closed) {
+                            clearInterval(pollTimer)
+                            window.focus()
+                            invalidate()
+                            handleClose()
+                        }
+                    }, 1000)
+                } else {
+                    // No-auth toolkit: connection created immediately, no redirect.
+                    handleClose()
+                }
+            } catch {
+                setLoading(false)
             }
-        } catch {
-            setLoading(false)
-        }
-    }, [form, selectedMode, handleCreate, handleClose, invalidate])
+        },
+        [selectedMode, handleCreate, handleClose, invalidate],
+    )
 
     return (
-        <Modal
+        <Dialog
             open={open}
-            onCancel={handleClose}
-            title={`Connect to ${integrationName}`}
-            footer={[
-                <Button key="cancel" onClick={handleClose}>
-                    Cancel
-                </Button>,
-                <Button key="connect" type="primary" loading={loading} onClick={handleSubmit}>
-                    {selectedMode === "oauth" ? "Connect via OAuth" : "Connect"}
-                </Button>,
-            ]}
+            onOpenChange={(next) => {
+                if (!next) handleClose()
+            }}
         >
-            <Form form={form} layout="vertical" className="mt-4">
-                <Form.Item
-                    name="slug"
-                    label="Connection Slug"
-                    rules={[{required: true, message: "Required"}]}
-                    tooltip="A unique identifier for this connection"
-                >
-                    <Input placeholder="e.g. my-gmail" />
-                </Form.Item>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Connect to {integrationName}</DialogTitle>
+                </DialogHeader>
+                <Form id="connect-tool-form" form={form} onSubmit={handleSubmit} className="mt-4">
+                    <FormField
+                        name="slug"
+                        label="Connection Slug"
+                        description="A unique identifier for this connection"
+                    >
+                        {(field) => <Input {...field} placeholder="e.g. my-gmail" />}
+                    </FormField>
 
-                <Form.Item name="name" label="Display Name">
-                    <Input placeholder="e.g. My Gmail Account" />
-                </Form.Item>
+                    <FormField name="name" label="Display Name">
+                        {(field) => <Input {...field} placeholder="e.g. My Gmail Account" />}
+                    </FormField>
 
-                {availableModes.length > 1 && (
-                    <Form.Item label="Auth Method">
-                        <Select
-                            value={selectedMode}
-                            onChange={setSelectedMode}
-                            options={availableModes.map((m) => ({
-                                value: m,
-                                label: m === "oauth" ? "OAuth" : "API Key",
-                            }))}
-                        />
-                    </Form.Item>
-                )}
-            </Form>
-        </Modal>
+                    {availableModes.length > 1 && (
+                        <div className="flex flex-col gap-2">
+                            <span className="text-sm font-medium">Auth Method</span>
+                            <Select
+                                value={selectedMode}
+                                onValueChange={(v) => setSelectedMode(v as AuthMode)}
+                            >
+                                <SelectTrigger className="w-full">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableModes.map((m) => (
+                                        <SelectItem key={m} value={m}>
+                                            {m === "oauth" ? "OAuth" : "API Key"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                </Form>
+                <DialogFooter>
+                    <Button variant="outline" onClick={handleClose}>
+                        Cancel
+                    </Button>
+                    <Button type="submit" form="connect-tool-form" disabled={loading}>
+                        {loading ? <Spinner /> : null}
+                        {selectedMode === "oauth" ? "Connect via OAuth" : "Connect"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
