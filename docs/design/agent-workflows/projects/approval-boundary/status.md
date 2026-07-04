@@ -1,15 +1,17 @@
 # Status
 
-**State: implemented and QA'd; awaiting final PR review.** Date: 2026-07-03. All six
-plan phases landed on the lane with per-phase review; tests green across runner (444),
-SDK agents (480+), and services (49), including a 40-case cross-language parity
+**State: merged to `big-agents` (PR #5041, 2026-07-04).** All six plan phases landed
+with per-phase review; Mahmoud reviewed and QA'd the PR. Tests green across runner
+(444), SDK agents (502), and services (76), including a 40-case cross-language parity
 fixture. Live QA: headless matrix 7/7; playground approve/deny/allow flows verified
 (one prompt, approve resumes without looping, deny refuses cleanly) after fixing one
 QA-found bug (pause teardown clobbered the prompt on the Pi relay path; fixed with a
-paused-call event filter + regression tests). Remaining before merge: rebase onto
-post-#5058 `big-agents` (audit done: their runner deltas are formatting plus patches
-this redesign supersedes; their egress `rawInput is not None` fix merges untouched)
-and flip the PR base. Claude-harness live runs were blocked by account credit; that
+paused-call event filter + regression tests). Before merge the branch was rebased onto
+post-#5064 `big-agents` (see build-notes.md: the rebase found and fixed a real #5064
+integration bug — the batch fold read `stop_reason` from a `done` event the live
+runner never populates) and a CodeRabbit round fixed two real bugs (a playground
+shallow merge dropping the permissions default; the client-tool pause not seeding the
+interactions plane). Claude-harness live runs were blocked by account credit; that
 path is covered by unit and settings-rendering tests.
 
 ## Where things stand
