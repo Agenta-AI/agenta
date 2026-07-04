@@ -132,7 +132,7 @@ export {
  * Render AppMessageContext inside your Ant Design App provider, then use
  * the static message/modal/notification exports anywhere.
  */
-export {default as AppMessageContext, message, modal, notification} from "./utils/appMessageContext"
+export {default as AppMessageContext, message, notification} from "./utils/appMessageContext"
 
 // ============================================================================
 // LLM ICONS - SVG icons for LLM providers

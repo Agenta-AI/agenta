@@ -10,12 +10,13 @@ import {
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
+import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
 import {ArrowDown, Paperclip, TreeStructure, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
+import {Button, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -262,11 +263,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
     // Ids already on screen — restored/settled turns don't re-animate; only turns added live fade in.
     const seenIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
-    // Themed confirm dialogs. The static `Modal.confirm` renders detached from the app's
-    // ConfigProvider, so it loses the theme (white box in dark mode). The hook form's
-    // `contextHolder` is rendered in-tree, so its dialogs inherit the theme — same look as the
-    // declarative EnhancedModal (centered, 16px radius).
-    const [modal, modalContextHolder] = Modal.useModal()
+    const {confirm, confirmDialog} = useConfirmDialog()
 
     const richInputRef = useRef<RichChatInputHandle>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -918,7 +915,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             }
 
             if (sideEffects.length > 0) {
-                modal.confirm({
+                confirm({
                     title: "Rewind past a tool that already ran?",
                     content: `${sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
                     okText: "Rewind anyway",
@@ -932,7 +929,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 run()
             }
         },
-        [regenerate, setMessages, modal],
+        [confirm, regenerate, setMessages],
     )
 
     // Group the ACTIVE turn (the last user message + its response) into one wrapper that carries the
@@ -1037,7 +1034,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             onDrop={onDrop}
         >
             {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
-            {modalContextHolder}
+            {confirmDialog}
             {/* Chat column. The turn inspector is a flex sibling (below) so it pushes this column
                 aside rather than overlaying it. */}
             <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3">

@@ -38,6 +38,7 @@ import {appWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
+import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Editor} from "@agenta/ui/editor"
@@ -50,7 +51,7 @@ import {
     Plus,
     Tag,
 } from "@phosphor-icons/react"
-import {Button, Form, Input, Modal, Spin, Tooltip, Typography} from "antd"
+import {Button, Form, Input, Spin, Tooltip, Typography} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {AppLogo} from "../../drawers/shared/CatalogAppCard"
@@ -332,10 +333,10 @@ function SubscriptionsList({
     onRemoveDraft: (id: string) => void
     onDeleteSubscription: (id: string) => void
 }) {
-    const [modal, modalContextHolder] = Modal.useModal()
+    const {confirm, confirmDialog} = useConfirmDialog()
 
     const confirmRemoveDraft = (draftId: string, name: string) =>
-        modal.confirm({
+        confirm({
             title: "Discard draft?",
             content: name.trim()
                 ? `"${name.trim()}" hasn't been saved. Discard it?`
@@ -347,7 +348,7 @@ function SubscriptionsList({
         })
 
     const confirmDelete = (subscription: TriggerSubscription) =>
-        modal.confirm({
+        confirm({
             title: "Delete trigger?",
             content: `This permanently deletes ${subscription.name ? `"${subscription.name}"` : "this trigger"}.`,
             okText: "Delete",
@@ -365,7 +366,7 @@ function SubscriptionsList({
             isEmpty={subscriptions.length === 0 && drafts.length === 0}
             emptyText="No triggers yet."
         >
-            {modalContextHolder}
+            {confirmDialog}
             {drafts.map((draftId) => (
                 <DraftListRow
                     key={draftId}

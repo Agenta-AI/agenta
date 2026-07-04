@@ -26,10 +26,10 @@ import {
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
 import {toast} from "@agenta/primitive-ui/lib/toast"
+import {ConfirmDialog, type ConfirmRequest} from "@agenta/ui/components/modal"
 import {ArrowClockwise, DotsThree, GearSix, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
-import ConfirmDialog, {type ConfirmRequest} from "@/oss/components/ConfirmDialog"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 

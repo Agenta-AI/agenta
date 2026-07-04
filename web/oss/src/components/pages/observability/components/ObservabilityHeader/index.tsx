@@ -3,7 +3,8 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
 import {exportMatchingTraces} from "@agenta/entities/trace/etl"
 import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
-import {message, modal} from "@agenta/ui/app-message"
+import {message} from "@agenta/ui/app-message"
+import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -112,6 +113,7 @@ const ObservabilityHeader = ({
     setAutoRefresh: propsSetAutoRefresh,
     refreshTrigger: propsRefreshTrigger,
 }: ObservabilityHeaderProps) => {
+    const {confirm, confirmDialog} = useConfirmDialog()
     const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0)
     const [isExporting, setIsExporting] = useState(false)
     const exportAbortRef = useRef<AbortController | null>(null)
@@ -549,7 +551,7 @@ const ObservabilityHeader = ({
     const onAddAllMatchingBeforeOpen = useCallback(async () => {
         if (filters.length > 0) return true
         return await new Promise<boolean>((resolve) => {
-            modal.confirm({
+            confirm({
                 title: "Add every trace to the queue?",
                 content:
                     "No filter is active — this will queue every trace in the project. Continue?",
@@ -559,7 +561,7 @@ const ObservabilityHeader = ({
                 onCancel: () => resolve(false),
             })
         })
-    }, [filters])
+    }, [confirm, filters])
 
     // Filter-scoped queue add — the picked queue runs a background scan of
     // every trace matching the current observability filter. The hook owns
@@ -640,6 +642,7 @@ const ObservabilityHeader = ({
 
     return (
         <>
+            {confirmDialog}
             <section className="flex justify-between gap-2 flex-col">
                 <div className="w-full flex items-center gap-2 justify-between">
                     <div className="flex items-center gap-1">

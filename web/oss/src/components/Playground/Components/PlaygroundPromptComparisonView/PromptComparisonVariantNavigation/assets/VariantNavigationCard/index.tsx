@@ -10,10 +10,11 @@ import {
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import {VersionBadge} from "@agenta/ui"
 import {DraftTag} from "@agenta/ui/components"
+import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
-import {Button, Modal, Tag, Typography} from "antd"
+import {Button, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
@@ -31,6 +32,7 @@ const VariantNavigationCard = ({
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId))
     const isLocalDraftVariant = isLocalDraftId(revisionId)
+    const {confirm, confirmDialog} = useConfirmDialog()
 
     // Map RunnableData fields to display values
     const variantName = runnableData?.name ?? ""
@@ -40,7 +42,7 @@ const VariantNavigationCard = ({
     // A local draft without changes (isDirty === false) should close without confirmation
     const handleClose = useCallback(() => {
         if (isDirty) {
-            Modal.confirm({
+            confirm({
                 title: "Discard unsaved changes?",
                 content: isLocalDraftVariant
                     ? "This draft has uncommitted changes. Closing it will discard all changes."
@@ -55,7 +57,7 @@ const VariantNavigationCard = ({
         } else {
             removeVariantFromSelection(revisionId)
         }
-    }, [isDirty, isLocalDraftVariant, removeVariantFromSelection, revisionId])
+    }, [confirm, isDirty, isLocalDraftVariant, removeVariantFromSelection, revisionId])
 
     // Aggregate visible trace results for this revision across current rows
     const metricsAtom = useMemo(
@@ -149,6 +151,7 @@ const VariantNavigationCard = ({
                 className,
             )}
         >
+            {confirmDialog}
             <div
                 className={clsx(
                     "p-2 rounded-lg w-full flex flex-col gap-3",

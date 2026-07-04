@@ -28,11 +28,12 @@ import {appWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
+import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Editor} from "@agenta/ui/editor"
 import {CalendarBlank, ChatText, Clock, GitBranch, Play, Tag} from "@phosphor-icons/react"
-import {Button, DatePicker, Form, Input, Modal, Popover, Spin, Tooltip, Typography} from "antd"
+import {Button, DatePicker, Form, Input, Popover, Spin, Tooltip, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {DrawerFooter} from "../../drawers/shared/DrawerFooter"
@@ -280,12 +281,10 @@ function SchedulesList({
     onRemoveDraft: (id: string) => void
     onDeleteSchedule: (id: string) => void
 }) {
-    // Use the hook form so the confirm renders inside the theme context (static
-    // Modal.confirm escapes ConfigProvider and renders unstyled in dark mode).
-    const [modal, modalContextHolder] = Modal.useModal()
+    const {confirm, confirmDialog} = useConfirmDialog()
 
     const confirmRemoveDraft = (draftId: string, name: string) =>
-        modal.confirm({
+        confirm({
             title: "Discard draft?",
             content: name.trim()
                 ? `"${name.trim()}" hasn't been saved. Discard it?`
@@ -297,7 +296,7 @@ function SchedulesList({
         })
 
     const confirmDeleteSchedule = (schedule: TriggerSchedule) =>
-        modal.confirm({
+        confirm({
             title: "Delete schedule?",
             content: `This permanently deletes ${schedule.name ? `"${schedule.name}"` : "this schedule"}.`,
             okText: "Delete",
@@ -315,7 +314,7 @@ function SchedulesList({
             isEmpty={schedules.length === 0 && drafts.length === 0}
             emptyText="No schedules yet."
         >
-            {modalContextHolder}
+            {confirmDialog}
             {/* One row per unsaved draft slot; each persists its own form state. */}
             {drafts.map((draftId) => (
                 <DraftListRow

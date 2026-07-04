@@ -27,6 +27,7 @@ import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Switch} from "@agenta/primitive-ui/components/switch"
 import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
 import {toast} from "@agenta/primitive-ui/lib/toast"
+import {ConfirmDialog, type ConfirmRequest} from "@agenta/ui/components/modal"
 import {
     CheckCircle,
     Clock,
@@ -41,7 +42,6 @@ import {
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 import {z} from "zod"
 
-import ConfirmDialog, {type ConfirmRequest} from "@/oss/components/ConfirmDialog"
 import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {

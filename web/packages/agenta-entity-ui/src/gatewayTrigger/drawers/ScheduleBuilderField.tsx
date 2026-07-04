@@ -12,6 +12,7 @@ import {
     type ScheduleBuilderState,
 } from "@agenta/entities/gatewayTrigger"
 import {dayjs} from "@agenta/shared/utils"
+import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {Plus} from "@phosphor-icons/react"
 import {
     Alert,
@@ -19,7 +20,6 @@ import {
     Form,
     Input,
     InputNumber,
-    Modal,
     Select,
     Tag,
     TimePicker,
@@ -80,9 +80,7 @@ export function ScheduleBuilderField({
 }) {
     const [builder, setBuilder] = useState<ScheduleBuilderState>(() => cronToBuilder(value).state)
     const lastEmitted = useRef(value)
-    // Hook form so the confirm renders inside the theme context (static Modal.confirm
-    // escapes ConfigProvider → unstyled in dark mode).
-    const [modal, modalContextHolder] = Modal.useModal()
+    const {confirm, confirmDialog} = useConfirmDialog()
 
     // External cron change (edit-mode prefill, or a value set elsewhere) — re-derive
     // the builder. Skipped when we ourselves emitted it, so local state isn't clobbered.
@@ -127,7 +125,7 @@ export function ScheduleBuilderField({
                     emit(parsed.state)
                     return
                 }
-                modal.confirm({
+                confirm({
                     title: `Switch to ${cadenceLabel(cadence)}?`,
                     content: "This replaces your custom cron expression.",
                     okText: "Switch",
@@ -138,7 +136,7 @@ export function ScheduleBuilderField({
             }
             emit({...builder, cadence})
         },
-        [builder, emit, modal],
+        [builder, confirm, emit],
     )
 
     const validation = useMemo(() => validateCron(value), [value])
@@ -161,7 +159,7 @@ export function ScheduleBuilderField({
             validateStatus={validation.valid ? undefined : "error"}
             help={validation.valid ? undefined : validation.error}
         >
-            {modalContextHolder}
+            {confirmDialog}
             <div className="flex gap-3">
                 <div className="flex w-[116px] shrink-0 flex-col gap-0.5">
                     {CADENCES.map((c) => {

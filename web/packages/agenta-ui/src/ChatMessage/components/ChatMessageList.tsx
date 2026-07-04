@@ -14,11 +14,12 @@ import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtom} from "jotai"
 
+import {useConfirmDialog} from "../../components/modal/ConfirmDialog"
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
 import {ViewModeDropdown} from "../../drill-in/core/ViewModeDropdown"
 import {messageViewModeAtom} from "../../drill-in/state/messageViewModeAtom"
 import {getViewOptions, toMessageViewMode, type ViewMode} from "../../drill-in/utils/getViewOptions"
-import {message, modal} from "../../utils/appMessageContext"
+import {message} from "../../utils/appMessageContext"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 import {createSnippetPdfAttachment} from "../utils/snippetAttachment"
 
@@ -90,6 +91,7 @@ const ChatMessageItem: React.FC<{
     onRemoveAttachment,
     onToggleMinimize,
 }) => {
+    const {confirm, confirmDialog} = useConfirmDialog()
     const containerRef = useRef<HTMLDivElement>(null)
     // Shared + persisted across all message editors (see messageViewModeAtom).
     // The atom is typed `ViewMode` (can hold "form"), so coerce to a mode this
@@ -124,7 +126,7 @@ const ChatMessageItem: React.FC<{
             maxPasteChars: number
             overBy: number
         }) => {
-            if (!allowFileUpload || !modal) {
+            if (!allowFileUpload) {
                 return false
             }
 
@@ -133,7 +135,7 @@ const ChatMessageItem: React.FC<{
                     ? `This paste is ${overBy.toLocaleString()} characters over the ${maxPasteChars.toLocaleString()}-character limit.`
                     : `This paste exceeds the ${maxPasteChars.toLocaleString()}-character limit.`
 
-            modal.confirm({
+            confirm({
                 title: "That's too long to paste",
                 content: `${limitSummary} To keep the editor responsive, you can attach the pasted content as a snippet instead.`,
                 okText: "Create Snippet",
@@ -158,7 +160,7 @@ const ChatMessageItem: React.FC<{
 
             return true
         },
-        [allowFileUpload, index, onAddFile],
+        [allowFileUpload, confirm, index, onAddFile],
     )
 
     return (
@@ -167,6 +169,7 @@ const ChatMessageItem: React.FC<{
             ref={containerRef}
             style={getCollapseStyle(isMinimized, 72)}
         >
+            {confirmDialog}
             <ChatMessageEditor
                 id={editorId}
                 key={`${editorId}-${viewMode}`}

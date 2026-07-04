@@ -6,9 +6,9 @@ import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {type ColumnDef, DataTable} from "@agenta/primitive-ui/components/data-table"
 import {Tooltip, TooltipContent, TooltipTrigger} from "@agenta/primitive-ui/components/tooltip"
+import {ConfirmDialog, type ConfirmRequest} from "@agenta/ui/components/modal"
 import {ArrowClockwise, GearSix, Trash} from "@phosphor-icons/react"
 
-import ConfirmDialog, {type ConfirmRequest} from "@/oss/components/ConfirmDialog"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 import {useToolsConnections} from "../hooks/useToolsConnections"

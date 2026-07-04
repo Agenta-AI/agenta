@@ -13,7 +13,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Info, Plus, Trash} from "@phosphor-icons/react"
-import {Alert, Button, Input, InputNumber, Modal, Select, Switch, Tooltip, Typography} from "antd"
+import {Alert, Button, Input, InputNumber, Select, Switch, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -245,7 +245,6 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
         if (!value) return ""
         return typeof value === "string" ? value : JSON.stringify(value, null, 2)
     })
-    const [, contextHolder] = Modal.useModal()
 
     // Track the previous value to detect external changes (e.g., discard)
     const prevValueRef = useRef(value)
@@ -498,7 +497,6 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                         syncWithInitialValueChanges={true}
                     />
                 </div>
-                {contextHolder}
             </div>
         )
     }
@@ -641,8 +639,6 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                     className="flex-shrink-0"
                 />
             </div>
-
-            {contextHolder}
         </div>
     )
 })

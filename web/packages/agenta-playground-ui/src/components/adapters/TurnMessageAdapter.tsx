@@ -10,12 +10,13 @@ import {
     getAttachments,
     updateTextInContent,
 } from "@agenta/shared/utils"
-import {message, modal} from "@agenta/ui"
+import {message} from "@agenta/ui"
 import {
     ChatMessageEditor as MessageEditor,
     MessageAttachments,
     createSnippetPdfAttachment,
 } from "@agenta/ui/chat-message"
+import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {
     getCollapseStyle,
     PromptImageUpload,
@@ -105,6 +106,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
     renderTestsetButton,
     renderRepetitionNav,
 }) => {
+    const {confirm, confirmDialog} = useConfirmDialog()
     const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
     const isComparisonView = useAtomValue(
         useMemo(() => playgroundController.selectors.isComparisonView(), []),
@@ -414,7 +416,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
             maxPasteChars: number
             overBy: number
         }) => {
-            if (!isUserRole || effectiveDisabled || !modal) {
+            if (!isUserRole || effectiveDisabled) {
                 return false
             }
 
@@ -423,7 +425,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                     ? `This paste is ${overBy.toLocaleString()} characters over the ${maxPasteChars.toLocaleString()}-character limit.`
                     : `This paste exceeds the ${maxPasteChars.toLocaleString()}-character limit.`
 
-            modal.confirm({
+            confirm({
                 title: "That's too long to paste",
                 content: `${limitSummary} To keep the editor responsive, you can attach the pasted content as a snippet instead.`,
                 okText: "Create Snippet",
@@ -445,7 +447,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
 
             return true
         },
-        [effectiveDisabled, handleAddSnippetAttachment, isUserRole],
+        [confirm, effectiveDisabled, handleAddSnippetAttachment, isUserRole],
     )
 
     const onPasteLimitExceeded =
@@ -640,6 +642,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
 
     return (
         <>
+            {confirmDialog}
             {toolPayloads?.length ? (
                 toolPayloads.map((p) => (
                     <div

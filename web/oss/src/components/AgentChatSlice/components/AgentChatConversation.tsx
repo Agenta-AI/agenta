@@ -1,11 +1,12 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval} from "@agenta/playground"
+import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {Paperclip} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Alert, Button, Modal, Tag, Tooltip, Typography, type UploadFile} from "antd"
+import {Alert, Button, Tag, Tooltip, Typography, type UploadFile} from "antd"
 import {useSetAtom, useStore} from "jotai"
 
 import {useAgConfigStatus} from "../assets/agConfig"
@@ -60,9 +61,7 @@ const AgentChatConversation = ({
 }) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
-    // Themed confirm dialogs: the hook form's contextHolder renders in-tree so it inherits the app
-    // theme (the static Modal.confirm renders detached and loses it — white box in dark mode).
-    const [modal, modalContextHolder] = Modal.useModal()
+    const {confirm, confirmDialog} = useConfirmDialog()
     const [input, setInput] = useState("")
     // Pending attachments for the next message. Kept client-side only: `beforeUpload`
     // returns false so antd never uploads; we read each `originFileObj` into a data: URL at
@@ -203,7 +202,7 @@ const AgentChatConversation = ({
             }
 
             if (sideEffects.length > 0) {
-                modal.confirm({
+                confirm({
                     title: "Rewind past a tool that already ran?",
                     content: `${sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
                     okText: "Rewind anyway",
@@ -217,13 +216,13 @@ const AgentChatConversation = ({
                 run()
             }
         },
-        [regenerate, setMessages, modal],
+        [confirm, regenerate, setMessages],
     )
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
             {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
-            {modalContextHolder}
+            {confirmDialog}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-col">
                     <Text type="secondary" className="!text-xs">

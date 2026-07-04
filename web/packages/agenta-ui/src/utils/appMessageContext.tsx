@@ -1,8 +1,8 @@
 /**
- * AppMessageContext - Static exports for Ant Design message/modal/notification
+ * AppMessageContext - Static exports for Ant Design message/notification
  *
  * This component captures Ant Design's App context and exports static instances
- * of message, modal, and notification that can be used anywhere without hooks.
+ * of message and notification that can be used anywhere without hooks.
  *
  * ## Usage
  *
@@ -23,7 +23,7 @@
  *
  * 2. Import and use the static exports anywhere:
  * ```tsx
- * import { message, modal, notification } from '@agenta/ui'
+ * import { message, notification } from '@agenta/ui'
  *
  * // Plain text
  * message.success('Saved successfully')
@@ -43,7 +43,6 @@ import React from "react"
 
 import {App} from "antd"
 import type {ArgsProps, MessageInstance, MessageType} from "antd/es/message/interface"
-import type {ModalStaticFunctions} from "antd/es/modal/confirm"
 import type {NotificationInstance} from "antd/es/notification/interface"
 
 // ---------------------------------------------------------------------------
@@ -154,7 +153,6 @@ function createEnhancedMessage(instance: MessageInstance): EnhancedMessageInstan
 
 let message: EnhancedMessageInstance
 let notification: NotificationInstance
-let modal: Omit<ModalStaticFunctions, "warn">
 
 /**
  * Component that captures Ant Design's App context.
@@ -163,11 +161,10 @@ let modal: Omit<ModalStaticFunctions, "warn">
 const AppMessageContext = () => {
     const staticFunction = App.useApp()
     message = createEnhancedMessage(staticFunction.message)
-    modal = staticFunction.modal
     notification = staticFunction.notification
     return null
 }
 
 export default AppMessageContext
 
-export {message, modal, notification}
+export {message, notification}

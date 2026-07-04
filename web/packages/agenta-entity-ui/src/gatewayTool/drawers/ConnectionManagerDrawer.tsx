@@ -11,7 +11,7 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
 import {dayjs} from "@agenta/shared/utils"
-import {modal} from "@agenta/ui/app-message"
+import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowClockwise, Play, Trash, XCircle} from "@phosphor-icons/react"
 import {Button, Descriptions, Divider, Spin, Typography} from "antd"
@@ -26,6 +26,7 @@ function formatCreatedAt(value: string | null | undefined): string {
 }
 
 export default function ConnectionManagerDrawer() {
+    const {confirm, confirmDialog} = useConfirmDialog()
     const [state, setState] = useAtom(connectionDrawerAtom)
     const setExecution = useSetAtom(toolExecutionDrawerAtom)
     const open = !!state
@@ -117,7 +118,7 @@ export default function ConnectionManagerDrawer() {
 
     const onRevoke = useCallback(() => {
         if (!state?.connectionId) return
-        modal.confirm({
+        confirm({
             title: "Revoke Connection",
             content:
                 "This will mark the connection as invalid. You can refresh it later to reactivate.",
@@ -133,11 +134,11 @@ export default function ConnectionManagerDrawer() {
                 }
             },
         })
-    }, [state?.connectionId, handleRevoke, setConnectionInCache])
+    }, [confirm, state?.connectionId, handleRevoke, setConnectionInCache])
 
     const onDelete = useCallback(() => {
         if (!state?.connectionId) return
-        modal.confirm({
+        confirm({
             title: "Delete Connection",
             content:
                 "Are you sure you want to delete this connection? This action is irreversible.",
@@ -153,7 +154,7 @@ export default function ConnectionManagerDrawer() {
                 }
             },
         })
-    }, [state?.connectionId, handleDelete, handleClose])
+    }, [confirm, state?.connectionId, handleDelete, handleClose])
 
     const onTest = useCallback(() => {
         if (!connection?.id || !connection.slug) return
@@ -175,6 +176,7 @@ export default function ConnectionManagerDrawer() {
             width={480}
             destroyOnClose
         >
+            {confirmDialog}
             <div className="flex flex-col gap-4">
                 {isLoading ? (
                     <div className="flex justify-center py-8">

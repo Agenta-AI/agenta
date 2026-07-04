@@ -1,6 +1,8 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {ConfigProvider, Layout, Modal, theme} from "antd"
+import {ConfirmDialogHost} from "@agenta/ui/components/modal"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {ConfigProvider, Layout, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
@@ -264,7 +266,7 @@ const AppWithVariants = memo(
 
         return (
             <div className={clsx([{"flex flex-col grow min-h-0": isFullHeight}])}>
-                <Modal
+                <EnhancedModal
                     title="Want to revisit the demo?"
                     open={isDemoReturnModalOpen}
                     onOk={closeDemoReturnModal}
@@ -276,7 +278,7 @@ const AppWithVariants = memo(
                         Open the org switcher in the sidebar. Select the organization tagged demo to
                         return.
                     </p>
-                </Modal>
+                </EnhancedModal>
                 {project?.is_demo && (
                     <>
                         <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[var(--ag-c-1C2C3D)] text-white text-sm font-medium">
@@ -390,17 +392,13 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
         useCommittedLayoutFlags()
 
-    const [, contextHolder] = Modal.useModal()
-
     return (
         <>
             <PostHogThemeCapture />
+            <ConfirmDialogHost />
             {typeof window === "undefined" ? null : isAuthRoute ? (
                 <Layout className={classes.layout}>
-                    <ErrorBoundary FallbackComponent={ErrorFallback}>
-                        {children}
-                        {contextHolder}
-                    </ErrorBoundary>
+                    <ErrorBoundary FallbackComponent={ErrorFallback}>{children}</ErrorBoundary>
                 </Layout>
             ) : (
                 <ProtectedRoute>
@@ -414,7 +412,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         isFullHeight={isFullHeight}
                     >
                         {children}
-                        {contextHolder}
                     </AppWithVariants>
                 </ProtectedRoute>
             )}

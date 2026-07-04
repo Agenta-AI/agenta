@@ -1,32 +1,34 @@
-import {ReactNode} from "react"
+import type {ReactNode} from "react"
 
-import {modal} from "@agenta/ui/app-message"
-import {Button, ModalFuncProps} from "antd"
-import {HookAPI} from "antd/es/modal/useModal"
+import {showConfirmDialog, type ConfirmRequest} from "@agenta/ui/components/modal"
 
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 
-function handleCb(cb: AlertPopupProps["onOk"]) {
-    if (typeof cb !== "function") return cb
-    return function () {
-        const res = cb()
-        if (res instanceof Promise) {
-            return new Promise((_res) => {
-                res.catch(globalErrorHandler).finally(() => _res(undefined))
-            })
-        }
-        return res
-    }
+export interface AlertPopupProps {
+    title: ReactNode
+    message: ReactNode
+    okText?: ReactNode
+    cancelText?: ReactNode | null
+    onOk?: () => void | boolean | Promise<void | boolean>
+    onCancel?: () => void | Promise<void>
+    cancellable?: boolean
+    type?: "confirm" | "info" | "success" | "error" | "warning"
+    okType?: "primary" | "danger" | "default"
+    okButtonProps?: {danger?: boolean; type?: string}
+    centered?: boolean
+    thirdButtonText?: ReactNode
+    onThirdButton?: () => void | Promise<void | boolean>
 }
 
-export type AlertPopupProps = ModalFuncProps & {
-    message: ReactNode
-    cancellable?: boolean
-    type?: keyof HookAPI
-    /** Third button text (shown between cancel and ok) */
-    thirdButtonText?: string
-    /** Third button click handler */
-    onThirdButton?: () => void | Promise<void | boolean>
+function handleCallback(callback: (() => unknown) | undefined) {
+    if (!callback) return undefined
+    return async () => {
+        try {
+            await callback()
+        } catch (error) {
+            globalErrorHandler(error)
+        }
+    }
 }
 
 export default function AlertPopup({
@@ -36,59 +38,24 @@ export default function AlertPopup({
     cancelText = "Cancel",
     onOk,
     onCancel,
-    cancellable = true,
-    type,
+    okType,
+    okButtonProps,
+    centered,
     thirdButtonText,
     onThirdButton,
-    ...ModalProps
 }: AlertPopupProps) {
-    const _modal = modal
-
-    // Store modal instance reference for closing from custom button
-    let modalInstance: ReturnType<typeof _modal.confirm> | null = null
-
-    const handleThirdButton = async () => {
-        if (onThirdButton) {
-            await handleCb(onThirdButton)?.()
-        }
-        modalInstance?.destroy()
-    }
-
-    // Custom footer with 3 buttons when thirdButtonText is provided
-    const customFooter = thirdButtonText
-        ? (_: ReactNode, {OkBtn, CancelBtn}: {OkBtn: React.FC; CancelBtn: React.FC}) => (
-              <div className="flex items-center justify-end gap-2">
-                  <CancelBtn />
-                  <Button size="middle" onClick={handleThirdButton}>
-                      {thirdButtonText}
-                  </Button>
-                  <OkBtn />
-              </div>
-          )
-        : undefined
-
-    modalInstance = _modal[type || "confirm"]({
+    const request: ConfirmRequest = {
         title,
-        content: message,
+        message,
         okText,
         cancelText,
-        onOk: handleCb(onOk),
-        onCancel: handleCb(onCancel),
-        closable: cancellable,
-        maskClosable: cancellable,
-        okButtonProps: {
-            size: "middle",
-        },
-        cancelButtonProps: {
-            type: "text",
-            size: "middle",
-            style: cancelText === null ? {display: "none"} : undefined,
-        },
-        icon: null,
-        okType: "primary",
-        footer: customFooter,
-        ...ModalProps,
-    })
+        danger: okType === "danger" || okButtonProps?.danger,
+        centered,
+        thirdButtonText,
+        onOk: handleCallback(onOk),
+        onCancel: handleCallback(onCancel),
+        onThirdButton: handleCallback(onThirdButton),
+    }
 
-    return modalInstance
+    return showConfirmDialog(request)
 }
