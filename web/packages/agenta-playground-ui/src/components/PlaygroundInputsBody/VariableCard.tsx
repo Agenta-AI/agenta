@@ -42,15 +42,13 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
 import {CaretDown, CaretRight, CopySimple, Database, Info, Warning} from "@phosphor-icons/react"
-import {Alert, Button, Input, InputNumber, Switch, Tag, Tooltip, Typography, message} from "antd"
+import {Alert, Button, Input, InputNumber, Switch, Tag, Tooltip, message} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
 import {variableViewModeAtomFamily} from "./viewModeAtoms"
 
 const {TextArea} = Input
-
-const {Text: AntText} = Typography
 
 /** A schema-vs-value structural conflict at a single key (possibly nested
  *  — `key` is a dotted path, e.g. `"obj.a"`). Schema expects a nested
@@ -425,9 +423,9 @@ export function VariableCard({
         <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2 min-w-0">
             <div className="flex items-center justify-between gap-2 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
-                    <AntText className="font-mono text-[12px] leading-[20px] font-medium text-[var(--ag-c-1677FF)] truncate">
+                    <span className="font-mono text-[12px] leading-[20px] font-medium text-[var(--ag-c-1677FF)] truncate">
                         {name}
-                    </AntText>
+                    </span>
                     <TypeChip variant={chipVariant} value={value} />
                     {helpText ? (
                         <Tooltip

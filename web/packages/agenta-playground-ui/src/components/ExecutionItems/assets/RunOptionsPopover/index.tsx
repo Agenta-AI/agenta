@@ -2,7 +2,7 @@ import {useCallback, useRef} from "react"
 
 import {executionItemController} from "@agenta/playground"
 import {CaretDown} from "@phosphor-icons/react"
-import {Button, InputNumber, Popover, Slider, Typography} from "antd"
+import {Button, InputNumber, Popover, Slider} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 interface RunOptionsPopoverProps {
@@ -38,7 +38,7 @@ const RunOptionsPopover = ({isRunning, onRepeatCountChange}: RunOptionsPopoverPr
         <div className="flex flex-col gap-4 w-[300px]">
             <div className="flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                    <Typography.Text strong>Repeats</Typography.Text>
+                    <span className="font-semibold">Repeats</span>
                     <InputNumber
                         min={1}
                         max={10}
@@ -49,9 +49,9 @@ const RunOptionsPopover = ({isRunning, onRepeatCountChange}: RunOptionsPopoverPr
                         disabled={isRunning}
                     />
                 </div>
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground">
                     Run the same prompt multiple times to reduce variability in results.{" "}
-                </Typography.Text>
+                </span>
                 <Slider
                     min={1}
                     max={10}

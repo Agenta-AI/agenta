@@ -42,10 +42,8 @@ import {
 import {entitySelectorController} from "@agenta/playground"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CaretRight} from "@phosphor-icons/react"
-import {Input, Button, Tabs, Space, Typography} from "antd"
+import {Input, Button, Tabs, Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
-
-const {Text} = Typography
 
 // Re-export types from controller for convenience
 export type {EntityType, EntitySelection, EntitySelectorConfig}
@@ -143,7 +141,7 @@ function TestcaseSelector({onSelect}: {onSelect: (selection: EntitySelection) =>
 
     return (
         <Space direction="vertical" size="small" className="w-full">
-            <Text type="secondary">Testcase ID</Text>
+            <span className="text-muted-foreground">Testcase ID</span>
             <Space.Compact className="w-full">
                 <Input
                     value={testcaseId}
@@ -160,7 +158,9 @@ function TestcaseSelector({onSelect}: {onSelect: (selection: EntitySelection) =>
                     Select
                 </Button>
             </Space.Compact>
-            <Text type="secondary">Testcase selection from testset coming soon</Text>
+            <span className="text-muted-foreground">
+                Testcase selection from testset coming soon
+            </span>
         </Space>
     )
 }
@@ -184,7 +184,7 @@ function SpanSelector({onSelect}: {onSelect: (selection: EntitySelection) => voi
 
     return (
         <Space direction="vertical" size="small" className="w-full">
-            <Text type="secondary">Span ID</Text>
+            <span className="text-muted-foreground">Span ID</span>
             <Space.Compact className="w-full">
                 <Input
                     value={spanId}

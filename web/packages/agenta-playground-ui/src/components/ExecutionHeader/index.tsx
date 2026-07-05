@@ -9,7 +9,7 @@ import {
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
 import {ArrowsInLineVertical, ArrowsOutLineVertical} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -150,7 +150,7 @@ const ExecutionHeader = ({
                         />
                     </div>
                 ) : (
-                    <Typography
+                    <span
                         className={clsx(
                             "text-nowrap",
                             isComparisonView
@@ -159,7 +159,7 @@ const ExecutionHeader = ({
                         )}
                     >
                         {isChatMode ? "Chat" : isComparisonView ? "Generations" : "Generations"}
-                    </Typography>
+                    </span>
                 )}
             </div>
 

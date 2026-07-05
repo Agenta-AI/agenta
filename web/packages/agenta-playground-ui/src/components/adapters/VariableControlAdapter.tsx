@@ -14,7 +14,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
 import {Info} from "@phosphor-icons/react"
-import {InputNumber, Switch, Tooltip, Typography} from "antd"
+import {InputNumber, Switch, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -59,9 +59,9 @@ const VariableHeader: React.FC<{
 }> = ({name, headerActions, helpText, typeChip}) => (
     <div className="w-full flex items-start justify-between gap-2">
         <div className="flex items-center gap-1 min-w-0">
-            <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[var(--ag-c-1677FF)] font-mono truncate">
+            <span className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[var(--ag-c-1677FF)] font-mono truncate">
                 {name}
-            </Typography>
+            </span>
             {typeChip}
             {helpText ? (
                 <Tooltip title={helpText} placement="topLeft" overlayStyle={{maxWidth: 360}}>
@@ -492,12 +492,9 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 }
                 footer={
                     showShapeHint ? (
-                        <Typography.Text
-                            type="secondary"
-                            className="block mt-1 px-1 text-[11px] font-mono"
-                        >
+                        <span className="block mt-1 px-1 text-[11px] font-mono text-muted-foreground">
                             Expected shape: <code>{shapeHint}</code>
-                        </Typography.Text>
+                        </span>
                     ) : null
                 }
                 containerRef={containerRef}
@@ -565,9 +562,9 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 />
             </EditorProvider>
             {showShapeHint && (
-                <Typography.Text type="secondary" className="block mt-1 px-1 text-[11px] font-mono">
+                <span className="block mt-1 px-1 text-[11px] font-mono text-muted-foreground">
                     Expected shape: <code>{shapeHint}</code>
-                </Typography.Text>
+                </span>
             )}
         </div>
     )

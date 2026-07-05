@@ -5,9 +5,7 @@
  */
 
 import {Play, Lightning} from "@phosphor-icons/react"
-import {Button, Empty, Space, Typography} from "antd"
-
-const {Text, Title} = Typography
+import {Button, Empty, Space} from "antd"
 
 interface EmptyStateProps {
     onAddRunnable: () => void
@@ -23,13 +21,13 @@ export function EmptyState({onAddRunnable}: EmptyStateProps) {
             }
             description={
                 <Space orientation="vertical" size="small">
-                    <Title level={4} style={{marginBottom: 0}}>
+                    <h4 style={{marginBottom: 0}} className="text-base font-semibold leading-snug">
                         Start your playground
-                    </Title>
-                    <Text type="secondary" className="block max-w-md">
+                    </h4>
+                    <span className="block max-w-md text-muted-foreground">
                         Add an app revision or evaluator to begin. You'll then be able to connect
                         test data and run experiments.
-                    </Text>
+                    </span>
                 </Space>
             }
         >

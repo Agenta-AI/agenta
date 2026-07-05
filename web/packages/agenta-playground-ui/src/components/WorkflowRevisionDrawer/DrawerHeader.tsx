@@ -18,7 +18,7 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {ArrowsIn, ArrowsOut, CaretDown, CaretUp, Info, X} from "@phosphor-icons/react"
-import {Button, Input, Popover, Typography} from "antd"
+import {Button, Input, Popover} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useDrawerProviders} from "./DrawerContext"
@@ -32,8 +32,6 @@ import {
     workflowRevisionDrawerExpandedAtom,
     workflowRevisionDrawerNavigationIdsAtom,
 } from "./store"
-
-const {Text} = Typography
 
 // ================================================================
 // NAV CONTROLS
@@ -236,7 +234,7 @@ const DrawerHeader = () => {
                     {isAppCreate && entityId ? (
                         <AppCreateNameInput entityId={entityId} />
                     ) : (
-                        <Text className="text-sm font-medium">{title}</Text>
+                        <span className="text-sm font-medium">{title}</span>
                     )}
                     {entityId && !isCreate && <NavControls entityId={entityId} />}
                 </div>

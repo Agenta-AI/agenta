@@ -7,11 +7,9 @@
  */
 
 import {borderColors, statusColors} from "@agenta/ui/styles"
-import {Button, Space, Typography} from "antd"
+import {Button, Space} from "antd"
 
 import type {SelectionSummaryProps} from "../types"
-
-const {Text} = Typography
 
 export function SelectionSummary({
     selectedCount,
@@ -36,7 +34,7 @@ export function SelectionSummary({
                 <div
                     className={`border ${borderColors.default} rounded-md p-3 ${statusColors.warningBg}`}
                 >
-                    <Text type="warning">{disabledMessage}</Text>
+                    <span className="text-amber-600 dark:text-amber-400">{disabledMessage}</span>
                 </div>
 
                 {/* Footer row with just cancel button */}
@@ -75,7 +73,7 @@ export function SelectionSummary({
                 <div
                     className={`border ${borderColors.default} rounded-md p-3 ${statusColors.warningBg}`}
                 >
-                    <Text type="warning">{warningMessage}</Text>
+                    <span className="text-amber-600 dark:text-amber-400">{warningMessage}</span>
                 </div>
             )}
 
@@ -83,10 +81,10 @@ export function SelectionSummary({
             <div className="flex items-center justify-between">
                 {/* Selection Count */}
                 <div>
-                    <Text type="secondary">
-                        <Text strong>{selectedCount}</Text> of <Text strong>{totalCount}</Text>{" "}
-                        testcases selected
-                    </Text>
+                    <span className="text-muted-foreground">
+                        <span className="font-semibold">{selectedCount}</span> of{" "}
+                        <span className="font-semibold">{totalCount}</span> testcases selected
+                    </span>
                 </div>
 
                 {/* Action Buttons */}

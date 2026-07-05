@@ -1,4 +1,3 @@
-import {Typography} from "antd"
 import clsx from "clsx"
 
 interface GenerationComparisonInputHeaderProps {
@@ -15,7 +14,7 @@ const GenerationComparisonInputHeader: React.FC<GenerationComparisonInputHeaderP
                 className,
             )}
         >
-            <Typography>Input</Typography>
+            <span>Input</span>
         </div>
     )
 }

@@ -4,7 +4,6 @@ import type {RunnablePort} from "@agenta/entities/runnable"
 import {playgroundController} from "@agenta/playground"
 import {deriveToolViewModelFromResult} from "@agenta/shared/utils"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {usePlaygroundUIOptional} from "../../context/PlaygroundUIContext"
@@ -203,9 +202,9 @@ function ResponseContent({
             <div>
                 {repetitionProps && !isComparisonView && (
                     <div className="flex gap-1 items-center mb-1">
-                        <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                        <span className="text-[10px] text-nowrap text-muted-foreground">
                             Total repeats
-                        </Typography.Text>
+                        </span>
                         <RepetitionNavigation {...repetitionProps} />
                     </div>
                 )}
@@ -224,9 +223,9 @@ function ResponseContent({
         <div>
             {repetitionProps && !isComparisonView && (
                 <div className="flex gap-1 items-center mb-1">
-                    <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                    <span className="text-[10px] text-nowrap text-muted-foreground">
                         Total repeats
-                    </Typography.Text>
+                    </span>
                     <RepetitionNavigation {...repetitionProps} />
                 </div>
             )}

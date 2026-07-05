@@ -1,5 +1,5 @@
 import {CaretLeft, CaretRight} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 
 interface RepetitionNavigationProps {
     current: number // 1-based index
@@ -28,9 +28,9 @@ const RepetitionNavigation = ({
                 disabled={disabled || current <= 1}
                 className="!w-5 !h-5"
             />
-            <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+            <span className="text-[10px] text-nowrap text-muted-foreground">
                 {current} / {total}
-            </Typography.Text>
+            </span>
             <Button
                 icon={<CaretRight size={12} />}
                 size="small"
