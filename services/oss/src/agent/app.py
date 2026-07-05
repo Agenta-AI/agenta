@@ -22,6 +22,8 @@ from agenta.sdk.agents import (
     MissingProviderError,
     ModelRef,
     ResolvedConnection,
+    RunContext,
+    RunContextRun,
     RuntimeAuthContext,
     SandboxAgentBackend,
     SessionConfig,
@@ -243,16 +245,22 @@ async def _agent(
         resolved_connection = await _resolve_session_connection(model_ref, ctx)
         secrets = resolved_connection.env
 
+    rc = run_context()
+    run_kind = (request.meta or {}).get("run_kind")
+    if isinstance(run_kind, str) and run_kind:
+        rc = rc or RunContext()
+        rc.run = RunContextRun(kind=run_kind)
+
     session_config = SessionConfig(
         agent=agent_template,
         secrets=secrets,  # the env compat alias the wire still reads
         resolved_connection=resolved_connection,
         permission_default=agent_template.permission_default,
         trace=trace_context(),
-        # The run's own context (trace + workflow identity), refreshed each turn and consumed only
-        # by a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). The
-        # conversation id is threaded separately as `session_id` below, not duplicated in here.
-        run_context=run_context(),
+        # The run's own context (run kind, trace, and workflow identity), refreshed each turn
+        # and consumed by tool context bindings at dispatch. The conversation id is threaded
+        # separately as `session_id` below, not duplicated in here.
+        run_context=rc,
         session_id=session_id,
         builtin_names=resolved_tools.builtin_names,
         tool_specs=resolved_tools.tool_specs,
