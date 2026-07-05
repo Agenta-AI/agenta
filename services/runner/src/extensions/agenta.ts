@@ -25,7 +25,12 @@
  */
 import { writeFileSync } from "node:fs";
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  isToolCallEventType,
+  type ExtensionAPI,
+  type ToolCallEvent,
+  type ToolCallEventResult,
+} from "@earendil-works/pi-coding-agent";
 
 import { createAgentaOtel } from "../tracing/otel.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
@@ -44,10 +49,155 @@ function authorizationFromOtlpHeaders(raw?: string): string | undefined {
   }
   return undefined;
 }
-import { runResolvedTool } from "../tools/dispatch.ts";
+import { relayPermissionCheck, runResolvedTool } from "../tools/dispatch.ts";
 
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
+}
+
+const PI_BUILTIN_TOOL_NAMES = [
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+] as const;
+
+type PiBuiltinToolName = (typeof PI_BUILTIN_TOOL_NAMES)[number];
+
+const PI_BUILTIN_TOOL_NAME_SET = new Set<string>(PI_BUILTIN_TOOL_NAMES);
+
+function isTruthyFlag(raw: string | undefined): boolean {
+  const normalized = raw?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+
+function isPiBuiltinToolName(name: string): name is PiBuiltinToolName {
+  return PI_BUILTIN_TOOL_NAME_SET.has(name);
+}
+
+export function normalizeBuiltinGrants(
+  raw: string | undefined,
+  logDrop: (message: string) => void = log,
+): PiBuiltinToolName[] {
+  if (!raw) return [];
+  const grants: PiBuiltinToolName[] = [];
+  const seen = new Set<string>();
+  const unknown = new Set<string>();
+  for (const part of raw.split(",")) {
+    const name = part.trim().toLowerCase();
+    if (!name) continue;
+    if (!isPiBuiltinToolName(name)) {
+      if (!unknown.has(name)) {
+        unknown.add(name);
+        logDrop(`dropping unknown builtin grant '${name}'`);
+      }
+      continue;
+    }
+    if (seen.has(name)) continue;
+    seen.add(name);
+    grants.push(name);
+  }
+  return grants;
+}
+
+export function replaceActiveBuiltinTools(
+  activeTools: string[],
+  allTools: Array<{ name: string }>,
+  builtinGrants: readonly PiBuiltinToolName[],
+): string[] {
+  const grantSet = new Set<string>(builtinGrants);
+  const inserted = new Set<string>();
+  const grantedBuiltinTools = allTools
+    .map((tool) => tool.name)
+    .filter(isPiBuiltinToolName)
+    .filter((name) => {
+      if (!grantSet.has(name) || inserted.has(name)) return false;
+      inserted.add(name);
+      return true;
+    });
+
+  let replacedBuiltinSlice = false;
+  const next: string[] = [];
+  for (const name of activeTools) {
+    if (isPiBuiltinToolName(name)) {
+      if (!replacedBuiltinSlice) {
+        next.push(...grantedBuiltinTools);
+        replacedBuiltinSlice = true;
+      }
+      continue;
+    }
+    next.push(name);
+  }
+
+  if (!replacedBuiltinSlice) next.push(...grantedBuiltinTools);
+  return next;
+}
+
+function builtinToolNameFromEvent(
+  event: ToolCallEvent,
+): PiBuiltinToolName | undefined {
+  if (isToolCallEventType("read", event)) return "read";
+  if (isToolCallEventType("bash", event)) return "bash";
+  if (isToolCallEventType("edit", event)) return "edit";
+  if (isToolCallEventType("write", event)) return "write";
+  if (isToolCallEventType("grep", event)) return "grep";
+  if (isToolCallEventType("find", event)) return "find";
+  if (isToolCallEventType("ls", event)) return "ls";
+  return undefined;
+}
+
+function blockReason(reason: string | undefined): ToolCallEventResult {
+  return {
+    block: true,
+    reason: reason || "Denied by the permission policy.",
+  };
+}
+
+function registerBuiltinGating(
+  pi: ExtensionAPI,
+  relayDir: string | undefined,
+  builtinGrants: readonly PiBuiltinToolName[],
+): void {
+  pi.on("before_agent_start", async () => {
+    pi.setActiveTools(
+      replaceActiveBuiltinTools(
+        pi.getActiveTools(),
+        pi.getAllTools(),
+        builtinGrants,
+      ),
+    );
+  });
+
+  pi.on(
+    "tool_call",
+    async (event): Promise<ToolCallEventResult | undefined> => {
+      const toolName = builtinToolNameFromEvent(event);
+      if (!toolName) return undefined;
+      if (!relayDir) {
+        return blockReason(
+          "Permission check denied because the relay directory is missing.",
+        );
+      }
+
+      try {
+        const response = await relayPermissionCheck(
+          relayDir,
+          toolName,
+          event.toolCallId,
+          event.input,
+        );
+        if (response.verdict === "allow") return undefined;
+        return blockReason(response.reason);
+      } catch (err) {
+        return blockReason(
+          err instanceof Error ? err.message : "Permission check failed.",
+        );
+      }
+    },
+  );
 }
 
 function promptSnippet(spec: ResolvedToolSpec): string {
@@ -136,14 +286,19 @@ const factory = (pi: ExtensionAPI): void => {
   const hasTracing = !!(
     process.env.TRACEPARENT || process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
   );
-  const hasTools = !!(
-    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS &&
-    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR
+  const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
+  const hasTools = !!(process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS && relayDir);
+  const hasBuiltinGating = isTruthyFlag(
+    process.env.AGENTA_AGENT_BUILTIN_GATING,
+  );
+  const builtinGrants = normalizeBuiltinGrants(
+    process.env.AGENTA_AGENT_BUILTIN_GRANTS,
   );
   const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
-  if (!hasTracing && !hasTools && !usageOut) return;
+  if (!hasTracing && !hasTools && !hasBuiltinGating && !usageOut) return;
 
   if (hasTools) registerTools(pi);
+  if (hasBuiltinGating) registerBuiltinGating(pi, relayDir, builtinGrants);
   // Tracing exports the span tree (when the OTLP target is reachable, i.e. local runs).
   // Usage accumulation is needed both for that export AND for the writeback the runner
   // uses on Daytona (where the in-sandbox process can't reach Agenta's OTLP, so the
@@ -154,8 +309,11 @@ const factory = (pi: ExtensionAPI): void => {
   const otel = createAgentaOtel({
     traceparent: process.env.TRACEPARENT,
     endpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-    authorization: authorizationFromOtlpHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS),
-    captureContent: process.env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED !== "false",
+    authorization: authorizationFromOtlpHeaders(
+      process.env.OTEL_EXPORTER_OTLP_HEADERS,
+    ),
+    captureContent:
+      process.env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED !== "false",
     // The skills that loaded for this run (author + forced `_agenta.*`), stamped on the agent
     // span so a trace shows which skills surfaced (F-029). A JSON array string from the runner.
     skills: parseSkillsLoaded(process.env.AGENTA_AGENT_SKILLS_LOADED),
