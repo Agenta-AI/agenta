@@ -58,6 +58,10 @@ ag.init(
 )
 
 
+# Bound the stream so acked entries are trimmed; without this it grows unbounded.
+MAXLEN_QUEUES_EVALUATIONS = 100_000
+
+
 # BROKER -------------------------------------------------------------------
 class _NoRedeliveryRedisStreamBroker(RedisStreamBroker):
     """Stream broker that never redelivers. `listen()` reads only NEW messages
@@ -97,6 +101,8 @@ broker = _NoRedeliveryRedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:evaluations",
     consumer_group_name="worker-evaluations",
+    maxlen=MAXLEN_QUEUES_EVALUATIONS,
+    approximate=True,
     # socket_timeout must be >= xread_block / 1000 to avoid connection errors.
     socket_timeout=30,
     socket_connect_timeout=30,

@@ -7,7 +7,7 @@ import click
 from sqlalchemy.future import select
 from sqlalchemy import delete, Connection, update, func
 
-from oss.src.models.deprecated_models import (  # type: ignore
+from oss.databases.postgres.migrations.core.deprecated_models import (  # type: ignore
     DeprecatedEvaluatorConfigDBwApp as DeprecatedEvaluatorConfigDB,
     DeprecatedAppDB,
 )

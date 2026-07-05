@@ -24,10 +24,15 @@ import pytest
 
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
 from agenta.sdk.models.workflows import WorkflowRevisionData
-from agenta.sdk.workflows.errors import FeedbackV0Error
+from agenta.sdk.workflows.errors import (
+    CodeV0Error,
+    CustomHookHandlerNotDefinedV0Error,
+    FeedbackV0Error,
+)
 from agenta.sdk.workflows.handlers import (
     code_v0,
     hook_v0,
+    remote_forward_v0,
     llm_v0,
     match_v0,
     feedback_v0,
@@ -50,6 +55,36 @@ def run(coro):
 def evaluate(body: str) -> str:
     """Wrap a one-liner body in a v2-compatible evaluate() function."""
     return f"def evaluate(inputs, output, trace):\n    {body}\n"
+
+
+# Markers indicating the Daytona sandbox backend is unavailable (no usable
+# snapshot/region, depleted credits, suspended org) rather than a code defect.
+_DAYTONA_UNAVAILABLE_MARKERS = (
+    "Failed to create sandbox",
+    "is not available in region",
+    "No Daytona snapshot configured",
+    "Organization is suspended",
+    "Depleted credits",
+    "custom-code-server-error",
+)
+
+
+def run_code_v0(parameters, *, case_id, **kwargs):
+    """Run code_v0 and xfail (not fail) when the Daytona sandbox is unavailable.
+
+    code_v0 provisions a Daytona sandbox to execute user code. When the
+    environment can't (depleted credits, suspended org, no snapshot/region),
+    the runner raises CodeV0Error before the code runs — an infra gap, not a
+    regression. Where Daytona is provisioned the marker never appears and the
+    test runs normally (no XPASS).
+    """
+    _code_v0 = code_v0.__wrapped__
+    try:
+        return run(_code_v0(parameters=parameters, **kwargs))
+    except CodeV0Error as exc:
+        if any(marker in str(exc) for marker in _DAYTONA_UNAVAILABLE_MARKERS):
+            pytest.xfail(f"[{case_id}] Daytona sandbox unavailable in this environment")
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +181,7 @@ class TestHookV0Acceptance:
         url = f"http://127.0.0.1:{port}/eval"
 
         try:
-            _hook_v0 = hook_v0.__wrapped__
+            _hook_v0 = remote_forward_v0
             revision = WorkflowRevisionData(uri="agenta:custom:hook:v0", url=url)
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
@@ -188,7 +223,7 @@ class TestHookV0Acceptance:
         url = f"http://127.0.0.1:{port}/eval"
 
         try:
-            _hook_v0 = hook_v0.__wrapped__
+            _hook_v0 = remote_forward_v0
             revision = WorkflowRevisionData(uri="agenta:custom:hook:v0", url=url)
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
@@ -229,7 +264,7 @@ class TestHookV0Acceptance:
         url = f"http://127.0.0.1:{port}/eval"
 
         try:
-            _hook_v0 = hook_v0.__wrapped__
+            _hook_v0 = remote_forward_v0
             revision = WorkflowRevisionData(uri="agenta:custom:hook:v0", url=url)
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
@@ -246,6 +281,11 @@ class TestHookV0Acceptance:
 
         assert "testcase" in received_payload
         assert received_payload["testcase"] == {"correct_answer": "4"}
+
+    def test_hook_v0_stub_raises(self):
+        """hook_v0 is a placeholder; reaching it is a misconfiguration."""
+        with pytest.raises(CustomHookHandlerNotDefinedV0Error):
+            run(hook_v0(inputs={"q": "x"}))
 
 
 # ---------------------------------------------------------------------------
@@ -265,78 +305,66 @@ class TestCodeV0Acceptance:
 
     def test_simple_perfect_score_returns_success(self):
         """Python code that returns 1.0 produces score=1.0 and success=True."""
-        _code_v0 = code_v0.__wrapped__
-        result = run(
-            _code_v0(
-                parameters={"code": evaluate("return 1.0"), "runtime": "python"},
-            )
+        result = run_code_v0(
+            {"code": evaluate("return 1.0"), "runtime": "python"},
+            case_id="code_v0:perfect_score",
         )
         assert result == {"score": 1.0, "success": True}
 
     def test_exact_match_logic_in_code(self):
         """Code that compares inputs['expected'] == output gives a realistic result."""
-        _code_v0 = code_v0.__wrapped__
         code = evaluate("return 1.0 if inputs.get('expected') == output else 0.0")
-        result = run(
-            _code_v0(
-                parameters={"code": code, "runtime": "python"},
-                inputs={"expected": "Paris"},
-                outputs="Paris",
-            )
+        result = run_code_v0(
+            {"code": code, "runtime": "python"},
+            case_id="code_v0:exact_match_success",
+            inputs={"expected": "Paris"},
+            outputs="Paris",
         )
         assert result["success"] is True
         assert result["score"] == pytest.approx(1.0)
 
     def test_exact_match_logic_fails_on_mismatch(self):
         """The same code returns success=False when output doesn't match expected."""
-        _code_v0 = code_v0.__wrapped__
         code = evaluate("return 1.0 if inputs.get('expected') == output else 0.0")
-        result = run(
-            _code_v0(
-                parameters={"code": code, "runtime": "python"},
-                inputs={"expected": "Paris"},
-                outputs="London",
-            )
+        result = run_code_v0(
+            {"code": code, "runtime": "python"},
+            case_id="code_v0:exact_match_failure",
+            inputs={"expected": "Paris"},
+            outputs="London",
         )
         assert result["success"] is False
         assert result["score"] == pytest.approx(0.0)
 
     def test_custom_threshold_applied(self):
         """A custom threshold of 0.9 causes a 0.8 score to fail."""
-        _code_v0 = code_v0.__wrapped__
-        result = run(
-            _code_v0(
-                parameters={
-                    "code": evaluate("return 0.8"),
-                    "runtime": "python",
-                    "threshold": 0.9,
-                },
-            )
+        result = run_code_v0(
+            {
+                "code": evaluate("return 0.8"),
+                "runtime": "python",
+                "threshold": 0.9,
+            },
+            case_id="code_v0:custom_threshold",
         )
         assert result["score"] == pytest.approx(0.8)
         assert result["success"] is False
 
     def test_trace_data_accessible_in_code(self):
         """Trace dict is forwarded to evaluate() and accessible inside user code."""
-        _code_v0 = code_v0.__wrapped__
         code = evaluate(
             "return 1.0 if (trace or {}).get('latency_ms', 0) < 500 else 0.0"
         )
-        result = run(
-            _code_v0(
-                parameters={"code": code, "runtime": "python"},
-                trace={"latency_ms": 120},
-            )
+        result = run_code_v0(
+            {"code": code, "runtime": "python"},
+            case_id="code_v0:trace_access",
+            trace={"latency_ms": 120},
         )
         assert result["success"] is True
 
     def test_result_dict_has_expected_keys(self):
         """Result always contains 'score' and 'success' keys."""
-        _code_v0 = code_v0.__wrapped__
-        result = run(
-            _code_v0(
-                parameters={"code": evaluate("return 0.7"), "runtime": "python"},
-            )
+        result = run_code_v0(
+            {"code": evaluate("return 0.7"), "runtime": "python"},
+            case_id="code_v0:result_keys",
         )
         assert "score" in result
         assert "success" in result

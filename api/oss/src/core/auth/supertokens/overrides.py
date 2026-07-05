@@ -64,14 +64,7 @@ from oss.src.core.auth.turnstile import (
 )
 from oss.src.services import db_manager
 
-from oss.src.utils.exceptions import UnauthorizedException
-from oss.src.services.db_manager import (
-    get_user_with_email,
-    check_if_user_invitation_exists,
-    is_first_user_signup,
-    get_oss_organization,
-    get_or_bootstrap_oss_organization,
-)
+from oss.src.services.db_manager import get_user_with_email
 
 log = get_module_logger(__name__)
 
@@ -80,14 +73,14 @@ identities_dao = IdentitiesDAO()
 
 # Organization providers DAO (EE only)
 if is_ee():
+    from oss.src.services.commoners import create_accounts
     from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
-    from ee.src.services.commoners import create_accounts
     from oss.src.core.secrets.services import VaultService
     from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 
     providers_dao = OrganizationProvidersDAO()
 else:
-    from oss.src.services.db_manager import create_accounts
+    from oss.src.services.commoners import create_accounts
 
     providers_dao = None
 
@@ -197,57 +190,10 @@ async def _create_account(email: str, uid: str) -> bool:
         "email": auth_info.email,
     }
 
-    # For EE: organization is created inside create_accounts
-    # For OSS: we need to handle first user specially to avoid FK violation
-    if is_ee():
-        await create_accounts(payload)
-    else:
-        # OSS: Check if this is the first user signup
-        first_user = await is_first_user_signup()
-
-        if first_user:
-            # First user: Create user first, then organization
-            # This avoids the FK violation where org.owner_id references non-existent user
-            user_db = await create_accounts(payload)
-
-            # Now create organization with the real user ID. The bootstrap
-            # is race-free at the org level: create_organization performs an
-            # INSERT ... ON CONFLICT (slug) DO NOTHING against the
-            # deterministic OSS singleton slug, so concurrent first-user
-            # signups all converge on the same org row.
-            organization_db = await get_or_bootstrap_oss_organization(
-                user_id=user_db.id,
-                user_email=auth_info.email,
-            )
-
-            # Assign user to organization
-            from oss.src.services.db_manager import _assign_user_to_organization_oss
-
-            await _assign_user_to_organization_oss(
-                user_db=user_db,
-                organization_id=str(organization_db.id),
-                email=auth_info.email,
-            )
-        else:
-            # Not first user: Get existing organization and check invitation
-            organization_db = await get_oss_organization()
-            if not organization_db:
-                raise UnauthorizedException(
-                    message="No organization found. Please contact the administrator."
-                )
-
-            # Verify user can join (invitation check)
-            user_invitation_exists = await check_if_user_invitation_exists(
-                email=auth_info.email,
-                organization_id=str(organization_db.id),
-            )
-            if not user_invitation_exists:
-                raise UnauthorizedException(
-                    message="You need to be invited by the organization owner to gain access."
-                )
-
-            payload["organization_id"] = str(organization_db.id)
-            await create_accounts(payload)
+    # Both editions: create_accounts creates the user and, when the
+    # allowlist permits, a personal organization. Users not allowed to
+    # create an organization sign in org-less and join via invitation.
+    await create_accounts(payload)
 
     posthog = _load_posthog()
     if posthog is not None:

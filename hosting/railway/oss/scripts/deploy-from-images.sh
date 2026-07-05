@@ -43,9 +43,27 @@ fi
 
 redeploy_service_if_exists() {
     local service="$1"
+    local exit_code=0
+    local err
 
-    if railway_call service "$service" >/dev/null 2>&1; then
-        railway_call redeploy --yes >/dev/null
+    if ! railway_call service "$service" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # Redeploy so the service picks up freshly configured credentials. On a
+    # brand-new preview environment the managed service (e.g. Postgres) has no
+    # prior deployment record yet; Railway will start it via the template in
+    # that case, so "No deployment found" is non-fatal — skip and continue.
+    err="$(railway_call redeploy --service "$service" --environment "$ENV_NAME" --yes 2>&1 >/dev/null)" \
+        || exit_code=$?
+
+    if [ "$exit_code" -ne 0 ]; then
+        if printf '%s' "$err" | grep -qiE "no deployment found"; then
+            printf "No prior deployment for '%s'; skipping redeploy (fresh env).\n" "$service" >&2
+            return 0
+        fi
+        printf '%s\n' "$err" >&2
+        return "$exit_code"
     fi
 }
 

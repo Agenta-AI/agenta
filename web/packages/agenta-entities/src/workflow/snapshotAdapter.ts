@@ -32,12 +32,23 @@ import {
 // PATCH VALIDATION SCHEMA
 // ============================================================================
 
-/**
- * Zod schema for validating Workflow draft patches.
- */
-const workflowPatchSchema = z.object({
-    parameters: z.record(z.string(), z.unknown()),
-})
+// Shallow diff over the whole `data` object (any changed top-level key).
+const workflowPatchSchema = z.record(z.string(), z.unknown())
+
+// Merge a data patch over the server baseline: parameters shallow-merge, rest replace.
+function mergeDataPatch(
+    remoteData: Workflow | null | undefined,
+    patch: Record<string, unknown>,
+): Record<string, unknown> {
+    const baseData = (remoteData?.data ?? {}) as Record<string, unknown>
+    const remoteParams = (remoteData?.data?.parameters as Record<string, unknown>) ?? {}
+    const {parameters, ...rest} = patch
+    const merged: Record<string, unknown> = {...baseData, ...rest}
+    if (parameters && typeof parameters === "object") {
+        merged.parameters = applyShallowPatch(remoteParams, parameters as Record<string, unknown>)
+    }
+    return merged
+}
 
 // ============================================================================
 // ADAPTER IMPLEMENTATION
@@ -127,27 +138,26 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
             }
         }
 
-        // Get effective current parameters from the entity (clone + draft overlay)
-        const entityData = store.get(workflowEntityAtomFamily(revisionId))
-        const entityParams = (entityData?.data?.parameters as Record<string, unknown>) ?? {}
+        // Effective current data (clone + draft overlay) vs source server baseline.
+        const localData = store.get(workflowEntityAtomFamily(revisionId))
+        const remoteData = store.get(workflowServerDataSelectorFamily(revisionId))
+        const localRec = (localData?.data ?? {}) as Record<string, unknown>
+        const remoteRec = (remoteData?.data ?? {}) as Record<string, unknown>
 
-        // Compare with source server data to detect actual changes.
-        // workflowServerDataSelectorFamily redirects local drafts to the
-        // source entity's live server data automatically.
-        const serverData = store.get(workflowServerDataSelectorFamily(revisionId))
-        const serverParams = (serverData?.data?.parameters as Record<string, unknown>) ?? {}
+        // Shallow diff over every data key, with parameters diffed at its own level.
+        const patch = computeShallowDiff(localRec, remoteRec) ?? {}
+        const paramDiff = computeShallowDiff(
+            (localRec.parameters as Record<string, unknown>) ?? {},
+            (remoteRec.parameters as Record<string, unknown>) ?? {},
+        )
+        if (paramDiff) patch.parameters = paramDiff
+        else delete patch.parameters
 
-        // Compute shallow diff — only include top-level keys that changed
-        const diff = computeShallowDiff(entityParams, serverParams)
-        if (!diff) {
+        if (Object.keys(patch).length === 0) {
             return {hasDraft: false, patch: null, sourceRevisionId: revisionId}
         }
 
-        return {
-            hasDraft: true,
-            patch: {parameters: diff},
-            sourceRevisionId: revisionId,
-        }
+        return {hasDraft: true, patch, sourceRevisionId: revisionId}
     },
 
     applyDraftPatch(revisionId: string, patch: RunnableDraftPatch): boolean {
@@ -160,26 +170,16 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
             return false
         }
 
-        // Empty patch means "no changes" — skip writing to avoid overwriting
-        // existing parameters with an empty object during draft merge.
-        const isEmptyPatch =
-            !parseResult.data.parameters || Object.keys(parseResult.data.parameters).length === 0
-
-        if (isEmptyPatch) {
-            return true
-        }
+        const patchData = parseResult.data
+        if (Object.keys(patchData).length === 0) return true
 
         const store = getDefaultStore()
+        const mergedData = mergeDataPatch(
+            store.get(workflowServerDataSelectorFamily(revisionId)),
+            patchData,
+        )
 
-        // Get server parameters as merge base, then shallow-merge the patch.
-        // This handles both full-params patches (old format) and diff patches (new format).
-        const serverData = store.get(workflowServerDataSelectorFamily(revisionId))
-        const serverParams = (serverData?.data?.parameters as Record<string, unknown>) ?? {}
-        const mergedParams = applyShallowPatch(serverParams, parseResult.data.parameters)
-
-        store.set(updateWorkflowDraftAtom, revisionId, {
-            data: {parameters: mergedParams},
-        })
+        store.set(updateWorkflowDraftAtom, revisionId, {data: mergedData})
         return true
     },
 
@@ -221,25 +221,14 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
                 return null
             }
 
-            // Only apply the draft overlay if the patch has actual parameter changes.
-            // An empty patch ({parameters: {}}) means "no changes from source" — the
-            // local clone already has the full source data, so setting an empty draft
-            // would overwrite the cloned parameters during merge.
-            const isEmptyPatch =
-                !parseResult.data.parameters ||
-                Object.keys(parseResult.data.parameters).length === 0
-
-            if (!isEmptyPatch) {
+            // Skip an empty patch — the clone already holds the full source data.
+            if (Object.keys(parseResult.data).length > 0) {
                 const store = getDefaultStore()
-
-                // Get the cloned server data as merge base, then shallow-merge the patch.
-                const clonedData = store.get(workflowServerDataSelectorFamily(localDraftId))
-                const clonedParams = (clonedData?.data?.parameters as Record<string, unknown>) ?? {}
-                const mergedParams = applyShallowPatch(clonedParams, parseResult.data.parameters)
-
-                store.set(updateWorkflowDraftAtom, localDraftId, {
-                    data: {parameters: mergedParams},
-                })
+                const mergedData = mergeDataPatch(
+                    store.get(workflowServerDataSelectorFamily(localDraftId)),
+                    parseResult.data,
+                )
+                store.set(updateWorkflowDraftAtom, localDraftId, {data: mergedData})
             }
 
             return localDraftId

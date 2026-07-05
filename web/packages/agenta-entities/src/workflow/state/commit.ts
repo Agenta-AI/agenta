@@ -86,18 +86,19 @@ function prepareCommitParameters(
 
 /**
  * Prepare schemas for the commit API.
- * For evaluator workflows the UI applies a display-only nesting transform to
- * `schemas.parameters` — use the flat server schemas instead so the transform
- * is never persisted.
+ * Commits the edited `data.schemas` so input/output schema edits persist.
+ * For evaluators the `parameters` subkey carries a display-only nesting transform
+ * with no flatten inverse, so it is restored from the flat server schema.
  */
 function prepareCommitSchemas(
     entity: Workflow,
     flatSchemas: WorkflowData["schemas"] | null,
 ): WorkflowData["schemas"] | undefined {
-    if (entity.flags?.is_evaluator) {
-        return flatSchemas ?? entity.data?.schemas
+    const edited = entity.data?.schemas
+    if (!entity.flags?.is_evaluator || !edited) {
+        return edited
     }
-    return entity.data?.schemas
+    return {...edited, parameters: flatSchemas?.parameters ?? edited.parameters}
 }
 
 // ============================================================================
@@ -278,9 +279,14 @@ export const commitWorkflowRevisionAtom = atom(
                 variantId: variantId ?? undefined,
                 name: entity.name ?? undefined,
                 message: _commitMessage ?? undefined,
+                // All WorkflowData fields (backend forbids extras), with
+                // parameters/schemas prepared.
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
+                    headers: entity.data.headers,
+                    script: entity.data.script,
+                    runtime: entity.data.runtime,
                     parameters: prepareCommitParameters(entity, flatParams),
                     schemas: prepareCommitSchemas(entity, flatSchemas),
                 },
@@ -451,7 +457,7 @@ export const createWorkflowVariantAtom = atom(
                 },
             })
 
-            // 4. Commit actual data revision (v1) with full parameters
+            // 4. Commit actual data revision (v1) with full data
             const newRevision = await commitWorkflowRevisionApi(projectId, {
                 workflowId,
                 variantId: newVariant.id,
@@ -460,6 +466,9 @@ export const createWorkflowVariantAtom = atom(
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
+                    headers: entity.data.headers,
+                    script: entity.data.script,
+                    runtime: entity.data.runtime,
                     parameters: prepareCommitParameters(entity, flatParams),
                     schemas: prepareCommitSchemas(entity, flatSchemas),
                 },

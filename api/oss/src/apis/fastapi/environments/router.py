@@ -18,8 +18,6 @@ from oss.src.core.environments.dtos import (
     EnvironmentFlags,
     EnvironmentEdit,
     EnvironmentRevisionCommit,
-    EnvironmentRevisionData,
-    #
     SimpleEnvironment,
 )
 from oss.src.core.embeds.dtos import ErrorPolicy
@@ -31,6 +29,7 @@ from oss.src.core.environments.service import (
 from oss.src.apis.fastapi.environments.models import (
     EnvironmentCreateRequest,
     EnvironmentEditRequest,
+    EnvironmentVariantForkRequest,
     EnvironmentQueryRequest,
     EnvironmentRevisionsLogRequest,
     EnvironmentResponse,
@@ -73,12 +72,9 @@ from oss.src.apis.fastapi.environments.utils import (
     ensure_environment_deploy_allowed,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)
@@ -224,6 +220,16 @@ class EnvironmentsRouter:
             response_model_exclude_none=True,
         )
 
+        self.router.add_api_route(
+            "/variants/fork",
+            self.fork_environment_variant,
+            methods=["POST"],
+            operation_id="fork_environment_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=EnvironmentVariantResponse,
+            response_model_exclude_none=True,
+        )
+
         # ENVIRONMENT REVISIONS ------------------------------------------------
 
         self.router.add_api_route(
@@ -337,13 +343,12 @@ class EnvironmentsRouter:
         #
         environment_create_request: EnvironmentCreateRequest,
     ) -> EnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment = await self.environments_service.create_environment(
             project_id=UUID(request.state.project_id),
@@ -367,13 +372,12 @@ class EnvironmentsRouter:
         *,
         environment_id: UUID,
     ) -> EnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment = await self.environments_service.fetch_environment(
             project_id=UUID(request.state.project_id),
@@ -395,13 +399,12 @@ class EnvironmentsRouter:
         #
         environment_edit_request: EnvironmentEditRequest,
     ) -> EnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(environment_id) != str(environment_edit_request.environment.id):
             return EnvironmentResponse()
@@ -425,13 +428,12 @@ class EnvironmentsRouter:
         *,
         environment_id: UUID,
     ) -> EnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment = await self.environments_service.archive_environment(
             project_id=UUID(request.state.project_id),
@@ -452,13 +454,12 @@ class EnvironmentsRouter:
         *,
         environment_id: UUID,
     ) -> EnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment = await self.environments_service.unarchive_environment(
             project_id=UUID(request.state.project_id),
@@ -482,13 +483,12 @@ class EnvironmentsRouter:
             parse_environment_query_request_from_params
         ),
     ) -> EnvironmentsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         body_json = None
         query_request_body = None
@@ -538,13 +538,12 @@ class EnvironmentsRouter:
         *,
         environment_variant_create_request: EnvironmentVariantCreateRequest,
     ) -> EnvironmentVariantResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment_variant = await self.environments_service.create_environment_variant(
             project_id=UUID(request.state.project_id),
@@ -568,13 +567,12 @@ class EnvironmentsRouter:
         *,
         environment_variant_id: UUID,
     ) -> EnvironmentVariantResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment_variant = await self.environments_service.fetch_environment_variant(
             project_id=UUID(request.state.project_id),
@@ -598,13 +596,12 @@ class EnvironmentsRouter:
         #
         environment_variant_edit_request: EnvironmentVariantEditRequest,
     ) -> EnvironmentVariantResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(environment_variant_id) != str(
             environment_variant_edit_request.environment_variant.id
@@ -632,13 +629,12 @@ class EnvironmentsRouter:
         *,
         environment_variant_id: UUID,
     ) -> EnvironmentVariantResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment_variant = (
             await self.environments_service.archive_environment_variant(
@@ -663,13 +659,12 @@ class EnvironmentsRouter:
         *,
         environment_variant_id: UUID,
     ) -> EnvironmentVariantResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment_variant = (
             await self.environments_service.unarchive_environment_variant(
@@ -696,13 +691,12 @@ class EnvironmentsRouter:
             parse_environment_variant_query_request_from_params
         ),
     ) -> EnvironmentVariantsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         body_json = None
         query_request_body = None
@@ -744,6 +738,41 @@ class EnvironmentsRouter:
 
         return environment_variants_response
 
+    @intercept_exceptions()
+    @handle_git_exceptions()
+    async def fork_environment_variant(
+        self,
+        request: Request,
+        *,
+        environment_fork_request: EnvironmentVariantForkRequest,
+    ) -> EnvironmentVariantResponse:
+        """Fork an existing environment variant into a new variant.
+
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `environment_revision_ref` is provided). Provide
+        `slug` and `name` in the fork body to identify the new variant.
+        """
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        environment_variant = await self.environments_service.fork_environment_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            environment_variant_fork=environment_fork_request.environment_variant,
+            environment_variant_ref=environment_fork_request.environment_variant_ref,
+            environment_revision_ref=environment_fork_request.environment_revision_ref,
+        )
+
+        return EnvironmentVariantResponse(
+            count=1 if environment_variant else 0,
+            environment_variant=environment_variant,
+        )
+
     # ENVIRONMENT REVISIONS ------------------------------------------------
 
     @intercept_exceptions()
@@ -754,13 +783,12 @@ class EnvironmentsRouter:
         *,
         environment_revision_retrieve_request: EnvironmentRevisionRetrieveRequest,
     ) -> EnvironmentRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         (
             environment_revision,
@@ -794,6 +822,7 @@ class EnvironmentsRouter:
         return environment_revision_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def resolve_environment_revision_endpoint(
         self,
         request: Request,
@@ -808,13 +837,12 @@ class EnvironmentsRouter:
         2. Resolves all @ag.references tokens in the configuration
         3. Returns the revision with resolved configuration + metadata
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # Resolve the environment revision
         result = await self.environments_service.resolve_environment_revision(
@@ -823,6 +851,8 @@ class EnvironmentsRouter:
             environment_ref=environment_revision_resolve_request.environment_ref,
             environment_variant_ref=environment_revision_resolve_request.environment_variant_ref,
             environment_revision_ref=environment_revision_resolve_request.environment_revision_ref,
+            #
+            environment_revision=environment_revision_resolve_request.environment_revision,
             #
             max_depth=environment_revision_resolve_request.max_depth or 10,
             max_embeds=environment_revision_resolve_request.max_embeds or 100,
@@ -843,15 +873,18 @@ class EnvironmentsRouter:
             embeds_resolved=resolution_info.embeds_resolved,
             errors=resolution_info.errors,
         )
+        retrieval_info = None
+        if environment_revision_resolve_request.environment_revision is None:
+            retrieval_info = build_retrieval_info(
+                revision=environment_revision,
+                entity_type="environment",
+            )
 
         environment_revision_resolve_response = EnvironmentRevisionResolveResponse(
             count=1 if environment_revision else 0,
             environment_revision=environment_revision,
             resolution_info=resolution_info,
-            retrieval_info=build_retrieval_info(
-                revision=environment_revision,
-                entity_type="environment",
-            ),
+            retrieval_info=retrieval_info,
         )
 
         return environment_revision_resolve_response
@@ -864,13 +897,12 @@ class EnvironmentsRouter:
         *,
         environment_revision_create_request: EnvironmentRevisionCreateRequest,
     ) -> EnvironmentRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment_revision = await self.environments_service.commit_environment_revision(
             project_id=UUID(request.state.project_id),
@@ -900,13 +932,12 @@ class EnvironmentsRouter:
         *,
         environment_revision_id: UUID,
     ) -> EnvironmentRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment_revision = (
             await self.environments_service.fetch_environment_revision(
@@ -940,13 +971,12 @@ class EnvironmentsRouter:
         #
         environment_revision_edit_request: EnvironmentRevisionEditRequest,
     ) -> EnvironmentRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(environment_revision_id) != str(
             environment_revision_edit_request.environment_revision.id
@@ -972,13 +1002,12 @@ class EnvironmentsRouter:
         *,
         environment_revision_id: UUID,
     ) -> EnvironmentRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment_revision = (
             await self.environments_service.archive_environment_revision(
@@ -1001,13 +1030,12 @@ class EnvironmentsRouter:
         *,
         environment_revision_id: UUID,
     ) -> EnvironmentRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment_revision = (
             await self.environments_service.unarchive_environment_revision(
@@ -1035,13 +1063,12 @@ class EnvironmentsRouter:
             parse_environment_revision_query_request_from_params
         ),
     ) -> EnvironmentRevisionsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         body_json = None
         query_request_body = None
@@ -1075,29 +1102,12 @@ class EnvironmentsRouter:
             environment_variant_refs=environment_revision_query_request.environment_variant_refs,
             environment_revision_refs=environment_revision_query_request.environment_revision_refs,
             #
-            application_refs=environment_revision_query_request.application_refs,
+            references=environment_revision_query_request.references,
             #
             include_archived=environment_revision_query_request.include_archived,
             #
             windowing=environment_revision_query_request.windowing,
         )
-
-        # Optionally resolve embeds for all revisions if requested
-        if environment_revisions and environment_revision_query_request.resolve:
-            embeds_service = self.environments_service.embeds_service
-
-            for revision in environment_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = EnvironmentRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
 
         response = EnvironmentRevisionsResponse(
             count=len(environment_revisions),
@@ -1121,15 +1131,14 @@ class EnvironmentsRouter:
         *,
         environment_revision_commit_request: EnvironmentRevisionCommitRequest,
     ) -> EnvironmentRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        commit = environment_revision_commit_request.environment_revision_commit
+        commit = environment_revision_commit_request.environment_revision
         has_data = commit.data is not None
         has_delta = commit.delta is not None
 
@@ -1156,7 +1165,7 @@ class EnvironmentsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            environment_revision_commit=environment_revision_commit_request.environment_revision_commit,
+            environment_revision_commit=environment_revision_commit_request.environment_revision,
         )
 
         return EnvironmentRevisionResponse(
@@ -1171,20 +1180,17 @@ class EnvironmentsRouter:
         *,
         environment_revisions_log_request: EnvironmentRevisionsLogRequest,
     ) -> EnvironmentRevisionsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revisions = (
-            await self.environments_service.log_environment_revisions(
-                project_id=UUID(request.state.project_id),
-                #
-                environment_revisions_log=environment_revisions_log_request.environment,
-            )
+        environment_revisions = await self.environments_service.log_environment_revisions(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_revisions_log=environment_revisions_log_request.environment_revisions,
         )
 
         revisions_response = EnvironmentRevisionsResponse(
@@ -1309,13 +1315,12 @@ class SimpleEnvironmentsRouter:
         #
         simple_environment_create_request: SimpleEnvironmentCreateRequest,
     ) -> SimpleEnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_environment = await self.simple_environments_service.create(
             project_id=UUID(request.state.project_id),
@@ -1341,13 +1346,12 @@ class SimpleEnvironmentsRouter:
         *,
         environment_id: UUID,
     ) -> SimpleEnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_environment = await self.simple_environments_service.fetch(
             project_id=UUID(request.state.project_id),
@@ -1371,15 +1375,15 @@ class SimpleEnvironmentsRouter:
         #
         simple_environment_edit_request: SimpleEnvironmentEditRequest,
     ) -> SimpleEnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
-            # If guarded, require DEPLOY_ENVIRONMENTS permission
+        # If guarded, require DEPLOY_ENVIRONMENTS permission
+        if is_ee():
             environment = await self.environments_service.fetch_environment(
                 project_id=UUID(request.state.project_id),
                 environment_ref=Reference(id=environment_id),
@@ -1423,13 +1427,12 @@ class SimpleEnvironmentsRouter:
         *,
         environment_id: UUID,
     ) -> SimpleEnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment = await self.environments_service.fetch_environment(
             project_id=UUID(request.state.project_id),
@@ -1525,13 +1528,12 @@ class SimpleEnvironmentsRouter:
         request: Request,
         environment_id: UUID,
     ) -> SimpleEnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment_ref = Reference(
             id=environment_id,
@@ -1615,13 +1617,12 @@ class SimpleEnvironmentsRouter:
         *,
         simple_environment_query_request: SimpleEnvironmentQueryRequest,
     ) -> SimpleEnvironmentsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_environments = await self.simple_environments_service.query(
             project_id=UUID(request.state.project_id),
@@ -1649,13 +1650,12 @@ class SimpleEnvironmentsRouter:
         *,
         environment_id: UUID,
     ) -> SimpleEnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment = await self.environments_service.fetch_environment(
             project_id=UUID(request.state.project_id),
@@ -1700,13 +1700,12 @@ class SimpleEnvironmentsRouter:
         *,
         environment_id: UUID,
     ) -> SimpleEnvironmentResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment = await self.environments_service.fetch_environment(
             project_id=UUID(request.state.project_id),

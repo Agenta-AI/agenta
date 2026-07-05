@@ -3,7 +3,6 @@ from typing import Optional
 
 from fastapi import APIRouter, status, Request, Depends, HTTPException
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
@@ -31,14 +30,13 @@ from oss.src.core.applications.dtos import (
     ApplicationCatalogTemplate,
     ApplicationCatalogPreset,
     ApplicationRevisionCommit,
-    ApplicationRevisionData,
 )
 
 from oss.src.apis.fastapi.applications.models import (
     ApplicationCreateRequest,
     ApplicationEditRequest,
     ApplicationQueryRequest,
-    ApplicationForkRequest,
+    ApplicationVariantForkRequest,
     ApplicationRevisionsLogRequest,
     ApplicationResponse,
     ApplicationsResponse,
@@ -87,12 +85,9 @@ from oss.src.resources.workflows.catalog import (
     get_workflow_catalog_preset,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)
@@ -576,13 +571,12 @@ class ApplicationsRouter:
         revision in one request.
         See the [Applications guide](/reference/api-guide/applications).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application = await self.applications_service.create_application(
             project_id=UUID(request.state.project_id),
@@ -612,13 +606,12 @@ class ApplicationsRouter:
         revision, and `data` in a single call, use
         `GET /simple/applications/{application_id}`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application = await self.applications_service.fetch_application(
             project_id=UUID(request.state.project_id),
@@ -647,13 +640,12 @@ class ApplicationsRouter:
         changes go through `POST /applications/revisions/commit`, not this
         endpoint.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(application_id) != str(application_edit_request.application.id):
             raise HTTPException(
@@ -688,13 +680,12 @@ class ApplicationsRouter:
         resolvable so historical traces stay intact.
         See [Versioning](/reference/api-guide/versioning#archive-and-unarchive).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application = await self.applications_service.archive_application(
             project_id=UUID(request.state.project_id),
@@ -721,13 +712,12 @@ class ApplicationsRouter:
         queries again. Safe to call on an already-active application; it is a
         no-op in that case.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application = await self.applications_service.unarchive_application(
             project_id=UUID(request.state.project_id),
@@ -756,13 +746,12 @@ class ApplicationsRouter:
         merged in, use `POST /simple/applications/query`.
         See [Query Pattern](/reference/api-guide/query-pattern).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         applications = await self.applications_service.query_applications(
             project_id=UUID(request.state.project_id),
@@ -799,13 +788,12 @@ class ApplicationsRouter:
         to add its first revision. Use `POST /applications/variants/fork` when
         you want the new variant to inherit an existing revision history.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_variant = await self.applications_service.create_application_variant(
             project_id=UUID(request.state.project_id),
@@ -834,13 +822,12 @@ class ApplicationsRouter:
         its `data`, call `POST /applications/revisions/retrieve` with
         `application_variant_ref`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_variant = await self.applications_service.fetch_application_variant(
             project_id=UUID(request.state.project_id),
@@ -870,13 +857,12 @@ class ApplicationsRouter:
         `POST /applications/revisions/commit`. This endpoint only touches
         variant-level metadata.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(application_variant_id) != str(
             application_variant_edit_request.application_variant.id
@@ -913,13 +899,12 @@ class ApplicationsRouter:
         `include_archived: true` is sent. Revision IDs remain resolvable so
         historical traces are preserved.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_variant = (
             await self.applications_service.archive_application_variant(
@@ -945,13 +930,12 @@ class ApplicationsRouter:
         application_variant_id: UUID,
     ) -> ApplicationVariantResponse:
         """Restore a previously archived variant."""
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_variant = (
             await self.applications_service.unarchive_application_variant(
@@ -986,13 +970,12 @@ class ApplicationsRouter:
         specific variants.
         See [Query Pattern](/reference/api-guide/query-pattern).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         body_json = None
         query_request_body = None
@@ -1041,7 +1024,7 @@ class ApplicationsRouter:
         *,
         application_variant_id: Optional[UUID] = None,
         #
-        application_variant_fork_request: ApplicationForkRequest,
+        application_variant_fork_request: ApplicationVariantForkRequest,
     ) -> ApplicationVariantResponse:
         """Fork an existing variant into a new variant on the same application.
 
@@ -1054,31 +1037,35 @@ class ApplicationsRouter:
         invalid (for example, the source variant or revision cannot be
         located in this application's lineage).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        fork_request = application_variant_fork_request.application
-
+        application_variant_ref = (
+            application_variant_fork_request.application_variant_ref
+        )
         if application_variant_id:
             if (
-                fork_request.application_variant_id
-                and fork_request.application_variant_id != application_variant_id
+                application_variant_ref.id
+                and application_variant_ref.id != application_variant_id
             ):
-                return ApplicationVariantResponse()
-
-            if not fork_request.application_variant_id:
-                fork_request.application_variant_id = application_variant_id
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="application_variant_id does not match application_variant_ref.id.",
+                )
+            if not application_variant_ref.id:
+                application_variant_ref = Reference(id=application_variant_id)
 
         application_variant = await self.applications_service.fork_application_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            application_fork=fork_request,
+            application_variant_fork=application_variant_fork_request.application_variant,
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_variant_fork_request.application_revision_ref,
         )
 
         application_variant_response = ApplicationVariantResponse(
@@ -1106,19 +1093,18 @@ class ApplicationsRouter:
         same `environment_ref` and `key` resolve to this revision.
         See the [Applications guide](/reference/api-guide/applications#deployment).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if not any(
             (
@@ -1276,13 +1262,12 @@ class ApplicationsRouter:
         use to invoke the application.
         Set `resolve: true` to inline embedded references inside `data`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_ref = application_revision_retrieve_request.application_ref
         application_variant_ref = (
@@ -1408,13 +1393,12 @@ class ApplicationsRouter:
         `POST /applications/revisions/commit`, which commits the new revision
         as the variant's tip and assigns a version number.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_revision = await self.applications_service.commit_application_revision(
             project_id=UUID(request.state.project_id),
@@ -1449,13 +1433,12 @@ class ApplicationsRouter:
         Returns the revision including its `data` payload. For lookup by
         variant slug or environment, use `POST /applications/revisions/retrieve`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_revision = (
             await self.applications_service.fetch_application_revision(
@@ -1496,13 +1479,12 @@ class ApplicationsRouter:
         as `description` and `tags`. To change configuration, commit a new
         revision with `POST /applications/revisions/commit`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(application_revision_id) != str(
             application_revision_edit_request.application_revision.id
@@ -1537,13 +1519,12 @@ class ApplicationsRouter:
         unless `include_archived: true` is set. The ID remains resolvable for
         traces and deployed environment references.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_revision = (
             await self.applications_service.archive_application_revision(
@@ -1567,13 +1548,12 @@ class ApplicationsRouter:
         application_revision_id: UUID,
     ) -> ApplicationRevisionResponse:
         """Restore a previously archived revision."""
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_revision = (
             await self.applications_service.unarchive_application_revision(
@@ -1603,16 +1583,13 @@ class ApplicationsRouter:
         query, or filter on commit metadata (`author`, `date`, `message`) via
         the `application_revision` object. For the ordered history of a
         single variant, `POST /applications/revisions/log` is more direct.
-        Set `resolve: true` to inline embedded references in each revision's
-        `data`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_revisions = await self.applications_service.query_application_revisions(
             project_id=UUID(request.state.project_id),
@@ -1627,23 +1604,6 @@ class ApplicationsRouter:
             #
             windowing=application_revision_query_request.windowing,
         )
-
-        # Optionally resolve embeds for all revisions if requested
-        if application_revisions and application_revision_query_request.resolve:
-            embeds_service = self.applications_service.embeds_service
-
-            for revision in application_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = ApplicationRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
 
         response = ApplicationRevisionsResponse(
             count=len(application_revisions),
@@ -1674,19 +1634,18 @@ class ApplicationsRouter:
         configuration, commit a new revision.
         See [Versioning](/reference/api-guide/versioning#committing-a-revision).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         application_revision = await self.applications_service.commit_application_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            application_revision_commit=application_revision_commit_request.application_revision_commit,
+            application_revision_commit=application_revision_commit_request.application_revision,
         )
 
         response = ApplicationRevisionResponse(
@@ -1712,20 +1671,17 @@ class ApplicationsRouter:
         back a bounded number of commits from a specific revision. Entries
         are returned newest-first and include the full revision record.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        application_revisions = (
-            await self.applications_service.log_application_revisions(
-                project_id=UUID(request.state.project_id),
-                #
-                application_revisions_log=application_revisions_log_request.application,
-            )
+        application_revisions = await self.applications_service.log_application_revisions(
+            project_id=UUID(request.state.project_id),
+            #
+            application_revisions_log=application_revisions_log_request.application_revisions,
         )
 
         revisions_response = ApplicationRevisionsResponse(
@@ -1759,13 +1715,12 @@ class ApplicationsRouter:
         describing what was substituted. Use it when clients need a
         self-contained configuration for invocation or export.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         result = await self.applications_service.resolve_application_revision(
             project_id=UUID(request.state.project_id),
@@ -1773,6 +1728,8 @@ class ApplicationsRouter:
             application_ref=application_revision_resolve_request.application_ref,
             application_variant_ref=application_revision_resolve_request.application_variant_ref,
             application_revision_ref=application_revision_resolve_request.application_revision_ref,
+            #
+            application_revision=application_revision_resolve_request.application_revision,
             #
             max_depth=application_revision_resolve_request.max_depth or 10,
             max_embeds=application_revision_resolve_request.max_embeds or 100,
@@ -1785,15 +1742,18 @@ class ApplicationsRouter:
             return ApplicationRevisionResolveResponse()
 
         application_revision, resolution_info = result
+        retrieval_info = None
+        if application_revision_resolve_request.application_revision is None:
+            retrieval_info = build_retrieval_info(
+                revision=application_revision,
+                entity_type="application",
+            )
 
         return ApplicationRevisionResolveResponse(
             count=1,
             application_revision=application_revision,
             resolution_info=resolution_info,
-            retrieval_info=build_retrieval_info(
-                revision=application_revision,
-                entity_type="application",
-            ),
+            retrieval_info=retrieval_info,
         )
 
 
@@ -1892,13 +1852,12 @@ class SimpleApplicationsRouter:
         the structured endpoints under `/applications/`.
         See [Simple Endpoints](/reference/api-guide/simple-endpoints).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_application = await self.simple_applications_service.create(
             project_id=UUID(request.state.project_id),
@@ -1930,13 +1889,12 @@ class SimpleApplicationsRouter:
         the revision was committed with, and the JSON `schemas` for inputs,
         outputs, and parameters.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_application = await self.simple_applications_service.fetch(
             project_id=UUID(request.state.project_id),
@@ -1969,13 +1927,12 @@ class SimpleApplicationsRouter:
         existing `data`. Editing the application `name` is currently
         disabled and returns `400`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(application_id) != str(simple_application_edit_request.application.id):
             raise HTTPException(
@@ -2011,13 +1968,12 @@ class SimpleApplicationsRouter:
         the archived application in the simple shape (with its last known
         variant, revision, and `data`).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_application = await self.simple_applications_service.archive(
             project_id=UUID(request.state.project_id),
@@ -2045,13 +2001,12 @@ class SimpleApplicationsRouter:
         Equivalent to `POST /applications/{application_id}/unarchive`, with
         the response shape of `/simple/applications/`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_application = await self.simple_applications_service.unarchive(
             project_id=UUID(request.state.project_id),
@@ -2082,13 +2037,12 @@ class SimpleApplicationsRouter:
         structured query that returns artifacts only, use
         `POST /applications/query`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_applications = await self.simple_applications_service.query(
             project_id=UUID(request.state.project_id),

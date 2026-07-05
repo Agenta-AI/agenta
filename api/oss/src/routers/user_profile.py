@@ -2,20 +2,29 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.middlewares.auth import is_interactive_session
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.common import APIRouter
 from oss.src.models.api.user_models import User
 from oss.src.models.api.user_models import UserUpdate
 from oss.src.services import db_manager, user_service
+from oss.src.core.accounts.service import PlatformAdminAccountsService
+from oss.src.core.accounts.errors import (
+    AdminError,
+    AccountAuthDeletionError,
+    AccountHasMembersError,
+    AdminUserNotFoundError,
+)
 
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
 
 
 router = APIRouter()
+
+_accounts_service = PlatformAdminAccountsService()
 
 
 @router.get("/", operation_id="fetch_user_profile")
@@ -92,20 +101,66 @@ async def update_user_username(request: Request, payload: UserUpdate):
     )
 
 
+@router.delete("/", operation_id="delete_user_account")
+async def delete_user_account(request: Request):
+    """Self-serve deletion of the caller's own account (EE only).
+
+    Requires an interactive SuperTokens session. API keys and service tokens are
+    rejected: this is an irreversible destructive action, so a leaked or embedded
+    integration key must not be enough to delete the owning account.
+    """
+    if not is_ee():
+        raise HTTPException(
+            status_code=404,
+            detail="Self-serve account deletion is not available on this deployment.",
+        )
+
+    if not await is_interactive_session(request):
+        raise HTTPException(
+            status_code=403,
+            detail="Account deletion requires an interactive login session.",
+        )
+
+    try:
+        await _accounts_service.delete_own_account(user_id=request.state.user_id)
+    except AccountHasMembersError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": exc.code,
+                "message": exc.message,
+                "details": exc.details,
+            },
+        )
+    except AdminUserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=exc.message)
+    except AccountAuthDeletionError as exc:
+        raise HTTPException(status_code=502, detail=exc.message)
+    except AdminError as exc:
+        raise HTTPException(status_code=400, detail=exc.message)
+
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="user_profile",
+    )
+
+    return JSONResponse({"detail": "Account deleted"}, status_code=200)
+
+
 @router.post("/reset-password", operation_id="reset_user_password")
 async def reset_user_password(request: Request, user_id: str):
-    if is_ee():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.RESET_PASSWORD,
+    has_permission = await check_action_access(
+        user_uid=request.state.user_id,
+        project_id=request.state.project_id,
+        permission=Permission.RESET_PASSWORD,
+    )
+    if not has_permission:
+        error_msg = "You do not have access to perform this action. Please contact your organization admin."
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=403,
         )
-        if not has_permission:
-            error_msg = "You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
 
     user_password = await user_service.generate_user_password_reset_link(
         user_id=user_id,

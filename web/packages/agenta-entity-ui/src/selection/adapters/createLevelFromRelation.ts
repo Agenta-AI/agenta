@@ -90,6 +90,11 @@ export interface CreateLevelFromRelationOptions<TChild = unknown> {
     getDescription?: (entity: TChild) => string | undefined
 
     /**
+     * Custom suffix node (rendered after the label block, before the chevron)
+     */
+    getSuffixNode?: (entity: TChild) => React.ReactNode
+
+    /**
      * Whether this level has children (defaults based on position)
      */
     hasChildren?: boolean | ((entity: TChild) => boolean)
@@ -238,6 +243,7 @@ export function createLevelFromRelation<TChild = unknown>(
         getPlaceholderNode,
         getIcon,
         getDescription,
+        getSuffixNode,
         hasChildren,
         isSelectable,
         isDisabled,
@@ -303,6 +309,7 @@ export function createLevelFromRelation<TChild = unknown>(
         getPlaceholderNode,
         getIcon,
         getDescription: resolvedGetDescription,
+        getSuffixNode,
         hasChildren: hasChildrenFn,
         isSelectable: isSelectableFn,
         isDisabled,

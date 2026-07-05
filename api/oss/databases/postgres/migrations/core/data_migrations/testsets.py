@@ -31,7 +31,7 @@ from oss.src.core.testsets.dtos import (
     SimpleTestsetCreate,
 )
 from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
-from oss.src.models.deprecated_models import (
+from oss.databases.postgres.migrations.core.deprecated_models import (
     DeprecatedTestsetDB,
     DeprecatedOrganizationDB,
 )

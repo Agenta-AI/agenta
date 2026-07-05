@@ -9,6 +9,7 @@ from oss.src.core.environments.dtos import (
     EnvironmentEdit,
     EnvironmentFlags,
     EnvironmentQuery,
+    EnvironmentVariantFork,
     #
     EnvironmentRevision,
     EnvironmentRevisionCommit,
@@ -39,6 +40,7 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    ArtifactFork,
     RetrievalInfo,
     RevisionCommit,
     #
@@ -53,6 +55,8 @@ from oss.src.core.git.dtos import (
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    InlineResolveInvalid,
+    VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
@@ -649,6 +653,53 @@ class EnvironmentsService:
 
         return environment_variants
 
+    async def fork_environment_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        environment_variant_fork: EnvironmentVariantFork,
+        environment_variant_ref: Reference,
+        environment_revision_ref: Optional[Reference] = None,
+    ) -> Optional[EnvironmentVariant]:
+        source_variant = await self.fetch_environment_variant(
+            project_id=project_id,
+            environment_variant_ref=environment_variant_ref,
+        )
+        if not source_variant:
+            raise VariantForkError("Fork source variant could not be resolved.")
+
+        source_revision_id: Optional[UUID] = None
+        if environment_revision_ref is not None:
+            source_revision = await self.fetch_environment_revision(
+                project_id=project_id,
+                environment_revision_ref=environment_revision_ref,
+            )
+            if not source_revision:
+                raise VariantForkError("Fork source revision could not be resolved.")
+            source_revision_id = source_revision.id
+
+        _artifact_fork = ArtifactFork(
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
+            variant=environment_variant_fork,
+        )
+
+        variant = await self.environments_dao.fork_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            artifact_fork=_artifact_fork,
+        )
+
+        if not variant:
+            return None
+
+        return EnvironmentVariant(
+            **variant.model_dump(mode="json"),
+        )
+
     # environment revisions ------------------------------------------------
 
     async def create_environment_revision(
@@ -952,7 +1003,7 @@ class EnvironmentsService:
         environment_variant_refs: Optional[List[Reference]] = None,
         environment_revision_refs: Optional[List[Reference]] = None,
         #
-        application_refs: Optional[List[Reference]] = None,
+        references: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
         #
@@ -977,7 +1028,7 @@ class EnvironmentsService:
             variant_refs=environment_variant_refs,
             revision_refs=environment_revision_refs,
             #
-            application_refs=application_refs,
+            references=references,
             #
             include_archived=include_archived,
             #
@@ -1190,7 +1241,7 @@ class EnvironmentsService:
         #
         environment_revisions_log: EnvironmentRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[EnvironmentRevision]:
         revisions = await self.environments_dao.log_revisions(
             project_id=project_id,
@@ -1223,6 +1274,8 @@ class EnvironmentsService:
         environment_variant_ref: Optional[Reference] = None,
         environment_revision_ref: Optional[Reference] = None,
         #
+        environment_revision: Optional["EnvironmentRevision"] = None,
+        #
         max_depth: int = 10,
         max_embeds: int = 100,
         error_policy: str = "exception",
@@ -1232,27 +1285,31 @@ class EnvironmentsService:
         """
         Fetch and resolve an environment revision with embedded references.
 
-        Resolves embedded workflow and environment references within the
-        environment revision's configuration data.
-
-        Args:
-            project_id: Project scope
-            user_id: User performing resolution
-            environment_ref: Environment reference
-            environment_variant_ref: Variant reference
-            environment_revision_ref: Revision reference
-            max_depth: Maximum nesting depth for embeds
-            max_embeds: Maximum total embeds allowed
-            error_policy: How to handle errors (exception, placeholder, keep)
-            include_archived: Include archived entities
-
-        Returns:
-            Tuple of (EnvironmentRevision with resolved configuration, ResolutionInfo metadata)
-
-        Raises:
-            Various embed resolution errors based on error_policy
+        When `environment_revision` is provided, resolves its data inline without
+        fetching from DB. Only `data` is used; id and metadata are ignored.
         """
-        # Fetch the environment revision
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        if environment_revision is not None:
+            if not environment_revision.data:
+                raise InlineResolveInvalid(
+                    field_name="environment_revision",
+                )
+            (
+                resolved_data,
+                resolution_info,
+            ) = await self.embeds_service.resolve_configuration(
+                project_id=project_id,
+                configuration=environment_revision.data.model_dump(mode="json"),
+                max_depth=max_depth,
+                max_embeds=max_embeds,
+                error_policy=ErrorPolicy(error_policy),
+                include_archived=include_archived,
+            )
+            environment_revision.data = EnvironmentRevisionData(**resolved_data)
+            return (environment_revision, resolution_info)
+
         revision = await self.fetch_environment_revision(
             project_id=project_id,
             #
@@ -1266,10 +1323,6 @@ class EnvironmentsService:
         if not revision or not revision.data:
             return None
 
-        # Use embeds service for resolution
-        if not self.embeds_service:
-            raise RuntimeError("EmbedsService not initialized")
-
         (
             revision_data,
             resolution_info,
@@ -1282,7 +1335,6 @@ class EnvironmentsService:
             include_archived=include_archived,
         )
 
-        # Update revision with resolved configuration
         revision.data = EnvironmentRevisionData(**revision_data)
 
         return (revision, resolution_info)

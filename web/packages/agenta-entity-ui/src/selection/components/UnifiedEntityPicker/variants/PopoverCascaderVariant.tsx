@@ -14,16 +14,17 @@
  * Pattern: Button trigger → Popover → [Root Panel | Child Panel]
  */
 
-import React, {useCallback, useEffect, useMemo, useState, type CSSProperties} from "react"
+import React, {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties} from "react"
 
 import {cn} from "@agenta/ui"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
-import {CaretDown, Plus} from "@phosphor-icons/react"
+import {CaretDown, Plus, X} from "@phosphor-icons/react"
 import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
 import type {EntitySelectionResult, HierarchyLevel, SelectionPathItem} from "../../../types"
+import {AutoSelectHandler} from "../shared"
 import type {PopoverCascaderVariantProps} from "../types"
 
 const POPOVER_CASCADER_TEST_IDS = {
@@ -55,6 +56,7 @@ function ChildPanelContent({
     multiSelect = false,
     selectedChildIds,
     childItemLabelMode = "full",
+    showSelectAll = false,
 }: {
     parentId: string
     parentLabel: string
@@ -69,6 +71,7 @@ function ChildPanelContent({
     multiSelect?: boolean
     selectedChildIds?: Set<string>
     childItemLabelMode?: "full" | "simple"
+    showSelectAll?: boolean
 }) {
     const {items, query} = useLevelData({
         levelConfig: childLevelConfig,
@@ -101,6 +104,16 @@ function ChildPanelContent({
                   .length
             : 0
 
+    // Select every enabled child that isn't selected yet. Only unselected items
+    // are passed to onSelect, which has toggle semantics in multi-select mode.
+    const handleSelectAll = useCallback(() => {
+        for (const item of enabledChildren) {
+            if (!selectedChildIds?.has(childLevelConfig.getId(item))) {
+                onSelect(item)
+            }
+        }
+    }, [enabledChildren, selectedChildIds, childLevelConfig, onSelect])
+
     if (query.isPending) {
         return (
             <div className="flex items-center justify-center py-4 px-6" style={panelStyle}>
@@ -113,9 +126,12 @@ function ChildPanelContent({
         <div data-testid={POPOVER_CASCADER_TEST_IDS.childPanel} style={panelStyle}>
             {/* Child panel header */}
             {multiSelect && (
-                <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between">
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-medium truncate" title={parentLabel}>
+                <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span
+                            className="block truncate text-[10px] font-medium"
+                            title={parentLabel}
+                        >
                             {parentLabel}
                         </span>
                         {multiSelect && (
@@ -124,6 +140,18 @@ function ChildPanelContent({
                             </span>
                         )}
                     </div>
+                    {showSelectAll &&
+                        enabledChildren.length > 0 &&
+                        selectedCount < enabledChildren.length && (
+                            <Button
+                                type="link"
+                                size="small"
+                                className="shrink-0 !h-auto !p-0 !text-[10px]"
+                                onClick={handleSelectAll}
+                            >
+                                Select all
+                            </Button>
+                        )}
                 </div>
             )}
 
@@ -136,7 +164,6 @@ function ChildPanelContent({
                         className="my-4"
                     />
                 ) : multiSelect ? (
-                    // Multi-select: checkboxes
                     filteredItems.map((item) => {
                         const itemId = childLevelConfig.getId(item)
                         const label = childLevelConfig.getLabel(item)
@@ -169,7 +196,6 @@ function ChildPanelContent({
                         )
                     })
                 ) : (
-                    // Single-select: click items
                     filteredItems.map((item) => {
                         const itemId = childLevelConfig.getId(item)
                         const label = childLevelConfig.getLabel(item)
@@ -198,6 +224,45 @@ function ChildPanelContent({
 }
 
 // ============================================================================
+// SELECTED CHILD CHIPS (rendered under a root item's label)
+// ============================================================================
+
+/**
+ * Compact removable chips for a root item's selected children (e.g. "v2 ×").
+ * Only the "×" stops propagation (it deselects); clicks anywhere else in the
+ * chips row bubble up to the row so they open the child panel like the rest
+ * of the row body.
+ */
+function SelectedChildChips({
+    chips,
+    onDeselectChild,
+}: {
+    chips: {id: string; label: string}[]
+    onDeselectChild?: (childId: string) => void
+}) {
+    return (
+        <div className="flex flex-wrap gap-1 mt-0.5">
+            {chips.map((chip) => (
+                <span
+                    key={chip.id}
+                    className="inline-flex items-center gap-1 rounded bg-[var(--ag-rgba-051729-06)] px-1.5 py-0.5 text-[10px] leading-none"
+                >
+                    {chip.label}
+                    <X
+                        size={10}
+                        className="cursor-pointer opacity-60 hover:opacity-100"
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onDeselectChild?.(chip.id)
+                        }}
+                    />
+                </span>
+            ))}
+        </div>
+    )
+}
+
+// ============================================================================
 // ROOT ITEM RENDERER (shared between grouped and flat rendering)
 // ============================================================================
 
@@ -209,6 +274,13 @@ function RootItemRenderer({
     selectedRootId,
     openChildOnHover,
     onRootItemClick,
+    showParentCheckboxes = false,
+    selectedChildrenByParent,
+    totalChildrenByParent,
+    onParentCheckboxChange,
+    onDeselectChild,
+    isParentSelectionPending = false,
+    showParentDescription = false,
 }: {
     item: unknown
     rootLevel: HierarchyLevel<unknown>
@@ -217,8 +289,56 @@ function RootItemRenderer({
     selectedRootId: string | null
     openChildOnHover: boolean
     onRootItemClick: (item: unknown) => void
+    showParentCheckboxes?: boolean
+    selectedChildrenByParent?: Map<string, {id: string; label: string}[]>
+    totalChildrenByParent?: Map<string, number>
+    onParentCheckboxChange: (item: unknown, checked: boolean) => void
+    onDeselectChild?: (childId: string) => void
+    isParentSelectionPending?: boolean
+    showParentDescription?: boolean
 }) {
     const id = rootLevel.getId(item)
+
+    const selectedChildren = selectedChildrenByParent?.get(id)
+    const selectedCount = selectedChildren?.length ?? 0
+    const totalChildren = totalChildrenByParent?.get(id)
+    const isChecked = selectedCount > 0
+    const isIndeterminate = isChecked && totalChildren != null && selectedCount < totalChildren
+
+    // Checkbox toggles selection only; clicks must not bubble to the row
+    // (which opens the child panel).
+    const prefixNode = showParentCheckboxes ? (
+        <span onClick={(e) => e.stopPropagation()} className="flex items-center">
+            <Checkbox
+                checked={isChecked}
+                indeterminate={isIndeterminate}
+                disabled={isParentSelectionPending}
+                onChange={() => onParentCheckboxChange(item, !isChecked)}
+            />
+        </span>
+    ) : undefined
+
+    // Subtitle metadata is replaced by the selected-child chips when present.
+    const description =
+        showParentDescription && selectedCount === 0 ? rootLevel.getDescription?.(item) : undefined
+
+    const footerNode =
+        selectedCount > 0 && selectedChildren ? (
+            <SelectedChildChips chips={selectedChildren} onDeselectChild={onDeselectChild} />
+        ) : undefined
+
+    // When the child panel opens on hover, the row body click is free to
+    // toggle the parent checkbox (same as clicking the checkbox) and must not
+    // also drill into the panel. Otherwise the row click opens the child panel.
+    const handleItemClick = () => {
+        if (openChildOnHover && showParentCheckboxes) {
+            onParentCheckboxChange(item, !isChecked)
+            return
+        }
+
+        onRootItemClick(item)
+    }
+
     return (
         <div
             onMouseEnter={
@@ -228,12 +348,16 @@ function RootItemRenderer({
             <EntityListItem
                 label={rootLevel.getLabel(item)}
                 labelNode={rootLevel.getLabelNode?.(item)}
+                description={description}
+                prefixNode={prefixNode}
+                footerNode={footerNode}
+                suffixNode={rootLevel.getSuffixNode?.(item)}
                 hasChildren={totalLevels > 1}
                 isSelectable={totalLevels <= 1}
                 isSelected={id === selectedParentId}
                 isHovered={id === selectedRootId}
-                onClick={() => onRootItemClick(item)}
-                onSelect={() => onRootItemClick(item)}
+                onClick={handleItemClick}
+                onSelect={handleItemClick}
             />
         </div>
     )
@@ -256,6 +380,8 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     placement = "bottomLeft",
     panelMinWidth = 220,
     panelWidth,
+    childPanelWidth,
+    defaultOpenChildPanel = false,
     maxHeight = 340,
     popupFooter,
     onCreateNew,
@@ -270,6 +396,18 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     selectedChildIds,
     selectionSummary,
     childItemLabelMode = "full",
+    // Parent multi-select props
+    showParentCheckboxes = false,
+    selectedChildrenByParent,
+    totalChildrenByParent,
+    onDeselectChild,
+    // Root row metadata
+    showParentDescription = false,
+    // Group headers
+    showGroupHeaders = false,
+    // Bulk actions
+    showChildSelectAll = false,
+    onClearAll,
 }: PopoverCascaderVariantProps<TSelection>) {
     const {hierarchyLevels, createSelection} = useEntitySelectionCore({
         adapter: adapterProp,
@@ -286,6 +424,11 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     const [searchTerm, setSearchTerm] = useState("")
     const [selectedRootId, setSelectedRootId] = useState<string | null>(null)
     const [selectedRootEntity, setSelectedRootEntity] = useState<unknown>(null)
+    const [pendingParentSelection, setPendingParentSelection] = useState<{
+        id: string
+        label: string
+    } | null>(null)
+    const pendingCreateRef = useRef(false)
 
     // Active tab state — always starts on "all", reset on close
     const [activeTabKey, setActiveTabKey] = useState<string>("all")
@@ -345,29 +488,55 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         return `${selectionCount} selected`
     }, [selectionSummary, selectedChildIds, selectedChildId])
 
+    const resolvedPanelWidth = panelWidth ?? panelMinWidth
+    const resolvedChildWidth = childPanelWidth ?? resolvedPanelWidth
+    const isChildPanelVisible = selectedRootId !== null && totalLevels > 1
+
+    // Keep the total popover width stable when the child panel opens. While
+    // closed, the root panel occupies both configured panel widths.
     const panelStyle = useMemo<CSSProperties>(
-        () => (panelWidth != null ? {width: panelWidth} : {minWidth: panelMinWidth}),
-        [panelWidth, panelMinWidth],
+        () => ({
+            width: isChildPanelVisible
+                ? resolvedPanelWidth
+                : resolvedPanelWidth + (totalLevels > 1 ? resolvedChildWidth : 0),
+        }),
+        [isChildPanelVisible, resolvedPanelWidth, resolvedChildWidth, totalLevels],
     )
 
     const childPanelStyle = useMemo<CSSProperties>(
-        () =>
-            panelWidth != null
-                ? {width: panelWidth}
-                : {minWidth: panelMinWidth, maxWidth: panelMinWidth},
-        [panelWidth, panelMinWidth],
+        () => ({width: resolvedChildWidth}),
+        [resolvedChildWidth],
     )
 
-    // Maintain auto-selection to prevent pixel shifts when searching/filtering
+    const childPanelOuterStyle = useMemo<CSSProperties>(
+        () => ({width: resolvedChildWidth}),
+        [resolvedChildWidth],
+    )
+
+    // Keep a user-opened child panel aligned with the filtered root list. The
+    // initial/default opening behavior remains opt-in.
     useEffect(() => {
         if (!open || totalLevels <= 1) return
 
         // Wait until rootItems are loaded
         if (rootQuery.isPending && rootItems.length === 0) return
 
-        // On open/mount, if we have a parent ID pre-selected and no root ID is selected locally yet
-        if (!selectedRootId && selectedParentId) {
-            const matchingRoot = rootItems.find(
+        // If something is already selected locally, ensure it's still in the filtered view
+        if (selectedRootId) {
+            const stillExists = tabFilteredRootItems.some(
+                (item) => rootLevel.getId(item) === selectedRootId,
+            )
+            if (stillExists) return
+
+            setSelectedRootId(null)
+            setSelectedRootEntity(null)
+        }
+
+        if (!defaultOpenChildPanel) return
+
+        // Prefer the controlled parent selection when default opening is enabled.
+        if (selectedParentId) {
+            const matchingRoot = tabFilteredRootItems.find(
                 (item) => rootLevel.getId(item) === selectedParentId,
             )
             if (matchingRoot) {
@@ -378,15 +547,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             }
         }
 
-        // If something is already selected locally, ensure it's still in the filtered view
-        if (selectedRootId) {
-            const stillExists = tabFilteredRootItems.some(
-                (item) => rootLevel.getId(item) === selectedRootId,
-            )
-            if (stillExists) return
-        }
-
-        // Auto-select the first available item in the filtered view (UI ONLY, don't trigger selection)
+        // Otherwise open the first available item without selecting a child.
         if (tabFilteredRootItems.length > 0) {
             const firstItem = tabFilteredRootItems[0]
             const id = rootLevel.getId(firstItem)
@@ -402,6 +563,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         totalLevels,
         selectedRootId,
         selectedParentId,
+        defaultOpenChildPanel,
         tabFilteredRootItems,
         rootLevel,
         hierarchyLevels,
@@ -475,6 +637,36 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         ],
     )
 
+    const handleParentCheckboxChange = useCallback(
+        (parentEntity: unknown, checked: boolean) => {
+            if (pendingParentSelection) return
+
+            const parentId = rootLevel.getId(parentEntity)
+            if (!checked) {
+                selectedChildrenByParent
+                    ?.get(parentId)
+                    ?.forEach((child) => onDeselectChild?.(child.id))
+                return
+            }
+
+            const childLevel = hierarchyLevels[1]
+            if (!childLevel) return
+
+            childLevel.onBeforeLoad?.(parentId)
+            setPendingParentSelection({
+                id: parentId,
+                label: rootLevel.getLabel(parentEntity),
+            })
+        },
+        [
+            hierarchyLevels,
+            onDeselectChild,
+            pendingParentSelection,
+            rootLevel,
+            selectedChildrenByParent,
+        ],
+    )
+
     // Reset state when popover closes
     const handleOpenChange = useCallback((newOpen: boolean) => {
         setOpen(newOpen)
@@ -487,9 +679,18 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     }, [])
 
     const handleCreateNew = useCallback(() => {
-        onCreateNew?.()
+        pendingCreateRef.current = true
         setOpen(false)
-    }, [onCreateNew])
+    }, [])
+
+    const handleAfterOpenChange = useCallback(
+        (isOpen: boolean) => {
+            if (isOpen || !pendingCreateRef.current) return
+            pendingCreateRef.current = false
+            onCreateNew?.()
+        },
+        [onCreateNew],
+    )
 
     // Shared props for RootItemRenderer
     const rootItemProps = useMemo(
@@ -500,6 +701,13 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             selectedRootId,
             openChildOnHover,
             onRootItemClick: handleRootItemClick,
+            showParentCheckboxes,
+            selectedChildrenByParent,
+            totalChildrenByParent,
+            onParentCheckboxChange: handleParentCheckboxChange,
+            onDeselectChild,
+            isParentSelectionPending: pendingParentSelection !== null,
+            showParentDescription,
         }),
         [
             rootLevel,
@@ -508,6 +716,13 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             selectedRootId,
             openChildOnHover,
             handleRootItemClick,
+            showParentCheckboxes,
+            selectedChildrenByParent,
+            totalChildrenByParent,
+            handleParentCheckboxChange,
+            onDeselectChild,
+            pendingParentSelection,
+            showParentDescription,
         ],
     )
 
@@ -560,10 +775,20 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 >
                     {/* Selection summary */}
                     {selectionSummaryText ? (
-                        <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center">
+                        <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center justify-between">
                             <span className="text-zinc-500 text-[10px]">
                                 {selectionSummaryText}
                             </span>
+                            {onClearAll && (selectedChildIds?.size ?? 0) > 0 && (
+                                <Button
+                                    type="link"
+                                    size="small"
+                                    className="!h-auto !p-0 !text-[10px]"
+                                    onClick={onClearAll}
+                                >
+                                    Clear all
+                                </Button>
+                            )}
                         </div>
                     ) : null}
 
@@ -585,6 +810,15 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                 {Array.from(groupedItems.groups.entries()).map(
                                     ([groupKey, items]) => (
                                         <div key={groupKey}>
+                                            {showGroupHeaders && (
+                                                <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+                                                    <span className="text-[10px] font-medium text-zinc-400">
+                                                        {rootLevel.getGroupLabel?.(groupKey) ??
+                                                            groupKey}
+                                                    </span>
+                                                    <div className="flex-1 h-px bg-[var(--ag-rgba-051729-06)]" />
+                                                </div>
+                                            )}
                                             {items.map((item) => (
                                                 <RootItemRenderer
                                                     key={rootLevel.getId(item)}
@@ -595,14 +829,25 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                         </div>
                                     ),
                                 )}
-                                {groupedItems.ungrouped.length > 0 &&
-                                    groupedItems.ungrouped.map((item) => (
-                                        <RootItemRenderer
-                                            key={rootLevel.getId(item)}
-                                            item={item}
-                                            {...rootItemProps}
-                                        />
-                                    ))}
+                                {groupedItems.ungrouped.length > 0 && (
+                                    <div>
+                                        {showGroupHeaders && groupedItems.groups.size > 0 && (
+                                            <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+                                                <span className="text-[10px] font-medium text-zinc-400">
+                                                    Other
+                                                </span>
+                                                <div className="flex-1 h-px bg-[var(--ag-rgba-051729-06)]" />
+                                            </div>
+                                        )}
+                                        {groupedItems.ungrouped.map((item) => (
+                                            <RootItemRenderer
+                                                key={rootLevel.getId(item)}
+                                                item={item}
+                                                {...rootItemProps}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
                             </>
                         ) : (
                             // Flat rendering (no grouping)
@@ -622,7 +867,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
 
                 {/* CHILD PANEL */}
                 {selectedRootId && totalLevels > 1 && (
-                    <div className="flex flex-col" style={panelStyle}>
+                    <div className="flex flex-col" style={childPanelOuterStyle}>
                         <ChildPanelContent
                             parentId={selectedRootId}
                             parentLabel={rootLevel.getLabel(selectedRootEntity!)}
@@ -638,6 +883,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                             multiSelect={multiSelect}
                             selectedChildIds={selectedChildIds}
                             childItemLabelMode={childItemLabelMode}
+                            showSelectAll={showChildSelectAll}
                         />
                     </div>
                 )}
@@ -646,28 +892,45 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     )
 
     return (
-        <Popover
-            content={content}
-            trigger="click"
-            open={open}
-            onOpenChange={handleOpenChange}
-            placement={placement}
-            styles={{container: {padding: 0}}}
-            arrow={false}
-            destroyOnHidden
-            autoAdjustOverflow
-        >
-            <Button
-                size={size}
-                disabled={disabled}
-                className={
-                    className ? `flex items-center gap-1 ${className}` : "flex items-center gap-1"
-                }
+        <>
+            {pendingParentSelection && hierarchyLevels[1] ? (
+                <AutoSelectHandler
+                    parentId={pendingParentSelection.id}
+                    parentLabel={pendingParentSelection.label}
+                    parentLevelConfig={rootLevel}
+                    childLevelConfig={hierarchyLevels[1]}
+                    disabledChildIds={disabledChildIds}
+                    createSelection={createSelection}
+                    onSelect={onSelect}
+                    onComplete={() => setPendingParentSelection(null)}
+                />
+            ) : null}
+            <Popover
+                content={content}
+                trigger="click"
+                open={open}
+                onOpenChange={handleOpenChange}
+                afterOpenChange={handleAfterOpenChange}
+                placement={placement}
+                styles={{container: {padding: 0}}}
+                arrow={false}
+                destroyOnHidden
+                autoAdjustOverflow
             >
-                {icon}
-                {placeholder}
-                {showDropdownIcon ? <CaretDown size={10} /> : null}
-            </Button>
-        </Popover>
+                <Button
+                    size={size}
+                    disabled={disabled}
+                    className={
+                        className
+                            ? `flex items-center gap-1 ${className}`
+                            : "flex items-center gap-1"
+                    }
+                >
+                    {icon}
+                    {placeholder}
+                    {showDropdownIcon ? <CaretDown size={10} /> : null}
+                </Button>
+            </Popover>
+        </>
     )
 }

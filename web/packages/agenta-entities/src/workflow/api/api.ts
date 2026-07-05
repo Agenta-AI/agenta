@@ -39,7 +39,7 @@ import {
     type WorkflowFlags,
     type WorkflowQueryFlags,
 } from "../core"
-import type {WorkflowDetailParams, WorkflowListParams} from "../core"
+import type {WorkflowDetailParams, WorkflowListParams, WorkflowData} from "../core"
 
 const toUnixMs = (value: string | null | undefined): number => {
     if (!value) return 0
@@ -683,18 +683,7 @@ export interface CreateWorkflowPayload {
     meta?: Record<string, unknown> | null
     /** Commit message for the initial revision */
     message?: string | null
-    data?: {
-        uri?: string | null
-        url?: string | null
-        headers?: Record<string, unknown> | null
-        schemas?: {
-            parameters?: Record<string, unknown> | null
-            inputs?: Record<string, unknown> | null
-            outputs?: Record<string, unknown> | null
-        } | null
-        script?: Record<string, unknown> | null
-        parameters?: Record<string, unknown> | null
-    } | null
+    data?: WorkflowData | null
 }
 
 /**
@@ -910,18 +899,7 @@ export interface UpdateWorkflowPayload {
     meta?: Record<string, unknown> | null
     /** Commit message for the new revision */
     message?: string | null
-    data?: {
-        uri?: string | null
-        url?: string | null
-        headers?: Record<string, unknown> | null
-        schemas?: {
-            parameters?: Record<string, unknown> | null
-            inputs?: Record<string, unknown> | null
-            outputs?: Record<string, unknown> | null
-        } | null
-        script?: Record<string, unknown> | null
-        parameters?: Record<string, unknown> | null
-    } | null
+    data?: WorkflowData | null
 }
 
 /**

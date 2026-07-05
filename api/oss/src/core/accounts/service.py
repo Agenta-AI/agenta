@@ -39,10 +39,15 @@ from oss.src.services.db_manager import (
     admin_delete_accounts_batch as _db_delete_accounts_batch,
     admin_delete_user_with_cascade as _db_delete_user_with_cascade,
     admin_transfer_org_ownership_batch as _db_transfer_org_ownership_batch,
-    get_or_bootstrap_oss_organization as _db_get_or_bootstrap_oss_organization,
-    _assign_user_to_organization_oss as _db_assign_user_to_organization_oss,
-    get_default_project_by_organization_id as _db_get_default_project_by_organization_id,
-    OSS_SINGLETON_ORG_SLUG,
+    admin_delete_org_membership as _ee_delete_org_membership,
+    admin_delete_workspace_membership as _ee_delete_workspace_membership,
+    admin_delete_project_membership as _ee_delete_project_membership,
+    admin_delete_user_memberships as _ee_delete_user_memberships,
+    admin_get_member_org_ids as _ee_get_member_org_ids,
+    count_organization_members as _ee_count_organization_members,
+    admin_swap_org_memberships as _ee_swap_org_memberships,
+    admin_swap_workspace_memberships as _ee_swap_workspace_memberships,
+    admin_swap_project_memberships as _ee_swap_project_memberships,
 )
 from oss.src.core.environments.defaults import (
     create_default_environments as _create_default_environments,
@@ -59,25 +64,6 @@ from oss.src.models.db_models import (
 )
 
 try:
-    from ee.src.services.db_manager_ee import (  # type: ignore[import]
-        admin_delete_org_membership as _ee_delete_org_membership,
-        admin_delete_workspace_membership as _ee_delete_workspace_membership,
-        admin_delete_project_membership as _ee_delete_project_membership,
-        admin_delete_user_memberships as _ee_delete_user_memberships,
-        admin_get_member_org_ids as _ee_get_member_org_ids,
-        admin_swap_org_memberships as _ee_swap_org_memberships,
-        admin_swap_workspace_memberships as _ee_swap_workspace_memberships,
-        admin_swap_project_memberships as _ee_swap_project_memberships,
-    )
-    from ee.src.services.admin_manager import (  # type: ignore[import]
-        Reference as _EeReference,
-        OrganizationMembershipRequest as _EeOrgMembershipReq,
-        WorkspaceMembershipRequest as _EeWsMembershipReq,
-        ProjectMembershipRequest as _EeProjectMembershipReq,
-        create_organization_membership as _ee_create_org_membership,
-        create_workspace_membership as _ee_create_ws_membership,
-        create_project_membership as _ee_create_project_membership,
-    )
     from ee.src.core.subscriptions.service import (  # type: ignore[import]
         SubscriptionsService as _EeSubscriptionsService,
     )
@@ -116,6 +102,7 @@ from supertokens_python.recipe.passwordless.asyncio import (
 )
 
 from oss.src.utils.env import env
+from oss.src.utils.emailing import remove_contact as _delete_loops_contact
 
 from oss.src.core.accounts.dtos import (
     AdminAccountCreateOptions,
@@ -165,6 +152,8 @@ from oss.src.core.accounts.dtos import (
     EntityRef,
 )
 from oss.src.core.accounts.errors import (
+    AccountAuthDeletionError,
+    AccountHasMembersError,
     AdminApiKeyNotFoundError,
     AdminInvalidReferenceError,
     AdminMembershipNotFoundError,
@@ -175,7 +164,6 @@ from oss.src.core.accounts.errors import (
     AdminUserNotFoundError,
     AdminValidationError,
     AdminWorkspaceNotFoundError,
-    OssMultiOrgNotSupportedError,
 )
 
 log = get_module_logger(__name__)
@@ -473,6 +461,85 @@ async def _resolve_entity_ref_to_uuid(
     raise AdminInvalidReferenceError(path, "empty reference")
 
 
+async def _create_org_membership_row(
+    *,
+    user_id: UUID,
+    organization_id: UUID,
+    role: str,
+) -> UUID:
+    """Create an org membership; role `owner` also flips organizations.owner_id."""
+    from sqlalchemy.future import select as _select
+
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+    from oss.src.models.db_models import OrganizationMemberDB
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        membership_db = OrganizationMemberDB(
+            user_id=user_id,
+            organization_id=organization_id,
+        )
+        session.add(membership_db)
+        await session.commit()
+
+        if role == "owner":
+            result = await session.execute(
+                _select(OrganizationDB).filter_by(id=organization_id)
+            )
+            organization_db = result.scalars().first()
+            organization_db.owner_id = user_id
+            await session.commit()
+
+        return membership_db.id
+
+
+async def _create_ws_membership_row(
+    *,
+    user_id: UUID,
+    workspace_id: UUID,
+    role: str,
+) -> UUID:
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+    from oss.src.models.db_models import WorkspaceMemberDB
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        membership_db = WorkspaceMemberDB(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            role=role,
+        )
+        session.add(membership_db)
+        await session.commit()
+
+        return membership_db.id
+
+
+async def _create_project_membership_row(
+    *,
+    user_id: UUID,
+    project_id: UUID,
+    role: str,
+) -> UUID:
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+    from oss.src.models.db_models import ProjectMemberDB
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        membership_db = ProjectMemberDB(
+            user_id=user_id,
+            project_id=project_id,
+            role=role,
+        )
+        session.add(membership_db)
+        await session.commit()
+
+        return membership_db.id
+
+
 # ---------------------------------------------------------------------------
 # PlatformAdminAccountsService
 # ---------------------------------------------------------------------------
@@ -691,13 +758,13 @@ class PlatformAdminAccountsService:
             tracker.projects[proj_ref] = proj_db.id
             account.projects[proj_ref] = _proj_db_to_read_dto(proj_db)
 
-        # 6. Memberships (EE only)
-        if is_ee() and (
+        # 6. Memberships
+        if (
             dto.organization_memberships
             or dto.workspace_memberships
             or dto.project_memberships
         ):
-            await self._create_memberships_ee(dto, tracker, account, options)
+            await self._create_memberships(dto, tracker, account, options)
 
         # 7. API keys
         if options.create_api_keys:
@@ -736,14 +803,14 @@ class PlatformAdminAccountsService:
             errors=errors or None,
         )
 
-    async def _create_memberships_ee(
+    async def _create_memberships(
         self,
         dto: AdminAccountsCreate,
         tracker: _Tracker,
         account: AdminAccountRead,
         options: AdminAccountCreateOptions,
     ) -> None:
-        """EE-only: create organization/workspace/project memberships."""
+        """Create organization/workspace/project memberships."""
         for mem_ref, mem_create in (dto.organization_memberships or {}).items():
             org_id = await _resolve_entity_ref_to_uuid(
                 mem_create.organization_ref,
@@ -757,16 +824,14 @@ class PlatformAdminAccountsService:
                 f"organization_memberships.{mem_ref}.user_ref",
                 tracker,
             )
-            request = _EeOrgMembershipReq(
+            membership_id = await _create_org_membership_row(
+                user_id=user_id,
+                organization_id=org_id,
                 role=mem_create.role,
-                is_demo=False,
-                user_ref=_EeReference(id=user_id),
-                organization_ref=_EeReference(id=org_id),
             )
-            ref = await _ee_create_org_membership(request=request)
-            tracker.organization_memberships[mem_ref] = ref.id
+            tracker.organization_memberships[mem_ref] = membership_id
             account.organization_memberships[mem_ref] = AdminOrganizationMembershipRead(
-                id=str(ref.id),
+                id=str(membership_id),
                 organization_id=str(org_id),
                 user_id=str(user_id),
                 role=mem_create.role,
@@ -785,16 +850,14 @@ class PlatformAdminAccountsService:
                 f"workspace_memberships.{mem_ref}.user_ref",
                 tracker,
             )
-            request = _EeWsMembershipReq(
+            membership_id = await _create_ws_membership_row(
+                user_id=user_id,
+                workspace_id=ws_id,
                 role=mem_create.role,
-                is_demo=False,
-                user_ref=_EeReference(id=user_id),
-                workspace_ref=_EeReference(id=ws_id),
             )
-            ref = await _ee_create_ws_membership(request=request)
-            tracker.workspace_memberships[mem_ref] = ref.id
+            tracker.workspace_memberships[mem_ref] = membership_id
             account.workspace_memberships[mem_ref] = AdminWorkspaceMembershipRead(
-                id=str(ref.id),
+                id=str(membership_id),
                 workspace_id=str(ws_id),
                 user_id=str(user_id),
                 role=mem_create.role,
@@ -813,16 +876,14 @@ class PlatformAdminAccountsService:
                 f"project_memberships.{mem_ref}.user_ref",
                 tracker,
             )
-            request = _EeProjectMembershipReq(
+            membership_id = await _create_project_membership_row(
+                user_id=user_id,
+                project_id=proj_id,
                 role=mem_create.role,
-                is_demo=False,
-                user_ref=_EeReference(id=user_id),
-                project_ref=_EeReference(id=proj_id),
             )
-            ref = await _ee_create_project_membership(request=request)
-            tracker.project_memberships[mem_ref] = ref.id
+            tracker.project_memberships[mem_ref] = membership_id
             account.project_memberships[mem_ref] = AdminProjectMembershipRead(
-                id=str(ref.id),
+                id=str(membership_id),
                 project_id=str(proj_id),
                 user_id=str(user_id),
                 role=mem_create.role,
@@ -873,43 +934,12 @@ class PlatformAdminAccountsService:
             for user_id in user_ids:
                 owned = await _db_get_orgs_owned_by_user(user_id)
                 for org in owned:
-                    # On OSS the singleton org is shared across every user;
-                    # cascading-delete it because some user happens to own
-                    # it would tear down the whole tenant.
-                    if not is_ee() and org.slug == OSS_SINGLETON_ORG_SLUG:
-                        continue
                     if org.id not in org_ids:
                         org_ids.append(org.id)
-
-        # Even when callers pass explicit organization_ids, the OSS
-        # singleton must never be in the delete set.
-        if not is_ee() and org_ids:
-            kept_org_ids: List[UUID] = []
-            for oid in org_ids:
-                org = await _db_get_org_by_id(oid)
-                if org and org.slug == OSS_SINGLETON_ORG_SLUG:
-                    continue
-                kept_org_ids.append(oid)
-            org_ids = kept_org_ids
 
         # Collect workspace and project IDs
         workspace_ids: List[UUID] = [UUID(wid) for wid in (target.workspace_ids or [])]
         project_ids: List[UUID] = [UUID(pid) for pid in (target.project_ids or [])]
-
-        # On OSS, the singleton workspace under the singleton org is
-        # untouchable for the same reason as the org itself: deleting it
-        # would orphan in-flight bootstraps. Filter any such workspace
-        # IDs out of the delete set.
-        if not is_ee() and workspace_ids:
-            kept_ws_ids: List[UUID] = []
-            for wid in workspace_ids:
-                ws = await _db_get_workspace_by_id(wid)
-                if ws is not None:
-                    org = await _db_get_org_by_id(ws.organization_id)
-                    if org and org.slug == OSS_SINGLETON_ORG_SLUG:
-                        continue
-                kept_ws_ids.append(wid)
-            workspace_ids = kept_ws_ids
 
         if dry_run:
             # Report what would be deleted without writing
@@ -1044,27 +1074,6 @@ class PlatformAdminAccountsService:
             else True,
         )
 
-        if not is_ee():
-            if (
-                entry.organization
-                or entry.workspace
-                or entry.project
-                or entry.subscription
-                or entry.organization_memberships
-                or entry.workspace_memberships
-                or entry.project_memberships
-                or entry.api_keys
-            ):
-                raise OssMultiOrgNotSupportedError(
-                    "OSS is single-tenant: organization, workspace, project, subscription, "
-                    "explicit memberships, and explicit api_keys cannot be specified. "
-                    "Use options.create_api_keys to request an API key on the per-account project."
-                )
-            return await self._create_one_simple_account_oss(
-                entry=entry,
-                options=effective_options,
-            )
-
         org_create = entry.organization or _default_org_for_user(entry.user)
         ws_create = entry.workspace or _default_ws_for_org("org")
         proj_create = entry.project or _default_proj_for_ws("org", "wrk")
@@ -1088,47 +1097,45 @@ class PlatformAdminAccountsService:
                 for i, identity in enumerate(entry.user_identities)
             }
 
-        if is_ee():
-            # Explicit memberships override the default owner roles.
-            # When none are supplied, auto-create owner membership for each scope
-            # so the user can access their own org / workspace / project in EE.
-            if entry.organization_memberships:
-                graph_dto.organization_memberships = {
-                    f"org_mem_{i}": m
-                    for i, m in enumerate(entry.organization_memberships)
-                }
-            else:
-                graph_dto.organization_memberships = {
-                    "org_owner": AdminOrganizationMembershipCreate(
-                        organization_ref=EntityRef(ref="org"),
-                        user_ref=EntityRef(ref="user"),
-                        role="owner",
-                    )
-                }
-            if entry.workspace_memberships:
-                graph_dto.workspace_memberships = {
-                    f"wrk_mem_{i}": m for i, m in enumerate(entry.workspace_memberships)
-                }
-            else:
-                graph_dto.workspace_memberships = {
-                    "wrk_owner": AdminWorkspaceMembershipCreate(
-                        workspace_ref=EntityRef(ref="wrk"),
-                        user_ref=EntityRef(ref="user"),
-                        role="owner",
-                    )
-                }
-            if entry.project_memberships:
-                graph_dto.project_memberships = {
-                    f"prj_mem_{i}": m for i, m in enumerate(entry.project_memberships)
-                }
-            else:
-                graph_dto.project_memberships = {
-                    "prj_owner": AdminProjectMembershipCreate(
-                        project_ref=EntityRef(ref="prj"),
-                        user_ref=EntityRef(ref="user"),
-                        role="owner",
-                    )
-                }
+        # Explicit memberships override the default owner roles.
+        # When none are supplied, auto-create owner membership for each scope
+        # so the user can access their own org / workspace / project.
+        if entry.organization_memberships:
+            graph_dto.organization_memberships = {
+                f"org_mem_{i}": m for i, m in enumerate(entry.organization_memberships)
+            }
+        else:
+            graph_dto.organization_memberships = {
+                "org_owner": AdminOrganizationMembershipCreate(
+                    organization_ref=EntityRef(ref="org"),
+                    user_ref=EntityRef(ref="user"),
+                    role="owner",
+                )
+            }
+        if entry.workspace_memberships:
+            graph_dto.workspace_memberships = {
+                f"wrk_mem_{i}": m for i, m in enumerate(entry.workspace_memberships)
+            }
+        else:
+            graph_dto.workspace_memberships = {
+                "wrk_owner": AdminWorkspaceMembershipCreate(
+                    workspace_ref=EntityRef(ref="wrk"),
+                    user_ref=EntityRef(ref="user"),
+                    role="owner",
+                )
+            }
+        if entry.project_memberships:
+            graph_dto.project_memberships = {
+                f"prj_mem_{i}": m for i, m in enumerate(entry.project_memberships)
+            }
+        else:
+            graph_dto.project_memberships = {
+                "prj_owner": AdminProjectMembershipCreate(
+                    project_ref=EntityRef(ref="prj"),
+                    user_ref=EntityRef(ref="user"),
+                    role="owner",
+                )
+            }
 
         if entry.subscription:
             graph_dto.subscriptions = {"org": entry.subscription}
@@ -1142,183 +1149,6 @@ class PlatformAdminAccountsService:
             }
 
         return await self.create_accounts(dto=graph_dto)
-
-    async def _create_one_simple_account_oss(
-        self,
-        *,
-        entry: "AdminSimpleAccountCreate",
-        options: AdminAccountCreateOptions,
-    ) -> AdminAccountsResponse:
-        """OSS-only path for simple account creation.
-
-        OSS is single-tenant: every user lives under one organization with one
-        workspace and one default project. We bootstrap that singleton on first
-        use (mirroring `_create_account` in the SuperTokens override) and
-        attach every subsequent user to it via `_assign_user_to_organization_oss`.
-        """
-        account = AdminAccountRead()
-        errors: List[AdminStructuredError] = []
-
-        # 1. Create the user (the existence check already happened in caller).
-        user_db = await _db_get_or_create_user(
-            entry.user.email,
-            entry.user.username or entry.user.name,
-        )
-        account.users["user"] = _user_db_to_read_dto(user_db)
-
-        # 2. Get-or-bootstrap the OSS singleton org/workspace/default project.
-        # The org row is race-free via INSERT ... ON CONFLICT (slug) on the
-        # deterministic OSS singleton slug. The workspace under that org is
-        # serialized by a SELECT FOR UPDATE row lock on the org during
-        # bootstrap, so concurrent first-user signups all converge on the
-        # same workspace. No application-level lock is involved.
-        org_db = await _db_get_or_bootstrap_oss_organization(
-            user_id=user_db.id,
-            user_email=entry.user.email,
-        )
-
-        # Resolve the singleton default project + workspace BEFORE assigning
-        # the user, so that an inconsistent singleton state surfaces as a
-        # deterministic AdminValidationError (400) rather than a NoResultFound
-        # bubbling out of `_db_assign_user_to_organization_oss` as a 500.
-        default_proj_db = await _db_get_default_project_by_organization_id(
-            str(org_db.id)
-        )
-        if default_proj_db is None:
-            raise AdminValidationError(
-                "OSS singleton is in an inconsistent state: no default project found for organization."
-            )
-
-        ws_db = await _db_get_workspace_by_id(default_proj_db.workspace_id)
-        if ws_db is None:
-            raise AdminValidationError(
-                "OSS singleton is in an inconsistent state: project's workspace not found."
-            )
-
-        await _db_assign_user_to_organization_oss(
-            user_db=user_db,
-            organization_id=str(org_db.id),
-            email=entry.user.email,
-        )
-
-        # Always mint a fresh project per account under the singleton
-        # workspace. Org and workspace stay singleton; only projects
-        # multiply. This isolates per-account state (entities, traces,
-        # api-keys) so concurrent or sequential accounts don't see each
-        # other's data — required for test isolation under the OSS
-        # singleton, and harmless for non-test callers.
-        proj_db = await _db_create_project(
-            f"account-{user_db.id}",
-            org_db.id,
-            ws_db.id,
-            is_default=False,
-        )
-        if options.seed_defaults:
-            await _create_default_environments(
-                project_id=proj_db.id,
-                user_id=user_db.id,
-            )
-            await _create_default_evaluators(
-                project_id=proj_db.id,
-                user_id=user_db.id,
-            )
-
-        account.organizations["org"] = _org_db_to_read_dto(org_db)
-        account.workspaces["wrk"] = _ws_db_to_read_dto(ws_db)
-        account.projects["prj"] = _proj_db_to_read_dto(proj_db)
-
-        # 3. Optional SuperTokens identities.
-        if entry.user_identities and options.create_identities:
-            tenant_id = "public"
-            for index, identity_create in enumerate(entry.user_identities):
-                identity_ref = f"identity_{index}"
-                if not _identity_method_supported(identity_create.method):
-                    errors.append(
-                        AdminStructuredError(
-                            code="not_implemented",
-                            message=(
-                                f"Identity provisioning for method "
-                                f"'{identity_create.method}' is not supported on this "
-                                f"deployment (configured email_method="
-                                f"'{env.auth.email_method}'; ref: {identity_ref})."
-                            ),
-                            details={
-                                "ref": identity_ref,
-                                "method": identity_create.method,
-                                "configured_email_method": env.auth.email_method,
-                            },
-                        )
-                    )
-                    continue
-
-                email = identity_create.email or identity_create.subject
-                password = identity_create.password
-                if not email:
-                    errors.append(
-                        AdminStructuredError(
-                            code="invalid_identity",
-                            message=(
-                                f"email identity requires 'email' (or 'subject') "
-                                f"(ref: {identity_ref})."
-                            ),
-                            details={"ref": identity_ref},
-                        )
-                    )
-                    continue
-
-                (
-                    rid,
-                    created_method,
-                    err_code,
-                    err_msg,
-                ) = await _create_st_email_identity(
-                    tenant_id=tenant_id,
-                    email=email,
-                    password=password,
-                )
-                if err_code is not None:
-                    errors.append(
-                        AdminStructuredError(
-                            code=err_code,
-                            message=f"{err_msg} (ref: {identity_ref}).",
-                            details={"ref": identity_ref, "email": email},
-                        )
-                    )
-                    continue
-
-                account.user_identities[identity_ref] = AdminUserIdentityRead(
-                    id=rid,
-                    user_id=str(user_db.id),
-                    method=created_method,
-                    subject=email,
-                    email=email,
-                    verified=identity_create.verified or False,
-                    status="created",
-                )
-
-        # 4. API key on this account's per-account project (proj_db is the
-        # ephemeral project minted above, not the singleton default).
-        if options.create_api_keys:
-            raw_key = await _create_raw_api_key(
-                user_id=str(user_db.id),
-                project_id=str(proj_db.id),
-            )
-            prefix = raw_key.split(".")[0]
-            key_db = await _db_get_api_key_by_prefix(prefix)
-            account.api_keys = {
-                "key": AdminApiKeyResponse(
-                    id=str(key_db.id) if key_db else None,
-                    prefix=prefix,
-                    project_id=str(proj_db.id),
-                    user_id=str(user_db.id),
-                    value=raw_key if options.return_api_keys else None,
-                )
-            }
-
-        return AdminAccountsResponse(
-            accounts=[account],
-            errors=errors or None,
-        )
 
     async def delete_simple_accounts(
         self,
@@ -1352,50 +1182,6 @@ class PlatformAdminAccountsService:
     ) -> AdminAccountsResponse:
         options = dto.options or AdminAccountCreateOptions()
 
-        # On OSS, when seed_defaults is requested, route through the
-        # simple-account path so the singleton org/workspace are reused
-        # via ``get_or_bootstrap_oss_organization`` (deterministic slug,
-        # race free). The graph-shaped ``create_accounts`` path mints a
-        # fresh org per call and would break the singleton invariant.
-        # When seed_defaults is False, no org/workspace is created here,
-        # so falling through to the graph path is safe.
-        if options.seed_defaults and not is_ee():
-            simple_entry = AdminSimpleAccountCreate(
-                user=dto.user,
-                options=options,
-            )
-            simple_dto = AdminSimpleAccountsCreate(
-                accounts={"user": simple_entry},
-                options=options,
-            )
-            simple_response = await self.create_simple_accounts(dto=simple_dto)
-
-            # Translate the simple response shape back into the graph
-            # response shape that callers of ``create_user`` expect.
-            # Note: ``AdminAccountsResponse.accounts`` is a *list* of
-            # ``AdminAccountRead`` (not a dict), so we append rather
-            # than subscript.
-            graph_response = AdminAccountsResponse()
-            for _account_ref, simple_account in simple_response.accounts.items():
-                read = AdminAccountRead()
-                if simple_account.user is not None:
-                    read.users = {"user": simple_account.user}
-                if simple_account.organizations:
-                    read.organizations = dict(simple_account.organizations)
-                if simple_account.workspaces:
-                    read.workspaces = dict(simple_account.workspaces)
-                if simple_account.projects:
-                    read.projects = dict(simple_account.projects)
-                # NOTE: simple-account responses expose api_keys as raw
-                # value strings, while the graph shape expects a richer
-                # AdminApiKeyResponse. We cannot losslessly reconstruct
-                # the latter, so leave ``read.api_keys`` unset on this OSS
-                # path. Tests for this endpoint only assert on ``users``.
-                graph_response.accounts.append(read)
-            if simple_response.errors:
-                graph_response.errors = list(simple_response.errors)
-            return graph_response
-
         graph_dto = AdminAccountsCreate(
             options=options,
             users={"user": dto.user},
@@ -1408,28 +1194,27 @@ class PlatformAdminAccountsService:
             graph_dto.organizations = {"org": org_create}
             graph_dto.workspaces = {"wrk": ws_create}
             graph_dto.projects = {"prj": proj_create}
-            if is_ee():
-                graph_dto.organization_memberships = {
-                    "org_owner": AdminOrganizationMembershipCreate(
-                        organization_ref=EntityRef(ref="org"),
-                        user_ref=EntityRef(ref="user"),
-                        role="owner",
-                    )
-                }
-                graph_dto.workspace_memberships = {
-                    "wrk_owner": AdminWorkspaceMembershipCreate(
-                        workspace_ref=EntityRef(ref="wrk"),
-                        user_ref=EntityRef(ref="user"),
-                        role="owner",
-                    )
-                }
-                graph_dto.project_memberships = {
-                    "prj_owner": AdminProjectMembershipCreate(
-                        project_ref=EntityRef(ref="prj"),
-                        user_ref=EntityRef(ref="user"),
-                        role="owner",
-                    )
-                }
+            graph_dto.organization_memberships = {
+                "org_owner": AdminOrganizationMembershipCreate(
+                    organization_ref=EntityRef(ref="org"),
+                    user_ref=EntityRef(ref="user"),
+                    role="owner",
+                )
+            }
+            graph_dto.workspace_memberships = {
+                "wrk_owner": AdminWorkspaceMembershipCreate(
+                    workspace_ref=EntityRef(ref="wrk"),
+                    user_ref=EntityRef(ref="user"),
+                    role="owner",
+                )
+            }
+            graph_dto.project_memberships = {
+                "prj_owner": AdminProjectMembershipCreate(
+                    project_ref=EntityRef(ref="prj"),
+                    user_ref=EntityRef(ref="user"),
+                    role="owner",
+                )
+            }
             if options.create_api_keys:
                 graph_dto.api_keys = {
                     "key": AdminApiKeyCreate(
@@ -1551,8 +1336,6 @@ class PlatformAdminAccountsService:
         *,
         dto: AdminSimpleAccountsOrganizationsMembershipsCreate,
     ) -> AdminAccountsResponse:
-        if not is_ee():
-            raise AdminNotImplementedError("organization_memberships")
         options = dto.options or AdminAccountCreateOptions()
         graph_dto = AdminAccountsCreate(
             options=options,
@@ -1587,8 +1370,6 @@ class PlatformAdminAccountsService:
         *,
         dto: AdminSimpleAccountsWorkspacesMembershipsCreate,
     ) -> AdminAccountsResponse:
-        if not is_ee():
-            raise AdminNotImplementedError("workspace_memberships")
         options = dto.options or AdminAccountCreateOptions()
         graph_dto = AdminAccountsCreate(
             options=options,
@@ -1613,8 +1394,6 @@ class PlatformAdminAccountsService:
         *,
         dto: AdminSimpleAccountsProjectsMembershipsCreate,
     ) -> AdminAccountsResponse:
-        if not is_ee():
-            raise AdminNotImplementedError("project_memberships")
         options = dto.options or AdminAccountCreateOptions()
         graph_dto = AdminAccountsCreate(
             options=options,
@@ -1663,6 +1442,97 @@ class PlatformAdminAccountsService:
         )
         return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
+    async def delete_own_account(
+        self,
+        *,
+        user_id: str,
+    ) -> AdminDeleteResponse:
+        """Self-serve account deletion.
+
+        Removes the user from Stripe, the auth provider, the database (together
+        with every organization they own), and the marketing email list. This
+        is gated to EE at the route; OSS keeps its shared singleton org.
+        """
+        uid = _parse_uuid(user_id, "user_id")
+        user = await _db_get_user_by_id(uid)
+        if not user:
+            raise AdminUserNotFoundError(user_id)
+
+        email = str(user.email)
+        owned_orgs = await _db_get_orgs_owned_by_user(uid)
+
+        # Refuse to delete a shared organization out from under its members.
+        if is_ee():
+            shared = [
+                (org.name or str(org.id))
+                for org in owned_orgs
+                if await _ee_count_organization_members(str(org.id)) > 1
+            ]
+            if shared:
+                raise AccountHasMembersError(shared)
+
+        # Stop billing before the org rows disappear. Best effort.
+        if is_ee():
+            for org in owned_orgs:
+                try:
+                    await _ee_subscription_service.cancel_subscription(
+                        organization_id=str(org.id),
+                    )
+                except Exception:  # noqa: BLE001 - never block deletion on billing
+                    log.error(
+                        "[accounts] stripe cancel failed during account deletion",
+                        organization_id=str(org.id),
+                        exc_info=True,
+                    )
+
+        # Remove the auth login first: the signup override is idempotent and
+        # would otherwise recreate the account on the next sign-in.
+        await self._delete_supertokens_user(uid=user.uid, email=email)
+
+        # Reuse the cascade delete (memberships + user + owned orgs).
+        result = await self.delete_user(user_id=user_id)
+
+        # Drop them from the marketing email list. Best effort.
+        if is_ee():
+            try:
+                await _delete_loops_contact(email)
+            except Exception:  # noqa: BLE001 - best effort
+                log.error(
+                    "[accounts] loops contact removal failed during account deletion",
+                    exc_info=True,
+                )
+
+        return result
+
+    async def _delete_supertokens_user(self, *, uid: str | None, email: str) -> None:
+        """Delete the SuperTokens login for a user, linked accounts included.
+
+        Raises AccountAuthDeletionError on failure so the DB user is left intact
+        and the caller can retry, rather than ending up with a database row whose
+        login still works.
+        """
+        from supertokens_python.asyncio import delete_user as _st_delete_user
+
+        try:
+            if uid and uid != "0":
+                await _st_delete_user(
+                    user_id=uid,
+                    remove_all_linked_accounts=True,
+                )
+                return
+
+            st_users = await _st_list_users_by_account_info(
+                tenant_id="public",
+                account_info=_StAccountInfoInput(email=email),
+            )
+            for st_user in st_users:
+                await _st_delete_user(
+                    user_id=st_user.id,
+                    remove_all_linked_accounts=True,
+                )
+        except Exception as exc:  # noqa: BLE001
+            raise AccountAuthDeletionError() from exc
+
     async def delete_user_identity(
         self,
         *,
@@ -1695,16 +1565,6 @@ class PlatformAdminAccountsService:
         if not org:
             raise AdminOrganizationNotFoundError(organization_id)
 
-        # On OSS the deterministic singleton org is structurally required
-        # by the bootstrap path; deleting it leaves any in-flight
-        # workspace/project insert with a dangling FK and breaks
-        # subsequent first-user signups until the row is recreated.
-        # Refuse the delete rather than allow a partial nuke.
-        if not is_ee() and org.slug == OSS_SINGLETON_ORG_SLUG:
-            raise AdminValidationError(
-                "The OSS singleton organization cannot be deleted."
-            )
-
         await _db_delete_organization(oid)
         deleted = AdminDeletedEntities(
             organizations=[AdminDeletedEntity(id=organization_id)]
@@ -1733,16 +1593,6 @@ class PlatformAdminAccountsService:
         ws = await _db_get_workspace_by_id(wid)
         if not ws:
             raise AdminWorkspaceNotFoundError(workspace_id)
-
-        # On OSS the workspace under the singleton org is itself a
-        # singleton; deleting it would orphan in-flight projects and
-        # break the bootstrap. Refuse rather than allow a partial nuke.
-        if not is_ee():
-            org = await _db_get_org_by_id(ws.organization_id)
-            if org and org.slug == OSS_SINGLETON_ORG_SLUG:
-                raise AdminValidationError(
-                    "The OSS singleton workspace cannot be deleted."
-                )
 
         await _db_delete_workspace(wid)
         deleted = AdminDeletedEntities(workspaces=[AdminDeletedEntity(id=workspace_id)])

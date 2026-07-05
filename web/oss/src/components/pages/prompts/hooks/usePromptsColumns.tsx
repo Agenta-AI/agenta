@@ -13,6 +13,7 @@ export interface PromptsColumnActions {
     onDeleteFolder: (folderId: string) => void
     onMoveItem: (item: PromptsTableRow) => void
     onOpenAppOverview: (workflowId: string) => void
+    onRenameApp: (record: PromptsTableRow) => void
     onDeleteApp: (record: PromptsTableRow) => void
 }
 
@@ -106,6 +107,13 @@ export function createPromptsColumns(actions: PromptsColumnActions) {
                     icon: <Note size={16} />,
                     onClick: (record) =>
                         actions.onOpenAppOverview((record as AppTreeNode).workflowId),
+                    hidden: (record) => record.type === "folder",
+                },
+                {
+                    key: "rename_app",
+                    label: "Rename",
+                    icon: <PencilSimple size={16} />,
+                    onClick: (record) => actions.onRenameApp(record),
                     hidden: (record) => record.type === "folder",
                 },
                 {

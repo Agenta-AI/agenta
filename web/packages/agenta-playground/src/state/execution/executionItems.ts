@@ -12,7 +12,6 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {getAgentaApiUrl} from "@agenta/shared/api/env"
 import {generateId} from "@agenta/shared/utils"
 import {atom, type Getter, type Setter} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 
 import {entityIdsAtom} from "../atoms/playground"
 import {messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat/messageAtoms"
@@ -363,8 +362,7 @@ function cancelExecutionItemRun(
 
     if (existing.runId) {
         abortRun(existing.runId)
-        const store = getDefaultStore()
-        const adapter = store.get(executionAdapterAtom)
+        const adapter = get(executionAdapterAtom)
         adapter.cancel?.(existing.runId)
     }
 
@@ -807,7 +805,11 @@ function resolveInvocationUrl(
         }
     }
 
+    // The legacy /test fallback needs a runtime prefix; without one the path
+    // resolves to the web app's origin and returns the 404 HTML page.
     const runtimePrefix = readString(requestPayload?.runtimePrefix) || ""
+    if (!runtimePrefix) return ""
+
     const routePath = readString(requestPayload?.routePath)
     const path = constructPlaygroundTestPath(runtimePrefix, routePath)
 
@@ -1135,19 +1137,25 @@ function buildExecutionItem(
     const rawPayloadRecord = asRecord(requestPayload)
     const isRawBody = !!rawPayloadRecord?.__rawBody
 
-    const invocationUrlWithQuery = appendQueryParams(
-        resolveInvocationUrl(params.invocationUrl, requestPayload, entityData),
-        {
-            // __rawBody payloads (workflow invoke) don't need application_id query param —
-            // the backend resolves the handler from the request body interface/URI.
-            application_id: isRawBody
-                ? undefined
-                : resolveApplicationId(requestPayload, entityData),
-            project_id: params.headers.Authorization
-                ? readString(params.projectId || undefined)
-                : undefined,
-        },
+    const resolvedInvocationUrl = resolveInvocationUrl(
+        params.invocationUrl,
+        requestPayload,
+        entityData,
     )
+    // Keep an empty URL empty so the execution path can report a clear error
+    // instead of POSTing to the web app origin and parsing its 404 HTML page.
+    const invocationUrlWithQuery = resolvedInvocationUrl
+        ? appendQueryParams(resolvedInvocationUrl, {
+              // __rawBody payloads (workflow invoke) don't need application_id query param —
+              // the backend resolves the handler from the request body interface/URI.
+              application_id: isRawBody
+                  ? undefined
+                  : resolveApplicationId(requestPayload, entityData),
+              project_id: params.headers.Authorization
+                  ? readString(params.projectId || undefined)
+                  : undefined,
+          })
+        : ""
     const isAppWorkflow = !!rawPayloadRecord?.__appWorkflow
     const requestBody = isRawBody
         ? (() => {

@@ -98,7 +98,12 @@ const isInputEnvelope = (
 
     const hasEnvelopeSibling = Object.keys(inputs).some((key) => RESERVED_INPUT_KEYS.has(key))
 
-    return messageIsInputSibling || hasEnvelopeSibling
+    // Playground completion traces store messages at data.parameters.prompt.messages —
+    // outside data.inputs entirely. When messages are found outside data.inputs, the
+    // nested data.inputs.inputs is still the variable envelope, so treat it as one.
+    const messagesAreOutsideInputs = !messageLocation.path.startsWith(`${inputsPath}.`)
+
+    return messageIsInputSibling || hasEnvelopeSibling || messagesAreOutsideInputs
 }
 
 const getVariableInputsLocation = (

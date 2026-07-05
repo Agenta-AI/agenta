@@ -103,6 +103,17 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
             groupKeyPrefix: "evaluator-group-",
         })
 
+    // Mark top-level group parent rows so the name cell reads from the workflow
+    // entity (user-entered name) instead of the revision entity (null name).
+    // useGroupedTreeData is generic and doesn't set evaluator-specific flags.
+    const annotatedGroupedDataSource = useMemo(
+        () =>
+            groupedDataSource.map((row) =>
+                row.__isSkeleton ? row : {...row, __isEvaluatorGroup: true as const},
+            ),
+        [groupedDataSource],
+    )
+
     const columns = useMemo(
         () => createEvaluatorColumns(EMPTY_ACTIONS, category, expandState),
         [category, expandState],
@@ -191,7 +202,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                         rowSelection={rowSelection}
                         enableExport={false}
                         autoHeight
-                        dataSource={groupedDataSource}
+                        dataSource={annotatedGroupedDataSource}
                         tableProps={{
                             ...table.shellProps.tableProps,
                             expandable: treeExpandable,

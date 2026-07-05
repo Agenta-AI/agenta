@@ -25,6 +25,8 @@ import {
 } from "../useEntitySelectionCore"
 import {useLevelData, filterItems, buildPathItem, type LevelQueryState} from "../utilities"
 
+import {resolveAutoSelectLatestChild} from "./autoSelectLatestChild"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -161,6 +163,8 @@ export interface UseListPopoverModeResult<TSelection = EntitySelectionResult> {
     // Auto-select state
     /** Parent being auto-selected (for latest selection) */
     autoSelectingParent: {id: string; label: string} | null
+    /** Clear the pending latest-child auto-selection */
+    clearAutoSelectingParent: () => void
 
     // Core
     /** Resolved adapter */
@@ -299,6 +303,9 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
         id: string
         label: string
     } | null>(null)
+    const clearAutoSelectingParent = useCallback(() => {
+        setAutoSelectingParent(null)
+    }, [])
 
     // ========================================================================
     // PARENT DATA
@@ -395,11 +402,16 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
             }
 
             if (selectLatestOnParentClick) {
-                // Trigger auto-select of latest child
+                // Trigger auto-select of latest child and close the popover.
+                // The popover is unneeded because we are auto-selecting — the user
+                // does not need to pick a revision manually from the popover content.
+                // Closing here also prevents the hover-triggered popover from
+                // overlapping adjacent UI (e.g. the testcase table's checkbox column).
                 setAutoSelectingParent({id: parentId, label: parentLabelStr})
+                setOpenPopoverId(null)
             }
         },
-        [parentLevelConfig, disabledParentIds, selectLatestOnParentClick],
+        [parentLevelConfig, disabledParentIds, selectLatestOnParentClick, setOpenPopoverId],
     )
 
     const handleChildSelect = useCallback(
@@ -451,7 +463,8 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
             !autoSelectLatest ||
             hasAutoSelectedLatestRef.current ||
             parentQuery.isPending ||
-            filteredParentItems.length === 0
+            filteredParentItems.length === 0 ||
+            selectedChildId
         ) {
             return
         }
@@ -463,7 +476,13 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
 
         // Trigger auto-selection of this parent's first child
         setAutoSelectingParent({id: parentId, label: parentLabelStr})
-    }, [autoSelectLatest, parentQuery.isPending, filteredParentItems, parentLevelConfig])
+    }, [
+        autoSelectLatest,
+        parentQuery.isPending,
+        filteredParentItems,
+        parentLevelConfig,
+        selectedChildId,
+    ])
 
     // ========================================================================
     // RETURN
@@ -499,6 +518,7 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
 
         // Auto-select
         autoSelectingParent,
+        clearAutoSelectingParent,
 
         // Core
         adapter,
@@ -537,6 +557,7 @@ export interface UseAutoSelectLatestChildOptions<TSelection = EntitySelectionRes
     parentLabel: string
     parentLevelConfig: HierarchyLevel<unknown>
     childLevelConfig: HierarchyLevel<unknown>
+    disabledChildIds?: Set<string>
     createSelection: (path: SelectionPathItem[], entity: unknown) => TSelection
     onSelect?: (selection: TSelection) => void
     onComplete: () => void
@@ -547,6 +568,7 @@ export function useAutoSelectLatestChild<TSelection = EntitySelectionResult>({
     parentLabel,
     parentLevelConfig,
     childLevelConfig,
+    disabledChildIds,
     createSelection,
     onSelect,
     onComplete,
@@ -556,30 +578,47 @@ export function useAutoSelectLatestChild<TSelection = EntitySelectionResult>({
     // Fetch children
     const {items: children, query} = useChildrenData(childLevelConfig, parentId, true)
 
-    // Auto-select first child when loaded
     useEffect(() => {
-        if (hasSelectedRef.current || query.isPending || children.length === 0) {
+        hasSelectedRef.current = false
+    }, [parentId])
+
+    // Auto-select first enabled child when loaded
+    useEffect(() => {
+        if (hasSelectedRef.current) return
+
+        const decision = resolveAutoSelectLatestChild({
+            children,
+            query,
+            getId: childLevelConfig.getId,
+            disabledChildIds,
+        })
+        if (decision.status === "wait") return
+
+        if (decision.status === "select") {
+            hasSelectedRef.current = true
+            const parentPathItem: SelectionPathItem = {
+                type: parentLevelConfig.type,
+                id: parentId,
+                label: parentLabel,
+            }
+
+            const childPathItem = buildPathItem(decision.child, childLevelConfig)
+            const fullPath = [parentPathItem, childPathItem]
+            const selection = createSelection(fullPath, decision.child)
+
+            onSelect?.(selection)
+            onComplete()
             return
         }
 
         hasSelectedRef.current = true
-        const firstChild = children[0]
-
-        const parentPathItem: SelectionPathItem = {
-            type: parentLevelConfig.type,
-            id: parentId,
-            label: parentLabel,
-        }
-
-        const childPathItem = buildPathItem(firstChild, childLevelConfig)
-        const fullPath = [parentPathItem, childPathItem]
-        const selection = createSelection(fullPath, firstChild)
-
-        onSelect?.(selection)
         onComplete()
     }, [
         query.isPending,
+        query.isError,
+        query.isFetched,
         children,
+        disabledChildIds,
         parentId,
         parentLabel,
         parentLevelConfig,

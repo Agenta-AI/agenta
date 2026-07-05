@@ -10,9 +10,9 @@ from sqlalchemy.future import select
 from sqlalchemy import func, text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-from ee.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
-from oss.src.models.db_models import (
-    ProjectDB as ProjectDBE,
+from oss.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
+from oss.src.models.db_models import ProjectDB as ProjectDBE
+from oss.databases.postgres.migrations.core.deprecated_models import (
     AppDB,
     AppVariantDB,
     AppVariantRevisionsDB,

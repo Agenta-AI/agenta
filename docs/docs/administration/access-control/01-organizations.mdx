@@ -23,7 +23,7 @@ Organization
 
 ### Creating an Organization
 
-Organizations are created during signup or from the organization switcher.
+Organizations are created during signup or from the organization switcher. This applies to Agenta Cloud and to self-hosted deployments of both editions; self-hosters can restrict who creates organizations with [`AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`](/self-host/guides/restrict-organization-creation). Role-based access control is enforced in the open source edition; on Cloud and Enterprise it follows the plan (non-RBAC plans grant full access). Domain verification and SSO remain Enterprise features.
 
 ### Switching Organizations
 
@@ -50,7 +50,7 @@ If your organization has multiple projects, use the project switcher in the UI t
 1. Navigate to **Settings** → **Members**
 2. Click **Invite member**
 3. Enter the email address
-4. Choose a role (if RBAC is available in your organization)
+4. Choose a role (role selection is hidden on Cloud and Enterprise plans without RBAC, where all members get full access)
 5. Send the invitation
 
 ### Roles

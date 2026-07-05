@@ -1,52 +1,33 @@
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
-import type {CSSProperties, KeyboardEvent, ReactNode, UIEvent} from "react"
+import {memo, useMemo, useState} from "react"
 
-import {DownOutlined} from "@ant-design/icons"
-import {Button, Typography} from "antd"
-import clsx from "clsx"
+import {Segmented, Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {compareRunIdsAtom, getComparisonColor} from "../../../atoms/compare"
 import {
     runDisplayNameAtomFamily,
-    runStatusAtomFamily,
     runInvocationRefsAtomFamily,
     runTestsetIdsAtomFamily,
+    runTestsetRefsAtomFamily,
 } from "../../../atoms/runDerived"
 import {evaluationRunQueryAtomFamily} from "../../../atoms/table"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../atoms/table/evaluators"
+import {simpleTestsetDetailsAtomFamily} from "../../../atoms/testsetDetails"
 import {evaluationVariantConfigAtomFamily} from "../../../atoms/variantConfig"
-import EvaluationRunTag from "../../EvaluationRunTag"
 
 import EvaluatorSection from "./components/EvaluatorSection"
-import GeneralSection from "./components/GeneralSection"
 import InvocationSection from "./components/InvocationSection"
-import {SectionCard, SectionSkeleton} from "./components/SectionPrimitives"
+import RunSummaryCard from "./components/RunSummaryCard"
+import SectionNavCard from "./components/SectionNavCard"
+import {SectionSkeleton} from "./components/SectionPrimitives"
 import TestsetSection from "./components/TestsetSection"
+import V2SectionShell from "./components/V2SectionShell"
 
 const {Text} = Typography
 
 interface ConfigurationViewProps {
     runId: string
-}
-
-interface ConfigurationRunSummary {
-    runId: string
-    compareIndex: number
-    isBaseRun: boolean
-    accentColor: string
-    runName: string
-    runStatus: string | null
-    runSlug: string | null
-    generalSubtitle?: string
-    testsetSubtitle?: string
-    invocationSubtitle?: string
-    evaluatorSubtitle?: string
-    hasTestsets: boolean
-    hasInvocation: boolean
-    hasEvaluatorSection: boolean
-    isLoading: boolean
 }
 
 const resolveLabel = (...values: unknown[]) => {
@@ -58,506 +39,397 @@ const resolveLabel = (...values: unknown[]) => {
     return undefined
 }
 
-const configurationRunSummaryAtomFamily = atomFamily(
-    ({runId, compareIndex}: {runId: string; compareIndex: number}) =>
-        atom((get) => {
-            const runQuery = get(evaluationRunQueryAtomFamily(runId))
-            const runData = runQuery.data?.camelRun ?? runQuery.data?.rawRun ?? null
-            const runMeta = (runData?.meta ?? {}) as Record<string, unknown>
+interface ConfigurationRunSummary {
+    testsetSubtitle?: string
+    invocationSubtitle?: string
+    testsetCount: number
+    evaluatorCount: number
+    hasTestsets: boolean
+    hasInvocation: boolean
+    hasEvaluatorSection: boolean
+    isLoading: boolean
+}
 
-            const accentColor = getComparisonColor(compareIndex)
-            const isBaseRun = compareIndex === 0
+const configurationRunSummaryAtomFamily = atomFamily((runId: string) =>
+    atom((get) => {
+        const runQuery = get(evaluationRunQueryAtomFamily(runId))
 
-            const runName = get(runDisplayNameAtomFamily(runId)) ?? "—"
-            const runStatus = get(runStatusAtomFamily(runId)) ?? null
-            const runSlug =
-                typeof runData?.slug === "string"
-                    ? runData.slug
-                    : typeof runMeta?.slug === "string"
-                      ? (runMeta.slug as string)
-                      : null
+        const invocationRefs = get(runInvocationRefsAtomFamily(runId))
+        const rawInvocationRefs = invocationRefs.rawRefs ?? {}
+        const testsetIds = get(runTestsetIdsAtomFamily(runId)) ?? []
+        const testsetCount = testsetIds.length
 
-            const invocationRefs = get(runInvocationRefsAtomFamily(runId))
-            const rawInvocationRefs = invocationRefs.rawRefs ?? {}
-            const testsetIds = get(runTestsetIdsAtomFamily(runId)) ?? []
-            const testsetCount = testsetIds.length
+        const variantConfigQuery = get(evaluationVariantConfigAtomFamily(runId))
+        const variantConfig = variantConfigQuery.data
 
-            const variantConfigQuery = get(evaluationVariantConfigAtomFamily(runId))
-            const variantConfig = variantConfigQuery.data
+        const applicationRef =
+            rawInvocationRefs.application ?? rawInvocationRefs.application_ref ?? {}
+        const applicationRevisionRef =
+            rawInvocationRefs.applicationRevision ?? rawInvocationRefs.application_revision ?? {}
+        const applicationVariantRef =
+            rawInvocationRefs.applicationVariant ?? rawInvocationRefs.application_variant ?? {}
 
-            const applicationRef =
-                rawInvocationRefs.application ?? rawInvocationRefs.application_ref ?? {}
-            const applicationRevisionRef =
-                rawInvocationRefs.applicationRevision ??
-                rawInvocationRefs.application_revision ??
-                {}
-            const applicationVariantRef =
-                rawInvocationRefs.applicationVariant ?? rawInvocationRefs.application_variant ?? {}
+        const variantRef =
+            (variantConfig as any)?.variant_ref ??
+            (variantConfig as any)?.variantRef ??
+            applicationVariantRef ??
+            {}
+        const variantApplicationRef =
+            (variantConfig as any)?.application_ref ??
+            (variantConfig as any)?.applicationRef ??
+            applicationRef ??
+            {}
 
-            const variantHeaderLabel = (() => {
-                const variantRef =
-                    (variantConfig as any)?.variant_ref ??
-                    (variantConfig as any)?.variantRef ??
-                    applicationVariantRef ??
-                    {}
-                return (
-                    resolveLabel(
-                        variantRef?.name,
-                        applicationVariantRef?.name,
-                        applicationVariantRef?.variant_name,
-                        variantRef?.slug,
-                        applicationVariantRef?.slug,
-                        applicationRevisionRef?.slug,
-                    ) ?? undefined
-                )
-            })()
+        const applicationHeaderLabel = resolveLabel(
+            variantApplicationRef?.name,
+            applicationRef?.name,
+            // App refs often carry only id/slug; the variant name reads better
+            // in the summary than an opaque slug.
+            variantRef?.name,
+            variantApplicationRef?.slug,
+            applicationRef?.slug,
+        )
 
-            const applicationHeaderLabel = (() => {
-                const variantApplicationRef =
-                    (variantConfig as any)?.application_ref ??
-                    (variantConfig as any)?.applicationRef ??
-                    applicationRef ??
-                    {}
-                return (
-                    resolveLabel(
-                        variantApplicationRef?.name,
-                        applicationRef?.name,
-                        variantApplicationRef?.slug,
-                        applicationRef?.slug,
-                    ) ?? undefined
-                )
-            })()
+        const variantVersionLabel = (() => {
+            const rawVersion =
+                variantRef?.version ??
+                variantRef?.revision ??
+                applicationRevisionRef?.version ??
+                applicationRevisionRef?.revision ??
+                null
+            if (rawVersion === null || rawVersion === undefined) return undefined
+            const text = String(rawVersion).trim()
+            return text ? `v${text}` : undefined
+        })()
 
-            const variantVersionLabel = (() => {
-                const variantRef =
-                    (variantConfig as any)?.variant_ref ??
-                    (variantConfig as any)?.variantRef ??
-                    applicationVariantRef ??
-                    {}
-                const rawVersion =
-                    variantRef?.version ??
-                    variantRef?.revision ??
-                    applicationRevisionRef?.version ??
-                    applicationRevisionRef?.revision ??
-                    null
-                if (rawVersion === null || rawVersion === undefined) return undefined
-                const text = String(rawVersion).trim()
-                return text ? `v${text}` : undefined
-            })()
+        // One-line section summary, e.g. "Hotel Agent (LangGraph, vanilla) · v25"
+        const invocationHeaderSubtitle =
+            [applicationHeaderLabel, variantVersionLabel].filter(Boolean).join(" · ") || undefined
 
-            const invocationHeaderSubtitle = (() => {
+        // One-line summary, e.g. "12 test cases · 5 columns"
+        const testsetHeaderSubtitle = (() => {
+            if (!testsetCount) return undefined
+            if (testsetCount === 1) {
+                const details = get(simpleTestsetDetailsAtomFamily(testsetIds[0]))
+                const simple = details.data
                 const parts: string[] = []
-                if (applicationHeaderLabel) parts.push(applicationHeaderLabel)
-                const variantParts: string[] = []
-                if (variantHeaderLabel) variantParts.push(variantHeaderLabel)
-                if (variantVersionLabel) variantParts.push(variantVersionLabel)
-                if (variantParts.length) parts.push(variantParts.join(" | "))
-                return parts.join(" | ") || undefined
-            })()
-
-            const testsetHeaderSubtitle =
-                testsetCount === 0
-                    ? undefined
-                    : testsetCount === 1
-                      ? "1 linked set"
-                      : `${testsetCount} linked sets`
-
-            const evaluatorsQuery = get(evaluationEvaluatorsByRunQueryAtomFamily(runId))
-            const evaluatorsLoading = evaluatorsQuery.isPending || evaluatorsQuery.isFetching
-            const evaluatorError = evaluatorsQuery.error
-            const evaluatorCount = Array.isArray(evaluatorsQuery.data)
-                ? evaluatorsQuery.data.length
-                : 0
-
-            const evaluatorHeaderSubtitle = (() => {
-                if (evaluatorsLoading) return "Loading..."
-                if (evaluatorError) return "Error"
-                if (evaluatorCount) {
-                    return `${evaluatorCount} ${evaluatorCount === 1 ? "evaluator" : "evaluators"}`
+                if (typeof simple?.testcaseCount === "number" && simple.testcaseCount >= 0) {
+                    parts.push(
+                        `${simple.testcaseCount} test case${simple.testcaseCount === 1 ? "" : "s"}`,
+                    )
                 }
+                if (simple?.columnNames?.length) {
+                    parts.push(
+                        `${simple.columnNames.length} column${simple.columnNames.length === 1 ? "" : "s"}`,
+                    )
+                }
+                if (parts.length) return parts.join(" · ")
                 return undefined
-            })()
+            }
+            return `${testsetCount} linked sets`
+        })()
 
-            const generalHeaderSubtitle = (() => {
-                const label = resolveLabel(
-                    runName !== "—" ? runName : undefined,
-                    runSlug ?? undefined,
-                )
-                return label ?? undefined
-            })()
+        const evaluatorsQuery = get(evaluationEvaluatorsByRunQueryAtomFamily(runId))
+        const evaluatorsLoading = evaluatorsQuery.isPending || evaluatorsQuery.isFetching
+        const evaluatorCount = Array.isArray(evaluatorsQuery.data) ? evaluatorsQuery.data.length : 0
 
-            const isLoading = runQuery.isPending || runQuery.isFetching
+        return {
+            testsetSubtitle: testsetHeaderSubtitle,
+            invocationSubtitle: invocationHeaderSubtitle,
+            testsetCount,
+            evaluatorCount,
+            hasTestsets: testsetCount > 0,
+            hasInvocation: Boolean(rawInvocationRefs && Object.keys(rawInvocationRefs).length),
+            hasEvaluatorSection:
+                evaluatorsLoading || Boolean(evaluatorsQuery.error) || evaluatorCount > 0,
+            // Data-aware: background refetches must not unmount the sections
+            // (that would reset collapse state and tear down JSON editors).
+            isLoading: runQuery.isPending && !runQuery.data,
+        } satisfies ConfigurationRunSummary
+    }),
+)
+
+/* ---------- Compare diffs ---------- */
+
+interface ConfigurationDiff {
+    testset: boolean
+    app: boolean
+    variant: boolean
+    evaluators: Record<string, boolean>
+    /**
+     * The base run has evaluators this run lacks. There is no row to badge
+     * for an absent evaluator, so the section header carries the flag.
+     */
+    evaluatorsMissing: boolean
+}
+
+/** Comparable configuration identifiers for one run. */
+const runComparablesAtomFamily = atomFamily((runId: string) =>
+    atom((get) => {
+        const testsetRefs = get(runTestsetRefsAtomFamily(runId)) ?? []
+        const invocationRefs = get(runInvocationRefsAtomFamily(runId))
+        const raw = invocationRefs.rawRefs ?? {}
+        const applicationRef = raw.application ?? raw.application_ref ?? {}
+        const revisionRef = raw.applicationRevision ?? raw.application_revision ?? {}
+        const evaluatorsQuery = get(evaluationEvaluatorsByRunQueryAtomFamily(runId))
+        const evaluators = Array.isArray(evaluatorsQuery.data) ? evaluatorsQuery.data : []
+
+        const validTestsetRefs = testsetRefs.filter((ref: any) => ref.testsetId != null)
+
+        return {
+            testsetIdsKey: validTestsetRefs
+                .map((ref: any) => String(ref.testsetId))
+                .sort()
+                .join("|"),
+            testsetRevisions: Object.fromEntries(
+                validTestsetRefs.map((ref: any) => [ref.testsetId, ref.revisionId ?? null]),
+            ) as Record<string, string | null>,
+            appId: applicationRef?.id ?? null,
+            variantRevisionId: revisionRef?.id ?? null,
+            variantVersion: revisionRef?.version ?? revisionRef?.revision ?? null,
+            evaluatorVersions: Object.fromEntries(
+                evaluators.map((evaluator: any) => [
+                    evaluator.slug ?? evaluator.id,
+                    evaluator.version ?? null,
+                ]),
+            ) as Record<string, unknown>,
+        }
+    }),
+)
+
+/**
+ * Configuration diff vs the base run. Only configuration identity counts
+ * (test set, variant version, evaluator versions) — never general fields.
+ */
+const configurationDiffAtomFamily = atomFamily(
+    ({runId, baseRunId}: {runId: string; baseRunId: string}) =>
+        atom((get): ConfigurationDiff => {
+            const current = get(runComparablesAtomFamily(runId))
+            const base = get(runComparablesAtomFamily(baseRunId))
+
+            const evaluators: Record<string, boolean> = {}
+            for (const [slug, version] of Object.entries(current.evaluatorVersions)) {
+                evaluators[slug] =
+                    !(slug in base.evaluatorVersions) || base.evaluatorVersions[slug] !== version
+            }
+
+            const evaluatorsMissing = Object.keys(base.evaluatorVersions).some(
+                (slug) => !(slug in current.evaluatorVersions),
+            )
+
+            // Revisions only count when both runs carry one for the same test
+            // set — legacy runs without testset_revision refs must not flag.
+            const testsetRevisionDiffers = Object.entries(current.testsetRevisions).some(
+                ([testsetId, revisionId]) => {
+                    const baseRevisionId = base.testsetRevisions[testsetId]
+                    return Boolean(revisionId && baseRevisionId && revisionId !== baseRevisionId)
+                },
+            )
 
             return {
-                runId,
-                compareIndex,
-                isBaseRun,
-                accentColor,
-                runName,
-                runStatus,
-                runSlug,
-                generalSubtitle: generalHeaderSubtitle,
-                testsetSubtitle: testsetHeaderSubtitle,
-                invocationSubtitle: invocationHeaderSubtitle,
-                evaluatorSubtitle: evaluatorHeaderSubtitle,
-                hasTestsets: testsetCount > 0,
-                hasInvocation: Boolean(rawInvocationRefs && Object.keys(rawInvocationRefs).length),
-                hasEvaluatorSection:
-                    evaluatorsLoading || Boolean(evaluatorError) || evaluatorCount > 0,
-                isLoading,
-            } satisfies ConfigurationRunSummary
+                testset: current.testsetIdsKey !== base.testsetIdsKey || testsetRevisionDiffers,
+                app: current.appId !== base.appId,
+                variant:
+                    current.variantRevisionId !== base.variantRevisionId ||
+                    current.variantVersion !== base.variantVersion,
+                evaluators,
+                evaluatorsMissing,
+            }
         }),
+    (a, b) => a.runId === b.runId && a.baseRunId === b.baseRunId,
 )
 
-const useScrollSync = () => {
-    const containersRef = useRef(new Map<string, HTMLDivElement>())
-    const isSyncingRef = useRef(false)
+/* ---------- Sections stack (shared by single + compare columns) ---------- */
 
-    const register = useCallback((key: string, node: HTMLDivElement | null) => {
-        const map = containersRef.current
-        if (!node) {
-            map.delete(key)
-            return
-        }
-        map.set(key, node)
-    }, [])
-
-    const syncScroll = useCallback((key: string, scrollLeft: number) => {
-        if (isSyncingRef.current) return
-        const map = containersRef.current
-        if (map.size <= 1) return
-        isSyncingRef.current = true
-        map.forEach((container, containerKey) => {
-            if (!container || containerKey === key) return
-            if (container.scrollLeft !== scrollLeft) {
-                container.scrollLeft = scrollLeft
-            }
-        })
-        requestAnimationFrame(() => {
-            isSyncingRef.current = false
-        })
-    }, [])
-
-    return {register, syncScroll}
-}
-
-interface SectionDefinition {
-    key: string
-    title: string
-    alwaysVisible?: boolean
-    hasData: (summary: ConfigurationRunSummary) => boolean
-    getSubtitle?: (summary?: ConfigurationRunSummary) => string | undefined
-    render: (runId: string, context?: {compareIndex: number}) => ReactNode
-    fallbackMessage?: string
-}
-
-const sectionDefinitions: SectionDefinition[] = [
-    {
-        key: "general",
-        title: "General",
-        alwaysVisible: true,
-        hasData: () => true,
-        render: (runId, context) => <GeneralSection runId={runId} showActions showHeader={false} />,
-    },
-    {
-        key: "testsets",
-        title: "Test sets",
-        hasData: (summary) => summary.hasTestsets,
-        getSubtitle: (summary) => summary?.testsetSubtitle,
-        render: (runId) => <TestsetSection runId={runId} />,
-        fallbackMessage: "No linked test sets.",
-    },
-    {
-        key: "invocation",
-        title: "Application",
-        hasData: (summary) => summary.hasInvocation,
-        getSubtitle: (summary) => summary?.invocationSubtitle,
-        render: (runId) => <InvocationSection runId={runId} />,
-        fallbackMessage: "Application metadata unavailable.",
-    },
-    {
-        key: "evaluators",
-        title: "Evaluators",
-        hasData: (summary) => summary.hasEvaluatorSection,
-        getSubtitle: (summary) => summary?.evaluatorSubtitle,
-        render: (runId) => <EvaluatorSection runId={runId} />,
-        fallbackMessage: "No evaluator reference found for this run.",
-    },
-]
-
-const ConfigurationSectionColumn = memo(
+const V2SectionStack = memo(
     ({
         runId,
-        compareIndex,
-        section,
+        diff,
+        defaultOpenFirstEvaluator = false,
+        anchorSuffix = "",
+        showEmptySections = false,
     }: {
         runId: string
-        compareIndex: number
-        section: SectionDefinition
+        diff: ConfigurationDiff | null
+        defaultOpenFirstEvaluator?: boolean
+        anchorSuffix?: string
+        /** Compare mode: keep empty sections visible so absences read as differences. */
+        showEmptySections?: boolean
     }) => {
-        const summaryAtom = useMemo(
-            () => configurationRunSummaryAtomFamily({runId, compareIndex}),
-            [runId, compareIndex],
-        )
+        const summaryAtom = useMemo(() => configurationRunSummaryAtomFamily(runId), [runId])
         const summary = useAtomValue(summaryAtom)
 
-        const columnHasData = section.hasData(summary)
+        const variantConfigAtom = useMemo(() => evaluationVariantConfigAtomFamily(runId), [runId])
+        const variantConfigQuery = useAtomValue(variantConfigAtom)
+        const appHasSchema = Boolean(variantConfigQuery.data?.url)
+        const appHasConfig = Boolean(variantConfigQuery.data)
+        const [appView, setAppView] = useState<"details" | "json">("details")
 
-        let content: ReactNode = null
         if (summary.isLoading) {
-            content = <SectionSkeleton />
-        } else if (columnHasData || section.alwaysVisible) {
-            content = section.render(runId, {compareIndex})
-        } else if (section.fallbackMessage) {
-            content = <Text className="text-neutral-500">{section.fallbackMessage}</Text>
-        }
-
-        const accentColor =
-            !summary.isBaseRun && summary.accentColor !== "transparent"
-                ? summary.accentColor
-                : undefined
-
-        if (section.key === "evaluators" || section.key === "testsets") {
             return (
-                <div className="flex flex-col gap-6" style={{borderColor: accentColor}}>
-                    {content}
-                </div>
+                <>
+                    <SectionSkeleton lines={3} />
+                    <SectionSkeleton lines={4} />
+                </>
             )
         }
 
-        if (section.key === "invocation") {
-            return (
-                <div className="flex flex-col gap-6" style={{borderColor: accentColor}}>
-                    {content}
-                </div>
-            )
-        }
-
-        const card = (
-            <SectionCard
-                className="h-full"
-                style={accentColor ? {borderColor: accentColor} : undefined}
-            >
-                {content}
-            </SectionCard>
-        )
-
-        return card
-    },
-)
-
-const EvaluationRunTagsRow = memo(
-    ({
-        runIds,
-        registerScrollContainer,
-        syncScroll,
-    }: {
-        runIds: string[]
-        registerScrollContainer: (key: string, node: HTMLDivElement | null) => void
-        syncScroll: (key: string, scrollLeft: number) => void
-    }) => {
-        const columnClass =
-            runIds.length > 1 ? "auto-cols-[minmax(480px,1fr)]" : "auto-cols-[minmax(320px,1fr)]"
-        const refKey = "section-evaluations"
-        const handleRef = useCallback(
-            (node: HTMLDivElement | null) => registerScrollContainer(refKey, node),
-            [refKey, registerScrollContainer],
-        )
-        const handleScroll = useCallback(
-            (event: UIEvent<HTMLDivElement>) => syncScroll(refKey, event.currentTarget.scrollLeft),
-            [refKey, syncScroll],
-        )
-
         return (
-            <SectionCard className="!p-0 sticky top-0 z-20">
-                <div
-                    ref={handleRef}
-                    onScroll={handleScroll}
-                    className={`grid grid-flow-col ${columnClass} overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
-                >
-                    {runIds.map((runId, index) => (
-                        <EvaluationRunTagItem
-                            key={`evaluation-tag-${runId}`}
-                            runId={runId}
-                            index={index}
-                        />
-                    ))}
-                </div>
-            </SectionCard>
-        )
-    },
-)
+            <>
+                {summary.hasTestsets || showEmptySections ? (
+                    <V2SectionShell
+                        id={`config-section-testsets${anchorSuffix}`}
+                        title="Test set"
+                        count={summary.testsetCount > 1 ? summary.testsetCount : null}
+                        summary={summary.testsetSubtitle}
+                    >
+                        {summary.hasTestsets ? (
+                            <TestsetSection
+                                runId={runId}
+                                embedded
+                                differs={Boolean(diff?.testset)}
+                            />
+                        ) : (
+                            <Text type="secondary">No linked test sets.</Text>
+                        )}
+                    </V2SectionShell>
+                ) : null}
 
-const EvaluationRunTagItem = memo(({runId, index}: {runId: string; index: number}) => {
-    const runDisplayNameAtom = useMemo(() => runDisplayNameAtomFamily(runId), [runId])
-    const runDisplayName = useAtomValue(runDisplayNameAtom)
-    const summaryAtom = useMemo(
-        () => configurationRunSummaryAtomFamily({runId, compareIndex: index}),
-        [runId, index],
-    )
-    const summary = useAtomValue(summaryAtom)
-    const label = resolveLabel(
-        runDisplayName,
-        summary.runName !== "—" ? summary.runName : undefined,
-        summary.runSlug ?? undefined,
-        summary.runId,
-    )
-
-    return (
-        <div className="py-2 px-4 border-[0.5px] border-solid border-[var(--ag-c-EAEFF5)]">
-            {summary.isLoading ? (
-                <div className="h-6 w-full rounded-md bg-[var(--ag-c-F2F4F7)]" />
-            ) : (
-                <EvaluationRunTag
-                    label={label ?? "Evaluation"}
-                    compareIndex={index}
-                    isBaseRun={summary.isBaseRun}
-                />
-            )}
-        </div>
-    )
-})
-
-const ConfigurationSectionRow = memo(
-    ({
-        section,
-        runIds,
-        runIdsSignature,
-        registerScrollContainer,
-        syncScroll,
-    }: {
-        section: SectionDefinition
-        runIds: string[]
-        runIdsSignature: string
-        registerScrollContainer: (key: string, node: HTMLDivElement | null) => void
-        syncScroll: (key: string, scrollLeft: number) => void
-    }) => {
-        const [collapsed, setCollapsed] = useState(false)
-        useEffect(() => {
-            setCollapsed(false)
-        }, [runIdsSignature, section.key])
-
-        const sectionVisibleAtom = useMemo(
-            () =>
-                atom((get) => {
-                    if (section.alwaysVisible) {
-                        return true
-                    }
-                    return runIds.some((runId, index) => {
-                        const summary = get(
-                            configurationRunSummaryAtomFamily({runId, compareIndex: index}),
-                        )
-                        return summary.isLoading || section.hasData(summary)
-                    })
-                }),
-            [runIds, runIdsSignature, section],
-        )
-        const sectionVisible = useAtomValue(sectionVisibleAtom)
-
-        const refKey = `section-${section.key}`
-        const handleRef = useCallback(
-            (node: HTMLDivElement | null) => registerScrollContainer(refKey, node),
-            [refKey, registerScrollContainer],
-        )
-        const handleScroll = useCallback(
-            (event: UIEvent<HTMLDivElement>) => syncScroll(refKey, event.currentTarget.scrollLeft),
-            [refKey, syncScroll],
-        )
-
-        if (!sectionVisible) {
-            return null
-        }
-
-        const columnClass =
-            runIds.length > 1 ? "auto-cols-[minmax(480px,1fr)]" : "auto-cols-[minmax(320px,1fr)]"
-        const grid = (
-            <div
-                ref={handleRef}
-                onScroll={handleScroll}
-                className={`grid grid-flow-col ${columnClass} overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
-            >
-                {runIds.map((runId, index) => (
-                    <ConfigurationSectionColumn
-                        key={`${section.key}-${runId}`}
-                        runId={runId}
-                        compareIndex={index}
-                        section={section}
-                    />
-                ))}
-            </div>
-        )
-
-        return (
-            <div className="flex flex-col">
-                <div
-                    className={clsx(
-                        "flex items-center justify-between",
-                        "py-1 px-3 h-10",
-                        "sticky top-0",
-                        "bg-zinc-1 z-10",
-                        "cursor-pointer",
-                    )}
-                    style={{
-                        top: "40px",
-                        borderBottom: "1px solid var(--ag-c-EAEFF5)",
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setCollapsed((value) => !value)}
-                    onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault()
-                            setCollapsed((value) => !value)
+                {summary.hasInvocation || showEmptySections ? (
+                    <V2SectionShell
+                        id={`config-section-invocation${anchorSuffix}`}
+                        title="Application"
+                        summary={summary.invocationSubtitle}
+                        headerRight={
+                            summary.hasInvocation && appHasConfig && appHasSchema ? (
+                                <Segmented
+                                    options={[
+                                        {label: "Details", value: "details"},
+                                        {label: "JSON", value: "json"},
+                                    ]}
+                                    size="small"
+                                    value={appView}
+                                    onChange={(value) => setAppView(value as "details" | "json")}
+                                />
+                            ) : null
                         }
-                    }}
-                >
-                    <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">
-                        {section.title}
-                    </Text>
+                    >
+                        {summary.hasInvocation ? (
+                            <InvocationSection
+                                runId={runId}
+                                embedded
+                                view={appView}
+                                diff={diff ? {app: diff.app, variant: diff.variant} : null}
+                            />
+                        ) : (
+                            <Text type="secondary">Application metadata unavailable.</Text>
+                        )}
+                    </V2SectionShell>
+                ) : null}
 
-                    <Button
-                        type="link"
-                        size="small"
-                        icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
-                        onClick={(event) => {
-                            event.stopPropagation()
-                            setCollapsed((value) => !value)
-                        }}
+                {summary.hasEvaluatorSection || showEmptySections ? (
+                    <V2SectionShell
+                        id={`config-section-evaluators${anchorSuffix}`}
+                        title="Evaluators"
+                        count={summary.evaluatorCount > 0 ? summary.evaluatorCount : null}
+                        differs={Boolean(diff?.evaluatorsMissing)}
+                        flush={summary.hasEvaluatorSection}
+                    >
+                        {summary.hasEvaluatorSection ? (
+                            <EvaluatorSection
+                                runId={runId}
+                                embedded
+                                diffSlugs={diff?.evaluators ?? null}
+                                defaultOpenFirst={defaultOpenFirstEvaluator}
+                            />
+                        ) : (
+                            <Text type="secondary">No evaluator reference found for this run.</Text>
+                        )}
+                    </V2SectionShell>
+                ) : null}
+            </>
+        )
+    },
+)
+
+/* ---------- Single-run layout: sticky rail + sections ---------- */
+
+const V2Single = memo(({runId}: {runId: string}) => (
+    <div className="grid grid-cols-1 items-start gap-4 @[860px]:grid-cols-[264px_minmax(0,1fr)]">
+        <div className="flex flex-col gap-3 @[860px]:sticky @[860px]:top-4">
+            <RunSummaryCard runId={runId} />
+            <div className="hidden @[860px]:block">
+                {/* Suffix keeps anchor ids unique when two run views are mounted (split view) */}
+                <SectionNavCard runId={runId} anchorSuffix={`-${runId}`} />
+            </div>
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+            {/* key: collapse/view state must not leak between runs */}
+            <V2SectionStack
+                key={runId}
+                runId={runId}
+                diff={null}
+                anchorSuffix={`-${runId}`}
+                defaultOpenFirstEvaluator
+            />
+        </div>
+    </div>
+))
+
+/* ---------- Compare layout: one column per run ---------- */
+
+const V2CompareColumn = memo(
+    ({runId, baseRunId, index}: {runId: string; baseRunId: string; index: number}) => {
+        const runName = useAtomValue(useMemo(() => runDisplayNameAtomFamily(runId), [runId]))
+        const diffAtom = useMemo(
+            () => configurationDiffAtomFamily({runId, baseRunId}),
+            [runId, baseRunId],
+        )
+        const diff = useAtomValue(diffAtom)
+        const isBase = index === 0
+        const comparisonColor = getComparisonColor(index)
+        const swatchColor = isBase
+            ? "#1c2c3d"
+            : comparisonColor !== "transparent"
+              ? comparisonColor
+              : "#2f54eb"
+
+        return (
+            // Own @container so DefRow's label-width breakpoint tracks the
+            // column width, not the whole tab.
+            <div className="@container flex min-w-0 flex-col gap-4">
+                {/* Sticky so the run identity stays visible while scrolling long columns */}
+                <div className="sticky top-0 z-10 flex items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2">
+                    <span
+                        className="h-2 w-2 shrink-0 rounded-[2px]"
+                        style={{backgroundColor: swatchColor}}
                     />
+                    <Text className="min-w-0 truncate text-[13px] font-medium">
+                        {runName ?? runId}
+                    </Text>
                 </div>
-                {!collapsed ? grid : null}
+                <RunSummaryCard runId={runId} />
+                <V2SectionStack
+                    key={runId}
+                    runId={runId}
+                    diff={isBase ? null : diff}
+                    anchorSuffix={`-${runId}`}
+                    showEmptySections
+                />
             </div>
         )
     },
 )
 
-const ConfigurationLayout = memo(({runIds}: {runIds: string[]}) => {
-    const runIdsSignature = useMemo(() => runIds.join("|"), [runIds])
-    const {register, syncScroll} = useScrollSync()
+const V2Compare = memo(({runIds}: {runIds: string[]}) => (
+    <div className="grid grid-cols-1 gap-4 @[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        {runIds.map((runId, index) => (
+            <V2CompareColumn key={runId} runId={runId} baseRunId={runIds[0]} index={index} />
+        ))}
+    </div>
+))
 
-    return (
-        <div
-            className="flex flex-col pb-6"
-            style={{"--config-header-offset": "40px"} as CSSProperties}
-        >
-            <EvaluationRunTagsRow
-                runIds={runIds}
-                registerScrollContainer={register}
-                syncScroll={syncScroll}
-            />
-            {sectionDefinitions.map((section) => (
-                <ConfigurationSectionRow
-                    key={section.key}
-                    section={section}
-                    runIds={runIds}
-                    runIdsSignature={runIdsSignature}
-                    registerScrollContainer={register}
-                    syncScroll={syncScroll}
-                />
-            ))}
-        </div>
-    )
-})
+/* ---------- Entry ---------- */
 
 const ConfigurationView = ({runId}: ConfigurationViewProps) => {
     const compareRunIds = useAtomValue(compareRunIdsAtom)
@@ -581,8 +453,10 @@ const ConfigurationView = ({runId}: ConfigurationViewProps) => {
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col px-2 bg-zinc-1 overflow-y-auto">
-            <ConfigurationLayout runIds={runIds} />
+        <div className="h-full min-h-0 overflow-y-auto bg-zinc-1 @container">
+            <div className="p-4 pb-6">
+                {runIds.length > 1 ? <V2Compare runIds={runIds} /> : <V2Single runId={runId} />}
+            </div>
         </div>
     )
 }
