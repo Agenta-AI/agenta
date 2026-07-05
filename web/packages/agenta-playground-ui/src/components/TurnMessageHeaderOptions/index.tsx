@@ -1,5 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
 import {
     ArrowClockwise,
@@ -12,7 +13,7 @@ import {
     Paperclip,
 } from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Dropdown, Tooltip} from "antd"
+import {Dropdown, Tooltip} from "antd"
 import clsx from "clsx"
 
 import CollapseToggleButton from "../shared/CollapseToggleButton"
@@ -198,23 +199,21 @@ const TurnMessageHeaderOptions = ({
                 {onViewAllRepeats && (
                     <Tooltip title="Expand results">
                         <Button
-                            icon={<ArrowsOutLineHorizontal size={12} />}
-                            size="small"
-                            type="text"
                             onClick={onViewAllRepeats}
                             disabled={!resultHashes || resultHashes.length === 0}
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<ArrowsOutLineHorizontal size={12} />}
+                        </Button>
                     </Tooltip>
                 )}
 
                 {onRerun ? (
                     <Tooltip title="Re-run">
-                        <Button
-                            icon={<ArrowClockwise size={14} />}
-                            type="text"
-                            onClick={onRerun}
-                            disabled={disabled}
-                        />
+                        <Button onClick={onRerun} disabled={disabled} variant="ghost" size="icon">
+                            {<ArrowClockwise size={14} />}
+                        </Button>
                     </Tooltip>
                 ) : null}
 
@@ -241,30 +240,27 @@ const TurnMessageHeaderOptions = ({
                         <span className="inline-flex">
                             <Tooltip title="Add attachment">
                                 <Button
-                                    icon={<Paperclip size={14} />}
-                                    type="text"
                                     disabled={attachmentButtonDisabled}
-                                />
+                                    variant="ghost"
+                                    size="icon"
+                                >
+                                    {<Paperclip size={14} />}
+                                </Button>
                             </Tooltip>
                         </span>
                     </Dropdown>
                 ) : null}
 
                 <Tooltip title={isCopied ? "Copied" : "Copy"}>
-                    <Button
-                        icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
-                        type="text"
-                        onClick={onCopyText}
-                    />
+                    <Button onClick={onCopyText} variant="ghost" size="icon">
+                        {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                    </Button>
                 </Tooltip>
 
                 <Tooltip title="Remove">
-                    <Button
-                        icon={<MinusCircle size={14} />}
-                        type="text"
-                        onClick={onDelete}
-                        disabled={!onDelete}
-                    />
+                    <Button onClick={onDelete} disabled={!onDelete} variant="ghost" size="icon">
+                        {<MinusCircle size={14} />}
+                    </Button>
                 </Tooltip>
 
                 <CollapseToggleButton collapsed={isCollapsed} onToggle={handleToggleCollapse} />

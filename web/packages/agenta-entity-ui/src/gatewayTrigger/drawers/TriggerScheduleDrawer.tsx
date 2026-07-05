@@ -25,6 +25,7 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
 import {appWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
@@ -33,7 +34,7 @@ import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Editor} from "@agenta/ui/editor"
 import {CalendarBlank, ChatText, Clock, GitBranch, Play, Tag} from "@phosphor-icons/react"
-import {Button, DatePicker, Form, Input, Popover, Spin, Tooltip} from "antd"
+import {DatePicker, Form, Input, Popover, Spin, Tooltip} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {DrawerFooter} from "../../drawers/shared/DrawerFooter"
@@ -939,7 +940,8 @@ function RunInPlaygroundButton({
         return (
             <Tooltip title="Create the schedule first to run it">
                 <span>
-                    <Button icon={<Play size={14} />} disabled>
+                    <Button disabled variant="outline">
+                        {<Play size={14} />}
                         Run in playground
                     </Button>
                 </span>
@@ -957,7 +959,8 @@ function RunInPlaygroundButton({
                 </pre>
             }
         >
-            <Button icon={<Play size={14} />} onClick={handleRun}>
+            <Button onClick={handleRun} variant="outline">
+                {<Play size={14} />}
                 Run in playground
             </Button>
         </Popover>

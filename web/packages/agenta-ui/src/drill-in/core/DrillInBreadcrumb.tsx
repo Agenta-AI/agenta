@@ -7,8 +7,9 @@
 
 import {memo, type ReactNode, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowLeft, CaretRight, DotsThree} from "@phosphor-icons/react"
-import {Button, Dropdown} from "antd"
+import {Dropdown} from "antd"
 
 export interface DrillInBreadcrumbProps {
     /** Current navigation path */
@@ -118,12 +119,13 @@ export const DrillInBreadcrumb = memo(
                 <div className="flex items-center gap-1 flex-nowrap min-w-0">
                     {showBackArrow && currentPath.length > 0 && (
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<ArrowLeft size={14} />}
                             onClick={onNavigateBack}
                             className="!px-2 flex-shrink-0"
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<ArrowLeft size={14} />}
+                        </Button>
                     )}
                     {renderRoot ? (
                         renderRoot()

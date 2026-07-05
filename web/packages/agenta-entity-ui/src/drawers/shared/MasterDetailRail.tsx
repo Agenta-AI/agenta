@@ -1,7 +1,8 @@
 import type {ReactNode} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Plus, X} from "@phosphor-icons/react"
-import {Button, Spin} from "antd"
+import {Spin} from "antd"
 
 // Draft list ids are prefixed so they're distinguishable from real entity ids.
 export const DRAFT_PREFIX = "draft:"
@@ -145,7 +146,8 @@ export function MasterDetailRail({
     return (
         <div className="flex w-[240px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
             <div className="shrink-0 px-3 pb-2 pt-3">
-                <Button block icon={<Plus size={14} />} onClick={onNew} disabled={!canCreate}>
+                <Button onClick={onNew} disabled={!canCreate} variant="outline" className="w-full">
+                    {<Plus size={14} />}
                     {newLabel}
                 </Button>
             </div>

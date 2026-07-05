@@ -22,8 +22,9 @@
  */
 import {type ReactNode} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Segmented, Tag} from "antd"
+import {Segmented, Tag} from "antd"
 
 export type ConfigItemView = "form" | "json"
 
@@ -147,8 +148,10 @@ export function ConfigItemDrawer({
                         {footerNote}
                     </span>
                     <div className="flex shrink-0 items-center gap-2">
-                        <Button onClick={onCancel}>Cancel</Button>
-                        <Button type="primary" onClick={onSave} disabled={disabled || saveDisabled}>
+                        <Button onClick={onCancel} variant="outline">
+                            Cancel
+                        </Button>
+                        <Button onClick={onSave} disabled={disabled || saveDisabled}>
                             {mode === "create" ? "Create" : "Save"}
                         </Button>
                     </div>

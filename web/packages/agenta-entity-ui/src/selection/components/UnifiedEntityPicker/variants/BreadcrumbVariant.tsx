@@ -9,6 +9,7 @@
 
 import React, {useCallback, useId, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {
     EntityBreadcrumb,
     EntityListItem,
@@ -17,7 +18,7 @@ import {
 } from "@agenta/ui/components/selection"
 import {LoadAllButton, LoadMoreButton} from "@agenta/ui/components/selection"
 import {cn} from "@agenta/ui/styles"
-import {Button, Empty, Spin} from "antd"
+import {Empty, Spin} from "antd"
 import {ArrowLeft} from "lucide-react"
 
 import {useBreadcrumbMode} from "../../../hooks"
@@ -218,12 +219,13 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                     <div className="min-w-0 flex-1 flex items-center gap-2">
                         {showBackButton && !isAtRoot && (
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<ArrowLeft size={16} />}
                                 onClick={navigateUp}
                                 disabled={disabled}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<ArrowLeft size={16} />}
+                            </Button>
                         )}
                         <div className="min-w-0 flex-1">
                             <EntityBreadcrumb

@@ -13,17 +13,17 @@
  * ```
  */
 
-import {forwardRef} from "react"
+import {forwardRef, type ComponentPropsWithoutRef} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Plus} from "@phosphor-icons/react"
-import {Button, type ButtonProps} from "antd"
 import clsx from "clsx"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-export interface AddButtonProps extends ButtonProps {
+export interface AddButtonProps extends ComponentPropsWithoutRef<typeof Button> {
     label?: string
 }
 
@@ -36,12 +36,11 @@ const AddButton = forwardRef<HTMLButtonElement, AddButtonProps>(
         return (
             <Button
                 ref={ref}
-                variant="outlined"
-                color="default"
-                icon={<Plus size={14} />}
+                variant="outline"
                 className={clsx(["self-start"], className)}
                 {...props}
             >
+                <Plus size={14} />
                 {label}
             </Button>
         )

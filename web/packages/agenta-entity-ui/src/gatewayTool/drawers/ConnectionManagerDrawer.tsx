@@ -9,12 +9,14 @@ import {
     useToolConnectionQuery,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
 import {dayjs} from "@agenta/shared/utils"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowClockwise, Play, Trash, XCircle} from "@phosphor-icons/react"
-import {Button, Descriptions, Divider, Spin} from "antd"
+import {Descriptions, Divider, Spin} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import ConnectionStatusBadge from "../components/ConnectionStatusBadge"
@@ -244,33 +246,38 @@ export default function ConnectionManagerDrawer() {
                         <span className="text-sm font-semibold">Actions</span>
                         <div className="flex flex-col gap-2">
                             <Button
-                                icon={<Play size={14} />}
                                 onClick={onTest}
                                 disabled={!isActive || !isValid}
+                                variant="outline"
                             >
+                                {<Play size={14} />}
                                 Test Connection
                             </Button>
                             <Button
-                                icon={<ArrowClockwise size={14} />}
-                                loading={actionLoading === "refresh"}
                                 onClick={onRefresh}
+                                variant="outline"
+                                disabled={actionLoading === "refresh"}
                             >
+                                {actionLoading === "refresh" ? <Spinner /> : null}
+                                {<ArrowClockwise size={14} />}
                                 Refresh Connection
                             </Button>
                             <Button
-                                icon={<XCircle size={14} />}
-                                loading={actionLoading === "revoke"}
                                 onClick={onRevoke}
-                                disabled={!isValid}
+                                disabled={!isValid || actionLoading === "revoke"}
+                                variant="outline"
                             >
+                                {actionLoading === "revoke" ? <Spinner /> : null}
+                                {<XCircle size={14} />}
                                 Revoke Connection
                             </Button>
                             <Button
-                                danger
-                                icon={<Trash size={14} />}
-                                loading={actionLoading === "delete"}
                                 onClick={onDelete}
+                                variant="destructive"
+                                disabled={actionLoading === "delete"}
                             >
+                                {actionLoading === "delete" ? <Spinner /> : null}
+                                {<Trash size={14} />}
                                 Delete Connection
                             </Button>
                         </div>

@@ -1,8 +1,8 @@
 import {useEffect, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {ArrowUp, Stop} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 import {$isBlankMessage, submitEditorAsMarkdown} from "../assets/submit"
 
@@ -58,18 +58,20 @@ export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}
                     }}
                 />
                 <Button
-                    type="text"
-                    shape="circle"
                     aria-label="Stop"
-                    icon={
+                    onClick={onStop}
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full"
+                >
+                    {
                         <Stop
                             size={13}
                             weight="fill"
                             className="text-[var(--ag-colorTextSecondary)]"
                         />
                     }
-                    onClick={onStop}
-                />
+                </Button>
             </span>
         )
     }
@@ -77,19 +79,22 @@ export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}
     const sendDisabled = disabled || (empty && !forceEnabled)
     return (
         <Button
-            type="primary"
-            shape="circle"
             aria-label="Send"
-            icon={<ArrowUp size={16} weight="bold" />}
             disabled={sendDisabled}
             onClick={handleClick}
             // The primary send action: filled accent when there's something to send, a clearly-inert
             // grey fill when empty (never a faint outlined ghost).
-            className={
+            className={[
                 sendDisabled
                     ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
-                    : "!border-[var(--ag-surface-accent)] !bg-[var(--ag-surface-accent)] !text-[#191a0d] hover:!border-[#b8cb3f] hover:!bg-[#b8cb3f]"
-            }
-        />
+                    : "!border-[var(--ag-surface-accent)] !bg-[var(--ag-surface-accent)] !text-[#191a0d] hover:!border-[#b8cb3f] hover:!bg-[#b8cb3f]",
+                "rounded-full",
+            ]
+                .filter(Boolean)
+                .join(" ")}
+            size="icon"
+        >
+            {<ArrowUp size={16} weight="bold" />}
+        </Button>
     )
 }

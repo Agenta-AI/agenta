@@ -36,6 +36,7 @@ import {
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
@@ -52,7 +53,7 @@ import {
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip} from "antd"
+import {Dropdown, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -172,11 +173,13 @@ function SubscriptionChildRow({
                     menu={{items: menuItems}}
                 >
                     <Button
-                        type="text"
-                        icon={<MoreOutlined />}
                         aria-label="Open trigger actions"
                         onClick={(e) => e.stopPropagation()}
-                    />
+                        variant="ghost"
+                        size="icon"
+                    >
+                        {<MoreOutlined />}
+                    </Button>
                 </Dropdown>
             </div>
         </div>
@@ -259,12 +262,14 @@ function SubscriptionRunPopover({
             trigger={
                 <Tooltip title="Run in playground">
                     <Button
-                        type="text"
-                        icon={<Flask size={16} />}
                         aria-label="Run in playground"
                         disabled={disabled}
                         onClick={(e) => e.stopPropagation()}
-                    />
+                        variant="ghost"
+                        size="icon"
+                    >
+                        {<Flask size={16} />}
+                    </Button>
                 </Tooltip>
             }
             recentEvents={recent}
@@ -443,15 +448,17 @@ function TriggerRow({
             >
                 <Tooltip title="Run in playground">
                     <Button
-                        type="text"
-                        icon={<Flask size={16} />}
                         aria-label="Run in playground"
                         disabled={runDisabled}
                         onClick={(e) => {
                             e.stopPropagation()
                             onRun()
                         }}
-                    />
+                        variant="ghost"
+                        size="icon"
+                    >
+                        {<Flask size={16} />}
+                    </Button>
                 </Tooltip>
                 <Dropdown
                     trigger={["click"]}
@@ -459,11 +466,13 @@ function TriggerRow({
                     menu={{items: menuItems}}
                 >
                     <Button
-                        type="text"
-                        icon={<MoreOutlined />}
                         aria-label="Open trigger actions"
                         onClick={(e) => e.stopPropagation()}
-                    />
+                        variant="ghost"
+                        size="icon"
+                    >
+                        {<MoreOutlined />}
+                    </Button>
                 </Dropdown>
             </div>
         </div>
@@ -935,11 +944,13 @@ export function AddTriggerDropdown({
                 trigger ?? (
                     <Tooltip title="Add trigger">
                         <Button
-                            type="text"
-                            icon={<Plus size={16} />}
                             aria-label="Add trigger"
                             onClick={(e) => e.stopPropagation()}
-                        />
+                            variant="ghost"
+                            size="icon"
+                        >
+                            {<Plus size={16} />}
+                        </Button>
                     </Tooltip>
                 )
             }

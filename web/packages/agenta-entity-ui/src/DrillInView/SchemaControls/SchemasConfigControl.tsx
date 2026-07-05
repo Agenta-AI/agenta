@@ -2,11 +2,12 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CopySimple} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 
 const SCHEMA_FIELDS = ["parameters", "inputs", "outputs"] as const
@@ -61,12 +62,13 @@ const SchemaEditor = memo(function SchemaEditor({
             <div className="flex items-center gap-1 shrink-0">
                 <Tooltip title="Copy">
                     <Button
-                        icon={<CopySimple size={14} />}
-                        type="text"
-                        size="small"
                         className="invisible group-hover/schema:visible"
                         onClick={() => navigator.clipboard.writeText(text)}
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<CopySimple size={14} />}
+                    </Button>
                 </Tooltip>
                 <CollapseToggleButton
                     collapsed={minimized}

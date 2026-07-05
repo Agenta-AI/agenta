@@ -16,9 +16,10 @@
  */
 import {useCallback, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowsIn, ArrowsOut, FileText, Lightbulb} from "@phosphor-icons/react"
-import {Button, Segmented, Tooltip} from "antd"
+import {Segmented, Tooltip} from "antd"
 
 import {MarkdownEditor} from "./MarkdownEditor"
 
@@ -115,8 +116,10 @@ export function InstructionsDrawer({
                         Draft — applies on save
                     </span>
                     <div className="flex shrink-0 items-center gap-2">
-                        <Button onClick={onCancel}>Cancel</Button>
-                        <Button type="primary" onClick={onSave} disabled={disabled}>
+                        <Button onClick={onCancel} variant="outline">
+                            Cancel
+                        </Button>
+                        <Button onClick={onSave} disabled={disabled}>
                             Save
                         </Button>
                     </div>

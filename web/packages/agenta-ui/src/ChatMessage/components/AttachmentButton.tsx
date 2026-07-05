@@ -1,7 +1,8 @@
 import React, {useCallback, useRef} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {FileArchive, Image as ImageIcon, Paperclip} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps} from "antd"
+import {Dropdown, MenuProps} from "antd"
 
 import {cn, flexLayouts, gapClasses, textColors} from "../../utils/styles"
 
@@ -95,12 +96,13 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
             />
             <Dropdown menu={{items: menuItems}} trigger={["click"]} disabled={disabled}>
                 <Button
-                    type="text"
-                    size="small"
-                    icon={<Paperclip size={14} />}
                     className={cn(textColors.icon, textColors.iconHover)}
                     title="Add attachment"
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<Paperclip size={14} />}
+                </Button>
             </Dropdown>
         </>
     )

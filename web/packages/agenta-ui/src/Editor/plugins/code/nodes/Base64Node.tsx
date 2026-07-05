@@ -6,8 +6,9 @@
  */
 import React, {useCallback, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {FileArchive, FilePdf, FileText, Image as ImageIcon} from "@phosphor-icons/react"
-import {Popover, Button, message} from "antd"
+import {Popover, message} from "antd"
 import {
     DecoratorNode,
     EditorConfig,
@@ -172,7 +173,7 @@ function Base64Component({
         <div className="max-w-[400px]">
             <div className="flex items-center justify-between gap-4 mb-3">
                 <span className="font-semibold">{fileTypeLabel}</span>
-                <Button size="small" onClick={handleCopy}>
+                <Button onClick={handleCopy} variant="outline" size="sm">
                     {copied ? "Copied!" : "Copy"}
                 </Button>
             </div>

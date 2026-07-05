@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {copyToClipboard} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ViewModeDropdown} from "@agenta/ui/drill-in"
@@ -13,7 +15,7 @@ import {
     CornersIn,
     CornersOut,
 } from "@phosphor-icons/react"
-import {Alert, Button, Dropdown, Skeleton, Space, Tooltip} from "antd"
+import {Alert, Dropdown, Skeleton, Space, Tooltip} from "antd"
 
 import type {RootDrawerViewMode} from "./codeFormat"
 
@@ -227,46 +229,44 @@ function TestcaseDrawer<TData = unknown>({
         () => (
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-1">
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<CaretDoubleRight size={14} />}
-                        onClick={handleCancel}
-                    />
+                    <Button onClick={handleCancel} variant="ghost" size="icon-sm">
+                        {<CaretDoubleRight size={14} />}
+                    </Button>
                     {showExpandButton && (
                         <Tooltip
                             title={isDrawerExpanded ? "Restore drawer width" : "Expand drawer"}
                         >
                             <Button
-                                type="text"
-                                size="small"
-                                icon={
-                                    isDrawerExpanded ? (
-                                        <CornersIn size={14} />
-                                    ) : (
-                                        <CornersOut size={14} />
-                                    )
-                                }
                                 onClick={() => setIsDrawerExpanded((value) => !value)}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {isDrawerExpanded ? (
+                                    <CornersIn size={14} />
+                                ) : (
+                                    <CornersOut size={14} />
+                                )}
+                            </Button>
                         </Tooltip>
                     )}
                     {(onPrevious || onNext) && (
                         <div className="flex items-center">
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<CaretUp size={14} />}
                                 disabled={!hasPrevious}
                                 onClick={onPrevious}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<CaretUp size={14} />}
+                            </Button>
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<CaretDown size={14} />}
                                 disabled={!hasNext}
                                 onClick={onNext}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<CaretDown size={14} />}
+                            </Button>
                         </div>
                     )}
                     <span className="font-medium text-sm">
@@ -279,12 +279,9 @@ function TestcaseDrawer<TData = unknown>({
                     )}
                     {testcaseId && !isNewRow && (
                         <Tooltip title={isIdCopied ? "Copied!" : "Copy ID"}>
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<Copy size={14} />}
-                                onClick={handleCopyId}
-                            />
+                            <Button onClick={handleCopyId} variant="ghost" size="icon-sm">
+                                {<Copy size={14} />}
+                            </Button>
                         </Tooltip>
                     )}
                 </div>
@@ -294,24 +291,24 @@ function TestcaseDrawer<TData = unknown>({
                             {rootViewMode === "form" && (
                                 <Tooltip title="Collapse all">
                                     <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<ArrowsInLineVertical size={14} />}
                                         onClick={handleCollapseAll}
                                         aria-label="Collapse all fields"
-                                    />
+                                        variant="ghost"
+                                        size="icon-sm"
+                                    >
+                                        {<ArrowsInLineVertical size={14} />}
+                                    </Button>
                                 </Tooltip>
                             )}
                             <Tooltip title={isPayloadCopied ? "Copied" : "Copy testcase"}>
                                 <Button
-                                    type="text"
-                                    size="small"
-                                    icon={
-                                        isPayloadCopied ? <Check size={14} /> : <Copy size={14} />
-                                    }
                                     onClick={handleCopyPayload}
                                     aria-label="Copy testcase payload"
-                                />
+                                    variant="ghost"
+                                    size="icon-sm"
+                                >
+                                    {isPayloadCopied ? <Check size={14} /> : <Copy size={14} />}
+                                </Button>
                             </Tooltip>
                             <ViewModeDropdown<RootDrawerViewMode>
                                 value={rootViewMode}
@@ -367,14 +364,15 @@ function TestcaseDrawer<TData = unknown>({
             footer={
                 skipDeferredFlow ? null : (
                     <div className="w-full flex items-center justify-end gap-3">
-                        <Button onClick={handleCancel}>Cancel</Button>
+                        <Button onClick={handleCancel} variant="outline">
+                            Cancel
+                        </Button>
                         <Space.Compact>
                             <Button
-                                type="primary"
                                 onClick={handleApply}
-                                disabled={!hasSessionDirty}
-                                loading={isSavingTestset}
+                                disabled={!hasSessionDirty || isSavingTestset}
                             >
+                                {isSavingTestset ? <Spinner /> : null}
                                 Apply and Continue Editing
                             </Button>
                             <Dropdown
@@ -405,12 +403,13 @@ function TestcaseDrawer<TData = unknown>({
                                 }}
                             >
                                 <Button
-                                    type="primary"
-                                    icon={<CaretUp size={14} />}
                                     disabled={
                                         !hasSessionDirty || (!onOpenCommitModal && !onSaveTestset)
                                     }
-                                />
+                                    size="icon"
+                                >
+                                    {<CaretUp size={14} />}
+                                </Button>
                             </Dropdown>
                         </Space.Compact>
                     </div>

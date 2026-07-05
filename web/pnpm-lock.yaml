@@ -729,6 +729,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/primitive-ui':
+        specifier: workspace:../agenta-primitive-ui
+        version: link:../agenta-primitive-ui
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
@@ -938,6 +941,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/primitive-ui':
+        specifier: workspace:../agenta-primitive-ui
+        version: link:../agenta-primitive-ui
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
@@ -1138,6 +1144,9 @@ importers:
       '@agenta/playground':
         specifier: workspace:../agenta-playground
         version: link:../agenta-playground
+      '@agenta/primitive-ui':
+        specifier: workspace:../agenta-primitive-ui
+        version: link:../agenta-primitive-ui
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared

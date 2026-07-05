@@ -10,6 +10,7 @@ import {
 } from "@agenta/entities/simpleQueue"
 import type {SimpleQueueKind} from "@agenta/entities/simpleQueue"
 import {useEntityDelete} from "@agenta/entity-ui"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {copyToClipboard} from "@agenta/ui"
 import {
     InfiniteVirtualTableFeatureShell,
@@ -18,7 +19,7 @@ import {
     FiltersPopoverTrigger,
 } from "@agenta/ui/table"
 import {ArrowRight, Copy, PlusIcon, Trash} from "@phosphor-icons/react"
-import {Button, Divider, Input, Select, Tag} from "antd"
+import {Divider, Input, Select, Tag} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -101,10 +102,20 @@ function AnnotationQueuesEmptyState({onCreate}: {onCreate: () => void}) {
                         annotation progress visible in one place.
                     </span>
                     <div className="flex gap-2 mt-5">
-                        <Button type="primary" icon={<PlusIcon size={16} />} onClick={onCreate}>
+                        <Button onClick={onCreate}>
+                            {<PlusIcon size={16} />}
                             New Queue
                         </Button>
-                        <Button href={ANNOTATION_QUEUES_DOCS_URL} target="_blank" rel="noreferrer">
+                        <Button
+                            variant="outline"
+                            render={
+                                <a
+                                    href={ANNOTATION_QUEUES_DOCS_URL}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                />
+                            }
+                        >
                             <span className="flex items-center gap-2">
                                 Learn More
                                 <ArrowRight size={16} />
@@ -135,7 +146,9 @@ function AnnotationQueuesSearchEmptyState({
                         No annotation queues matched "{searchTerm}". Try a different name or clear
                         the search.
                     </p>
-                    <Button onClick={onClearSearch}>Clear search</Button>
+                    <Button onClick={onClearSearch} variant="outline">
+                        Clear search
+                    </Button>
                 </div>
             </div>
         </div>
@@ -181,10 +194,10 @@ const QueuesFiltersContent = ({onClose}: {onClose: () => void}) => {
             </div>
             <Divider className="!my-0" />
             <div className="flex justify-end gap-2">
-                <Button type="link" onClick={handleReset}>
+                <Button onClick={handleReset} variant="link">
                     Reset
                 </Button>
-                <Button type="primary" onClick={handleApply} disabled={!hasPendingChanges}>
+                <Button onClick={handleApply} disabled={!hasPendingChanges}>
                     Apply
                 </Button>
             </div>
@@ -455,7 +468,8 @@ const AnnotationQueuesView = ({
 
     const createButton = useMemo(
         () => (
-            <Button type="primary" icon={<PlusIcon size={14} />} onClick={openCreateQueueDrawer}>
+            <Button onClick={openCreateQueueDrawer}>
+                {<PlusIcon size={14} />}
                 New Queue
             </Button>
         ),

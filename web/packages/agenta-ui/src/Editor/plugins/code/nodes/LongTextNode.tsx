@@ -6,9 +6,10 @@
  */
 import React, {type KeyboardEvent, useCallback, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {TextAlignLeft, ArrowSquareOut} from "@phosphor-icons/react"
-import {Popover, Button, message} from "antd"
+import {Popover, message} from "antd"
 import {
     DecoratorNode,
     EditorConfig,
@@ -235,20 +236,16 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button size="small" onClick={handleCopy}>
+                    <Button onClick={handleCopy} variant="outline" size="sm">
                         {copied ? "Copied!" : "Copy"}
                     </Button>
                     {drillInEnabled ? (
-                        <Button
-                            size="small"
-                            type="primary"
-                            icon={<ArrowSquareOut size={14} />}
-                            onClick={handleAction}
-                        >
+                        <Button onClick={handleAction} size="sm">
+                            {<ArrowSquareOut size={14} />}
                             Drill In
                         </Button>
                     ) : (
-                        <Button size="small" type="primary" onClick={handleAction}>
+                        <Button onClick={handleAction} size="sm">
                             {actionLabel}
                         </Button>
                     )}

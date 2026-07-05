@@ -16,9 +16,10 @@
 import {memo, useMemo, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 
 // Forward declaration - actual component imported to avoid circular deps
@@ -262,9 +263,9 @@ export const CollapsibleObjectControl = memo(function CollapsibleObjectControl({
                 open={withTooltip && tooltipText ? undefined : false}
             >
                 <Button
-                    type="text"
                     className="flex items-center gap-1.5 px-0 h-auto"
                     onClick={() => setIsCollapsed(!isCollapsed)}
+                    variant="ghost"
                 >
                     <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
                         {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}

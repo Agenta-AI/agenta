@@ -11,9 +11,11 @@ import {memo, useCallback, useMemo} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {SessionView} from "@agenta/annotation"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {Check, Plus} from "@phosphor-icons/react"
-import {Button, Skeleton} from "antd"
+import {Skeleton} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
@@ -79,15 +81,17 @@ const AllCaughtUp = memo(function AllCaughtUp({
 
             <div className="flex items-center gap-2">
                 <Button
-                    size="small"
-                    icon={<Plus size={14} />}
                     onClick={handleAddToTestset}
-                    loading={isAddToTestsetExporting}
+                    variant="outline"
+                    size="sm"
+                    disabled={isAddToTestsetExporting}
                 >
+                    {isAddToTestsetExporting ? <Spinner /> : null}
+                    {<Plus size={14} />}
                     Add to Testset
                 </Button>
 
-                <Button size="small" onClick={handleGoToObservability}>
+                <Button onClick={handleGoToObservability} variant="outline" size="sm">
                     Go to observability
                 </Button>
             </div>

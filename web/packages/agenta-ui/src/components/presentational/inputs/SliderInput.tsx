@@ -20,8 +20,9 @@
 
 import {memo, useCallback, useEffect, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {XCircle} from "@phosphor-icons/react"
-import {Button, InputNumber, Slider} from "antd"
+import {InputNumber, Slider} from "antd"
 
 import {cn, flexLayouts, gapClasses} from "../../../utils/styles"
 
@@ -108,12 +109,13 @@ export const SliderInput = memo(function SliderInput({
 
                 {allowClear && localValue !== null && (
                     <Button
-                        icon={<XCircle size={14} />}
-                        type="text"
-                        size="small"
                         onClick={() => handleValueChange(null)}
                         disabled={disabled}
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<XCircle size={14} />}
+                    </Button>
                 )}
             </div>
 

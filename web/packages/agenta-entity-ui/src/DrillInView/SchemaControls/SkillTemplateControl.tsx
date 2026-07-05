@@ -17,10 +17,11 @@
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {isPlainObject, safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {MinusCircle} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip} from "antd"
+import {Tag, Tooltip} from "antd"
 import clsx from "clsx"
 
 export interface SkillTemplateControlProps {
@@ -164,12 +165,13 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
             {!disabled && onDelete && (
                 <Tooltip title="Remove">
                     <Button
-                        icon={<MinusCircle size={14} />}
-                        type="text"
-                        size="small"
                         onClick={onDelete}
                         className="invisible group-hover/skill:visible shrink-0"
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<MinusCircle size={14} />}
+                    </Button>
                 </Tooltip>
             )}
         </div>

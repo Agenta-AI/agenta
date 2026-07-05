@@ -14,10 +14,11 @@ import {annotationSessionController} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
 import {resolveOutputSchema, resolveParameters, workflowMolecule} from "@agenta/entities/workflow"
 import {EntityDeleteModal} from "@agenta/entity-ui"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Editor} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowSquareOut, CaretDown} from "@phosphor-icons/react"
-import {Button, Form, Input, Segmented, Skeleton, Tag} from "antd"
+import {Form, Input, Segmented, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
@@ -61,9 +62,14 @@ function CollapsibleSection({
             >
                 <span className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</span>
                 <Button
-                    type="text"
-                    size="small"
-                    icon={
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        toggle()
+                    }}
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {
                         <CaretDown
                             size={12}
                             style={{
@@ -72,11 +78,7 @@ function CollapsibleSection({
                             }}
                         />
                     }
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        toggle()
-                    }}
-                />
+                </Button>
             </div>
             {!collapsed && <div>{children}</div>}
         </div>
@@ -362,10 +364,8 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                             onChange={(val) => setView(val as "details" | "json")}
                         />
                     )}
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={
+                    <Button onClick={() => setCollapsed((v) => !v)} variant="ghost" size="icon-sm">
+                        {
                             <CaretDown
                                 size={12}
                                 style={{
@@ -374,8 +374,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                 }}
                             />
                         }
-                        onClick={() => setCollapsed((v) => !v)}
-                    />
+                    </Button>
                 </div>
             </div>
 
@@ -612,8 +611,10 @@ const GeneralSection = memo(function GeneralSection({queueId}: {queueId: string}
 
                 {hasLocalChanges && (
                     <div className="flex justify-end gap-2 pt-3">
-                        <Button onClick={handleReset}>Reset</Button>
-                        <Button type="primary" onClick={handleSave} disabled={!editName.trim()}>
+                        <Button onClick={handleReset} variant="outline">
+                            Reset
+                        </Button>
+                        <Button onClick={handleSave} disabled={!editName.trim()}>
                             Save
                         </Button>
                     </div>
@@ -669,7 +670,7 @@ const DeleteSection = memo(function DeleteSection({
                         </span>
                     </div>
 
-                    <Button danger onClick={handleDeleteClick}>
+                    <Button onClick={handleDeleteClick} variant="destructive">
                         Delete queue
                     </Button>
                 </div>

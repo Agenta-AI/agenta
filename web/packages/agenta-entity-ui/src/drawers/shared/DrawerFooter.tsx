@@ -1,6 +1,8 @@
 import type {ReactNode} from "react"
 
-import {Button, Divider, Switch} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Divider, Switch} from "antd"
 
 /**
  * Shared footer for entity config drawers (triggers: schedule + subscription; tools: integration
@@ -49,14 +51,12 @@ export function DrawerFooter({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button onClick={onCancel}>Cancel</Button>
+                    <Button onClick={onCancel} variant="outline">
+                        Cancel
+                    </Button>
                     {run}
-                    <Button
-                        type="primary"
-                        loading={isMutating}
-                        disabled={!canSave}
-                        onClick={onSubmit}
-                    >
+                    <Button disabled={!canSave || isMutating} onClick={onSubmit}>
+                        {isMutating ? <Spinner /> : null}
                         {submitLabel}
                     </Button>
                 </div>

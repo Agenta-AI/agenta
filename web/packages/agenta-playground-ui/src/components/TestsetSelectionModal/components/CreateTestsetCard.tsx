@@ -1,6 +1,7 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {InboxOutlined} from "@ant-design/icons"
 import {Table} from "@phosphor-icons/react"
-import {Button, Upload} from "antd"
+import {Upload} from "antd"
 
 export interface CreateTestsetCardProps {
     /** Called when a file is uploaded (CSV/JSON) */
@@ -35,13 +36,8 @@ export function CreateTestsetCard({onFileUpload, onBuildInUI}: CreateTestsetCard
                 <span className="h-px flex-1 bg-gray-200" />
             </div>
 
-            <Button
-                type="primary"
-                block
-                disabled={!onBuildInUI}
-                icon={<Table size={16} weight="regular" />}
-                onClick={onBuildInUI}
-            >
+            <Button disabled={!onBuildInUI} onClick={onBuildInUI} className="w-full">
+                {<Table size={16} weight="regular" />}
                 Build in UI
             </Button>
         </div>

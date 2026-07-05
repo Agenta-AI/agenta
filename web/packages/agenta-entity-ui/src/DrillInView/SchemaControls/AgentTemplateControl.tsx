@@ -30,6 +30,7 @@ import {
     classifyAgentChanges,
     stableStringify,
 } from "@agenta/entities/workflow/commitDiff"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {ConfigAccordionSection, sectionIndicatorColor} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -44,7 +45,7 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Tabs, Tooltip} from "antd"
+import {Tabs, Tooltip} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue, useStore} from "jotai"
 
@@ -450,7 +451,9 @@ export function AgentTemplateControl({
     // Compact "+" for a section header's `extra` slot (stops propagation, so it never toggles open).
     const headerAddButton = (label: string, onClick: () => void) => (
         <Tooltip title={label}>
-            <Button type="text" icon={<Plus size={16} />} onClick={onClick} aria-label={label} />
+            <Button onClick={onClick} aria-label={label} variant="ghost" size="icon">
+                {<Plus size={16} />}
+            </Button>
         </Tooltip>
     )
 
@@ -480,11 +483,13 @@ export function AgentTemplateControl({
                 <Tooltip title="Multiple instruction files coming soon">
                     <span>
                         <Button
-                            type="text"
-                            icon={<Plus size={16} />}
                             disabled
                             aria-label="Add instruction file"
-                        />
+                            variant="ghost"
+                            size="icon"
+                        >
+                            {<Plus size={16} />}
+                        </Button>
                     </span>
                 </Tooltip>
             ) : undefined,
@@ -512,11 +517,13 @@ export function AgentTemplateControl({
                     trigger={
                         <Tooltip title="Add tool">
                             <Button
-                                type="text"
-                                icon={<Plus size={16} />}
                                 disabled={disabled}
                                 aria-label="Add tool"
-                            />
+                                variant="ghost"
+                                size="icon"
+                            >
+                                {<Plus size={16} />}
+                            </Button>
                         </Tooltip>
                     }
                 />

@@ -7,9 +7,10 @@
  */
 import {useCallback, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {cn} from "@agenta/ui/styles"
 import {UploadSimple} from "@phosphor-icons/react"
-import {Button, Spin} from "antd"
+import {Spin} from "antd"
 
 import {parseSkillFromDataTransfer, parseSkillFromFileList, type ParsedSkill} from "./skillUpload"
 
@@ -71,7 +72,11 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
                 Drag a skill folder, <span className="font-mono">.zip</span>, or{" "}
                 <span className="font-mono">.skill</span> here
             </div>
-            <Button onClick={() => inputRef.current?.click()} disabled={disabled || busy}>
+            <Button
+                onClick={() => inputRef.current?.click()}
+                disabled={disabled || busy}
+                variant="outline"
+            >
                 Browse files
             </Button>
             {error ? (

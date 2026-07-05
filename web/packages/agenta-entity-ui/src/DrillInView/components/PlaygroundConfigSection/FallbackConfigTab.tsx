@@ -1,9 +1,10 @@
 import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {CaretRight, X} from "@phosphor-icons/react"
-import {Button, Select, Tooltip} from "antd"
+import {Select, Tooltip} from "antd"
 
 interface PolicyOption {
     label: string
@@ -103,12 +104,12 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                         >
                             <span className="min-w-0 flex-1">
                                 <Button
-                                    size="small"
-                                    type="default"
                                     disabled={!isModelSelectionEnabled}
                                     className="flex w-full min-w-0 items-center justify-between overflow-hidden"
                                     onClick={() => onEditFallbackModel(index)}
                                     title={(config.model as string) || "Select model"}
+                                    variant="outline"
+                                    size="sm"
                                 >
                                     <span className="min-w-0 flex-1 truncate text-left">
                                         {(config.model as string) || "Select model"}
@@ -118,23 +119,25 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                             </span>
                         </Tooltip>
                         <Button
-                            size="small"
-                            type="text"
-                            icon={<X size={14} />}
                             onClick={() => onRemoveFallbackModel(index)}
                             disabled={!isModelSelectionEnabled}
                             className="shrink-0"
                             aria-label="Remove fallback model"
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<X size={14} />}
+                        </Button>
                     </div>
                 ))}
                 <Tooltip title={!isModelSelectionEnabled ? policyRequiredMessage : undefined}>
                     <span>
                         <Button
-                            size="small"
                             onClick={onAddFallbackModel}
                             disabled={!isModelSelectionEnabled}
-                            block
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
                         >
                             + Add model
                         </Button>

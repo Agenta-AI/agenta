@@ -1,9 +1,10 @@
 import {useEffect, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {useLazyEffect} from "@agenta/shared/hooks"
 import {extractTextFromContent} from "@agenta/shared/utils"
 import {MinusOutlined, PlusOutlined, PictureOutlined} from "@ant-design/icons"
-import {Button, Input, Select, Space, Tooltip} from "antd"
+import {Input, Select, Space, Tooltip} from "antd"
 import cloneDeep from "lodash/cloneDeep"
 import {v4 as uuidv4} from "uuid"
 
@@ -329,22 +330,26 @@ const ChatInputs: React.FC<ChatInputsProps> = ({
                             {messages.length > 1 && !disableRemove && (
                                 <Tooltip title="Remove">
                                     <Button
-                                        shape="circle"
-                                        size="small"
-                                        icon={<MinusOutlined />}
                                         onClick={() => handleDelete(ix)}
-                                    />
+                                        variant="outline"
+                                        size="icon-sm"
+                                        className="rounded-full"
+                                    >
+                                        {<MinusOutlined />}
+                                    </Button>
                                 </Tooltip>
                             )}
                             {!readonly && msg.role === CHAT_ROLES.User && (
                                 <Tooltip title="Add image">
                                     <Button
-                                        shape="circle"
-                                        size="small"
-                                        icon={<PictureOutlined />}
                                         onClick={() => insertEmptyImagePart(ix)}
                                         disabled={imageParts.length >= 5}
-                                    />
+                                        variant="outline"
+                                        size="icon-sm"
+                                        className="rounded-full"
+                                    >
+                                        {<PictureOutlined />}
+                                    </Button>
                                 </Tooltip>
                             )}
                         </div>
@@ -365,8 +370,9 @@ const ChatInputs: React.FC<ChatInputsProps> = ({
                                     >
                                         <span>Image {imgIdx + 1}</span>
                                         <Button
-                                            size="small"
                                             onClick={() => handleRemoveImage(ix, imgIdx)}
+                                            variant="outline"
+                                            size="sm"
                                         >
                                             Remove
                                         </Button>
@@ -381,11 +387,13 @@ const ChatInputs: React.FC<ChatInputsProps> = ({
                 {!disableAdd && (
                     <Tooltip title="Add input">
                         <Button
-                            shape="circle"
-                            icon={<PlusOutlined />}
                             onClick={handleAdd}
-                            size="small"
-                        />
+                            variant="outline"
+                            size="icon-sm"
+                            className="rounded-full"
+                        >
+                            {<PlusOutlined />}
+                        </Button>
                     </Tooltip>
                 )}
             </Space>

@@ -16,8 +16,9 @@
 
 import {memo, useCallback, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Check, Copy} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 
 import {copyToClipboard} from "../../../utils/copyToClipboard"
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../../utils/styles"
@@ -60,12 +61,13 @@ const FieldHeader = ({value = ""}: FieldHeaderProps) => {
         <div className={cn(flexLayouts.rowCenter, justifyClasses.end, gapClasses.xs, "w-full")}>
             <Tooltip title={isCopied ? "Copied" : "Copy"}>
                 <Button
-                    type="text"
-                    size="small"
-                    icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
                     onClick={onCopyText}
                     className={cn(flexLayouts.rowCenter, justifyClasses.center)}
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                </Button>
             </Tooltip>
         </div>
     )

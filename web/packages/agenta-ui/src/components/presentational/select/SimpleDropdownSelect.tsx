@@ -24,8 +24,9 @@
 
 import {useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CaretUpDown} from "@phosphor-icons/react"
-import {Button, Dropdown} from "antd"
+import {Dropdown} from "antd"
 import type {MenuProps} from "antd"
 
 import {bgColors, cn, flexLayouts} from "../../../utils/styles"
@@ -122,7 +123,7 @@ export function SimpleDropdownSelect({
                     bgColors.hoverState,
                     className,
                 )}
-                type="text"
+                variant="ghost"
             >
                 {value || placeholder} <CaretUpDown size={14} />
             </Button>

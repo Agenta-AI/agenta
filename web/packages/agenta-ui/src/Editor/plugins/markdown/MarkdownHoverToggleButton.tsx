@@ -1,8 +1,9 @@
 import {memo, useCallback} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -31,12 +32,9 @@ const MarkdownHoverToggleButton = ({id}: MarkdownHoverToggleButtonProps) => {
             style={{top: 8, right: 36}}
         >
             <Tooltip title={markdownView ? "Preview text" : "Preview markdown"}>
-                <Button
-                    type="text"
-                    size="small"
-                    icon={markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
-                    onClick={onToggleMarkdown}
-                />
+                <Button onClick={onToggleMarkdown} variant="ghost" size="icon-sm">
+                    {markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
+                </Button>
             </Tooltip>
         </div>
     )

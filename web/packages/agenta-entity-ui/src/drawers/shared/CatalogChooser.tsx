@@ -11,9 +11,10 @@
  */
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ScrollSentinel} from "@agenta/ui"
 import {ArrowClockwise, ArrowLeft, Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
-import {Button, Input, Spin, Tooltip} from "antd"
+import {Input, Spin, Tooltip} from "antd"
 
 import {AppCard, AppLogo} from "./CatalogAppCard"
 
@@ -467,9 +468,7 @@ function ConnectInvite<I, T, C>({
                     {description}
                 </div>
             )}
-            <Button type="primary" onClick={onConnect}>
-                Connect {name ?? "app"}
-            </Button>
+            <Button onClick={onConnect}>Connect {name ?? "app"}</Button>
         </div>
     )
 }

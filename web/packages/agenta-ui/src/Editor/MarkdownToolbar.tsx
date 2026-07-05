@@ -13,6 +13,7 @@
  */
 import {type ReactNode, useCallback, useEffect, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from "@lexical/link"
 import {INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, ListNode} from "@lexical/list"
@@ -34,7 +35,7 @@ import {
     INSERT_TABLE_COMMAND,
 } from "@lexical/table"
 import {$getNearestNodeOfType} from "@lexical/utils"
-import {Button, Dropdown, Input, type MenuProps, Popover} from "antd"
+import {Dropdown, Input, type MenuProps, Popover} from "antd"
 import {
     $createParagraphNode,
     $getSelection,
@@ -387,19 +388,14 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                         />
                         <div className="flex items-center justify-between gap-2">
                             {active.link ? (
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    danger
-                                    icon={<Unlink size={13} />}
-                                    onClick={removeLink}
-                                >
+                                <Button onClick={removeLink} variant="destructive" size="sm">
+                                    {<Unlink size={13} />}
                                     Remove
                                 </Button>
                             ) : (
                                 <span />
                             )}
-                            <Button type="primary" size="small" onClick={applyLink}>
+                            <Button onClick={applyLink} size="sm">
                                 {active.link ? "Update" : "Add link"}
                             </Button>
                         </div>

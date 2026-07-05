@@ -8,6 +8,7 @@
 import {useState, useEffect, useRef} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {
     formatCount,
     generateSlugWithExistingSuffix,
@@ -21,7 +22,7 @@ import {VersionBadge} from "@agenta/ui/components/presentational"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
-import {Input, Alert, Radio, Button, Tag} from "antd"
+import {Input, Alert, Radio, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
@@ -305,12 +306,13 @@ export function EntityCommitContent({
                                 }
                                 suffix={
                                     <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<ArrowClockwise size={14} />}
                                         onClick={handleRegenerate}
                                         title="Regenerate random suffix"
-                                    />
+                                        variant="ghost"
+                                        size="icon-sm"
+                                    >
+                                        {<ArrowClockwise size={14} />}
+                                    </Button>
                                 }
                             />
                             {(slugFieldError || slugValidationError) && (
@@ -336,10 +338,10 @@ export function EntityCommitContent({
                                 {entitySlug}
                             </Tag>
                             <Button
-                                type="link"
-                                size="small"
                                 className="shrink-0"
                                 onClick={handleEditClick}
+                                variant="link"
+                                size="sm"
                             >
                                 Edit
                             </Button>

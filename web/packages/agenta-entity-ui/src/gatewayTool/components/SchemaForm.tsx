@@ -1,9 +1,10 @@
 import {forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, InputNumber, Switch, Select} from "antd"
+import {Collapse, Form, Input, InputNumber, Switch, Select} from "antd"
 import type {FormInstance} from "antd"
 
 export interface SchemaFormHandle {
@@ -422,23 +423,25 @@ function ArrayField({
                                         )}
                                     </Form.Item>
                                     <Button
-                                        type="text"
                                         aria-label="Remove item"
-                                        icon={<MinusCircle size={16} />}
                                         onClick={() => remove(name)}
                                         className="mt-0.5 opacity-50 hover:opacity-100"
-                                    />
+                                        variant="ghost"
+                                        size="icon"
+                                    >
+                                        {<MinusCircle size={16} />}
+                                    </Button>
                                 </div>
                             ),
                         )}
 
                         <Button
-                            type="dashed"
                             onClick={() => add(hasObjectItems ? {} : undefined)}
-                            icon={<Plus size={14} />}
-                            size="small"
-                            className="self-start"
+                            className="self-start border-dashed"
+                            variant="outline"
+                            size="sm"
                         >
+                            {<Plus size={14} />}
                             Add {field.label}
                         </Button>
                     </div>
@@ -481,16 +484,17 @@ function ArrayObjectItem({
                     ),
                     extra: (
                         <Button
-                            type="text"
-                            size="small"
                             aria-label="Remove object item"
-                            icon={<MinusCircle size={14} />}
                             onClick={(e) => {
                                 e.stopPropagation()
                                 onRemove()
                             }}
                             className="opacity-50 hover:opacity-100"
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<MinusCircle size={14} />}
+                        </Button>
                     ),
                     children: itemChildren.map((child) => {
                         const childRules = child.required

@@ -1,6 +1,7 @@
 import type {AnnotationProgress} from "@agenta/annotation"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Progress} from "antd"
+import {Progress} from "antd"
 
 interface SessionHeaderProps {
     queueName: string
@@ -13,7 +14,9 @@ const SessionHeader = ({queueName, progress, onClose}: SessionHeaderProps) => {
 
     return (
         <div className="flex items-center gap-4 px-4 py-3 border-b border-solid border-[var(--ant-color-border-secondary)]">
-            <Button type="text" icon={<ArrowLeft size={16} />} onClick={onClose} />
+            <Button onClick={onClose} variant="ghost" size="icon">
+                {<ArrowLeft size={16} />}
+            </Button>
 
             <span className="flex-1 min-w-0 truncate font-semibold">{queueName}</span>
 

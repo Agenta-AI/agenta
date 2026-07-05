@@ -35,6 +35,7 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
 import {appWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
@@ -51,7 +52,7 @@ import {
     Plus,
     Tag,
 } from "@phosphor-icons/react"
-import {Button, Form, Input, Spin, Tooltip} from "antd"
+import {Form, Input, Spin, Tooltip} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {AppLogo} from "../../drawers/shared/CatalogAppCard"
@@ -1945,7 +1946,8 @@ function RunSubscriptionButton({
         return (
             <Tooltip title="Create the trigger first to run it">
                 <span>
-                    <Button icon={<Lightning size={14} />} disabled>
+                    <Button disabled variant="outline">
+                        {<Lightning size={14} />}
                         Run in playground
                     </Button>
                 </span>
@@ -1956,7 +1958,7 @@ function RunSubscriptionButton({
     return (
         <EventSourcePicker
             placement="topRight"
-            trigger={<Button icon={<Lightning size={14} />}>Run in playground</Button>}
+            trigger={<Button variant="outline">{<Lightning size={14} />}Run in playground</Button>}
             recentEvents={[]}
             onPick={run}
         />

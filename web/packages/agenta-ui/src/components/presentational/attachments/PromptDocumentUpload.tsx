@@ -17,10 +17,11 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
 import {MinusCircleOutlined} from "@ant-design/icons"
 import {FileArchive} from "@phosphor-icons/react"
-import {Button, Input, Upload} from "antd"
+import {Input, Upload} from "antd"
 import clsx from "clsx"
 
 // ============================================================================
@@ -171,9 +172,9 @@ const PromptDocumentUpload = ({
                             <span>
                                 Drag a PDF here or{" "}
                                 <Button
-                                    type="link"
                                     className="p-0 underline"
                                     onClick={triggerUpload}
+                                    variant="link"
                                 >
                                     upload a file
                                 </Button>
@@ -211,15 +212,17 @@ const PromptDocumentUpload = ({
                         </div>
                     </div>
                     <Button
-                        type="text"
-                        icon={<MinusCircleOutlined />}
                         disabled={disabled}
                         onClick={(e) => {
                             e.stopPropagation()
                             onRemove()
                             setError("")
                         }}
-                    />
+                        variant="ghost"
+                        size="icon"
+                    >
+                        {<MinusCircleOutlined />}
+                    </Button>
                 </div>
             </Dragger>
         </>

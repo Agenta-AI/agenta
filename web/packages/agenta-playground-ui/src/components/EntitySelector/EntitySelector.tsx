@@ -40,9 +40,10 @@ import {
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui"
 import {entitySelectorController} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CaretRight} from "@phosphor-icons/react"
-import {Input, Button, Tabs, Space} from "antd"
+import {Input, Tabs, Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 // Re-export types from controller for convenience
@@ -149,12 +150,8 @@ function TestcaseSelector({onSelect}: {onSelect: (selection: EntitySelection) =>
                     placeholder="Enter testcase ID..."
                     onPressEnter={handleSubmit}
                 />
-                <Button
-                    type="primary"
-                    onClick={handleSubmit}
-                    disabled={!testcaseId.trim()}
-                    icon={<CaretRight size={16} />}
-                >
+                <Button onClick={handleSubmit} disabled={!testcaseId.trim()}>
+                    {<CaretRight size={16} />}
                     Select
                 </Button>
             </Space.Compact>
@@ -192,12 +189,8 @@ function SpanSelector({onSelect}: {onSelect: (selection: EntitySelection) => voi
                     placeholder="Enter span ID..."
                     onPressEnter={handleSubmit}
                 />
-                <Button
-                    type="primary"
-                    onClick={handleSubmit}
-                    disabled={!spanId.trim()}
-                    icon={<CaretRight size={16} />}
-                >
+                <Button onClick={handleSubmit} disabled={!spanId.trim()}>
+                    {<CaretRight size={16} />}
                     Select
                 </Button>
             </Space.Compact>

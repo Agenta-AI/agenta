@@ -11,10 +11,11 @@
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 
 export interface McpServerItemControlProps {
@@ -96,12 +97,13 @@ export const McpServerItemControl = memo(function McpServerItemControl({
             {!disabled && onDelete && (
                 <Tooltip title="Remove">
                     <Button
-                        icon={<MinusCircle size={14} />}
-                        type="text"
-                        size="small"
                         onClick={onDelete}
                         className="invisible group-hover/mcp:visible shrink-0"
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<MinusCircle size={14} />}
+                    </Button>
                 </Tooltip>
             )}
         </div>

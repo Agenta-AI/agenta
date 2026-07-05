@@ -14,9 +14,10 @@
 import {memo, useCallback, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
-import {Button, Input, Tag, Tooltip} from "antd"
+import {Input, Tag, Tooltip} from "antd"
 
 import {useFieldsDetection} from "./FieldsDetectionContext"
 
@@ -142,11 +143,12 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             }
                         />
                         <Button
-                            size="small"
-                            icon={<Plus size={12} />}
                             onClick={handleAddField}
                             disabled={!inputValue.trim()}
+                            variant="outline"
+                            size="sm"
                         >
+                            {<Plus size={12} />}
                             Add
                         </Button>
                     </div>
@@ -159,13 +161,13 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                     </span>
                     {!disabled && detectFieldsFromTestcase && (
                         <Button
-                            size="small"
-                            type="default"
-                            icon={<MagnifyingGlass size={12} />}
                             onClick={handleDetectFromTestcase}
                             disabled={!hasTestcaseData}
                             className="shrink-0 text-xs"
+                            variant="outline"
+                            size="sm"
                         >
+                            {<MagnifyingGlass size={12} />}
                             Detect from testcase
                         </Button>
                     )}

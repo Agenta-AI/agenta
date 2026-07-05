@@ -14,16 +14,16 @@
  * ```
  */
 
-import type {MouseEvent} from "react"
+import type {ComponentPropsWithoutRef, MouseEvent} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {PlayIcon, XCircleIcon} from "@phosphor-icons/react"
-import {Button, type ButtonProps} from "antd"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-export interface RunButtonProps extends ButtonProps {
+export interface RunButtonProps extends ComponentPropsWithoutRef<typeof Button> {
     isRerun?: boolean
     isCancel?: boolean
     isRunAll?: boolean
@@ -43,7 +43,7 @@ const RunButton = ({
     onTrackRun,
     ...props
 }: RunButtonProps) => {
-    const {onClick, ...restProps} = props
+    const {onClick, variant, className, size, ...restProps} = props
     const handleClick = (event: MouseEvent<HTMLElement>) => {
         if (!isCancel) {
             onTrackRun?.()
@@ -53,13 +53,13 @@ const RunButton = ({
 
     return (
         <Button
-            color={isCancel ? "danger" : "default"}
-            icon={isCancel ? <XCircleIcon size={14} /> : <PlayIcon size={14} />}
-            className="self-start"
-            size="small"
+            variant={isCancel ? "destructive" : variant}
+            className={["self-start", className].filter(Boolean).join(" ")}
+            size={size ?? "sm"}
             onClick={handleClick}
             {...restProps}
         >
+            {isCancel ? <XCircleIcon size={14} /> : <PlayIcon size={14} />}
             {isRerun ? "Re run" : isCancel ? "Cancel" : isRunAll ? "Run all" : label || "Run"}
         </Button>
     )

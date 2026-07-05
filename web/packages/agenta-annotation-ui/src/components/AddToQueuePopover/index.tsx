@@ -7,17 +7,18 @@ import {
     simpleQueuesListQueryAtom,
     type SimpleQueue,
 } from "@agenta/entities/simpleQueue"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {dayjs} from "@agenta/shared/utils"
-import "dayjs/plugin/relativeTime"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Divider, Input, Popover, Skeleton} from "antd"
+import {Divider, Input, Popover, Skeleton} from "antd"
+import "dayjs/plugin/relativeTime"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigationSafe} from "../../context"
 import {
-    createQueueDrawerOpenAtom,
     createQueueDrawerDefaultKindAtom,
+    createQueueDrawerOpenAtom,
     createQueueDrawerSelectionAtom,
 } from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
@@ -182,12 +183,8 @@ const QueueListContent = ({
             <div className="flex flex-col gap-2 px-3">
                 <div className="flex items-center justify-between">
                     <span className="font-medium">Select annotation queue</span>
-                    <Button
-                        type="primary"
-                        size="small"
-                        icon={<Plus size={14} />}
-                        onClick={handleNewQueue}
-                    >
+                    <Button onClick={handleNewQueue} size="sm">
+                        {<Plus size={14} />}
                         New
                     </Button>
                 </div>

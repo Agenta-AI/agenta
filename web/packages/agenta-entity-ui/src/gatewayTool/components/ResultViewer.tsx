@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import type {ToolResult} from "@agenta/entities/gatewayTool"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {
     buildFormFieldsFromData,
     buildFormFieldsFromSchema,
@@ -8,7 +9,7 @@ import {
 } from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {CopySimple} from "@phosphor-icons/react"
-import {Alert, Button, Form, Input, InputNumber, message} from "antd"
+import {Alert, Form, Input, InputNumber, message} from "antd"
 
 interface Props {
     result: ToolResult | null
@@ -189,13 +190,14 @@ function OutputField({field, data}: {field: FormFieldDescriptor; data: Record<st
 function CopyButton({onClick, className}: {onClick: () => void; className?: string}) {
     return (
         <Button
-            type="text"
             aria-label="Copy result"
-            icon={<CopySimple size={14} />}
-            size="small"
             onClick={onClick}
             className={className ?? "absolute top-1 right-1 z-10 opacity-70 hover:opacity-100"}
-        />
+            variant="ghost"
+            size="icon-sm"
+        >
+            {<CopySimple size={14} />}
+        </Button>
     )
 }
 

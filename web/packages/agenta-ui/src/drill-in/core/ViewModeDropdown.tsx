@@ -8,8 +8,9 @@
 
 import {memo} from "react"
 
+import {Button as AntdButton} from "@agenta/primitive-ui/components/button"
 import {CaretDown} from "@phosphor-icons/react"
-import {Button as AntdButton, Dropdown} from "antd"
+import {Dropdown} from "antd"
 import type {MenuProps} from "antd"
 
 export interface ViewModeDropdownOption<TValue extends string = string> {
@@ -46,10 +47,10 @@ function ViewModeDropdownInner<TValue extends string = string>({
             disabled={disabled}
         >
             <AntdButton
-                type="text"
-                size="small"
                 disabled={disabled}
                 className="inline-flex h-6 items-center gap-1 px-2 text-xs text-[var(--ag-c-051729)]"
+                variant="ghost"
+                size="sm"
             >
                 <span className="font-medium">{selectedOption?.label ?? value}</span>
                 <CaretDown size={14} className="mt-px opacity-65" />

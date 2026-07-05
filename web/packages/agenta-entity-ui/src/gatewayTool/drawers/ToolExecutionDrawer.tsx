@@ -10,6 +10,8 @@ import {
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -21,7 +23,7 @@ import {
     MagnifyingGlass,
     Play,
 } from "@phosphor-icons/react"
-import {Button, Card, Divider, Empty, Form, Input, message, Segmented, Spin, Tag} from "antd"
+import {Card, Divider, Empty, Form, Input, message, Segmented, Spin, Tag} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -333,12 +335,14 @@ function ActionDetailStep({
                 <div className="flex items-center gap-3">
                     {canGoBack && (
                         <Button
-                            type="text"
                             aria-label="Go back"
-                            icon={<ArrowLeft size={16} />}
                             onClick={onBack}
                             className="shrink-0"
-                        />
+                            variant="ghost"
+                            size="icon"
+                        >
+                            {<ArrowLeft size={16} />}
+                        </Button>
                     )}
                     {integrationLogo && (
                         <Image
@@ -392,13 +396,14 @@ function ActionDetailStep({
                                 <span className="text-sm font-semibold">Inputs</span>
                                 {!jsonMode && (
                                     <Button
-                                        type="text"
                                         aria-label="Copy inputs"
-                                        icon={<CopySimple size={14} />}
-                                        size="small"
                                         onClick={handleCopyInputs}
                                         className="opacity-60 hover:opacity-100"
-                                    />
+                                        variant="ghost"
+                                        size="icon-sm"
+                                    >
+                                        {<CopySimple size={14} />}
+                                    </Button>
                                 )}
                             </div>
                             <SchemaForm
@@ -409,13 +414,13 @@ function ActionDetailStep({
                                 jsonMode={jsonMode}
                             />
                             <Button
-                                type="primary"
-                                icon={<Play size={14} />}
-                                loading={isExecuting}
                                 onClick={handleExecute}
                                 className="self-start"
-                                size="small"
+                                size="sm"
+                                disabled={isExecuting}
                             >
+                                {isExecuting ? <Spinner /> : null}
+                                {<Play size={14} />}
                                 Run
                             </Button>
                         </div>

@@ -1,8 +1,9 @@
 import {useCallback, useRef} from "react"
 
 import {executionItemController} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CaretDown} from "@phosphor-icons/react"
-import {Button, InputNumber, Popover, Slider} from "antd"
+import {InputNumber, Popover, Slider} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 interface RunOptionsPopoverProps {
@@ -73,9 +74,6 @@ const RunOptionsPopover = ({isRunning, onRepeatCountChange}: RunOptionsPopoverPr
             onOpenChange={handleOpenChange}
         >
             <Button
-                type="primary"
-                icon={<CaretDown size={14} />}
-                size="small"
                 disabled={isRunning}
                 style={{
                     borderRadius: "0 6px 6px 0",
@@ -83,7 +81,10 @@ const RunOptionsPopover = ({isRunning, onRepeatCountChange}: RunOptionsPopoverPr
                     width: "32px",
                     padding: 0,
                 }}
-            />
+                size="icon-sm"
+            >
+                {<CaretDown size={14} />}
+            </Button>
         </Popover>
     )
 }

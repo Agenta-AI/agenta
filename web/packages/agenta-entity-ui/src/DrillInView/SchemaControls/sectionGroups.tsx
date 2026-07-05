@@ -13,9 +13,10 @@
  */
 import type {ReactNode} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {HeightCollapse} from "@agenta/ui"
 import {CaretDown, CaretRight, Plugs, Plus} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip} from "antd"
+import {Tag, Tooltip} from "antd"
 import Image from "next/image"
 
 /** A connected-app logo square; a plug glyph when no logo is known (catalog not loaded yet). */
@@ -103,14 +104,16 @@ export function CollapsibleProviderGroup({
                 {onAdd ? (
                     <Tooltip title={addLabel}>
                         <Button
-                            type="text"
-                            icon={<Plus size={16} />}
                             aria-label={addLabel}
                             onClick={(e) => {
                                 e.stopPropagation()
                                 onAdd()
                             }}
-                        />
+                            variant="ghost"
+                            size="icon"
+                        >
+                            {<Plus size={16} />}
+                        </Button>
                     </Tooltip>
                 ) : null}
             </div>

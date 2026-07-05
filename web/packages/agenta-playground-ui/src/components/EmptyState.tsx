@@ -4,8 +4,9 @@
  * Displayed when no runnable has been added to the playground yet.
  */
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Play, Lightning} from "@phosphor-icons/react"
-import {Button, Empty, Space} from "antd"
+import {Empty, Space} from "antd"
 
 interface EmptyStateProps {
     onAddRunnable: () => void
@@ -31,7 +32,8 @@ export function EmptyState({onAddRunnable}: EmptyStateProps) {
                 </Space>
             }
         >
-            <Button type="primary" icon={<Lightning size={14} />} onClick={onAddRunnable}>
+            <Button onClick={onAddRunnable}>
+                {<Lightning size={14} />}
                 Add App Revision or Evaluator
             </Button>
         </Empty>

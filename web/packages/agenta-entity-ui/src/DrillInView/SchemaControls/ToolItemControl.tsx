@@ -18,12 +18,13 @@
 
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, GraphIcon, MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
@@ -450,22 +451,16 @@ const ToolHeader = memo(function ToolHeader({
             <div className="flex items-center gap-1 invisible group-hover/tool:visible shrink-0">
                 {!isReadOnly && onDuplicate && (
                     <Tooltip title="Duplicate">
-                        <Button
-                            icon={<CopySimple size={14} />}
-                            type="text"
-                            onClick={onDuplicate}
-                            size="small"
-                        />
+                        <Button onClick={onDuplicate} variant="ghost" size="icon-sm">
+                            {<CopySimple size={14} />}
+                        </Button>
                     </Tooltip>
                 )}
                 {!isReadOnly && onDelete && (
                     <Tooltip title="Remove">
-                        <Button
-                            icon={<MinusCircle size={14} />}
-                            type="text"
-                            onClick={onDelete}
-                            size="small"
-                        />
+                        <Button onClick={onDelete} variant="ghost" size="icon-sm">
+                            {<MinusCircle size={14} />}
+                        </Button>
                     </Tooltip>
                 )}
                 <CollapseToggleButton

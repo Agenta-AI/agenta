@@ -36,13 +36,14 @@ import {
     valueToDisplay,
 } from "@agenta/entity-ui/view-types"
 import type {ExpectedType, LogicalType, ViewOption, ViewType} from "@agenta/entity-ui/view-types"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import type {SimpleChatMessage} from "@agenta/ui/chat-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
 import {CaretDown, CaretRight, CopySimple, Database, Info, Warning} from "@phosphor-icons/react"
-import {Alert, Button, Input, InputNumber, Switch, Tag, Tooltip, message} from "antd"
+import {Alert, Input, InputNumber, Switch, Tag, Tooltip, message} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
@@ -470,12 +471,13 @@ export function VariableCard({
                     ) : null}
                     <Tooltip title="Copy value" placement="top">
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<CopySimple size={14} />}
                             onClick={handleCopy}
                             aria-label={`Copy ${name}`}
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<CopySimple size={14} />}
+                        </Button>
                     </Tooltip>
                     <ViewTypeSelect
                         value={mode}
@@ -518,9 +520,10 @@ export function VariableCard({
                                 {shapeConflicts.length > 1 ? "s" : ""}.
                             </span>
                             <Button
-                                size="small"
                                 onClick={handleAdoptPromptShape}
                                 className="shrink-0"
+                                variant="outline"
+                                size="sm"
                             >
                                 Use prompt shape
                             </Button>
@@ -581,13 +584,13 @@ function StashedPathsFooter({variableName, paths}: StashedPathsFooterProps) {
     return (
         <div className="agenta-stashed-paths mt-1 flex flex-col gap-1">
             <Button
-                type="text"
-                size="small"
-                icon={expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 onClick={() => setExpanded((prev) => !prev)}
                 aria-expanded={expanded}
                 className="self-start !px-1 text-[12px] !text-[var(--ag-rgba-051729-55)]"
+                variant="ghost"
+                size="sm"
             >
+                {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 {summary}
             </Button>
             {expanded ? (

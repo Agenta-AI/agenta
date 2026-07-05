@@ -11,9 +11,10 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
 import {X} from "@phosphor-icons/react"
-import {Button, InputNumber, Slider, Tooltip} from "antd"
+import {InputNumber, Slider, Tooltip} from "antd"
 
 export interface NumberSliderControlProps {
     /** The schema property defining constraints (min, max, type) */
@@ -142,13 +143,14 @@ export const NumberSliderControl = memo(function NumberSliderControl({
                     />
                     {allowClear && localValue !== null && (
                         <Button
-                            icon={<X size={14} />}
-                            type="text"
-                            size="small"
                             onClick={() => handleValueChange(null)}
                             disabled={disabled}
                             aria-label={`Reset ${label}`}
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<X size={14} />}
+                        </Button>
                     )}
                 </div>
             </div>

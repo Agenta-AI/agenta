@@ -24,6 +24,7 @@
         "@agenta/annotation": "workspace:../agenta-annotation",
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
+        "@agenta/primitive-ui": "workspace:../agenta-primitive-ui",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",

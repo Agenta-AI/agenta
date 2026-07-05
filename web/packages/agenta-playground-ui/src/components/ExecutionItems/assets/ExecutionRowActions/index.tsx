@@ -1,8 +1,8 @@
 import {useMemo} from "react"
 
 import {executionItemController} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Copy, MinusCircle} from "@phosphor-icons/react"
-import {Button} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -43,22 +43,24 @@ const ExecutionRowActions: React.FC<ExecutionRowActionsProps> = ({
     return (
         <div className={clsx("flex items-center gap-1 z-[2]", className)}>
             <Button
-                icon={<MinusCircle size={14} />}
-                type="text"
                 onClick={() => deleteRow(rowId)}
-                size="small"
                 disabled={variableRowsLength === 1}
-            />
+                variant="ghost"
+                size="icon-sm"
+            >
+                {<MinusCircle size={14} />}
+            </Button>
             {viewType === "single" && renderMenu?.({executionId: rowId})}
             {viewType === "comparison" && (
                 <Button
-                    icon={<Copy size={14} />}
-                    type="text"
                     onClick={() => {
                         navigator.clipboard.writeText(variableValue)
                     }}
-                    size="small"
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<Copy size={14} />}
+                </Button>
             )}
         </div>
     )

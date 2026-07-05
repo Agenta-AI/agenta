@@ -6,8 +6,9 @@
 
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Input, Select, Tooltip} from "antd"
+import {Input, Select, Tooltip} from "antd"
 
 import type {PropertyType} from "../coreTypes"
 
@@ -65,23 +66,25 @@ export function DrillInControls({
                 {currentPathDataType === "array" && (
                     <Tooltip title="Add item">
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<Plus size={14} />}
                             onClick={onAddArrayItem}
                             className="!px-2"
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<Plus size={14} />}
+                        </Button>
                     </Tooltip>
                 )}
                 {currentPathDataType === "object" && !showAddProperty && (
                     <Tooltip title="Add property">
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<Plus size={14} />}
                             onClick={() => setShowAddProperty(true)}
                             className="!px-2"
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<Plus size={14} />}
+                        </Button>
                     </Tooltip>
                 )}
             </div>
@@ -117,15 +120,10 @@ export function DrillInControls({
                         style={{width: 110}}
                         options={propertyTypeOptions}
                     />
-                    <Button
-                        type="primary"
-                        size="middle"
-                        onClick={handleAddProperty}
-                        disabled={!newPropertyName.trim()}
-                    >
+                    <Button onClick={handleAddProperty} disabled={!newPropertyName.trim()}>
                         Add
                     </Button>
-                    <Button type="text" size="middle" onClick={handleCancelAddProperty}>
+                    <Button onClick={handleCancelAddProperty} variant="ghost">
                         Cancel
                     </Button>
                 </div>

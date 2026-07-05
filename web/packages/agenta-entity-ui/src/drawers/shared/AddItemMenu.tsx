@@ -9,8 +9,9 @@
  */
 import {memo, useCallback, useState, type ReactNode} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CaretRight, Plus} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip} from "antd"
+import {Dropdown, Tooltip} from "antd"
 
 export interface AddItemMenuItem {
     key: string
@@ -133,12 +134,14 @@ export const AddItemMenu = memo(function AddItemMenu({
         >
             {trigger ?? (
                 <Button
-                    type="text"
-                    icon={<Plus size={16} />}
                     aria-label={ariaLabel}
                     disabled={disabled}
                     onClick={(e) => e.stopPropagation()}
-                />
+                    variant="ghost"
+                    size="icon"
+                >
+                    {<Plus size={16} />}
+                </Button>
             )}
         </Dropdown>
     )

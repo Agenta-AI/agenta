@@ -1,7 +1,8 @@
 import {memo, useCallback, type ReactNode} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Copy} from "@phosphor-icons/react"
-import {Button, Popover} from "antd"
+import {Popover} from "antd"
 
 import {message} from "../utils/appMessageContext"
 
@@ -18,7 +19,8 @@ const PopoverContentWrapper = memo(({children, onCopy}: PopoverContentProps) => 
         <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
             {onCopy && (
                 <div className="flex justify-end">
-                    <Button type="text" size="small" icon={<Copy size={14} />} onClick={onCopy}>
+                    <Button onClick={onCopy} variant="ghost" size="sm">
+                        {<Copy size={14} />}
                         Copy
                     </Button>
                 </div>

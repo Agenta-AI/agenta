@@ -7,8 +7,8 @@
 
 import {memo, useState, useMemo, useEffect} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Button} from "antd"
 
 import {PresetContent} from "./PresetContent"
 import type {LoadEvaluatorPresetModalProps} from "./types"
@@ -43,10 +43,13 @@ export const LoadEvaluatorPresetModal = memo(function LoadEvaluatorPresetModal({
 
     const footer = (
         <div className="flex items-center justify-end gap-2">
-            <Button onClick={(e) => onCancel?.(e as React.MouseEvent<HTMLButtonElement>)}>
+            <Button
+                onClick={(e) => onCancel?.(e as React.MouseEvent<HTMLButtonElement>)}
+                variant="outline"
+            >
                 Cancel
             </Button>
-            <Button type="primary" disabled={!selectedPreset} onClick={handleLoadPreset}>
+            <Button disabled={!selectedPreset} onClick={handleLoadPreset}>
                 Load Preset
             </Button>
         </div>

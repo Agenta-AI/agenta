@@ -10,10 +10,11 @@
 
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Info, Plus, Trash} from "@phosphor-icons/react"
-import {Alert, Button, Input, InputNumber, Select, Switch, Tooltip} from "antd"
+import {Alert, Input, InputNumber, Select, Switch, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -578,12 +579,13 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                             </Tooltip>
                         </div>
                         <Button
-                            size="small"
-                            type="dashed"
-                            icon={<Plus size={14} />}
                             onClick={addCategory}
                             disabled={disabled}
+                            variant="outline"
+                            size="sm"
+                            className="border-dashed"
                         >
+                            {<Plus size={14} />}
                             Add
                         </Button>
                     </div>
@@ -607,12 +609,13 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                                     className="flex-[2]"
                                 />
                                 <Button
-                                    type="text"
-                                    danger
-                                    icon={<Trash size={14} />}
                                     onClick={() => removeCategory(index)}
                                     disabled={disabled || categories.length <= 1}
-                                />
+                                    variant="destructive"
+                                    size="icon"
+                                >
+                                    {<Trash size={14} />}
+                                </Button>
                             </div>
                         ))}
                     </div>

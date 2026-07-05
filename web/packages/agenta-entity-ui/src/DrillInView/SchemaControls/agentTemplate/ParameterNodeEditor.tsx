@@ -13,8 +13,9 @@
  */
 import {useEffect, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Input, Select, Switch} from "antd"
+import {Input, Select, Switch} from "antd"
 
 import {RailField} from "../../../drawers/shared/RailField"
 
@@ -304,10 +305,11 @@ export function ParameterNodeEditor({
                     <RailField label="Properties" align="center">
                         <div className="flex items-center gap-2">
                             <Button
-                                icon={<Plus size={13} />}
                                 onClick={() => onAddChild(childContainerPath)}
                                 disabled={disabled}
+                                variant="outline"
                             >
+                                {<Plus size={13} />}
                                 Add property
                             </Button>
                             <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">

@@ -23,8 +23,8 @@
 import {useState} from "react"
 
 import {getDefaultViewForValue, getViewOptions} from "@agenta/entity-ui/view-types"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 import {VariableCard} from "./VariableCard"
 
@@ -70,13 +70,13 @@ export function UnreferencedColumnsFooter({
     return (
         <div className="agenta-unreferenced-footer mt-2 flex flex-col gap-2">
             <Button
-                type="text"
-                size="small"
-                icon={expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 onClick={() => setExpanded((prev) => !prev)}
                 aria-expanded={expanded}
                 className="self-start text-[12px] !text-[var(--ag-rgba-051729-55)]"
+                variant="ghost"
+                size="sm"
             >
+                {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 {summary}
             </Button>
             {expanded ? (

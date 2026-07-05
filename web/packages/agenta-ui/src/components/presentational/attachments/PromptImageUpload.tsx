@@ -18,10 +18,11 @@
 
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {generateId} from "@agenta/shared/utils"
 import {LoadingOutlined, MinusCircleOutlined} from "@ant-design/icons"
 import {Image as ImageIcon} from "@phosphor-icons/react"
-import {Button, Input, Progress, Spin, Upload} from "antd"
+import {Input, Progress, Spin, Upload} from "antd"
 import type {UploadFile} from "antd"
 import clsx from "clsx"
 
@@ -225,7 +226,7 @@ const PromptImageUpload = ({
                 <div className="flex flex-col w-full items-start">
                     <span>
                         Drag an image here or{" "}
-                        <Button type="link" className="p-0 underline" onClick={triggerUpload}>
+                        <Button className="p-0 underline" onClick={triggerUpload} variant="link">
                             upload a file
                         </Button>
                     </span>
@@ -285,8 +286,6 @@ const PromptImageUpload = ({
                     {renderUnified()}
                     <Button
                         disabled={disabled}
-                        icon={<MinusCircleOutlined />}
-                        type="text"
                         onClick={(e) => {
                             e.stopPropagation()
                             handleRemoveUploadFile()
@@ -294,7 +293,11 @@ const PromptImageUpload = ({
                             setError("")
                             setIsValidPreview(false)
                         }}
-                    />
+                        variant="ghost"
+                        size="icon"
+                    >
+                        {<MinusCircleOutlined />}
+                    </Button>
                 </div>
             </Dragger>
         </>

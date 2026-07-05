@@ -6,10 +6,11 @@ import {
     executionItemController,
     playgroundController,
 } from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
 import {ArrowsInLineVertical, ArrowsOutLineVertical} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -168,7 +169,12 @@ const ExecutionHeader = ({
                     shell's Clear / Run all / Cancel controls are hidden. */}
                 {!isAgent && (
                     <Tooltip title="Clear all">
-                        <Button size="small" onClick={() => clearAll()} disabled={isRunning}>
+                        <Button
+                            onClick={() => clearAll()}
+                            disabled={isRunning}
+                            variant="outline"
+                            size="sm"
+                        >
                             Clear
                         </Button>
                     </Tooltip>

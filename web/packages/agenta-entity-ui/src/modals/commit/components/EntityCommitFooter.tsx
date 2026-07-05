@@ -9,10 +9,12 @@
 
 import {useCallback, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {ModalFooter} from "@agenta/ui/components/modal"
 import {cn, textColors} from "@agenta/ui/styles"
 import {CaretUp} from "@phosphor-icons/react"
-import {Button, Checkbox, Dropdown, Input, Space} from "antd"
+import {Checkbox, Dropdown, Input, Space} from "antd"
 
 import type {CommitDeployOption} from "../../types"
 
@@ -80,13 +82,11 @@ function DeployForm({
                 placeholder="Describe this deployment…"
             />
             <Button
-                type="primary"
-                block
-                className="mt-3"
-                loading={isLoading}
-                disabled={!canProceed || envs.length === 0}
+                className="mt-3 w-full"
+                disabled={!canProceed || envs.length === 0 || isLoading}
                 onClick={() => onDeploy(envs, deployMessage.trim() || undefined)}
             >
+                {isLoading ? <Spinner /> : null}
                 {confirmLabel} &amp; deploy
             </Button>
         </div>
@@ -110,14 +110,12 @@ export function EntityCommitFooter({
     if (deployOptions && deployOptions.length > 0) {
         return (
             <div className="flex items-center justify-end gap-2">
-                <Button onClick={onClose}>Cancel</Button>
+                <Button onClick={onClose} variant="outline">
+                    Cancel
+                </Button>
                 <Space.Compact>
-                    <Button
-                        type="primary"
-                        loading={isLoading}
-                        disabled={!canProceed}
-                        onClick={handleCommit}
-                    >
+                    <Button disabled={!canProceed || isLoading} onClick={handleCommit}>
+                        {isLoading ? <Spinner /> : null}
                         {confirmLabel}
                     </Button>
                     <Dropdown
@@ -140,11 +138,12 @@ export function EntityCommitFooter({
                         )}
                     >
                         <Button
-                            type="primary"
                             disabled={!canProceed}
                             aria-label="Commit and deploy options"
-                            icon={<CaretUp size={12} />}
-                        />
+                            size="icon"
+                        >
+                            {<CaretUp size={12} />}
+                        </Button>
                     </Dropdown>
                 </Space.Compact>
             </div>

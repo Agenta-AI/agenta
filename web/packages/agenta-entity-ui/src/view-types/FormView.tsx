@@ -26,11 +26,12 @@
 
 import {useCallback, useMemo, useState, type ReactNode} from "react"
 
+import {Button as AntdButton} from "@agenta/primitive-ui/components/button"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
-import {Button as AntdButton, Input, InputNumber, Switch} from "antd"
+import {Input, InputNumber, Switch} from "antd"
 import {dump as yamlDump, load as yamlLoad} from "js-yaml"
 
 import {
@@ -325,25 +326,27 @@ function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
                     headerRight={
                         editable ? (
                             <AntdButton
-                                type="text"
-                                size="small"
-                                icon={<MinusCircle size={14} />}
                                 aria-label={`Remove row ${idx}`}
                                 onClick={() => removeIndex(idx)}
                                 style={styles.arrayRowRemove}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<MinusCircle size={14} />}
+                            </AntdButton>
                         ) : undefined
                     }
                 />
             ))}
             {editable ? (
                 <AntdButton
-                    type="dashed"
-                    size="small"
-                    icon={<Plus size={14} />}
                     onClick={addRow}
                     style={styles.arrayAddRow}
+                    variant="outline"
+                    size="sm"
+                    className="border-dashed"
                 >
+                    {<Plus size={14} />}
                     Add row
                 </AntdButton>
             ) : null}

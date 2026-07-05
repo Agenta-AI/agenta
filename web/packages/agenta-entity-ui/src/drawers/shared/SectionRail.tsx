@@ -10,7 +10,7 @@
  */
 import type {ReactNode} from "react"
 
-import {Button} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
 
 export interface SectionRailItem {
     value: string
@@ -47,19 +47,23 @@ export function SectionRail({
                     return (
                         <Button
                             key={item.value}
-                            type="text"
-                            block
                             disabled={disabled}
                             onClick={() => onChange(item.value)}
-                            className={`!h-8 !rounded-md !px-2.5 !text-xs transition-colors ${
-                                item.count != null
-                                    ? "!flex !items-center !justify-between"
-                                    : "!justify-start"
-                            } ${
-                                active
-                                    ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
-                                    : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
-                            }`}
+                            className={[
+                                `!h-8 !rounded-md !px-2.5 !text-xs transition-colors ${
+                                    item.count != null
+                                        ? "!flex !items-center !justify-between"
+                                        : "!justify-start"
+                                } ${
+                                    active
+                                        ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
+                                        : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
+                                }`,
+                                "w-full",
+                            ]
+                                .filter(Boolean)
+                                .join(" ")}
+                            variant="ghost"
                         >
                             <span className="truncate">{item.label}</span>
                             {item.count != null ? (

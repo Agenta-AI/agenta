@@ -1,8 +1,9 @@
 import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Trash} from "@phosphor-icons/react"
-import {Button, Tag} from "antd"
+import {Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {
@@ -58,14 +59,14 @@ export default function SelectedEvaluatorCard({
                 ) : null}
             </div>
             <Button
-                type="text"
-                size="small"
-                danger
                 aria-label={`Remove ${evaluator.evaluatorName}`}
-                icon={<Trash size={14} />}
                 disabled={disabled}
                 onClick={() => onRemove(evaluator.revisionId)}
-            />
+                variant="destructive"
+                size="icon-sm"
+            >
+                {<Trash size={14} />}
+            </Button>
         </div>
     )
 }

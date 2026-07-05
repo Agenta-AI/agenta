@@ -16,10 +16,12 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {AnnotationMetricField} from "@agenta/annotation"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {Editor} from "@agenta/ui/editor"
 import {Info} from "@phosphor-icons/react"
-import {Alert, Button, Collapse, Popover, Tag} from "antd"
+import {Alert, Collapse, Popover, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationFormState} from "../../hooks/useAnnotationFormState"
@@ -247,11 +249,12 @@ const AnnotationPanel = memo(function AnnotationPanel({
                         }
                     >
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<Info size={14} />}
                             className="!text-[var(--ag-c-758391)] !w-6 !h-6 !min-w-0 !p-0"
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<Info size={14} />}
+                        </Button>
                     </Popover>
                 )}
             </div>
@@ -340,12 +343,11 @@ const AnnotationPanel = memo(function AnnotationPanel({
             {showMarkComplete && (
                 <div className="shrink-0 border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] px-3 py-3">
                     <Button
-                        type="primary"
-                        block
                         onClick={handleMarkComplete}
-                        disabled={isSubmitting || !canSubmit}
-                        loading={isSubmitting}
+                        disabled={isSubmitting || !canSubmit || isSubmitting}
+                        className="w-full"
                     >
+                        {isSubmitting ? <Spinner /> : null}
                         {isCompleted ? "Update" : "Mark completed"}
                     </Button>
                 </div>

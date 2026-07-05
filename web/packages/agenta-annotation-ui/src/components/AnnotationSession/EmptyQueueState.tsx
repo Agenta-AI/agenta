@@ -1,8 +1,8 @@
 import {memo} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Tray} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
@@ -30,15 +30,14 @@ const EmptyQueueState = memo(function EmptyQueueState({onViewChange}: EmptyQueue
             </div>
 
             <div className="flex items-center gap-2">
-                <Button size="small" onClick={() => onViewChange("list")}>
+                <Button onClick={() => onViewChange("list")} variant="outline" size="sm">
                     View previous annotations
                 </Button>
                 {isTraces && navigation.navigateToObservability && (
                     <Button
-                        size="small"
-                        type="primary"
                         className="!bg-[var(--ag-c-051729)] !border-[var(--ag-c-051729)] hover:!bg-[var(--ag-c-0A2540)] hover:!border-[var(--ag-c-0A2540)] dark:!bg-[var(--ant-color-primary)] dark:!border-[var(--ant-color-primary)] dark:hover:!bg-[var(--ant-color-primary-hover)] dark:hover:!border-[var(--ant-color-primary-hover)]"
                         onClick={() => navigation.navigateToObservability?.()}
+                        size="sm"
                     >
                         Go to observability
                     </Button>

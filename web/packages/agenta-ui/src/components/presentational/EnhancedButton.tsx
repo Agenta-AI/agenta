@@ -1,10 +1,11 @@
-import {forwardRef} from "react"
+import {forwardRef, type ComponentPropsWithoutRef, type ReactNode} from "react"
 
-import {Button, Tooltip} from "antd"
-import type {ButtonProps, TooltipProps} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip} from "antd"
+import type {TooltipProps} from "antd"
 
-export interface EnhancedButtonProps extends ButtonProps {
-    label?: React.ReactNode
+export interface EnhancedButtonProps extends ComponentPropsWithoutRef<typeof Button> {
+    label?: ReactNode
     tooltipProps?: TooltipProps
 }
 

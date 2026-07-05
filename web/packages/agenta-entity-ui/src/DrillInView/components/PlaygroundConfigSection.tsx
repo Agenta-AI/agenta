@@ -21,6 +21,7 @@ import {
 } from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema, getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
@@ -34,7 +35,7 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowLeft, CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
-import {Button, Dropdown, Popover, Tabs, Tooltip} from "antd"
+import {Dropdown, Popover, Tabs, Tooltip} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
@@ -1331,14 +1332,15 @@ function PlaygroundConfigSection({
                     <div className="flex items-center gap-2 min-w-0">
                         {fallbackDetail && (
                             <Button
-                                size="small"
-                                type="text"
-                                icon={<ArrowLeft size={16} />}
                                 onClick={handleCommitFallbackDetail}
                                 disabled={disabled}
                                 aria-label="Back to fallback models"
                                 className="flex items-center justify-center"
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<ArrowLeft size={16} />}
+                            </Button>
                         )}
                         <span className="truncate font-medium">
                             {fallbackDetail
@@ -1353,7 +1355,12 @@ function PlaygroundConfigSection({
                             </span>
                         )}
                     </div>
-                    <Button size="small" onClick={handleActiveConfigureReset} disabled={disabled}>
+                    <Button
+                        onClick={handleActiveConfigureReset}
+                        disabled={disabled}
+                        variant="outline"
+                        size="sm"
+                    >
                         Reset to default
                     </Button>
                 </div>
@@ -1617,13 +1624,14 @@ function PlaygroundConfigSection({
                             {!disabled && onRefinePrompt && hasMessages && (
                                 <Tooltip title="Refine prompt with AI">
                                     <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<MagicWand size={16} aria-hidden="true" />}
                                         onClick={() => onRefinePrompt(fieldKey)}
                                         aria-label="Refine prompt with AI"
                                         className="flex items-center justify-center opacity-60 hover:opacity-100"
-                                    />
+                                        variant="ghost"
+                                        size="icon-sm"
+                                    >
+                                        {<MagicWand size={16} aria-hidden="true" />}
+                                    </Button>
                                 </Tooltip>
                             )}
                             <Popover
@@ -1635,7 +1643,7 @@ function PlaygroundConfigSection({
                                 content={configurePopoverContent}
                                 overlayInnerStyle={{padding: 0}}
                             >
-                                <Button size="small" type="default">
+                                <Button variant="outline" size="sm">
                                     {promptModelInfo.currentModel || "Select model"}
                                     <CaretDown size={12} />
                                 </Button>
@@ -1661,7 +1669,7 @@ function PlaygroundConfigSection({
                                     onClick: ({key}) => handleRuntimeChange(key),
                                 }}
                             >
-                                <Button size="small" type="default">
+                                <Button variant="outline" size="sm">
                                     {RUNTIME_SELECT_OPTIONS.find((o) => o.value === codeRuntime)
                                         ?.label ?? "Select runtime"}
                                     <CaretDown size={12} />
@@ -1677,13 +1685,13 @@ function PlaygroundConfigSection({
                             className="flex items-center flex-shrink-0"
                         >
                             <Button
-                                size="small"
-                                type="text"
                                 onClick={() =>
                                     setFeedbackMode(feedbackMode === "basic" ? "advanced" : "basic")
                                 }
                                 disabled={disabled}
                                 className="text-xs text-gray-500"
+                                variant="ghost"
+                                size="sm"
                             >
                                 {feedbackMode === "basic" ? "Advanced" : "Basic"}
                             </Button>

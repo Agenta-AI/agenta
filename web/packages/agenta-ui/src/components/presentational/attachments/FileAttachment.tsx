@@ -20,8 +20,9 @@
 
 import React from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {FileArchive, X} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 
 import {
     bgColors,
@@ -103,16 +104,17 @@ export function FileAttachment({
             {!disabled && onRemove && (
                 <Tooltip title="Remove file">
                     <Button
-                        type="text"
-                        size="small"
-                        icon={<X size={12} />}
                         onClick={onRemove}
                         className={cn(
                             "!p-0 !h-auto !min-w-0",
                             textColors.tertiary,
                             dangerColors.hover,
                         )}
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<X size={12} />}
+                    </Button>
                 </Tooltip>
             )}
         </div>
