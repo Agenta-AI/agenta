@@ -37,24 +37,29 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
-import {MoreOutlined} from "@ant-design/icons"
 import {
     ArrowsClockwise,
     CaretRight,
     Clock,
+    DotsThreeVertical,
     Flask,
     Lightning,
     ListChecks,
     PencilSimpleLine,
-    Plus,
     Sparkle,
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {Dropdown, Tooltip} from "antd"
-import type {MenuProps} from "antd"
+import {Tooltip} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -116,7 +121,7 @@ function SubscriptionChildRow({
     /** The "Run in playground" affordance (an event-source picker), supplied by the parent. */
     runSlot: ReactNode
     onOpen: () => void
-    menuItems: MenuProps["items"]
+    menuItems: ReactNode
 }) {
     const open = disabled ? undefined : onOpen
     return (
@@ -167,20 +172,18 @@ function SubscriptionChildRow({
                 role="presentation"
             >
                 {runSlot}
-                <Dropdown
-                    trigger={["click"]}
-                    styles={{root: {width: 180}}}
-                    menu={{items: menuItems}}
-                >
-                    <Button
+                <DropdownMenu>
+                    <DropdownMenuTrigger
                         aria-label="Open trigger actions"
                         onClick={(e) => e.stopPropagation()}
-                        variant="ghost"
-                        size="icon"
+                        className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit"
                     >
-                        {<MoreOutlined />}
-                    </Button>
-                </Dropdown>
+                        <DotsThreeVertical size={16} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" side="bottom" sideOffset={4}>
+                        {menuItems}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
         </div>
     )
@@ -386,7 +389,7 @@ function TriggerRow({
     runDisabled?: boolean
     onRun: () => void
     onOpen: () => void
-    menuItems: MenuProps["items"]
+    menuItems: ReactNode
 }) {
     // Read-only mode opens nothing: the row's target is an editable drawer.
     const open = disabled ? undefined : onOpen
@@ -461,20 +464,18 @@ function TriggerRow({
                         {<Flask size={16} />}
                     </Button>
                 </Tooltip>
-                <Dropdown
-                    trigger={["click"]}
-                    styles={{root: {width: 180}}}
-                    menu={{items: menuItems}}
-                >
-                    <Button
+                <DropdownMenu>
+                    <DropdownMenuTrigger
                         aria-label="Open trigger actions"
                         onClick={(e) => e.stopPropagation()}
-                        variant="ghost"
-                        size="icon"
+                        className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit"
                     >
-                        {<MoreOutlined />}
-                    </Button>
-                </Dropdown>
+                        <DotsThreeVertical size={16} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" side="bottom" sideOffset={4}>
+                        {menuItems}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
         </div>
     )
@@ -571,86 +572,88 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
 
     // ---- subscription actions ----
     const subscriptionMenu = useCallback(
-        (record: TriggerSubscription): MenuProps["items"] => [
-            {
-                key: "deliveries",
-                label: "View deliveries",
-                icon: <ListChecks size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    if (record.id)
-                        openDeliveries({
-                            owner: {kind: "subscription", id: record.id},
-                            name: record.name ?? undefined,
-                            playgroundEntityId: entityId ?? undefined,
-                        })
-                },
-            },
-            {
-                key: "edit",
-                label: "Edit",
-                icon: <PencilSimpleLine size={16} />,
-                disabled,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    if (record.id)
-                        openSubscriptionDrawer({
-                            subscriptionId: record.id,
-                            playgroundEntityId: entityId ?? undefined,
-                        })
-                },
-            },
-            {
-                key: "refresh",
-                label: "Refresh",
-                icon: <ArrowsClockwise size={16} />,
-                disabled,
-                onClick: async (e) => {
-                    e.domEvent.stopPropagation()
-                    if (!record.id) return
-                    try {
-                        await refreshSubscription(record.id)
-                        message.success("Subscription refreshed")
-                    } catch {
-                        message.error("Failed to refresh subscription")
-                    }
-                },
-            },
-            {type: "divider"},
-            {
-                key: "revoke",
-                label: "Revoke",
-                icon: <XCircle size={16} />,
-                disabled,
-                onClick: async (e) => {
-                    e.domEvent.stopPropagation()
-                    if (!record.id) return
-                    try {
-                        await revokeSubscription(record.id)
-                        message.success("Subscription revoked")
-                    } catch {
-                        message.error("Failed to revoke subscription")
-                    }
-                },
-            },
-            {
-                key: "delete",
-                label: "Delete",
-                icon: <Trash size={16} />,
-                danger: true,
-                disabled,
-                onClick: async (e) => {
-                    e.domEvent.stopPropagation()
-                    if (!record.id) return
-                    try {
-                        await removeSubscription(record.id)
-                        message.success("Subscription deleted")
-                    } catch {
-                        message.error("Failed to delete subscription")
-                    }
-                },
-            },
-        ],
+        (record: TriggerSubscription): ReactNode => (
+            <>
+                <DropdownMenuItem
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        if (record.id)
+                            openDeliveries({
+                                owner: {kind: "subscription", id: record.id},
+                                name: record.name ?? undefined,
+                                playgroundEntityId: entityId ?? undefined,
+                            })
+                    }}
+                >
+                    <ListChecks size={16} />
+                    View deliveries
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    disabled={disabled}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        if (record.id)
+                            openSubscriptionDrawer({
+                                subscriptionId: record.id,
+                                playgroundEntityId: entityId ?? undefined,
+                            })
+                    }}
+                >
+                    <PencilSimpleLine size={16} />
+                    Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    disabled={disabled}
+                    onClick={async (e) => {
+                        e.stopPropagation()
+                        if (!record.id) return
+                        try {
+                            await refreshSubscription(record.id)
+                            message.success("Subscription refreshed")
+                        } catch {
+                            message.error("Failed to refresh subscription")
+                        }
+                    }}
+                >
+                    <ArrowsClockwise size={16} />
+                    Refresh
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    disabled={disabled}
+                    onClick={async (e) => {
+                        e.stopPropagation()
+                        if (!record.id) return
+                        try {
+                            await revokeSubscription(record.id)
+                            message.success("Subscription revoked")
+                        } catch {
+                            message.error("Failed to revoke subscription")
+                        }
+                    }}
+                >
+                    <XCircle size={16} />
+                    Revoke
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    variant="destructive"
+                    disabled={disabled}
+                    onClick={async (e) => {
+                        e.stopPropagation()
+                        if (!record.id) return
+                        try {
+                            await removeSubscription(record.id)
+                            message.success("Subscription deleted")
+                        } catch {
+                            message.error("Failed to delete subscription")
+                        }
+                    }}
+                >
+                    <Trash size={16} />
+                    Delete
+                </DropdownMenuItem>
+            </>
+        ),
         [
             entityId,
             openDeliveries,
@@ -664,54 +667,56 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
 
     // ---- schedule actions ----
     const scheduleMenu = useCallback(
-        (record: TriggerSchedule): MenuProps["items"] => [
-            {
-                key: "deliveries",
-                label: "View deliveries",
-                icon: <ListChecks size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    if (record.id)
-                        openDeliveries({
-                            owner: {kind: "schedule", id: record.id},
-                            name: record.name ?? undefined,
-                            playgroundEntityId: entityId ?? undefined,
-                        })
-                },
-            },
-            {
-                key: "edit",
-                label: "Edit",
-                icon: <PencilSimpleLine size={16} />,
-                disabled,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    if (record.id)
-                        openScheduleDrawer({
-                            scheduleId: record.id,
-                            playgroundEntityId: entityId ?? undefined,
-                        })
-                },
-            },
-            {type: "divider"},
-            {
-                key: "delete",
-                label: "Delete",
-                icon: <Trash size={16} />,
-                danger: true,
-                disabled,
-                onClick: async (e) => {
-                    e.domEvent.stopPropagation()
-                    if (!record.id) return
-                    try {
-                        await removeSchedule(record.id)
-                        message.success("Schedule deleted")
-                    } catch {
-                        message.error("Failed to delete schedule")
-                    }
-                },
-            },
-        ],
+        (record: TriggerSchedule): ReactNode => (
+            <>
+                <DropdownMenuItem
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        if (record.id)
+                            openDeliveries({
+                                owner: {kind: "schedule", id: record.id},
+                                name: record.name ?? undefined,
+                                playgroundEntityId: entityId ?? undefined,
+                            })
+                    }}
+                >
+                    <ListChecks size={16} />
+                    View deliveries
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    disabled={disabled}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        if (record.id)
+                            openScheduleDrawer({
+                                scheduleId: record.id,
+                                playgroundEntityId: entityId ?? undefined,
+                            })
+                    }}
+                >
+                    <PencilSimpleLine size={16} />
+                    Edit
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    variant="destructive"
+                    disabled={disabled}
+                    onClick={async (e) => {
+                        e.stopPropagation()
+                        if (!record.id) return
+                        try {
+                            await removeSchedule(record.id)
+                            message.success("Schedule deleted")
+                        } catch {
+                            message.error("Failed to delete schedule")
+                        }
+                    }}
+                >
+                    <Trash size={16} />
+                    Delete
+                </DropdownMenuItem>
+            </>
+        ),
         [openDeliveries, openScheduleDrawer, removeSchedule, entityId, disabled],
     )
 
@@ -937,24 +942,5 @@ export function AddTriggerDropdown({
         ],
     )
 
-    return (
-        <AddItemMenu
-            groups={groups}
-            ariaLabel="Add trigger"
-            trigger={
-                trigger ?? (
-                    <Tooltip title="Add trigger">
-                        <Button
-                            aria-label="Add trigger"
-                            onClick={(e) => e.stopPropagation()}
-                            variant="ghost"
-                            size="icon"
-                        >
-                            {<Plus size={16} />}
-                        </Button>
-                    </Tooltip>
-                )
-            }
-        />
-    )
+    return <AddItemMenu groups={groups} ariaLabel="Add trigger" trigger={trigger} />
 }

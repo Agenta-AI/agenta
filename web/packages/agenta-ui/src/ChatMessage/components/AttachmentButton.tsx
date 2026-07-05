@@ -1,8 +1,12 @@
 import React, {useCallback, useRef} from "react"
 
-import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {FileArchive, Image as ImageIcon, Paperclip} from "@phosphor-icons/react"
-import {Dropdown, MenuProps} from "antd"
 
 import {cn, flexLayouts, gapClasses, textColors} from "../../utils/styles"
 
@@ -55,29 +59,6 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
         [onAddFile],
     )
 
-    const menuItems: MenuProps["items"] = [
-        {
-            key: "image",
-            label: (
-                <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
-                    <ImageIcon size={14} />
-                    <span>Upload image</span>
-                </span>
-            ),
-            onClick: () => imageInputRef.current?.click(),
-        },
-        {
-            key: "file",
-            label: (
-                <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
-                    <FileArchive size={14} />
-                    <span>Attach document</span>
-                </span>
-            ),
-            onClick: () => fileInputRef.current?.click(),
-        },
-    ]
-
     return (
         <>
             <input
@@ -94,16 +75,33 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
                 hidden
                 onChange={handleFileSelect}
             />
-            <Dropdown menu={{items: menuItems}} trigger={["click"]} disabled={disabled}>
-                <Button
-                    className={cn(textColors.icon, textColors.iconHover)}
+            <DropdownMenu>
+                <DropdownMenuTrigger
+                    className={cn(
+                        "inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent size-7 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50",
+                        textColors.icon,
+                        textColors.iconHover,
+                    )}
+                    disabled={disabled}
                     title="Add attachment"
-                    variant="ghost"
-                    size="icon-sm"
                 >
-                    {<Paperclip size={14} />}
-                </Button>
-            </Dropdown>
+                    <Paperclip size={14} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
+                        <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
+                            <ImageIcon size={14} />
+                            <span>Upload image</span>
+                        </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                        <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
+                            <FileArchive size={14} />
+                            <span>Attach document</span>
+                        </span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </>
     )
 }

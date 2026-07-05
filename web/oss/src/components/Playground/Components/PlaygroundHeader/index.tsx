@@ -23,12 +23,19 @@ import {
 } from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Check, Gavel, GearSix, PencilSimple, Plus, Robot} from "@phosphor-icons/react"
-import {Divider, Dropdown, Segmented, Space, Tag, message, type MenuProps} from "antd"
+import {Divider, Segmented, Space, Tag, message} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -223,45 +230,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const setLayout = useSetAtom(agentTemplateLayoutAtom)
     const channelMode = useAtomValue(agentChannelModeAtom)
     const setChannelMode = useSetAtom(agentChannelModeAtom)
-
-    const settingsMenuItems: MenuProps["items"] = useMemo(
-        () => [
-            {
-                key: "view",
-                type: "group" as const,
-                label: "View",
-                children: AGENT_TEMPLATE_LAYOUTS.map((option) => ({
-                    key: `view-${option.value}`,
-                    label: option.label,
-                    icon:
-                        layout === option.value ? (
-                            <Check size={14} />
-                        ) : (
-                            <span className="inline-block w-[14px]" />
-                        ),
-                    onClick: () => setLayout(option.value),
-                })),
-            },
-            {type: "divider" as const},
-            {
-                key: "channel",
-                type: "group" as const,
-                label: "Response",
-                children: CHANNEL_OPTIONS.map((option) => ({
-                    key: `channel-${option.value}`,
-                    label: option.label,
-                    icon:
-                        channelMode === option.value ? (
-                            <Check size={14} />
-                        ) : (
-                            <span className="inline-block w-[14px]" />
-                        ),
-                    onClick: () => setChannelMode(option.value),
-                })),
-            },
-        ],
-        [layout, setLayout, channelMode, setChannelMode],
-    )
 
     // Find all connected evaluator nodes
     const connectedEvaluatorNodes = useMemo(
@@ -539,30 +507,19 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
             >
                 <div className="flex shrink-0 items-center gap-2">
                     {currentWorkflow?.flags?.is_custom ? (
-                        <Dropdown
-                            trigger={["click"]}
-                            styles={{
-                                root: {
-                                    width: 180,
-                                },
-                            }}
-                            menu={{
-                                items: [
-                                    ...[
-                                        {
-                                            key: "configure",
-                                            label: "Configure workflow",
-                                            icon: <PencilSimple size={16} />,
-                                            onClick: openModal,
-                                        },
-                                    ],
-                                ],
-                            }}
-                        >
-                            <Button variant="ghost" size="icon">
-                                {<MoreOutlined />}
-                            </Button>
-                        </Dropdown>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                                <Button variant="ghost" size="icon">
+                                    {<MoreOutlined />}
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent style={{width: 180}}>
+                                <DropdownMenuItem onClick={openModal}>
+                                    <PencilSimple size={16} />
+                                    Configure workflow
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     ) : null}
                     {isAgentWorkflow ? (
                         <div className="flex min-w-0 items-center gap-2">
@@ -728,20 +685,52 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     {label: "Chat", value: "chat"},
                                 ]}
                             />
-                            <Dropdown
-                                trigger={["click"]}
-                                placement="bottomRight"
-                                styles={{root: {width: 180}}}
-                                menu={{items: settingsMenuItems}}
-                            >
-                                <Button
-                                    aria-label="Playground settings"
-                                    variant="ghost"
-                                    size="icon"
-                                >
-                                    {<GearSix size={16} />}
-                                </Button>
-                            </Dropdown>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                                    <Button
+                                        aria-label="Playground settings"
+                                        variant="ghost"
+                                        size="icon"
+                                    >
+                                        {<GearSix size={16} />}
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" style={{width: 180}}>
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                        View
+                                    </div>
+                                    {AGENT_TEMPLATE_LAYOUTS.map((option) => (
+                                        <DropdownMenuItem
+                                            key={`view-${option.value}`}
+                                            onClick={() => setLayout(option.value)}
+                                        >
+                                            {layout === option.value ? (
+                                                <Check size={14} />
+                                            ) : (
+                                                <span className="inline-block w-[14px]" />
+                                            )}
+                                            {option.label}
+                                        </DropdownMenuItem>
+                                    ))}
+                                    <DropdownMenuSeparator />
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                        Response
+                                    </div>
+                                    {CHANNEL_OPTIONS.map((option) => (
+                                        <DropdownMenuItem
+                                            key={`channel-${option.value}`}
+                                            onClick={() => setChannelMode(option.value)}
+                                        >
+                                            {channelMode === option.value ? (
+                                                <Check size={14} />
+                                            ) : (
+                                                <span className="inline-block w-[14px]" />
+                                            )}
+                                            {option.label}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </>
                     )}
                 </div>

@@ -1,12 +1,17 @@
 import {memo, useState} from "react"
 
-import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {PageLayout} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 // TEMPORARY: Disabling name editing
 // import {PencilLine} from "@phosphor-icons/react"
-import {Dropdown, Space} from "antd"
+import {Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -53,74 +58,43 @@ const AppDetailsSection = memo(() => {
             <Space className="flex items-center gap-3">
                 <h3 className="!m-0 text-lg font-semibold leading-snug">{workflowName}</h3>
 
-                <Dropdown
-                    trigger={["click"]}
-                    styles={{
-                        root: {
-                            width: 180,
-                        },
-                    }}
-                    menu={{
-                        items: [
-                            ...(currentWorkflow?.flags?.is_custom
-                                ? [
-                                      {
-                                          key: "configure",
-                                          label: "Configure",
-                                          icon: <PencilSimple size={16} />,
-                                          onClick: openModal,
-                                      },
-                                      //   {
-                                      //       key: "history",
-                                      //       label: "History",
-                                      //       icon: <ClockCounterClockwise size={16} />,
-                                      //       onClick: () =>
-                                      //           setIsCustomWorkflowHistoryDrawerOpen(true),
-                                      //   },
-                                  ]
-                                : [
-                                      // TEMPORARY: Disabling name editing
-                                      // {
-                                      //     key: "rename_app",
-                                      //     label: "Rename",
-                                      //     icon: <PencilLine size={16} />,
-                                      //     onClick: () => openEditAppModal(currentApp!),
-                                      // },
-                                  ]),
-                            {
-                                key: "copy_id",
-                                label: "Copy ID",
-                                icon: <Copy size={16} />,
-                                onClick: () => copyToClipboard(workflowId),
-                            },
-                            ...(currentWorkflow?.slug
-                                ? [
-                                      {
-                                          key: "copy_slug",
-                                          label: "Copy Slug",
-                                          icon: <Copy size={16} />,
-                                          onClick: () => copyToClipboard(currentWorkflow.slug!),
-                                      },
-                                  ]
-                                : []),
-                            {
-                                key: "delete_app",
-                                label: "Delete",
-                                icon: <Trash size={16} />,
-                                danger: true,
-                                onClick: () =>
-                                    openDeleteAppModal({
-                                        id: workflowId,
-                                        name: workflowName,
-                                    }),
-                            },
-                        ],
-                    }}
-                >
-                    <Button variant="ghost" size="icon">
+                <DropdownMenu>
+                    <DropdownMenuTrigger className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent size-7 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50">
                         {<MoreOutlined />}
-                    </Button>
-                </Dropdown>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" sideOffset={4} className="w-[180px]">
+                        {currentWorkflow?.flags?.is_custom && (
+                            <DropdownMenuItem onClick={openModal}>
+                                <PencilSimple size={16} />
+                                Configure
+                            </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={() => copyToClipboard(workflowId)}>
+                            <Copy size={16} />
+                            Copy ID
+                        </DropdownMenuItem>
+                        {currentWorkflow?.slug && (
+                            <DropdownMenuItem
+                                onClick={() => copyToClipboard(currentWorkflow.slug!)}
+                            >
+                                <Copy size={16} />
+                                Copy Slug
+                            </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() =>
+                                openDeleteAppModal({
+                                    id: workflowId,
+                                    name: workflowName,
+                                })
+                            }
+                        >
+                            <Trash size={16} />
+                            Delete
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </Space>
         </>
     )

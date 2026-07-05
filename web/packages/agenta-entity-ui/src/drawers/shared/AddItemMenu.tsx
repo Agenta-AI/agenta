@@ -7,11 +7,15 @@
  *
  * Keeps the tools and triggers add-menus visually identical. Dark-safe (`--ag-color*` tokens).
  */
-import {memo, useCallback, useState, type ReactNode} from "react"
+import {isValidElement, memo, useCallback, useState, type ReactNode} from "react"
 
-import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {CaretRight, Plus} from "@phosphor-icons/react"
-import {Dropdown, Tooltip} from "antd"
+import {Tooltip} from "antd"
 
 export interface AddItemMenuItem {
     key: string
@@ -119,30 +123,27 @@ export const AddItemMenu = memo(function AddItemMenu({
     )
 
     return (
-        <Dropdown
+        <DropdownMenu
             open={!disabled && open}
             onOpenChange={(next) => {
                 if (disabled) return
                 setOpen(next)
             }}
-            trigger={["click"]}
-            placement="bottomLeft"
-            arrow={false}
-            menu={{items: []}}
-            popupRender={() => content}
-            classNames={{root: "[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"}}
         >
-            {trigger ?? (
-                <Button
+            {trigger && isValidElement(trigger) ? (
+                <DropdownMenuTrigger render={trigger} disabled={disabled} />
+            ) : (
+                <DropdownMenuTrigger
                     aria-label={ariaLabel}
                     disabled={disabled}
-                    onClick={(e) => e.stopPropagation()}
-                    variant="ghost"
-                    size="icon"
+                    className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit"
                 >
-                    {<Plus size={16} />}
-                </Button>
+                    {trigger ?? <Plus size={16} />}
+                </DropdownMenuTrigger>
             )}
-        </Dropdown>
+            <DropdownMenuContent align="start" side="bottom" sideOffset={4}>
+                {content}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 })

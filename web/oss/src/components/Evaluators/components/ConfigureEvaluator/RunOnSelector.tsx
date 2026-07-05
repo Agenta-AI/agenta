@@ -18,6 +18,11 @@
 import {useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {AppstoreOutlined} from "@ant-design/icons"
 import {
     CaretDownIcon,
@@ -26,7 +31,7 @@ import {
     GavelIcon,
     TreeViewIcon,
 } from "@phosphor-icons/react"
-import {Dropdown, theme} from "antd"
+import {theme} from "antd"
 import type {GlobalToken} from "antd"
 import clsx from "clsx"
 
@@ -267,30 +272,29 @@ const RunOnSelector = ({mode, onPick}: RunOnSelectorProps) => {
     )
 
     return (
-        <Dropdown
-            open={open}
-            onOpenChange={setOpen}
-            trigger={["click"]}
-            placement="bottomLeft"
-            popupRender={() => overlay}
-        >
-            <Button
-                className="flex items-center gap-1.5 font-medium"
-                style={{
-                    background: token.colorPrimaryBg,
-                    borderColor: token.colorPrimaryBorder,
-                }}
-                variant="outline"
-                size="sm"
-            >
-                <span className="font-normal" style={{color: token.colorTextTertiary}}>
-                    Run on:
-                </span>
-                <current.Icon size={14} style={{color: token.colorText}} />
-                <span className="truncate">{current.shortLabel}</span>
-                <CaretDownIcon size={12} style={{color: token.colorTextTertiary}} />
-            </Button>
-        </Dropdown>
+        <DropdownMenu open={open} onOpenChange={setOpen}>
+            <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                <Button
+                    className="flex items-center gap-1.5 font-medium"
+                    style={{
+                        background: token.colorPrimaryBg,
+                        borderColor: token.colorPrimaryBorder,
+                    }}
+                    variant="outline"
+                    size="sm"
+                >
+                    <span className="font-normal" style={{color: token.colorTextTertiary}}>
+                        Run on:
+                    </span>
+                    <current.Icon size={14} style={{color: token.colorText}} />
+                    <span className="truncate">{current.shortLabel}</span>
+                    <CaretDownIcon size={12} style={{color: token.colorTextTertiary}} />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="p-0">
+                {overlay}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 

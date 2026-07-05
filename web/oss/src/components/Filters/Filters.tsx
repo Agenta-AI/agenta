@@ -1,6 +1,15 @@
-import {useMemo, useState} from "react"
+import React, {useMemo, useState} from "react"
 
 import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {
     ArrowClockwiseIcon,
@@ -9,7 +18,7 @@ import {
     PlusIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
-import {Button, Divider, Dropdown, Input, MenuProps, Select, Space, TreeSelect} from "antd"
+import {Button, Divider, Input, Select, Space, TreeSelect} from "antd"
 import {useAtomValue} from "jotai"
 import isEqual from "lodash/isEqual"
 
@@ -43,7 +52,6 @@ import {
     createEmptyFilter,
     CUSTOM_FIELD_VALUE,
     effectiveFieldForRow,
-    getGroupDefaultValue,
     getOptionKey,
     isBooleanLike,
     isNumberLike,
@@ -54,7 +62,6 @@ import {
     valueToPathLabel,
 } from "./helpers/utils"
 import {
-    FieldMenuItem,
     FilterGroup,
     FilterItem,
     FilterLeaf,
@@ -64,8 +71,6 @@ import {
     SelectOption,
 } from "./types"
 
-const fieldDropdownSubmenuClass =
-    "[&_.ant-dropdown-menu]:w-full [&_.ant-dropdown-menu]:max-w-[min(560px,calc(100vw-32px))] [&_.ant-dropdown-menu]:max-h-[60vh] [&_.ant-dropdown-menu]:overflow-auto"
 const filterHeadingClass = "flex items-center justify-between py-2 pr-2 pl-4 gap-3"
 const filterContainerClass = "flex gap-2 flex-col p-2"
 
@@ -187,81 +192,48 @@ const extractAnnotationValue = (raw: FilterItem["value"]): AnnotationFilterValue
 
 const EMPTY_DISABLED_OPTIONS = new Set<string>()
 
-const buildFieldMenuItems = (
+const renderFieldMenuItems = (
     nodes: FilterMenuNode[],
     onSelect: (value: string, displayLabel?: string) => void,
     parentKey = "root",
-    ancestors: FilterGroup[] = [],
-    submenuPopupClassName?: string,
     disabledOptionKeys: Set<string> = EMPTY_DISABLED_OPTIONS,
-): MenuProps["items"] => {
-    const items: MenuProps["items"] = []
-    nodes.forEach((node, index) => {
+): React.ReactNode => {
+    return nodes.map((node, index) => {
         if (node.kind === "group") {
             const group = node as FilterGroup
             const groupKey = `group:${parentKey}:${index}`
-            const defaultValue = getGroupDefaultValue(group)
-            const isDefaultDisabled = defaultValue ? disabledOptionKeys.has(defaultValue) : false
-            items.push({
-                key: groupKey,
-                label: (
-                    <div
-                        className={
-                            defaultValue
-                                ? "flex items-center gap-2 cursor-pointer"
-                                : "flex items-center gap-2"
-                        }
-                    >
+
+            return (
+                <DropdownMenuSub key={groupKey}>
+                    <DropdownMenuSubTrigger>
                         {group.icon ? <group.icon size={16} /> : null}
                         <span>{group.label}</span>
-                    </div>
-                ),
-                children: buildFieldMenuItems(
-                    group.children,
-                    onSelect,
-                    groupKey,
-                    [...ancestors, group],
-                    submenuPopupClassName,
-                    disabledOptionKeys,
-                ),
-                onTitleClick: defaultValue
-                    ? ({domEvent}: {domEvent: MouseEvent}) => {
-                          if (isDefaultDisabled) {
-                              domEvent.preventDefault()
-                              domEvent.stopPropagation()
-                              return
-                          }
-                          domEvent.preventDefault()
-                          domEvent.stopPropagation()
-                          onSelect(
-                              defaultValue,
-                              group.titleClickDisplayLabel ?? group.leafDisplayLabel,
-                          )
-                      }
-                    : undefined,
-                // popupClassName: submenuPopupClassName,
-                classNames: {
-                    popup: {
-                        root: submenuPopupClassName,
-                    },
-                },
-            } as FieldMenuItem)
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                        {renderFieldMenuItems(
+                            group.children,
+                            onSelect,
+                            groupKey,
+                            disabledOptionKeys,
+                        )}
+                    </DropdownMenuSubContent>
+                </DropdownMenuSub>
+            )
         } else {
             const leaf = node as FilterLeaf
             const optionKey = getOptionKey(leaf)
-            items.push({
-                key: optionKey,
-                label: (
-                    <div className="flex items-center gap-2">
-                        {leaf.icon ? <leaf.icon size={16} /> : null}
-                        <span>{leaf.label}</span>
-                    </div>
-                ),
-                disabled: disabledOptionKeys.has(optionKey),
-            } as FieldMenuItem)
+            return (
+                <DropdownMenuItem
+                    key={optionKey}
+                    disabled={disabledOptionKeys.has(optionKey)}
+                    onClick={() => onSelect(optionKey)}
+                >
+                    {leaf.icon ? <leaf.icon size={16} /> : null}
+                    <span>{leaf.label}</span>
+                </DropdownMenuItem>
+            )
         }
     })
-    return items
 }
 
 const Filters: React.FC<Props> = ({
@@ -1306,35 +1278,14 @@ const Filters: React.FC<Props> = ({
 
                                     <Space orientation="vertical" className="w-full">
                                         <div className="flex items-center gap-2 w-full">
-                                            <Dropdown
-                                                trigger={["click"]}
-                                                placement="bottomLeft"
+                                            <DropdownMenu
                                                 open={activeFieldDropdown === idx}
                                                 onOpenChange={(open) =>
                                                     setActiveFieldDropdown(open ? idx : null)
                                                 }
-                                                menu={{
-                                                    items: buildFieldMenuItems(
-                                                        columns,
-                                                        (value, labelFromGroup) =>
-                                                            handleFieldSelection(
-                                                                value,
-                                                                idx,
-                                                                labelFromGroup,
-                                                            ),
-                                                        "root",
-                                                        [],
-                                                        fieldDropdownSubmenuClass,
-                                                        disabledFieldOptionsForMenu ??
-                                                            EMPTY_DISABLED_OPTIONS,
-                                                    ),
-                                                    onClick: ({key}) =>
-                                                        handleFieldSelection(String(key), idx),
-                                                }}
-                                                getPopupContainer={(t) => getWithinPopover(t)}
                                             >
-                                                <Button
-                                                    className="w-[180px] flex items-center justify-between"
+                                                <DropdownMenuTrigger
+                                                    className="w-[180px] flex items-center justify-between rounded-md border border-border bg-background px-3 py-1.5 text-sm disabled:pointer-events-none disabled:opacity-50"
                                                     disabled={item.isPermanent}
                                                 >
                                                     <span className="truncate">
@@ -1345,8 +1296,22 @@ const Filters: React.FC<Props> = ({
                                                               "Field")}
                                                     </span>
                                                     <CaretDownIcon size={14} />
-                                                </Button>
-                                            </Dropdown>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="start">
+                                                    {renderFieldMenuItems(
+                                                        columns,
+                                                        (value, labelFromGroup) =>
+                                                            handleFieldSelection(
+                                                                value,
+                                                                idx,
+                                                                labelFromGroup,
+                                                            ),
+                                                        "root",
+                                                        disabledFieldOptionsForMenu ??
+                                                            EMPTY_DISABLED_OPTIONS,
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
 
                                             {showKey &&
                                                 (field!.keyInput!.kind === "select" ? (

@@ -8,8 +8,13 @@
 import {memo, type ReactNode, useMemo} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {ArrowLeft, CaretRight, DotsThree} from "@phosphor-icons/react"
-import {Dropdown} from "antd"
 
 export interface DrillInBreadcrumbProps {
     /** Current navigation path */
@@ -143,14 +148,18 @@ export const DrillInBreadcrumb = memo(
                     {showEllipsis && hiddenSegments.length > 0 && (
                         <div className="flex items-center flex-shrink-0">
                             <CaretRight size={12} className="text-gray-400" />
-                            <Dropdown menu={{items: dropdownItems}} trigger={["click"]}>
-                                <button
-                                    type="button"
-                                    className="px-2 py-1 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer text-gray-500"
-                                >
+                            <DropdownMenu>
+                                <DropdownMenuTrigger className="px-2 py-1 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer text-gray-500 inline-flex items-center">
                                     <DotsThree size={16} weight="bold" />
-                                </button>
-                            </Dropdown>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                    {dropdownItems.map((item) => (
+                                        <DropdownMenuItem key={item.key} onClick={item.onClick}>
+                                            {item.label}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     )}
 

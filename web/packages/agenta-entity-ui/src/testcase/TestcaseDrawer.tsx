@@ -1,6 +1,12 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {copyToClipboard} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -15,7 +21,7 @@ import {
     CornersIn,
     CornersOut,
 } from "@phosphor-icons/react"
-import {Alert, Dropdown, Skeleton, Space, Tooltip} from "antd"
+import {Alert, Skeleton, Tooltip} from "antd"
 
 import type {RootDrawerViewMode} from "./codeFormat"
 
@@ -367,51 +373,45 @@ function TestcaseDrawer<TData = unknown>({
                         <Button onClick={handleCancel} variant="outline">
                             Cancel
                         </Button>
-                        <Space.Compact>
+                        <div className="flex">
                             <Button
                                 onClick={handleApply}
                                 disabled={!hasSessionDirty || isSavingTestset}
+                                className="rounded-r-none border-r-0"
                             >
                                 {isSavingTestset ? <Spinner /> : null}
                                 Apply and Continue Editing
                             </Button>
-                            <Dropdown
-                                placement="topRight"
-                                menu={{
-                                    items: [
-                                        ...(onOpenCommitModal
-                                            ? [
-                                                  {
-                                                      key: "commit",
-                                                      label: "Apply and Commit Changes",
-                                                      onClick: handleOpenCommitModal,
-                                                      disabled: !hasSessionDirty,
-                                                  },
-                                              ]
-                                            : []),
-                                        ...(onSaveTestset
-                                            ? [
-                                                  {
-                                                      key: "save",
-                                                      label: "Apply and Save Testset",
-                                                      onClick: handleSaveTestset,
-                                                      disabled: !hasSessionDirty,
-                                                  },
-                                              ]
-                                            : []),
-                                    ],
-                                }}
-                            >
-                                <Button
+                            <DropdownMenu>
+                                <DropdownMenuTrigger
                                     disabled={
                                         !hasSessionDirty || (!onOpenCommitModal && !onSaveTestset)
                                     }
-                                    size="icon"
+                                    className="inline-flex shrink-0 items-center justify-center rounded-l-none rounded-r-lg border border-input bg-background px-1.5 text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+                                    aria-label="More options"
                                 >
-                                    {<CaretUp size={14} />}
-                                </Button>
-                            </Dropdown>
-                        </Space.Compact>
+                                    <CaretUp size={14} />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" side="top" sideOffset={2}>
+                                    {onOpenCommitModal && (
+                                        <DropdownMenuItem
+                                            onClick={handleOpenCommitModal}
+                                            disabled={!hasSessionDirty}
+                                        >
+                                            Apply and Commit Changes
+                                        </DropdownMenuItem>
+                                    )}
+                                    {onSaveTestset && (
+                                        <DropdownMenuItem
+                                            onClick={handleSaveTestset}
+                                            disabled={!hasSessionDirty}
+                                        >
+                                            Apply and Save Testset
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                     </div>
                 )
             }

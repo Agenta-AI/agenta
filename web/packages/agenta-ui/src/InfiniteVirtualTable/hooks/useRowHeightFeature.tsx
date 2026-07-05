@@ -1,6 +1,5 @@
-import {useMemo} from "react"
+import {type ReactNode, useMemo} from "react"
 
-import type {MenuProps} from "antd"
 import {atomWithStorage} from "jotai/utils"
 
 import type {RowHeightContextValue} from "../context/RowHeightContext"
@@ -31,7 +30,7 @@ export interface UseRowHeightFeatureResult {
     /** Context value to provide to RowHeightContext.Provider */
     contextValue: RowHeightContextValue
     /** Menu items for the settings dropdown */
-    menuItems: MenuProps["items"]
+    menuItems: ReactNode
     /** Row height in pixels (for IVT rowHeight prop) */
     heightPx: number
 }

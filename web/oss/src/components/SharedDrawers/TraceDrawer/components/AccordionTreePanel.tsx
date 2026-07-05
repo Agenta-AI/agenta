@@ -1,5 +1,12 @@
 import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {
     CopyButton,
@@ -21,7 +28,7 @@ import {
     MagnifyingGlassIcon,
     XIcon,
 } from "@phosphor-icons/react"
-import {Button, Collapse, Dropdown, Radio, Space, theme} from "antd"
+import {Collapse, Radio, Space, theme} from "antd"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
@@ -409,16 +416,6 @@ const AccordionTreePanel = ({
         return getStringOrJson(sanitizedValue)
     }, [parsedStructuredString, sanitizedValue])
 
-    const viewModeMenuItems = useMemo(
-        () =>
-            availableViewModes.map((mode) => ({
-                key: mode,
-                label: PANEL_VIEW_MODE_LABELS[mode],
-                onClick: () => setPanelViewMode(mode),
-            })),
-        [availableViewModes],
-    )
-
     const copyText =
         panelViewMode === "yaml"
             ? yamlOutput
@@ -574,20 +571,33 @@ const AccordionTreePanel = ({
                                             <Radio.Button value="yaml">YAML</Radio.Button>
                                         </Radio.Group>
                                     ) : (
-                                        <Dropdown
-                                            trigger={["click"]}
-                                            menu={{
-                                                items: viewModeMenuItems,
-                                                selectable: true,
-                                                selectedKeys: [panelViewMode],
-                                            }}
-                                            overlayStyle={{minWidth: 168}}
-                                        >
-                                            <Button size="small" type="text">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger
+                                                className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 h-6 gap-1 px-1.5"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
                                                 {PANEL_VIEW_MODE_LABELS[panelViewMode]}
                                                 <CaretUpDown size={14} />
-                                            </Button>
-                                        </Dropdown>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent style={{minWidth: 168}}>
+                                                <DropdownMenuRadioGroup
+                                                    value={panelViewMode}
+                                                    onValueChange={(value) =>
+                                                        setPanelViewMode(value as PanelViewMode)
+                                                    }
+                                                >
+                                                    {availableViewModes.map((mode) => (
+                                                        <DropdownMenuRadioItem
+                                                            key={mode}
+                                                            value={mode}
+                                                            closeOnClick
+                                                        >
+                                                            {PANEL_VIEW_MODE_LABELS[mode]}
+                                                        </DropdownMenuRadioItem>
+                                                    ))}
+                                                </DropdownMenuRadioGroup>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     ))}
                                 <CopyButton
                                     text={copyText}

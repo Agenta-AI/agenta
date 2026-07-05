@@ -2,10 +2,10 @@ import type {CSSProperties, Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {DropdownMenuSeparator} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Tabs, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {Export, Trash} from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
 import {Grid, Pagination, Tooltip} from "antd"
 
 import {cn} from "../../utils/styles"
@@ -175,7 +175,7 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * Additional menu items for the settings dropdown.
      * Only used when useSettingsDropdown is true.
      */
-    settingsDropdownMenuItems?: MenuProps["items"]
+    settingsDropdownMenuItems?: ReactNode
     keyboardShortcuts?: InfiniteVirtualTableProps<Row>["keyboardShortcuts"]
     /**
      * Configuration for expandable rows.
@@ -332,18 +332,27 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     const rowHeight = rowHeightFeature?.heightPx ?? rowHeightProp
 
     // Combine settings dropdown menu items with built-in table feature items
-    const combinedSettingsDropdownMenuItems = useMemo<MenuProps["items"]>(() => {
-        const menuGroups = [
-            typeChipFeature.menuItems,
-            rowHeightFeature?.menuItems,
-            settingsDropdownMenuItems,
-        ].filter((items): items is NonNullable<MenuProps["items"]> => Boolean(items?.length))
+    const combinedSettingsDropdownMenuItems = useMemo<ReactNode>(() => {
+        const items: ReactNode[] = []
 
-        if (!menuGroups.length) return undefined
+        if (typeChipFeature.menuItems) {
+            if (items.length > 0) items.push(<DropdownMenuSeparator key="sep-type-chip" />)
+            items.push(typeChipFeature.menuItems)
+        }
 
-        return menuGroups.flatMap((items, index) =>
-            index === 0 ? items : [{type: "divider" as const}, ...items],
-        )
+        if (rowHeightFeature?.menuItems) {
+            if (items.length > 0) items.push(<DropdownMenuSeparator key="sep-row-height" />)
+            items.push(rowHeightFeature.menuItems)
+        }
+
+        if (settingsDropdownMenuItems) {
+            if (items.length > 0) items.push(<DropdownMenuSeparator key="sep-settings" />)
+            items.push(settingsDropdownMenuItems)
+        }
+
+        if (!items.length) return undefined
+
+        return items
     }, [rowHeightFeature?.menuItems, settingsDropdownMenuItems, typeChipFeature.menuItems])
 
     // Responsive breakpoints for built-in action buttons

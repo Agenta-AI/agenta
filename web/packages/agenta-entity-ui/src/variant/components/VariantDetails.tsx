@@ -1,6 +1,11 @@
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {DraftTag} from "@agenta/ui/components"
-import {Dropdown, Space, Tag} from "antd"
-import type {MenuProps} from "antd"
+import {Space, Tag} from "antd"
 
 interface VariantDetailsProps {
     variantName?: string
@@ -23,19 +28,6 @@ const VariantDetails = ({
     onDiscardDraft,
     hideDiscard = false,
 }: VariantDetailsProps) => {
-    const draftMenuItems: MenuProps["items"] = [
-        {
-            key: "discard",
-            label: "Discard draft changes",
-            danger: true,
-            disabled: !onDiscardDraft,
-        },
-    ]
-    const onDraftMenuClick: MenuProps["onClick"] = ({key}) => {
-        if (key === "discard") {
-            onDiscardDraft?.()
-        }
-    }
     return (
         <Space size={4}>
             {variantName ? <span>{variantName}</span> : null}
@@ -54,13 +46,20 @@ const VariantDetails = ({
                 hideDiscard ? (
                     <DraftTag />
                 ) : (
-                    <Dropdown
-                        trigger={["click"]}
-                        menu={{items: draftMenuItems, onClick: onDraftMenuClick}}
-                        placement="bottomLeft"
-                    >
-                        <DraftTag className="cursor-pointer" />
-                    </Dropdown>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                            <DraftTag className="cursor-pointer" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" side="bottom" sideOffset={4}>
+                            <DropdownMenuItem
+                                variant="destructive"
+                                disabled={!onDiscardDraft}
+                                onClick={() => onDiscardDraft?.()}
+                            >
+                                Discard draft changes
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 )
             ) : (
                 isLatest &&

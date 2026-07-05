@@ -1,7 +1,13 @@
 import {useMemo, useState} from "react"
 
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
-import {Dropdown} from "antd"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -13,8 +19,6 @@ import {
 const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
     ssr: false,
 })
-
-// All required data is sourced from atoms; no props needed
 
 const formatTimestamp = (timestamp: number) => new Date(timestamp * 1000).toLocaleString()
 
@@ -28,11 +32,9 @@ const ModifiedByText = ({variant}: {variant: ComparisonRevision}) => {
 }
 
 const VariantComparisonContent = () => {
-    // Fetch lists from atoms
     const compareList = useAtomValue(comparisonModalCompareListAtom) || []
     const allVariants = useAtomValue(comparisonModalAllVariantsAtom) || []
 
-    // Prefer explicit allVariants when provided, else fall back to compare list
     const availableVariants: ComparisonRevision[] = useMemo(
         () =>
             allVariants.length
@@ -41,7 +43,6 @@ const VariantComparisonContent = () => {
         [allVariants, compareList],
     )
 
-    // Defaults prefer the explicitly compared pair when present
     const [originalVariantId, setOriginalVariantId] = useState<string | undefined>(
         (compareList[0]?.id as string | undefined) ?? availableVariants[0]?.id,
     )
@@ -55,8 +56,6 @@ const VariantComparisonContent = () => {
         availableVariants[1] ||
         availableVariants[0]
 
-    // Memoize stringified parameters based on variant identity (id) to avoid
-    // re-triggering Editor effects due to changing object references
     const originalText = useMemo(
         () => JSON.stringify(originalVariant?.parameters ?? {}),
         [originalVariant?.id],
@@ -66,43 +65,53 @@ const VariantComparisonContent = () => {
         [modifiedVariant?.id],
     )
 
-    // Safety: require at least one variant to render
     if (!originalVariant) return null
 
-    const createDropdownItems = (currentVariantId: string, onSelect: (id: string) => void) => {
-        return availableVariants.map((variant) => ({
-            key: variant.id,
-            label: (
-                <div className="flex items-center justify-between w-full py-2">
-                    <VariantDetailsWithStatus
-                        variantName={variant.variantName ?? variant.name}
-                        revision={variant.revision}
-                        variant={{id: variant.id}}
-                        showBadges={false}
-                        className="flex-1"
-                    />
-                    <span className="text-xs ml-2 text-muted-foreground">
-                        {formatTimestamp(variant.createdAtTimestamp)}
-                    </span>
+    const renderVariantDropdown = (
+        currentVariant: ComparisonRevision,
+        currentVariantId: string | undefined,
+        onSelect: (id: string) => void,
+        hoverClass: string,
+    ) => (
+        <DropdownMenu>
+            <DropdownMenuTrigger
+                className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div
+                    className={`cursor-pointer ${hoverClass} rounded p-1 -m-1 transition-colors flex items-center gap-1`}
+                >
+                    <VariantNameCell revisionId={currentVariant.id} showBadges />
+                    <CaretDown size={12} />
                 </div>
-            ),
-            onClick: () => onSelect(variant.id),
-            disabled: variant.id === currentVariantId,
-        }))
-    }
-
-    const originalDropdownItems = createDropdownItems(
-        originalVariantId || originalVariant.id,
-        setOriginalVariantId,
-    )
-    const modifiedDropdownItems = createDropdownItems(
-        modifiedVariantId || modifiedVariant.id,
-        setModifiedVariantId,
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+                {availableVariants.map((variant) => (
+                    <DropdownMenuItem
+                        key={variant.id}
+                        disabled={variant.id === currentVariantId}
+                        onClick={() => onSelect(variant.id)}
+                    >
+                        <div className="flex items-center justify-between w-full py-2">
+                            <VariantDetailsWithStatus
+                                variantName={variant.variantName ?? variant.name}
+                                revision={variant.revision}
+                                variant={{id: variant.id}}
+                                showBadges={false}
+                                className="flex-1"
+                            />
+                            <span className="text-xs ml-2 text-muted-foreground">
+                                {formatTimestamp(variant.createdAtTimestamp)}
+                            </span>
+                        </div>
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 
     return (
         <div className="flex gap-6 h-[600px] pt-5">
-            {/* Left sidebar with variant information */}
             <div className="w-80 flex-shrink-0 space-y-4">
                 <h4 className="!mb-4 !mt-0 text-base font-semibold leading-snug">
                     Variant Comparison
@@ -118,18 +127,12 @@ const VariantComparisonContent = () => {
                             <div className="p-3 bg-red-50 rounded-lg border border-red-200">
                                 <div className="mb-3">
                                     {availableVariants.length > 2 ? (
-                                        <Dropdown
-                                            menu={{items: originalDropdownItems}}
-                                            trigger={["click"]}
-                                            placement="bottomLeft"
-                                        >
-                                            <div className="cursor-pointer hover:bg-red-100 rounded p-1 -m-1 transition-colors">
-                                                <VariantNameCell
-                                                    revisionId={originalVariant.id}
-                                                    showBadges
-                                                />
-                                            </div>
-                                        </Dropdown>
+                                        renderVariantDropdown(
+                                            originalVariant,
+                                            originalVariantId || originalVariant.id,
+                                            setOriginalVariantId,
+                                            "hover:bg-red-100",
+                                        )
                                     ) : (
                                         <VariantNameCell
                                             revisionId={originalVariant.id}
@@ -162,18 +165,12 @@ const VariantComparisonContent = () => {
                             <div className="p-3 bg-green-50 rounded-lg border border-green-200">
                                 <div className="mb-3">
                                     {availableVariants.length > 2 ? (
-                                        <Dropdown
-                                            menu={{items: modifiedDropdownItems}}
-                                            trigger={["click"]}
-                                            placement="bottomLeft"
-                                        >
-                                            <div className="cursor-pointer hover:bg-green-100 rounded p-1 -m-1 transition-colors">
-                                                <VariantNameCell
-                                                    revisionId={modifiedVariant.id}
-                                                    showBadges
-                                                />
-                                            </div>
-                                        </Dropdown>
+                                        renderVariantDropdown(
+                                            modifiedVariant,
+                                            modifiedVariantId || modifiedVariant.id,
+                                            setModifiedVariantId,
+                                            "hover:bg-green-100",
+                                        )
                                     ) : (
                                         <VariantNameCell
                                             revisionId={modifiedVariant.id}
@@ -199,7 +196,6 @@ const VariantComparisonContent = () => {
                 </div>
             </div>
 
-            {/* Right side with diff view */}
             <div className="compare-diff w-[100%] max-w-prose self-stretch overflow-y-auto flex flex-col min-h-0 p-1">
                 <DiffView
                     language="json"

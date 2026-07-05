@@ -1,6 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {
     EditorProvider,
     useLexicalComposerContext,
@@ -21,18 +27,14 @@ import {
     MarkdownLogo,
     TextAa,
 } from "@phosphor-icons/react"
-import {MenuProps} from "antd"
 import clsx from "clsx"
 import {$getRoot} from "lexical"
-import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 
 import {checkIsHTML, checkIsJSON, checkIsYAML, getDisplayedContent} from "../assets/helper"
 
 import {Format, SimpleSharedEditorProps} from "./types"
-
-const Dropdown = dynamic(() => import("antd").then((mod) => mod.Dropdown), {ssr: false})
 
 const SimpleSharedEditorContent = ({
     headerClassName,
@@ -43,7 +45,6 @@ const SimpleSharedEditorContent = ({
     isMinimizeVisible = true,
     isFormatVisible = true,
     isCopyVisible = true,
-    formatDropdownProps,
     copyButtonProps,
     minimizeButtonProps,
     disableFormatItems,
@@ -136,48 +137,44 @@ const SimpleSharedEditorContent = ({
         }
     }, [props.value, props.initialValue, language, editor])
 
-    const menuItems: MenuProps["items"] = useMemo(
+    const languageOptions = useMemo(
         () => [
             {
-                key: "text",
-                icon: <TextAa size={14} />,
+                value: "text" as const,
                 label: "Text",
-                onClick: toText,
-                disabled: isJSON || isYAML || isHTML || disableFormatItems?.text,
+                icon: <TextAa size={14} />,
+                disabled: isJSON || isYAML || isHTML || !!disableFormatItems?.text,
             },
             {
-                key: "markdown",
-                icon: <MarkdownLogo size={14} />,
+                value: "markdown" as const,
                 label: "Markdown",
-                onClick: toMarkdown,
-                disabled: isJSON || isYAML || isHTML || disableFormatItems?.markdown,
+                icon: <MarkdownLogo size={14} />,
+                disabled: isJSON || isYAML || isHTML || !!disableFormatItems?.markdown,
             },
             {
-                key: "json",
-                icon: <BracketsCurly size={14} />,
+                value: "json" as const,
                 label: "JSON",
-                onClick: toJson,
-                disabled: (!isJSON && !isYAML) || isHTML || disableFormatItems?.json,
+                icon: <BracketsCurly size={14} />,
+                disabled: (!isJSON && !isYAML) || isHTML || !!disableFormatItems?.json,
             },
             {
-                key: "yaml",
-                icon: <Code size={14} />,
+                value: "yaml" as const,
                 label: "YAML",
-                onClick: toYaml,
-                disabled: (!isYAML && !isJSON) || isHTML || disableFormatItems?.yaml,
+                icon: <Code size={14} />,
+                disabled: (!isYAML && !isJSON) || isHTML || !!disableFormatItems?.yaml,
             },
             ...(isHTML
                 ? [
                       {
-                          key: "html",
-                          icon: <Code size={14} />,
+                          value: "html" as const,
                           label: "HTML",
-                          disabled: (!isHTML && !isJSON && !isYAML) || disableFormatItems?.html,
+                          icon: <Code size={14} />,
+                          disabled: (!isHTML && !isJSON && !isYAML) || !!disableFormatItems?.html,
                       },
                   ]
                 : []),
         ],
-        [isJSON, toText, toJson, toYaml, toMarkdown, disableFormatItems, isYAML, isHTML],
+        [isJSON, isYAML, isHTML, disableFormatItems],
     )
 
     return (
@@ -210,32 +207,53 @@ const SimpleSharedEditorContent = ({
                     <span className="font-medium">{headerName}</span>
                     <div className="flex items-center gap-2">
                         {isFormatVisible && (
-                            <Dropdown
-                                {...formatDropdownProps}
-                                placement="bottomRight"
-                                trigger={["click"]}
-                                styles={{
-                                    root: {
-                                        width: 120,
-                                    },
-                                }}
-                                menu={{
-                                    items: menuItems,
-                                    selectable: true,
-                                    selectedKeys: [language],
-                                }}
-                            >
-                                <Button
-                                    className={clsx([
-                                        "capitalize flex items-center gap-1",
-                                        {"!uppercase": isJSON || isYAML || isHTML},
-                                    ])}
-                                    variant="ghost"
-                                    size="sm"
+                            <DropdownMenu>
+                                <DropdownMenuTrigger
+                                    className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 h-7 gap-1 px-2"
+                                    onClick={(e) => e.stopPropagation()}
                                 >
-                                    {language} <CaretUpDown size={14} />
-                                </Button>
-                            </Dropdown>
+                                    <span
+                                        className={clsx("capitalize flex items-center gap-1", {
+                                            "!uppercase": isJSON || isYAML || isHTML,
+                                        })}
+                                    >
+                                        {language} <CaretUpDown size={14} />
+                                    </span>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" style={{width: 120}}>
+                                    <DropdownMenuRadioGroup
+                                        value={language}
+                                        onValueChange={(value) => {
+                                            switch (value) {
+                                                case "text":
+                                                    toText()
+                                                    break
+                                                case "markdown":
+                                                    toMarkdown()
+                                                    break
+                                                case "json":
+                                                    toJson()
+                                                    break
+                                                case "yaml":
+                                                    toYaml()
+                                                    break
+                                            }
+                                        }}
+                                    >
+                                        {languageOptions.map((option) => (
+                                            <DropdownMenuRadioItem
+                                                key={option.value}
+                                                value={option.value}
+                                                disabled={option.disabled}
+                                                closeOnClick
+                                            >
+                                                {option.icon}
+                                                {option.label}
+                                            </DropdownMenuRadioItem>
+                                        ))}
+                                    </DropdownMenuRadioGroup>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         )}
 
                         {showTextToMdOutside && (

@@ -8,12 +8,18 @@ import {
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {ClockCounterClockwise, GearSix} from "@phosphor-icons/react"
-import {Dropdown, Space, Spin, Table} from "antd"
+import {Space, Spin, Table} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -312,44 +318,39 @@ const DeploymentHistoryModal = ({
                 fixed: "right",
                 align: "center",
                 render: (_, record) => (
-                    <Dropdown
-                        placement="bottomRight"
-                        trigger={["hover"]}
-                        menu={{
-                            items: [
-                                {
-                                    key: "revert",
-                                    label: "Revert",
-                                    icon: <ClockCounterClockwise size={16} />,
-                                    onClick: (event) => {
-                                        event.domEvent.stopPropagation()
-                                        setConfirmModalOpen(true)
-                                        setRevertRow(record)
-                                    },
-                                    disabled: record.appRevisionId === currentAppRevisionId,
-                                },
-                                {
-                                    key: "compare_to_current",
-                                    label: "Compare to current",
-                                    icon: <SwapOutlined />,
-                                    onClick: (event) => {
-                                        event.domEvent.stopPropagation()
-                                        setSelectedRow(record)
-                                        setCompareDeployment(true)
-                                    },
-                                    disabled: record.appRevisionId === currentAppRevisionId,
-                                },
-                            ],
-                        }}
-                    >
-                        <Button
-                            onClick={(event) => event.stopPropagation()}
-                            variant="ghost"
-                            size="icon-sm"
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            openOnHover
+                            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent size-7 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                            onClick={(e) => e.stopPropagation()}
                         >
-                            {<MoreOutlined />}
-                        </Button>
-                    </Dropdown>
+                            <MoreOutlined />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                                disabled={record.appRevisionId === currentAppRevisionId}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    setConfirmModalOpen(true)
+                                    setRevertRow(record)
+                                }}
+                            >
+                                <ClockCounterClockwise size={16} />
+                                Revert
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                disabled={record.appRevisionId === currentAppRevisionId}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedRow(record)
+                                    setCompareDeployment(true)
+                                }}
+                            >
+                                <SwapOutlined />
+                                Compare to current
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 ),
             },
         ],

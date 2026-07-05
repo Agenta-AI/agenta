@@ -3,6 +3,12 @@ import {useMemo, useState} from "react"
 import {environmentMolecule} from "@agenta/entities/environment"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -16,7 +22,7 @@ import {
     Rocket,
     Swap,
 } from "@phosphor-icons/react"
-import {DrawerProps, Dropdown, Space} from "antd"
+import {DrawerProps, Space} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -168,33 +174,30 @@ const DeploymentDrawer = ({
                                         {isDemo() ? "" : "History available in Cloud/EE only"}
                                     </TooltipContent>
                                 </Tooltip>
-                                <Dropdown
-                                    trigger={["hover"]}
-                                    menu={{
-                                        items: [
-                                            {
-                                                key: "change_variant",
-                                                label: "Change Variant",
-                                                icon: <Swap size={16} />,
-                                                onClick: handleOpenSelectDeployVariantModal,
-                                            },
-                                            {
-                                                key: "open_playground",
-                                                label: "Open in playground",
-                                                icon: <Rocket size={16} />,
-                                                onClick: () =>
-                                                    goToPlayground(
-                                                        selectedEnvironment.deployedRevisionId ??
-                                                            undefined,
-                                                    ),
-                                            },
-                                        ],
-                                    }}
-                                >
-                                    <Button variant="ghost" size="icon-sm">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent size-7 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50">
                                         {<MoreOutlined />}
-                                    </Button>
-                                </Dropdown>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" sideOffset={4}>
+                                        <DropdownMenuItem
+                                            onClick={handleOpenSelectDeployVariantModal}
+                                        >
+                                            <Swap size={16} />
+                                            Change Variant
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() =>
+                                                goToPlayground(
+                                                    selectedEnvironment.deployedRevisionId ??
+                                                        undefined,
+                                                )
+                                            }
+                                        >
+                                            <Rocket size={16} />
+                                            Open in playground
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </Space>
                         )}
                     </Space>

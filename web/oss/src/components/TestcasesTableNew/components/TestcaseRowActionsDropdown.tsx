@@ -1,10 +1,14 @@
 import {useCallback, useMemo, useRef, useState, type MouseEvent} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {message} from "@agenta/ui/app-message"
-import {MoreOutlined} from "@ant-design/icons"
-import {Copy, ListChecks, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Dropdown, type MenuProps} from "antd"
+import {Copy, DotsThreeVertical, ListChecks, PencilSimple, Trash} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -60,70 +64,28 @@ const TestcaseRowActionsDropdown = ({
         await copyToClipboard(testcaseId)
     }, [testcaseId])
 
-    const handleMenuClick = useCallback<MenuProps["onClick"]>(
-        ({key, domEvent}) => {
-            domEvent.stopPropagation()
-            setDropdownOpen(false)
+    const handleCopyIdClick = useCallback(() => {
+        setDropdownOpen(false)
+        void handleCopyId()
+    }, [handleCopyId])
 
-            if (key === "edit") {
-                onEdit()
-                return
-            }
+    const handleEditClick = useCallback(() => {
+        setDropdownOpen(false)
+        onEdit()
+    }, [onEdit])
 
-            if (key === "queue" && queueItemIds.length > 0) {
-                requestAnimationFrame(() => {
-                    setQueuePopoverOpen(true)
-                })
-                return
-            }
+    const handleQueueClick = useCallback(() => {
+        setDropdownOpen(false)
+        requestAnimationFrame(() => {
+            setQueuePopoverOpen(true)
+        })
+    }, [])
 
-            if (key === "delete") {
-                onDelete()
-                message.success("Deleted testcase. Save to apply changes.")
-                return
-            }
-
-            if (key === "copy-id") {
-                void handleCopyId()
-            }
-        },
-        [handleCopyId, onDelete, onEdit, queueItemIds.length],
-    )
-
-    const menuItems = useMemo<NonNullable<MenuProps["items"]>>(() => {
-        const items: NonNullable<MenuProps["items"]> = [
-            {
-                key: "edit",
-                label: "Edit",
-                icon: <PencilSimple size={16} />,
-            },
-            {type: "divider"},
-            {
-                key: "queue",
-                label: "Add annotation queue",
-                icon: <ListChecks size={16} />,
-                disabled: queueItemIds.length === 0,
-            },
-            {type: "divider"},
-            {
-                key: "delete",
-                label: "Delete",
-                icon: <Trash size={16} />,
-                danger: true,
-            },
-        ]
-
-        if (testcaseId) {
-            items.push({type: "divider"})
-            items.push({
-                key: "copy-id",
-                label: "Copy ID",
-                icon: <Copy size={16} />,
-            })
-        }
-
-        return items
-    }, [queueItemIds.length, testcaseId])
+    const handleDeleteClick = useCallback(() => {
+        setDropdownOpen(false)
+        onDelete()
+        message.success("Deleted testcase. Save to apply changes.")
+    }, [onDelete])
 
     return (
         <AddToQueuePopover
@@ -133,23 +95,39 @@ const TestcaseRowActionsDropdown = ({
             onOpenChange={setQueuePopoverOpen}
             toggleOnTriggerClick={false}
         >
-            <Dropdown
-                trigger={["click"]}
-                open={dropdownOpen}
-                onOpenChange={handleDropdownOpenChange}
-                placement="bottomRight"
-                menu={{items: menuItems, onClick: handleMenuClick}}
-            >
-                <Button
+            <DropdownMenu open={dropdownOpen} onOpenChange={handleDropdownOpenChange}>
+                <DropdownMenuTrigger
+                    className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit"
                     onClick={handleTriggerClick}
-                    title="Actions"
-                    aria-label="Actions"
-                    variant="ghost"
-                    size="icon-sm"
                 >
-                    {<MoreOutlined />}
-                </Button>
-            </Dropdown>
+                    <Button title="Actions" aria-label="Actions" variant="ghost" size="icon-sm">
+                        <DotsThreeVertical size={16} weight="bold" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleEditClick}>
+                        <PencilSimple size={16} />
+                        Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        onClick={handleQueueClick}
+                        disabled={queueItemIds.length === 0}
+                    >
+                        <ListChecks size={16} />
+                        Add annotation queue
+                    </DropdownMenuItem>
+                    <DropdownMenuItem variant="destructive" onClick={handleDeleteClick}>
+                        <Trash size={16} />
+                        Delete
+                    </DropdownMenuItem>
+                    {testcaseId && (
+                        <DropdownMenuItem onClick={handleCopyIdClick}>
+                            <Copy size={16} />
+                            Copy ID
+                        </DropdownMenuItem>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
         </AddToQueuePopover>
     )
 }

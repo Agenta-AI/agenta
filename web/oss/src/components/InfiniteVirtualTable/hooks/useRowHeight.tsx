@@ -1,7 +1,12 @@
-import {useMemo} from "react"
+import {type ReactNode, useMemo} from "react"
 
+import {
+    DropdownMenuItem,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Rows} from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -99,7 +104,7 @@ export interface UseRowHeightResult {
     /** Max lines to show in cells */
     maxLines: number
     /** Menu items for the settings dropdown */
-    menuItems: MenuProps["items"]
+    menuItems: ReactNode
 }
 
 /**
@@ -137,21 +142,27 @@ export function useRowHeight(
     const heightPx = useMemo(() => config.sizes[size].height, [config.sizes, size])
     const maxLines = useMemo(() => config.sizes[size].maxLines ?? 10, [config.sizes, size])
 
-    const menuItems = useMemo<MenuProps["items"]>(() => {
+    const menuItems = useMemo<ReactNode>(() => {
         const sizes: RowHeightSize[] = ["small", "medium", "large"]
-        return [
-            {
-                key: "row-height",
-                label: "Row height",
-                icon: <Rows size={16} />,
-                children: sizes.map((s) => ({
-                    key: `row-height-${s}`,
-                    label: config.sizes[s].label,
-                    onClick: () => setSize(s),
-                    style: size === s ? {fontWeight: 600} : undefined,
-                })),
-            },
-        ]
+        return (
+            <DropdownMenuSub key="row-height">
+                <DropdownMenuSubTrigger>
+                    <Rows size={16} />
+                    Row height
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                    {sizes.map((s) => (
+                        <DropdownMenuItem
+                            key={`row-height-${s}`}
+                            onClick={() => setSize(s)}
+                            className={size === s ? "font-semibold" : ""}
+                        >
+                            {config.sizes[s].label}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuSubContent>
+            </DropdownMenuSub>
+        )
     }, [config.sizes, size, setSize])
 
     return {

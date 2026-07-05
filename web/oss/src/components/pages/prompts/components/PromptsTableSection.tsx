@@ -2,6 +2,16 @@ import {useMemo} from "react"
 
 import type {AppType} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {
     InfiniteVirtualTableRowSelection,
@@ -9,8 +19,7 @@ import type {
     TableScopeConfig,
 } from "@agenta/ui/table"
 import {FolderIcon, PlusIcon, SquaresFourIcon, TrashIcon} from "@phosphor-icons/react"
-import {Dropdown, Input, Space} from "antd"
-import type {MenuProps} from "antd"
+import {Input, Space} from "antd"
 import type {ColumnsType, TableProps} from "antd/es/table"
 
 import {getAppTypeIcon} from "../assets/iconHelpers"
@@ -52,91 +61,6 @@ export const PromptsTableSection = ({
 }: PromptsTableSectionProps) => {
     const selectedActionLabel = selectedRow?.type === "folder" ? "Delete" : "Archive"
 
-    const menuItems: MenuProps["items"] = useMemo(
-        () => [
-            {
-                key: "new_prompt",
-                icon: <SquaresFourIcon size={16} />,
-                label: "New prompt",
-                children: [
-                    {
-                        key: "new_prompt_chat",
-                        label: (
-                            <span className="inline-flex items-center gap-2">
-                                {getAppTypeIcon("chat")}
-                                <span>Chat</span>
-                            </span>
-                        ),
-                        onClick: ({
-                            domEvent,
-                        }: {
-                            domEvent: React.MouseEvent | React.KeyboardEvent
-                        }) => {
-                            domEvent.stopPropagation()
-                            onOpenNewPrompt("chat")
-                        },
-                    },
-                    {
-                        key: "new_prompt_completion",
-                        label: (
-                            <span className="inline-flex items-center gap-2">
-                                {getAppTypeIcon("completion")}
-                                <span>Completion</span>
-                            </span>
-                        ),
-                        onClick: ({
-                            domEvent,
-                        }: {
-                            domEvent: React.MouseEvent | React.KeyboardEvent
-                        }) => {
-                            domEvent.stopPropagation()
-                            onOpenNewPrompt("completion")
-                        },
-                    },
-                    {
-                        key: "new_prompt_agent",
-                        label: (
-                            <span className="inline-flex items-center gap-2">
-                                {getAppTypeIcon("agent")}
-                                <span>Agent</span>
-                            </span>
-                        ),
-                        onClick: ({
-                            domEvent,
-                        }: {
-                            domEvent: React.MouseEvent | React.KeyboardEvent
-                        }) => {
-                            domEvent.stopPropagation()
-                            onOpenNewPrompt("agent")
-                        },
-                    },
-                ],
-            },
-            {
-                key: "new_folder",
-                icon: <FolderIcon size={16} />,
-                label: "New folder",
-                onClick: ({domEvent}: {domEvent: React.MouseEvent | React.KeyboardEvent}) => {
-                    domEvent.stopPropagation()
-                    onOpenNewFolder()
-                },
-            },
-            {
-                type: "divider" as const,
-            },
-            {
-                key: "setup_workflow",
-                icon: <SetupWorkflowIcon />,
-                label: "Set up workflow",
-                onClick: ({domEvent}: {domEvent: React.MouseEvent | React.KeyboardEvent}) => {
-                    domEvent.stopPropagation()
-                    onSetupWorkflow()
-                },
-            },
-        ],
-        [onOpenNewPrompt, onOpenNewFolder, onSetupWorkflow],
-    )
-
     const filtersNode = useMemo(
         () => (
             <Input.Search
@@ -158,20 +82,46 @@ export const PromptsTableSection = ({
                     {selectedActionLabel}
                 </Button>
 
-                <Dropdown
-                    trigger={["click"]}
-                    styles={{root: {width: 200}}}
-                    placement="bottomLeft"
-                    menu={{items: menuItems}}
-                >
-                    <Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-all outline-none select-none hover:bg-primary/80 disabled:pointer-events-none disabled:opacity-50">
                         {<PlusIcon />}
                         Create new
-                    </Button>
-                </Dropdown>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" sideOffset={4}>
+                        <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                                <SquaresFourIcon size={16} />
+                                New prompt
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                                <DropdownMenuItem onClick={() => onOpenNewPrompt("chat")}>
+                                    {getAppTypeIcon("chat")}
+                                    Chat
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onOpenNewPrompt("completion")}>
+                                    {getAppTypeIcon("completion")}
+                                    Completion
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onOpenNewPrompt("agent")}>
+                                    {getAppTypeIcon("agent")}
+                                    Agent
+                                </DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuItem onClick={onOpenNewFolder}>
+                            <FolderIcon size={16} />
+                            New folder
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={onSetupWorkflow}>
+                            <SetupWorkflowIcon />
+                            Set up workflow
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </Space>
         ),
-        [menuItems, selectedActionLabel, selectedRow, onDeleteSelected],
+        [selectedActionLabel, selectedRow, onDeleteSelected],
     )
 
     return (

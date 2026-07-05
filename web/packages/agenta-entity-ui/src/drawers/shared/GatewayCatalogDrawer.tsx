@@ -12,6 +12,12 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {Card, CardContent} from "@agenta/primitive-ui/components/card"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
@@ -23,8 +29,7 @@ import {
     MagnifyingGlass,
     Plus,
 } from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
-import {Button, Divider, Dropdown, Empty, Input, Spin, Tag} from "antd"
+import {Button, Divider, Empty, Input, Spin, Tag} from "antd"
 import Image from "next/image"
 
 import {AppCard} from "./CatalogAppCard"
@@ -423,7 +428,7 @@ function ItemsView<I, T, C>({
         [activeConn, config, integration],
     )
 
-    const connectionMenu = useMemo<MenuProps["items"]>(
+    const connectionMenu = useMemo(
         () =>
             config.onConnectionMenu
                 ? connections.map((conn) => ({
@@ -488,16 +493,31 @@ function ItemsView<I, T, C>({
                     </span>
                     <div className="shrink-0">
                         {connectionMenu && connections.length > 0 ? (
-                            <Dropdown.Button
-                                type="primary"
-                                trigger={["click"]}
-                                menu={{items: connectionMenu}}
-                                icon={<CaretDown size={12} />}
-                                onClick={onConnect}
-                            >
-                                <Plus size={14} />
-                                Connect
-                            </Dropdown.Button>
+                            <div className="flex">
+                                <Button
+                                    type="primary"
+                                    icon={<Plus size={14} />}
+                                    onClick={onConnect}
+                                    className="rounded-r-none border-r-0"
+                                >
+                                    Connect
+                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger
+                                        className="inline-flex shrink-0 items-center justify-center rounded-l-none rounded-r-lg border border-primary bg-primary px-1.5 text-primary-foreground transition-all hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+                                        aria-label="Connection options"
+                                    >
+                                        <CaretDown size={12} />
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" side="bottom" sideOffset={2}>
+                                        {connectionMenu.map((item) => (
+                                            <DropdownMenuItem key={item.key} onClick={item.onClick}>
+                                                {item.label}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                         ) : (
                             <Button type="primary" icon={<Plus size={14} />} onClick={onConnect}>
                                 Connect

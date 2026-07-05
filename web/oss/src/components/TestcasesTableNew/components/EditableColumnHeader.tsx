@@ -1,12 +1,16 @@
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {MoreOutlined} from "@ant-design/icons"
-import {PencilSimple, Trash} from "@phosphor-icons/react"
-import {Dropdown} from "antd"
+import {DotsThreeVertical, PencilSimple, Trash} from "@phosphor-icons/react"
 
 interface EditableColumnHeaderProps {
     columnKey: string
@@ -80,23 +84,6 @@ const EditableColumnHeader = ({
         setIsDeleteModalOpen(false)
     }, [columnKey, onDelete])
 
-    const menuItems = [
-        {
-            key: "rename",
-            label: "Rename column",
-            icon: <PencilSimple size={16} />,
-            onClick: openRenameModal,
-        },
-        {type: "divider" as const},
-        {
-            key: "delete",
-            label: "Delete column",
-            icon: <Trash size={16} />,
-            danger: true,
-            onClick: openDeleteModal,
-        },
-    ]
-
     if (disabled) {
         return <span className="truncate">{columnName}</span>
     }
@@ -107,17 +94,24 @@ const EditableColumnHeader = ({
                 <span className="flex-1 min-w-0 truncate">{columnName}</span>
 
                 {useDropdown ? (
-                    // Dropdown menu for narrow columns
-                    <Dropdown menu={{items: menuItems}} trigger={["click"]} placement="bottomRight">
-                        <Button
-                            className="flex-shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent size-7 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 flex-shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => e.stopPropagation()}
-                            variant="ghost"
-                            size="icon-sm"
                         >
-                            {<MoreOutlined />}
-                        </Button>
-                    </Dropdown>
+                            <DotsThreeVertical size={16} weight="bold" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={openRenameModal}>
+                                <PencilSimple size={16} />
+                                Rename column
+                            </DropdownMenuItem>
+                            <DropdownMenuItem variant="destructive" onClick={openDeleteModal}>
+                                <Trash size={16} />
+                                Delete column
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 ) : (
                     // Inline action buttons for wider columns
                     <div className="flex items-center gap-0.5 flex-shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">

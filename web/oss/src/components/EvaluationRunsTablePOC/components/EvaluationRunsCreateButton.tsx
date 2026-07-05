@@ -1,8 +1,14 @@
 import {useCallback, useEffect, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {PlusIcon} from "@phosphor-icons/react"
-import {Button, Dropdown, type ButtonProps, type MenuProps} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {
@@ -54,13 +60,13 @@ const FALLBACK_CREATE_TYPE: SupportedCreateType = "auto"
 
 interface EvaluationRunsCreateButtonProps {
     label?: string
-    size?: ButtonProps["size"]
+    size?: "xs" | "sm" | "default" | "lg" | "icon" | "icon-xs" | "icon-sm" | "icon-lg"
     className?: string
 }
 
 const EvaluationRunsCreateButton = ({
     label,
-    size = "middle",
+    size = "default",
     className,
 }: EvaluationRunsCreateButtonProps) => {
     const {createEnabled, createTooltip, evaluationKind, defaultCreateType, scope} = useAtomValue(
@@ -123,12 +129,9 @@ const EvaluationRunsCreateButton = ({
         setCreateOpen(true)
     }, [createEnabled, setCreateOpen])
 
-    const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
-        ({key}) => {
-            if (!isSupportedCreateType(key)) return
-
-            const normalized = normalizeAllTabType(key)
-
+    const handleMenuClick = useCallback(
+        (type: SupportedCreateType) => {
+            const normalized = normalizeAllTabType(type)
             setSelectedCreateType(normalized)
             setCreateTypePreference(normalized)
             openCreateModal()
@@ -136,53 +139,53 @@ const EvaluationRunsCreateButton = ({
         [normalizeAllTabType, openCreateModal, setCreateTypePreference, setSelectedCreateType],
     )
 
-    const menuItems = useMemo<MenuProps["items"]>(() => {
-        if (!isAllTab) return []
-
-        return availableTypes.map((type) => {
-            const copy = createTypeCopy[type]
-            return {
-                key: type,
-                label: (
-                    <div className="flex flex-col py-1">
-                        <span className="font-medium text-gray-900">{copy.title}</span>
-                        <span className="text-gray-500">{copy.description}</span>
-                    </div>
-                ),
-            }
-        })
-    }, [availableTypes, isAllTab])
+    const sharedButton = (
+        <Button variant="default" disabled={!createEnabled} size={size} className={className}>
+            <PlusIcon size={16} />
+            {label ?? "New Evaluation"}
+        </Button>
+    )
 
     return (
         <Tooltip>
             <TooltipTrigger
                 render={
                     <div className="inline-flex">
-                        {isAllTab ? (
-                            <Dropdown
-                                trigger={["click"]}
-                                disabled={!createEnabled}
-                                menu={{items: menuItems, onClick: handleMenuClick}}
-                            >
-                                <Button
-                                    type="primary"
-                                    icon={<PlusIcon size={16} />}
-                                    disabled={!createEnabled}
-                                    size={size}
-                                    className={className}
-                                >
-                                    {label ?? "New Evaluation"}
-                                </Button>
-                            </Dropdown>
+                        {isAllTab && createEnabled ? (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                                    {sharedButton}
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    {availableTypes.map((type) => {
+                                        const copy = createTypeCopy[type]
+                                        return (
+                                            <DropdownMenuItem
+                                                key={type}
+                                                onClick={() => handleMenuClick(type)}
+                                            >
+                                                <div className="flex flex-col py-1">
+                                                    <span className="font-medium text-gray-900">
+                                                        {copy.title}
+                                                    </span>
+                                                    <span className="text-gray-500">
+                                                        {copy.description}
+                                                    </span>
+                                                </div>
+                                            </DropdownMenuItem>
+                                        )
+                                    })}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         ) : (
                             <Button
-                                type="primary"
-                                icon={<PlusIcon size={16} />}
+                                variant="default"
                                 disabled={!createEnabled}
                                 onClick={openCreateModal}
                                 size={size}
                                 className={className}
                             >
+                                <PlusIcon size={16} />
                                 {label ?? "New evaluation"}
                             </Button>
                         )}

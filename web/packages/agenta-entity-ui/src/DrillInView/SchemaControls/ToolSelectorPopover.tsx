@@ -19,6 +19,11 @@ import {
     type RefObject,
 } from "react"
 
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import type {GatewayToolsBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
@@ -31,7 +36,7 @@ import {
     Plus,
     Sparkle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Empty, Input, Spin} from "antd"
+import {Button, Empty, Input, Spin} from "antd"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, type ToolObj} from "./toolUtils"
@@ -1037,7 +1042,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     )
 
     return (
-        <Dropdown
+        <DropdownMenu
             open={!disabled && open}
             onOpenChange={(nextOpen) => {
                 if (disabled) return
@@ -1047,24 +1052,21 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 }
                 setOpen(true)
             }}
-            trigger={["click"]}
-            placement="bottomLeft"
-            arrow={false}
-            menu={{items: []}}
-            popupRender={() => content}
-            classNames={{root: "[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"}}
         >
-            {trigger ?? (
-                <Button
-                    variant="outlined"
-                    color="default"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    disabled={disabled}
-                >
-                    Tool
-                </Button>
-            )}
-        </Dropdown>
+            <DropdownMenuTrigger
+                disabled={disabled}
+                className="inline-flex shrink-0 items-center justify-center rounded-lg border border-input bg-background px-2.5 py-1 text-sm font-medium transition-all outline-none select-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+            >
+                {trigger ?? (
+                    <>
+                        <Plus size={14} />
+                        Tool
+                    </>
+                )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="bottom" sideOffset={4}>
+                {content}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 })

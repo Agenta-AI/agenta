@@ -1,9 +1,13 @@
 import {useState} from "react"
 
-import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {CopyButton} from "@agenta/ui"
-import {DownOutlined} from "@ant-design/icons"
-import {Dropdown, MenuProps, Space} from "antd"
+import {CaretDown} from "@phosphor-icons/react"
 
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
 import {LanguageItem} from "@/oss/lib/Types"
@@ -20,14 +24,8 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({codeSnippets}) => {
     ]
     const [selectedLanguage, setSelectedLanguage] = useState(supportedLanguages[0])
 
-    const items: MenuProps["items"] = supportedLanguages.map((languageItem, index) => ({
-        key: (index + 1).toString(),
-        label: languageItem.displayName,
-    }))
-
-    const handleMenuClick = ({key}: {key: string}) => {
-        const newSelectedLanguage = supportedLanguages[parseInt(key, 10) - 1]
-        setSelectedLanguage(newSelectedLanguage)
+    const handleLanguageSelect = (languageItem: LanguageItem) => {
+        setSelectedLanguage(languageItem)
     }
 
     return (
@@ -38,14 +36,25 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({codeSnippets}) => {
                 </div>
 
                 {selectedLanguage && (
-                    <Dropdown menu={{items, onClick: handleMenuClick}} placement="bottomLeft">
-                        <Button variant="outline" size="sm">
-                            <Space>
-                                {selectedLanguage.displayName}
-                                <DownOutlined />
-                            </Space>
-                        </Button>
-                    </Dropdown>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 h-7 gap-1 px-2.5"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {selectedLanguage.displayName}
+                            <CaretDown size={12} />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            {supportedLanguages.map((languageItem, index) => (
+                                <DropdownMenuItem
+                                    key={index + 1}
+                                    onClick={() => handleLanguageSelect(languageItem)}
+                                >
+                                    {languageItem.displayName}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 )}
                 <CopyButton
                     type="primary"

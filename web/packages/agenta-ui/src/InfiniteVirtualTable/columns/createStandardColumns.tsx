@@ -1,10 +1,13 @@
 import type {ComponentType, ReactNode} from "react"
 
-import {Button} from "@agenta/primitive-ui/components/button"
-import {MoreOutlined} from "@ant-design/icons"
-import {Copy, DownloadSimple} from "@phosphor-icons/react"
-import {Dropdown, Tooltip} from "antd"
-import type {MenuProps} from "antd"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {DotsThreeVertical, Copy, DownloadSimple} from "@phosphor-icons/react"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 
 import {copyToClipboard} from "../../utils/copyToClipboard"
@@ -249,60 +252,50 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         render: (_, record) => {
             if (record.__isSkeleton) return null
 
-            // Build menu items from config
-            // MenuInfo interface from antd/rc-menu
-            interface MenuInfo {
-                domEvent: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
-            }
-            const menuItems: NonNullable<MenuProps["items"]> = []
+            const menuItems: ReactNode[] = []
 
-            items.forEach((item) => {
+            items.forEach((item, idx) => {
                 if ("type" in item && item.type === "divider") {
                     const dividerItem = item as ActionDivider<T>
-                    // Skip if hidden
-                    if (dividerItem.hidden?.(record)) {
-                        return
-                    }
-                    menuItems.push({type: "divider"})
+                    if (dividerItem.hidden?.(record)) return
+                    menuItems.push(<DropdownMenuSeparator key={`divider-${idx}`} />)
                     return
                 }
 
                 const actionItem = item as ActionItem<T>
+                if (actionItem.hidden?.(record)) return
 
-                // Skip if hidden
-                if (actionItem.hidden?.(record)) {
-                    return
-                }
-
-                menuItems.push({
-                    key: actionItem.key,
-                    label: actionItem.label,
-                    icon: actionItem.icon,
-                    danger: actionItem.danger,
-                    onClick: (e: MenuInfo) => {
-                        e.domEvent.stopPropagation()
-                        actionItem.onClick(record, e)
-                    },
-                })
+                menuItems.push(
+                    <DropdownMenuItem
+                        key={actionItem.key}
+                        variant={actionItem.danger ? "destructive" : "default"}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            actionItem.onClick(record)
+                        }}
+                    >
+                        {actionItem.icon}
+                        {actionItem.label}
+                    </DropdownMenuItem>,
+                )
             })
 
-            // Add export row if enabled
             if (onExportRow) {
-                menuItems.push({
-                    key: "export-row",
-                    label: "Export row",
-                    icon: <DownloadSimple size={16} />,
-                    disabled: isExporting,
-                    onClick: (e: MenuInfo) => {
-                        e.domEvent.stopPropagation()
-                        if (!isExporting) {
-                            onExportRow(record)
-                        }
-                    },
-                })
+                menuItems.push(
+                    <DropdownMenuItem
+                        key="export-row"
+                        disabled={isExporting}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            if (!isExporting) onExportRow(record)
+                        }}
+                    >
+                        <DownloadSimple size={16} />
+                        Export row
+                    </DropdownMenuItem>,
+                )
             }
 
-            // Add copy ID if enabled
             if (showCopyId) {
                 const recordId = defaultGetId(record)
                 if (recordId) {
@@ -310,36 +303,41 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     if (
                         menuItems.length > 0 &&
                         lastItem &&
-                        "type" in lastItem &&
-                        lastItem.type !== "divider"
+                        React.isValidElement(lastItem) &&
+                        lastItem.type !== DropdownMenuSeparator
                     ) {
-                        menuItems.push({type: "divider"})
+                        menuItems.push(<DropdownMenuSeparator key="copy-id-sep" />)
                     }
-                    menuItems.push({
-                        key: "copy-id",
-                        label: "Copy ID",
-                        icon: <Copy size={16} />,
-                        onClick: (e: MenuInfo) => {
-                            e.domEvent.stopPropagation()
-                            copyToClipboard(recordId)
-                        },
-                    })
+                    menuItems.push(
+                        <DropdownMenuItem
+                            key="copy-id"
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                copyToClipboard(recordId)
+                            }}
+                        >
+                            <Copy size={16} />
+                            Copy ID
+                        </DropdownMenuItem>,
+                    )
                 }
             }
 
-            // Add copy slug if enabled
             if (showCopySlug && getSlug) {
                 const slug = getSlug(record)
                 if (slug) {
-                    menuItems.push({
-                        key: "copy-slug",
-                        label: "Copy Slug",
-                        icon: <Copy size={16} />,
-                        onClick: (e: MenuInfo) => {
-                            e.domEvent.stopPropagation()
-                            copyToClipboard(slug)
-                        },
-                    })
+                    menuItems.push(
+                        <DropdownMenuItem
+                            key="copy-slug"
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                copyToClipboard(slug)
+                            }}
+                        >
+                            <Copy size={16} />
+                            Copy Slug
+                        </DropdownMenuItem>,
+                    )
                 }
             }
 
@@ -348,21 +346,18 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     className="w-full h-full flex items-center justify-center"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <Dropdown
-                        trigger={["click"]}
-                        styles={{root: {width: 200}}}
-                        menu={{items: menuItems}}
-                    >
-                        <Tooltip title="Actions">
-                            <Button
-                                onClick={(e) => e.stopPropagation()}
-                                variant="ghost"
-                                size="icon-sm"
-                            >
-                                {<MoreOutlined />}
-                            </Button>
-                        </Tooltip>
-                    </Dropdown>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            title="Actions"
+                            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent size-7 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <DotsThreeVertical size={14} />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" style={{width: 200}}>
+                            {menuItems}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             )
         },

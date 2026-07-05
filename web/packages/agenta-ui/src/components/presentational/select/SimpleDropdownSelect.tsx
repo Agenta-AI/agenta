@@ -24,10 +24,14 @@
 
 import {useMemo} from "react"
 
-import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {CaretUpDown} from "@phosphor-icons/react"
-import {Dropdown} from "antd"
-import type {MenuProps} from "antd"
 
 import {bgColors, cn, flexLayouts} from "../../../utils/styles"
 
@@ -84,7 +88,7 @@ export interface SimpleDropdownSelectProps {
 // ============================================================================
 
 /**
- * A simple dropdown select component using Antd Dropdown.
+ * A simple dropdown select component using shadcn-style DropdownMenu.
  * Shows a button trigger with the current value and a chevron icon.
  */
 export function SimpleDropdownSelect({
@@ -95,39 +99,45 @@ export function SimpleDropdownSelect({
     className,
     disabled,
 }: SimpleDropdownSelectProps) {
-    const menuItems: MenuProps["items"] = useMemo(() => {
-        return options.map((item) => ({
-            key: item.key ?? item.value,
-            label: item.label,
-            className: "capitalize",
-            onClick: () => onChange(item.value),
-            disabled: item.disabled,
-        }))
-    }, [options, onChange])
+    const selectedOption = useMemo(
+        () => options.find((item) => item.value === value),
+        [options, value],
+    )
 
     return (
-        <Dropdown
-            disabled={disabled}
-            menu={{items: menuItems}}
-            trigger={["click"]}
-            styles={{
-                root: {
-                    width: 150,
-                },
-            }}
-        >
-            <Button
+        <DropdownMenu>
+            <DropdownMenuTrigger
+                disabled={disabled}
                 className={cn(
                     flexLayouts.rowCenter,
-                    "capitalize px-2",
+                    "capitalize px-2 h-7 gap-1 rounded-lg text-sm font-medium transition-all outline-none select-none border border-border bg-background hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50",
                     bgColors.hoverState,
                     className,
                 )}
-                variant="ghost"
+                style={{width: 150}}
             >
-                {value || placeholder} <CaretUpDown size={14} />
-            </Button>
-        </Dropdown>
+                {selectedOption?.label || value || placeholder}
+                <CaretUpDown size={14} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" style={{width: 150}}>
+                <DropdownMenuRadioGroup
+                    value={value}
+                    onValueChange={(newValue: string) => onChange(newValue)}
+                >
+                    {options.map((item) => (
+                        <DropdownMenuRadioItem
+                            key={item.key ?? item.value}
+                            value={item.value}
+                            disabled={item.disabled}
+                            className="capitalize"
+                            closeOnClick
+                        >
+                            {item.label}
+                        </DropdownMenuRadioItem>
+                    ))}
+                </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 

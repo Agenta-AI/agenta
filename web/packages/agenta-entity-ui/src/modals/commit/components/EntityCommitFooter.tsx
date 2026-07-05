@@ -10,11 +10,16 @@
 import {useCallback, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {ModalFooter} from "@agenta/ui/components/modal"
 import {cn, textColors} from "@agenta/ui/styles"
 import {CaretUp} from "@phosphor-icons/react"
-import {Checkbox, Dropdown, Input, Space} from "antd"
+import {Checkbox, Input} from "antd"
 
 import type {CommitDeployOption} from "../../types"
 
@@ -113,18 +118,24 @@ export function EntityCommitFooter({
                 <Button onClick={onClose} variant="outline">
                     Cancel
                 </Button>
-                <Space.Compact>
-                    <Button disabled={!canProceed || isLoading} onClick={handleCommit}>
+                <div className="flex">
+                    <Button
+                        disabled={!canProceed || isLoading}
+                        onClick={handleCommit}
+                        className="rounded-r-none border-r-0"
+                    >
                         {isLoading ? <Spinner /> : null}
                         {confirmLabel}
                     </Button>
-                    <Dropdown
-                        open={deployOpen}
-                        onOpenChange={setDeployOpen}
-                        trigger={["click"]}
-                        placement="topRight"
-                        disabled={!canProceed}
-                        dropdownRender={() => (
+                    <DropdownMenu open={deployOpen} onOpenChange={setDeployOpen}>
+                        <DropdownMenuTrigger
+                            disabled={!canProceed}
+                            aria-label="Commit and deploy options"
+                            className="inline-flex shrink-0 items-center justify-center rounded-l-none rounded-r-lg border border-input bg-background px-1.5 text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+                        >
+                            <CaretUp size={12} />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" side="top" sideOffset={2}>
                             <DeployForm
                                 options={deployOptions}
                                 confirmLabel={confirmLabel}
@@ -135,17 +146,9 @@ export function EntityCommitFooter({
                                     onConfirm(envs, message)
                                 }}
                             />
-                        )}
-                    >
-                        <Button
-                            disabled={!canProceed}
-                            aria-label="Commit and deploy options"
-                            size="icon"
-                        >
-                            {<CaretUp size={12} />}
-                        </Button>
-                    </Dropdown>
-                </Space.Compact>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
         )
     }

@@ -1,8 +1,12 @@
 import {useMemo} from "react"
 
-import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {ArchiveIcon, GearSix, Note, Copy, PencilSimple} from "@phosphor-icons/react"
-import {Dropdown} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -83,82 +87,73 @@ export const useTestsetsColumns = ({
                     if (record.__isSkeleton) return null
 
                     return (
-                        <Dropdown
-                            trigger={["click"]}
-                            overlayStyle={{width: 180}}
-                            menu={{
-                                items: [
-                                    {
-                                        key: "details",
-                                        label: "View details",
-                                        icon: <Note size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            onViewDetails(record)
-                                        },
-                                    },
-                                    {
-                                        key: "clone",
-                                        label: "Clone",
-                                        icon: <Copy size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            onClone(record)
-                                        },
-                                    },
-                                    {
-                                        key: "copy-id",
-                                        label: "Copy ID",
-                                        icon: <Copy size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            copyToClipboard(record._id)
-                                        },
-                                    },
-                                    ...(record.slug
-                                        ? [
-                                              {
-                                                  key: "copy-slug",
-                                                  label: "Copy Slug",
-                                                  icon: <Copy size={16} />,
-                                                  onClick: (e: any) => {
-                                                      e.domEvent.stopPropagation()
-                                                      copyToClipboard(record.slug!)
-                                                  },
-                                              },
-                                          ]
-                                        : []),
-                                    {type: "divider"},
-                                    {
-                                        key: "rename",
-                                        label: "Rename",
-                                        icon: <PencilSimple size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            onRename(record)
-                                        },
-                                    },
-                                    {
-                                        key: "delete",
-                                        label: "Archive",
-                                        icon: <ArchiveIcon size={14} />,
-                                        danger: true,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            onDelete(record)
-                                        },
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button
+                        <DropdownMenu>
+                            <DropdownMenuTrigger
+                                className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent size-7 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                                 onClick={(e) => e.stopPropagation()}
-                                variant="ghost"
-                                size="icon-sm"
                             >
-                                {<GearSix size={16} />}
-                            </Button>
-                        </Dropdown>
+                                <GearSix size={16} />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" style={{width: 180}}>
+                                <DropdownMenuItem
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onViewDetails(record)
+                                    }}
+                                >
+                                    <Note size={16} />
+                                    View details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onClone(record)
+                                    }}
+                                >
+                                    <Copy size={16} />
+                                    Clone
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        copyToClipboard(record._id)
+                                    }}
+                                >
+                                    <Copy size={16} />
+                                    Copy ID
+                                </DropdownMenuItem>
+                                {record.slug && (
+                                    <DropdownMenuItem
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            copyToClipboard(record.slug!)
+                                        }}
+                                    >
+                                        <Copy size={16} />
+                                        Copy Slug
+                                    </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onRename(record)
+                                    }}
+                                >
+                                    <PencilSimple size={16} />
+                                    Rename
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onDelete(record)
+                                    }}
+                                >
+                                    <ArchiveIcon size={14} />
+                                    Archive
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     )
                 },
             },

@@ -1,5 +1,3 @@
-import {DropDownProps} from "antd"
-
-export interface PlaygroundVariantHeaderMenuProps extends DropDownProps {
+export interface PlaygroundVariantHeaderMenuProps {
     variantId: string
 }

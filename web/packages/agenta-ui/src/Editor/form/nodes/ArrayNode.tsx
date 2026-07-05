@@ -1,8 +1,13 @@
-import {FC, useCallback, useMemo} from "react"
+import {FC, useCallback} from "react"
 
-import {PlusOutlined, DeleteOutlined} from "@ant-design/icons"
-import {Input} from "antd"
-import {Dropdown} from "antd"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {Input} from "@agenta/primitive-ui/components/input"
+import {Minus, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import styles from "../FormView.module.css"
@@ -69,52 +74,35 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
     const addItemWithType = (type: "primitive" | "object" | "array") =>
         addItemWithTypeAt(value.length, type)
 
-    const getMenuItems = useCallback(
-        (index: number) => [
-            {
-                key: "primitive",
-                label: "Primitive",
-                onClick: () => addItemWithTypeAt(index, "primitive"),
-            },
-            {
-                key: "object",
-                label: "Object { }",
-                onClick: () => addItemWithTypeAt(index, "object"),
-            },
-            {
-                key: "array",
-                label: "Array [ ]",
-                onClick: () => addItemWithTypeAt(index, "array"),
-            },
-        ],
-        [addItemWithTypeAt],
+    const AddMenuContent = ({index}: {index: number}) => (
+        <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => addItemWithTypeAt(index, "primitive")}>
+                Primitive
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => addItemWithTypeAt(index, "object")}>
+                Object {"{ }"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => addItemWithTypeAt(index, "array")}>
+                Array [ ]
+            </DropdownMenuItem>
+        </DropdownMenuContent>
     )
 
-    const addToEndMenuItems = useMemo(
-        () => [
-            {
-                key: "primitive",
-                label: "Primitive",
-                onClick: () => addItemWithType("primitive"),
-            },
-            {
-                key: "object",
-                label: "Object { }",
-                onClick: () => addItemWithType("object"),
-            },
-            {
-                key: "array",
-                label: "Array [ ]",
-                onClick: () => addItemWithType("array"),
-            },
-        ],
-        [addItemWithType],
+    const AddToEndMenuContent = () => (
+        <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => addItemWithType("primitive")}>
+                Primitive
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => addItemWithType("object")}>
+                Object {"{ }"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => addItemWithType("array")}>Array [ ]</DropdownMenuItem>
+        </DropdownMenuContent>
     )
 
     return (
         <div className={clsx("array-node")}>
             <NodeHeader
-                // depth={depth}
                 depth={1}
                 folded={collapsed.has(pathKey)}
                 onToggle={() => toggleFold(pathKey)}
@@ -122,8 +110,7 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
             >
                 <Input
                     defaultValue={k as string}
-                    variant="borderless"
-                    className="w-32 text-xs font-semibold p-0"
+                    className="w-32 text-xs font-semibold p-0 border-0 bg-transparent shadow-none"
                     onBlur={(e) => {
                         const newKey = e.target.value.trim()
                         if (newKey && newKey !== k) {
@@ -137,9 +124,12 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                     <TreeRow depth={1} className={clsx("no-line flex", "ml-2")}>
                         <div className={clsx(styles["between-hover"])}>
                             <div className={styles["add-between"]}>
-                                <Dropdown menu={{items: getMenuItems(0)}} trigger={["click"]}>
-                                    <PlusOutlined className="!mx-0" />
-                                </Dropdown>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                                        <Plus size={14} />
+                                    </DropdownMenuTrigger>
+                                    <AddMenuContent index={0} />
+                                </DropdownMenu>
                             </div>
                         </div>
                     </TreeRow>
@@ -153,19 +143,19 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                             {idx >= 0 && (
                                 <div className={clsx(styles["between-hover"])}>
                                     <div className={styles["add-between"]}>
-                                        <Dropdown
-                                            menu={{items: getMenuItems(idx)}}
-                                            trigger={["click"]}
-                                        >
-                                            <PlusOutlined className="!mx-0" />
-                                        </Dropdown>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                                                <Plus size={14} />
+                                            </DropdownMenuTrigger>
+                                            <AddMenuContent index={idx} />
+                                        </DropdownMenu>
                                     </div>
                                 </div>
                             )}
 
                             <div className={styles["on-hover"]}>
                                 <div className={styles["add-between"]}>
-                                    <DeleteOutlined onClick={() => removeItem(idx)} />
+                                    <Minus size={14} onClick={() => removeItem(idx)} />
                                 </div>
                             </div>
 
@@ -175,7 +165,6 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                                     path: [...path, idx],
                                     k: idx,
                                     value: item,
-                                    // depth: depth + 1,
                                     depth: 3,
                                     collapsed,
                                     className: "array-item",
@@ -187,14 +176,16 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                             </TreeRow>
                         </TreeRow>
                     ))}
-                    {/* Add to Bottom Button (disabled when empty) */}
                     {value.length > 0 && (
                         <TreeRow depth={1} className={clsx("no-line flex", "ml-2")}>
                             <div className={clsx(styles["between-hover"])}>
                                 <div className={styles["add-between"]}>
-                                    <Dropdown menu={{items: addToEndMenuItems}} trigger={["click"]}>
-                                        <PlusOutlined className="!mx-0" />
-                                    </Dropdown>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                                            <Plus size={14} />
+                                        </DropdownMenuTrigger>
+                                        <AddToEndMenuContent />
+                                    </DropdownMenu>
                                 </div>
                             </div>
                         </TreeRow>
@@ -204,9 +195,12 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                         <TreeRow depth={1} className={clsx("no-line flex", "ml-2")}>
                             <div className={clsx(styles["between-hover"])}>
                                 <div className={styles["add-between"]}>
-                                    <Dropdown menu={{items: getMenuItems(0)}} trigger={["click"]}>
-                                        <PlusOutlined className="!mx-0" />
-                                    </Dropdown>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                                            <Plus size={14} />
+                                        </DropdownMenuTrigger>
+                                        <AddMenuContent index={0} />
+                                    </DropdownMenu>
                                 </div>
                             </div>
                         </TreeRow>

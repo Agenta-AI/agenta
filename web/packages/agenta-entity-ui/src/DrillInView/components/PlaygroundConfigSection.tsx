@@ -22,6 +22,13 @@ import {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import type {DataPath} from "@agenta/shared/utils"
@@ -37,7 +44,7 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowLeft, CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
-import {Dropdown, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
@@ -1673,24 +1680,29 @@ function PlaygroundConfigSection({
                             onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-2 flex-shrink-0"
                         >
-                            <Dropdown
-                                trigger={["click"]}
-                                disabled={disabled}
-                                menu={{
-                                    items: RUNTIME_SELECT_OPTIONS.map((o) => ({
-                                        key: o.value,
-                                        label: o.label,
-                                    })),
-                                    selectedKeys: codeRuntime ? [codeRuntime] : [],
-                                    onClick: ({key}) => handleRuntimeChange(key),
-                                }}
-                            >
-                                <Button variant="outline" size="sm">
-                                    {RUNTIME_SELECT_OPTIONS.find((o) => o.value === codeRuntime)
-                                        ?.label ?? "Select runtime"}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger
+                                    disabled={disabled}
+                                    className="inline-flex shrink-0 items-center justify-center rounded-lg border border-input bg-background px-2.5 py-1 text-sm font-medium transition-all outline-none select-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+                                >
+                                    {codeRuntime
+                                        ? codeRuntime.charAt(0).toUpperCase() + codeRuntime.slice(1)
+                                        : "Select runtime"}
                                     <CaretDown size={12} />
-                                </Button>
-                            </Dropdown>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" side="bottom" sideOffset={4}>
+                                    <DropdownMenuRadioGroup
+                                        value={codeRuntime || ""}
+                                        onValueChange={handleRuntimeChange}
+                                    >
+                                        {RUNTIME_SELECT_OPTIONS.map((o) => (
+                                            <DropdownMenuRadioItem key={o.value} value={o.value}>
+                                                {o.value.charAt(0).toUpperCase() + o.value.slice(1)}
+                                            </DropdownMenuRadioItem>
+                                        ))}
+                                    </DropdownMenuRadioGroup>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     )}
 

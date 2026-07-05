@@ -1,5 +1,14 @@
 import {memo, useMemo, useState, useCallback} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {SkeletonLine} from "@agenta/ui/table"
 import {MoreOutlined} from "@ant-design/icons"
@@ -15,7 +24,6 @@ import {
     Copy,
 } from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Dropdown, MenuProps, Tooltip} from "antd"
 
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -225,142 +233,6 @@ const RunActionsCell = ({
         }
     }, [canStopOnline, invalidateRunQueries, runId, showOnlineAction])
 
-    const items = useMemo<MenuProps["items"]>(() => {
-        const menuItems: MenuProps["items"] = [
-            {
-                key: "details",
-                label: "Open details",
-                icon: <Note size={16} />,
-                disabled: !canOpenDetails,
-                onClick: (event) => {
-                    event.domEvent.stopPropagation()
-                    if (!canOpenDetails) return
-                    onOpenDetails(record)
-                },
-            },
-            {
-                key: "copy-run-id",
-                label: "Copy run ID",
-                icon: <Copy size={16} />,
-                disabled: !runId,
-                onClick: (event) => {
-                    event.domEvent.stopPropagation()
-                    if (!runId) return
-                    copyToClipboard(runId)
-                },
-            },
-        ]
-
-        if (showOnlineAction) {
-            menuItems.push({
-                key: canStopOnline ? "online-stop" : "online-resume",
-                label: canStopOnline ? "Stop evaluation" : "Resume evaluation",
-                icon: canStopOnline ? <Stop size={16} /> : <Play size={16} />,
-                onClick: (event) => {
-                    event.domEvent.stopPropagation()
-                    if (onlineAction) return
-                    handleOnlineAction()
-                },
-                disabled: Boolean(onlineAction),
-            })
-        }
-
-        if (canEditEvaluation) {
-            menuItems.push({
-                key: "edit-evaluation",
-                label: "Edit evaluation",
-                icon: <PencilSimple size={16} />,
-                onClick: (event) => {
-                    event.domEvent.stopPropagation()
-                    onEditEvaluation?.(record)
-                },
-            })
-        }
-
-        if (hasVariantReference) {
-            menuItems.push({
-                key: "variant",
-                label: "View variant",
-                icon: <Rocket size={16} />,
-                disabled: !canOpenVariant,
-                onClick: (event) => {
-                    event.domEvent.stopPropagation()
-                    if (!canOpenVariant || !effectiveVariantRevisionId) return
-                    onVariantNavigation({
-                        revisionId: effectiveVariantRevisionId,
-                        appId: effectiveAppId,
-                    })
-                },
-            })
-        }
-        if (hasTestsetReference) {
-            menuItems.push({
-                key: "testset",
-                label: "View testset",
-                icon: <Database size={16} />,
-                disabled: !canOpenTestset,
-                onClick: (event) => {
-                    event.domEvent.stopPropagation()
-                    if (!canOpenTestset || !effectiveTestsetId) return
-                    onTestsetNavigation(effectiveTestsetId, effectiveTestsetRevisionId)
-                },
-            })
-        }
-
-        if (onExportRow) {
-            menuItems.push({
-                key: "export-run",
-                label: "Export row",
-                icon: <DownloadSimple size={16} />,
-                disabled: isExporting,
-                onClick: (event) => {
-                    event.domEvent.stopPropagation()
-                    if (isExporting) return
-                    onExportRow(record)
-                },
-            })
-        }
-        menuItems.push({type: "divider"})
-        menuItems.push({
-            key: "delete",
-            label: "Delete",
-            icon: <Trash size={16} />,
-            danger: true,
-            disabled: !canDelete,
-            onClick: (event) => {
-                event.domEvent.stopPropagation()
-                if (!canDelete) return
-                onRequestDelete(record)
-            },
-        })
-
-        return menuItems
-    }, [
-        canOpenDetails,
-        canOpenVariant,
-        canOpenTestset,
-        canDelete,
-        effectiveVariantRevisionId,
-        effectiveAppId,
-        effectiveTestsetId,
-        effectiveTestsetRevisionId,
-        onOpenDetails,
-        onVariantNavigation,
-        onTestsetNavigation,
-        onRequestDelete,
-        record,
-        onExportRow,
-        isExporting,
-        hasVariantReference,
-        hasTestsetReference,
-        showOnlineAction,
-        canStopOnline,
-        onlineAction,
-        handleOnlineAction,
-        canEditEvaluation,
-        onEditEvaluation,
-    ])
-
     if (record.__isSkeleton) {
         return (
             <div className={CELL_CLASS}>
@@ -374,25 +246,122 @@ const RunActionsCell = ({
     }
 
     const isLoading = summaryLoading || detailsLoading
-    const button = (
+    const triggerButton = (
         <Button
-            type="text"
-            shape="circle"
-            icon={<MoreOutlined />}
+            variant="ghost"
+            className="size-7 rounded-full"
             onClick={(event) => event.stopPropagation()}
-            loading={isLoading}
-        />
+            disabled={isLoading}
+        >
+            <MoreOutlined />
+        </Button>
     )
 
     if (isLoading) {
-        return <div className={CELL_CLASS}>{button}</div>
+        return <div className={CELL_CLASS}>{triggerButton}</div>
     }
 
     return (
         <div className={CELL_CLASS}>
-            <Dropdown trigger={["click"]} menu={{items}} styles={{root: {width: 200}}}>
-                <Tooltip title="Actions">{button}</Tooltip>
-            </Dropdown>
+            <DropdownMenu>
+                <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                    <Tooltip>
+                        <TooltipTrigger render={triggerButton} />
+                        <TooltipContent>Actions</TooltipContent>
+                    </Tooltip>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent style={{width: 200}}>
+                    <DropdownMenuItem
+                        onClick={() => {
+                            if (!canOpenDetails) return
+                            onOpenDetails(record)
+                        }}
+                        disabled={!canOpenDetails}
+                    >
+                        <Note size={16} />
+                        Open details
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        onClick={() => {
+                            if (!runId) return
+                            copyToClipboard(runId)
+                        }}
+                        disabled={!runId}
+                    >
+                        <Copy size={16} />
+                        Copy run ID
+                    </DropdownMenuItem>
+                    {showOnlineAction && (
+                        <DropdownMenuItem
+                            onClick={() => {
+                                if (onlineAction) return
+                                handleOnlineAction()
+                            }}
+                            disabled={Boolean(onlineAction)}
+                        >
+                            {canStopOnline ? <Stop size={16} /> : <Play size={16} />}
+                            {canStopOnline ? "Stop evaluation" : "Resume evaluation"}
+                        </DropdownMenuItem>
+                    )}
+                    {canEditEvaluation && (
+                        <DropdownMenuItem onClick={() => onEditEvaluation?.(record)}>
+                            <PencilSimple size={16} />
+                            Edit evaluation
+                        </DropdownMenuItem>
+                    )}
+                    {hasVariantReference && (
+                        <DropdownMenuItem
+                            onClick={() => {
+                                if (!canOpenVariant || !effectiveVariantRevisionId) return
+                                onVariantNavigation({
+                                    revisionId: effectiveVariantRevisionId,
+                                    appId: effectiveAppId,
+                                })
+                            }}
+                            disabled={!canOpenVariant}
+                        >
+                            <Rocket size={16} />
+                            View variant
+                        </DropdownMenuItem>
+                    )}
+                    {hasTestsetReference && (
+                        <DropdownMenuItem
+                            onClick={() => {
+                                if (!canOpenTestset || !effectiveTestsetId) return
+                                onTestsetNavigation(effectiveTestsetId, effectiveTestsetRevisionId)
+                            }}
+                            disabled={!canOpenTestset}
+                        >
+                            <Database size={16} />
+                            View testset
+                        </DropdownMenuItem>
+                    )}
+                    {onExportRow && (
+                        <DropdownMenuItem
+                            onClick={() => {
+                                if (isExporting) return
+                                onExportRow(record)
+                            }}
+                            disabled={isExporting}
+                        >
+                            <DownloadSimple size={16} />
+                            Export row
+                        </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => {
+                            if (!canDelete) return
+                            onRequestDelete(record)
+                        }}
+                        disabled={!canDelete}
+                    >
+                        <Trash size={16} />
+                        Delete
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </div>
     )
 }

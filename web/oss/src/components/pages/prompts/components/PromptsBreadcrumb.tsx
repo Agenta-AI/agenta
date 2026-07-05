@@ -3,16 +3,25 @@ import React, {useMemo} from "react"
 import type {AppType} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {
     CaretDownIcon,
     FolderDashedIcon,
     FolderIcon,
     FolderOpenIcon,
-    HouseSimpleIcon,
     PencilSimpleLineIcon,
     SquaresFourIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
-import {Breadcrumb, BreadcrumbProps, Dropdown, MenuProps, theme} from "antd"
+import {Breadcrumb, BreadcrumbProps} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
@@ -50,17 +59,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
                 textDecoration: "underline",
             },
         },
-        "& .ant-dropdown-trigger": {
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            "&:hover": {
-                backgroundColor: "inherit",
-            },
-            "& .anticon-down": {
-                fontSize: "10px !important",
-            },
-        },
     },
 }))
 
@@ -92,7 +90,6 @@ const PromptsBreadcrumb = ({
     onDeleteFolder,
 }: PromptsBreadcrumbProps) => {
     const classes = useStyles()
-    const {token} = theme.useToken()
 
     const folderChain = useMemo(() => {
         if (!currentFolderId) return []
@@ -108,152 +105,6 @@ const PromptsBreadcrumb = ({
 
         return chain.reverse()
     }, [currentFolderId, foldersById])
-
-    const actionItems: MenuProps["items"] = useMemo(
-        () => [
-            {
-                key: "rename_folder",
-                icon: <PencilSimpleLineIcon size={14} />,
-                label: "Rename",
-                onClick: () => onRenameFolder?.(currentFolderId),
-            },
-            {
-                key: "move_folder",
-                icon: <FolderDashedIcon size={14} />,
-                label: "Move",
-                onClick: () => onMoveFolder?.(currentFolderId),
-            },
-            {type: "divider"},
-            {
-                key: "new_prompt",
-                icon: <SquaresFourIcon size={14} />,
-                label: "New prompt",
-                children: [
-                    {
-                        key: "new_prompt_chat",
-                        label: (
-                            <span className="inline-flex items-center gap-2">
-                                {getAppTypeIcon("chat")}
-                                <span>Chat</span>
-                            </span>
-                        ),
-                        onClick: () => onNewPrompt?.("chat"),
-                    },
-                    {
-                        key: "new_prompt_completion",
-                        label: (
-                            <span className="inline-flex items-center gap-2">
-                                {getAppTypeIcon("completion")}
-                                <span>Completion</span>
-                            </span>
-                        ),
-                        onClick: () => onNewPrompt?.("completion"),
-                    },
-                    {
-                        key: "new_prompt_agent",
-                        label: (
-                            <span className="inline-flex items-center gap-2">
-                                {getAppTypeIcon("agent")}
-                                <span>Agent</span>
-                            </span>
-                        ),
-                        onClick: () => onNewPrompt?.("agent"),
-                    },
-                ],
-            },
-            {
-                key: "new_folder",
-                icon: <FolderIcon size={14} />,
-                label: "New folder",
-                onClick: () => onNewFolder?.(),
-            },
-            {type: "divider"},
-            {
-                key: "setup_workflow",
-                icon: <SetupWorkflowIcon />,
-                label: "Set up workflow",
-                onClick: () => onSetupWorkflow?.(),
-            },
-            {
-                key: "delete_folder",
-                icon: <TrashIcon size={14} />,
-                label: "Delete",
-                danger: true,
-                onClick: () => onDeleteFolder?.(currentFolderId),
-            },
-        ],
-        [
-            currentFolderId,
-            onDeleteFolder,
-            onMoveFolder,
-            onNewFolder,
-            onNewPrompt,
-            onRenameFolder,
-            onSetupWorkflow,
-        ],
-    )
-
-    /**
-     * Build a flat sibling-folder menu for a breadcrumb segment.
-     * Shows only folders (no apps) at one level — clean, no cascading.
-     */
-    const buildSiblingMenu = (
-        parentId: string | null,
-        activeFolderId: string | null,
-        includeRoot?: boolean,
-        extraItems?: MenuProps["items"],
-    ): MenuProps["items"] => {
-        const siblings = getSiblingFolders(foldersById, parentId)
-        const items: MenuProps["items"] = []
-
-        // "All prompts" root entry
-        if (includeRoot) {
-            items.push({
-                key: "__root__",
-                icon: <HouseSimpleIcon size={14} weight={!currentFolderId ? "fill" : "regular"} />,
-                label: (
-                    <span style={!currentFolderId ? {fontWeight: 600} : undefined}>
-                        All prompts
-                    </span>
-                ),
-                onClick: () => onFolderChange?.(null),
-            })
-
-            if (siblings.length > 0) {
-                items.push({type: "divider"})
-            }
-        }
-
-        siblings.forEach((folder) => {
-            const isActive = folder.id === activeFolderId
-            items.push({
-                key: folder.id as string,
-                icon: isActive ? (
-                    <FolderOpenIcon size={14} weight="fill" style={{color: token.colorPrimary}} />
-                ) : (
-                    <FolderIcon size={14} style={{color: token.colorTextSecondary}} />
-                ),
-                label: (
-                    <span
-                        style={isActive ? {fontWeight: 600, color: token.colorPrimary} : undefined}
-                    >
-                        {folder.name}
-                    </span>
-                ),
-                onClick: () => onFolderChange?.(folder.id as string),
-            })
-        })
-
-        if (extraItems?.length && items.length > 0) {
-            items.push({type: "divider"})
-        }
-
-        if (extraItems?.length) {
-            items.push(...extraItems)
-        }
-
-        return items
-    }
 
     const items: BreadcrumbProps["items"] = useMemo(() => {
         const isAtRoot = !currentFolderId
@@ -272,54 +123,171 @@ const PromptsBreadcrumb = ({
         folderChain.forEach((folder, index) => {
             const isLast = index === folderChain.length - 1
             const parentId = folder.parent_id ?? null
+            const siblings = getSiblingFolders(foldersById, parentId)
 
             if (isLast) {
-                const menuItems = buildSiblingMenu(parentId, folder.id ?? null, false, actionItems)
-
                 base.push({
                     title: (
                         <div className="flex items-center gap-1">
                             <span>{folder.name}</span>
-                            <Dropdown
-                                trigger={["click"]}
-                                styles={{root: {minWidth: 200}}}
-                                menu={{items: menuItems}}
-                                placement="bottomLeft"
-                            >
-                                <Button className="w-5 h-5" variant="ghost" size="icon-sm">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger className="w-5 h-5 inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground">
                                     {<CaretDownIcon size={14} />}
-                                </Button>
-                            </Dropdown>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" sideOffset={4}>
+                                    {siblings.map((sibling) => {
+                                        const isActive = sibling.id === folder.id
+                                        return (
+                                            <DropdownMenuItem
+                                                key={sibling.id}
+                                                onClick={() => onFolderChange?.(sibling.id!)}
+                                            >
+                                                {isActive ? (
+                                                    <FolderOpenIcon
+                                                        size={14}
+                                                        weight="fill"
+                                                        className="text-primary"
+                                                    />
+                                                ) : (
+                                                    <FolderIcon
+                                                        size={14}
+                                                        className="text-muted-foreground"
+                                                    />
+                                                )}
+                                                <span
+                                                    className={
+                                                        isActive
+                                                            ? "font-semibold text-primary"
+                                                            : undefined
+                                                    }
+                                                >
+                                                    {sibling.name}
+                                                </span>
+                                            </DropdownMenuItem>
+                                        )
+                                    })}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        onClick={() => onRenameFolder?.(currentFolderId)}
+                                    >
+                                        <PencilSimpleLineIcon size={14} />
+                                        Rename
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => onMoveFolder?.(currentFolderId)}
+                                    >
+                                        <FolderDashedIcon size={14} />
+                                        Move
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger>
+                                            <SquaresFourIcon size={14} />
+                                            New prompt
+                                        </DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent>
+                                            <DropdownMenuItem onClick={() => onNewPrompt?.("chat")}>
+                                                {getAppTypeIcon("chat")}
+                                                Chat
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => onNewPrompt?.("completion")}
+                                            >
+                                                {getAppTypeIcon("completion")}
+                                                Completion
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => onNewPrompt?.("agent")}
+                                            >
+                                                {getAppTypeIcon("agent")}
+                                                Agent
+                                            </DropdownMenuItem>
+                                        </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                    <DropdownMenuItem onClick={() => onNewFolder?.()}>
+                                        <FolderIcon size={14} />
+                                        New folder
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => onSetupWorkflow?.()}>
+                                        <SetupWorkflowIcon />
+                                        Set up workflow
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={() => onDeleteFolder?.(currentFolderId)}
+                                    >
+                                        <TrashIcon size={14} />
+                                        Delete
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     ),
                 })
             } else {
-                const siblingMenu = buildSiblingMenu(parentId, folder.id ?? null)
-
                 base.push({
                     title:
-                        siblingMenu && siblingMenu.length > 1 ? (
-                            <Dropdown
-                                trigger={["click"]}
-                                styles={{root: {minWidth: 200}}}
-                                menu={{items: siblingMenu}}
-                                placement="bottomLeft"
-                            >
-                                <span>{folder.name}</span>
-                            </Dropdown>
+                        siblings.length > 1 ? (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                                    <span>{folder.name}</span>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" sideOffset={4}>
+                                    {siblings.map((sibling) => {
+                                        const isActive = sibling.id === folder.id
+                                        return (
+                                            <DropdownMenuItem
+                                                key={sibling.id}
+                                                onClick={() => onFolderChange?.(sibling.id!)}
+                                            >
+                                                {isActive ? (
+                                                    <FolderOpenIcon
+                                                        size={14}
+                                                        weight="fill"
+                                                        className="text-primary"
+                                                    />
+                                                ) : (
+                                                    <FolderIcon
+                                                        size={14}
+                                                        className="text-muted-foreground"
+                                                    />
+                                                )}
+                                                <span
+                                                    className={
+                                                        isActive
+                                                            ? "font-semibold text-primary"
+                                                            : undefined
+                                                    }
+                                                >
+                                                    {sibling.name}
+                                                </span>
+                                            </DropdownMenuItem>
+                                        )
+                                    })}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         ) : (
                             folder.name
                         ),
-                    onClick:
-                        !siblingMenu || siblingMenu.length <= 1
-                            ? () => onFolderChange?.(folder.id!)
-                            : undefined,
+                    onClick: siblings.length <= 1 ? () => onFolderChange?.(folder.id!) : undefined,
                 })
             }
         })
 
         return base
-    }, [actionItems, currentFolderId, folderChain, foldersById, onFolderChange, token])
+    }, [
+        currentFolderId,
+        folderChain,
+        foldersById,
+        onFolderChange,
+        onRenameFolder,
+        onMoveFolder,
+        onNewPrompt,
+        onNewFolder,
+        onSetupWorkflow,
+        onDeleteFolder,
+    ])
 
     return <Breadcrumb items={items} className={classes.container} />
 }

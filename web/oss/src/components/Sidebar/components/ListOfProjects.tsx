@@ -1,12 +1,21 @@
-import {memo, useCallback, useMemo, useState} from "react"
+import {Fragment, memo, useCallback, useMemo, useState} from "react"
 
 import {Badge} from "@agenta/primitive-ui/components/badge"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {InitialsAvatar} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {ButtonProps, Dropdown, DropdownProps, Form, MenuProps, message} from "antd"
+import {ButtonProps, Form, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -28,7 +37,6 @@ interface ListOfProjectsProps {
     buttonProps?: ButtonProps
     interactive?: boolean
     selectedOrganizationId?: string | null
-    dropdownProps?: Omit<DropdownProps, "menu" | "children">
 }
 
 interface ProjectMeta {
@@ -48,7 +56,6 @@ const ListOfProjects = ({
     buttonProps,
     interactive = true,
     selectedOrganizationId,
-    dropdownProps,
 }: ListOfProjectsProps) => {
     const router = useRouter()
     const {orgs} = useOrgData()
@@ -291,9 +298,16 @@ const ListOfProjects = ({
         ],
     )
 
-    const {projectMenuItems, projectKeyMap} = useMemo(() => {
+    const shouldRenderProjectsDropdown = projectsForSelectedOrganization.length > 0
+
+    const selectedProjectKey =
+        project?.workspace_id && project?.project_id
+            ? `project:${project.workspace_id}:${project.project_id}`
+            : ""
+
+    const projectKeyMap = useMemo(() => {
         const keyMap: Record<string, ProjectMeta> = {}
-        const items: MenuProps["items"] = projectsForSelectedOrganization.map((proj) => {
+        projectsForSelectedOrganization.forEach((proj) => {
             const key = `project:${proj.workspace_id}:${proj.project_id}`
             keyMap[key] = {
                 key,
@@ -302,177 +316,149 @@ const ListOfProjects = ({
                 organizationId: proj.organization_id ?? selectedOrganizationId,
                 project: proj,
             }
-
-            const isActiveProject =
-                proj.project_id === project?.project_id &&
-                proj.workspace_id === project?.workspace_id
-
-            const children: MenuProps["items"] | undefined = isActiveProject
-                ? [
-                      {
-                          key: `project-action:set-default:${proj.workspace_id}:${proj.project_id}`,
-                          label: (
-                              <div className="flex items-center gap-2">
-                                  <Star size={16} />
-                                  Set as default
-                              </div>
-                          ),
-                          disabled: proj.is_default_project,
-                      },
-                      {
-                          key: `project-action:copy:${proj.workspace_id}:${proj.project_id}`,
-                          label: (
-                              <div className="flex items-center gap-2">
-                                  <CopyIcon size={16} />
-                                  Copy ID
-                              </div>
-                          ),
-                      },
-                      {
-                          key: `project-action:rename:${proj.workspace_id}:${proj.project_id}`,
-                          label: (
-                              <div className="flex items-center gap-2">
-                                  <PencilSimple size={16} />
-                                  Rename
-                              </div>
-                          ),
-                      },
-                      {
-                          key: `project-action:delete:${proj.workspace_id}:${proj.project_id}`,
-                          label: (
-                              <div className="flex items-center gap-2">
-                                  <Trash size={16} />
-                                  Delete
-                              </div>
-                          ),
-                          disabled: !canDeleteProjects || proj.is_default_project,
-                          danger: true,
-                      },
-                  ]
-                : undefined
-
-            return {
-                key,
-                disabled: !interactive,
-                label: (
-                    <div className="flex items-center gap-2 w-full max-w-[300px]">
-                        <InitialsAvatar size="small" name={proj.project_name} />
-                        <div className="flex min-w-0 items-center gap-2">
-                            <span className="truncate">{proj.project_name}</span>
-                            {proj.is_default_project && (
-                                <Badge
-                                    className="bg-[var(--ag-c-0517290F)] m-0"
-                                    variant="secondary"
-                                >
-                                    default
-                                </Badge>
-                            )}
-                        </div>
-                    </div>
-                ),
-                children,
-            }
         })
+        return keyMap
+    }, [projectsForSelectedOrganization, selectedOrganizationId])
 
-        if (items.length) {
-            items.push({type: "divider", key: "projects-divider"})
-        }
-
-        items.push({
-            key: "project:new",
-            label: (
-                <div className="flex items-center gap-2 text-primary-500">
-                    <span className="font-medium">+ New project</span>
-                </div>
-            ),
-        })
-
-        return {projectMenuItems: items, projectKeyMap: keyMap}
-    }, [
-        canDeleteProjects,
-        interactive,
-        project,
-        projectsForSelectedOrganization,
-        selectedOrganizationId,
-    ])
-
-    const shouldRenderProjectsDropdown = projectsForSelectedOrganization.length > 0
-
-    const selectedProjectKey =
-        project?.workspace_id && project?.project_id
-            ? [`project:${project.workspace_id}:${project.project_id}`]
-            : undefined
-
-    const handleProjectMenuClick: MenuProps["onClick"] = ({key}) => {
-        const keyString = key as string
-
-        if (keyString === "project:new") {
-            setProjectDropdownOpen(false)
-            createForm.resetFields()
-            setCreateModalOpen(true)
-            return
-        }
-
-        if (keyString.startsWith("project-action:")) {
-            const [, action, workspaceId, projectId] = keyString.split(":")
-            const parentKey = `project:${workspaceId}:${projectId}`
-            const meta = projectKeyMap[parentKey]
-            if (!meta) return
-            setProjectDropdownOpen(false)
-
-            if (action === "set-default") {
-                handleMakeDefault(meta.project)
-            } else if (action === "copy") {
-                void copyProjectId(meta.project.project_id)
-            } else if (action === "rename") {
-                openRenameModal(meta.project)
-            } else if (action === "delete") {
-                if (!canDeleteProjects) return
-                confirmDeleteProject(meta.project)
-            }
-            return
-        }
-
-        const meta = projectKeyMap[keyString]
-        if (!meta) return
+    const handleNewProject = useCallback(() => {
         setProjectDropdownOpen(false)
-        navigateToProject(meta.workspaceId, meta.projectId, meta.organizationId ?? null)
-    }
+        createForm.resetFields()
+        setCreateModalOpen(true)
+    }, [createForm])
+
+    const handleProjectValueChange = useCallback(
+        (key: string) => {
+            setProjectDropdownOpen(false)
+            const meta = projectKeyMap[key]
+            if (!meta) return
+            navigateToProject(meta.workspaceId, meta.projectId, meta.organizationId ?? null)
+        },
+        [projectKeyMap, navigateToProject],
+    )
 
     return (
         <>
             {shouldRenderProjectsDropdown ? (
                 interactive ? (
-                    <Dropdown
-                        {...(dropdownProps ?? {})}
-                        trigger={["click"]}
-                        placement={collapsed ? "bottomLeft" : "bottomRight"}
-                        destroyOnHidden
-                        styles={{
-                            root: {
-                                zIndex: 2000,
-                            },
-                        }}
-                        onOpenChange={setProjectDropdownOpen}
-                        className={clsx({"flex items-center justify-center": collapsed})}
-                        menu={{
-                            items: projectMenuItems,
-                            selectedKeys: selectedProjectKey,
-                            onClick: handleProjectMenuClick,
-                            className: "max-h-80 overflow-y-auto",
-                        }}
-                    >
-                        <div data-project-selector>
-                            <SidebarSelectionButton
-                                collapsed={collapsed}
-                                label={projectButtonLabel}
-                                placeholder="Projects"
-                                isOpen={projectDropdownOpen}
-                                showCaret
-                                buttonProps={buttonProps}
-                            />
-                        </div>
-                    </Dropdown>
+                    <DropdownMenu open={projectDropdownOpen} onOpenChange={setProjectDropdownOpen}>
+                        <DropdownMenuTrigger
+                            className={clsx({"flex items-center justify-center": collapsed})}
+                        >
+                            <div data-project-selector>
+                                <SidebarSelectionButton
+                                    collapsed={collapsed}
+                                    label={projectButtonLabel}
+                                    placeholder="Projects"
+                                    isOpen={projectDropdownOpen}
+                                    showCaret
+                                    buttonProps={buttonProps}
+                                />
+                            </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            align={collapsed ? "start" : "end"}
+                            className="max-h-80 overflow-y-auto"
+                            style={{zIndex: 2000}}
+                        >
+                            <DropdownMenuRadioGroup
+                                value={selectedProjectKey}
+                                onValueChange={handleProjectValueChange}
+                            >
+                                {projectsForSelectedOrganization.map((proj) => {
+                                    const key = `project:${proj.workspace_id}:${proj.project_id}`
+                                    const isActiveProject =
+                                        proj.project_id === project?.project_id &&
+                                        proj.workspace_id === project?.workspace_id
+
+                                    return (
+                                        <Fragment key={key}>
+                                            <DropdownMenuRadioItem
+                                                value={key}
+                                                disabled={!interactive}
+                                                closeOnClick
+                                            >
+                                                <div className="flex items-center gap-2 w-full max-w-[300px]">
+                                                    <InitialsAvatar
+                                                        size="small"
+                                                        name={proj.project_name}
+                                                    />
+                                                    <div className="flex min-w-0 items-center gap-2">
+                                                        <span className="truncate">
+                                                            {proj.project_name}
+                                                        </span>
+                                                        {proj.is_default_project && (
+                                                            <Badge
+                                                                className="bg-[var(--ag-c-0517290F)] m-0"
+                                                                variant="secondary"
+                                                            >
+                                                                default
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </DropdownMenuRadioItem>
+
+                                            {isActiveProject && (
+                                                <>
+                                                    <DropdownMenuItem
+                                                        onClick={() => {
+                                                            setProjectDropdownOpen(false)
+                                                            handleMakeDefault(proj)
+                                                        }}
+                                                        disabled={proj.is_default_project}
+                                                    >
+                                                        <Star size={16} />
+                                                        Set as default
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => {
+                                                            setProjectDropdownOpen(false)
+                                                            void copyProjectId(proj.project_id)
+                                                        }}
+                                                    >
+                                                        <CopyIcon size={16} />
+                                                        Copy ID
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => {
+                                                            setProjectDropdownOpen(false)
+                                                            openRenameModal(proj)
+                                                        }}
+                                                    >
+                                                        <PencilSimple size={16} />
+                                                        Rename
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        variant="destructive"
+                                                        onClick={() => {
+                                                            if (!canDeleteProjects) return
+                                                            setProjectDropdownOpen(false)
+                                                            confirmDeleteProject(proj)
+                                                        }}
+                                                        disabled={
+                                                            !canDeleteProjects ||
+                                                            proj.is_default_project
+                                                        }
+                                                    >
+                                                        <Trash size={16} />
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                </>
+                                            )}
+                                        </Fragment>
+                                    )
+                                })}
+                            </DropdownMenuRadioGroup>
+
+                            {projectsForSelectedOrganization.length > 0 && (
+                                <DropdownMenuSeparator />
+                            )}
+
+                            <DropdownMenuItem onClick={handleNewProject}>
+                                <span className="font-medium text-primary-500">+ New project</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 ) : (
                     <div className={clsx({"flex items-center justify-center": collapsed})}>
                         <SidebarSelectionButton

@@ -6,8 +6,6 @@ import {
     nonDeterministicEvaluatorsAtom,
     type Workflow,
 } from "@agenta/entities/workflow"
-import type {MenuProps} from "antd"
-import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {recentAppIdAtom, routerAppNavigationAtom} from "@/oss/state/app/atoms/fetcher"
@@ -18,7 +16,6 @@ import {
 } from "@/oss/state/workflow"
 
 import {resolveWorkflowEntitySelection} from "../components/assets/workflowEntitySelection"
-import WorkflowIdentity from "../components/WorkflowIdentity"
 
 import {resolveIsEvaluatorWorkflow} from "./workflowSwitcherHelpers"
 
@@ -31,11 +28,6 @@ const getWorkflowActivityTime = (workflow: Workflow) => {
     const parsedTimestamp = Date.parse(timestamp)
     return Number.isNaN(parsedTimestamp) ? 0 : parsedTimestamp
 }
-
-export const WORKFLOW_SWITCHER_MENU_CLASS = clsx(
-    "max-h-80 overflow-y-auto !py-2 !px-2",
-    "[&_.ant-dropdown-menu-item]:!px-2",
-)
 
 export const useWorkflowSwitcher = () => {
     const context = useAtomValue(currentWorkflowContextAtom)
@@ -77,36 +69,20 @@ export const useWorkflowSwitcher = () => {
         evaluators,
     })
 
-    const menuItems = useMemo<MenuProps["items"]>(() => {
-        const toMenuItem = (entity: Workflow, isEvaluator: boolean) => {
-            const label = entity.name ?? entity.slug ?? entity.id
-            return {
-                key: entity.id,
-                label: (
-                    <WorkflowIdentity
-                        workflowId={entity.id}
-                        name={label}
-                        isEvaluator={isEvaluator}
-                        selected={entity.id === workflowId}
-                    />
-                ),
-            }
-        }
+    const menuItems = useMemo(() => {
         const children = [
             ...apps.map((entity) => ({entity, isEvaluator: false})),
             ...switcherEvaluators.map((entity) => ({entity, isEvaluator: true})),
-        ]
-            .sort(
-                (left, right) =>
-                    getWorkflowActivityTime(right.entity) - getWorkflowActivityTime(left.entity),
-            )
-            .map(({entity, isEvaluator}) => toMenuItem(entity, isEvaluator))
+        ].sort(
+            (left, right) =>
+                getWorkflowActivityTime(right.entity) - getWorkflowActivityTime(left.entity),
+        )
 
         return children
-    }, [apps, switcherEvaluators, workflowId])
+    }, [apps, switcherEvaluators])
 
-    const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
-        ({key}) => {
+    const handleMenuClick = useCallback(
+        (key: string) => {
             setOpen(false)
             if (key && key !== workflowId) navigateToWorkflow(key)
         },
@@ -118,7 +94,7 @@ export const useWorkflowSwitcher = () => {
         handleMenuClick,
         menuItems,
         open,
-        selectedKeys: workflowId ? [workflowId] : undefined,
+        selectedKey: workflowId ?? undefined,
         setOpen,
         isEvaluator,
         workflow,

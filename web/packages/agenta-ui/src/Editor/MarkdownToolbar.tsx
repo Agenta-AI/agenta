@@ -14,6 +14,16 @@
 import {type ReactNode, useCallback, useEffect, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from "@lexical/link"
@@ -36,7 +46,6 @@ import {
     INSERT_TABLE_COMMAND,
 } from "@lexical/table"
 import {$getNearestNodeOfType} from "@lexical/utils"
-import {Dropdown, Input, type MenuProps} from "antd"
 import {
     $createParagraphNode,
     $getSelection,
@@ -248,45 +257,58 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
 
     const runTableOp = useCallback((op: () => void) => editor.update(op), [editor])
 
-    const tableMenu: MenuProps = {
-        onClick: ({key, domEvent}) => {
-            domEvent.preventDefault()
-            switch (key) {
-                case "row-above":
-                    return runTableOp(() => $insertTableRowAtSelection(false))
-                case "row-below":
-                    return runTableOp(() => $insertTableRowAtSelection(true))
-                case "col-left":
-                    return runTableOp(() => $insertTableColumnAtSelection(false))
-                case "col-right":
-                    return runTableOp(() => $insertTableColumnAtSelection(true))
-                case "del-row":
-                    return runTableOp(() => $deleteTableRowAtSelection())
-                case "del-col":
-                    return runTableOp(() => $deleteTableColumnAtSelection())
-                case "del-table":
-                    return runTableOp(() => {
-                        const sel = $getSelection()
-                        if (!$isRangeSelection(sel)) return
-                        const cell = $getTableCellNodeFromLexicalNode(sel.anchor.getNode())
-                        if (!cell) return
-                        $getTableNodeFromLexicalNodeOrThrow(cell).remove()
-                    })
-                default:
-                    return undefined
-            }
+    const tableMenuItems: {
+        key: string
+        label: string
+        danger?: boolean
+        divider?: boolean
+        onClick: () => void
+    }[] = [
+        {
+            key: "row-above",
+            label: "Insert row above",
+            onClick: () => runTableOp(() => $insertTableRowAtSelection(false)),
         },
-        items: [
-            {key: "row-above", label: "Insert row above"},
-            {key: "row-below", label: "Insert row below"},
-            {key: "col-left", label: "Insert column left"},
-            {key: "col-right", label: "Insert column right"},
-            {type: "divider"},
-            {key: "del-row", label: "Delete row"},
-            {key: "del-col", label: "Delete column"},
-            {key: "del-table", label: "Delete table", danger: true},
-        ],
-    }
+        {
+            key: "row-below",
+            label: "Insert row below",
+            onClick: () => runTableOp(() => $insertTableRowAtSelection(true)),
+        },
+        {
+            key: "col-left",
+            label: "Insert column left",
+            onClick: () => runTableOp(() => $insertTableColumnAtSelection(false)),
+        },
+        {
+            key: "col-right",
+            label: "Insert column right",
+            onClick: () => runTableOp(() => $insertTableColumnAtSelection(true)),
+        },
+        {key: "divider-1", label: "", divider: true, onClick: () => {}},
+        {
+            key: "del-row",
+            label: "Delete row",
+            onClick: () => runTableOp(() => $deleteTableRowAtSelection()),
+        },
+        {
+            key: "del-col",
+            label: "Delete column",
+            onClick: () => runTableOp(() => $deleteTableColumnAtSelection()),
+        },
+        {
+            key: "del-table",
+            label: "Delete table",
+            danger: true,
+            onClick: () =>
+                runTableOp(() => {
+                    const sel = $getSelection()
+                    if (!$isRangeSelection(sel)) return
+                    const cell = $getTableCellNodeFromLexicalNode(sel.anchor.getNode())
+                    if (!cell) return
+                    $getTableNodeFromLexicalNodeOrThrow(cell).remove()
+                }),
+        },
+    ]
 
     const button = (
         key: string,
@@ -321,32 +343,30 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
     return (
         <div className="flex items-center gap-0.5">
             {/* Block type — paragraph / headings / quote / code block. */}
-            <Dropdown
-                disabled={disabled}
-                trigger={["click"]}
-                placement="bottomLeft"
-                menu={{
-                    selectable: true,
-                    selectedKeys: [blockType],
-                    items: BLOCK_TYPES.map((b) => ({key: b.key, label: b.label})),
-                    onClick: ({key, domEvent}) => {
-                        domEvent.preventDefault()
-                        formatBlock(key)
-                    },
-                }}
-            >
-                <button
-                    type="button"
+            <DropdownMenu>
+                <DropdownMenuTrigger
+                    disabled={disabled}
                     title="Text style"
                     aria-label="Text style"
-                    disabled={disabled}
                     onMouseDown={(e) => e.preventDefault()}
-                    className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs`}
+                    className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs inline-flex items-center`}
                 >
                     <span className="truncate">{blockLabel}</span>
                     <ChevronDown size={13} className="shrink-0" />
-                </button>
-            </Dropdown>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    <DropdownMenuRadioGroup
+                        value={blockType}
+                        onValueChange={(key: string) => formatBlock(key)}
+                    >
+                        {BLOCK_TYPES.map((b) => (
+                            <DropdownMenuRadioItem key={b.key} value={b.key} closeOnClick>
+                                {b.label}
+                            </DropdownMenuRadioItem>
+                        ))}
+                    </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+            </DropdownMenu>
 
             {divider}
             {button("b", "Bold", <Bold size={15} />, () => formatText("bold"), active.bold)}
@@ -398,7 +418,9 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                             value={linkDraft}
                             placeholder="https://example.com"
                             onChange={(e) => setLinkDraft(e.target.value)}
-                            onPressEnter={applyLink}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") applyLink()
+                            }}
                         />
                         <div className="flex items-center justify-between gap-2">
                             {active.link ? (
@@ -420,18 +442,31 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
             {/* Table — one control: inside a table it opens the row/column ops menu; otherwise a
                 size picker to insert one. The chevron signals the menu when the caret is in a table. */}
             {active.insideTable && !disabled ? (
-                <Dropdown menu={tableMenu} trigger={["click"]} placement="bottomLeft">
-                    <button
-                        type="button"
+                <DropdownMenu>
+                    <DropdownMenuTrigger
                         title="Table options"
                         aria-label="Table options"
                         onMouseDown={(e) => e.preventDefault()}
-                        className={`${btnClass(false, false)} !w-auto gap-0.5 px-1`}
+                        className={`${btnClass(false, false)} !w-auto gap-0.5 px-1 inline-flex items-center`}
                     >
                         <TableIcon size={15} />
                         <ChevronDown size={12} />
-                    </button>
-                </Dropdown>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        {tableMenuItems.map((item) => {
+                            if (item.divider) return <DropdownMenuSeparator key={item.key} />
+                            return (
+                                <DropdownMenuItem
+                                    key={item.key}
+                                    onClick={item.onClick}
+                                    variant={item.danger ? "destructive" : "default"}
+                                >
+                                    {item.label}
+                                </DropdownMenuItem>
+                            )
+                        })}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             ) : (
                 <Popover open={disabled ? false : tableOpen} onOpenChange={setTableOpen}>
                     <PopoverTrigger

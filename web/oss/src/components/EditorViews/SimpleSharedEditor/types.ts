@@ -1,5 +1,4 @@
 import {SharedEditorProps} from "@agenta/ui/shared-editor"
-import {DropdownProps} from "antd"
 
 import {TooltipButtonProps} from "../../EnhancedUIs/Button"
 
@@ -12,7 +11,6 @@ export interface SimpleSharedEditorProps extends SharedEditorProps {
     isMinimizeVisible?: boolean
     isFormatVisible?: boolean
     isCopyVisible?: boolean
-    formatDropdownProps?: DropdownProps
     copyButtonProps?: TooltipButtonProps
     minimizeButtonProps?: TooltipButtonProps
     disableFormatItems?: {text?: boolean; markdown?: boolean; json?: boolean; yaml?: boolean}

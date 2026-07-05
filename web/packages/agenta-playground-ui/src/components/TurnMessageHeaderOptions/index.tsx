@@ -1,6 +1,12 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
 import {
     ArrowClockwise,
@@ -12,8 +18,7 @@ import {
     MinusCircle,
     Paperclip,
 } from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
-import {Dropdown, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 
 import CollapseToggleButton from "../shared/CollapseToggleButton"
@@ -132,46 +137,6 @@ const TurnMessageHeaderOptions = ({
     const canAddDocument = Boolean(onAddDocumentSlot) && allowFileUpload && !maxDocumentReached
     const attachmentButtonDisabled = !canAddImage && !canAddDocument
 
-    const attachmentMenuItems = useMemo<NonNullable<MenuProps["items"]>>(() => {
-        const items: NonNullable<MenuProps["items"]> = []
-        if (onAddUploadSlot) {
-            items.push({
-                key: "image",
-                disabled: !canAddImage,
-                label: (
-                    <span className="flex items-center gap-1">
-                        <PhImage size={14} />
-                        <span>Upload image</span>
-                    </span>
-                ),
-            })
-        }
-        if (onAddDocumentSlot) {
-            items.push({
-                key: "document",
-                disabled: !canAddDocument,
-                label: (
-                    <span className="flex items-center gap-1">
-                        <FileArchive size={14} />
-                        <span>Attach document</span>
-                    </span>
-                ),
-            })
-        }
-        return items
-    }, [onAddUploadSlot, onAddDocumentSlot, canAddImage, canAddDocument])
-
-    const handleAttachmentMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
-        ({key}) => {
-            if (key === "image" && canAddImage) {
-                onAddUploadSlot?.()
-            } else if (key === "document" && canAddDocument) {
-                onAddDocumentSlot?.()
-            }
-        },
-        [onAddUploadSlot, onAddDocumentSlot, canAddImage, canAddDocument],
-    )
-
     const onCopyText = useCallback(() => {
         const value = getTextContent(text || "")
         if (value) {
@@ -227,28 +192,34 @@ const TurnMessageHeaderOptions = ({
                         disabled: testsetDisabled,
                     })}
 
-                {attachmentMenuItems.length > 0 ? (
-                    <Dropdown
-                        trigger={["click"]}
-                        placement="bottomRight"
-                        menu={{
-                            items: attachmentMenuItems,
-                            onClick: handleAttachmentMenuClick,
-                        }}
-                        disabled={attachmentButtonDisabled}
-                    >
-                        <span className="inline-flex">
-                            <Tooltip title="Add attachment">
-                                <Button
-                                    disabled={attachmentButtonDisabled}
-                                    variant="ghost"
-                                    size="icon"
+                {!attachmentButtonDisabled ? (
+                    <DropdownMenu>
+                        <Tooltip title="Add attachment">
+                            <DropdownMenuTrigger
+                                disabled={attachmentButtonDisabled}
+                                className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit"
+                            >
+                                <Paperclip size={14} />
+                            </DropdownMenuTrigger>
+                        </Tooltip>
+                        <DropdownMenuContent align="end" side="bottom" sideOffset={4}>
+                            {onAddUploadSlot && (
+                                <DropdownMenuItem disabled={!canAddImage} onClick={onAddUploadSlot}>
+                                    <PhImage size={14} />
+                                    Upload image
+                                </DropdownMenuItem>
+                            )}
+                            {onAddDocumentSlot && (
+                                <DropdownMenuItem
+                                    disabled={!canAddDocument}
+                                    onClick={onAddDocumentSlot}
                                 >
-                                    {<Paperclip size={14} />}
-                                </Button>
-                            </Tooltip>
-                        </span>
-                    </Dropdown>
+                                    <FileArchive size={14} />
+                                    Attach document
+                                </DropdownMenuItem>
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 ) : null}
 
                 <Tooltip title={isCopied ? "Copied" : "Copy"}>

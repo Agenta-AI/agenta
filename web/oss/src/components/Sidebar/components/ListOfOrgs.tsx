@@ -1,11 +1,20 @@
-import {memo, useEffect, useMemo, useRef, useState} from "react"
+import {Fragment, memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {Badge} from "@agenta/primitive-ui/components/badge"
+import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuSeparator,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {InitialsAvatar} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArrowsLeftRight, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {ButtonProps, Dropdown, DropdownProps, Form, Input, MenuProps, Select, message} from "antd"
+import {ButtonProps, Form, Input, Select, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -33,7 +42,7 @@ import AuthUpgradeModal, {AuthUpgradeDetail} from "./AuthUpgradeModal"
 import ListOfProjects from "./ListOfProjects"
 import SidebarSelectionButton from "./SidebarSelectionButton"
 
-interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
+interface ListOfOrgsProps {
     collapsed: boolean
     buttonProps?: ButtonProps
     /**
@@ -51,19 +60,19 @@ interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
     organizationSelectionEnabled?: boolean
 }
 
+const formatErrorMessage = (detail: any, fallback: string) => {
+    if (typeof detail === "string") return detail
+    if (detail && typeof detail.message === "string") return detail.message
+    return fallback
+}
+
 const ListOfOrgs = ({
     collapsed,
     buttonProps,
     interactive = true,
     overrideOrganizationId,
     organizationSelectionEnabled = true,
-    ...dropdownProps
 }: ListOfOrgsProps) => {
-    const formatErrorMessage = (detail: any, fallback: string) => {
-        if (typeof detail === "string") return detail
-        if (detail && typeof detail.message === "string") return detail.message
-        return fallback
-    }
     const router = useRouter()
     const {user} = useProfileData()
     const {logout} = useSession()
@@ -153,102 +162,7 @@ const ListOfOrgs = ({
         return map
     }, [transferOwnerOptions])
 
-    const organizationMenuItems = useMemo<MenuProps["items"]>(() => {
-        const items: MenuProps["items"] = organizations.map((organization) => {
-            const isDemo = organization.flags?.is_demo ?? false
-            const isOwner = organization.owner_id === user?.id
-            const isSelectedOrganization = organization.id === effectiveSelectedId
-
-            const baseItem = {
-                key: `organization:${organization.id}`,
-                disabled: !interactive || !organizationSelectionEnabled,
-                label: (
-                    <div className="flex items-center gap-2 justify-between w-full">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <InitialsAvatar size="small" name={organization.name} />
-                            <span className="truncate">{organization.name}</span>
-                            {isDemo && (
-                                <Badge
-                                    className="bg-[var(--ag-c-0517290F)] m-0"
-                                    variant="secondary"
-                                >
-                                    demo
-                                </Badge>
-                            )}
-                        </div>
-                    </div>
-                ),
-            }
-
-            // Show submenu actions only for the currently selected org
-            if (isOwner && isSelectedOrganization) {
-                return {
-                    ...baseItem,
-                    children: [
-                        {
-                            key: `transfer:${organization.id}`,
-                            label: (
-                                <div className="flex items-center gap-2">
-                                    <ArrowsLeftRight size={16} />
-                                    Transfer ownership
-                                </div>
-                            ),
-                        },
-                        {
-                            key: `rename:${organization.id}`,
-                            label: (
-                                <div className="flex items-center gap-2">
-                                    <PencilSimple size={16} />
-                                    Rename
-                                </div>
-                            ),
-                        },
-                        {
-                            key: `delete:${organization.id}`,
-                            danger: true,
-                            label: (
-                                <div className="flex items-center gap-2">
-                                    <Trash size={16} />
-                                    Delete
-                                </div>
-                            ),
-                        },
-                    ],
-                }
-            }
-
-            return baseItem
-        })
-
-        if (items.length) {
-            items.push({type: "divider", key: "organizations-divider"})
-        }
-
-        if (organizationSelectionEnabled) {
-            items.push({
-                key: "create-organization",
-                label: (
-                    <div className="flex items-center gap-2">
-                        <span className="text-gray-900">+ New organization</span>
-                    </div>
-                ),
-            })
-        }
-        items.push({type: "divider", key: "organizations-actions-divider"})
-
-        items.push({
-            key: "logout",
-            danger: true,
-            label: (
-                <div className="flex items-center gap-2">
-                    <SignOut size={16} />
-                    Logout
-                </div>
-            ),
-        })
-
-        return items
-    }, [effectiveSelectedId, interactive, organizationSelectionEnabled, organizations, user?.id])
+    const selectedOrganizationKey = effectiveSelectedId ? `organization:${effectiveSelectedId}` : ""
 
     const [organizationDropdownOpen, setOrganizationDropdownOpen] = useState(false)
 
@@ -391,193 +305,229 @@ const ListOfOrgs = ({
         },
     })
 
-    const handleOrganizationMenuClick: MenuProps["onClick"] = ({key}) => {
-        const keyString = key as string
-
-        if (keyString === "create-organization") {
+    const handleOrgValueChange = useCallback(
+        async (key: string) => {
             setOrganizationDropdownOpen(false)
-            setCreateModalOpen(true)
-            return
-        }
+            const [, organizationId] = key.split(":")
+            if (!organizationId) return
 
-        if (keyString === "logout") {
-            setOrganizationDropdownOpen(false)
-            AlertPopup({
-                title: "Logout",
-                message: "Are you sure you want to logout?",
-                centered: true,
-                onOk: logout,
-            })
-            return
-        }
-
-        // Handle copy ID action
-        if (keyString.startsWith("copy:")) {
-            const organizationId = keyString.split(":")[1]
-            if (typeof navigator !== "undefined" && navigator?.clipboard) {
-                navigator.clipboard
-                    .writeText(organizationId)
-                    .then(() => message.success("Organization ID copied"))
-                    .catch(() => message.error("Failed to copy organization ID"))
-            } else {
-                message.error("Clipboard not supported")
-            }
-            setOrganizationDropdownOpen(false)
-            return
-        }
-
-        // Handle rename action
-        if (keyString.startsWith("rename:")) {
-            const organizationId = keyString.split(":")[1]
-            const org = organizations.find((o) => o.id === organizationId)
-            if (org) {
-                setOrgToRename(organizationId)
-                renameForm.setFieldsValue({name: org.name})
-                setRenameModalOpen(true)
-            }
-            setOrganizationDropdownOpen(false)
-            return
-        }
-
-        // Handle transfer action
-        if (keyString.startsWith("transfer:")) {
-            const organizationId = keyString.split(":")[1]
-            setOrgToTransfer(organizationId)
-            setTransferModalOpen(true)
-            setOrganizationDropdownOpen(false)
-            return
-        }
-
-        // Handle delete action
-        if (keyString.startsWith("delete:")) {
-            const organizationId = keyString.split(":")[1]
-            const org = organizations.find((o) => o.id === organizationId)
-            if (org) {
-                setOrgToDelete(organizationId)
-                setDeleteConfirmInput("")
-                setDeleteModalOpen(true)
-            }
-            setOrganizationDropdownOpen(false)
-            return
-        }
-
-        if (!interactive || !organizationSelectionEnabled) {
-            setOrganizationDropdownOpen(false)
-            return
-        }
-
-        const [, organizationId] = keyString.split(":")
-        if (organizationId) {
-            if (organizationId === effectiveSelectedId) {
-                setOrganizationDropdownOpen(false)
-                return
-            }
-            setOrganizationDropdownOpen(false)
-            void (async () => {
-                try {
-                    const result = await checkOrganizationAccess(organizationId)
-                    if (result.ok) {
-                        await changeSelectedOrg(organizationId)
-                        return
-                    }
-                    console.error("[org] switch failed", result.response)
-                    const detail = result.response?.data?.detail
-                    if (
-                        detail?.error === "AUTH_UPGRADE_REQUIRED" ||
-                        detail?.error === "AUTH_SSO_DENIED"
-                    ) {
-                        setAuthUpgradeDetail(detail)
-                        setAuthUpgradeOrgId(organizationId)
-                        setAuthFlow("authing")
-                        if (typeof window !== "undefined") {
-                            window.localStorage.setItem(authUpgradeOrgKey, organizationId)
-                            Session.getAccessTokenPayloadSecurely()
-                                .then((payload) => {
-                                    const sessionIdentities =
-                                        payload?.session_identities ||
-                                        payload?.sessionIdentities ||
-                                        []
-                                    window.localStorage.setItem(
-                                        "authUpgradeSessionIdentities",
-                                        JSON.stringify(sessionIdentities),
-                                    )
-                                })
-                                .catch(() => null)
-                        }
-                        setAuthUpgradeOpen(true)
-                        return
-                    }
-                    if (detail?.error === "AUTH_DOMAIN_DENIED") {
-                        const content =
-                            typeof detail?.message === "string"
-                                ? detail.message
-                                : "Your email domain is not allowed for this organization."
-                        const now = Date.now()
-                        const recentlyNotified =
-                            lastDomainDeniedOrgIdRef.current === organizationId &&
-                            now - lastDomainDeniedAtRef.current < 2000
-                        if (!recentlyNotified) {
-                            lastDomainDeniedOrgIdRef.current = organizationId
-                            lastDomainDeniedAtRef.current = now
-                            message.error({
-                                content,
-                                key: "domain-denied",
-                            })
-                        }
-                        return
-                    }
-                    const fallback = formatErrorMessage(
-                        result.response?.data?.detail || result.response?.statusText,
-                        "Unable to switch organization",
-                    )
-                    message.error(fallback)
-                } catch (error: any) {
-                    console.error("[org] switch failed", error)
-                    message.error("Unable to switch organization")
+            try {
+                const result = await checkOrganizationAccess(organizationId)
+                if (result.ok) {
+                    await changeSelectedOrg(organizationId)
+                    return
                 }
-            })()
-        }
-    }
+                console.error("[org] switch failed", result.response)
+                const detail = result.response?.data?.detail
+                if (
+                    detail?.error === "AUTH_UPGRADE_REQUIRED" ||
+                    detail?.error === "AUTH_SSO_DENIED"
+                ) {
+                    setAuthUpgradeDetail(detail)
+                    setAuthUpgradeOrgId(organizationId)
+                    setAuthFlow("authing")
+                    if (typeof window !== "undefined") {
+                        window.localStorage.setItem(authUpgradeOrgKey, organizationId)
+                        Session.getAccessTokenPayloadSecurely()
+                            .then((payload) => {
+                                const sessionIdentities =
+                                    payload?.session_identities || payload?.sessionIdentities || []
+                                window.localStorage.setItem(
+                                    "authUpgradeSessionIdentities",
+                                    JSON.stringify(sessionIdentities),
+                                )
+                            })
+                            .catch(() => null)
+                    }
+                    setAuthUpgradeOpen(true)
+                    return
+                }
+                if (detail?.error === "AUTH_DOMAIN_DENIED") {
+                    const content =
+                        typeof detail?.message === "string"
+                            ? detail.message
+                            : "Your email domain is not allowed for this organization."
+                    const now = Date.now()
+                    const recentlyNotified =
+                        lastDomainDeniedOrgIdRef.current === organizationId &&
+                        now - lastDomainDeniedAtRef.current < 2000
+                    if (!recentlyNotified) {
+                        lastDomainDeniedOrgIdRef.current = organizationId
+                        lastDomainDeniedAtRef.current = now
+                        message.error({
+                            content,
+                            key: "domain-denied",
+                        })
+                    }
+                    return
+                }
+                const fallback = formatErrorMessage(
+                    result.response?.data?.detail || result.response?.statusText,
+                    "Unable to switch organization",
+                )
+                message.error(fallback)
+            } catch (error: any) {
+                console.error("[org] switch failed", error)
+                message.error("Unable to switch organization")
+            }
+        },
+        [changeSelectedOrg],
+    )
 
-    const selectedOrganizationKey = effectiveSelectedId
-        ? [`organization:${effectiveSelectedId}`]
-        : undefined
+    const handleLogout = useCallback(() => {
+        setOrganizationDropdownOpen(false)
+        AlertPopup({
+            title: "Logout",
+            message: "Are you sure you want to logout?",
+            centered: true,
+            onOk: logout,
+        })
+    }, [logout])
 
     return (
         <div className={clsx("flex flex-col gap-2 px-2 py-3", {"items-center": collapsed})}>
             {canShow ? (
                 <>
                     {canOpenOrganizationMenu ? (
-                        <Dropdown
-                            {...dropdownProps}
-                            trigger={["click"]}
-                            placement="bottomRight"
-                            destroyOnHidden
-                            styles={{
-                                root: {
-                                    zIndex: 2000,
-                                },
-                            }}
+                        <DropdownMenu
+                            open={organizationDropdownOpen}
                             onOpenChange={setOrganizationDropdownOpen}
-                            className={clsx({"flex items-center justify-center": collapsed})}
-                            menu={{
-                                items: organizationMenuItems,
-                                selectedKeys: selectedOrganizationKey,
-                                onClick: handleOrganizationMenuClick,
-                                className: "min-w-[150px]",
-                            }}
                         >
-                            <div data-org-selector>
-                                <SidebarSelectionButton
-                                    collapsed={collapsed}
-                                    label={organizationButtonLabel}
-                                    placeholder={organizationLabel}
-                                    isOpen={organizationDropdownOpen}
-                                    showCaret
-                                    buttonProps={buttonProps}
-                                />
-                            </div>
-                        </Dropdown>
+                            <DropdownMenuTrigger
+                                className={clsx({"flex items-center justify-center": collapsed})}
+                            >
+                                <div data-org-selector>
+                                    <SidebarSelectionButton
+                                        collapsed={collapsed}
+                                        label={organizationButtonLabel}
+                                        placeholder={organizationLabel}
+                                        isOpen={organizationDropdownOpen}
+                                        showCaret
+                                        buttonProps={buttonProps}
+                                    />
+                                </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                align="end"
+                                className="min-w-[150px]"
+                                style={{zIndex: 2000}}
+                            >
+                                <DropdownMenuRadioGroup
+                                    value={selectedOrganizationKey}
+                                    onValueChange={handleOrgValueChange}
+                                >
+                                    {organizations.map((org) => {
+                                        const isOwner = org.owner_id === user?.id
+                                        const isSelectedOrg = org.id === effectiveSelectedId
+
+                                        return (
+                                            <Fragment key={org.id}>
+                                                <DropdownMenuRadioItem
+                                                    value={`organization:${org.id}`}
+                                                    disabled={
+                                                        !interactive ||
+                                                        !organizationSelectionEnabled
+                                                    }
+                                                    closeOnClick
+                                                >
+                                                    <div className="flex items-center gap-2 justify-between w-full">
+                                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                            <InitialsAvatar
+                                                                size="small"
+                                                                name={org.name}
+                                                            />
+                                                            <span className="truncate">
+                                                                {org.name}
+                                                            </span>
+                                                            {org.flags?.is_demo && (
+                                                                <Badge
+                                                                    className="bg-[var(--ag-c-0517290F)] m-0"
+                                                                    variant="secondary"
+                                                                >
+                                                                    demo
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </DropdownMenuRadioItem>
+
+                                                {isOwner && isSelectedOrg && (
+                                                    <>
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                setOrganizationDropdownOpen(false)
+                                                                setOrgToTransfer(org.id)
+                                                                setTransferModalOpen(true)
+                                                            }}
+                                                        >
+                                                            <ArrowsLeftRight size={16} />
+                                                            Transfer ownership
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                setOrganizationDropdownOpen(false)
+                                                                const orgToRenameData =
+                                                                    organizations.find(
+                                                                        (o) => o.id === org.id,
+                                                                    )
+                                                                if (orgToRenameData) {
+                                                                    setOrgToRename(org.id)
+                                                                    renameForm.setFieldsValue({
+                                                                        name: orgToRenameData.name,
+                                                                    })
+                                                                    setRenameModalOpen(true)
+                                                                }
+                                                            }}
+                                                        >
+                                                            <PencilSimple size={16} />
+                                                            Rename
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            variant="destructive"
+                                                            onClick={() => {
+                                                                setOrganizationDropdownOpen(false)
+                                                                const orgToDeleteData =
+                                                                    organizations.find(
+                                                                        (o) => o.id === org.id,
+                                                                    )
+                                                                if (orgToDeleteData) {
+                                                                    setOrgToDelete(org.id)
+                                                                    setDeleteConfirmInput("")
+                                                                    setDeleteModalOpen(true)
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Trash size={16} />
+                                                            Delete
+                                                        </DropdownMenuItem>
+                                                    </>
+                                                )}
+                                            </Fragment>
+                                        )
+                                    })}
+                                </DropdownMenuRadioGroup>
+
+                                {organizations.length > 0 && <DropdownMenuSeparator />}
+
+                                {organizationSelectionEnabled && (
+                                    <DropdownMenuItem
+                                        onClick={() => {
+                                            setOrganizationDropdownOpen(false)
+                                            setCreateModalOpen(true)
+                                        }}
+                                    >
+                                        <span className="text-gray-900">+ New organization</span>
+                                    </DropdownMenuItem>
+                                )}
+
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+                                    <SignOut size={16} />
+                                    Logout
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     ) : (
                         <div className={clsx({"flex items-center justify-center": collapsed})}>
                             <SidebarSelectionButton
@@ -598,7 +548,6 @@ const ListOfOrgs = ({
                             buttonProps={buttonProps}
                             interactive={interactive}
                             selectedOrganizationId={effectiveSelectedId}
-                            dropdownProps={dropdownProps}
                         />
                     )}
                 </>

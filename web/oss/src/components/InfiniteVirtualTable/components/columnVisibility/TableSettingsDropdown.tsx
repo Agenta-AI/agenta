@@ -1,11 +1,14 @@
 import {type ReactNode, useState, useMemo, useCallback} from "react"
 
-import {Button} from "@agenta/primitive-ui/components/button"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
-import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {Popover, PopoverContent} from "@agenta/primitive-ui/components/popover"
 import {DownloadSimple, Eye, GearSix, Trash} from "@phosphor-icons/react"
-import {Dropdown} from "antd"
-import type {MenuProps} from "antd"
 
 import type {ColumnVisibilityState} from "../../types"
 
@@ -20,15 +23,9 @@ export interface TableSettingsDropdownProps<RowType extends object> {
         controls: ColumnVisibilityState<RowType>,
         close: () => void,
     ) => ReactNode
-    /** Additional menu items to render after Column visibility */
-    additionalMenuItems?: MenuProps["items"]
+    additionalMenuItems?: ReactNode
 }
 
-/**
- * A dropdown menu triggered by a gear icon that provides table settings actions.
- * Opens a dropdown with options like "Export" and "Column Visibility".
- * Column visibility opens a nested popover with the full column visibility UI.
- */
 const TableSettingsDropdown = <RowType extends object>({
     controls,
     onExport,
@@ -48,63 +45,67 @@ const TableSettingsDropdown = <RowType extends object>({
 
     const handleOpenColumnVisibility = useCallback(() => {
         setDropdownOpen(false)
-        // Small delay to let dropdown close before opening popover
         setTimeout(() => {
             setColumnVisibilityOpen(true)
         }, 100)
     }, [])
 
     const menuItems = useMemo(() => {
-        const items: MenuProps["items"] = []
+        const items: ReactNode[] = []
 
-        // Column Visibility option
-        items.push({
-            key: "column-visibility",
-            label: "Column visibility",
-            icon: <Eye size={16} />,
-            onClick: (e) => {
-                e.domEvent.stopPropagation()
-                handleOpenColumnVisibility()
-            },
-        })
+        items.push(
+            <DropdownMenuItem
+                key="column-visibility"
+                onClick={(e) => {
+                    e.stopPropagation()
+                    handleOpenColumnVisibility()
+                }}
+            >
+                <Eye size={16} />
+                Column visibility
+            </DropdownMenuItem>,
+        )
 
-        // Additional menu items (e.g., Row height)
-        if (additionalMenuItems?.length) {
-            items.push({type: "divider"})
-            items.push(...additionalMenuItems)
+        if (additionalMenuItems) {
+            items.push(<DropdownMenuSeparator key="sep-additional" />)
+            items.push(additionalMenuItems)
         }
 
-        // Export option (if enabled)
         if (onExport) {
-            items.push({type: "divider"})
-            items.push({
-                key: "export",
-                label: isExporting ? "Exporting..." : "Export to CSV",
-                icon: <DownloadSimple size={16} />,
-                disabled: isExporting,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    onExport()
-                    setDropdownOpen(false)
-                },
-            })
+            items.push(<DropdownMenuSeparator key="sep-export" />)
+            items.push(
+                <DropdownMenuItem
+                    key="export"
+                    disabled={isExporting}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onExport()
+                        setDropdownOpen(false)
+                    }}
+                >
+                    <DownloadSimple size={16} />
+                    {isExporting ? "Exporting..." : "Export to CSV"}
+                </DropdownMenuItem>,
+            )
         }
 
-        // Delete option (if enabled)
         if (onDelete) {
-            items.push({type: "divider"})
-            items.push({
-                key: "delete",
-                label: deleteLabel,
-                icon: <Trash size={16} />,
-                disabled: deleteDisabled,
-                danger: true,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    onDelete()
-                    setDropdownOpen(false)
-                },
-            })
+            items.push(<DropdownMenuSeparator key="sep-delete" />)
+            items.push(
+                <DropdownMenuItem
+                    key="delete"
+                    variant="destructive"
+                    disabled={deleteDisabled}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onDelete()
+                        setDropdownOpen(false)
+                    }}
+                >
+                    <Trash size={16} />
+                    {deleteLabel}
+                </DropdownMenuItem>,
+            )
         }
 
         return items
@@ -121,54 +122,28 @@ const TableSettingsDropdown = <RowType extends object>({
     return (
         <Popover
             open={columnVisibilityOpen}
-            onOpenChange={(open, details) => {
-                if (open && details.reason === "trigger-press") return
-                if (!open) {
-                    setColumnVisibilityOpen(false)
-                }
+            onOpenChange={(open, eventDetails) => {
+                if (eventDetails.reason !== "trigger-press") setColumnVisibilityOpen(open)
             }}
         >
-            <PopoverTrigger
-                nativeButton={false}
-                render={
-                    <span className="inline-flex">
-                        <Dropdown
-                            trigger={["click"]}
-                            placement="bottomRight"
-                            open={dropdownOpen}
-                            onOpenChange={(open) => {
-                                // Don't open dropdown if column visibility popover is open
-                                if (columnVisibilityOpen && open) return
-                                setDropdownOpen(open)
-                            }}
-                            menu={{items: menuItems}}
-                            styles={{
-                                root: {
-                                    minWidth: 180,
-                                },
-                            }}
-                        >
-                            <span className="inline-flex">
-                                <Tooltip>
-                                    <TooltipTrigger
-                                        render={
-                                            <Button
-                                                onClick={(e) => e.stopPropagation()}
-                                                variant="ghost"
-                                                size="icon-sm"
-                                                className="rounded-full"
-                                            >
-                                                {<GearSix size={16} weight="bold" />}
-                                            </Button>
-                                        }
-                                    />
-                                    <TooltipContent>{"Table settings"}</TooltipContent>
-                                </Tooltip>
-                            </span>
-                        </Dropdown>
-                    </span>
-                }
-            />
+            <DropdownMenu
+                open={dropdownOpen}
+                onOpenChange={(open) => {
+                    if (columnVisibilityOpen && open) return
+                    setDropdownOpen(open)
+                }}
+            >
+                <DropdownMenuTrigger
+                    title="Table settings"
+                    className="inline-flex shrink-0 items-center justify-center rounded-full border border-transparent size-7 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <GearSix size={16} weight="bold" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" style={{minWidth: 180}}>
+                    {menuItems}
+                </DropdownMenuContent>
+            </DropdownMenu>
             <PopoverContent side="bottom" align="end" className="w-auto">
                 {renderColumnVisibilityContent(controls, handleCloseColumnVisibility)}
             </PopoverContent>

@@ -1,8 +1,15 @@
 import React, {useCallback, useState} from "react"
 
 import {executeToolCall} from "@agenta/entities/gatewayTool"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {CaretDown, Lightning} from "@phosphor-icons/react"
-import {Dropdown, message as antMessage} from "antd"
+import {message as antMessage} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 // Gateway tool function name format: tools__{provider}__{integration}__{action}__{connection}
@@ -70,27 +77,35 @@ const GatewayToolExecuteButton: React.FC<Props> = ({
 
     return (
         <div className="flex flex-col gap-1">
-            {gatewayPayloads.map((p) => (
-                <Dropdown.Button
-                    key={p.callId || p.name}
-                    size="small"
-                    icon={<CaretDown size={12} />}
-                    loading={executingId === (p.callId || p.name || "default")}
-                    onClick={() => handleExecute(p, true)}
-                    menu={{
-                        items: [
-                            {
-                                key: "call-and-send",
-                                label: "Call tool",
-                            },
-                        ],
-                        onClick: () => handleExecute(p, false),
-                    }}
-                >
-                    <Lightning size={12} />
-                    Call tool and send to chat
-                </Dropdown.Button>
-            ))}
+            {gatewayPayloads.map((p) => {
+                const execId = p.callId || p.name || "default"
+                const isLoading = executingId === execId
+
+                return (
+                    <div key={p.callId || p.name} className="flex">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-r-none border-r-0"
+                            disabled={isLoading}
+                            onClick={() => handleExecute(p, true)}
+                        >
+                            <Lightning size={12} />
+                            Call tool and send to chat
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger className="rounded-l-none border-l-0 inline-flex shrink-0 items-center justify-center rounded-lg border px-1 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 bg-transparent">
+                                <CaretDown size={12} />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => handleExecute(p, false)}>
+                                    Call tool
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                )
+            })}
         </div>
     )
 }

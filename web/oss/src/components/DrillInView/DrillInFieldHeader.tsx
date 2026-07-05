@@ -1,6 +1,13 @@
 import {memo, useCallback, useState, type ReactNode} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
@@ -17,8 +24,6 @@ import {
     Trash,
     X,
 } from "@phosphor-icons/react"
-import {Dropdown} from "antd"
-import type {MenuProps} from "antd"
 
 export interface DrillInFieldHeaderProps {
     /** Field name to display */
@@ -230,34 +235,13 @@ function ViewModeDropdown({
     onChange: (mode: string) => void
 }) {
     const selectedOption = options.find((option) => option.value === value)
-    const items: MenuProps["items"] = options.map((option) => ({
-        key: option.value,
-        className: "!p-0 !rounded-lg !bg-transparent",
-        label: (
-            <div
-                className={`flex min-h-[34px] items-center justify-between gap-4 rounded-lg px-3.5 py-1.5 ${
-                    option.value === value ? "bg-[var(--ag-rgba-051729-04)]" : ""
-                }`}
-            >
-                <span className="text-[13px] font-medium text-[var(--ag-c-051729)]">
-                    {option.label}
-                </span>
-                {option.value === value ? (
-                    <span className="text-[11px] text-[var(--ag-rgba-051729-55)]">default</span>
-                ) : null}
-            </div>
-        ),
-        onClick: () => onChange(option.value),
-    }))
 
     return (
-        <Dropdown
-            menu={{items, selectedKeys: [value]}}
-            trigger={["click"]}
-            placement="bottomRight"
-            overlayClassName="[&_.ant-dropdown-menu]:min-w-[220px] [&_.ant-dropdown-menu]:rounded-xl [&_.ant-dropdown-menu]:p-2.5 [&_.ant-dropdown-menu]:shadow-[0_12px_32px_rgba(5,23,41,0.16)]"
-        >
-            <Button className="inline-flex items-center gap-1 px-2 h-6" variant="ghost" size="sm">
+        <DropdownMenu>
+            <DropdownMenuTrigger
+                className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 h-6 gap-1 px-2"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <span className="text-[12px] text-[var(--ag-rgba-051729-55)]">
                     View as{" "}
                     <span className="font-semibold text-[var(--ag-c-051729)]">
@@ -265,8 +249,26 @@ function ViewModeDropdown({
                     </span>
                 </span>
                 <CaretDown size={12} className="text-[var(--ag-rgba-051729-55)]" />
-            </Button>
-        </Dropdown>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[220px]">
+                <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
+                    {options.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
+                            <div className="flex min-h-[34px] items-center justify-between gap-4 rounded-lg px-1.5 py-1 w-full">
+                                <span className="text-[13px] font-medium text-[var(--ag-c-051729)]">
+                                    {option.label}
+                                </span>
+                                {option.value === value ? (
+                                    <span className="text-[11px] text-[var(--ag-rgba-051729-55)]">
+                                        default
+                                    </span>
+                                ) : null}
+                            </div>
+                        </DropdownMenuRadioItem>
+                    ))}
+                </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 

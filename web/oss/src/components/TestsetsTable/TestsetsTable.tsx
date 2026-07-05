@@ -2,11 +2,16 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {testsetMolecule} from "@agenta/entities/testset"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArchiveIcon, CaretDown, DownloadSimple} from "@phosphor-icons/react"
-import {Dropdown, Space} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -615,39 +620,38 @@ const TestsetsTable = ({
                 setExportFormat(format)
             }
 
-            const menuItems = [
-                {
-                    key: "csv",
-                    label: "Export as CSV",
-                    icon: <DownloadSimple size={16} />,
-                    onClick: () => handleExport("csv"),
-                },
-                {
-                    key: "json",
-                    label: "Export as JSON",
-                    icon: <DownloadSimple size={16} />,
-                    onClick: () => handleExport("json"),
-                },
-            ]
-
-            // Smart button: clicking the main button uses the last format, dropdown allows choosing
             return (
-                <Space.Compact>
+                <div className="flex items-center">
                     <Button
                         onClick={() => handleExport(exportFormat)}
                         disabled={disabled || loading}
                         variant="outline"
+                        className="rounded-r-none border-r-0"
                     >
                         {loading ? <Spinner /> : null}
                         {<DownloadSimple size={16} />}
                         Export {exportFormat.toUpperCase()}
                     </Button>
-                    <Dropdown menu={{items: menuItems}} disabled={disabled}>
-                        <Button disabled={disabled} variant="outline" size="icon">
-                            {<CaretDown size={14} />}
-                        </Button>
-                    </Dropdown>
-                </Space.Compact>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            className="inline-flex shrink-0 items-center justify-center rounded-lg border bg-background text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 h-8 gap-1.5 px-2.5 rounded-l-none border-l-0 border-border"
+                            disabled={disabled}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <CaretDown size={14} />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => handleExport("csv")}>
+                                <DownloadSimple size={16} />
+                                Export as CSV
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExport("json")}>
+                                <DownloadSimple size={16} />
+                                Export as JSON
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             )
         },
         [getSelectedRecords, handleExportTestset, exportFormat, setExportFormat],

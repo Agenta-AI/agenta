@@ -1,7 +1,7 @@
-import {useCallback, useMemo} from "react"
+import {type ReactNode, useCallback, useMemo} from "react"
 
+import {DropdownMenuItem} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Tag} from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
 import {atom, useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -23,7 +23,7 @@ function getOrCreateAtom(storageKey: string, defaultEnabled: boolean): TypeChipE
 export interface UseTypeChipFeatureResult<RecordType> {
     enabled: boolean
     setEnabled: (enabled: boolean) => void
-    menuItems: MenuProps["items"]
+    menuItems: ReactNode
     typeChips: TypeChipConfig<RecordType> | undefined
 }
 
@@ -50,20 +50,21 @@ export function useTypeChipFeature<RecordType>(
         [config, setStoredEnabled],
     )
 
-    const menuItems = useMemo<MenuProps["items"]>(() => {
+    const menuItems = useMemo<ReactNode>(() => {
         if (!config?.storageKey && !config?.onEnabledChange) return undefined
 
-        return [
-            {
-                key: "type-chips-toggle",
-                label: enabled ? "Hide type chips" : "Show type chips",
-                icon: <Tag size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
+        return (
+            <DropdownMenuItem
+                key="type-chips-toggle"
+                onClick={(e) => {
+                    e.stopPropagation()
                     setEnabled(!enabled)
-                },
-            },
-        ]
+                }}
+            >
+                <Tag size={16} />
+                {enabled ? "Hide type chips" : "Show type chips"}
+            </DropdownMenuItem>
+        )
     }, [config?.onEnabledChange, config?.storageKey, enabled, setEnabled])
 
     const resolvedTypeChips = useMemo<TypeChipConfig<RecordType> | undefined>(() => {

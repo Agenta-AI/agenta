@@ -6,7 +6,6 @@ import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Tabs, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {TrashIcon} from "@phosphor-icons/react"
 import {Grid, Tooltip} from "antd"
-import type {MenuProps} from "antd"
 import clsx from "clsx"
 
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
@@ -160,7 +159,7 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * Additional menu items for the settings dropdown.
      * Only used when useSettingsDropdown is true.
      */
-    settingsDropdownMenuItems?: MenuProps["items"]
+    settingsDropdownMenuItems?: ReactNode
     keyboardShortcuts?: InfiniteVirtualTableProps<Row>["keyboardShortcuts"]
     /**
      * Configuration for expandable rows.

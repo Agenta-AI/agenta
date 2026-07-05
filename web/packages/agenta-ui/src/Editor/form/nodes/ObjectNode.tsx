@@ -1,7 +1,12 @@
 import {type FC, Fragment, useCallback} from "react"
 
-import {PlusOutlined, DeleteOutlined} from "@ant-design/icons"
-import {Dropdown} from "antd"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
+import {Minus, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import {EditableText} from "../../../components/presentational/editable/EditableText"
@@ -131,30 +136,22 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                     className={clsx("object-key")}
                 >
                     <div className={clsx(styles["add-inline-btn"])}>
-                        <Dropdown
-                            menu={{
-                                items: [
-                                    {
-                                        key: "primitive",
-                                        label: "Primitive",
-                                        onClick: () => addKeyWithType("primitive"),
-                                    },
-                                    {
-                                        key: "object",
-                                        label: "Object { }",
-                                        onClick: () => addKeyWithType("object"),
-                                    },
-                                    {
-                                        key: "array",
-                                        label: "Array [ ]",
-                                        onClick: () => addKeyWithType("array"),
-                                    },
-                                ],
-                            }}
-                            trigger={["click"]}
-                        >
-                            <PlusOutlined className={styles["add-inline-btn"]} />
-                        </Dropdown>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                                <Plus size={14} />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                                <DropdownMenuItem onClick={() => addKeyWithType("primitive")}>
+                                    Primitive
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => addKeyWithType("object")}>
+                                    Object {"{ }"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => addKeyWithType("array")}>
+                                    Array [ ]
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
 
                     <EditableText
@@ -192,8 +189,9 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                                 {idx >= 0 && (
                                     <div className={clsx(styles["between-hover"])}>
                                         <div className={styles["add-between"]}>
-                                            <PlusOutlined
-                                                className="!mx-0"
+                                            <Plus
+                                                size={14}
+                                                className="!mx-0 cursor-pointer"
                                                 onClick={() => insertKeyBefore(childKey)}
                                             />
                                         </div>
@@ -202,7 +200,9 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
 
                                 <div className={styles["on-hover"]}>
                                     <div className={styles["add-between"]}>
-                                        <DeleteOutlined
+                                        <Minus
+                                            size={14}
+                                            className="cursor-pointer"
                                             onClick={() => removeKey(childKey as string)}
                                         />
                                     </div>

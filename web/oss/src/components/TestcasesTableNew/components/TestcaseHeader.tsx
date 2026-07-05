@@ -1,9 +1,21 @@
-import {useEffect, useMemo, useState, type CSSProperties} from "react"
+import {useEffect, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
-import {DownOutlined, MoreOutlined} from "@ant-design/icons"
-import {Export, Link, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Space} from "antd"
+import {
+    CaretDown,
+    DotsThreeVertical,
+    Export,
+    Link,
+    PencilSimple,
+    Trash,
+} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -55,20 +67,6 @@ export interface TestcaseHeaderProps {
 type CopyAction = "copy-id" | "copy-revision-slug"
 
 const COPY_ACTION_STORAGE_KEY = "testcase-header-last-copy-action"
-
-const dropdownTriggerStyle: CSSProperties = {
-    boxSizing: "border-box",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: "var(--ant-color-border)",
-    borderInlineStartWidth: 0,
-    borderStartStartRadius: 0,
-    borderEndStartRadius: 0,
-    borderStartEndRadius: 6,
-    borderEndEndRadius: 6,
-    paddingInline: 8,
-    paddingBlock: 4,
-}
 
 export function TestcaseHeader(props: TestcaseHeaderProps) {
     const {
@@ -126,118 +124,41 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
 
     // Revision dropdown menu items
     const revisionMenuItems = useMemo(() => {
-        // If revisions haven't been requested yet, show a placeholder to keep dropdown enabled
         if (!revisionsRequested && availableRevisions.length === 0) {
             return [
-                {
-                    key: "loading-placeholder",
-                    label: "Loading revisions...",
-                    disabled: true,
-                },
+                <DropdownMenuItem key="loading-placeholder" disabled>
+                    Loading revisions...
+                </DropdownMenuItem>,
             ]
         }
 
-        // If requested but still loading, show loading indicator
         if (loadingRevisions && availableRevisions.length === 0) {
             return [
-                {
-                    key: "loading",
-                    label: "Loading...",
-                    disabled: true,
-                },
+                <DropdownMenuItem key="loading" disabled>
+                    Loading...
+                </DropdownMenuItem>,
             ]
         }
 
-        // Build menu items from available revisions
         const items = buildRevisionMenuItems(availableRevisions, (revisionId) =>
             router.push(`${projectURL}/testsets/${revisionId}`, undefined, {
                 shallow: true,
             }),
         )
 
-        // If requested, loaded, but no revisions found, show empty state
         if (revisionsRequested && !loadingRevisions && (!items || items.length === 0)) {
             return [
-                {
-                    key: "no-revisions",
-                    label: "No revisions found",
-                    disabled: true,
-                },
+                <DropdownMenuItem key="no-revisions" disabled>
+                    No revisions found
+                </DropdownMenuItem>,
             ]
         }
 
         return items ?? []
     }, [availableRevisions, router, projectURL, revisionsRequested, loadingRevisions])
 
-    // Check if this is the only revision (disable delete if so)
-    // v0 is not a valid revision, so we filter it out when counting
     const validRevisions = availableRevisions.filter((r) => r.version > 0)
-    // Disable delete if: revisions not loaded yet, still loading, or only one revision
     const isDeleteDisabled = !revisionsRequested || loadingRevisions || validRevisions.length <= 1
-
-    // Tooltip explaining why delete is disabled
-    const deleteDisabledReason = !revisionsRequested
-        ? "Loading revisions..."
-        : loadingRevisions
-          ? "Loading revisions..."
-          : validRevisions.length <= 1
-            ? "Cannot delete the only revision"
-            : undefined
-
-    // Header actions dropdown menu items
-    const headerActionsMenuItems = useMemo(
-        () => [
-            {
-                key: "edit-details",
-                label: "Edit name & description",
-                icon: <PencilSimple size={16} />,
-                onClick: onOpenRenameModal,
-            },
-            ...(canExportData
-                ? [
-                      {
-                          type: "divider" as const,
-                      },
-                      {
-                          key: "export-csv",
-                          label: isExporting ? "Exporting..." : "Export as CSV",
-                          icon: <Export size={16} />,
-                          onClick: () => onExport("csv"),
-                          disabled: isExporting,
-                      },
-                      {
-                          key: "export-json",
-                          label: isExporting ? "Exporting..." : "Export as JSON",
-                          icon: <Export size={16} />,
-                          onClick: () => onExport("json"),
-                          disabled: isExporting,
-                      },
-                  ]
-                : []),
-            {
-                type: "divider" as const,
-            },
-            {
-                key: "delete-revision",
-                label: loadingRevisions ? "Delete revision..." : "Delete revision",
-                icon: <Trash size={16} />,
-                danger: true,
-                disabled: isDeleteDisabled,
-                title: deleteDisabledReason,
-                onClick: onDeleteRevision,
-            },
-        ],
-        [
-            canExportData,
-            onOpenRenameModal,
-            onDeleteRevision,
-            isDeleteDisabled,
-            deleteDisabledReason,
-            onExport,
-            loadingRevisions,
-            isExporting,
-        ],
-    )
 
     // Handler to execute copy action and remember it
     const handleCopyAction = useMemo(
@@ -254,24 +175,6 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
             },
         }),
         [onCopyId, onCopyRevisionSlug],
-    )
-
-    // Copy dropdown menu items
-    const copyMenuItems = useMemo(
-        () => [
-            {
-                key: "copy-id",
-                label: isIdCopied ? "Copied!" : "Copy ID",
-                onClick: handleCopyAction["copy-id"],
-            },
-            {
-                key: "copy-revision-slug",
-                label: isRevisionSlugCopied ? "Copied!" : "Copy Revision Slug",
-                onClick: handleCopyAction["copy-revision-slug"],
-                disabled: !metadata?.revisionSlug,
-            },
-        ],
-        [isIdCopied, isRevisionSlugCopied, handleCopyAction, metadata?.revisionSlug],
     )
 
     // Main button click executes last selected action
@@ -299,48 +202,93 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                 <h3 style={{margin: 0}} className="text-lg font-semibold leading-snug">
                     {testsetName || "Test set"}
                 </h3>
-                <Dropdown
-                    menu={{
-                        items: revisionMenuItems,
-                        style: {maxHeight: 400, overflowY: "auto"},
+                <DropdownMenu
+                    onOpenChange={(open) => {
+                        handleRevisionDropdownOpenChange(open)
                     }}
-                    trigger={["click"]}
-                    onOpenChange={handleRevisionDropdownOpenChange}
                 >
-                    <Button size="small" className="flex items-center gap-1">
+                    <DropdownMenuTrigger
+                        className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-primary text-primary-foreground hover:bg-primary/80 text-sm font-medium transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         v{metadata?.revisionVersion ?? "#"}
-                        <DownOutlined style={{fontSize: 10}} />
-                    </Button>
-                </Dropdown>
-                <Space.Compact size="small">
-                    <Button className="flex items-center gap-1" onClick={handleMainButtonClick}>
+                        <CaretDown size={10} weight="bold" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent style={{maxHeight: 400, overflowY: "auto"}}>
+                        {revisionMenuItems}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="flex items-center">
+                    <Button className="rounded-r-none border-r-0" onClick={handleMainButtonClick}>
                         <Link size={14} weight="bold" />
                         <span>{mainButtonLabel}</span>
                     </Button>
-                    <Dropdown
-                        menu={{items: copyMenuItems}}
-                        trigger={["hover"]}
-                        popupRender={(menu) => <div>{menu}</div>}
-                    >
-                        <span
-                            role="button"
-                            tabIndex={0}
-                            aria-haspopup="menu"
-                            className="ant-btn ant-btn-default ant-btn-sm ant-space-compact-item flex items-center justify-center !rounded-l-none"
-                            style={dropdownTriggerStyle}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            openOnHover
+                            className="inline-flex shrink-0 items-center justify-center rounded-lg border bg-background text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 h-7 gap-1 px-2.5 rounded-l-none border-l-0"
+                            onClick={(e) => e.stopPropagation()}
                         >
-                            <DownOutlined style={{fontSize: 10}} />
-                        </span>
-                    </Dropdown>
-                </Space.Compact>
+                            <CaretDown size={10} weight="bold" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onClick={handleCopyAction["copy-id"]}>
+                                {isIdCopied ? "Copied!" : "Copy ID"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={handleCopyAction["copy-revision-slug"]}
+                                disabled={!metadata?.revisionSlug}
+                            >
+                                {isRevisionSlugCopied ? "Copied!" : "Copy Revision Slug"}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
 
-                <Dropdown
-                    menu={{items: headerActionsMenuItems}}
-                    trigger={["click"]}
-                    onOpenChange={handleActionsDropdownOpenChange}
+                <DropdownMenu
+                    onOpenChange={(open) => {
+                        if (open) handleActionsDropdownOpenChange(open)
+                    }}
                 >
-                    <Button type="text" size="small" icon={<MoreOutlined />} />
-                </Dropdown>
+                    <DropdownMenuTrigger
+                        className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent size-7 text-sm font-medium transition-all outline-none select-none hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <DotsThreeVertical size={16} weight="bold" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                        <DropdownMenuItem onClick={onOpenRenameModal}>
+                            <PencilSimple size={16} />
+                            Edit name & description
+                        </DropdownMenuItem>
+                        {canExportData && (
+                            <>
+                                <DropdownMenuItem
+                                    disabled={isExporting}
+                                    onClick={() => onExport("csv")}
+                                >
+                                    <Export size={16} />
+                                    {isExporting ? "Exporting..." : "Export as CSV"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    disabled={isExporting}
+                                    onClick={() => onExport("json")}
+                                >
+                                    <Export size={16} />
+                                    {isExporting ? "Exporting..." : "Export as JSON"}
+                                </DropdownMenuItem>
+                            </>
+                        )}
+                        <DropdownMenuItem
+                            variant="destructive"
+                            disabled={isDeleteDisabled}
+                            onClick={onDeleteRevision}
+                        >
+                            <Trash size={16} />
+                            {loadingRevisions ? "Delete revision..." : "Delete revision"}
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
             {/* Metadata popover - disabled for new testsets since server data doesn't exist yet */}
             {isNewTestset ? (

@@ -29,6 +29,13 @@ import {
     type TestsetSelectionPayload,
 } from "@agenta/playground-ui/components"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {message} from "@agenta/ui/app-message"
 import {
     ArrowsLeftRightIcon,
@@ -39,8 +46,6 @@ import {
     Plus,
     XCircleIcon,
 } from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
-import {Dropdown} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -515,89 +520,70 @@ export function TestsetDropdown() {
     )
 
     // ── Dropdown menu ──────────────────────────────────────────────────────
-    const menuItems = useMemo<MenuProps["items"]>(() => {
-        if (!isConnected) {
-            return [
-                {
-                    key: "connect",
-                    icon: <LinkIcon size={14} />,
-                    label: "Connect test set",
-                    onClick: () => setSelectionModalMode("load"),
-                },
-                {type: "divider"},
-                {
-                    key: "add-to-testset",
-                    icon: <Plus size={14} />,
-                    label: "Add to test set",
-                    disabled: !hasSuccessfulResults,
-                    onClick: handleAddToTestset,
-                },
-            ]
-        }
-
-        return [
-            {
-                key: "sync",
-                icon: <DatabaseIcon size={14} />,
-                label: "Sync changes",
-                disabled: !hasLocalChanges,
-                onClick: handleSyncOpen,
-            },
-            {type: "divider"},
-            {
-                key: "manage",
-                icon: <ListBulletsIcon size={14} />,
-                label: "Manage testcases",
-                onClick: handleManageTestcasesClick,
-            },
-            {
-                key: "change",
-                icon: <ArrowsLeftRightIcon size={14} />,
-                label: "Change test set",
-                onClick: handleChangeTestset,
-            },
-            {
-                key: "add-to-testset",
-                icon: <Plus size={14} />,
-                label: "Add to test set",
-                disabled: !hasSuccessfulResults,
-                onClick: handleAddToTestset,
-            },
-            {type: "divider"},
-            {
-                key: "disconnect",
-                icon: <XCircleIcon size={14} />,
-                label: "Disconnect",
-                danger: true,
-                onClick: handleDisconnect,
-            },
-        ]
-    }, [
-        isConnected,
-        hasLocalChanges,
-        hasSuccessfulResults,
-        handleSyncOpen,
-        handleDisconnect,
-        handleChangeTestset,
-        handleAddToTestset,
-        handleManageTestcasesClick,
-    ])
 
     if (!loadableId) return null
 
     return (
         <>
-            <Dropdown menu={{items: menuItems}} trigger={["click"]} placement="bottomRight">
-                <Button
-                    className="flex items-center gap-1 max-w-[160px]"
-                    variant="outline"
-                    size="sm"
-                >
-                    {<DatabaseIcon size={14} />}
-                    <span className="truncate">{buttonLabel}</span>
-                    <CaretDownIcon size={12} />
-                </Button>
-            </Dropdown>
+            <DropdownMenu>
+                <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                    <Button
+                        className="flex items-center gap-1 max-w-[160px]"
+                        variant="outline"
+                        size="sm"
+                    >
+                        {<DatabaseIcon size={14} />}
+                        <span className="truncate">{buttonLabel}</span>
+                        <CaretDownIcon size={12} />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    {isConnected ? (
+                        <>
+                            <DropdownMenuItem onClick={handleSyncOpen} disabled={!hasLocalChanges}>
+                                <DatabaseIcon size={14} />
+                                Sync changes
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={handleManageTestcasesClick}>
+                                <ListBulletsIcon size={14} />
+                                Manage testcases
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleChangeTestset}>
+                                <ArrowsLeftRightIcon size={14} />
+                                Change test set
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={handleAddToTestset}
+                                disabled={!hasSuccessfulResults}
+                            >
+                                <Plus size={14} />
+                                Add to test set
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="destructive" onClick={handleDisconnect}>
+                                <XCircleIcon size={14} />
+                                Disconnect
+                            </DropdownMenuItem>
+                        </>
+                    ) : (
+                        <>
+                            <DropdownMenuItem onClick={() => setSelectionModalMode("load")}>
+                                <LinkIcon size={14} />
+                                Connect test set
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                onClick={handleAddToTestset}
+                                disabled={!hasSuccessfulResults}
+                            >
+                                <Plus size={14} />
+                                Add to test set
+                            </DropdownMenuItem>
+                        </>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Connect / Change testset modal (load mode) */}
             {selectionModalMode === "load" && (

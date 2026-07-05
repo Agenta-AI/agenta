@@ -1,17 +1,13 @@
-/**
- * ViewModeDropdown
- *
- * "View as ▾" dropdown used in both `DrillInRootToolbar` and
- * `DrillInFieldHeader`. Renders a plain antd `Dropdown` so menu styling
- * follows the host theme.
- */
-
 import {memo} from "react"
 
-import {Button as AntdButton} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {CaretDown} from "@phosphor-icons/react"
-import {Dropdown} from "antd"
-import type {MenuProps} from "antd"
 
 export interface ViewModeDropdownOption<TValue extends string = string> {
     value: TValue
@@ -33,29 +29,29 @@ function ViewModeDropdownInner<TValue extends string = string>({
     disabled,
 }: ViewModeDropdownProps<TValue>) {
     const selectedOption = options.find((option) => option.value === value)
-    const items: MenuProps["items"] = options.map((option) => ({
-        key: option.value,
-        label: option.label,
-        onClick: () => onChange(option.value),
-    }))
 
     return (
-        <Dropdown
-            menu={{items, selectedKeys: [value]}}
-            trigger={["click"]}
-            placement="bottomRight"
-            disabled={disabled}
-        >
-            <AntdButton
+        <DropdownMenu>
+            <DropdownMenuTrigger
                 disabled={disabled}
-                className="inline-flex h-6 items-center gap-1 px-2 text-xs text-[var(--ag-c-051729)]"
-                variant="ghost"
-                size="sm"
+                className="inline-flex h-6 items-center gap-1 px-2 text-xs rounded-[min(var(--radius-md),12px)] font-medium text-[var(--ag-c-051729)] transition-all outline-none select-none hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5"
             >
                 <span className="font-medium">{selectedOption?.label ?? value}</span>
                 <CaretDown size={14} className="mt-px opacity-65" />
-            </AntdButton>
-        </Dropdown>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup
+                    value={value}
+                    onValueChange={(v: string) => onChange(v as TValue)}
+                >
+                    {options.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
+                            {option.label}
+                        </DropdownMenuRadioItem>
+                    ))}
+                </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 

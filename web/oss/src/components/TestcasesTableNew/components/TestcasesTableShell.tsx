@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
@@ -15,7 +15,6 @@ import {
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input} from "antd"
-import type {MenuProps} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -103,7 +102,7 @@ export interface TestcasesTableShellProps {
         size: "small" | "medium" | "large"
         heightPx: number
         maxLines: number
-        menuItems: MenuProps["items"]
+        menuItems: ReactNode
     }
     selectedRowKeys: React.Key[]
     onSelectedRowKeysChange: (keys: React.Key[]) => void
@@ -305,10 +304,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         entityObjectSubKeys,
     ])
 
-    const settingsMenuItems = useMemo<MenuProps["items"]>(
-        () => rowHeight.menuItems,
-        [rowHeight.menuItems],
-    )
+    const settingsMenuItems = useMemo<ReactNode>(() => rowHeight.menuItems, [rowHeight.menuItems])
 
     // Row selection configuration with dirty indicator
     const rowSelection = useMemo(

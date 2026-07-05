@@ -3,24 +3,26 @@ import {useCallback, useMemo} from "react"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@agenta/primitive-ui/components/dropdown-menu"
 import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
-import {Dropdown, MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
 
 import {PlaygroundVariantHeaderMenuProps} from "./types"
 
-const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = ({
-    variantId,
-    ...props
-}) => {
+const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = ({variantId}) => {
     const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
-    // Agent mode is single-panel (no comparison grid), so "Close panel" doesn't apply.
     const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
 
     const closePanelDisabled = useMemo(() => {
@@ -31,8 +33,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
         removeVariantFromSelection(variantId)
     }, [removeVariantFromSelection, variantId])
 
-    const handleDiscardDraft: NonNullable<MenuProps["onClick"]> = (e) => {
-        e?.domEvent?.stopPropagation()
+    const handleDiscardDraft = () => {
         if (!variantId) return
         try {
             workflowMolecule.set.discard(variantId)
@@ -43,50 +44,36 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
         }
     }
 
-    const items: MenuProps["items"] = useMemo(
-        () => [
-            {
-                key: "revert",
-                label: "Revert Changes",
-                icon: <ArrowCounterClockwise size={14} />,
-                onClick: handleDiscardDraft,
-                disabled: !variantId || !isDirty,
-            },
-            {
-                key: "delete",
-                danger: true,
-                label: (
-                    <DeleteVariantButton variantId={variantId}>
-                        <div className="w-full h-full">Delete</div>
-                    </DeleteVariantButton>
-                ),
-                icon: <Trash size={16} />,
-            },
-            // Agent mode is single-panel, so there's nothing to close — hide it (and its divider).
-            ...(!isAgent
-                ? [
-                      {type: "divider" as const},
-                      {
-                          key: "close",
-                          label: "Close panel",
-                          disabled: closePanelDisabled,
-                          onClick: (e: {domEvent: {stopPropagation: () => void}}) => {
-                              e.domEvent.stopPropagation()
-                              handleClosePanel()
-                          },
-                      },
-                  ]
-                : []),
-        ],
-        [handleClosePanel, closePanelDisabled, variantId, handleDiscardDraft, isDirty, isAgent],
-    )
-
     return (
-        <Dropdown trigger={["click"]} styles={{root: {width: 170}}} menu={{items}} {...props}>
-            <Button variant="ghost" size="icon">
-                {<MoreOutlined size={14} />}
-            </Button>
-        </Dropdown>
+        <DropdownMenu>
+            <DropdownMenuTrigger className="bg-transparent border-none p-0 cursor-pointer inline-flex items-center text-inherit">
+                <Button variant="ghost" size="icon">
+                    {<MoreOutlined size={14} />}
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent style={{width: 170}}>
+                <DropdownMenuItem onClick={handleDiscardDraft} disabled={!variantId || !isDirty}>
+                    <ArrowCounterClockwise size={14} />
+                    Revert Changes
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <DeleteVariantButton variantId={variantId}>
+                        <div className="w-full h-full flex items-center gap-2">
+                            <Trash size={16} />
+                            Delete
+                        </div>
+                    </DeleteVariantButton>
+                </DropdownMenuItem>
+                {!isAgent && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleClosePanel} disabled={closePanelDisabled}>
+                            Close panel
+                        </DropdownMenuItem>
+                    </>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 
