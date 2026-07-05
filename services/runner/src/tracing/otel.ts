@@ -669,6 +669,16 @@ function acpBlockText(block: any): string {
  * or empty `{}` input and fills the args in on a later `tool_call_update`; both placeholders
  * count as "no args yet" so we know to refresh the tool_call once the real args land.
  */
+/** Serialized form of real tool args, for change detection; undefined when absent/`{}`. */
+function toolInputJson(input: unknown): string | undefined {
+  if (!hasToolArgs(input)) return undefined;
+  try {
+    return JSON.stringify(input);
+  } catch {
+    return undefined;
+  }
+}
+
 function hasToolArgs(input: unknown): boolean {
   if (input == null) return false;
   if (
@@ -891,7 +901,12 @@ export function createSandboxAgentOtel(
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
   const events: AgentEvent[] = [];
-  const toolSpans = new Map<string, { span?: Span; name: string; hasArgs: boolean }>();
+  // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
+  // `tool_call_update` can refresh the recorded args whenever they genuinely change.
+  const toolSpans = new Map<
+    string,
+    { span?: Span; name: string; inputJson?: string }
+  >();
 
   // Live emission. `record` is the single choke point for every event: it appends to the
   // result log and, on the streaming path, flushes the event the moment it is built — so
@@ -1134,24 +1149,32 @@ export function createSandboxAgentOtel(
         name: String(name),
         input: update.rawInput,
       });
-      toolSpans.set(id, { span, name: String(name), hasArgs: hasToolArgs(update.rawInput) });
+      toolSpans.set(id, { span, name: String(name), inputJson: toolInputJson(update.rawInput) });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
       return;
     }
 
     if (kind === "tool_call_update") {
-      // The real args often land here, not on the initial `tool_call`. Refresh the input ONCE,
-      // by re-recording the tool_call with the real args, so a non-gated tool shows them instead
-      // of the placeholder `{}`. The egress projects a repeat tool_call for a seen id as an
-      // input refresh (no new tool-input-start), mirroring the gated approval-refresh path.
+      // The real args often land here, not on the initial `tool_call` — and they can land
+      // INCREMENTALLY: Pi streams a growing partial parse of the args (`{}` -> `{x:[""]}` ->
+      // the full args), and the announcement itself may already carry an early partial delta.
+      // Refresh the recorded input whenever the update carries genuinely NEW args (serialized
+      // compare against the last-recorded input), so the final recorded tool_call always has
+      // the args the executor actually ran with — a refresh-once / had-args-at-announce gate
+      // records an early partial delta as the call's input (the #5064 fold-path bug). The
+      // egress projects a repeat tool_call for a seen id as an input refresh (no new
+      // tool-input-start), mirroring the gated approval-refresh path.
       const id = update.toolCallId;
       const entry = id ? toolSpans.get(id) : undefined;
-      if (entry && !entry.hasArgs && hasToolArgs(update.rawInput)) {
-        if (entry.span)
-          setInputs(entry.span, update.rawInput as Record<string, unknown>, capture);
-        record({ type: "tool_call", id: String(id), name: entry.name, input: update.rawInput });
-        entry.hasArgs = true;
+      if (entry && hasToolArgs(update.rawInput)) {
+        const nextJson = toolInputJson(update.rawInput);
+        if (nextJson !== entry.inputJson) {
+          if (entry.span)
+            setInputs(entry.span, update.rawInput as Record<string, unknown>, capture);
+          record({ type: "tool_call", id: String(id), name: entry.name, input: update.rawInput });
+          entry.inputJson = nextJson;
+        }
       }
       maybeCloseTool(id, update);
       return;
