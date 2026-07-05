@@ -1,6 +1,7 @@
 import {type PropsWithChildren, useState, useCallback} from "react"
 
-import {Button, theme} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {theme} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
 
@@ -50,7 +51,7 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
             <span className="w-8/12 text-center leading-1 text-lg">
                 Agenta works better in larger laptop or desktop screens.
             </span>
-            <Button type="primary" size="large" onClick={handleDismiss}>
+            <Button onClick={handleDismiss} size="lg">
                 View anyway
             </Button>
         </div>

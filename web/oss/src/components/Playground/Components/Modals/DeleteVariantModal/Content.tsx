@@ -7,11 +7,13 @@ import {
     workflowRevisionsListDataAtomFamily,
 } from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {projectIdAtom} from "@agenta/shared/state"
 import {EntityNameWithVersion} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
-import {Button, Spin} from "antd"
+import {Spin} from "antd"
 import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -156,16 +158,17 @@ const SingleDeleteContent = ({
             </div>
 
             <div className="flex items-center justify-end gap-2">
-                <Button onClick={onClose}>{isLastRevision ? "Close" : "Cancel"}</Button>
+                <Button onClick={onClose} variant="outline">
+                    {isLastRevision ? "Close" : "Cancel"}
+                </Button>
                 {!isLastRevision && (
                     <Button
-                        type="primary"
-                        danger
-                        loading={isMutating}
-                        disabled={isMutating}
-                        icon={<Trash size={14} />}
+                        disabled={isMutating || isMutating}
                         onClick={onDelete}
+                        variant="destructive"
                     >
+                        {isMutating ? <Spinner /> : null}
+                        {<Trash size={14} />}
                         Delete
                     </Button>
                 )}
@@ -421,9 +424,7 @@ const BulkDeleteContent = ({
                     One or more variants cannot be deleted because they are currently in use.
                 </span>
                 <div className="flex items-center justify-end">
-                    <Button type="primary" onClick={onClose}>
-                        Close
-                    </Button>
+                    <Button onClick={onClose}>Close</Button>
                 </div>
             </section>
         )
@@ -472,20 +473,23 @@ const BulkDeleteContent = ({
             </div>
 
             <div className="flex items-center justify-end gap-2">
-                <Button onClick={onClose}>Cancel</Button>
+                <Button onClick={onClose} variant="outline">
+                    Cancel
+                </Button>
                 <Button
-                    type="primary"
-                    danger
-                    loading={isMutating}
-                    disabled={isMutating || totalSelectedCount === 0 || isLastRevision}
-                    icon={<Trash size={14} />}
+                    disabled={
+                        isMutating || totalSelectedCount === 0 || isLastRevision || isMutating
+                    }
                     onClick={onDeleteVariant}
                     title={
                         isLastRevision
                             ? "Cannot delete the only revision. Delete the app instead."
                             : undefined
                     }
+                    variant="destructive"
                 >
+                    {isMutating ? <Spinner /> : null}
+                    {<Trash size={14} />}
                     {isBulkDelete ? "Delete selected" : "Delete"}
                 </Button>
             </div>

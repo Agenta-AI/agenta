@@ -2,8 +2,9 @@ import {type FC, useCallback, useMemo} from "react"
 
 import {publishMutationAtom} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CloudArrowUpIcon, CodeSimpleIcon} from "@phosphor-icons/react"
-import {Button, Space} from "antd"
+import {Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -133,14 +134,13 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
         () => (
             <Space>
                 <Button
-                    icon={<CloudArrowUpIcon size={14} />}
                     onClick={() => openSelectDeployVariantModal({envName: environmentName})}
+                    variant="outline"
                 >
+                    {<CloudArrowUpIcon size={14} />}
                     Deploy
                 </Button>
                 <Button
-                    type="primary"
-                    icon={<CodeSimpleIcon size={14} />}
                     onClick={() =>
                         openDeploymentsDrawer({
                             initialWidth: 720,
@@ -149,6 +149,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                         })
                     }
                 >
+                    {<CodeSimpleIcon size={14} />}
                     Use API
                 </Button>
             </Space>

@@ -22,21 +22,12 @@ import {
     type AgentChannelMode,
 } from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Check, Gavel, GearSix, PencilSimple, Plus, Robot} from "@phosphor-icons/react"
-import {
-    Button,
-    Divider,
-    Dropdown,
-    Segmented,
-    Space,
-    Tag,
-    Tooltip,
-    message,
-    type MenuProps,
-} from "antd"
+import {Divider, Dropdown, Segmented, Space, Tag, Tooltip, message, type MenuProps} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -59,10 +50,13 @@ const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
     loading: () => (
         <Space.Compact size="small">
-            <Button className="flex items-center gap-1" icon={<Plus size={14} />} disabled>
+            <Button className="flex items-center gap-1" disabled variant="outline">
+                {<Plus size={14} />}
                 Compare
             </Button>
-            <Button icon={<DownOutlined style={{fontSize: 10}} />} disabled />
+            <Button disabled variant="outline" size="icon">
+                {<DownOutlined style={{fontSize: 10}} />}
+            </Button>
         </Space.Compact>
     ),
 })
@@ -564,7 +558,9 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 ],
                             }}
                         >
-                            <Button type="text" icon={<MoreOutlined />} />
+                            <Button variant="ghost" size="icon">
+                                {<MoreOutlined />}
+                            </Button>
                         </Dropdown>
                     ) : null}
                     {isAgentWorkflow ? (
@@ -647,10 +643,10 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                                 connectedEvaluatorNodes.length > 0 ? (
                                                     <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
                                                         <Button
-                                                            size="small"
-                                                            danger
                                                             className="w-full"
                                                             onClick={handleDisconnectAll}
+                                                            variant="destructive"
+                                                            size="sm"
                                                         >
                                                             Disconnect all
                                                         </Button>
@@ -675,15 +671,15 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     <Space.Compact size="small">
                                         <Button
                                             className="flex items-center gap-1"
-                                            icon={<Plus size={14} />}
                                             disabled
+                                            variant="outline"
                                         >
+                                            {<Plus size={14} />}
                                             Compare
                                         </Button>
-                                        <Button
-                                            icon={<DownOutlined style={{fontSize: 10}} />}
-                                            disabled
-                                        />
+                                        <Button disabled variant="outline" size="icon">
+                                            {<DownOutlined style={{fontSize: 10}} />}
+                                        </Button>
                                     </Space.Compact>
                                 </Tooltip>
                             ) : (
@@ -714,10 +710,12 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 menu={{items: settingsMenuItems}}
                             >
                                 <Button
-                                    type="text"
-                                    icon={<GearSix size={16} />}
                                     aria-label="Playground settings"
-                                />
+                                    variant="ghost"
+                                    size="icon"
+                                >
+                                    {<GearSix size={16} />}
+                                </Button>
                             </Dropdown>
                         </>
                     )}

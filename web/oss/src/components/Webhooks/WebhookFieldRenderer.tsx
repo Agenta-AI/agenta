@@ -1,6 +1,7 @@
 import {Fragment, useState} from "react"
 
-import {Button, Divider, Form, Input, Select} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Divider, Form, Input, Select} from "antd"
 
 import {FieldDescriptor} from "./assets/types"
 import {AdvanceConfigWidget} from "./widgets/AdvanceConfigWidget"
@@ -96,13 +97,13 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
                             {fieldExtra && <span>{fieldExtra}</span>}
                             {isEditMode && !isChangingSecret && (
                                 <Button
-                                    type="link"
-                                    size="small"
                                     className="!p-0"
                                     onClick={() => {
                                         setIsChangingSecret(true)
                                         form.setFieldValue(field.key, undefined)
                                     }}
+                                    variant="link"
+                                    size="sm"
                                 >
                                     Change token
                                 </Button>

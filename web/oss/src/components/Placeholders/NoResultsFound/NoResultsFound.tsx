@@ -1,6 +1,6 @@
 import {ReactNode} from "react"
 
-import {Button} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
 import Image from "next/image"
 
 const NoResultsFound = ({
@@ -33,9 +33,7 @@ const NoResultsFound = ({
             {primaryActionSlot
                 ? primaryActionSlot
                 : onPrimaryAction && (
-                      <Button type="primary" onClick={onPrimaryAction}>
-                          {primaryActionLabel}
-                      </Button>
+                      <Button onClick={onPrimaryAction}>{primaryActionLabel}</Button>
                   )}
         </div>
     )

@@ -1,8 +1,9 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
-import {Button, Select, SelectProps, Tag} from "antd"
+import {Select, SelectProps, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
@@ -131,19 +132,21 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
         <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
                 <Button
-                    icon={<CaretUpIcon size={14} />}
-                    size="small"
-                    type="text"
                     onClick={handlePrev}
                     disabled={currentIndex <= 0}
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<CaretUpIcon size={14} />}
+                </Button>
                 <Button
-                    icon={<CaretDownIcon size={14} />}
-                    size="small"
-                    type="text"
                     onClick={handleNext}
                     disabled={currentIndex === -1 || currentIndex >= loadedScenarios.length - 1}
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<CaretDownIcon size={14} />}
+                </Button>
                 <Select
                     showSearch
                     size="small"

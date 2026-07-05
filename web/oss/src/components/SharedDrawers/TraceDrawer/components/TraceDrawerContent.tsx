@@ -1,7 +1,8 @@
 import {useEffect, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
-import {Button, Spin, Splitter} from "antd"
+import {Spin, Splitter} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -90,15 +91,15 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
             <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
                 <Button
                     onClick={onClose}
-                    type="text"
-                    icon={<CloseOutlined />}
                     data-tour="trace-drawer-close"
-                />
-                <Button
-                    onClick={onToggleWidth}
-                    type="text"
-                    icon={isExpanded ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                />
+                    variant="ghost"
+                    size="icon"
+                >
+                    {<CloseOutlined />}
+                </Button>
+                <Button onClick={onToggleWidth} variant="ghost" size="icon">
+                    {isExpanded ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                </Button>
                 <div className="flex-1 min-w-0">
                     <TraceHeader
                         activeTrace={activeTrace as any}

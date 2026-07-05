@@ -21,9 +21,9 @@ import {
     getWorkflowCommitCallbacks,
 } from "@agenta/entities/workflow"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowsIn, ArrowsOut} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -68,13 +68,10 @@ const DrawerHeader = ({entityId, onClose}: {entityId: string; onClose: () => voi
             <span className="text-base font-semibold">{name}</span>
             <div className="flex items-center gap-2">
                 <EvaluatorRunControls />
-                <Button
-                    type="text"
-                    size="small"
-                    icon={isExpanded ? <ArrowsIn size={16} /> : <ArrowsOut size={16} />}
-                    onClick={() => setExpanded(!isExpanded)}
-                />
-                <Button type="text" size="small" onClick={onClose}>
+                <Button onClick={() => setExpanded(!isExpanded)} variant="ghost" size="icon-sm">
+                    {isExpanded ? <ArrowsIn size={16} /> : <ArrowsOut size={16} />}
+                </Button>
+                <Button onClick={onClose} variant="ghost" size="sm">
                     Close
                 </Button>
             </div>

@@ -1,6 +1,7 @@
 import {useEffect} from "react"
 
-import {Button, Result} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Result} from "antd"
 import Link from "next/link"
 import {useRouter} from "next/router"
 import {FallbackProps} from "react-error-boundary"
@@ -29,7 +30,7 @@ const ErrorFallback: React.FC<FallbackProps> = ({error, resetErrorBoundary}) => 
             subTitle={getErrorMessage(error)}
             extra={[
                 <Link key="home" href={baseAppURL || "/"}>
-                    <Button type="primary">Go to home screen</Button>
+                    <Button>Go to home screen</Button>
                 </Link>,
             ]}
         />

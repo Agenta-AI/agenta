@@ -1,7 +1,8 @@
 import {useCallback, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowLeft, Code, Rocket, Sparkle, TreeView} from "@phosphor-icons/react"
-import {Card, Button} from "antd"
+import {Card} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -112,12 +113,11 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
             <div className="w-full max-w-[800px] mx-auto p-6 bg-[var(--ant-color-bg-container)] rounded-lg border border-[var(--ant-color-border-secondary)] mb-10">
                 <SetupTracingModalContent onCancel={() => {}} isModal={false} isPostLogin={true} />
                 <div className="flex justify-between mt-6">
-                    <Button type="text" icon={<ArrowLeft />} onClick={() => setView("selection")}>
+                    <Button onClick={() => setView("selection")} variant="ghost">
+                        {<ArrowLeft />}
                         Back
                     </Button>
-                    <Button type="primary" onClick={() => handleNext("observability")}>
-                        Next
-                    </Button>
+                    <Button onClick={() => handleNext("observability")}>Next</Button>
                 </div>
             </div>
         )
@@ -128,11 +128,11 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
             <div className="w-full max-w-[800px] mx-auto p-6 bg-[var(--ant-color-bg-container)] rounded-lg border border-[var(--ant-color-border-secondary)] mb-10">
                 <RunEvaluationView />
                 <div className="flex justify-between mt-6">
-                    <Button type="text" icon={<ArrowLeft />} onClick={() => setView("selection")}>
+                    <Button onClick={() => setView("selection")} variant="ghost">
+                        {<ArrowLeft />}
                         Back
                     </Button>
                     <Button
-                        type="primary"
                         onClick={() =>
                             handleNext("evaluations?selectedEvaluation=custom_evaluation")
                         }
@@ -216,9 +216,9 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
             )}
 
             <Button
-                type="link"
                 onClick={navigateToDestination}
                 className="!text-colorTextSecondary hover:!text-colorText"
+                variant="link"
             >
                 Skip
             </Button>

@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import type {AppType} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {
     InfiniteVirtualTableRowSelection,
@@ -8,7 +9,7 @@ import type {
     TableScopeConfig,
 } from "@agenta/ui/table"
 import {FolderIcon, PlusIcon, SquaresFourIcon, TrashIcon} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Space} from "antd"
+import {Dropdown, Input, Space} from "antd"
 import type {MenuProps} from "antd"
 import type {ColumnsType, TableProps} from "antd/es/table"
 
@@ -152,13 +153,8 @@ export const PromptsTableSection = ({
     const primaryActionsNode = useMemo(
         () => (
             <Space>
-                <Button
-                    type="text"
-                    icon={<TrashIcon />}
-                    danger
-                    disabled={!selectedRow}
-                    onClick={onDeleteSelected}
-                >
+                <Button disabled={!selectedRow} onClick={onDeleteSelected} variant="destructive">
+                    {<TrashIcon />}
                     {selectedActionLabel}
                 </Button>
 
@@ -168,7 +164,8 @@ export const PromptsTableSection = ({
                     placement="bottomLeft"
                     menu={{items: menuItems}}
                 >
-                    <Button icon={<PlusIcon />} type="primary">
+                    <Button>
+                        {<PlusIcon />}
                         Create new
                     </Button>
                 </Dropdown>

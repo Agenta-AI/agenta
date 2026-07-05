@@ -1,5 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Button, Descriptions, Skeleton} from "antd"
+import {Alert, Descriptions, Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -42,7 +43,7 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
                 </Descriptions.Item>
             </Descriptions>
             <div className="mt-2">
-                <Button type="text" onClick={refresh}>
+                <Button onClick={refresh} variant="ghost">
                     Refresh
                 </Button>
             </div>

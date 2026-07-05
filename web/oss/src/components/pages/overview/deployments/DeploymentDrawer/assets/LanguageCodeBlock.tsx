@@ -1,6 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyButton} from "@agenta/ui"
 import {CloudArrowUp} from "@phosphor-icons/react"
-import {Button} from "antd"
 import clsx from "clsx"
 
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
@@ -48,10 +48,8 @@ const LanguageCodeBlock = ({
                             )}
                         >
                             <span>Deploy a variant to start using this endpoint</span>
-                            <Button
-                                icon={<CloudArrowUp />}
-                                onClick={handleOpenSelectDeployVariantModal}
-                            >
+                            <Button onClick={handleOpenSelectDeployVariantModal} variant="outline">
+                                {<CloudArrowUp />}
                                 Deploy variant
                             </Button>
                         </div>
@@ -87,10 +85,8 @@ const LanguageCodeBlock = ({
                             )}
                         >
                             <span>Deploy a variant to start using this endpoint</span>
-                            <Button
-                                icon={<CloudArrowUp />}
-                                onClick={handleOpenSelectDeployVariantModal}
-                            >
+                            <Button onClick={handleOpenSelectDeployVariantModal} variant="outline">
+                                {<CloudArrowUp />}
                                 Deploy variant
                             </Button>
                         </div>

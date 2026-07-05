@@ -1,5 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Alert, Button, Card, Space} from "antd"
+import {Alert, Card, Space} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -31,7 +32,8 @@ const CustomWorkflowBanner = ({
                             re-configure your workflow URL.
                         </p>
                         <Space orientation="horizontal" align="center">
-                            <Button icon={<PencilSimple size={14} />} onClick={() => openModal()}>
+                            <Button onClick={() => openModal()} variant="outline">
+                                {<PencilSimple size={14} />}
                                 Configure
                             </Button>
                         </Space>
@@ -51,7 +53,8 @@ const CustomWorkflowBanner = ({
                 type={"warning"}
                 action={
                     <Space orientation="vertical">
-                        <Button icon={<PencilSimple size={14} />} onClick={() => openModal()}>
+                        <Button onClick={() => openModal()} variant="outline">
+                            {<PencilSimple size={14} />}
                             Configure
                         </Button>
                     </Space>

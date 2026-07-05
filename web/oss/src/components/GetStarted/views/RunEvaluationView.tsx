@@ -1,7 +1,7 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Book, Play} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
 import {TracingCodeComponent} from "@/oss/components/pages/app-management/modals/SetupTracingModal/components/TracingCodeComponent"
@@ -77,17 +77,29 @@ export const RunEvaluationView = () => {
                     </h1>
                     <div className="flex items-center gap-2">
                         <Button
-                            icon={<Play size={16} className="mt-1" />}
-                            href="https://colab.research.google.com/github/agenta-ai/agenta/blob/main/examples/jupyter/evaluation/quick-start.ipynb"
-                            target="_blank"
+                            variant="outline"
+                            render={
+                                <a
+                                    href="https://colab.research.google.com/github/agenta-ai/agenta/blob/main/examples/jupyter/evaluation/quick-start.ipynb"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                />
+                            }
                         >
+                            {<Play size={16} className="mt-1" />}
                             Run in colab
                         </Button>
                         <Button
-                            icon={<Book size={16} className="mt-1" />}
-                            href="https://agenta.ai/docs/evaluation/evaluation-from-sdk/quick-start"
-                            target="_blank"
+                            variant="outline"
+                            render={
+                                <a
+                                    href="https://agenta.ai/docs/evaluation/evaluation-from-sdk/quick-start"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                />
+                            }
                         >
+                            {<Book size={16} className="mt-1" />}
                             Read the docs
                         </Button>
                     </div>

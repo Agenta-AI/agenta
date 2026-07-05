@@ -6,12 +6,13 @@ import {
     type EnvironmentRevision,
 } from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {ClockCounterClockwise, GearSix} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Spin, Table, Tag} from "antd"
+import {Dropdown, Space, Spin, Table, Tag} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -341,11 +342,12 @@ const DeploymentHistoryModal = ({
                         }}
                     >
                         <Button
-                            type="text"
-                            icon={<MoreOutlined />}
-                            size="small"
                             onClick={(event) => event.stopPropagation()}
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<MoreOutlined />}
+                        </Button>
                     </Dropdown>
                 ),
             },
@@ -367,9 +369,11 @@ const DeploymentHistoryModal = ({
                     <Space>
                         <Button
                             onClick={() => setIsHistoryModalOpen(false)}
-                            type="text"
-                            icon={<CloseOutlined />}
-                        />
+                            variant="ghost"
+                            size="icon"
+                        >
+                            {<CloseOutlined />}
+                        </Button>
                         <h1 className="!m-0 text-lg font-medium capitalize">
                             {environmentName} deployment history
                         </h1>
@@ -424,12 +428,13 @@ const DeploymentHistoryModal = ({
                                     ) : (
                                         <Space>
                                             <Button
-                                                size="small"
                                                 className="flex items-center gap-2"
                                                 onClick={() => {
                                                     setConfirmModalOpen(true)
                                                     setRevertRow(selectedRow)
                                                 }}
+                                                variant="outline"
+                                                size="sm"
                                             >
                                                 <ClockCounterClockwise size={16} />
                                                 Revert
@@ -437,18 +442,18 @@ const DeploymentHistoryModal = ({
                                             {compareDeployment ? (
                                                 <Button
                                                     onClick={() => setCompareDeployment(false)}
-                                                    icon={<CloseOutlined />}
-                                                    type="primary"
-                                                    size="small"
+                                                    size="sm"
                                                 >
+                                                    {<CloseOutlined />}
                                                     Close comparison
                                                 </Button>
                                             ) : (
                                                 <Button
                                                     onClick={() => setCompareDeployment(true)}
-                                                    icon={<SwapOutlined />}
-                                                    size="small"
+                                                    variant="outline"
+                                                    size="sm"
                                                 >
+                                                    {<SwapOutlined />}
                                                     Compare to current
                                                 </Button>
                                             )}

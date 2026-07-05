@@ -1,5 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Button, Empty, List, Skeleton} from "antd"
+import {Alert, Empty, List, Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -45,7 +46,7 @@ const MountsTab = ({sessionId}: {sessionId: string}) => {
                 )}
             />
             <div className="mt-2">
-                <Button type="text" onClick={refresh}>
+                <Button onClick={refresh} variant="ghost">
                     Refresh
                 </Button>
             </div>

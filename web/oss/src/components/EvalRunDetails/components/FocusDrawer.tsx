@@ -2,12 +2,13 @@ import type {KeyboardEvent, ReactNode} from "react"
 import {memo, useCallback, useMemo, useRef, useState} from "react"
 import {isValidElement} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {
     formatMetricDisplay,
     METRIC_PLACEHOLDER as METRIC_EMPTY_PLACEHOLDER,
 } from "@agenta/ui/cell-renderers"
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Popover, Skeleton} from "antd"
+import {Popover, Skeleton} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AlertCircle} from "lucide-react"
@@ -748,14 +749,15 @@ const FocusSectionHeader = ({
         >
             <span className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</span>
             <Button
-                type="link"
-                size="small"
-                icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
                 onClick={(event) => {
                     event.stopPropagation()
                     onToggle()
                 }}
-            />
+                variant="link"
+                size="icon-sm"
+            >
+                {<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+            </Button>
         </div>
     )
 }

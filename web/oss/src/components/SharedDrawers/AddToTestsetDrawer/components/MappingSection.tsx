@@ -1,7 +1,8 @@
 import {useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowRight, Crosshair, Plus, Trash} from "@phosphor-icons/react"
-import {AutoComplete, Button, Select, Tooltip} from "antd"
+import {AutoComplete, Select, Tooltip} from "antd"
 
 import {createMappingId, Mapping, TestsetColumn} from "../assets/types"
 
@@ -188,22 +189,24 @@ export function MappingSection({
                                             {mapping.data && (
                                                 <Tooltip title="Focus in data preview">
                                                     <Button
-                                                        type="text"
-                                                        size="small"
-                                                        icon={<Crosshair size={16} />}
                                                         onClick={() => onFocusPath(mapping.data)}
-                                                    />
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                    >
+                                                        {<Crosshair size={16} />}
+                                                    </Button>
                                                 </Tooltip>
                                             )}
                                         </div>
                                     )}
                                     <div className="w-8 h-8 flex items-center justify-center">
                                         <Button
-                                            type="text"
-                                            size="small"
-                                            icon={<Trash size={16} />}
                                             onClick={() => onRemoveMapping(idx)}
-                                        />
+                                            variant="ghost"
+                                            size="icon-sm"
+                                        >
+                                            {<Trash size={16} />}
+                                        </Button>
                                     </div>
                                 </div>
                             </div>
@@ -211,17 +214,17 @@ export function MappingSection({
                     </div>
 
                     <Button
-                        type="dashed"
-                        className="mt-1"
+                        className="mt-1 border-dashed"
                         style={{width: elementWidth}}
-                        icon={<Plus />}
                         onClick={() =>
                             setMappingData([
                                 ...mappingData,
                                 {id: createMappingId(), data: "", column: ""},
                             ])
                         }
+                        variant="outline"
                     >
+                        {<Plus />}
                         Add field
                     </Button>
                 </>

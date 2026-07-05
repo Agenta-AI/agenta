@@ -1,7 +1,8 @@
 import {useCallback, useEffect} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowClockwise, GridFour, Scales} from "@phosphor-icons/react"
-import {Button, Card, Space} from "antd"
+import {Card, Space} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -83,17 +84,16 @@ function WorkflowNotFound({workflowId, routeSegment}: WorkflowNotFoundProps) {
                         ID:&nbsp;<code>{truncateId(workflowId)}</code>
                     </span>
                     <Space wrap>
-                        <Button
-                            type="primary"
-                            icon={<GridFour size={14} />}
-                            onClick={handleBackToApps}
-                        >
+                        <Button onClick={handleBackToApps}>
+                            {<GridFour size={14} />}
                             Back to apps
                         </Button>
-                        <Button icon={<Scales size={14} />} onClick={handleBackToEvaluators}>
+                        <Button onClick={handleBackToEvaluators} variant="outline">
+                            {<Scales size={14} />}
                             Back to evaluators
                         </Button>
-                        <Button icon={<ArrowClockwise size={14} />} onClick={handleReload}>
+                        <Button onClick={handleReload} variant="outline">
+                            {<ArrowClockwise size={14} />}
                             Reload
                         </Button>
                     </Space>

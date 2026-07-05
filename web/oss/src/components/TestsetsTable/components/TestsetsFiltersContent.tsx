@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Divider} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Divider} from "antd"
 import {useAtom} from "jotai"
 
 import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
@@ -117,10 +118,10 @@ const TestsetsFiltersContent = ({onClose, tableMode = "active"}: TestsetsFilters
 
             <Divider className="!my-0" />
             <div className="flex justify-end gap-2">
-                <Button type="link" onClick={handleReset}>
+                <Button onClick={handleReset} variant="link">
                     Reset
                 </Button>
-                <Button type="primary" onClick={handleApply} disabled={!hasPendingChanges}>
+                <Button onClick={handleApply} disabled={!hasPendingChanges}>
                     Apply
                 </Button>
             </div>

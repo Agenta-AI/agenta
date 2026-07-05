@@ -22,7 +22,8 @@ import {
     type RowPredicate,
     type RunSchema,
 } from "@agenta/entities/evaluationRun/etl"
-import {Button, Divider, Input, InputNumber, Popover, Select, Tooltip} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Divider, Input, InputNumber, Popover, Select, Tooltip} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
 
@@ -299,11 +300,12 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
                             />
                             <Tooltip title="Remove">
                                 <Button
-                                    size="small"
-                                    type="text"
-                                    icon={<X size={14} />}
                                     onClick={() => removeCondition(index)}
-                                />
+                                    variant="ghost"
+                                    size="icon-sm"
+                                >
+                                    {<X size={14} />}
+                                </Button>
                             </Tooltip>
                         </div>
                     )
@@ -311,25 +313,30 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
             </div>
 
             <Button
-                size="small"
-                type="dashed"
-                icon={<Plus size={14} />}
-                className="mt-2 self-start"
+                className="mt-2 self-start border-dashed"
                 onClick={() => setConditions([...conditions, blankCondition()])}
+                variant="outline"
+                size="sm"
             >
+                {<Plus size={14} />}
                 Add condition
             </Button>
 
             <Divider className="!my-2" />
             <div className="flex items-center justify-between px-1">
-                <Button size="small" onClick={clearAll} disabled={appliedCount === 0}>
+                <Button
+                    onClick={clearAll}
+                    disabled={appliedCount === 0}
+                    variant="outline"
+                    size="sm"
+                >
                     Clear
                 </Button>
                 <div className="flex items-center gap-2">
-                    <Button size="small" onClick={() => setOpen(false)}>
+                    <Button onClick={() => setOpen(false)} variant="outline" size="sm">
                         Cancel
                     </Button>
-                    <Button size="small" type="primary" onClick={apply}>
+                    <Button onClick={apply} size="sm">
                         Apply
                     </Button>
                 </div>
@@ -347,10 +354,11 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
             content={popoverContent}
         >
             <Button
-                icon={<FilterIcon size={14} />}
                 aria-label="Filter scenarios"
                 className="inline-flex items-center gap-1"
+                variant="outline"
             >
+                {<FilterIcon size={14} />}
                 <span
                     className={`rounded-full px-1.5 text-[10px] font-medium ${
                         appliedCount > 0

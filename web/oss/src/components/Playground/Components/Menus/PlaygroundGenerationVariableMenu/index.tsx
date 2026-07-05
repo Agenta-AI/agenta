@@ -1,7 +1,8 @@
 import {useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {DotsThreeVertical, Copy, Database} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps} from "antd"
+import {Dropdown, MenuProps} from "antd"
 
 import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 
@@ -49,7 +50,9 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
     )
     return (
         <Dropdown trigger={["click"]} menu={{items}} {...props}>
-            <Button icon={<DotsThreeVertical size={14} />} type="text" size="small" />
+            <Button variant="ghost" size="icon-sm">
+                {<DotsThreeVertical size={14} />}
+            </Button>
         </Dropdown>
     )
 }

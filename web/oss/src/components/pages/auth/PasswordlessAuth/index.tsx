@@ -1,6 +1,8 @@
 import {useRef, useState} from "react"
 
-import {Button, Form, FormProps, Input} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Form, FormProps, Input} from "antd"
 import {createCode} from "supertokens-auth-react/recipe/passwordless"
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
@@ -111,14 +113,8 @@ const PasswordlessAuth = ({
                 />
             )}
 
-            <Button
-                size="large"
-                type="primary"
-                htmlType="submit"
-                className="w-full"
-                loading={isLoading}
-                disabled={disabled}
-            >
+            <Button className="w-full" disabled={disabled || isLoading} size="lg" type="submit">
+                {isLoading ? <Spinner /> : null}
                 Continue with OTP
             </Button>
         </Form>

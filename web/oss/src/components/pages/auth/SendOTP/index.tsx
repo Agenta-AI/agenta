@@ -1,7 +1,9 @@
 import {useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Form, FormProps, Input} from "antd"
+import {Form, FormProps, Input} from "antd"
 import {OTPRef} from "antd/es/input/OTP"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
@@ -163,31 +165,22 @@ const SendOTP = ({
                     />
                 </Form.Item>
 
-                <Button
-                    size="large"
-                    type="primary"
-                    htmlType="submit"
-                    className="w-full"
-                    loading={isLoading}
-                >
+                <Button className="w-full" size="lg" type="submit" disabled={isLoading}>
+                    {isLoading ? <Spinner /> : null}
                     Continue with OTP
                 </Button>
             </Form>
 
             <div className="grid gap-2 text-center mt-4">
-                <Button
-                    type="link"
-                    className="w-full"
-                    icon={<ArrowLeft size={14} className="mt-[3px]" />}
-                    onClick={backToLogin}
-                >
+                <Button className="w-full" onClick={backToLogin} variant="link">
+                    {<ArrowLeft size={14} className="mt-[3px]" />}
                     Use a different email
                 </Button>
                 <Button
-                    type="link"
                     className="w-full"
                     disabled={isResendDisabled || isLoading}
                     onClick={resendOTP}
+                    variant="link"
                 >
                     Resend one-time password
                 </Button>

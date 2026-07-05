@@ -1,8 +1,10 @@
 import {useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Input} from "antd"
+import {Input} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -128,10 +130,13 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
         <section className="grid gap-4">
             <div className="flex items-center gap-2 mb-1">
                 <Button
-                    icon={<ArrowLeft size={14} className="mt-0.5" />}
                     className="flex items-center justify-center"
                     onClick={goBackToInitialStep}
-                />
+                    variant="outline"
+                    size="icon"
+                >
+                    {<ArrowLeft size={14} className="mt-0.5" />}
+                </Button>
 
                 <span className="leading-normal text-xl font-semibold">{getHeaderText}</span>
             </div>
@@ -148,15 +153,11 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             </div>
 
             <div className="flex justify-end gap-2 mt-3">
-                <Button onClick={onCancel} disabled={isLoading}>
+                <Button onClick={onCancel} disabled={isLoading} variant="outline">
                     Cancel
                 </Button>
-                <Button
-                    type="primary"
-                    disabled={!testsetName}
-                    onClick={onSubmit}
-                    loading={isLoading}
-                >
+                <Button disabled={!testsetName || isLoading} onClick={onSubmit}>
+                    {isLoading ? <Spinner /> : null}
                     {mode === "rename" ? "Rename" : "Create testset"}
                 </Button>
             </div>

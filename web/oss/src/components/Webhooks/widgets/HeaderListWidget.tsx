@@ -1,5 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {MinusCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Form, Input} from "antd"
+import {Form, Input} from "antd"
 
 export const HeaderListWidget = () => {
     return (
@@ -31,14 +32,20 @@ export const HeaderListWidget = () => {
                                     </Form.Item>
                                 </div>
                                 <Button
-                                    type="text"
-                                    danger
-                                    icon={<MinusCircleOutlined />}
                                     onClick={() => remove(field.name)}
-                                />
+                                    variant="destructive"
+                                    size="icon"
+                                >
+                                    {<MinusCircleOutlined />}
+                                </Button>
                             </div>
                         ))}
-                        <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                        <Button
+                            onClick={() => add()}
+                            variant="outline"
+                            className="border-dashed w-full"
+                        >
+                            {<PlusOutlined />}
                             Add header
                         </Button>
                     </div>

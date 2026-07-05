@@ -1,9 +1,10 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {HeightCollapse} from "@agenta/ui"
 import {ArrowSquareOut, CaretRight, ShieldCheck} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-import {Button} from "antd"
 
 export interface PendingApproval {
     approvalId: string
@@ -216,18 +217,23 @@ const ApprovalDock = ({
                             ) : null}
                             <div className="ml-auto flex items-center gap-1.5">
                                 {count > 1 ? (
-                                    <Button disabled={responding} onClick={approveAll}>
+                                    <Button
+                                        disabled={responding}
+                                        onClick={approveAll}
+                                        variant="outline"
+                                    >
                                         Approve all
                                     </Button>
                                 ) : null}
-                                <Button disabled={responding} onClick={() => respond(false)}>
+                                <Button
+                                    disabled={responding}
+                                    onClick={() => respond(false)}
+                                    variant="outline"
+                                >
                                     Deny
                                 </Button>
-                                <Button
-                                    type="primary"
-                                    loading={responding}
-                                    onClick={() => respond(true)}
-                                >
+                                <Button onClick={() => respond(true)} disabled={responding}>
+                                    {responding ? <Spinner /> : null}
                                     Approve
                                 </Button>
                             </div>

@@ -1,10 +1,11 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {Tray} from "@phosphor-icons/react"
-import {Button, Empty, Space, message} from "antd"
+import {Empty, Space, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -137,8 +138,6 @@ const ApplicationManagementSection = ({
                 <Space>
                     {table.selectedRowKeys.length > 0 ? (
                         <Button
-                            danger
-                            icon={<Tray size={14} />}
                             onClick={() =>
                                 openDeleteAppModal({
                                     apps: table.getSelectedRecords().map((record) => ({
@@ -148,15 +147,17 @@ const ApplicationManagementSection = ({
                                     onArchived: () => table.clearSelection(),
                                 })
                             }
+                            variant="destructive"
                         >
+                            {<Tray size={14} />}
                             Archive
                         </Button>
                     ) : (
                         <Button
-                            icon={<Tray size={14} />}
                             onClick={() => router.push(`${baseAppURL}/archived`)}
-                            type="text"
+                            variant="ghost"
                         >
+                            {<Tray size={14} />}
                             Archived
                         </Button>
                     )}
@@ -185,10 +186,10 @@ const ApplicationManagementSection = ({
                     <h2 className="!my-0 text-xl font-semibold leading-tight">Applications</h2>
                     {totalAppCount == 0 ? (
                         <Button
-                            icon={<Tray size={14} />}
                             onClick={() => router.push(`${baseAppURL}/archived`)}
-                            type="text"
+                            variant="ghost"
                         >
+                            {<Tray size={14} />}
                             Archived
                         </Button>
                     ) : null}

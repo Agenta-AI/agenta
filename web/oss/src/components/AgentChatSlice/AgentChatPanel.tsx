@@ -7,6 +7,7 @@ import {
     buildTurnCapture,
     playgroundController,
 } from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
@@ -16,7 +17,7 @@ import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
 import {ArrowDown, Paperclip, TreeStructure, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Button, Tabs, Tag, Tooltip} from "antd"
+import {Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -996,14 +997,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     <div className="flex items-center gap-2 self-start pl-1">
                         <Tag className="!m-0 !text-[11px]">Stopped</Tag>
                         <Button
-                            type="link"
-                            size="small"
                             className="!px-0 !text-xs"
                             disabled={busy}
                             onClick={() => {
                                 setStopped(false)
                                 regenerate({messageId: message.id}).catch(ignoreStreamRejection)
                             }}
+                            variant="link"
+                            size="sm"
                         >
                             Resend
                         </Button>
@@ -1099,21 +1100,26 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
                     keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
                     <Button
-                        size="small"
-                        shape="round"
-                        icon={<ArrowDown size={14} />}
                         onClick={jumpToLatest}
                         tabIndex={showJump ? 0 : -1}
                         aria-hidden={!showJump}
                         // Solid elevated surface + border + shadow so the pill reads clearly when it
                         // floats over streamed text (a transparent pill let the text bleed through).
-                        className={`!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
-                            showJump
-                                ? "translate-y-0 opacity-100"
-                                : "pointer-events-none translate-y-3 opacity-0"
-                        }`}
+                        className={[
+                            `!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
+                                showJump
+                                    ? "translate-y-0 opacity-100"
+                                    : "pointer-events-none translate-y-3 opacity-0"
+                            }`,
+                            "rounded-full",
+                        ]
+                            .filter(Boolean)
+                            .join(" ")}
                         aria-label="Jump to latest message"
+                        variant="outline"
+                        size="sm"
                     >
+                        {<ArrowDown size={14} />}
                         Jump to latest
                     </Button>
                 </div>
@@ -1164,12 +1170,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                 }
                             >
                                 <Button
-                                    type="text"
-                                    icon={<Paperclip size={16} />}
                                     disabled={true}
                                     onClick={() => setAttachmentsOpen((open) => !open)}
                                     aria-label="Attach files"
-                                />
+                                    variant="ghost"
+                                    size="icon"
+                                >
+                                    {<Paperclip size={16} />}
+                                </Button>
                             </Tooltip>
                         }
                         header={

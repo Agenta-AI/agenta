@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {FolderOpenOutlined, FileOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
-import {Button, Input, Space, Tree} from "antd"
+import {Input, Space, Tree} from "antd"
 import type {DataNode} from "antd/es/tree"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
@@ -258,16 +259,16 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium uppercase text-gray-500">Visibility</span>
                 <Space size={[6, 6]} wrap>
-                    <Button size="small" onClick={handleExpandAll}>
+                    <Button onClick={handleExpandAll} variant="outline" size="sm">
                         Expand all
                     </Button>
-                    <Button size="small" onClick={handleCollapseAll}>
+                    <Button onClick={handleCollapseAll} variant="outline" size="sm">
                         Collapse all
                     </Button>
-                    <Button size="small" onClick={handleShowAll}>
+                    <Button onClick={handleShowAll} variant="outline" size="sm">
                         Show all
                     </Button>
-                    <Button size="small" onClick={handleHideAll}>
+                    <Button onClick={handleHideAll} variant="outline" size="sm">
                         Hide all
                     </Button>
                 </Space>
@@ -301,15 +302,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             </div>
 
             <div className="flex justify-between items-center pt-1">
-                <Button
-                    size="small"
-                    type="text"
-                    icon={<ArrowCounterClockwise size={14} weight="bold" />}
-                    onClick={handleResetLayout}
-                >
+                <Button onClick={handleResetLayout} variant="ghost" size="sm">
+                    {<ArrowCounterClockwise size={14} weight="bold" />}
                     Reset layout
                 </Button>
-                <Button size="small" type="text" onClick={onClose}>
+                <Button onClick={onClose} variant="ghost" size="sm">
                     Close
                 </Button>
             </div>

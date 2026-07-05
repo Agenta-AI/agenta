@@ -1,8 +1,10 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Button, Descriptions, Popconfirm, Skeleton, Space, Tag} from "antd"
+import {Alert, Descriptions, Popconfirm, Skeleton, Space, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {isSessionStreamingAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
@@ -121,12 +123,18 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
             <Space wrap>
                 <Button
                     onClick={onAttach}
-                    loading={busy}
-                    disabled={!nest.isRunning || localStreaming || Boolean(watcherId)}
+                    disabled={!nest.isRunning || localStreaming || Boolean(watcherId) || busy}
+                    variant="outline"
                 >
+                    {busy ? <Spinner /> : null}
                     Attach
                 </Button>
-                <Button onClick={onDetach} loading={busy} disabled={!watcherId && !localStreaming}>
+                <Button
+                    onClick={onDetach}
+                    disabled={(!watcherId && !localStreaming) || busy}
+                    variant="outline"
+                >
+                    {busy ? <Spinner /> : null}
                     Detach
                 </Button>
                 <Popconfirm
@@ -134,11 +142,13 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
                     onConfirm={onKill}
                     okButtonProps={{danger: true}}
                 >
-                    <Button danger loading={busy}>
+                    <Button variant="destructive" disabled={busy}>
+                        {busy ? <Spinner /> : null}
                         Kill
                     </Button>
                 </Popconfirm>
-                <Button type="text" onClick={refresh} loading={busy}>
+                <Button onClick={refresh} variant="ghost" disabled={busy}>
+                    {busy ? <Spinner /> : null}
                     Refresh
                 </Button>
             </Space>

@@ -1,7 +1,7 @@
 import {useState, type PropsWithChildren, type ReactNode} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {DownOutlined} from "@ant-design/icons"
-import {Button} from "antd"
 import clsx from "clsx"
 
 import {CountBadge, DiffersBadge, V2Card} from "./SectionPrimitives"
@@ -64,16 +64,17 @@ const V2SectionShell = ({
                     </span>
                 ) : null}
                 <Button
-                    type="text"
-                    size="small"
                     aria-expanded={!collapsed}
                     aria-label={`${collapsed ? "Expand" : "Collapse"} ${title} section`}
-                    icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
                     onClick={(event) => {
                         event.stopPropagation()
                         setCollapsed((value) => !value)
                     }}
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                </Button>
             </div>
             {!collapsed ? <div className={flush ? "" : "p-4"}>{children}</div> : null}
         </V2Card>

@@ -1,8 +1,10 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Button, Card, Empty, Input, Skeleton, Space, Tag} from "antd"
+import {Alert, Card, Empty, Input, Skeleton, Space, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -111,22 +113,18 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                                 {isApproval ? (
                                     <Space>
                                         <Button
-                                            type="primary"
-                                            size="small"
-                                            loading={busyId === id}
-                                            disabled={!isPending || !id}
+                                            disabled={!isPending || !id || busyId === id}
                                             onClick={() =>
                                                 id &&
                                                 respond(id, approvalAnswer(interaction.token, true))
                                             }
+                                            size="sm"
                                         >
+                                            {busyId === id ? <Spinner /> : null}
                                             Approve
                                         </Button>
                                         <Button
-                                            danger
-                                            size="small"
-                                            loading={busyId === id}
-                                            disabled={!isPending || !id}
+                                            disabled={!isPending || !id || busyId === id}
                                             onClick={() =>
                                                 id &&
                                                 respond(
@@ -134,7 +132,10 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                                                     approvalAnswer(interaction.token, false),
                                                 )
                                             }
+                                            variant="destructive"
+                                            size="sm"
                                         >
+                                            {busyId === id ? <Spinner /> : null}
                                             Deny
                                         </Button>
                                     </Space>
@@ -153,13 +154,14 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                                             }
                                         />
                                         <Button
-                                            size="small"
-                                            loading={busyId === id}
-                                            disabled={!isPending || !id}
+                                            disabled={!isPending || !id || busyId === id}
                                             onClick={() =>
                                                 id && respond(id, inputAnswer(inputs[id] ?? ""))
                                             }
+                                            variant="outline"
+                                            size="sm"
                                         >
+                                            {busyId === id ? <Spinner /> : null}
                                             Respond
                                         </Button>
                                     </Space.Compact>
@@ -170,7 +172,7 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                 })
             )}
             <div className="mt-2">
-                <Button type="text" onClick={refresh}>
+                <Button onClick={refresh} variant="ghost">
                     Refresh
                 </Button>
             </div>

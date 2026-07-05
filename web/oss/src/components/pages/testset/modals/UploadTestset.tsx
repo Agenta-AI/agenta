@@ -1,6 +1,8 @@
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {UploadOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, Upload, theme} from "antd"
+import {Collapse, Form, Input, Upload, theme} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -61,10 +63,13 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
         <section className="grid gap-4">
             <div className="flex items-center gap-2 mb-1">
                 <Button
-                    icon={<ArrowLeft size={14} className="mt-0.5" />}
                     className="flex items-center justify-center"
                     onClick={() => setCurrent(0)}
-                />
+                    variant="outline"
+                    size="icon"
+                >
+                    {<ArrowLeft size={14} className="mt-0.5" />}
+                </Button>
 
                 <span className="leading-[1.5714285714285714] text-[16px] font-semibold">
                     Upload a testset
@@ -114,7 +119,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         }
                                     }}
                                 >
-                                    <Button icon={<UploadOutlined />}>Upload</Button>
+                                    <Button variant="outline">{<UploadOutlined />}Upload</Button>
                                 </Upload>
                             </Form.Item>
                         </Form>
@@ -225,7 +230,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                             href="https://agenta.ai/docs/evaluation/managing-test-sets/upload-csv"
                                             target="_blank"
                                         >
-                                            <Button>Read the docs</Button>
+                                            <Button variant="outline">Read the docs</Button>
                                         </a>
                                     </div>
                                 ),
@@ -236,15 +241,14 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
             </div>
 
             <div className="flex justify-end gap-2 mt-3">
-                <Button disabled={uploadLoading} onClick={onCancel}>
+                <Button disabled={uploadLoading} onClick={onCancel} variant="outline">
                     Cancel
                 </Button>
                 <Button
-                    disabled={!testsetName || !testsetFile}
-                    loading={uploadLoading}
-                    type="primary"
+                    disabled={!testsetName || !testsetFile || uploadLoading}
                     onClick={() => form.submit()}
                 >
+                    {uploadLoading ? <Spinner /> : null}
                     Create testset
                 </Button>
             </div>

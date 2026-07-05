@@ -14,8 +14,9 @@
 
 import {EntityPicker} from "@agenta/entity-ui"
 import type {WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {X} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import dynamic from "next/dynamic"
 
 import RunOnSelector from "./RunOnSelector"
@@ -42,7 +43,12 @@ const EvaluatorRunControls = () => {
     // Footer inside the picker popover — only when an app is currently connected.
     const popupFooter = hasAppConnected ? (
         <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
-            <Button size="small" danger className="w-full" onClick={() => disconnectApp()}>
+            <Button
+                className="w-full"
+                onClick={() => disconnectApp()}
+                variant="destructive"
+                size="sm"
+            >
                 Disconnect app
             </Button>
         </div>
@@ -66,12 +72,13 @@ const EvaluatorRunControls = () => {
             {isAppMode && hasAppConnected && (
                 <Tooltip title="Disconnect app">
                     <Button
-                        type="text"
-                        size="small"
-                        icon={<X size={12} />}
                         onClick={() => disconnectApp()}
                         aria-label="Disconnect app"
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<X size={12} />}
+                    </Button>
                 </Tooltip>
             )}
 

@@ -1,7 +1,8 @@
 import {memo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Trash} from "@phosphor-icons/react"
-import {Button, Input} from "antd"
+import {Input} from "antd"
 
 import {ModelNameInputProps} from "./types"
 
@@ -10,12 +11,14 @@ const ModelNameInput = ({onDelete, disabled, ...props}: ModelNameInputProps) => 
         <div className="w-full relative">
             <Input placeholder="Enter model name" className="w-full" {...props} />
             <Button
-                icon={<Trash size={14} />}
-                type="link"
                 className="absolute top-[1px] right-1"
                 onClick={onDelete}
                 disabled={disabled}
-            />
+                variant="link"
+                size="icon"
+            >
+                {<Trash size={14} />}
+            </Button>
         </div>
     )
 }

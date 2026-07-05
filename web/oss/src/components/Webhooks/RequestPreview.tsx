@@ -1,7 +1,8 @@
 import {type FC, ReactNode, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CheckOutlined, CopyOutlined} from "@ant-design/icons"
-import {Button, Form, FormInstance, Tooltip} from "antd"
+import {Form, FormInstance, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
 import {WebhookFormValues} from "@/oss/services/webhooks/types"
@@ -114,11 +115,13 @@ export const RequestPreview: FC<Props> = ({form}) => {
 
             <Tooltip title={copied ? "Copied!" : "Copy request"}>
                 <Button
-                    type="text"
-                    icon={copied ? <CheckOutlined style={{color: "#98c379"}} /> : <CopyOutlined />}
                     className="absolute right-2 top-2 text-[var(--color-text-tertiary)] hover:bg-transparent hover:text-[var(--color-text-primary)]"
                     onClick={handleCopy}
-                />
+                    variant="ghost"
+                    size="icon"
+                >
+                    {copied ? <CheckOutlined style={{color: "#98c379"}} /> : <CopyOutlined />}
+                </Button>
             </Tooltip>
 
             <div className="mb-3">

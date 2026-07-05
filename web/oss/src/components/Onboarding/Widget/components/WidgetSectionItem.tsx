@@ -1,7 +1,8 @@
 import {memo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowRight, CheckCircle, CircleDashed} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 
 import type {OnboardingWidgetItem} from "@/oss/lib/onboarding"
@@ -56,15 +57,16 @@ const WidgetSectionItem = memo(function WidgetSectionItem({
                 <span className="flex-1 font-medium text-colorText">{item.title}</span>
                 {!isCompleted && (
                     <Button
-                        type="text"
-                        size="small"
                         className="flex h-[34px] w-[34px] shrink-0 items-center justify-center !rounded-[10px] !p-0"
-                        icon={<ArrowRight size={16} className="text-colorText" />}
                         onClick={(e) => {
                             e.stopPropagation()
                             onItemClick(item)
                         }}
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<ArrowRight size={16} className="text-colorText" />}
+                    </Button>
                 )}
             </div>
         </Tooltip>

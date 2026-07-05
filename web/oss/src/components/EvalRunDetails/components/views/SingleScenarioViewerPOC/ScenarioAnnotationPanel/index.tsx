@@ -1,9 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Card} from "antd"
+import {Card} from "antd"
 import {useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
@@ -467,12 +469,11 @@ const ScenarioAnnotationPanel = ({
                             onDismissError={dismissError}
                         />
                         <Button
-                            type="primary"
                             className="w-full"
-                            disabled={!canSubmit || isSubmitting}
-                            loading={isSubmitting}
+                            disabled={!canSubmit || isSubmitting || isSubmitting}
                             onClick={handleSave}
                         >
+                            {isSubmitting ? <Spinner /> : null}
                             Annotate
                         </Button>
                     </div>

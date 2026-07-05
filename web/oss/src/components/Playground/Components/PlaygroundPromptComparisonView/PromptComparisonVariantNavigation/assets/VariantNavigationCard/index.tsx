@@ -7,6 +7,7 @@ import {
     executionItemController,
     playgroundController,
 } from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import {VersionBadge} from "@agenta/ui"
 import {DraftTag} from "@agenta/ui/components"
@@ -14,7 +15,7 @@ import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
-import {Button, Tag} from "antd"
+import {Tag} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
@@ -186,7 +187,6 @@ const VariantNavigationCard = ({
                         )}
                     </div>
                     <Button
-                        type="text"
                         className="relative z-[2]"
                         onPointerDown={(e) => {
                             // Prevent drag activation when clicking the close button
@@ -197,6 +197,7 @@ const VariantNavigationCard = ({
                             e.stopPropagation()
                             handleClose()
                         }}
+                        variant="ghost"
                     >
                         <X size={14} />
                     </Button>

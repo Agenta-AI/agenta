@@ -6,9 +6,11 @@ import {
     updateHumanEvaluatorAtom,
     type HumanEvaluatorMetric,
 } from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
-import {Alert, Button, Form, Input} from "antd"
+import {Alert, Form, Input} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
@@ -368,13 +370,14 @@ const CreateEvaluator = ({
                         ))}
 
                         <Button
-                            icon={<Plus size={14} />}
                             className="w-fit"
                             onClick={() => {
                                 add()
                                 onScrollTo("bottom")
                             }}
+                            variant="outline"
                         >
+                            {<Plus size={14} />}
                             Add Feedback
                         </Button>
                     </div>
@@ -383,15 +386,14 @@ const CreateEvaluator = ({
 
             <div className="bg-[var(--ant-color-bg-container)] h-[50px] border-0 border-t border-solid border-[var(--ant-color-border-secondary)] flex items-center justify-end gap-2 sticky bottom-0 -mx-4 px-4 mt-auto shrink-0">
                 <Button
-                    type="primary"
                     className="w-fit"
                     onClick={(e) => {
                         e.preventDefault()
                         form.submit()
                     }}
-                    loading={isSubmitting}
-                    disabled={isSubmitDisabled}
+                    disabled={isSubmitDisabled || isSubmitting}
                 >
+                    {isSubmitting ? <Spinner /> : null}
                     {submitLabel}
                 </Button>
             </div>

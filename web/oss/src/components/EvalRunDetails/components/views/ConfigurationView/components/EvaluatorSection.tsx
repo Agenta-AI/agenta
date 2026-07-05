@@ -1,8 +1,9 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {EvaluatorDefinition} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {DownOutlined, PlusOutlined} from "@ant-design/icons"
-import {Alert, Button, Form, Segmented, Skeleton, Tag} from "antd"
+import {Alert, Form, Segmented, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -104,10 +105,11 @@ const EvaluatorSection = ({
             {canAddEvaluator ? (
                 <div className="mt-2">
                     <Button
-                        type="dashed"
-                        icon={<PlusOutlined />}
                         onClick={() => openEditDrawer(runId)}
+                        variant="outline"
+                        className="border-dashed"
                     >
+                        {<PlusOutlined />}
                         Add evaluator
                     </Button>
                 </div>
@@ -252,12 +254,9 @@ const EvaluatorCard = ({
                             onChange={(val) => setView(val as "details" | "json")}
                         />
                     ) : null}
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
-                        onClick={() => setCollapsed((v) => !v)}
-                    />
+                    <Button onClick={() => setCollapsed((v) => !v)} variant="ghost" size="icon-sm">
+                        {<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                    </Button>
                 </div>
             </div>
             {!collapsed ? (

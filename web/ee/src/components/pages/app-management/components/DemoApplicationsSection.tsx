@@ -1,4 +1,5 @@
-import {Button, Card, Flex, Space} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Card, Flex, Space} from "antd"
 import Image from "next/image"
 
 import {useOrgData} from "@/oss/state/org"
@@ -54,13 +55,22 @@ const DemoApplicationsSection = () => {
                         <Flex gap={8}>
                             <Button
                                 className="flex-1"
-                                // className="flex-[0.3]"
-                                target="_blank"
-                                href="https://agenta.ai/docs/tutorials/cookbooks/RAG-QA-docs"
+                                variant="outline"
+                                render={
+                                    <a
+                                        href="https://agenta.ai/docs/tutorials/cookbooks/RAG-QA-docs"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    />
+                                }
                             >
                                 Read Tutorial
                             </Button>
-                            <Button className="flex-[0.7] hidden" onClick={handleViewDemoSwitch}>
+                            <Button
+                                className="flex-[0.7] hidden"
+                                onClick={handleViewDemoSwitch}
+                                variant="outline"
+                            >
                                 View Demo
                             </Button>
                         </Flex>

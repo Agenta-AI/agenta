@@ -1,5 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Plus, X} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -90,15 +91,17 @@ const SessionTag = ({
             />
             {closable && (
                 <Button
-                    type="text"
                     aria-label="Close session"
-                    icon={<X size={12} />}
                     onClick={(e) => {
                         e.stopPropagation()
                         onClose()
                     }}
                     className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                />
+                    variant="ghost"
+                    size="icon"
+                >
+                    {<X size={12} />}
+                </Button>
             )}
         </div>
     )
@@ -163,12 +166,14 @@ const SessionTagBar = ({
                     {showSessions && (
                         <Tooltip title="New session">
                             <Button
-                                type="text"
                                 aria-label="New session"
-                                icon={<Plus size={14} />}
                                 onClick={onAdd}
                                 className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                            />
+                                variant="ghost"
+                                size="icon"
+                            >
+                                {<Plus size={14} />}
+                            </Button>
                         </Tooltip>
                     )}
                     {extra}

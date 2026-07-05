@@ -1,6 +1,6 @@
 import React from "react"
 
-import {Button} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
 
 import {LoadEvaluatorPresetFooterProps} from "../assets/types"
 
@@ -11,9 +11,11 @@ const LoadEvaluatorPresetFooter = ({
 }: LoadEvaluatorPresetFooterProps) => {
     return (
         <div className="flex items-center justify-end gap-2">
-            <Button onClick={() => onClose()}>Cancel</Button>
+            <Button onClick={() => onClose()} variant="outline">
+                Cancel
+            </Button>
 
-            <Button type="primary" disabled={!selectedPreset} onClick={handleLoadPreset}>
+            <Button disabled={!selectedPreset} onClick={handleLoadPreset}>
                 Load Preset
             </Button>
         </div>

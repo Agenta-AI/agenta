@@ -2,10 +2,11 @@ import {useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps} from "antd"
+import {Dropdown, MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
@@ -82,7 +83,9 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
 
     return (
         <Dropdown trigger={["click"]} styles={{root: {width: 170}}} menu={{items}} {...props}>
-            <Button icon={<MoreOutlined size={14} />} type="text" />
+            <Button variant="ghost" size="icon">
+                {<MoreOutlined size={14} />}
+            </Button>
         </Dropdown>
     )
 }

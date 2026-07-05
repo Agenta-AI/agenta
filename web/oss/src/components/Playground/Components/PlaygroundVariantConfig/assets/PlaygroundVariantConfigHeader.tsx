@@ -9,10 +9,11 @@ import {
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Trash} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -246,7 +247,7 @@ const PlaygroundVariantConfigHeader = ({
             <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
                 {extraActions}
                 {hasPresets && onLoadPreset && (
-                    <Button size="small" onClick={onLoadPreset}>
+                    <Button onClick={onLoadPreset} variant="outline" size="sm">
                         Load Preset
                     </Button>
                 )}
@@ -261,12 +262,12 @@ const PlaygroundVariantConfigHeader = ({
                         {!rawEntity?.meta?.__ephemeral && (
                             <Tooltip title="Discard draft">
                                 <Button
-                                    type="text"
-                                    size="small"
-                                    danger
-                                    icon={<Trash size={16} />}
                                     onClick={handleDiscardLocalDraft}
-                                />
+                                    variant="destructive"
+                                    size="icon-sm"
+                                >
+                                    {<Trash size={16} />}
+                                </Button>
                             </Tooltip>
                         )}
                     </>

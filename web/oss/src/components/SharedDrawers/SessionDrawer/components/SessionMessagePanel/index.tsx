@@ -1,8 +1,9 @@
 import {useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Collapse, CollapseProps, Tag} from "antd"
+import {Collapse, CollapseProps, Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -103,18 +104,16 @@ const SessionMessagePanel = ({
                                             <div className="flex items-center gap-2 my-1">
                                                 <div className="flex-1 border-t border-solid border-gray-100" />
                                                 <Button
-                                                    type="text"
-                                                    size="small"
                                                     onClick={() => setShowHidden(!showHidden)}
                                                     className="flex items-center gap-1 text-gray-400 hover:text-gray-600 hover:bg-transparent"
-                                                    icon={
-                                                        showHidden ? (
-                                                            <MinusOutlined />
-                                                        ) : (
-                                                            <PlusOutlined />
-                                                        )
-                                                    }
+                                                    variant="ghost"
+                                                    size="sm"
                                                 >
+                                                    {showHidden ? (
+                                                        <MinusOutlined />
+                                                    ) : (
+                                                        <PlusOutlined />
+                                                    )}
                                                     {showHidden
                                                         ? "Hide first messages"
                                                         : "Show all messages"}

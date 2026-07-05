@@ -1,9 +1,10 @@
 import {useMemo} from "react"
 
 import {evaluatorsListDataAtom, resolveOutputSchemaProperties} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {ChatText} from "@phosphor-icons/react"
-import {Badge, Button, Flex, Space, Table} from "antd"
+import {Badge, Flex, Space, Table} from "antd"
 import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -158,17 +159,17 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
             return (
                 <Flex align="center" gap={10}>
                     <Button
-                        size="small"
                         className="!w-[16px] !h-4 !p-0.5 !rounded-sm flex items-center justify-center"
-                        icon={
-                            expanded ? (
-                                <MinusOutlined className="w-3 h-3 mt-0.5" />
-                            ) : (
-                                <PlusOutlined className="w-3 h-3 mt-0.5" />
-                            )
-                        }
                         onClick={(e) => onExpand(record, e)}
-                    />
+                        variant="outline"
+                        size="icon-sm"
+                    >
+                        {expanded ? (
+                            <MinusOutlined className="w-3 h-3 mt-0.5" />
+                        ) : (
+                            <PlusOutlined className="w-3 h-3 mt-0.5" />
+                        )}
+                    </Button>
                     <div className="flex items-center gap-1.5">
                         <ChatText size={16} />
                         <Badge

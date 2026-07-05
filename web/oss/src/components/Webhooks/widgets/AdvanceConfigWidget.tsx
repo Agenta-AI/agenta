@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {Button, Collapse, Form, Input, Select} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Collapse, Form, Input, Select} from "antd"
 
 const {Option} = Select
 
@@ -42,13 +43,13 @@ export const AdvanceConfigWidget = ({isEditMode}: {isEditMode: boolean}) => {
                                 </span>
                                 {isEditMode && !isChangingAuthValue && (
                                     <Button
-                                        type="link"
-                                        size="small"
                                         className="!p-0"
                                         onClick={() => {
                                             setIsChangingAuthValue(true)
                                             form.setFieldValue("auth_value", undefined)
                                         }}
+                                        variant="link"
+                                        size="sm"
                                     >
                                         Change token
                                     </Button>

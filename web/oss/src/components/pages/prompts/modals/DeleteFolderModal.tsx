@@ -1,9 +1,10 @@
 import React from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {FolderFilled} from "@ant-design/icons"
 import {TrashIcon} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 interface DeleteFolderModalProps {
     open: boolean
@@ -36,14 +37,12 @@ const DeleteFolderModal = ({
                 </div>
 
                 <div className="mt-4 flex justify-end gap-2">
-                    <Button onClick={onCancel}>Cancel</Button>
-                    <Button
-                        type="primary"
-                        danger
-                        icon={<TrashIcon size={16} />}
-                        onClick={onConfirm}
-                        loading={confirmLoading}
-                    >
+                    <Button onClick={onCancel} variant="outline">
+                        Cancel
+                    </Button>
+                    <Button onClick={onConfirm} variant="destructive" disabled={confirmLoading}>
+                        {confirmLoading ? <Spinner /> : null}
+                        {<TrashIcon size={16} />}
                         Delete
                     </Button>
                 </div>

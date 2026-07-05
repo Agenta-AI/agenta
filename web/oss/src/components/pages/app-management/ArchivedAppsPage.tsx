@@ -1,6 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {PageLayout} from "@agenta/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
@@ -17,13 +17,14 @@ export default function ArchivedAppsPage() {
     const title = (
         <span className="inline-flex items-center gap-2">
             <Button
-                type="text"
-                size="small"
-                icon={<ArrowLeft size={16} />}
                 onClick={() => router.push(baseAppURL)}
                 className="!px-1"
                 aria-label="Back to apps"
-            />
+                variant="ghost"
+                size="icon-sm"
+            >
+                {<ArrowLeft size={16} />}
+            </Button>
             <span>Archived Apps</span>
         </span>
     )

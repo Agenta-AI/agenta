@@ -7,12 +7,13 @@ import {
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {workflowRevisionDrawerNavigationIdsAtom} from "@agenta/playground-ui/workflow-revision-drawer"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowLeft, ChartDonutIcon, ListChecksIcon, Tray} from "@phosphor-icons/react"
-import {Button, Input, Space} from "antd"
+import {Input, Space} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -443,13 +444,14 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
         return (
             <span className="inline-flex items-center gap-2">
                 <Button
-                    type="text"
-                    size="small"
-                    icon={<ArrowLeft size={16} />}
                     onClick={() => router.push(`${projectURL}/evaluators`)}
                     className="!px-1"
                     aria-label="Back to evaluators"
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<ArrowLeft size={16} />}
+                </Button>
                 <span>Archived Evaluators</span>
             </span>
         )
@@ -481,33 +483,32 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             return (
                 <Space>
                     {selectedRowKeys.length > 0 ? (
-                        <Button danger icon={<Tray size={14} />} onClick={handleBulkArchive}>
+                        <Button onClick={handleBulkArchive} variant="destructive">
+                            {<Tray size={14} />}
                             Archive
                         </Button>
                     ) : (
                         <Button
-                            icon={<Tray size={14} />}
                             onClick={() =>
                                 router.push(`${projectURL}/evaluators/archived?tab=${activeTab}`)
                             }
-                            type="text"
+                            variant="ghost"
                         >
+                            {<Tray size={14} />}
                             Archived
                         </Button>
                     )}
                     {activeTab === "human" ? (
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={handleOpenHumanDrawer}
-                        >
+                        <Button onClick={handleOpenHumanDrawer}>
+                            {<PlusOutlined />}
                             Create new
                         </Button>
                     ) : (
                         <EvaluatorTemplateDropdown
                             onSelect={handleSelectTemplate}
                             trigger={
-                                <Button type="primary" icon={<PlusOutlined />}>
+                                <Button>
+                                    {<PlusOutlined />}
                                     Create new
                                 </Button>
                             }

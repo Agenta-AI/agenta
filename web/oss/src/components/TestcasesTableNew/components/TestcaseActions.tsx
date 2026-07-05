@@ -1,6 +1,8 @@
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {PlusOutlined, UploadOutlined} from "@ant-design/icons"
 import {ListChecks} from "@phosphor-icons/react"
-import {Button, Space, Tooltip} from "antd"
+import {Space, Tooltip} from "antd"
 import dynamic from "next/dynamic"
 
 const AddToQueuePopover = dynamic(
@@ -61,20 +63,26 @@ export function TestcaseActions(props: TestcaseActionsProps) {
     return (
         <Space>
             {hasUnsavedChanges && (
-                <Button onClick={onDiscard} disabled={mode === "view" || isNewTestset}>
+                <Button
+                    onClick={onDiscard}
+                    disabled={mode === "view" || isNewTestset}
+                    variant="outline"
+                >
                     Discard
                 </Button>
             )}
             <Tooltip title="Import CSV/JSON file as new revision">
                 <Button
                     onClick={onImportCSV}
-                    icon={<UploadOutlined />}
                     disabled={mode === "view" || isNewTestset}
+                    variant="outline"
                 >
+                    {<UploadOutlined />}
                     Import
                 </Button>
             </Tooltip>
-            <Button onClick={onAddTestcase} icon={<PlusOutlined />} disabled={mode === "view"}>
+            <Button onClick={onAddTestcase} disabled={mode === "view"} variant="outline">
+                {<PlusOutlined />}
                 Add row
             </Button>
             <AddToQueuePopover
@@ -82,16 +90,13 @@ export function TestcaseActions(props: TestcaseActionsProps) {
                 itemIds={effectiveQueueIds}
                 disabled={isQueueActionDisabled}
             >
-                <Button icon={<ListChecks size={14} />} disabled={isQueueActionDisabled}>
+                <Button disabled={isQueueActionDisabled} variant="outline">
+                    {<ListChecks size={14} />}
                     Add annotation queue
                 </Button>
             </AddToQueuePopover>
-            <Button
-                type="primary"
-                onClick={onCommit}
-                loading={isSaving}
-                disabled={!hasUnsavedChanges || mode === "view"}
-            >
+            <Button onClick={onCommit} disabled={!hasUnsavedChanges || mode === "view" || isSaving}>
+                {isSaving ? <Spinner /> : null}
                 Commit
             </Button>
         </Space>

@@ -1,7 +1,8 @@
 import {memo, useCallback, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {QuestionCircleOutlined} from "@ant-design/icons"
-import {Button, Flex, Form, InputNumber, Tooltip} from "antd"
+import {Flex, Form, InputNumber, Tooltip} from "antd"
 import deepEqual from "fast-deep-equal"
 
 import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
@@ -45,10 +46,10 @@ const AdvancedSettings = ({advanceSettings, setAdvanceSettings}: AdvancedSetting
                             <span className="text-md font-medium">Concurrency</span>
                             {isAdvancedSettingsChanged && (
                                 <Button
-                                    danger
                                     className="w-fit"
-                                    size="small"
                                     onClick={handleResetDefaults}
+                                    variant="destructive"
+                                    size="sm"
                                 >
                                     Reset changes
                                 </Button>

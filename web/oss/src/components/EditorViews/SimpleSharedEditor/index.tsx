@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {
     EditorProvider,
     useLexicalComposerContext,
@@ -20,7 +21,7 @@ import {
     MarkdownLogo,
     TextAa,
 } from "@phosphor-icons/react"
-import {Button, MenuProps} from "antd"
+import {MenuProps} from "antd"
 import clsx from "clsx"
 import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
@@ -229,8 +230,8 @@ const SimpleSharedEditorContent = ({
                                         "capitalize flex items-center gap-1",
                                         {"!uppercase": isJSON || isYAML || isHTML},
                                     ])}
-                                    size="small"
-                                    type="text"
+                                    variant="ghost"
+                                    size="sm"
                                 >
                                     {language} <CaretUpDown size={14} />
                                 </Button>

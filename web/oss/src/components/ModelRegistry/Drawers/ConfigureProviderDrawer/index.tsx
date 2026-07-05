@@ -1,5 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Form} from "antd"
+import {Form} from "antd"
 import dynamic from "next/dynamic"
 
 import {ConfigureProviderDrawerProps} from "./assets/types"
@@ -28,10 +29,10 @@ const ConfigureProviderDrawer = ({selectedProvider, ...props}: ConfigureProvider
             onClose={onClose}
             footer={
                 <div className="flex justify-end items-center gap-2 py-2 px-3">
-                    <Button onClick={onClose}>Cancel</Button>
-                    <Button type="primary" onClick={() => form.submit()}>
-                        Submit
+                    <Button onClick={onClose} variant="outline">
+                        Cancel
                     </Button>
+                    <Button onClick={() => form.submit()}>Submit</Button>
                 </div>
             }
             {...props}

@@ -1,5 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {MagnifyingGlass} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import {useSetAtom} from "jotai"
 
 import {openSessionInspectorAtom} from "./store"
@@ -13,13 +14,14 @@ const SessionInspectorButton = ({sessionId}: {sessionId: string | null}) => {
     return (
         <Tooltip title={tooltip}>
             <Button
-                type="text"
-                size="small"
-                icon={<MagnifyingGlass size={16} />}
                 aria-label="Inspect session"
                 disabled={!sessionId}
                 onClick={() => sessionId && open(sessionId)}
-            />
+                variant="ghost"
+                size="icon-sm"
+            >
+                {<MagnifyingGlass size={16} />}
+            </Button>
         </Tooltip>
     )
 }

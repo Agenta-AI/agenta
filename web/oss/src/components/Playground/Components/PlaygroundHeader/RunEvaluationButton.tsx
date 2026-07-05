@@ -1,8 +1,9 @@
 import {memo, useState} from "react"
 
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Flask} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -44,14 +45,14 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
                 }
             >
                 <Button
-                    type="text"
-                    icon={<Flask size={14} />}
                     className={clsx("self-start", className)}
                     disabled={isDisabled}
                     data-tour="run-evaluation-button"
                     onClick={() => setIsModalOpen(true)}
-                    size="small"
+                    variant="ghost"
+                    size="sm"
                 >
+                    {<Flask size={14} />}
                     New Evaluation
                 </Button>
             </Tooltip>

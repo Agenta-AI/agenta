@@ -1,9 +1,10 @@
 import {useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedModal, type EnhancedModalProps} from "@agenta/ui/components/modal"
 import {CloseOutlined, LinkOutlined} from "@ant-design/icons"
 import {Book, Play} from "@phosphor-icons/react"
-import {Button, Tabs, TabsProps} from "antd"
+import {Tabs, TabsProps} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
@@ -121,12 +122,16 @@ export const SetupTracingModalContent = ({
                         libraries.
                     </span>
                     <Button
-                        type="primary"
-                        size="large"
-                        icon={<Book size={16} className="mt-1" />}
-                        href="https://agenta.ai/docs/observability/overview#integrations"
-                        target="_blank"
+                        size="lg"
+                        render={
+                            <a
+                                href="https://agenta.ai/docs/observability/overview#integrations"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            />
+                        }
                     >
+                        {<Book size={16} className="mt-1" />}
                         View All Integrations
                     </Button>
                 </div>
@@ -138,28 +143,38 @@ export const SetupTracingModalContent = ({
         <div className="h-full flex flex-col">
             {isModal && (
                 <div className={modalHeaderClass}>
-                    <Button
-                        onClick={() => props.onCancel?.({} as any)}
-                        type="text"
-                        icon={<CloseOutlined />}
-                    />
+                    <Button onClick={() => props.onCancel?.({} as any)} variant="ghost" size="icon">
+                        {<CloseOutlined />}
+                    </Button>
                     <span className="flex-1 text-sm font-medium leading-[1.5714285714285714]">
                         Set up tracing
                     </span>
 
                     <div className="flex gap-2 items-center">
                         <Button
-                            icon={<Play size={16} className="mt-1" />}
-                            href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
-                            target="_blank"
+                            variant="outline"
+                            render={
+                                <a
+                                    href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                />
+                            }
                         >
+                            {<Play size={16} className="mt-1" />}
                             Run in colab
                         </Button>
                         <Button
-                            target="_blank"
-                            href="https://agenta.ai/docs/observability/observability-sdk"
-                            icon={<Book size={16} className="mt-1" />}
+                            variant="outline"
+                            render={
+                                <a
+                                    href="https://agenta.ai/docs/observability/observability-sdk"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                />
+                            }
                         >
+                            {<Book size={16} className="mt-1" />}
                             Read the docs
                         </Button>
                     </div>
@@ -172,17 +187,29 @@ export const SetupTracingModalContent = ({
                         {isPostLogin && (
                             <div className="flex items-center gap-2">
                                 <Button
-                                    icon={<Play size={16} className="mt-1" />}
-                                    href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
-                                    target="_blank"
+                                    variant="outline"
+                                    render={
+                                        <a
+                                            href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        />
+                                    }
                                 >
+                                    {<Play size={16} className="mt-1" />}
                                     Run in colab
                                 </Button>
                                 <Button
-                                    icon={<Book size={16} className="mt-1" />}
-                                    href="https://agenta.ai/docs/observability/quickstart-python"
-                                    target="_blank"
+                                    variant="outline"
+                                    render={
+                                        <a
+                                            href="https://agenta.ai/docs/observability/quickstart-python"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        />
+                                    }
                                 >
+                                    {<Book size={16} className="mt-1" />}
                                     Read the docs
                                 </Button>
                             </div>

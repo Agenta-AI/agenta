@@ -1,8 +1,9 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyButton} from "@agenta/ui"
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Dropdown, MenuProps, Space} from "antd"
+import {Dropdown, MenuProps, Space} from "antd"
 
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
 import {LanguageItem} from "@/oss/lib/Types"
@@ -38,7 +39,7 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({codeSnippets}) => {
 
                 {selectedLanguage && (
                     <Dropdown menu={{items, onClick: handleMenuClick}} placement="bottomLeft">
-                        <Button size="small">
+                        <Button variant="outline" size="sm">
                             <Space>
                                 {selectedLanguage.displayName}
                                 <DownOutlined />

@@ -1,10 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Button, Input, Skeleton, Tag} from "antd"
+import {Input, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
@@ -158,23 +160,19 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                     <Button
-                        size="small"
                         onClick={() => {
                             setEditName(runName)
                             setEditDescription(runDescription)
                             setEditing(false)
                         }}
                         disabled={saving}
+                        variant="outline"
+                        size="sm"
                     >
                         Cancel
                     </Button>
-                    <Button
-                        type="primary"
-                        size="small"
-                        onClick={handleSave}
-                        loading={saving}
-                        disabled={!editName.trim()}
-                    >
+                    <Button onClick={handleSave} disabled={!editName.trim() || saving} size="sm">
+                        {saving ? <Spinner /> : null}
                         Save
                     </Button>
                 </div>
@@ -196,12 +194,8 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
                 ) : (
                     <span />
                 )}
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<PencilSimple size={13} />}
-                    onClick={() => setEditing(true)}
-                >
+                <Button onClick={() => setEditing(true)} variant="ghost" size="sm">
+                    {<PencilSimple size={13} />}
                     Edit
                 </Button>
             </div>

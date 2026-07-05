@@ -2,9 +2,10 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {useNextStep} from "@agentaai/nextstepjs"
 import {CaretDown, CaretUp, RocketLaunch, X} from "@phosphor-icons/react"
-import {Button, Collapse, message} from "antd"
+import {Collapse, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -462,25 +463,25 @@ const OnboardingWidgetContent = () => {
                 extra: (
                     <div className="flex gap-1">
                         <Button
-                            type="text"
-                            size="small"
                             className="flex h-6 w-6 items-center justify-center !p-1 !rounded-md"
-                            icon={
-                                isMinimized ? (
-                                    <CaretUp size={14} className="text-colorText" />
-                                ) : (
-                                    <CaretDown size={14} className="text-colorText" />
-                                )
-                            }
                             onClick={isMinimized ? expandWidget : minimizeWidget}
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {isMinimized ? (
+                                <CaretUp size={14} className="text-colorText" />
+                            ) : (
+                                <CaretDown size={14} className="text-colorText" />
+                            )}
+                        </Button>
                         <Button
-                            type="text"
-                            size="small"
                             className="flex h-6 w-6 items-center justify-center !p-1 !rounded-md"
-                            icon={<X size={14} className="text-colorText" />}
                             onClick={closeWidget}
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<X size={14} className="text-colorText" />}
+                        </Button>
                     </div>
                 ),
                 children: (

@@ -1,7 +1,8 @@
 import {useCallback, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {XIcon} from "@phosphor-icons/react"
-import {Button, message} from "antd"
+import {message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -112,12 +113,9 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
                     <span className="!text-xl !font-medium">Welcome,</span>
                     <span className="!text-[32px] !font-semibold">What do you want to do?</span>
                 </div>
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<XIcon size={16} className="text-[var(--ag-c-6B7280)]" />}
-                    onClick={dismissWelcomeCards}
-                />
+                <Button onClick={dismissWelcomeCards} variant="ghost" size="icon-sm">
+                    {<XIcon size={16} className="text-[var(--ag-c-6B7280)]" />}
+                </Button>
             </div>
             <div className="flex gap-4">
                 {welcomeCards.map((card) => (

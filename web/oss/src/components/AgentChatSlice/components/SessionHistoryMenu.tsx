@@ -1,7 +1,8 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ClockCounterClockwise, Trash} from "@phosphor-icons/react"
-import {Button, Empty, Popover, Tag, Tooltip} from "antd"
+import {Empty, Popover, Tag, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useChatScopeKey} from "../state/scope"
@@ -78,16 +79,17 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
                         )}
                         <Tooltip title="Delete session">
                             <Button
-                                type="text"
-                                size="small"
                                 aria-label="Delete session"
                                 className="!opacity-0 group-hover:!opacity-100"
-                                icon={<Trash size={14} />}
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     deleteSession(session.id)
                                 }}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<Trash size={14} />}
+                            </Button>
                         </Tooltip>
                     </div>
                 )
@@ -113,12 +115,9 @@ const SessionHistoryMenu = () => {
             content={<SessionHistoryList onPicked={() => setOpen(false)} />}
         >
             <Tooltip title="Session history">
-                <Button
-                    type="text"
-                    size="small"
-                    aria-label="Session history"
-                    icon={<ClockCounterClockwise size={16} />}
-                />
+                <Button aria-label="Session history" variant="ghost" size="icon-sm">
+                    {<ClockCounterClockwise size={16} />}
+                </Button>
             </Tooltip>
         </Popover>
     )

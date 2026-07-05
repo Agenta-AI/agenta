@@ -14,10 +14,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {PreviewPanelRenderProps} from "@agenta/playground-ui/components"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
-import {Button, Input} from "antd"
+import {Input} from "antd"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import TestcaseEditDrawer from "@/oss/components/SharedDrawers/TestcaseDrawer"
@@ -148,10 +149,11 @@ export function TestsetPreviewPanelWrapper({
 
     const actionsNode = isCreateMode ? (
         <div className="flex items-center gap-2">
-            <Button size="small" icon={<PlusOutlined />} onClick={handleAddRow}>
+            <Button onClick={handleAddRow} variant="outline" size="sm">
+                {<PlusOutlined />}
                 Add row
             </Button>
-            <Button size="small" onClick={() => setIsAddColumnModalOpen(true)}>
+            <Button onClick={() => setIsAddColumnModalOpen(true)} variant="outline" size="sm">
                 Add column
             </Button>
         </div>
@@ -242,14 +244,11 @@ export function TestsetPreviewPanelWrapper({
                             setIsAddColumnModalOpen(false)
                             setNewColumnName("")
                         }}
+                        variant="outline"
                     >
                         Cancel
                     </Button>
-                    <Button
-                        type="primary"
-                        onClick={handleConfirmAddColumn}
-                        disabled={!newColumnName.trim()}
-                    >
+                    <Button onClick={handleConfirmAddColumn} disabled={!newColumnName.trim()}>
                         OK
                     </Button>
                 </ModalFooter>

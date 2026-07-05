@@ -1,10 +1,11 @@
 import {ComponentProps, Dispatch, SetStateAction} from "react"
 
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CommitMessageInput} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined} from "@ant-design/icons"
-import {Button, Space} from "antd"
+import {Space} from "antd"
 
 import type {DeploymentVariantInfo} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 
@@ -73,11 +74,9 @@ const DeploymentConfirmationModal = ({
                     <span className="text-lg font-medium leading-relaxed capitalize">
                         {actionText} {envName}
                     </span>
-                    <Button
-                        onClick={() => props.onCancel?.({} as any)}
-                        type="text"
-                        icon={<CloseOutlined />}
-                    />
+                    <Button onClick={() => props.onCancel?.({} as any)} variant="ghost" size="icon">
+                        {<CloseOutlined />}
+                    </Button>
                 </div>
             }
             okText={actionText}

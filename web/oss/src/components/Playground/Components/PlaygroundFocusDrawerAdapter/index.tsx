@@ -16,8 +16,8 @@ import {
     closePlaygroundFocusDrawerAtom,
     playgroundFocusDrawerAtom,
 } from "@agenta/playground-ui/state"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ListChecks} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -212,11 +212,8 @@ const PlaygroundFocusDrawerAdapter = () => {
                 itemIds={itemIds}
                 disabled={itemIds.length === 0}
             >
-                <Button
-                    size="small"
-                    icon={<ListChecks size={14} />}
-                    disabled={itemIds.length === 0}
-                >
+                <Button disabled={itemIds.length === 0} variant="outline" size="sm">
+                    {<ListChecks size={14} />}
                     Add to queue
                 </Button>
             </AddToQueuePopover>

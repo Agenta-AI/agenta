@@ -17,6 +17,7 @@
 
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {AppstoreOutlined} from "@ant-design/icons"
 import {
     CaretDownIcon,
@@ -25,7 +26,7 @@ import {
     GavelIcon,
     TreeViewIcon,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, theme} from "antd"
+import {Dropdown, theme} from "antd"
 import type {GlobalToken} from "antd"
 import clsx from "clsx"
 
@@ -274,12 +275,13 @@ const RunOnSelector = ({mode, onPick}: RunOnSelectorProps) => {
             popupRender={() => overlay}
         >
             <Button
-                size="small"
                 className="flex items-center gap-1.5 font-medium"
                 style={{
                     background: token.colorPrimaryBg,
                     borderColor: token.colorPrimaryBorder,
                 }}
+                variant="outline"
+                size="sm"
             >
                 <span className="font-normal" style={{color: token.colorTextTertiary}}>
                     Run on:

@@ -5,10 +5,11 @@ import {
     evaluatorTemplatesQueryAtom,
     type EvaluatorCatalogTemplate,
 } from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Empty, Popover, Skeleton, Tabs, Tag} from "antd"
+import {Empty, Popover, Skeleton, Tabs, Tag} from "antd"
 import type {PopoverProps} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -175,7 +176,7 @@ const EvaluatorTemplateDropdown = ({
         </div>
     )
 
-    const defaultTrigger = <Button icon={<PlusOutlined />}>Create new evaluator</Button>
+    const defaultTrigger = <Button variant="outline">{<PlusOutlined />}Create new evaluator</Button>
 
     return (
         <Popover

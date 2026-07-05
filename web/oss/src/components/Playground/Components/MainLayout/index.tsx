@@ -17,7 +17,8 @@ import {
 import ExecutionItems, {
     type PlaygroundGenerationsProps,
 } from "@agenta/playground-ui/execution-items"
-import {Button, Splitter} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Splitter} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -245,7 +246,7 @@ const PlaygroundMainView = ({
                     <span className="mb-3 text-[14px]">
                         Playground is unable to communicate with the service
                     </span>
-                    <Button>Try again</Button>
+                    <Button variant="outline">Try again</Button>
                 </div>
             </main>
         )

@@ -6,10 +6,12 @@ import {
     type AppType,
 } from "@agenta/entities/workflow"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Popover, message} from "antd"
+import {Popover, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {getAppTypeIcon} from "../../../prompts/assets/iconHelpers"
@@ -183,12 +185,9 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
     )
 
     const defaultTrigger = (
-        <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            loading={isPending}
-            data-testid="create-app-dropdown-trigger"
-        >
+        <Button data-testid="create-app-dropdown-trigger" disabled={isPending}>
+            {isPending ? <Spinner /> : null}
+            {<PlusOutlined />}
             Create New Prompt
         </Button>
     )

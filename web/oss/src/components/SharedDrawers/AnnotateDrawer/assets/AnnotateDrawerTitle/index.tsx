@@ -1,10 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {CaretLeft, Plus} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -245,11 +246,13 @@ const AnnotateDrawerTitle = ({
         <section className="w-full flex items-center justify-between" data-tour="annotate-drawer">
             <div className="flex items-center gap-2">
                 <Button
-                    type="text"
-                    icon={<CaretLeft size={14} />}
                     onClick={() => onClickPrev(steps)}
                     data-tour="annotate-drawer-close"
-                />
+                    variant="ghost"
+                    size="icon"
+                >
+                    {<CaretLeft size={14} />}
+                </Button>
                 {steps === AnnotateDrawerSteps.ANNOTATE || showOnly?.annotateUi ? (
                     <span className="text-sm font-medium">Annotate</span>
                 ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS ||
@@ -266,19 +269,19 @@ const AnnotateDrawerTitle = ({
             {steps === AnnotateDrawerSteps.ANNOTATE || showOnly?.annotateUi ? (
                 <div className="flex items-center gap-2">
                     <Button
-                        icon={<Plus size={14} />}
                         onClick={() => onClickNext(AnnotateDrawerSteps.SELECT_EVALUATORS)}
                         data-tour="annotation-add-evaluator"
+                        variant="outline"
                     >
+                        {<Plus size={14} />}
                         Add Evaluator
                     </Button>
                     <Button
-                        type="primary"
                         onClick={onSaveChanges}
-                        loading={isSaving}
-                        disabled={isChangedMetricData && isChangedSelectedEvalMetrics}
+                        disabled={(isChangedMetricData && isChangedSelectedEvalMetrics) || isSaving}
                         data-tour="annotation-submit"
                     >
+                        {isSaving ? <Spinner /> : null}
                         Save
                     </Button>
                 </div>
@@ -287,15 +290,13 @@ const AnnotateDrawerTitle = ({
                     <Button
                         onClick={() => onClickNext(AnnotateDrawerSteps.ANNOTATE)}
                         disabled={selectedEvaluators.length === 0}
+                        variant="outline"
                     >
                         Annotate
                     </Button>
 
-                    <Button
-                        type="primary"
-                        icon={<Plus size={14} />}
-                        onClick={() => onClickNext(AnnotateDrawerSteps.CREATE_EVALUATOR)}
-                    >
+                    <Button onClick={() => onClickNext(AnnotateDrawerSteps.CREATE_EVALUATOR)}>
+                        {<Plus size={14} />}
                         Create
                     </Button>
                 </div>

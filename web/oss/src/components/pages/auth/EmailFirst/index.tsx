@@ -1,6 +1,8 @@
 import {useState} from "react"
 
-import {Button, Form, Input} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Form, Input} from "antd"
 
 import ShowErrorMessage from "../assets/ShowErrorMessage"
 
@@ -51,14 +53,8 @@ const EmailFirst = ({email, setEmail, onContinue, message, disabled}: EmailFirst
                     />
                 </Form.Item>
 
-                <Button
-                    size="large"
-                    type="primary"
-                    htmlType="submit"
-                    className="w-full"
-                    loading={isLoading}
-                    disabled={disabled}
-                >
+                <Button className="w-full" disabled={disabled || isLoading} size="lg" type="submit">
+                    {isLoading ? <Spinner /> : null}
                     Continue
                 </Button>
                 {message.type === "error" && (

@@ -1,6 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Phone, SlackLogo} from "@phosphor-icons/react"
-import {Button} from "antd"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -37,18 +37,22 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
                 </div>
 
                 <div className="flex items-center justify-end gap-2 mt-5">
-                    <Button onClick={() => props.onCancel?.({} as any)}>Cancel</Button>
+                    <Button onClick={() => props.onCancel?.({} as any)} variant="outline">
+                        Cancel
+                    </Button>
                     <Link
                         href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw"
                         target="_blank"
                     >
-                        <Button icon={<SlackLogo size={14} className="mt-0.5" />}>
+                        <Button variant="outline">
+                            {<SlackLogo size={14} className="mt-0.5" />}
                             Visit slack
                         </Button>
                     </Link>
 
                     <Link href="https://cal.com/mahmoud-mabrouk-ogzgey/30min" target="_blank">
-                        <Button type="primary" icon={<Phone size={14} className="mt-0.5" />}>
+                        <Button>
+                            {<Phone size={14} className="mt-0.5" />}
                             Schedule a call
                         </Button>
                     </Link>

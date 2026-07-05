@@ -28,6 +28,7 @@ import {
     type PreviewPanelRenderProps,
     type TestsetSelectionPayload,
 } from "@agenta/playground-ui/components"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {message} from "@agenta/ui/app-message"
 import {
     ArrowsLeftRightIcon,
@@ -39,7 +40,7 @@ import {
     XCircleIcon,
 } from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Dropdown} from "antd"
+import {Dropdown} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -588,10 +589,11 @@ export function TestsetDropdown() {
         <>
             <Dropdown menu={{items: menuItems}} trigger={["click"]} placement="bottomRight">
                 <Button
-                    size="small"
-                    icon={<DatabaseIcon size={14} />}
                     className="flex items-center gap-1 max-w-[160px]"
+                    variant="outline"
+                    size="sm"
                 >
+                    {<DatabaseIcon size={14} />}
                     <span className="truncate">{buttonLabel}</span>
                     <CaretDownIcon size={12} />
                 </Button>

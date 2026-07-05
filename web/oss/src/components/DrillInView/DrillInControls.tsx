@@ -1,5 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 
 import {AddPropertyForm} from "./AddPropertyForm"
 import type {PropertyType} from "./AddPropertyForm"
@@ -31,12 +32,13 @@ export function DrillInControls({
             {currentPathDataType === "array" && (
                 <Tooltip title="Add item">
                     <Button
-                        type="text"
-                        size="small"
-                        icon={<Plus size={14} />}
                         onClick={onAddArrayItem}
                         className="!px-2"
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<Plus size={14} />}
+                    </Button>
                 </Tooltip>
             )}
             {currentPathDataType === "object" && (

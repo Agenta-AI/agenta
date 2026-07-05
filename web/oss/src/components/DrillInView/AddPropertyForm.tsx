@@ -1,7 +1,8 @@
 import {useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Input, Popover, Select, Tooltip} from "antd"
+import {Input, Popover, Select, Tooltip} from "antd"
 
 export type PropertyType = "string" | "number" | "boolean" | "object" | "array"
 
@@ -68,10 +69,10 @@ export function AddPropertyForm({onAdd, mode = "inline"}: AddPropertyFormProps) 
                 style={{width: 90}}
                 options={propertyTypeOptions}
             />
-            <Button type="primary" size="small" onClick={handleAdd} disabled={!name.trim()}>
+            <Button onClick={handleAdd} disabled={!name.trim()} size="sm">
                 Add
             </Button>
-            <Button type="text" size="small" onClick={handleCancel}>
+            <Button onClick={handleCancel} variant="ghost" size="sm">
                 Cancel
             </Button>
         </div>
@@ -115,12 +116,13 @@ export function AddPropertyForm({onAdd, mode = "inline"}: AddPropertyFormProps) 
             ) : (
                 <Tooltip title="Add property">
                     <Button
-                        type="text"
-                        size="small"
-                        icon={<Plus size={14} />}
                         onClick={() => setOpen(true)}
                         className="!px-2"
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<Plus size={14} />}
+                    </Button>
                 </Tooltip>
             )}
         </div>

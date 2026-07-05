@@ -12,8 +12,9 @@ import {
     ConnectionStatusBadge,
     ToolExecutionDrawer,
 } from "@agenta/entity-ui/gatewayTool"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Play, Plus} from "@phosphor-icons/react"
-import {Button, Collapse, Empty, Spin, Tag, Tooltip} from "antd"
+import {Collapse, Empty, Spin, Tag, Tooltip} from "antd"
 import {useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -45,12 +46,12 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
             <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-[var(--ag-c-888)]">GATEWAY TOOLS</span>
                 <Button
-                    type="text"
-                    size="small"
-                    icon={<Plus size={12} />}
                     onClick={() => setCatalogOpen(true)}
                     className="text-xs"
+                    variant="ghost"
+                    size="sm"
                 >
+                    {<Plus size={12} />}
                     Add
                 </Button>
             </div>
@@ -162,16 +163,17 @@ function ConnectionRow({connection, onTest}: {connection: ToolConnection; onTest
             <ConnectionStatusBadge connection={connection} />
             <Tooltip title="Test">
                 <Button
-                    type="text"
-                    size="small"
                     aria-label="Test connection"
-                    icon={<Play size={12} />}
                     disabled={!isReady}
                     onClick={(e) => {
                         e.stopPropagation()
                         onTest()
                     }}
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<Play size={12} />}
+                </Button>
             </Tooltip>
         </div>
     )

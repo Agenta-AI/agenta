@@ -1,5 +1,5 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Button} from "antd"
 import clsx from "clsx"
 
 const ConfigurationView = () => {
@@ -7,7 +7,7 @@ const ConfigurationView = () => {
         <div className={clsx(["flex-1 flex flex-col gap-6"])}>
             <div className={clsx(["flex items-center justify-between"])}>
                 <span className="font-medium text-sm">Configuration</span>
-                <Button>Revert</Button>
+                <Button variant="outline">Revert</Button>
             </div>
 
             <SharedEditor

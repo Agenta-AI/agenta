@@ -1,6 +1,6 @@
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {TreeStructure} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {Table} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {getDefaultStore} from "jotai"
@@ -25,8 +25,8 @@ export const getAnnotationTableColumns = (
             }),
             render: (_, record) => {
                 return (
-                    <Button
-                        icon={
+                    <Button variant="outline" size="icon-sm">
+                        {
                             <TreeStructure
                                 size={14}
                                 onClick={() => {
@@ -39,8 +39,7 @@ export const getAnnotationTableColumns = (
                                 }}
                             />
                         }
-                        size="small"
-                    />
+                    </Button>
                 )
             },
         },

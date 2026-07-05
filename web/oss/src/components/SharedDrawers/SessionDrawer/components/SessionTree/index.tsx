@@ -1,7 +1,8 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {MagnifyingGlass, SlidersHorizontal} from "@phosphor-icons/react"
-import {Button, Divider, Input, Popover} from "antd"
+import {Divider, Input, Popover} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
@@ -175,7 +176,9 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
                     }
                     placement="bottomRight"
                 >
-                    <Button icon={<SlidersHorizontal size={14} />} type="text" size="small" />
+                    <Button variant="ghost" size="icon-sm">
+                        {<SlidersHorizontal size={14} />}
+                    </Button>
                 </Popover>
             </div>
             <Divider orientation="horizontal" className="m-0" />

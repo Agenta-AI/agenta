@@ -2,11 +2,12 @@ import {useCallback, useEffect, useMemo} from "react"
 
 import {probeEndpointPath} from "@agenta/entities/shared/openapi"
 import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {removeTrailingSlash} from "@agenta/shared/utils"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CloseOutlined} from "@ant-design/icons"
 import {Scroll} from "@phosphor-icons/react"
-import {Space, Button, notification} from "antd"
+import {Space, notification} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {updateVariant} from "@/oss/services/app-selector/api"
@@ -184,12 +185,15 @@ const CustomWorkflowModalContent = ({
                             target="_blank"
                             rel="noreferrer"
                         >
-                            <Button icon={<Scroll size={14} className="mt-[2px]" />} size="small">
+                            <Button variant="outline" size="sm">
+                                {<Scroll size={14} className="mt-[2px]" />}
                                 Tutorial
                             </Button>
                         </a>
                     )}
-                    <Button onClick={onCancel} type="text" icon={<CloseOutlined />} />
+                    <Button onClick={onCancel} variant="ghost" size="icon">
+                        {<CloseOutlined />}
+                    </Button>
                 </Space>
             </div>
 

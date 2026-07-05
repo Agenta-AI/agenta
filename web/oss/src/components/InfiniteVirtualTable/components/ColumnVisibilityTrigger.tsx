@@ -1,8 +1,9 @@
 import type {MouseEvent, ReactNode} from "react"
 import {useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {GearSix} from "@phosphor-icons/react"
-import {Button, Checkbox, Divider, Popover, Space, Tooltip} from "antd"
+import {Checkbox, Divider, Popover, Space, Tooltip} from "antd"
 
 import type {ColumnVisibilityState} from "../types"
 
@@ -54,10 +55,10 @@ const DefaultVisibilityContent = <Row extends object>({
             <div className="max-h-64 overflow-auto pr-1">{renderNodes(nodes)}</div>
             <Divider className="my-1" />
             <div className="flex justify-between gap-2">
-                <Button size="small" onClick={() => controls.reset()}>
+                <Button onClick={() => controls.reset()} variant="outline" size="sm">
                     Reset
                 </Button>
-                <Button size="small" type="primary" onClick={onClose}>
+                <Button onClick={onClose} size="sm">
                     Close
                 </Button>
             </div>
@@ -88,15 +89,17 @@ const ColumnVisibilityTrigger = <Row extends object>({
         variant === "icon" ? (
             <Tooltip title={label}>
                 <Button
-                    type="text"
-                    shape="circle"
-                    size="small"
                     onClick={stopPropagation}
-                    icon={<GearSix size={16} weight="bold" />}
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                    className="rounded-full"
+                >
+                    {<GearSix size={16} weight="bold" />}
+                </Button>
             </Tooltip>
         ) : (
-            <Button onClick={stopPropagation} icon={<GearSix size={14} weight="bold" />}>
+            <Button onClick={stopPropagation} variant="outline">
+                {<GearSix size={14} weight="bold" />}
                 {label} ({visibleLeafCount})
             </Button>
         )

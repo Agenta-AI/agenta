@@ -12,8 +12,9 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CloseOutlined} from "@ant-design/icons"
-import {Button, Switch} from "antd"
+import {Switch} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -124,13 +125,14 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                             />
                         </div>
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<CloseOutlined />}
                             onClick={onClose}
                             aria-label="Close modal"
                             className="flex items-center justify-center"
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<CloseOutlined />}
+                        </Button>
                     </div>
                 </div>
 
@@ -149,15 +151,10 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
 
                 {/* Right Footer */}
                 <div className="flex items-center justify-end gap-2 border-t border-[var(--ag-rgba-051729-06)] px-4 py-3">
-                    <Button size="small" type="text" onClick={onClose}>
+                    <Button onClick={onClose} variant="ghost" size="sm">
                         Cancel
                     </Button>
-                    <Button
-                        size="small"
-                        type="primary"
-                        onClick={handleUseRefinedPrompt}
-                        disabled={!hasRefinedPrompt}
-                    >
+                    <Button onClick={handleUseRefinedPrompt} disabled={!hasRefinedPrompt} size="sm">
                         Use refined prompt
                     </Button>
                 </div>

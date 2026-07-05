@@ -1,13 +1,14 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {
     InfiniteVirtualTableFeatureShell,
     useTableManager,
     useGroupedTreeData,
 } from "@agenta/ui/table"
 import {PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Space} from "antd"
+import {Input, Space} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -158,13 +159,14 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                         <EvaluatorTemplateDropdown onSelect={onSelectTemplate} />
                     ) : (
                         <Button
-                            icon={<PlusOutlined />}
                             onClick={
                                 preview && onCreateHumanEvaluator
                                     ? onCreateHumanEvaluator
                                     : () => router.push(evaluatorsRegistryUrl)
                             }
+                            variant="outline"
                         >
+                            {<PlusOutlined />}
                             Create new evaluator
                         </Button>
                     )}
@@ -182,14 +184,13 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                                 <EvaluatorTemplateDropdown onSelect={onSelectTemplate} />
                             ) : (
                                 <Button
-                                    type="primary"
-                                    icon={<PlusOutlined />}
                                     onClick={
                                         preview && onCreateHumanEvaluator
                                             ? onCreateHumanEvaluator
                                             : () => router.push(evaluatorsRegistryUrl)
                                     }
                                 >
+                                    {<PlusOutlined />}
                                     Create your first evaluator
                                 </Button>
                             )

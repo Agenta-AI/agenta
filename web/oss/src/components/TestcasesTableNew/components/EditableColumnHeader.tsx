@@ -1,9 +1,10 @@
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Tooltip} from "antd"
+import {Dropdown, Input, Tooltip} from "antd"
 
 interface EditableColumnHeaderProps {
     columnKey: string
@@ -107,40 +108,42 @@ const EditableColumnHeader = ({
                     // Dropdown menu for narrow columns
                     <Dropdown menu={{items: menuItems}} trigger={["click"]} placement="bottomRight">
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<MoreOutlined />}
                             className="flex-shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => e.stopPropagation()}
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<MoreOutlined />}
+                        </Button>
                     </Dropdown>
                 ) : (
                     // Inline action buttons for wider columns
                     <div className="flex items-center gap-0.5 flex-shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Tooltip title="Rename column">
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<PencilSimple size={14} />}
                                 className="!w-6 !h-6 !min-w-0"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     openRenameModal()
                                 }}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<PencilSimple size={14} />}
+                            </Button>
                         </Tooltip>
                         <Tooltip title="Delete column">
                             <Button
-                                type="text"
-                                size="small"
-                                danger
-                                icon={<Trash size={14} />}
                                 className="!w-6 !h-6 !min-w-0"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     openDeleteModal()
                                 }}
-                            />
+                                variant="destructive"
+                                size="icon-sm"
+                            >
+                                {<Trash size={14} />}
+                            </Button>
                         </Tooltip>
                     </div>
                 )}

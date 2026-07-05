@@ -20,8 +20,8 @@
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowClockwise, CheckCircle, Plugs, Spinner, Warning} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
@@ -224,7 +224,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         return (
             <ChipRow icon={<Spinner size={13} className="animate-spin text-colorPrimary" />}>
                 <span className="!text-xs text-muted-foreground">Connecting {label}…</span>
-                <Button type="text" onClick={cancel} className="!px-2">
+                <Button onClick={cancel} className="!px-2" variant="ghost">
                     Cancel
                 </Button>
             </ChipRow>
@@ -269,9 +269,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     return (
         <ChipRow icon={<Plugs size={13} className="text-colorPrimary" />}>
             <span className="!text-xs">Connect {label}</span>
-            <Button type="primary" onClick={() => runConnect(true)}>
-                Connect
-            </Button>
+            <Button onClick={() => runConnect(true)}>Connect</Button>
         </ChipRow>
     )
 }
@@ -285,13 +283,8 @@ const ChipRow = ({icon, children}: {icon: React.ReactNode; children: React.React
 )
 
 const RetryButton = ({onClick, disabled}: {onClick: () => void; disabled?: boolean}) => (
-    <Button
-        type="text"
-        onClick={onClick}
-        disabled={disabled}
-        icon={<ArrowClockwise size={13} />}
-        className="!px-2"
-    >
+    <Button onClick={onClick} disabled={disabled} className="!px-2" variant="ghost">
+        {<ArrowClockwise size={13} />}
         Retry
     </Button>
 )

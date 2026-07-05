@@ -1,9 +1,10 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined} from "@ant-design/icons"
 import {Book, Play} from "@phosphor-icons/react"
-import {Button, ModalProps} from "antd"
+import {ModalProps} from "antd"
 
 import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
 import {
@@ -78,26 +79,36 @@ const SetupEvaluationModalContent = ({onCancel}: {onCancel: ModalProps["onCancel
     return (
         <div className="h-full flex flex-col">
             <div className={modalHeaderClass}>
-                <Button
-                    onClick={() => onCancel?.({} as any)}
-                    type="text"
-                    icon={<CloseOutlined />}
-                />
+                <Button onClick={() => onCancel?.({} as any)} variant="ghost" size="icon">
+                    {<CloseOutlined />}
+                </Button>
                 <span>Evaluate from SDK</span>
 
                 <div className="flex gap-2 items-center">
                     <Button
-                        icon={<Play size={16} className="mt-1" />}
-                        href="https://colab.research.google.com/github/agenta-ai/agenta/blob/main/examples/jupyter/evaluation/quick-start.ipynb"
-                        target="_blank"
+                        variant="outline"
+                        render={
+                            <a
+                                href="https://colab.research.google.com/github/agenta-ai/agenta/blob/main/examples/jupyter/evaluation/quick-start.ipynb"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            />
+                        }
                     >
+                        {<Play size={16} className="mt-1" />}
                         Run in colab
                     </Button>
                     <Button
-                        target="_blank"
-                        href="https://agenta.ai/docs/evaluation/evaluation-from-sdk/quick-start"
-                        icon={<Book size={16} className="mt-1" />}
+                        variant="outline"
+                        render={
+                            <a
+                                href="https://agenta.ai/docs/evaluation/evaluation-from-sdk/quick-start"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            />
+                        }
                     >
+                        {<Book size={16} className="mt-1" />}
                         Read the docs
                     </Button>
                 </div>

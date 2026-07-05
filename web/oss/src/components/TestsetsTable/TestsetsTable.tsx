@@ -1,10 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {testsetMolecule} from "@agenta/entities/testset"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArchiveIcon, CaretDown, DownloadSimple} from "@phosphor-icons/react"
-import {Button, Dropdown, Space} from "antd"
+import {Dropdown, Space} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -557,11 +559,8 @@ const TestsetsTable = ({
 
     const createButton = useMemo(
         () => (
-            <Button
-                type="primary"
-                icon={<PlusOutlined className="mt-[1px]" />}
-                onClick={actions.handleCreate}
-            >
+            <Button onClick={actions.handleCreate}>
+                {<PlusOutlined className="mt-[1px]" />}
                 Create new testset
             </Button>
         ),
@@ -574,24 +573,21 @@ const TestsetsTable = ({
         if (table.selectedRowKeys.length > 0) {
             return (
                 <Button
-                    danger
-                    icon={<ArchiveIcon size={14} />}
                     onClick={() => {
                         setSelectedTestsetToDelete(table.getSelectedRecords())
                         setIsDeleteTestsetModalOpen(true)
                     }}
+                    variant="destructive"
                 >
+                    {<ArchiveIcon size={14} />}
                     Archive
                 </Button>
             )
         }
 
         return (
-            <Button
-                type="text"
-                icon={<ArchiveIcon size={14} />}
-                onClick={() => router.push(`${projectURL}/testsets/archived`)}
-            >
+            <Button onClick={() => router.push(`${projectURL}/testsets/archived`)} variant="ghost">
+                {<ArchiveIcon size={14} />}
                 Archived
             </Button>
         )
@@ -639,14 +635,17 @@ const TestsetsTable = ({
                 <Space.Compact>
                     <Button
                         onClick={() => handleExport(exportFormat)}
-                        loading={loading}
-                        disabled={disabled}
-                        icon={<DownloadSimple size={16} />}
+                        disabled={disabled || loading}
+                        variant="outline"
                     >
+                        {loading ? <Spinner /> : null}
+                        {<DownloadSimple size={16} />}
                         Export {exportFormat.toUpperCase()}
                     </Button>
                     <Dropdown menu={{items: menuItems}} disabled={disabled}>
-                        <Button disabled={disabled} icon={<CaretDown size={14} />} />
+                        <Button disabled={disabled} variant="outline" size="icon">
+                            {<CaretDown size={14} />}
+                        </Button>
                     </Dropdown>
                 </Space.Compact>
             )

@@ -1,9 +1,10 @@
 import {useCallback, useMemo, useRef, useState, type MouseEvent} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, ListChecks, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, type MenuProps} from "antd"
+import {Dropdown, type MenuProps} from "antd"
 import dynamic from "next/dynamic"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -141,12 +142,13 @@ const TestcaseRowActionsDropdown = ({
             >
                 <Button
                     onClick={handleTriggerClick}
-                    type="text"
-                    icon={<MoreOutlined />}
-                    size="small"
                     title="Actions"
                     aria-label="Actions"
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<MoreOutlined />}
+                </Button>
             </Dropdown>
         </AddToQueuePopover>
     )

@@ -1,7 +1,8 @@
 import {useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Form, Tag} from "antd"
+import {Form, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {testsetReferenceQueryAtomFamily} from "../../../../atoms/references"
@@ -136,12 +137,9 @@ const TestsetCard = ({
             <SectionHeaderRow
                 left={<TestsetTagList ids={[testsetId]} runId={runId} className="-mt-2" />}
                 right={
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
-                        onClick={() => setCollapsed((v) => !v)}
-                    />
+                    <Button onClick={() => setCollapsed((v) => !v)} variant="ghost" size="icon-sm">
+                        {<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                    </Button>
                 }
             />
             {!collapsed ? (

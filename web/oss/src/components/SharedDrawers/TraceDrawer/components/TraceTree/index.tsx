@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {
     Coins,
     Info,
@@ -8,7 +9,7 @@ import {
     SlidersHorizontal,
     Timer,
 } from "@phosphor-icons/react"
-import {Button, Divider, Input, Popover, Space, Tooltip} from "antd"
+import {Divider, Input, Popover, Space, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
@@ -196,7 +197,9 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                     classNames={{body: "!p-0 w-[240px]"}}
                     arrow={false}
                 >
-                    <Button icon={<SlidersHorizontal size={14} />} type="text" size="small" />
+                    <Button variant="ghost" size="icon-sm">
+                        {<SlidersHorizontal size={14} />}
+                    </Button>
                 </Popover>
             </div>
             <Divider orientation="horizontal" className="m-0" />
@@ -220,12 +223,12 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                             {hiddenCount === 1 ? "span" : "spans"} hidden by key spans
                         </span>
                         <Button
-                            type="link"
-                            size="small"
                             className="ml-auto !px-0 !h-auto text-[12px]"
                             onClick={() =>
                                 setTraceTreeSettings((prev) => ({...prev, visibility: "all"}))
                             }
+                            variant="link"
+                            size="sm"
                         >
                             Show all
                         </Button>

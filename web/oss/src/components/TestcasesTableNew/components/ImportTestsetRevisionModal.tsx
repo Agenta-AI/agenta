@@ -1,9 +1,11 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
-import {Alert, Button, Popover, Upload, UploadFile} from "antd"
+import {Alert, Popover, Upload, UploadFile} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {FilePreviewTable} from "@/oss/components/pages/testset/modals/components/FilePreviewTable"
@@ -226,16 +228,20 @@ export function ImportTestsetRevisionModal({
             footer={
                 fileProgress
                     ? [
-                          <Button key="cancel" disabled={uploadLoading} onClick={handleClose}>
+                          <Button
+                              key="cancel"
+                              disabled={uploadLoading}
+                              onClick={handleClose}
+                              variant="outline"
+                          >
                               Cancel
                           </Button>,
                           <Button
                               key="import"
-                              type="primary"
-                              disabled={!fileProgress || !!validationError}
-                              loading={uploadLoading}
+                              disabled={!fileProgress || !!validationError || uploadLoading}
                               onClick={handleUpload}
                           >
+                              {uploadLoading ? <Spinner /> : null}
                               Import
                           </Button>,
                       ]

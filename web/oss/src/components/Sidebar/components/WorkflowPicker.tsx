@@ -1,7 +1,8 @@
 import {memo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CaretDown} from "@phosphor-icons/react"
-import {Button, Dropdown} from "antd"
+import {Dropdown} from "antd"
 import clsx from "clsx"
 
 import {useWorkflowSwitcher, WORKFLOW_SWITCHER_MENU_CLASS} from "../hooks/useWorkflowSwitcher"
@@ -41,7 +42,6 @@ const WorkflowPicker = memo(({collapsed}: WorkflowPickerProps) => {
             }}
         >
             <Button
-                type="text"
                 aria-label="Switch workflow"
                 className={clsx(
                     "flex items-center justify-between overflow-hidden transition-[width,height,padding,gap,border-color] duration-300 ease-in-out",
@@ -49,6 +49,7 @@ const WorkflowPicker = memo(({collapsed}: WorkflowPickerProps) => {
                         ? "!w-8 !h-8 !p-1 gap-0"
                         : "w-full pl-2 pr-3 py-3 h-12 gap-2 border border-solid border-gray-200",
                 )}
+                variant="ghost"
             >
                 <WorkflowIdentity
                     workflowId={workflowId}

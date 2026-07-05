@@ -1,9 +1,10 @@
 import {ComponentProps, ReactNode, useMemo, useState} from "react"
 
 import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
-import {Button, Divider} from "antd"
+import {Divider} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -52,7 +53,9 @@ const DeploymentsDrawerTitle = ({
 }: DeploymentsDrawerTitleProps) => {
     return (
         <div className="flex items-center justify-between gap-3">
-            <Button onClick={() => onClose?.({} as any)} type="text" icon={<CloseOutlined />} />
+            <Button onClick={() => onClose?.({} as any)} variant="ghost" size="icon">
+                {<CloseOutlined />}
+            </Button>
 
             {expandable && (
                 <Button
@@ -63,15 +66,15 @@ const DeploymentsDrawerTitle = ({
                             setDrawerWidth(initialWidth ?? 1200)
                         }
                     }}
-                    type="text"
-                    icon={
-                        drawerWidth === initialWidth ? (
-                            <FullscreenOutlined />
-                        ) : (
-                            <FullscreenExitOutlined />
-                        )
-                    }
-                />
+                    variant="ghost"
+                    size="icon"
+                >
+                    {drawerWidth === initialWidth ? (
+                        <FullscreenOutlined />
+                    ) : (
+                        <FullscreenExitOutlined />
+                    )}
+                </Button>
             )}
 
             <div className="flex-1">

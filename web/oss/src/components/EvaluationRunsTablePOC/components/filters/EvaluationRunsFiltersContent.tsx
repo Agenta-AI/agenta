@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useMemo} from "react"
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react"
 
-import {Button, Divider, Select, Tag} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Divider, Select, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {RunFlagsFilter} from "@/oss/lib/hooks/usePreviewEvaluations"
@@ -630,10 +631,10 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
 
                 <Divider style={{margin: "8px 0"}} />
                 <div className="flex justify-end gap-2">
-                    <Button type="link" onClick={handleReset}>
+                    <Button onClick={handleReset} variant="link">
                         Reset
                     </Button>
-                    <Button type="primary" onClick={handleApply} disabled={!hasPendingChanges}>
+                    <Button onClick={handleApply} disabled={!hasPendingChanges}>
                         Apply
                     </Button>
                 </div>

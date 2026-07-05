@@ -1,6 +1,7 @@
 import {memo} from "react"
 
-import {Button} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 
 interface RunOverlayProps {
     isRunning: boolean
@@ -14,7 +15,8 @@ const RunOverlay = ({isRunning, onRun}: RunOverlayProps) => {
                 {isRunning ? "Generating output..." : "Generate output to annotate"}
             </span>
             <div className="flex gap-4 items-center mt-1">
-                <Button type="primary" onClick={onRun} loading={isRunning} disabled={isRunning}>
+                <Button onClick={onRun} disabled={isRunning || isRunning}>
+                    {isRunning ? <Spinner /> : null}
                     {isRunning ? "Running..." : "Run"}
                 </Button>
                 {!isRunning && (

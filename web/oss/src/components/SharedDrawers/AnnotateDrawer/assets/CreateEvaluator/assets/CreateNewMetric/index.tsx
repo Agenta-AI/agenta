@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Button, Form, FormListFieldData, Input, InputNumber, Select, Switch} from "antd"
+import {Form, FormListFieldData, Input, InputNumber, Select, Switch} from "antd"
 import dynamic from "next/dynamic"
 
 import {isSlugInputValid} from "@/oss/lib/helpers/utils"
@@ -115,11 +116,13 @@ const CreateNewMetric = ({
                 <div className="w-full flex items-center justify-between">
                     <span className="font-medium">Feedback name</span>
                     <Button
-                        icon={<Trash size={14} />}
-                        type="text"
                         onClick={() => onRemove(field.name)}
                         disabled={isFirstMetric}
-                    />
+                        variant="ghost"
+                        size="icon"
+                    >
+                        {<Trash size={14} />}
+                    </Button>
                 </div>
                 <Form.Item
                     name={[field.name, "name"]}
@@ -264,11 +267,8 @@ const CreateNewMetric = ({
                         <div className="flex flex-col gap-2">
                             <div className="w-full flex items-center justify-between">
                                 <span className="font-medium">Options</span>
-                                <Button
-                                    icon={<Plus size={14} />}
-                                    size="small"
-                                    onClick={() => add()}
-                                >
+                                <Button onClick={() => add()} variant="outline" size="sm">
+                                    {<Plus size={14} />}
                                     Add
                                 </Button>
                             </div>

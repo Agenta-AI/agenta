@@ -1,7 +1,7 @@
 import {memo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {X} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useRouter} from "next/router"
 
 import {BannerConfig} from "./types"
@@ -62,7 +62,12 @@ const SidebarBanner = ({banner, onDismiss}: SidebarBannerProps) => {
                 {banner.description}
             </span>
             {banner.action && (
-                <Button onClick={handleActionClick} className="self-start" size="small">
+                <Button
+                    onClick={handleActionClick}
+                    className="self-start"
+                    variant="outline"
+                    size="sm"
+                >
                     {banner.action.label}
                 </Button>
             )}

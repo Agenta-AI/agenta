@@ -1,6 +1,8 @@
 import {useRef, useState} from "react"
 
-import {Button, Form, FormProps, Input} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Form, FormProps, Input} from "antd"
 import {signIn, signUp} from "supertokens-auth-react/recipe/emailpassword"
 
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
@@ -206,13 +208,8 @@ const EmailPasswordSignIn = ({
                     />
                 </Form.Item>
 
-                <Button
-                    size="large"
-                    type="primary"
-                    htmlType="submit"
-                    className="w-full"
-                    loading={isLoading}
-                >
+                <Button className="w-full" size="lg" type="submit" disabled={isLoading}>
+                    {isLoading ? <Spinner /> : null}
                     Continue with password
                 </Button>
                 {message.type == "error" && (

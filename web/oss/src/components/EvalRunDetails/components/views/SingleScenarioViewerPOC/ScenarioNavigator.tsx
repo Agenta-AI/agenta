@@ -1,8 +1,9 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {LeftOutlined, RightOutlined} from "@ant-design/icons"
-import {Button, Select, SelectProps, Tag} from "antd"
+import {Select, SelectProps, Tag} from "antd"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
@@ -114,19 +115,21 @@ const ScenarioNavigator = ({
         >
             <div className="flex items-center gap-2">
                 <Button
-                    icon={<LeftOutlined />}
-                    size="small"
-                    type="text"
                     onClick={handlePrev}
                     disabled={currentIndex <= 0}
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<LeftOutlined />}
+                </Button>
                 <Button
-                    icon={<RightOutlined />}
-                    size="small"
-                    type="text"
                     onClick={handleNext}
                     disabled={currentIndex === -1 || currentIndex >= loadedScenarios.length - 1}
-                />
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<RightOutlined />}
+                </Button>
                 <Select
                     showSearch
                     size="small"

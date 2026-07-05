@@ -1,7 +1,8 @@
 import {Component, ReactNode, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {GlobalOutlined} from "@ant-design/icons"
-import {Button} from "antd"
 import clsx from "clsx"
 
 import {REGIONS, RegionId} from "@/oss/lib/helpers/region"
@@ -51,17 +52,17 @@ const RegionButton = ({
     onSwitch,
 }: RegionButtonProps) => (
     <Button
-        type="default"
-        size="large"
-        icon={<GlobalOutlined />}
         className={clsx("flex-1", isSelected && selectedButtonClass)}
         onClick={() => onSwitch(id)}
-        disabled={disabled}
-        loading={isLoading}
+        disabled={disabled || isLoading}
         role="radio"
         aria-checked={isSelected}
         aria-label={`${label} region`}
+        variant="outline"
+        size="lg"
     >
+        {isLoading ? <Spinner /> : null}
+        {<GlobalOutlined />}
         {label}
     </Button>
 )
@@ -81,10 +82,10 @@ const RegionSelector = () => {
             <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">Data Residency</span>
                 <Button
-                    type="link"
                     className="!h-auto !p-0 !text-xs !text-colorTextSecondary hover:!text-colorText"
                     onClick={() => setIsInfoOpen(true)}
                     aria-haspopup="dialog"
+                    variant="link"
                 >
                     Learn more
                 </Button>

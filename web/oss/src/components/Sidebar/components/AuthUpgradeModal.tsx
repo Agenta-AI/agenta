@@ -1,5 +1,7 @@
 import {useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {EnhancedModal as Modal} from "@agenta/ui"
 import {
     AppleOutlined,
@@ -10,7 +12,7 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Button, Divider} from "antd"
+import {Alert, Divider} from "antd"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
 import EmailPasswordSignIn from "@/oss/components/pages/auth/EmailPasswordSignIn"
@@ -181,13 +183,14 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
                             {ssoProviders.map((provider) => (
                                 <Button
                                     key={provider.id}
-                                    icon={<GlobalOutlined />}
-                                    size="large"
                                     className="w-full"
                                     onClick={() => redirectToSsoProvider(provider)}
-                                    loading={isSsoAuthLoading}
-                                    disabled={isLoading || isSocialAuthLoading}
+                                    disabled={isLoading || isSocialAuthLoading || isSsoAuthLoading}
+                                    variant="outline"
+                                    size="lg"
                                 >
+                                    {isSsoAuthLoading ? <Spinner /> : null}
+                                    {<GlobalOutlined />}
                                     Continue with SSO ({formatSsoProviderLabel(provider)})
                                 </Button>
                             ))}
@@ -253,7 +256,7 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
                     />
                 )}
                 {noAllowedMethods && (
-                    <Button type="primary" onClick={onCancel} className="w-full">
+                    <Button onClick={onCancel} className="w-full">
                         Cancel
                     </Button>
                 )}

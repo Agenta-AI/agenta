@@ -1,7 +1,8 @@
 import {memo} from "react"
 
 import {type TurnRequestCapture} from "@agenta/playground"
-import {App, Button} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {App} from "antd"
 
 /** One capture's literal outgoing request body, copyable for repro / bug reports. */
 const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
@@ -28,7 +29,6 @@ const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
                                 Request {i + 1} of {captures.length}
                             </span>
                             <Button
-                                type="link"
                                 className="!ml-auto !shrink-0 !px-0 !text-xs"
                                 onClick={() => {
                                     navigator.clipboard
@@ -38,6 +38,7 @@ const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
                                             message.error("Couldn't copy — clipboard unavailable"),
                                         )
                                 }}
+                                variant="link"
                             >
                                 Copy JSON
                             </Button>

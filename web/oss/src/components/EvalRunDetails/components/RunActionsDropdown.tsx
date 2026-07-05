@@ -1,7 +1,8 @@
 import {useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {DotsThreeVertical, PencilSimple} from "@phosphor-icons/react"
-import {Button, Dropdown} from "antd"
+import {Dropdown} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {runFlagsAtomFamily} from "../atoms/runDerived"
@@ -34,12 +35,9 @@ const RunActionsDropdown = ({runId}: {runId: string}) => {
                 },
             }}
         >
-            <Button
-                type="text"
-                size="small"
-                aria-label="Run actions"
-                icon={<DotsThreeVertical size={18} weight="bold" />}
-            />
+            <Button aria-label="Run actions" variant="ghost" size="icon-sm">
+                {<DotsThreeVertical size={18} weight="bold" />}
+            </Button>
         </Dropdown>
     )
 }

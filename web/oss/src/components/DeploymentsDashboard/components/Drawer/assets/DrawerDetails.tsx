@@ -3,8 +3,9 @@ import {useMemo} from "react"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowLatestRevisionIdAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus, type VariantStatusInfo} from "@agenta/entity-ui/variant"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Button, Space, Tag} from "antd"
+import {Space, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -56,10 +57,12 @@ const DrawerDetails = ({revisionId}: DrawerDetailsProps) => {
                     />
 
                     <Button
-                        type="default"
                         onClick={() => goToPlayground(revisionId)}
-                        icon={<ArrowSquareOut size={16} />}
-                    />
+                        variant="outline"
+                        size="icon"
+                    >
+                        {<ArrowSquareOut size={16} />}
+                    </Button>
                 </Space>
             </div>
 

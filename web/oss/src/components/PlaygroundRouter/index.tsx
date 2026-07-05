@@ -1,9 +1,10 @@
 import {memo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {bgColors} from "@agenta/ui"
 import {DownOutlined} from "@ant-design/icons"
 import {Flask, Plus} from "@phosphor-icons/react"
-import {Button, Space} from "antd"
+import {Space} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -17,24 +18,18 @@ const PlaygroundLoadingShell = () => {
             >
                 <span className="text-[16px] leading-[18px] font-[600]">Playground</span>
                 <div className="flex items-center gap-2">
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<Flask size={14} />}
-                        className="self-start"
-                        disabled
-                    >
+                    <Button className="self-start" disabled variant="ghost" size="sm">
+                        {<Flask size={14} />}
                         New Evaluation
                     </Button>
                     <Space.Compact size="small">
-                        <Button
-                            className="flex items-center gap-1"
-                            icon={<Plus size={14} />}
-                            disabled
-                        >
+                        <Button className="flex items-center gap-1" disabled variant="outline">
+                            {<Plus size={14} />}
                             Compare
                         </Button>
-                        <Button icon={<DownOutlined style={{fontSize: 10}} />} disabled />
+                        <Button disabled variant="outline" size="icon">
+                            {<DownOutlined style={{fontSize: 10}} />}
+                        </Button>
                     </Space.Compact>
                 </div>
             </div>

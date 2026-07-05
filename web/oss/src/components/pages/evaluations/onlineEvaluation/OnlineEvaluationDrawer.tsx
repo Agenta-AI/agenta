@@ -8,9 +8,11 @@ import {
     evaluatorTemplatesQueryAtom,
     isOnlineCapableEvaluator,
 } from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip} from "antd"
+import {Collapse, DatePicker, Form, Input, Select, Switch, Tooltip} from "antd"
 import dayjs from "dayjs"
 import type {Dayjs} from "dayjs"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -437,13 +439,14 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             footer={
                 <div className="w-full flex items-center justify-end gap-2">
                     <div className="flex items-center gap-2">
-                        <Button onClick={onClose}>Cancel</Button>
+                        <Button onClick={onClose} variant="outline">
+                            Cancel
+                        </Button>
                         <Button
-                            type="primary"
                             onClick={handleSubmit}
-                            loading={isSubmitting}
-                            disabled={!hasEvaluatorOptions}
+                            disabled={!hasEvaluatorOptions || isSubmitting}
                         >
+                            {isSubmitting ? <Spinner /> : null}
                             Create online evaluation
                         </Button>
                     </div>

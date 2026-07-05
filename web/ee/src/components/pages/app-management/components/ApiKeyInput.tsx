@@ -1,7 +1,9 @@
 import {useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
-import {Button, Input, Space} from "antd"
+import {Input, Space} from "antd"
 
 import {createApiKey} from "@/oss/services/apiKeys/api"
 import {fetchAllProjects} from "@/oss/services/project"
@@ -99,7 +101,8 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
                     onChange={(e) => onApiKeyChange(e.target.value)}
                 />
 
-                <Button type="primary" loading={isLoadingApiKey} onClick={handleGenerateApiKey}>
+                <Button onClick={handleGenerateApiKey} disabled={isLoadingApiKey}>
+                    {isLoadingApiKey ? <Spinner /> : null}
                     Generate API Key
                 </Button>
             </Space>

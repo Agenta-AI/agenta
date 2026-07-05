@@ -6,11 +6,12 @@ import {
     STANDARD_PROVIDER_KINDS,
     useVaultSecret,
 } from "@agenta/entities/secret"
+import {Button} from "@agenta/primitive-ui/components/button"
 import type {LlmProvider} from "@agenta/shared/types"
 import {SelectLLMProviderBase, type ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {capitalize} from "@agenta/ui/select-llm-provider"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
-import {Button, Form, Input} from "antd"
+import {Form, Input} from "antd"
 import {useWatch} from "antd/lib/form/Form"
 
 import {isSlugInputValid} from "@/oss/lib/helpers/utils"
@@ -321,11 +322,8 @@ const ConfigureProviderDrawerContent = ({
                                 <div className="flex flex-col gap-2">
                                     <div className="w-full flex items-center justify-between">
                                         <span className="font-medium">Models</span>
-                                        <Button
-                                            icon={<Plus size={14} />}
-                                            size="small"
-                                            onClick={() => add()}
-                                        >
+                                        <Button onClick={() => add()} variant="outline" size="sm">
+                                            {<Plus size={14} />}
                                             Add
                                         </Button>
                                     </div>

@@ -1,7 +1,8 @@
 import {useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArchiveIcon, GearSix, Note, Copy, PencilSimple} from "@phosphor-icons/react"
-import {Button, Dropdown} from "antd"
+import {Dropdown} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -152,10 +153,11 @@ export const useTestsetsColumns = ({
                         >
                             <Button
                                 onClick={(e) => e.stopPropagation()}
-                                type="text"
-                                icon={<GearSix size={16} />}
-                                size="small"
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<GearSix size={16} />}
+                            </Button>
                         </Dropdown>
                     )
                 },

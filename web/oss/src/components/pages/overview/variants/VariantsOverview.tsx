@@ -1,7 +1,7 @@
 import {useCallback, useMemo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {Rocket} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 
@@ -70,11 +70,8 @@ const VariantsOverview = () => {
             <div className="flex items-center justify-between">
                 <h3 className="!m-0">Recent Prompts</h3>
 
-                <Button
-                    type="primary"
-                    icon={<Rocket size={14} className="mt-[3px]" />}
-                    onClick={() => goToPlayground()}
-                >
+                <Button onClick={() => goToPlayground()}>
+                    {<Rocket size={14} className="mt-[3px]" />}
                     Playground
                 </Button>
             </div>

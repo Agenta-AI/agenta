@@ -1,8 +1,10 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, message, Select, Switch, Tabs, Tooltip} from "antd"
+import {Collapse, Form, Input, message, Select, Switch, Tabs, Tooltip} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import {
@@ -446,14 +448,13 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                 extra={
                     <Tooltip title="Documentation">
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<BookOpen size={16} />}
-                            href={docsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
                             aria-label="Open webhook documentation"
-                        />
+                            variant="ghost"
+                            size="icon-sm"
+                            render={<a href={docsUrl} target="_blank" rel="noopener noreferrer" />}
+                        >
+                            {<BookOpen size={16} />}
+                        </Button>
                     </Tooltip>
                 }
                 open={open}
@@ -462,16 +463,20 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                 destroyOnHidden
                 footer={
                     <div className="flex items-center justify-between gap-2">
-                        <Button onClick={onCancel}>Cancel</Button>
+                        <Button onClick={onCancel} variant="outline">
+                            Cancel
+                        </Button>
                         <div className="flex items-center gap-2">
                             <Button
                                 onClick={handleTestConnection}
-                                loading={isTesting}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || isTesting}
+                                variant="outline"
                             >
+                                {isTesting ? <Spinner /> : null}
                                 Test Connection
                             </Button>
-                            <Button type="primary" onClick={handleOk} loading={isSubmitting}>
+                            <Button onClick={handleOk} disabled={isSubmitting}>
+                                {isSubmitting ? <Spinner /> : null}
                                 {isEdit ? "Update Webhook" : "Create Webhook"}
                             </Button>
                         </div>

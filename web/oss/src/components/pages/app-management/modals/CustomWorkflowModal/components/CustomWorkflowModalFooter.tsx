@@ -1,7 +1,9 @@
 import {memo} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {CheckCircleOutlined, ExclamationCircleOutlined, LinkOutlined} from "@ant-design/icons"
-import {Button, notification, Space, Tooltip} from "antd"
+import {notification, Space, Tooltip} from "antd"
 
 const CustomWorkflowModalFooter = ({
     handleEditCustomUrl,
@@ -40,17 +42,18 @@ const CustomWorkflowModalFooter = ({
         <div className="flex items-center justify-between">
             <Space align="center">
                 <Button
-                    loading={testConnectionStatus.loading}
-                    icon={<LinkOutlined />}
-                    type="default"
                     onClick={() => runTestConnection(undefined, customWorkflowAppValues.appUrl)}
                     disabled={
                         !customWorkflowAppValues.appUrl ||
-                        (typeof isUrlValid === "boolean" && !isUrlValid)
+                        (typeof isUrlValid === "boolean" && !isUrlValid) ||
+                        testConnectionStatus.loading
                     }
                     style={{minWidth: 140}}
                     className="whitespace-nowrap"
+                    variant="outline"
                 >
+                    {testConnectionStatus.loading ? <Spinner /> : null}
+                    {<LinkOutlined />}
                     Test connection
                 </Button>
                 <div style={{minWidth: 120, display: "inline-flex", alignItems: "center", gap: 6}}>
@@ -71,7 +74,9 @@ const CustomWorkflowModalFooter = ({
 
             {configureWorkflow ? (
                 <Space>
-                    <Button onClick={handleCancelButton}>Cancel</Button>
+                    <Button onClick={handleCancelButton} variant="outline">
+                        Cancel
+                    </Button>
                     <Tooltip
                         title={
                             variantsReady === false
@@ -86,16 +91,16 @@ const CustomWorkflowModalFooter = ({
                         }
                     >
                         <Button
-                            type="primary"
                             disabled={
                                 variantsReady === false ||
                                 !customWorkflowAppValues.appUrl ||
                                 (typeof isUrlValid === "boolean" && !isUrlValid) ||
-                                !testConnectionStatus.success
+                                !testConnectionStatus.success ||
+                                isConfiguringWorkflow
                             }
                             onClick={handleEditCustomUrl}
-                            loading={isConfiguringWorkflow}
                         >
+                            {isConfiguringWorkflow ? <Spinner /> : null}
                             Save
                         </Button>
                     </Tooltip>
@@ -113,7 +118,6 @@ const CustomWorkflowModalFooter = ({
                     }
                 >
                     <Button
-                        type="primary"
                         disabled={
                             !customWorkflowAppValues.appName ||
                             !customWorkflowAppValues.appUrl ||

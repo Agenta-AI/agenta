@@ -1,6 +1,7 @@
 import type {FC} from "react"
 
-import {Result, Button} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Result} from "antd"
 
 interface ErrorStateProps {
     title?: string
@@ -22,7 +23,7 @@ const ErrorState: FC<ErrorStateProps> = ({
             subTitle={subtitle}
             extra={
                 onRetry ? (
-                    <Button type="primary" onClick={onRetry} data-testid="error-retry">
+                    <Button onClick={onRetry} data-testid="error-retry">
                         Retry
                     </Button>
                 ) : null

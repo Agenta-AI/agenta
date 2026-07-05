@@ -1,13 +1,14 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {Paperclip} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Alert, Button, Tag, Tooltip, type UploadFile} from "antd"
+import {Alert, Tag, Tooltip, type UploadFile} from "antd"
 import {useSetAtom, useStore} from "jotai"
 
 import {useAgConfigStatus} from "../assets/agConfig"
@@ -301,14 +302,15 @@ const AgentChatConversation = ({
                     prefix={
                         <Tooltip title="Attach files coming soon">
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<Paperclip size={16} />}
                                 onClick={() => setAttachmentsOpen((open) => !open)}
                                 disabled={
                                     true /* TODO: re-enable once we can read the files into data: URLs at send time */
                                 }
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<Paperclip size={16} />}
+                            </Button>
                         </Tooltip>
                     }
                     header={

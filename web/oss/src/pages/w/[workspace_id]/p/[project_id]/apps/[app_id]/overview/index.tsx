@@ -1,11 +1,12 @@
 import {memo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {PageLayout} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 // TEMPORARY: Disabling name editing
 // import {PencilLine} from "@phosphor-icons/react"
-import {Button, Dropdown, Space} from "antd"
+import {Dropdown, Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -116,7 +117,9 @@ const AppDetailsSection = memo(() => {
                         ],
                     }}
                 >
-                    <Button type="text" icon={<MoreOutlined />} />
+                    <Button variant="ghost" size="icon">
+                        {<MoreOutlined />}
+                    </Button>
                 </Dropdown>
             </Space>
         </>

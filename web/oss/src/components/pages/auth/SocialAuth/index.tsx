@@ -1,6 +1,7 @@
 import {useRef} from "react"
 
-import {Button} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {useRouter} from "next/router"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
@@ -50,13 +51,14 @@ const SocialAuth = ({
                 {providers.map((provider) => (
                     <Button
                         key={provider.id}
-                        icon={provider.icon}
-                        size="large"
                         className="w-full"
                         onClick={() => providerSignInClicked(provider.id)}
-                        loading={isLoading}
-                        disabled={disabled}
+                        disabled={disabled || isLoading}
+                        variant="outline"
+                        size="lg"
                     >
+                        {isLoading ? <Spinner /> : null}
+                        {provider.icon}
                         Continue with {provider.label}
                     </Button>
                 ))}

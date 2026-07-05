@@ -24,9 +24,10 @@ import {
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {DownOutlined} from "@ant-design/icons"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Popover, Space} from "antd"
+import {Popover, Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
@@ -395,10 +396,11 @@ const SelectVariant = ({
             <Space.Compact size="small">
                 <Button
                     className="flex items-center gap-1"
-                    icon={<Plus size={14} />}
                     onClick={handleCompareButtonClick}
                     data-tour="compare-toggle"
+                    variant="outline"
                 >
+                    {<Plus size={14} />}
                     Compare
                 </Button>
                 <Popover
@@ -423,7 +425,9 @@ const SelectVariant = ({
                     destroyOnHidden
                     overlayClassName="[&_.ant-popover-container]:!p-0"
                 >
-                    <Button icon={<DownOutlined style={{fontSize: 10}} />} />
+                    <Button variant="outline" size="icon">
+                        {<DownOutlined style={{fontSize: 10}} />}
+                    </Button>
                 </Popover>
             </Space.Compact>
         )
@@ -461,9 +465,10 @@ const SelectVariant = ({
                     overlayClassName="[&_.ant-popover-container]:!p-0"
                 >
                     <Button
-                        size="small"
                         title={triggerLabel}
                         className="w-full flex items-center justify-between text-left overflow-hidden"
+                        variant="outline"
+                        size="sm"
                     >
                         <span className="truncate text-xs">{triggerLabel}</span>
                         <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
@@ -521,8 +526,9 @@ const SelectVariant = ({
                     </button>
                 ) : (
                     <Button
-                        size="small"
                         className="w-full flex items-center justify-between text-left overflow-hidden"
+                        variant="outline"
+                        size="sm"
                     >
                         <span className="truncate text-xs">{triggerLabel}</span>
                         <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />

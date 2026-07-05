@@ -1,8 +1,10 @@
 import {useCallback, useState} from "react"
 
 import {CreateTestsetCard, type CreateCardRenderProps} from "@agenta/playground-ui/components"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {ArrowLeft, UploadSimple} from "@phosphor-icons/react"
-import {Button, Input} from "antd"
+import {Input} from "antd"
 import {useSetAtom} from "jotai"
 
 import {useTestsetFileUpload} from "@/oss/hooks/useTestsetFileUpload"
@@ -80,12 +82,8 @@ export function CreateTestsetCardWrapper({
         return (
             <div className="mt-3 flex flex-col gap-4">
                 {/* Go back button */}
-                <Button
-                    type="text"
-                    icon={<ArrowLeft size={16} />}
-                    onClick={onExitCreateMode}
-                    className="self-start !px-0"
-                >
+                <Button onClick={onExitCreateMode} className="self-start !px-0" variant="ghost">
+                    {<ArrowLeft size={16} />}
                     Back to test sets
                 </Button>
 
@@ -134,11 +132,11 @@ export function CreateTestsetCardWrapper({
                 <div className="flex items-center justify-between">
                     <span className="font-medium text-sm">File selected</span>
                     <Button
-                        type="text"
-                        size="small"
                         onClick={() => setHasSelectedFile(false)}
                         className="!text-gray-500"
                         disabled={isUploadingFile}
+                        variant="ghost"
+                        size="sm"
                     >
                         Cancel
                     </Button>
@@ -149,13 +147,9 @@ export function CreateTestsetCardWrapper({
                         Testset name: {testsetName || "(auto-generated)"}
                     </span>
                 </div>
-                <Button
-                    type="primary"
-                    block
-                    icon={isUploadingFile ? undefined : <UploadSimple size={16} weight="regular" />}
-                    onClick={handleUploadClick}
-                    loading={isUploadingFile}
-                >
+                <Button onClick={handleUploadClick} className="w-full" disabled={isUploadingFile}>
+                    {isUploadingFile ? <Spinner /> : null}
+                    {isUploadingFile ? undefined : <UploadSimple size={16} weight="regular" />}
                     {isUploadingFile ? "Uploading..." : "Upload & Load"}
                 </Button>
             </div>

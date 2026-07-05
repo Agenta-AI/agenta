@@ -1,5 +1,6 @@
 import {memo, useCallback, useState, type ReactNode} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {message} from "@agenta/ui/app-message"
 import {
     CaretDown,
@@ -13,7 +14,7 @@ import {
     Trash,
     X,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Popover, Tooltip} from "antd"
+import {Dropdown, Input, Popover, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 
 export interface DrillInFieldHeaderProps {
@@ -120,13 +121,12 @@ const MappingPopover = memo(
             <div className="flex flex-col gap-1 min-w-[180px]">
                 {isMapped ? (
                     <Button
-                        type="text"
-                        danger
-                        size="small"
                         className="justify-start"
-                        icon={<X size={14} />}
                         onClick={handleUnmap}
+                        variant="destructive"
+                        size="sm"
                     >
+                        {<X size={14} />}
                         Remove mapping
                     </Button>
                 ) : (
@@ -141,16 +141,16 @@ const MappingPopover = memo(
                                     onPressEnter={handleCreateColumn}
                                     autoFocus
                                 />
-                                <Button size="small" type="primary" onClick={handleCreateColumn}>
+                                <Button onClick={handleCreateColumn} size="sm">
                                     Add
                                 </Button>
                             </div>
                         ) : (
                             <Button
-                                type="text"
-                                size="small"
                                 className="justify-start text-blue-600 dark:text-[#58a6ff]"
                                 onClick={() => setShowNewColumnInput(true)}
+                                variant="ghost"
+                                size="sm"
                             >
                                 + Create new column
                             </Button>
@@ -161,10 +161,10 @@ const MappingPopover = memo(
                                 {columnOptions.map((opt) => (
                                     <Button
                                         key={opt.value}
-                                        type="text"
-                                        size="small"
                                         className="justify-start"
                                         onClick={() => handleSelectColumn(opt.value)}
+                                        variant="ghost"
+                                        size="sm"
                                     >
                                         {opt.label}
                                     </Button>
@@ -192,11 +192,12 @@ const MappingPopover = memo(
             >
                 <Tooltip title={isMapped ? "Mapping options" : "Map to column"}>
                     <Button
-                        type="text"
-                        size="small"
                         className={`!px-1 !h-6 text-xs ${isMapped ? "text-green-500" : "text-gray-500"}`}
-                        icon={<MapPin size={12} weight={isMapped ? "fill" : "regular"} />}
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<MapPin size={12} weight={isMapped ? "fill" : "regular"} />}
+                    </Button>
                 </Tooltip>
             </Popover>
         )
@@ -242,7 +243,7 @@ function ViewModeDropdown({
             placement="bottomRight"
             overlayClassName="[&_.ant-dropdown-menu]:min-w-[220px] [&_.ant-dropdown-menu]:rounded-xl [&_.ant-dropdown-menu]:p-2.5 [&_.ant-dropdown-menu]:shadow-[0_12px_32px_rgba(5,23,41,0.16)]"
         >
-            <Button type="text" size="small" className="inline-flex items-center gap-1 px-2 h-6">
+            <Button className="inline-flex items-center gap-1 px-2 h-6" variant="ghost" size="sm">
                 <span className="text-[12px] text-[var(--ag-rgba-051729-55)]">
                     View as{" "}
                     <span className="font-semibold text-[var(--ag-c-051729)]">
@@ -348,50 +349,49 @@ const DrillInFieldHeader = memo(
                     {showCopyButton && (
                         <Tooltip title={copiedField === name ? "Copied" : "Copy"}>
                             <Button
-                                type="text"
-                                size="small"
                                 className="!px-1 !h-6 text-xs text-gray-500"
-                                icon={
-                                    copiedField === name ? <Check size={12} /> : <Copy size={12} />
-                                }
                                 onClick={handleCopy}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {copiedField === name ? <Check size={12} /> : <Copy size={12} />}
+                            </Button>
                         </Tooltip>
                     )}
                     {showRawToggle && onToggleRawMode && (
                         <Tooltip title={isRawMode ? "Show formatted" : "Show raw"}>
                             <Button
-                                type="text"
-                                size="small"
                                 className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
-                                icon={<Code size={12} />}
                                 onClick={onToggleRawMode}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<Code size={12} />}
+                            </Button>
                         </Tooltip>
                     )}
                     {showMarkdownToggle && onToggleMarkdownView && (
                         <Tooltip title={isMarkdownView ? "Preview text" : "Preview markdown"}>
                             <Button
-                                type="text"
-                                size="small"
                                 className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
-                                icon={
-                                    isMarkdownView ? (
-                                        <TextAa size={12} />
-                                    ) : (
-                                        <MarkdownLogoIcon size={12} />
-                                    )
-                                }
                                 onClick={onToggleMarkdownView}
-                            />
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {isMarkdownView ? (
+                                    <TextAa size={12} />
+                                ) : (
+                                    <MarkdownLogoIcon size={12} />
+                                )}
+                            </Button>
                         </Tooltip>
                     )}
                     {showDrillInButton && expandable && onDrillIn && (
                         <Button
-                            type="text"
-                            size="small"
                             onClick={onDrillIn}
                             className="!px-2 !h-6 text-xs text-gray-500"
+                            variant="ghost"
+                            size="sm"
                         >
                             <CaretRight size={12} className="mr-1" />
                             Drill In
@@ -406,13 +406,9 @@ const DrillInFieldHeader = memo(
                         />
                     )}
                     {showDelete && onDelete && (
-                        <Button
-                            type="text"
-                            size="small"
-                            danger
-                            icon={<Trash size={12} />}
-                            onClick={onDelete}
-                        />
+                        <Button onClick={onDelete} variant="destructive" size="icon-sm">
+                            {<Trash size={12} />}
+                        </Button>
                     )}
                 </div>
             </div>

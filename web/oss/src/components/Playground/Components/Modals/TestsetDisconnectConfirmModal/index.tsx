@@ -1,8 +1,9 @@
 import {loadableController} from "@agenta/entities/loadable"
 import {playgroundController} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {initialState, testsetDisconnectConfirmModalAtom} from "./store/state"
@@ -71,13 +72,18 @@ const TestsetDisconnectConfirmModal = () => {
             onCancel={handleCancel}
             footer={
                 <div className="flex items-center justify-end gap-2 pt-2">
-                    <Button type="text" onClick={handleCancel} disabled={isSaving}>
+                    <Button onClick={handleCancel} disabled={isSaving} variant="ghost">
                         Cancel
                     </Button>
-                    <Button danger onClick={handleDiscardAndDisconnect} disabled={isSaving}>
+                    <Button
+                        onClick={handleDiscardAndDisconnect}
+                        disabled={isSaving}
+                        variant="destructive"
+                    >
                         {discardLabel}
                     </Button>
-                    <Button type="primary" onClick={handleSaveAndDisconnect} loading={isSaving}>
+                    <Button onClick={handleSaveAndDisconnect} disabled={isSaving}>
+                        {isSaving ? <Spinner /> : null}
                         {saveLabel}
                     </Button>
                 </div>

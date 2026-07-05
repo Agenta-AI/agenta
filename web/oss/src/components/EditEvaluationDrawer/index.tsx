@@ -7,11 +7,13 @@ import {
     useEnrichedHumanEvaluatorAdapter,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {VersionBadge} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Button, Input, Tag} from "antd"
+import {Input, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {saveEvaluationEditAtom} from "@/oss/components/EvalRunDetails/atoms/mutations/editEvaluation"
@@ -127,15 +129,11 @@ const EditEvaluationDrawer = ({runId, open, onClose}: EditEvaluationDrawerProps)
             closeOnLayoutClick={false}
             footer={
                 <div className="flex w-full items-center justify-end gap-2">
-                    <Button onClick={onClose} disabled={submitting}>
+                    <Button onClick={onClose} disabled={submitting} variant="outline">
                         Cancel
                     </Button>
-                    <Button
-                        type="primary"
-                        onClick={handleUpdate}
-                        loading={submitting}
-                        disabled={!isDirty}
-                    >
+                    <Button onClick={handleUpdate} disabled={!isDirty || submitting}>
+                        {submitting ? <Spinner /> : null}
                         Update
                     </Button>
                 </div>
@@ -271,14 +269,14 @@ const PendingEvaluatorCard = ({
                     Pending
                 </Tag>
                 <Button
-                    type="text"
-                    size="small"
-                    danger
                     className="ml-auto shrink-0"
                     aria-label="Remove staged evaluator"
-                    icon={<Trash size={14} />}
                     onClick={() => onRemove(selection.id)}
-                />
+                    variant="destructive"
+                    size="icon-sm"
+                >
+                    {<Trash size={14} />}
+                </Button>
             </div>
             {isPending ? (
                 <span className="text-xs text-muted-foreground">Loading metrics…</span>

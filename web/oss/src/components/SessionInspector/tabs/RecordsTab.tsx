@@ -1,5 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Button, Collapse, Empty, Skeleton, Tag} from "antd"
+import {Alert, Collapse, Empty, Skeleton, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -47,7 +48,7 @@ const RecordsTab = ({sessionId}: {sessionId: string}) => {
                 }))}
             />
             <div className="mt-2">
-                <Button type="text" onClick={refresh}>
+                <Button onClick={refresh} variant="ghost">
                     Refresh
                 </Button>
             </div>

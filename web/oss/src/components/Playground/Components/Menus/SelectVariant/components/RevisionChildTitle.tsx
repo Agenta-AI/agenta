@@ -1,6 +1,7 @@
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CopySimple} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Tooltip} from "antd"
 
 interface RevisionChildTitleProps {
     revisionId: string
@@ -44,13 +45,14 @@ const RevisionChildTitle = ({
             {showAsCompare && (
                 <Tooltip title="Create local copy for comparison">
                     <Button
-                        type="text"
-                        size="small"
-                        icon={<CopySimple size={14} />}
                         className="opacity-0 group-hover/revision:opacity-100 transition-opacity mr-1"
                         onClick={(e) => onCreateLocalCopy(revisionId, e)}
                         data-tour="compare-toggle"
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<CopySimple size={14} />}
+                    </Button>
                 </Tooltip>
             )}
         </div>

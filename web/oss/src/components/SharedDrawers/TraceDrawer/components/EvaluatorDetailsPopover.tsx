@@ -3,7 +3,8 @@ import {memo, ReactNode, useMemo} from "react"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
-import {Button, Popover} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover} from "antd"
 import {useAtomValue} from "jotai"
 
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
@@ -116,13 +117,13 @@ const EvaluatorDetailsPopover = ({
                 </div>
                 {target ? (
                     <Button
-                        type="default"
-                        size="small"
-                        block
-                        href={target.href}
                         onClick={(event) => {
                             event?.stopPropagation?.()
                         }}
+                        variant="outline"
+                        size="sm"
+                        render={<a href={target.href} />}
+                        className="w-full"
                     >
                         {isHuman ? "Open evaluator registry" : "Open evaluator playground"}
                     </Button>

@@ -1,7 +1,9 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {WarningCircle} from "@phosphor-icons/react"
-import {Button, Input} from "antd"
+import {Input} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import GenericDrawer from "@/oss/components/GenericDrawer"
@@ -97,12 +99,11 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                                     drawer.handleDrawerClose()
                                     onClose()
                                 }}
+                                variant="outline"
                             >
                                 Cancel
                             </Button>
                             <Button
-                                type="primary"
-                                loading={drawer.isLoading || drawer.isTestsetsLoading}
                                 onClick={() =>
                                     !drawer.isNewTestset && drawer.isNewColumnCreated
                                         ? drawer.setIsConfirmSave(true)
@@ -111,10 +112,13 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                                 disabled={
                                     !effectiveTestsetName ||
                                     !drawer.isMapColumnExist ||
-                                    drawer.hasDuplicateColumns
+                                    drawer.hasDuplicateColumns ||
+                                    drawer.isLoading ||
+                                    drawer.isTestsetsLoading
                                 }
                                 data-tour="testset-confirm"
                             >
+                                {drawer.isLoading || drawer.isTestsetsLoading ? <Spinner /> : null}
                                 {drawer.isNewTestset ? "Create" : "Commit"}
                             </Button>
                         </div>

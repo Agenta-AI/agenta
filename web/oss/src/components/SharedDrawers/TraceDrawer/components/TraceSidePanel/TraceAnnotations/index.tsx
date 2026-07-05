@@ -2,8 +2,9 @@ import {useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {evaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CloseOutlined} from "@ant-design/icons"
-import {Button, Popover, Space} from "antd"
+import {Popover, Space} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -208,11 +209,12 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                             />
                                         </Space>
                                         <Button
-                                            type="text"
-                                            icon={<CloseOutlined />}
                                             onClick={() => setIsAnnotationsPopoverOpen(null)}
-                                            size="small"
-                                        />
+                                            variant="ghost"
+                                            size="icon-sm"
+                                        >
+                                            {<CloseOutlined />}
+                                        </Button>
                                     </div>
                                 ) : (
                                     <div className="flex items-center justify-between gap-2">
@@ -220,11 +222,12 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                             <span className="truncate">{key}</span>
                                         </div>
                                         <Button
-                                            type="text"
-                                            icon={<CloseOutlined />}
                                             onClick={() => setIsAnnotationsPopoverOpen(null)}
-                                            size="small"
-                                        />
+                                            variant="ghost"
+                                            size="icon-sm"
+                                        >
+                                            {<CloseOutlined />}
+                                        </Button>
                                     </div>
                                 )
 

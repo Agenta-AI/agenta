@@ -1,9 +1,10 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyButton} from "@agenta/ui"
 import {PythonOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileTs} from "@phosphor-icons/react"
-import {Button, Radio, Tabs} from "antd"
+import {Radio, Tabs} from "antd"
 
 import cURLCode from "@/oss/code_snippets/testsets/create_with_json/curl"
 import pythonCode from "@/oss/code_snippets/testsets/create_with_json/python"
@@ -79,10 +80,13 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
         <section className="grid gap-4">
             <div className="flex items-center gap-2 mb-1">
                 <Button
-                    icon={<ArrowLeft size={14} className="mt-0.5" />}
                     className="flex items-center justify-center"
                     onClick={() => setCurrent(0)}
-                />
+                    variant="outline"
+                    size="icon"
+                >
+                    {<ArrowLeft size={14} className="mt-0.5" />}
+                </Button>
 
                 <span className="leading-[1.5714285714285714] text-[16px] font-semibold">
                     Create a testset with API
@@ -155,7 +159,9 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                     Read the docs
                 </a>
 
-                <Button onClick={onCancel}>Close</Button>
+                <Button onClick={onCancel} variant="outline">
+                    Close
+                </Button>
             </div>
         </section>
     )

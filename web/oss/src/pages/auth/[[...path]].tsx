@@ -1,6 +1,8 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {
     AppleOutlined,
     FacebookOutlined,
@@ -10,7 +12,7 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Button, Divider, Select} from "antd"
+import {Alert, Divider, Select} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -466,11 +468,10 @@ const Auth = () => {
                                     type="warning"
                                 />
                                 <div className="flex gap-3 justify-center">
-                                    <Button onClick={() => router.replace("/w")}>
+                                    <Button onClick={() => router.replace("/w")} variant="outline">
                                         Go to your organizations
                                     </Button>
                                     <Button
-                                        type="primary"
                                         onClick={() => {
                                             signOut()
                                                 .then(() => {
@@ -533,9 +534,9 @@ const Auth = () => {
                             !showEmailForm &&
                             shouldShowEmailFlow && (
                                 <Button
-                                    type="link"
                                     onClick={() => setShowEmailForm(true)}
                                     className="text-center w-full"
+                                    variant="link"
                                 >
                                     Use a different email
                                 </Button>
@@ -607,13 +608,14 @@ const Auth = () => {
                                         {ssoProvidersToShow.map((provider) => (
                                             <Button
                                                 key={provider.id}
-                                                icon={provider.icon}
-                                                size="large"
                                                 className="w-full"
                                                 onClick={() => redirectToSsoProvider(provider)}
-                                                loading={isSocialAuthLoading}
-                                                disabled={isAuthLoading}
+                                                disabled={isAuthLoading || isSocialAuthLoading}
+                                                variant="outline"
+                                                size="lg"
                                             >
+                                                {isSocialAuthLoading ? <Spinner /> : null}
+                                                {provider.icon}
                                                 Continue with SSO (
                                                 {formatSsoProviderLabel(provider)})
                                             </Button>
@@ -624,13 +626,13 @@ const Auth = () => {
                                 {/* Show back button to change email */}
                                 {!isLoginCodeVisible && (
                                     <Button
-                                        type="link"
                                         onClick={() => {
                                             setEmailSubmitted(false)
                                             setDiscoveryComplete(false)
                                             setAvailableMethods({})
                                         }}
                                         className="text-center w-full"
+                                        variant="link"
                                     >
                                         Use a different email
                                     </Button>
@@ -657,7 +659,6 @@ const Auth = () => {
                                     </div>
                                 )}
                                 <Button
-                                    type="link"
                                     className="text-center p-0"
                                     onClick={() => {
                                         // Clear auth upgrade state before signing out
@@ -671,6 +672,7 @@ const Auth = () => {
                                             })
                                             .catch(console.error)
                                     }}
+                                    variant="link"
                                 >
                                     Sign out and use a different account
                                 </Button>

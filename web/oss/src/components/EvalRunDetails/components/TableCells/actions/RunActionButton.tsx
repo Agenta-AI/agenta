@@ -1,6 +1,7 @@
 import {MouseEvent} from "react"
 
-import {Button} from "antd"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 
 interface RunActionButtonProps {
     onClick: () => void
@@ -15,13 +16,8 @@ const RunActionButton = ({onClick, loading}: RunActionButtonProps) => {
     }
 
     return (
-        <Button
-            size="small"
-            type="default"
-            onClick={handleClick}
-            loading={loading}
-            disabled={loading}
-        >
+        <Button onClick={handleClick} disabled={loading || loading} variant="outline" size="sm">
+            {loading ? <Spinner /> : null}
             Run
         </Button>
     )

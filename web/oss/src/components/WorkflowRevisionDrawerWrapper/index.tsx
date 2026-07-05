@@ -52,10 +52,11 @@ import {
     type DrawerProviders,
     type DrawerInitialAppSelection,
 } from "@agenta/playground-ui/workflow-revision-drawer"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
-import {Button, message} from "antd"
+import {message} from "antd"
 import {
     Provider,
     createStore,
@@ -158,8 +159,9 @@ const PlaygroundButton = memo(({revisionId}: {revisionId: string}) => {
     return (
         <Button
             className="flex items-center gap-2"
-            size="small"
             onClick={() => goToPlayground(revisionId)}
+            variant="outline"
+            size="sm"
         >
             <Rocket size={14} />
             Playground

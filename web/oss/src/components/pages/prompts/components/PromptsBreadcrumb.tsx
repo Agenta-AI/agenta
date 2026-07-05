@@ -1,6 +1,7 @@
 import React, {useMemo} from "react"
 
 import type {AppType} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {
     CaretDownIcon,
     FolderDashedIcon,
@@ -11,7 +12,7 @@ import {
     SquaresFourIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
-import {Breadcrumb, BreadcrumbProps, Button, Dropdown, MenuProps, theme} from "antd"
+import {Breadcrumb, BreadcrumbProps, Dropdown, MenuProps, theme} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
@@ -260,12 +261,9 @@ const PromptsBreadcrumb = ({
         const base: BreadcrumbProps["items"] = [
             {
                 title: (
-                    <Button
-                        type="link"
-                        className="w-5 h-5 m-0"
-                        size="small"
-                        icon={<PromptsHouseIcon active={isAtRoot} />}
-                    />
+                    <Button className="w-5 h-5 m-0" variant="link" size="icon-sm">
+                        {<PromptsHouseIcon active={isAtRoot} />}
+                    </Button>
                 ),
                 onClick: () => onFolderChange?.(null),
             },
@@ -288,12 +286,9 @@ const PromptsBreadcrumb = ({
                                 menu={{items: menuItems}}
                                 placement="bottomLeft"
                             >
-                                <Button
-                                    type="text"
-                                    className="w-5 h-5"
-                                    size="small"
-                                    icon={<CaretDownIcon size={14} />}
-                                />
+                                <Button className="w-5 h-5" variant="ghost" size="icon-sm">
+                                    {<CaretDownIcon size={14} />}
+                                </Button>
                             </Dropdown>
                         </div>
                     ),

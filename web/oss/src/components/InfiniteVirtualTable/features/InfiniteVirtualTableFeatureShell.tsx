@@ -1,8 +1,10 @@
 import type {CSSProperties, Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {TrashIcon} from "@phosphor-icons/react"
-import {Button, Grid, Tabs, Tooltip} from "antd"
+import {Grid, Tabs, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 
@@ -375,13 +377,12 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         const {onDelete, disabled, disabledTooltip, label = "Delete"} = deleteAction
         const button = (
             <Button
-                danger
-                type="text"
-                icon={<TrashIcon size={14} className="mt-0.5" />}
                 className="flex items-center"
                 disabled={disabled}
                 onClick={onDelete}
+                variant="destructive"
             >
+                {<TrashIcon size={14} className="mt-0.5" />}
                 {label}
             </Button>
         )
@@ -396,7 +397,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         if (!exportEnabled || !exportAction || isNarrowScreen) return null
         const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
         const button = (
-            <Button disabled={disabled} onClick={exportHandler} type="text" loading={isExporting}>
+            <Button disabled={disabled || isExporting} onClick={exportHandler} variant="ghost">
+                {isExporting ? <Spinner /> : null}
                 {label}
             </Button>
         )

@@ -2,6 +2,7 @@ import {useMemo, useState} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {
@@ -13,7 +14,7 @@ import {
     Rocket,
     Swap,
 } from "@phosphor-icons/react"
-import {Button, DrawerProps, Dropdown, Space, Tabs, Tooltip} from "antd"
+import {DrawerProps, Dropdown, Space, Tabs, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -135,9 +136,11 @@ const DeploymentDrawer = ({
                         <Space className="gap-3">
                             <Button
                                 onClick={() => props.onClose?.({} as any)}
-                                type="text"
-                                icon={<CloseOutlined />}
-                            />
+                                variant="ghost"
+                                size="icon"
+                            >
+                                {<CloseOutlined />}
+                            </Button>
                             <h2 className="mb-0 text-lg font-medium">
                                 {selectedEnvironment?.name} environment
                             </h2>
@@ -149,10 +152,11 @@ const DeploymentDrawer = ({
                                     title={isDemo() ? "" : "History available in Cloud/EE only"}
                                 >
                                     <Button
-                                        size="small"
                                         className="flex items-center gap-2"
                                         disabled={!isDemo()}
                                         onClick={() => setIsHistoryModalOpen(true)}
+                                        variant="outline"
+                                        size="sm"
                                     >
                                         <ClockClockwise size={16} />
                                         View history
@@ -181,7 +185,9 @@ const DeploymentDrawer = ({
                                         ],
                                     }}
                                 >
-                                    <Button type="text" icon={<MoreOutlined />} size="small" />
+                                    <Button variant="ghost" size="icon-sm">
+                                        {<MoreOutlined />}
+                                    </Button>
                                 </Dropdown>
                             </Space>
                         )}
@@ -280,6 +286,7 @@ const DeploymentDrawer = ({
                         <Button
                             className="flex items-center gap-2"
                             onClick={handleOpenSelectDeployVariantModal}
+                            variant="outline"
                         >
                             Deploy now <ArrowRight size={14} />
                         </Button>

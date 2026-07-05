@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {
     ColumnVisibilityMenuTrigger,
     defaultHeaderVariant,
@@ -11,7 +12,7 @@ import {
 } from "@agenta/ui/table"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Skeleton, Tooltip} from "antd"
+import {Input, Skeleton, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
@@ -677,14 +678,15 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                         {onAddColumn && mode === "edit" && (
                             <Tooltip title="Add column">
                                 <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<PlusOutlined />}
                                     onClick={(e) => {
                                         e.stopPropagation()
                                         onAddColumn()
                                     }}
-                                />
+                                    variant="ghost"
+                                    size="icon-sm"
+                                >
+                                    {<PlusOutlined />}
+                                </Button>
                             </Tooltip>
                         )}
                         <ColumnVisibilityMenuTrigger variant="icon" />

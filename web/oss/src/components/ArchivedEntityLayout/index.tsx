@@ -1,5 +1,5 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useRouter} from "next/router"
 
 import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
@@ -24,12 +24,8 @@ export default function ArchivedEntityLayout({
     return (
         <div className="flex h-full min-h-0 flex-col gap-4 p-4">
             <div className="flex flex-col gap-2">
-                <Button
-                    type="text"
-                    icon={<ArrowLeft size={16} />}
-                    onClick={handleBack}
-                    className="self-start"
-                >
+                <Button onClick={handleBack} className="self-start" variant="ghost">
+                    {<ArrowLeft size={16} />}
                     Back
                 </Button>
                 <div className="flex flex-col gap-1">

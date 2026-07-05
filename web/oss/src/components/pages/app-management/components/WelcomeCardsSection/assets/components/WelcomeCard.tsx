@@ -1,5 +1,5 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowUpRightIcon} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 interface WelcomeCardProps {
     title: string
@@ -20,10 +20,12 @@ const WelcomeCard = ({title, subtitle, onClick, hidden}: WelcomeCardProps) => {
             </div>
             <div className="flex items-end justify-end p-4">
                 <Button
-                    type="text"
-                    icon={<ArrowUpRightIcon size={18} />}
                     className="pointer-events-none text-[var(--ag-c-6B7280)] hover:!bg-transparent"
-                />
+                    variant="ghost"
+                    size="icon"
+                >
+                    {<ArrowUpRightIcon size={18} />}
+                </Button>
             </div>
         </div>
     )

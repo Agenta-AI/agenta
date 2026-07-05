@@ -1,11 +1,13 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {resolveOutputSchema} from "@agenta/entities/workflow"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, DrawerProps, Spin} from "antd"
+import {DrawerProps, Spin} from "antd"
 import deepEqual from "fast-deep-equal"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -826,11 +828,10 @@ const VirtualizedScenarioTableAnnotateDrawer = ({
             <div className="flex items-center justify-between w-full pr-2">
                 <span className="text-base font-medium text-[var(--ag-c-0B1F3F)]">{title}</span>
                 <Button
-                    type="primary"
-                    disabled={!annotateState.canSubmit}
-                    loading={annotateState.isSubmitting}
+                    disabled={!annotateState.canSubmit || annotateState.isSubmitting}
                     onClick={() => submitHandlerRef.current?.()}
                 >
+                    {annotateState.isSubmitting ? <Spinner /> : null}
                     Annotate
                 </Button>
             </div>

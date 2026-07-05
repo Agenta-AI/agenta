@@ -1,6 +1,6 @@
+import {Button} from "@agenta/primitive-ui/components/button"
 import {PageLayout} from "@agenta/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useRouter} from "next/router"
 
 import ApplicationManagementSection from "@/oss/components/pages/app-management/components/ApplicationManagementSection"
@@ -12,13 +12,14 @@ export default function ArchivedAgentsPage() {
     const title = (
         <span className="inline-flex items-center gap-2">
             <Button
-                type="text"
-                size="small"
-                icon={<ArrowLeft size={16} />}
                 onClick={() => router.push(`${projectURL}/agents`)}
                 className="!px-1"
                 aria-label="Back to agents"
-            />
+                variant="ghost"
+                size="icon-sm"
+            >
+                {<ArrowLeft size={16} />}
+            </Button>
             <span>Archived Agents</span>
         </span>
     )

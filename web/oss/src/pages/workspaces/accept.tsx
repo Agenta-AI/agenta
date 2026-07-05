@@ -1,7 +1,8 @@
 import {useEffect, useRef, useState, type FC} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {message} from "@agenta/ui/app-message"
-import {Button, Card} from "antd"
+import {Card} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
@@ -242,8 +243,10 @@ const Accept: FC = () => {
                     </h3>
                     <p className="text-[var(--ag-c-586673)] !mb-6">{error}</p>
                     <div className="flex gap-3 justify-center flex-wrap">
-                        <Button onClick={handleGoBack}>Go back to your workspaces</Button>
-                        <Button type="primary" onClick={handleSignInDifferentAccount}>
+                        <Button onClick={handleGoBack} variant="outline">
+                            Go back to your workspaces
+                        </Button>
+                        <Button onClick={handleSignInDifferentAccount}>
                             Sign in with a different account
                         </Button>
                     </div>

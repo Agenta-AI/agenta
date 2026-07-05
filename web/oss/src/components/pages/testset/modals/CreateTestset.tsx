@@ -1,9 +1,11 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
 import {Code, Table} from "@phosphor-icons/react"
-import {Alert, Button, Form, Input, Popover, Upload, UploadFile} from "antd"
+import {Alert, Form, Input, Popover, Upload, UploadFile} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -423,15 +425,14 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
 
             {fileProgress ? (
                 <div className="flex justify-end gap-2 mt-2">
-                    <Button disabled={uploadLoading} onClick={onCancel}>
+                    <Button disabled={uploadLoading} onClick={onCancel} variant="outline">
                         Cancel
                     </Button>
                     <Button
-                        disabled={!testsetName || !fileProgress}
-                        loading={uploadLoading}
-                        type="primary"
+                        disabled={!testsetName || !fileProgress || uploadLoading}
                         onClick={handleUpload}
                     >
+                        {uploadLoading ? <Spinner /> : null}
                         Create testset
                     </Button>
                 </div>
@@ -442,9 +443,9 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     </span>
                     <div className="flex gap-3">
                         <Button
-                            block
-                            className={classes.actionButton}
+                            className={[classes.actionButton, "w-full"].filter(Boolean).join(" ")}
                             onClick={() => setCurrent(1)}
+                            variant="outline"
                         >
                             <Table size={24} />
                             <div className="button-content">
@@ -453,9 +454,9 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                             </div>
                         </Button>
                         <Button
-                            block
-                            className={classes.actionButton}
+                            className={[classes.actionButton, "w-full"].filter(Boolean).join(" ")}
                             onClick={() => setCurrent(2)}
+                            variant="outline"
                         >
                             <Code size={24} />
                             <div className="button-content">

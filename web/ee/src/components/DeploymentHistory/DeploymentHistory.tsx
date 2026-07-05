@@ -7,8 +7,10 @@ import {
 } from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
+import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {projectIdAtom} from "@agenta/shared/state"
-import {Button, Card, Divider, Space, notification} from "antd"
+import {Card, Divider, Space, notification} from "antd"
 import clsx from "clsx"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -349,7 +351,8 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                             <h1>Information</h1>
 
                             {items.length > 1 && !isCurrentDeployment && (
-                                <Button type="primary" loading={isReverting} onClick={handleRevert}>
+                                <Button onClick={handleRevert} disabled={isReverting}>
+                                    {isReverting ? <Spinner /> : null}
                                     Revert
                                 </Button>
                             )}

@@ -7,9 +7,10 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@agenta/entities/trace"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
-import {Button, Space, Tag} from "antd"
+import {Space, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -458,27 +459,28 @@ const TraceHeader = ({
             <div className="flex items-center justify-between gap-2">
                 <Space>
                     {backTarget && (
-                        <Button
-                            type="default"
-                            size="small"
-                            onClick={handleBackToOrigin}
-                            icon={<ArrowLeft size={14} />}
-                        />
+                        <Button onClick={handleBackToOrigin} variant="outline" size="icon-sm">
+                            {<ArrowLeft size={14} />}
+                        </Button>
                     )}
                     {!isLinkedView && (
                         <div>
                             <Button
                                 onClick={handlePrevTrace}
-                                type="text"
                                 disabled={isPrevDisabled}
-                                icon={<CaretUp size={16} />}
-                            />
+                                variant="ghost"
+                                size="icon"
+                            >
+                                {<CaretUp size={16} />}
+                            </Button>
                             <Button
                                 onClick={handleNextTrace}
-                                type="text"
                                 disabled={isNextDisabled}
-                                icon={<CaretDown size={16} />}
-                            />
+                                variant="ghost"
+                                size="icon"
+                            >
+                                {<CaretDown size={16} />}
+                            </Button>
                         </div>
                     )}
 
@@ -494,7 +496,7 @@ const TraceHeader = ({
                     itemIds={activeTraceKey ? [activeTraceKey] : []}
                     disabled={!activeTraceKey}
                 >
-                    <Button size="small" disabled={!activeTraceKey}>
+                    <Button disabled={!activeTraceKey} variant="outline" size="sm">
                         Add annotation queue
                     </Button>
                 </AddToQueuePopover>

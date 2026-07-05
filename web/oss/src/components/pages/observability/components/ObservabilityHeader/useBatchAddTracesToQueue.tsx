@@ -22,8 +22,8 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {simpleQueueMolecule, type SimpleQueue} from "@agenta/entities/simpleQueue"
 import {addAllMatchingTracesToQueue, BatchFlushError} from "@agenta/entities/simpleQueue/etl"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {notification} from "@agenta/ui/app-message"
-import {Button} from "antd"
 import {useAtomValue} from "jotai"
 
 import {queueMaxItemsAtom} from "@/oss/state/access/atoms"
@@ -161,7 +161,7 @@ export const useBatchAddTracesToQueue = () => {
             const isCurrentRun = () => abortRef.current === controller
 
             const cancelBtn = (
-                <Button size="small" onClick={() => controller.abort()}>
+                <Button onClick={() => controller.abort()} variant="outline" size="sm">
                     Cancel
                 </Button>
             )
@@ -285,10 +285,9 @@ export const useBatchAddTracesToQueue = () => {
                         duration: 0,
                         btn: viewQueueUrl ? (
                             <Button
-                                size="small"
-                                type="primary"
-                                href={viewQueueUrl}
                                 onClick={() => notification.destroy(key)}
+                                size="sm"
+                                render={<a href={viewQueueUrl} />}
                             >
                                 View queue
                             </Button>
@@ -301,11 +300,12 @@ export const useBatchAddTracesToQueue = () => {
 
                     const retryBtn = (
                         <Button
-                            size="small"
                             onClick={() => {
                                 notification.destroy(key)
                                 runRef.current(input)
                             }}
+                            variant="outline"
+                            size="sm"
                         >
                             Retry
                         </Button>

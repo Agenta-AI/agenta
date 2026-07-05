@@ -1,9 +1,9 @@
 import {useMemo, useState} from "react"
 
 import {capturesForTrigger} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {X} from "@phosphor-icons/react"
 import type {UIMessage} from "ai"
-import {Button} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {sessionCapturesAtomFamily} from "../../state/turnCaptures"
@@ -86,12 +86,13 @@ const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMe
                         Turn inspector
                     </span>
                     <Button
-                        type="text"
-                        size="small"
-                        icon={<X size={14} />}
                         onClick={() => setTarget(null)}
                         aria-label="Close turn inspector"
-                    />
+                        variant="ghost"
+                        size="icon-sm"
+                    >
+                        {<X size={14} />}
+                    </Button>
                 </div>
                 {/* Horizontal tab bar — tabs on top so the content gets the panel's full width (a
                     vertical rail ate ~130px of a ~480px panel, squeezing the tool I/O JSON too narrow). */}
@@ -101,13 +102,13 @@ const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMe
                         return (
                             <Button
                                 key={t.value}
-                                type="text"
                                 onClick={() => setTab(t.value)}
                                 className={`!h-7 !rounded-md !px-2.5 !text-xs transition-colors ${
                                     active
                                         ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
                                         : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
                                 }`}
+                                variant="ghost"
                             >
                                 {t.label}
                             </Button>

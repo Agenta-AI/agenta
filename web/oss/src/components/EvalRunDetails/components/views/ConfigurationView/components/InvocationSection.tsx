@@ -1,7 +1,8 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
+import {Button} from "@agenta/primitive-ui/components/button"
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Segmented, Tag} from "antd"
+import {Segmented, Tag} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -255,12 +256,9 @@ const InvocationSection = ({
                             onChange={(val) => setView(val as "details" | "json")}
                         />
                     ) : null}
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
-                        onClick={() => setCollapsed((v) => !v)}
-                    />
+                    <Button onClick={() => setCollapsed((v) => !v)} variant="ghost" size="icon-sm">
+                        {<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                    </Button>
                 </div>
             </div>
 

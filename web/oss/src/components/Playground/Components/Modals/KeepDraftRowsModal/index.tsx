@@ -1,6 +1,6 @@
 import {playgroundController} from "@agenta/playground"
+import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
-import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {initialKeepDraftRowsState, keepDraftRowsModalAtom} from "./store/state"
@@ -59,21 +59,19 @@ const KeepDraftRowsModal = () => {
             onCancel={handleClose}
             footer={
                 <div className="flex items-center justify-end gap-2 pt-2">
-                    <Button type="text" onClick={handleClose}>
+                    <Button onClick={handleClose} variant="ghost">
                         Cancel
                     </Button>
                     {isChatVariant ? (
-                        <Button type="primary" danger onClick={handleDiscardAndLoad}>
+                        <Button onClick={handleDiscardAndLoad} variant="destructive">
                             Load and replace
                         </Button>
                     ) : (
                         <>
-                            <Button danger onClick={handleDiscardAndLoad}>
+                            <Button onClick={handleDiscardAndLoad} variant="destructive">
                                 Discard drafts
                             </Button>
-                            <Button type="primary" onClick={handleKeepAndLoad}>
-                                Keep and load
-                            </Button>
+                            <Button onClick={handleKeepAndLoad}>Keep and load</Button>
                         </>
                     )}
                 </div>
