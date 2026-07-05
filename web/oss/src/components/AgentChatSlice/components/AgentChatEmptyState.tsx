@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {ArrowRight, Robot} from "@phosphor-icons/react"
-import {Typography} from "antd"
+import {Button, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
@@ -58,13 +58,22 @@ const Bot = ({size = 44}: {size?: number}) => (
  *  - Chat (maximized): a warm minimal welcome.
  *  - Build: an agent-aware card (name, model, capabilities, a one-line summary) plus starter
  *    prompts that send on click — for the team building the agent.
+ *  - Build + first run: when the agent was just created with a starting prompt (`firstRunPrompt`),
+ *    that prompt is shown prominently with a Start CTA instead of the generic starters — so the
+ *    kickoff message reads as "here's what we'll do", not text the user has to notice in the input.
  */
 const AgentChatEmptyState = ({
     entityId,
     onStart,
+    firstRunPrompt,
+    canStart = true,
 }: {
     entityId: string
     onStart: (text: string) => void
+    /** A just-created agent's starting prompt — surfaced here instead of pre-filling the composer. */
+    firstRunPrompt?: string | null
+    /** Whether the Start CTA is enabled (false when the model isn't connected). */
+    canStart?: boolean
 }) => {
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
@@ -121,22 +130,50 @@ const AgentChatEmptyState = ({
                     </Text>
                 ) : null}
 
-                <div className="flex flex-col items-start gap-1.5">
-                    <Text type="secondary" className="!text-[11px]">
-                        Try
-                    </Text>
-                    {BUILD_STARTERS.map((starter) => (
-                        <button
-                            key={starter}
-                            type="button"
-                            onClick={() => onStart(starter)}
-                            className="flex w-fit max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-solid border-colorBorder bg-colorBgContainer px-3 py-1.5 text-left text-xs text-colorTextSecondary transition-colors hover:border-colorPrimary hover:text-colorText"
+                {firstRunPrompt ? (
+                    <div className="flex flex-col gap-2">
+                        <Text
+                            type="secondary"
+                            className="!text-[11px] !font-medium uppercase tracking-wide"
                         >
-                            <ArrowRight size={13} className="shrink-0" />
-                            <span className="truncate">{starter}</span>
-                        </button>
-                    ))}
-                </div>
+                            We'll start with
+                        </Text>
+                        <div className="whitespace-pre-wrap break-words rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2 text-xs leading-relaxed text-colorText">
+                            {firstRunPrompt}
+                        </div>
+                        <Button
+                            type="primary"
+                            disabled={!canStart}
+                            onClick={() => onStart(firstRunPrompt)}
+                            className="!inline-flex items-center gap-1.5 self-start !shadow-none"
+                        >
+                            Start
+                            <ArrowRight size={14} />
+                        </Button>
+                        {canStart ? null : (
+                            <Text type="secondary" className="!text-[11px]">
+                                Connect a model below to start.
+                            </Text>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-start gap-1.5">
+                        <Text type="secondary" className="!text-[11px]">
+                            Try
+                        </Text>
+                        {BUILD_STARTERS.map((starter) => (
+                            <button
+                                key={starter}
+                                type="button"
+                                onClick={() => onStart(starter)}
+                                className="flex w-fit max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-solid border-colorBorder bg-colorBgContainer px-3 py-1.5 text-left text-xs text-colorTextSecondary transition-colors hover:border-colorPrimary hover:text-colorText"
+                            >
+                                <ArrowRight size={13} className="shrink-0" />
+                                <span className="truncate">{starter}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     )

@@ -17,7 +17,7 @@ import {ArrowDown, Paperclip, TreeStructure, UploadSimple} from "@phosphor-icons
 import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
-import {useAtomValue, useSetAtom, useStore} from "jotai"
+import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {SessionInspectorButton} from "@/oss/components/SessionInspector"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
@@ -36,12 +36,15 @@ import AgentMessage from "./components/AgentMessage"
 import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
+import ConnectModelBanner from "./components/ConnectModelBanner"
 import QueuedMessages from "./components/QueuedMessages"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionRail from "./components/SessionRail"
 import SessionTagBar from "./components/SessionTagBar"
 import TurnInspector from "./components/TurnInspector/TurnInspector"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
+import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
+import {agentFirstRunSeedAtom} from "./state/firstRunSeed"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
 import {useChatScopeKey} from "./state/scope"
 import {
@@ -391,6 +394,28 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
+
+    // Model connection: does the vault hold a key for this agent's model provider? Drives the
+    // connect-a-model banner AND disables the composer until connected. Only gate when the provider
+    // is KNOWN but keyless — an unresolved provider must never dead-end the composer with no banner.
+    const modelKey = useAgentModelKeyStatus(entityId)
+    const modelBlocked = !!modelKey.providerEntry && !modelKey.hasKey
+
+    // First-run seed: a freshly-created agent (from Home's composer/template) surfaces its starting
+    // prompt in the empty state (see AgentChatEmptyState) rather than pre-filling the composer, so it
+    // reads as "here's what we'll do" not stray user input. Consumed once by the active session on a
+    // fresh conversation, matching either the revision or app id, then cleared.
+    const [firstRunSeed, setFirstRunSeed] = useAtom(agentFirstRunSeedAtom)
+    const [firstRunPrompt, setFirstRunPrompt] = useState<string | null>(null)
+    const seedConsumedRef = useRef(false)
+    useEffect(() => {
+        if (seedConsumedRef.current || !firstRunSeed) return
+        if (entityId !== firstRunSeed.revisionId && entityId !== firstRunSeed.appId) return
+        if (activeSessionId !== sessionId || messages.length > 0) return
+        seedConsumedRef.current = true
+        setFirstRunPrompt(firstRunSeed.seedMessage)
+        setFirstRunSeed(null)
+    }, [firstRunSeed, entityId, activeSessionId, sessionId, messages.length, setFirstRunSeed])
     const consumedRunNonceRef = useRef<number | null>(null)
 
     // `handleRewind` is passed to every memo'd `AgentMessage`, so it must stay referentially
@@ -898,6 +923,28 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         setAttachmentsOpen(false)
     }
 
+    // First-run auto-start: a freshly-created agent (from Home) lands with a seeded prompt, but its
+    // model is often gated (no provider key yet). Connecting the key IS the user's go-ahead — so once
+    // the gate clears we send the seeded prompt automatically, rather than making them click Start a
+    // second time ("no explicit action twice"). Fires ONLY on the blocked→unblocked transition (a
+    // model that was ready on arrival still waits for an explicit Start click), exactly once, and only
+    // while the conversation is still empty. `handleSubmit` is read via a ref so the transition — not a
+    // token re-render — drives the send.
+    const handleSubmitRef = useRef(handleSubmit)
+    handleSubmitRef.current = handleSubmit
+    const autoStartedSeedRef = useRef(false)
+    const seedWasBlockedRef = useRef(false)
+    useEffect(() => {
+        if (!firstRunPrompt || autoStartedSeedRef.current) return
+        if (modelBlocked) {
+            seedWasBlockedRef.current = true
+            return
+        }
+        if (!seedWasBlockedRef.current || messages.length > 0) return
+        autoStartedSeedRef.current = true
+        handleSubmitRef.current(firstRunPrompt)
+    }, [firstRunPrompt, modelBlocked, messages.length])
+
     const handleRewind = useCallback(
         (message: UIMessage) => {
             const msgs = messagesRef.current
@@ -1081,7 +1128,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         }}
                     >
                         {messages.length === 0 && (
-                            <AgentChatEmptyState entityId={entityId} onStart={handleSubmit} />
+                            <AgentChatEmptyState
+                                entityId={entityId}
+                                onStart={handleSubmit}
+                                firstRunPrompt={firstRunPrompt}
+                                canStart={!modelBlocked}
+                            />
                         )}
                         {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
                         {activeStart < messages.length && (
@@ -1141,6 +1193,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 animates in/out, and inside the composer region so the paused gate can't scroll out
                 of reach and its collapse adds no gap to the surrounding column. */}
                 <div className="px-3">
+                    <div className={CHAT_COLUMN}>
+                        <ConnectModelBanner {...modelKey} />
+                    </div>
                     <ApprovalDock
                         className={CHAT_COLUMN}
                         approvals={pendingApprovals}
@@ -1151,7 +1206,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         ref={richInputRef}
                         className={`${CHAT_COLUMN} mb-3`}
                         onSubmit={handleSubmit}
-                        placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                        disabled={modelBlocked}
+                        placeholder={
+                            modelBlocked
+                                ? "Connect a model to start chatting…"
+                                : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                        }
                         onPasteFile={(pasted) => addFiles(Array.from(pasted))}
                         sendForceEnabled={files.length > 0}
                         streaming={busy}
