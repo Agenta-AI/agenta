@@ -12,9 +12,10 @@ import {
     useState,
 } from "react"
 
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import type {CardComponentProps} from "@agentaai/nextstepjs"
 import {ArrowLeft, ArrowRight, DotsSixVertical} from "@phosphor-icons/react"
-import {Button, Card} from "antd"
+import {Button} from "antd"
 import {useSetAtom} from "jotai"
 
 import type {OnboardingStep} from "@/oss/lib/onboarding"
@@ -702,94 +703,95 @@ const OnboardingCard = ({
         >
             <Card
                 className="!rounded-xl !p-0 shadow-lg"
-                classNames={{body: "!px-4 !py-[10px]"}}
                 style={{
                     backgroundColor: "var(--ag-colorBgElevated)",
                     borderColor: "var(--ag-colorBorder)",
                 }}
             >
-                <div className="flex w-full flex-col gap-4">
-                    {/* Header with drag handle */}
-                    <div className="flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2">
-                            {/* Drag handle */}
-                            <div
-                                onMouseDown={handleMouseDown}
-                                className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-gray-100 text-colorTextTertiary hover:text-colorTextSecondary"
-                                title="Drag to move"
-                            >
-                                <DotsSixVertical size={16} weight="bold" />
+                <CardContent className="px-4 py-[10px]">
+                    <div className="flex w-full flex-col gap-4">
+                        {/* Header with drag handle */}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center justify-between gap-2">
+                                {/* Drag handle */}
+                                <div
+                                    onMouseDown={handleMouseDown}
+                                    className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-gray-100 text-colorTextTertiary hover:text-colorTextSecondary"
+                                    title="Drag to move"
+                                >
+                                    <DotsSixVertical size={16} weight="bold" />
+                                </div>
+                                <span className="!mb-0 !text-sm font-medium leading-6 text-colorText flex-1">
+                                    {step?.title}
+                                </span>
+                                <span className="!mb-0 !text-xs font-medium text-colorTextSecondary">
+                                    {currentStep + 1} / {totalSteps}
+                                </span>
                             </div>
-                            <span className="!mb-0 !text-sm font-medium leading-6 text-colorText flex-1">
-                                {step?.title}
-                            </span>
-                            <span className="!mb-0 !text-xs font-medium text-colorTextSecondary">
-                                {currentStep + 1} / {totalSteps}
+                            <span className="!mb-0 !text-xs leading-5 text-colorTextSecondary">
+                                {step?.content}
                             </span>
                         </div>
-                        <span className="!mb-0 !text-xs leading-5 text-colorTextSecondary">
-                            {step?.content}
-                        </span>
+
+                        {/* Controls */}
+                        {showControls && (
+                            <div className="flex flex-col gap-4">
+                                <div className="h-1.5 w-full rounded-full bg-gray-200">
+                                    <div
+                                        className="h-full rounded-full bg-colorPrimary transition-all duration-300"
+                                        style={{width: `${progressPercent}%`}}
+                                    />
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <Button
+                                        onClick={handlePrev}
+                                        icon={<ArrowLeft size={14} className="mt-0.5" />}
+                                        disabled={currentStep === 0}
+                                        className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] !text-[var(--ant-color-text)] dark:!text-white"
+                                        size="small"
+                                    >
+                                        {labels.previous ?? "Previous"}
+                                    </Button>
+
+                                    <Button
+                                        type="primary"
+                                        onClick={handleNext}
+                                        icon={<ArrowRight size={14} className="mt-0.5" />}
+                                        iconPlacement="end"
+                                        className="!text-xs !h-[26px] bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg dark:!text-[#141414]"
+                                        size="small"
+                                    >
+                                        {currentStep < totalSteps - 1
+                                            ? (labels.next ?? "Next")
+                                            : (labels.finish ?? "Got it")}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Controls */}
-                    {showControls && (
-                        <div className="flex flex-col gap-4">
-                            <div className="h-1.5 w-full rounded-full bg-gray-200">
-                                <div
-                                    className="h-full rounded-full bg-colorPrimary transition-all duration-300"
-                                    style={{width: `${progressPercent}%`}}
-                                />
-                            </div>
+                    {showSkip && skipTour && currentStep < totalSteps - 1 && (
+                        <Button
+                            type="default"
+                            className="!text-xs mt-2 w-full rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] !text-[var(--ant-color-text)]"
+                            onClick={handleSkip}
+                            size="small"
+                        >
+                            Skip
+                        </Button>
+                    )}
 
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                <Button
-                                    onClick={handlePrev}
-                                    icon={<ArrowLeft size={14} className="mt-0.5" />}
-                                    disabled={currentStep === 0}
-                                    className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] !text-[var(--ant-color-text)] dark:!text-white"
-                                    size="small"
-                                >
-                                    {labels.previous ?? "Previous"}
-                                </Button>
-
-                                <Button
-                                    type="primary"
-                                    onClick={handleNext}
-                                    icon={<ArrowRight size={14} className="mt-0.5" />}
-                                    iconPlacement="end"
-                                    className="!text-xs !h-[26px] bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg dark:!text-[#141414]"
-                                    size="small"
-                                >
-                                    {currentStep < totalSteps - 1
-                                        ? (labels.next ?? "Next")
-                                        : (labels.finish ?? "Got it")}
-                                </Button>
-                            </div>
+                    {/* Arrow - hide if user has moved the card */}
+                    {adjustedArrow && userOffset.x === 0 && userOffset.y === 0 && (
+                        <div
+                            className="mt-2 flex w-full justify-center"
+                            style={{backgroundColor: "var(--ag-colorBgElevated)"}}
+                        >
+                            {adjustedArrow}
                         </div>
                     )}
-                </div>
-
-                {showSkip && skipTour && currentStep < totalSteps - 1 && (
-                    <Button
-                        type="default"
-                        className="!text-xs mt-2 w-full rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] !text-[var(--ant-color-text)]"
-                        onClick={handleSkip}
-                        size="small"
-                    >
-                        Skip
-                    </Button>
-                )}
-
-                {/* Arrow - hide if user has moved the card */}
-                {adjustedArrow && userOffset.x === 0 && userOffset.y === 0 && (
-                    <div
-                        className="mt-2 flex w-full justify-center"
-                        style={{backgroundColor: "var(--ag-colorBgElevated)"}}
-                    >
-                        {adjustedArrow}
-                    </div>
-                )}
+                </CardContent>
             </Card>
         </section>
     )

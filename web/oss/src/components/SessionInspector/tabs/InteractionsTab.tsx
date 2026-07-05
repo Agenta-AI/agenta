@@ -1,12 +1,13 @@
 import {useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Card, CardContent, CardHeader, CardTitle} from "@agenta/primitive-ui/components/card"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Card, Empty, Space, Tag} from "antd"
+import {Alert, Empty, Space, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -83,100 +84,106 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                     const isApproval = interaction.kind === "user_approval"
 
                     return (
-                        <Card
-                            key={id || interaction.token}
-                            size="small"
-                            title={
-                                <Space size="small">
-                                    <Tag>{interaction.kind}</Tag>
-                                    <Tag color={isPending ? "orange" : "default"}>
-                                        {interaction.status?.code ?? "unknown"}
-                                    </Tag>
-                                </Space>
-                            }
-                        >
-                            <Space direction="vertical" size="small" className="w-full">
-                                <div className="text-xs text-gray-500">
-                                    <span className="font-mono">{interaction.token}</span>
-                                    {interaction.turn_id && (
-                                        <span className="ml-2 text-gray-400">
-                                            turn:{" "}
-                                            <span className="font-mono">{interaction.turn_id}</span>
-                                        </span>
-                                    )}
-                                    {interaction.created_at && (
-                                        <span className="ml-2 text-gray-400">
-                                            {String(interaction.created_at)}
-                                        </span>
-                                    )}
-                                </div>
-                                {interaction.data?.request && (
-                                    <pre className="m-0 max-h-[20vh] overflow-auto rounded bg-gray-50 p-2 text-xs">
-                                        {JSON.stringify(interaction.data.request, null, 2)}
-                                    </pre>
-                                )}
-                                {interaction.data?.resolution && (
-                                    <pre className="m-0 max-h-[10vh] overflow-auto rounded bg-green-50 p-2 text-xs">
-                                        {JSON.stringify(interaction.data.resolution, null, 2)}
-                                    </pre>
-                                )}
-                                {isApproval ? (
-                                    <Space>
-                                        <Button
-                                            disabled={!isPending || !id || busyId === id}
-                                            onClick={() =>
-                                                id &&
-                                                respond(id, approvalAnswer(interaction.token, true))
-                                            }
-                                            size="sm"
-                                        >
-                                            {busyId === id ? <Spinner /> : null}
-                                            Approve
-                                        </Button>
-                                        <Button
-                                            disabled={!isPending || !id || busyId === id}
-                                            onClick={() =>
-                                                id &&
-                                                respond(
-                                                    id,
-                                                    approvalAnswer(interaction.token, false),
-                                                )
-                                            }
-                                            variant="destructive"
-                                            size="sm"
-                                        >
-                                            {busyId === id ? <Spinner /> : null}
-                                            Deny
-                                        </Button>
+                        <Card key={id || interaction.token} size="sm">
+                            <CardHeader>
+                                <CardTitle>
+                                    <Space size="small">
+                                        <Tag>{interaction.kind}</Tag>
+                                        <Tag color={isPending ? "orange" : "default"}>
+                                            {interaction.status?.code ?? "unknown"}
+                                        </Tag>
                                     </Space>
-                                ) : (
-                                    <Space.Compact className="w-full">
-                                        <Input
-                                            placeholder="input"
-                                            value={inputs[id] ?? ""}
-                                            disabled={!isPending}
-                                            onChange={(e) =>
-                                                setInputs((prev) => ({
-                                                    ...prev,
-                                                    [id]: e.target.value,
-                                                }))
-                                            }
-                                            className="h-6"
-                                        />
-                                        <Button
-                                            disabled={!isPending || !id || busyId === id}
-                                            onClick={() =>
-                                                id && respond(id, inputAnswer(inputs[id] ?? ""))
-                                            }
-                                            variant="outline"
-                                            size="sm"
-                                        >
-                                            {busyId === id ? <Spinner /> : null}
-                                            Respond
-                                        </Button>
-                                    </Space.Compact>
-                                )}
-                            </Space>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Space direction="vertical" size="small" className="w-full">
+                                    <div className="text-xs text-gray-500">
+                                        <span className="font-mono">{interaction.token}</span>
+                                        {interaction.turn_id && (
+                                            <span className="ml-2 text-gray-400">
+                                                turn:{" "}
+                                                <span className="font-mono">
+                                                    {interaction.turn_id}
+                                                </span>
+                                            </span>
+                                        )}
+                                        {interaction.created_at && (
+                                            <span className="ml-2 text-gray-400">
+                                                {String(interaction.created_at)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {interaction.data?.request && (
+                                        <pre className="m-0 max-h-[20vh] overflow-auto rounded bg-gray-50 p-2 text-xs">
+                                            {JSON.stringify(interaction.data.request, null, 2)}
+                                        </pre>
+                                    )}
+                                    {interaction.data?.resolution && (
+                                        <pre className="m-0 max-h-[10vh] overflow-auto rounded bg-green-50 p-2 text-xs">
+                                            {JSON.stringify(interaction.data.resolution, null, 2)}
+                                        </pre>
+                                    )}
+                                    {isApproval ? (
+                                        <Space>
+                                            <Button
+                                                disabled={!isPending || !id || busyId === id}
+                                                onClick={() =>
+                                                    id &&
+                                                    respond(
+                                                        id,
+                                                        approvalAnswer(interaction.token, true),
+                                                    )
+                                                }
+                                                size="sm"
+                                            >
+                                                {busyId === id ? <Spinner /> : null}
+                                                Approve
+                                            </Button>
+                                            <Button
+                                                disabled={!isPending || !id || busyId === id}
+                                                onClick={() =>
+                                                    id &&
+                                                    respond(
+                                                        id,
+                                                        approvalAnswer(interaction.token, false),
+                                                    )
+                                                }
+                                                variant="destructive"
+                                                size="sm"
+                                            >
+                                                {busyId === id ? <Spinner /> : null}
+                                                Deny
+                                            </Button>
+                                        </Space>
+                                    ) : (
+                                        <Space.Compact className="w-full">
+                                            <Input
+                                                placeholder="input"
+                                                value={inputs[id] ?? ""}
+                                                disabled={!isPending}
+                                                onChange={(e) =>
+                                                    setInputs((prev) => ({
+                                                        ...prev,
+                                                        [id]: e.target.value,
+                                                    }))
+                                                }
+                                                className="h-6"
+                                            />
+                                            <Button
+                                                disabled={!isPending || !id || busyId === id}
+                                                onClick={() =>
+                                                    id && respond(id, inputAnswer(inputs[id] ?? ""))
+                                                }
+                                                variant="outline"
+                                                size="sm"
+                                            >
+                                                {busyId === id ? <Spinner /> : null}
+                                                Respond
+                                            </Button>
+                                        </Space.Compact>
+                                    )}
+                                </Space>
+                            </CardContent>
                         </Card>
                     )
                 })

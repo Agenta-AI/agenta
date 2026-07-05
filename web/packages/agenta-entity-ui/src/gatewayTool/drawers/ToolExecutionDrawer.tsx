@@ -11,6 +11,7 @@ import {
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
@@ -23,7 +24,7 @@ import {
     MagnifyingGlass,
     Play,
 } from "@phosphor-icons/react"
-import {Card, Divider, Empty, Form, Input, message, Segmented, Spin, Tag} from "antd"
+import {Divider, Empty, Form, Input, message, Segmented, Spin, Tag} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -212,28 +213,29 @@ function ActionPickerStep({
                                     />
                                 )}
                                 <Card
-                                    hoverable
-                                    className="cursor-pointer"
-                                    size="small"
+                                    className="cursor-pointer transition-colors hover:bg-muted/30 hover:ring-foreground/20"
+                                    size="sm"
                                     onClick={() => onSelectAction(action)}
                                 >
-                                    <div className="flex flex-col gap-0.5">
-                                        <div className="flex items-center gap-2">
-                                            <span className="truncate font-semibold">
-                                                {action.name}
-                                            </span>
-                                            {action.categories?.slice(0, 2).map((c) => (
-                                                <Tag key={c} className="text-xs">
-                                                    {c}
-                                                </Tag>
-                                            ))}
+                                    <CardContent>
+                                        <div className="flex flex-col gap-0.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="truncate font-semibold">
+                                                    {action.name}
+                                                </span>
+                                                {action.categories?.slice(0, 2).map((c) => (
+                                                    <Tag key={c} className="text-xs">
+                                                        {c}
+                                                    </Tag>
+                                                ))}
+                                            </div>
+                                            {action.description && (
+                                                <span className="text-xs line-clamp-2 text-muted-foreground">
+                                                    {action.description}
+                                                </span>
+                                            )}
                                         </div>
-                                        {action.description && (
-                                            <span className="text-xs line-clamp-2 text-muted-foreground">
-                                                {action.description}
-                                            </span>
-                                        )}
-                                    </div>
+                                    </CardContent>
                                 </Card>
                             </React.Fragment>
                         ))}

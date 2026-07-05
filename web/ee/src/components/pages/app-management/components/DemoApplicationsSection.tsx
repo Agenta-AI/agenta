@@ -1,11 +1,12 @@
 import {Button} from "@agenta/primitive-ui/components/button"
-import {Card, Flex, Space} from "antd"
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
+import {Flex, Space} from "antd"
 import Image from "next/image"
 
 import {useOrgData} from "@/oss/state/org"
 import {useProjectData} from "@/oss/state/project"
 
-const demoAppCardClass = "w-[400px] [&_.ant-card-body]:p-3"
+const demoAppCardClass = "w-[400px]"
 
 const DemoApplicationsSection = () => {
     const {projects} = useProjectData()
@@ -30,51 +31,49 @@ const DemoApplicationsSection = () => {
             </Space>
 
             <div>
-                <Card
-                    className={demoAppCardClass}
-                    cover={
-                        <Image
-                            src={"/assets/rag-demo-app.webp"}
-                            alt="rag_demo_application_image"
-                            height={200}
-                            width={200}
-                            priority
-                        />
-                    }
-                >
-                    <Space orientation="vertical" size={24}>
-                        <Space orientation="vertical">
-                            <span className="text-ellipsis text-sm font-medium leading-[1.5714285714285714]">
-                                RAG Q&A with Wikipedia
-                            </span>
-                            <p className="text-sm leading-[1.5714285714285714] text-colorTextSecondary">
-                                Use RAG to answer questions by fetching relevant information from
-                                wikipedia
-                            </p>
+                <Card className={demoAppCardClass}>
+                    <Image
+                        src={"/assets/rag-demo-app.webp"}
+                        alt="rag_demo_application_image"
+                        height={200}
+                        width={200}
+                        priority
+                    />
+                    <CardContent className="p-3">
+                        <Space orientation="vertical" size={24}>
+                            <Space orientation="vertical">
+                                <span className="text-ellipsis text-sm font-medium leading-[1.5714285714285714]">
+                                    RAG Q&A with Wikipedia
+                                </span>
+                                <p className="text-sm leading-[1.5714285714285714] text-colorTextSecondary">
+                                    Use RAG to answer questions by fetching relevant information
+                                    from wikipedia
+                                </p>
+                            </Space>
+                            <Flex gap={8}>
+                                <Button
+                                    className="flex-1"
+                                    variant="outline"
+                                    render={
+                                        <a
+                                            href="https://agenta.ai/docs/tutorials/cookbooks/RAG-QA-docs"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        />
+                                    }
+                                >
+                                    Read Tutorial
+                                </Button>
+                                <Button
+                                    className="flex-[0.7] hidden"
+                                    onClick={handleViewDemoSwitch}
+                                    variant="outline"
+                                >
+                                    View Demo
+                                </Button>
+                            </Flex>
                         </Space>
-                        <Flex gap={8}>
-                            <Button
-                                className="flex-1"
-                                variant="outline"
-                                render={
-                                    <a
-                                        href="https://agenta.ai/docs/tutorials/cookbooks/RAG-QA-docs"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    />
-                                }
-                            >
-                                Read Tutorial
-                            </Button>
-                            <Button
-                                className="flex-[0.7] hidden"
-                                onClick={handleViewDemoSwitch}
-                                variant="outline"
-                            >
-                                View Demo
-                            </Button>
-                        </Flex>
-                    </Space>
+                    </CardContent>
                 </Card>
             </div>
         </div>

@@ -1,8 +1,8 @@
 import {useEffect, useRef, useState, type FC} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {message} from "@agenta/ui/app-message"
-import {Card} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
@@ -238,18 +238,20 @@ const Accept: FC = () => {
         return (
             <main className="flex flex-col grow h-full overflow-hidden items-center justify-center bg-[var(--ag-c-F5F7FA)]">
                 <Card className="max-w-[520px] w-[90%] text-center">
-                    <h3 className="!mb-2 text-lg font-semibold leading-snug">
-                        Unable to accept invitation
-                    </h3>
-                    <p className="text-[var(--ag-c-586673)] !mb-6">{error}</p>
-                    <div className="flex gap-3 justify-center flex-wrap">
-                        <Button onClick={handleGoBack} variant="outline">
-                            Go back to your workspaces
-                        </Button>
-                        <Button onClick={handleSignInDifferentAccount}>
-                            Sign in with a different account
-                        </Button>
-                    </div>
+                    <CardContent>
+                        <h3 className="!mb-2 text-lg font-semibold leading-snug">
+                            Unable to accept invitation
+                        </h3>
+                        <p className="text-[var(--ag-c-586673)] !mb-6">{error}</p>
+                        <div className="flex gap-3 justify-center flex-wrap">
+                            <Button onClick={handleGoBack} variant="outline">
+                                Go back to your workspaces
+                            </Button>
+                            <Button onClick={handleSignInDifferentAccount}>
+                                Sign in with a different account
+                            </Button>
+                        </div>
+                    </CardContent>
                 </Card>
             </main>
         )

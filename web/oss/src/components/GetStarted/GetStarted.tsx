@@ -1,8 +1,8 @@
 import {useCallback, useMemo} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {ArrowLeft, Code, Rocket, Sparkle, TreeView} from "@phosphor-icons/react"
-import {Card} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -150,49 +150,59 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
 
             <div className="flex gap-6 flex-wrap justify-center">
                 <Card
-                    className="w-[300px] h-[300px] cursor-pointer transition-all duration-200 hover:border-[var(--ant-color-primary)] hover:shadow-md [&_.ant-card-body]:flex [&_.ant-card-body]:flex-col [&_.ant-card-body]:items-center [&_.ant-card-body]:p-0 [&_.ant-card-body]:h-full [&_.ant-card-body]:w-full"
+                    className="w-[300px] h-[300px] cursor-pointer py-0 transition-all duration-200 hover:ring-[var(--ant-color-primary)] hover:shadow-md"
                     onClick={() => handleSelection("trace")}
                 >
-                    <div className="h-1/2 w-full flex items-end justify-center pb-6">
-                        <TreeView size={48} />
-                    </div>
-                    <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
-                        <div className="text-lg font-semibold mb-2">Trace your application</div>
-                        <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
-                            Monitor and debug your application.
+                    <CardContent className="flex h-full w-full flex-col items-center p-0">
+                        <div className="h-1/2 w-full flex items-end justify-center pb-6">
+                            <TreeView size={48} />
                         </div>
-                    </div>
+                        <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
+                            <div className="text-lg font-semibold mb-2">Trace your application</div>
+                            <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
+                                Monitor and debug your application.
+                            </div>
+                        </div>
+                    </CardContent>
                 </Card>
 
                 <Card
-                    className="w-[300px] h-[300px] cursor-pointer transition-all duration-200 hover:border-[var(--ant-color-primary)] hover:shadow-md [&_.ant-card-body]:flex [&_.ant-card-body]:flex-col [&_.ant-card-body]:items-center [&_.ant-card-body]:p-0 [&_.ant-card-body]:h-full [&_.ant-card-body]:w-full"
+                    className="w-[300px] h-[300px] cursor-pointer py-0 transition-all duration-200 hover:ring-[var(--ant-color-primary)] hover:shadow-md"
                     onClick={() => handleSelection("test_prompt")}
                 >
-                    <div className="h-1/2 w-full flex items-end justify-center pb-6">
-                        <Rocket size={48} />
-                    </div>
-                    <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
-                        <div className="text-lg font-semibold mb-2">Create and test prompts</div>
-                        <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
-                            Manage and test prompts across models
+                    <CardContent className="flex h-full w-full flex-col items-center p-0">
+                        <div className="h-1/2 w-full flex items-end justify-center pb-6">
+                            <Rocket size={48} />
                         </div>
-                    </div>
+                        <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
+                            <div className="text-lg font-semibold mb-2">
+                                Create and test prompts
+                            </div>
+                            <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
+                                Manage and test prompts across models
+                            </div>
+                        </div>
+                    </CardContent>
                 </Card>
 
                 <Card
-                    className="w-[300px] h-[300px] cursor-pointer transition-all duration-200 hover:border-[var(--ant-color-primary)] hover:shadow-md [&_.ant-card-body]:flex [&_.ant-card-body]:flex-col [&_.ant-card-body]:items-center [&_.ant-card-body]:p-0 [&_.ant-card-body]:h-full [&_.ant-card-body]:w-full"
+                    className="w-[300px] h-[300px] cursor-pointer py-0 transition-all duration-200 hover:ring-[var(--ant-color-primary)] hover:shadow-md"
                     onClick={() => handleSelection("eval")}
                 >
-                    <div className="h-1/2 w-full flex items-end justify-center pb-6">
-                        <Code size={48} />
-                    </div>
-                    <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
-                        <div className="text-lg font-semibold mb-2">Run an evaluation from SDK</div>
-                        <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
-                            Evaluate complex AI apps to compare changes and ensure they are
-                            reliable.
+                    <CardContent className="flex h-full w-full flex-col items-center p-0">
+                        <div className="h-1/2 w-full flex items-end justify-center pb-6">
+                            <Code size={48} />
                         </div>
-                    </div>
+                        <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
+                            <div className="text-lg font-semibold mb-2">
+                                Run an evaluation from SDK
+                            </div>
+                            <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
+                                Evaluate complex AI apps to compare changes and ensure they are
+                                reliable.
+                            </div>
+                        </div>
+                    </CardContent>
                 </Card>
             </div>
 

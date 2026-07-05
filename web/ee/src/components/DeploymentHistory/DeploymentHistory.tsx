@@ -8,9 +8,10 @@ import {
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Card, CardContent, CardHeader, CardTitle} from "@agenta/primitive-ui/components/card"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {projectIdAtom} from "@agenta/shared/state"
-import {Card, Divider, Space, notification} from "antd"
+import {Divider, Space, notification} from "antd"
 import clsx from "clsx"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -359,13 +360,18 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                         </div>
 
                         {selectedItem?.appRevisionId ? (
-                            <Card title="Configuration" style={{margin: 30}}>
-                                <PlaygroundConfigSection
-                                    revisionId={selectedItem.appRevisionId}
-                                    useServerData
-                                    viewMode="json"
-                                    disabled
-                                />
+                            <Card style={{margin: 30}}>
+                                <CardHeader>
+                                    <CardTitle>Configuration</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <PlaygroundConfigSection
+                                        revisionId={selectedItem.appRevisionId}
+                                        useServerData
+                                        viewMode="json"
+                                        disabled
+                                    />
+                                </CardContent>
                             </Card>
                         ) : (
                             <div className="text-colorTextDescription text-center mt-6">

@@ -3,10 +3,11 @@ import {useMemo} from "react"
 
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {dayjs} from "@agenta/shared/utils"
 import {EnvironmentTag} from "@agenta/ui"
 import {EntityListItemLabel, VersionBadge} from "@agenta/ui/components/presentational"
-import {Card, Space} from "antd"
+import {Space} from "antd"
 
 import {deploymentCardClass} from "./styles"
 
@@ -32,33 +33,35 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
             }}
             {...props}
         >
-            <EnvironmentTag environment={env.name} />
+            <CardContent className="flex flex-col gap-2 p-3 [&>span:first-of-type]:capitalize">
+                <EnvironmentTag environment={env.name} />
 
-            <Space className="justify-between">
-                <span>Variant</span>
-                {hasDeployment ? (
-                    <EntityListItemLabel
-                        label={env.deployedVariantName || "-"}
-                        trailing={
-                            env.revision != null ? (
-                                <VersionBadge
-                                    version={Number(env.revision)}
-                                    variant="chip"
-                                    size="small"
-                                />
-                            ) : undefined
-                        }
-                    />
-                ) : (
-                    <Badge onClick={(e) => e.stopPropagation()} variant="secondary">
-                        No deployment
-                    </Badge>
-                )}
-            </Space>
-            <Space className="justify-between">
-                <span>Last modified</span>
-                <span>{lastModifiedText}</span>
-            </Space>
+                <Space className="justify-between">
+                    <span>Variant</span>
+                    {hasDeployment ? (
+                        <EntityListItemLabel
+                            label={env.deployedVariantName || "-"}
+                            trailing={
+                                env.revision != null ? (
+                                    <VersionBadge
+                                        version={Number(env.revision)}
+                                        variant="chip"
+                                        size="small"
+                                    />
+                                ) : undefined
+                            }
+                        />
+                    ) : (
+                        <Badge onClick={(e) => e.stopPropagation()} variant="secondary">
+                            No deployment
+                        </Badge>
+                    )}
+                </Space>
+                <Space className="justify-between">
+                    <span>Last modified</span>
+                    <span>{lastModifiedText}</span>
+                </Space>
+            </CardContent>
         </Card>
     )
 }

@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import {Card} from "antd"
+import {Card, CardContent, CardHeader, CardTitle} from "@agenta/primitive-ui/components/card"
 
 import ColumnValueView from "./ColumnValueView"
 import StepContentRenderer from "./StepContentRenderer"
@@ -16,51 +16,71 @@ const ScenarioInputsCard = ({
 }: ScenarioInputsCardProps) => {
     if (isLoading) {
         return (
-            <Card title="Inputs">
-                <span className="text-muted-foreground">Loading inputs…</span>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Inputs</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <span className="text-muted-foreground">Loading inputs…</span>
+                </CardContent>
             </Card>
         )
     }
 
     if (columns.length > 0) {
         return (
-            <Card title="Inputs">
-                <div className="flex flex-col gap-4">
-                    {columns.map((column) => (
-                        <div key={column.id} className="flex flex-col gap-2">
-                            <span className="font-semibold">
-                                {column.displayLabel ?? column.label}
-                            </span>
-                            <ColumnValueView
-                                column={column}
-                                scenarioId={scenarioId}
-                                runId={runId}
-                            />
-                        </div>
-                    ))}
-                </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Inputs</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col gap-4">
+                        {columns.map((column) => (
+                            <div key={column.id} className="flex flex-col gap-2">
+                                <span className="font-semibold">
+                                    {column.displayLabel ?? column.label}
+                                </span>
+                                <ColumnValueView
+                                    column={column}
+                                    scenarioId={scenarioId}
+                                    runId={runId}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
             </Card>
         )
     }
 
     if (steps.length > 0) {
         return (
-            <Card title="Inputs">
-                <div className="flex flex-col gap-4">
-                    {steps.map((step) => (
-                        <div key={step.id ?? getStepKey(step)} className="flex flex-col gap-2">
-                            <span className="font-semibold">{getStepKey(step) || "Input"}</span>
-                            <StepContentRenderer step={step} />
-                        </div>
-                    ))}
-                </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Inputs</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col gap-4">
+                        {steps.map((step) => (
+                            <div key={step.id ?? getStepKey(step)} className="flex flex-col gap-2">
+                                <span className="font-semibold">{getStepKey(step) || "Input"}</span>
+                                <StepContentRenderer step={step} />
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
             </Card>
         )
     }
 
     return (
-        <Card title="Inputs">
-            <span className="text-muted-foreground">No input data.</span>
+        <Card>
+            <CardHeader>
+                <CardTitle>Inputs</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <span className="text-muted-foreground">No input data.</span>
+            </CardContent>
         </Card>
     )
 }

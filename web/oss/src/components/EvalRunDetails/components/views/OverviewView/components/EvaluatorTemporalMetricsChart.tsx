@@ -1,6 +1,12 @@
 import {memo, useMemo, type ReactNode} from "react"
 
-import {Card} from "antd"
+import {
+    Card,
+    CardAction,
+    CardContent,
+    CardHeader,
+    CardTitle,
+} from "@agenta/primitive-ui/components/card"
 import clsx from "clsx"
 import {
     Area,
@@ -153,16 +159,18 @@ const EvaluatorTemporalMetricsChart = ({
     }
 
     return (
-        <Card
-            title={
-                <div className="flex justify-between items-center w-full">
+        <Card className={clsx("rounded-md overflow-hidden py-0", className)}>
+            <CardHeader className="px-4 py-3">
+                <CardTitle>
                     <div className="flex flex-col gap-1">
                         <span className="text-sm font-medium text-neutral-900">{name}</span>
                         {metricKey ? (
                             <span className="text-xs text-muted-foreground">{metricKey}</span>
                         ) : null}
                     </div>
-                    {latestSummaries.length ? (
+                </CardTitle>
+                {latestSummaries.length ? (
+                    <CardAction>
                         <div className="hidden md:flex items-center gap-4 text-xs text-neutral-500">
                             {latestSummaries.map((summary) => (
                                 <span key={summary.name} className="flex items-center gap-1">
@@ -177,65 +185,64 @@ const EvaluatorTemporalMetricsChart = ({
                                 </span>
                             ))}
                         </div>
-                    ) : null}
+                    </CardAction>
+                ) : null}
+            </CardHeader>
+            <CardContent className="p-0">
+                <div className="h-[280px] px-4 py-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData as any}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(15, 23, 42, 0.08)" />
+                            <XAxis
+                                dataKey="timestamp"
+                                type="number"
+                                domain={["auto", "auto"]}
+                                scale="time"
+                                tickFormatter={formatTimestamp}
+                                tick={{fill: "#64748B", fontSize: 11}}
+                                tickMargin={12}
+                                axisLine={{stroke: "rgba(148, 163, 184, 0.25)"}}
+                            />
+                            <YAxis
+                                domain={yDomain ?? ["auto", "auto"]}
+                                tick={{fill: "#64748B", fontSize: 11}}
+                                axisLine={{stroke: "rgba(148, 163, 184, 0.25)"}}
+                                tickMargin={8}
+                            />
+                            <Tooltip
+                                cursor={{stroke: "rgba(99, 102, 241, 0.35)", strokeWidth: 1}}
+                                labelFormatter={(value) => formatTimestamp(Number(value))}
+                                formatter={(value: any, dataKey: string) => {
+                                    if (typeof value !== "number") return value
+                                    const label = seriesLabelMap.get(dataKey) ?? dataKey
+                                    return [value.toFixed(isBoolean ? 1 : 3), label]
+                                }}
+                            />
+                            {series.map((entry) => (
+                                <Area
+                                    key={`area-${entry.id}`}
+                                    type="monotone"
+                                    dataKey={entry.id}
+                                    stroke="none"
+                                    fill={toAreaFill(entry.color)}
+                                    isAnimationActive={false}
+                                />
+                            ))}
+                            {series.map((entry) => (
+                                <Line
+                                    key={entry.id}
+                                    type="monotone"
+                                    dataKey={entry.id}
+                                    stroke={entry.color}
+                                    strokeWidth={2}
+                                    dot={false}
+                                    isAnimationActive={false}
+                                />
+                            ))}
+                        </LineChart>
+                    </ResponsiveContainer>
                 </div>
-            }
-            className={clsx("rounded-md overflow-hidden", className)}
-            classNames={{body: "!p-0", header: "!px-4 !py-3", title: "!m-0"}}
-        >
-            <div className="h-[280px] px-4 py-4">
-                <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData as any}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(15, 23, 42, 0.08)" />
-                        <XAxis
-                            dataKey="timestamp"
-                            type="number"
-                            domain={["auto", "auto"]}
-                            scale="time"
-                            tickFormatter={formatTimestamp}
-                            tick={{fill: "#64748B", fontSize: 11}}
-                            tickMargin={12}
-                            axisLine={{stroke: "rgba(148, 163, 184, 0.25)"}}
-                        />
-                        <YAxis
-                            domain={yDomain ?? ["auto", "auto"]}
-                            tick={{fill: "#64748B", fontSize: 11}}
-                            axisLine={{stroke: "rgba(148, 163, 184, 0.25)"}}
-                            tickMargin={8}
-                        />
-                        <Tooltip
-                            cursor={{stroke: "rgba(99, 102, 241, 0.35)", strokeWidth: 1}}
-                            labelFormatter={(value) => formatTimestamp(Number(value))}
-                            formatter={(value: any, dataKey: string) => {
-                                if (typeof value !== "number") return value
-                                const label = seriesLabelMap.get(dataKey) ?? dataKey
-                                return [value.toFixed(isBoolean ? 1 : 3), label]
-                            }}
-                        />
-                        {series.map((entry) => (
-                            <Area
-                                key={`area-${entry.id}`}
-                                type="monotone"
-                                dataKey={entry.id}
-                                stroke="none"
-                                fill={toAreaFill(entry.color)}
-                                isAnimationActive={false}
-                            />
-                        ))}
-                        {series.map((entry) => (
-                            <Line
-                                key={entry.id}
-                                type="monotone"
-                                dataKey={entry.id}
-                                stroke={entry.color}
-                                strokeWidth={2}
-                                dot={false}
-                                isAnimationActive={false}
-                            />
-                        ))}
-                    </LineChart>
-                </ResponsiveContainer>
-            </div>
+            </CardContent>
         </Card>
     )
 }

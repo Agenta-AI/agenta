@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import {Card} from "antd"
+import {Card, CardContent, CardHeader, CardTitle} from "@agenta/primitive-ui/components/card"
 import dynamic from "next/dynamic"
 
 import ColumnValueView from "./ColumnValueView"
@@ -23,57 +23,77 @@ const ScenarioOutputCard = ({
 }: ScenarioOutputCardProps) => {
     if (isLoading) {
         return (
-            <Card title="Output">
-                <span className="text-muted-foreground">Loading invocation…</span>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Output</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <span className="text-muted-foreground">Loading invocation…</span>
+                </CardContent>
             </Card>
         )
     }
 
     if (columns.length > 0) {
         return (
-            <Card title="Output">
-                <div className="flex flex-col gap-4">
-                    {columns.map((column) => (
-                        <div key={column.id} className="flex flex-col gap-2">
-                            <ColumnValueView
-                                column={column}
-                                scenarioId={scenarioId}
-                                runId={runId}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Output</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col gap-4">
+                        {columns.map((column) => (
+                            <div key={column.id} className="flex flex-col gap-2">
+                                <ColumnValueView
+                                    column={column}
+                                    scenarioId={scenarioId}
+                                    runId={runId}
+                                />
+                            </div>
+                        ))}
+                        {steps.length > 0 && (
+                            <SharedGenerationResultUtils
+                                className="!mt-1"
+                                traceId={getTraceIdForStep(steps[0], primaryTrace)}
                             />
-                        </div>
-                    ))}
-                    {steps.length > 0 && (
-                        <SharedGenerationResultUtils
-                            className="!mt-1"
-                            traceId={getTraceIdForStep(steps[0], primaryTrace)}
-                        />
-                    )}
-                </div>
+                        )}
+                    </div>
+                </CardContent>
             </Card>
         )
     }
 
     if (steps.length > 0) {
         return (
-            <Card title="Output">
-                <div className="flex flex-col gap-4">
-                    {steps.map((step) => (
-                        <div key={step.id ?? getStepKey(step)} className="flex flex-col gap-2">
-                            <StepContentRenderer
-                                step={step}
-                                includeTraceUtils
-                                fallbackTrace={primaryTrace}
-                            />
-                        </div>
-                    ))}
-                </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Output</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col gap-4">
+                        {steps.map((step) => (
+                            <div key={step.id ?? getStepKey(step)} className="flex flex-col gap-2">
+                                <StepContentRenderer
+                                    step={step}
+                                    includeTraceUtils
+                                    fallbackTrace={primaryTrace}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
             </Card>
         )
     }
 
     return (
-        <Card title="Output">
-            <span className="text-muted-foreground">No invocation data.</span>
+        <Card>
+            <CardHeader>
+                <CardTitle>Output</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <span className="text-muted-foreground">No invocation data.</span>
+            </CardContent>
         </Card>
     )
 }

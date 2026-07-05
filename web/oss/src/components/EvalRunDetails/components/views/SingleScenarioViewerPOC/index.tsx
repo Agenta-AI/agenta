@@ -1,7 +1,8 @@
 import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
+import {Card, CardContent, CardHeader, CardTitle} from "@agenta/primitive-ui/components/card"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
-import {Card, Tag} from "antd"
+import {Tag} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -467,90 +468,110 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                     <div className="flex gap-3 w-full items-start">
                         <div className="flex flex-col gap-3 shrink min-w-0 grow w-7/12">
                             {/* Inputs Card */}
-                            <Card title="Inputs" id="focus-section-inputs">
-                                {!columnResult ? (
-                                    <span className="text-muted-foreground">Loading inputs…</span>
-                                ) : inputColumns.length ? (
-                                    <div className="flex flex-col gap-4">
-                                        {inputColumns.map((column) => (
-                                            <div key={column.id} className="flex flex-col gap-2">
-                                                <span className="font-semibold">
-                                                    {column.displayLabel ?? column.label}
-                                                </span>
-                                                <ColumnValueView
-                                                    column={column}
-                                                    scenarioId={activeId}
-                                                    runId={runId}
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : inputSteps.length ? (
-                                    <div className="flex flex-col gap-4">
-                                        {inputSteps.map((step) => (
-                                            <div
-                                                key={step.id ?? getStepKey(step)}
-                                                className="flex flex-col gap-2"
-                                            >
-                                                <span className="font-semibold">
-                                                    {getStepKey(step) || "Input"}
-                                                </span>
-                                                <StepContentRenderer step={step} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <span className="text-muted-foreground">No input data.</span>
-                                )}
+                            <Card id="focus-section-inputs">
+                                <CardHeader>
+                                    <CardTitle>Inputs</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {!columnResult ? (
+                                        <span className="text-muted-foreground">
+                                            Loading inputs…
+                                        </span>
+                                    ) : inputColumns.length ? (
+                                        <div className="flex flex-col gap-4">
+                                            {inputColumns.map((column) => (
+                                                <div
+                                                    key={column.id}
+                                                    className="flex flex-col gap-2"
+                                                >
+                                                    <span className="font-semibold">
+                                                        {column.displayLabel ?? column.label}
+                                                    </span>
+                                                    <ColumnValueView
+                                                        column={column}
+                                                        scenarioId={activeId}
+                                                        runId={runId}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : inputSteps.length ? (
+                                        <div className="flex flex-col gap-4">
+                                            {inputSteps.map((step) => (
+                                                <div
+                                                    key={step.id ?? getStepKey(step)}
+                                                    className="flex flex-col gap-2"
+                                                >
+                                                    <span className="font-semibold">
+                                                        {getStepKey(step) || "Input"}
+                                                    </span>
+                                                    <StepContentRenderer step={step} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-muted-foreground">
+                                            No input data.
+                                        </span>
+                                    )}
+                                </CardContent>
                             </Card>
 
                             {/* Output Card */}
-                            <Card title="Output" id="focus-section-outputs">
-                                {!columnResult ? (
-                                    <span className="text-muted-foreground">
-                                        Loading invocation…
-                                    </span>
-                                ) : outputColumns.length ? (
-                                    <div className="flex flex-col gap-4">
-                                        {outputColumns.map((column) => (
-                                            <div key={column.id} className="flex flex-col gap-2">
-                                                <ColumnValueView
-                                                    column={column}
-                                                    scenarioId={activeId}
-                                                    runId={runId}
+                            <Card id="focus-section-outputs">
+                                <CardHeader>
+                                    <CardTitle>Output</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {!columnResult ? (
+                                        <span className="text-muted-foreground">
+                                            Loading invocation…
+                                        </span>
+                                    ) : outputColumns.length ? (
+                                        <div className="flex flex-col gap-4">
+                                            {outputColumns.map((column) => (
+                                                <div
+                                                    key={column.id}
+                                                    className="flex flex-col gap-2"
+                                                >
+                                                    <ColumnValueView
+                                                        column={column}
+                                                        scenarioId={activeId}
+                                                        runId={runId}
+                                                    />
+                                                </div>
+                                            ))}
+                                            {invocationSteps.length ? (
+                                                <SharedGenerationResultUtils
+                                                    className="!mt-1"
+                                                    traceId={getTraceIdForStep(
+                                                        invocationSteps[0],
+                                                        primaryInvocationTrace,
+                                                    )}
                                                 />
-                                            </div>
-                                        ))}
-                                        {invocationSteps.length ? (
-                                            <SharedGenerationResultUtils
-                                                className="!mt-1"
-                                                traceId={getTraceIdForStep(
-                                                    invocationSteps[0],
-                                                    primaryInvocationTrace,
-                                                )}
-                                            />
-                                        ) : null}
-                                    </div>
-                                ) : invocationSteps.length ? (
-                                    <div className="flex flex-col gap-4">
-                                        {invocationSteps.map((step) => (
-                                            <div
-                                                key={step.id ?? getStepKey(step)}
-                                                className="flex flex-col gap-2"
-                                            >
-                                                <StepContentRenderer
-                                                    step={step}
-                                                    includeTraceUtils
-                                                    fallbackTrace={primaryInvocationTrace}
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <span className="text-muted-foreground">
-                                        No invocation data.
-                                    </span>
-                                )}
+                                            ) : null}
+                                        </div>
+                                    ) : invocationSteps.length ? (
+                                        <div className="flex flex-col gap-4">
+                                            {invocationSteps.map((step) => (
+                                                <div
+                                                    key={step.id ?? getStepKey(step)}
+                                                    className="flex flex-col gap-2"
+                                                >
+                                                    <StepContentRenderer
+                                                        step={step}
+                                                        includeTraceUtils
+                                                        fallbackTrace={primaryInvocationTrace}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-muted-foreground">
+                                            No invocation data.
+                                        </span>
+                                    )}
+                                </CardContent>
                             </Card>
                         </div>
 

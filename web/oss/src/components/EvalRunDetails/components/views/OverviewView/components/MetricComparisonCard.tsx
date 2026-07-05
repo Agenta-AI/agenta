@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {Card} from "antd"
+import {Card, CardContent, CardHeader, CardTitle} from "@agenta/primitive-ui/components/card"
 import {
     Bar,
     BarChart,
@@ -223,70 +223,75 @@ const MetricComparisonCard = ({metric}: MetricComparisonCardProps) => {
         chartConfig.type === "boolean" ? "40%" : chartConfig.type === "categorical" ? "30%" : "20%"
 
     return (
-        <Card title={`${metric.evaluatorLabel} · ${metric.label}`}>
-            <div className="h-[240px]">
-                {hasData ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartConfig.data} barCategoryGap={barCategoryGap}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="label" tick={{fontSize: 12}} interval={0} />
-                            <YAxis
-                                domain={chartConfig.yDomain as any}
-                                tickFormatter={(value) =>
-                                    chartConfig.yFormatter(Number(value ?? 0))
-                                }
-                            />
-                            <Tooltip
-                                cursor={false}
-                                labelFormatter={(label) => String(label)}
-                                formatter={(value: number, _name, props) => {
-                                    const runKey =
-                                        typeof props?.dataKey === "string" ? props.dataKey : ""
-                                    const meta = runMetaMap.get(runKey)
-                                    const formattedValue = chartConfig.tooltipFormatter(
-                                        Number(value ?? 0),
-                                    )
-                                    return [formattedValue, meta?.shortName ?? ""]
-                                }}
-                                contentStyle={{
-                                    backgroundColor: "var(--ag-colorBgElevated)",
-                                    border: "1px solid var(--ag-colorBorderSecondary)",
-                                    borderRadius: 8,
-                                    padding: "8px 12px",
-                                    fontSize: 12,
-                                    maxWidth: 280,
-                                }}
-                                itemStyle={{
-                                    padding: "2px 0",
-                                }}
-                            />
-                            <Legend
-                                formatter={(value: string | number) =>
-                                    runMetaMap.get(String(value))?.shortName ?? String(value)
-                                }
-                                wrapperStyle={{
-                                    fontSize: 11,
-                                    paddingTop: 8,
-                                }}
-                            />
-                            {runMeta.map((run) => (
-                                <Bar
-                                    key={run.runKey}
-                                    dataKey={run.runKey}
-                                    name={run.runName}
-                                    fill={run.color}
-                                    radius={[6, 6, 0, 0]}
-                                    maxBarSize={chartConfig.type === "boolean" ? 48 : 80}
+        <Card>
+            <CardHeader>
+                <CardTitle>{`${metric.evaluatorLabel} · ${metric.label}`}</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="h-[240px]">
+                    {hasData ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartConfig.data} barCategoryGap={barCategoryGap}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="label" tick={{fontSize: 12}} interval={0} />
+                                <YAxis
+                                    domain={chartConfig.yDomain as any}
+                                    tickFormatter={(value) =>
+                                        chartConfig.yFormatter(Number(value ?? 0))
+                                    }
                                 />
-                            ))}
-                        </BarChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <div className="flex h-full items-center justify-center text-neutral-500">
-                        Distribution data not available for this metric.
-                    </div>
-                )}
-            </div>
+                                <Tooltip
+                                    cursor={false}
+                                    labelFormatter={(label) => String(label)}
+                                    formatter={(value: number, _name, props) => {
+                                        const runKey =
+                                            typeof props?.dataKey === "string" ? props.dataKey : ""
+                                        const meta = runMetaMap.get(runKey)
+                                        const formattedValue = chartConfig.tooltipFormatter(
+                                            Number(value ?? 0),
+                                        )
+                                        return [formattedValue, meta?.shortName ?? ""]
+                                    }}
+                                    contentStyle={{
+                                        backgroundColor: "var(--ag-colorBgElevated)",
+                                        border: "1px solid var(--ag-colorBorderSecondary)",
+                                        borderRadius: 8,
+                                        padding: "8px 12px",
+                                        fontSize: 12,
+                                        maxWidth: 280,
+                                    }}
+                                    itemStyle={{
+                                        padding: "2px 0",
+                                    }}
+                                />
+                                <Legend
+                                    formatter={(value: string | number) =>
+                                        runMetaMap.get(String(value))?.shortName ?? String(value)
+                                    }
+                                    wrapperStyle={{
+                                        fontSize: 11,
+                                        paddingTop: 8,
+                                    }}
+                                />
+                                {runMeta.map((run) => (
+                                    <Bar
+                                        key={run.runKey}
+                                        dataKey={run.runKey}
+                                        name={run.runName}
+                                        fill={run.color}
+                                        radius={[6, 6, 0, 0]}
+                                        maxBarSize={chartConfig.type === "boolean" ? 48 : 80}
+                                    />
+                                ))}
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="flex h-full items-center justify-center text-neutral-500">
+                            Distribution data not available for this metric.
+                        </div>
+                    )}
+                </div>
+            </CardContent>
         </Card>
     )
 }

@@ -1,5 +1,6 @@
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {EnvironmentTag, environmentColors} from "@agenta/ui"
-import {Card, Skeleton, Space} from "antd"
+import {Skeleton, Space} from "antd"
 
 import {deploymentCardClass} from "./styles"
 
@@ -23,17 +24,19 @@ const DeploymentCardSkeleton = ({envName, isSelected}: DeploymentCardSkeletonPro
                 "--hover-border-color": borderColor,
             }}
         >
-            <EnvironmentTag environment={envName} />
+            <CardContent className="flex flex-col gap-2 p-3 [&>span:first-of-type]:capitalize">
+                <EnvironmentTag environment={envName} />
 
-            <Space className="justify-between">
-                <span>Variant</span>
-                <Skeleton.Button active size="small" style={{width: 140}} shape="round" />
-            </Space>
+                <Space className="justify-between">
+                    <span>Variant</span>
+                    <Skeleton.Button active size="small" style={{width: 140}} shape="round" />
+                </Space>
 
-            <Space className="justify-between">
-                <span>Last modified</span>
-                <Skeleton.Button active size="small" style={{width: 110}} shape="round" />
-            </Space>
+                <Space className="justify-between">
+                    <span>Last modified</span>
+                    <Skeleton.Button active size="small" style={{width: 110}} shape="round" />
+                </Space>
+            </CardContent>
         </Card>
     )
 }

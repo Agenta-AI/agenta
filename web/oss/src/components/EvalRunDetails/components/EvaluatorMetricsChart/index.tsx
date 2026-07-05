@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
-import {Card} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
@@ -638,68 +638,68 @@ const EvaluatorMetricsChart = ({
     }
 
     return (
-        <Card
-            className={clsx("h-full rounded-lg overflow-hidden", className)}
-            classNames={{body: "!p-0"}}
-            variant="outlined"
-        >
-            <div className="flex h-full flex-col">
-                <div className="px-4 pt-4 pb-2">
-                    <div className="flex flex-col gap-0.5">
-                        <EvaluatorMetricsChartTitle
-                            runId={runId}
-                            evaluatorRef={evaluatorRef}
-                            fallbackLabel={fallbackEvaluatorLabel}
-                        />
-                        <span className="text-xs capitalize text-neutral-500">{metricLabel}</span>
+        <Card className={clsx("h-full rounded-lg overflow-hidden py-0", className)}>
+            <CardContent className="p-0">
+                <div className="flex h-full flex-col">
+                    <div className="px-4 pt-4 pb-2">
+                        <div className="flex flex-col gap-0.5">
+                            <EvaluatorMetricsChartTitle
+                                runId={runId}
+                                evaluatorRef={evaluatorRef}
+                                fallbackLabel={fallbackEvaluatorLabel}
+                            />
+                            <span className="text-xs capitalize text-neutral-500">
+                                {metricLabel}
+                            </span>
+                        </div>
                     </div>
-                </div>
-                <div className="px-4 pb-3">
-                    <div className="flex flex-nowrap items-center justify-center gap-6 overflow-x-auto pb-1 text-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {summaryItems.map((entry) => (
-                            <div
-                                key={entry.key}
-                                className="flex shrink-0 flex-col items-center gap-1"
-                            >
-                                <span
-                                    className="text-xl font-semibold"
-                                    style={{color: entry.color}}
+                    <div className="px-4 pb-3">
+                        <div className="flex flex-nowrap items-center justify-center gap-6 overflow-x-auto pb-1 text-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {summaryItems.map((entry) => (
+                                <div
+                                    key={entry.key}
+                                    className="flex shrink-0 flex-col items-center gap-1"
                                 >
-                                    {entry.displayValue}
-                                </span>
-                                <span
-                                    className={clsx("text-xs font-medium", {
-                                        "text-emerald-600": entry.deltaTone === "positive",
-                                        "text-red-600": entry.deltaTone === "negative",
-                                        "text-neutral-400": entry.deltaTone === "neutral",
-                                    })}
-                                >
-                                    {entry.deltaText}
-                                </span>
-                            </div>
-                        ))}
+                                    <span
+                                        className="text-xl font-semibold"
+                                        style={{color: entry.color}}
+                                    >
+                                        {entry.displayValue}
+                                    </span>
+                                    <span
+                                        className={clsx("text-xs font-medium", {
+                                            "text-emerald-600": entry.deltaTone === "positive",
+                                            "text-red-600": entry.deltaTone === "negative",
+                                            "text-neutral-400": entry.deltaTone === "neutral",
+                                        })}
+                                    >
+                                        {entry.deltaText}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="border-t border-neutral-200" />
+                    <div className="flex flex-1 px-4 py-4">
+                        <div className="mt-auto h-[320px] w-full">
+                            {isLoading ? (
+                                <div className="flex w-full flex-col gap-3 w-full h-full">
+                                    <Skeleton className="h-4 w-2/5" />
+                                    <Skeleton className="h-3 w-full" />
+                                    <Skeleton className="h-3 w-full" />
+                                    <Skeleton className="h-3 w-3/5" />
+                                </div>
+                            ) : hasError && !resolvedStats ? (
+                                <div className="flex h-full items-center justify-center text-neutral-500">
+                                    Unable to load metric data.
+                                </div>
+                            ) : (
+                                chartContent()
+                            )}
+                        </div>
                     </div>
                 </div>
-                <div className="border-t border-neutral-200" />
-                <div className="flex flex-1 px-4 py-4">
-                    <div className="mt-auto h-[320px] w-full">
-                        {isLoading ? (
-                            <div className="flex w-full flex-col gap-3 w-full h-full">
-                                <Skeleton className="h-4 w-2/5" />
-                                <Skeleton className="h-3 w-full" />
-                                <Skeleton className="h-3 w-full" />
-                                <Skeleton className="h-3 w-3/5" />
-                            </div>
-                        ) : hasError && !resolvedStats ? (
-                            <div className="flex h-full items-center justify-center text-neutral-500">
-                                Unable to load metric data.
-                            </div>
-                        ) : (
-                            chartContent()
-                        )}
-                    </div>
-                </div>
-            </div>
+            </CardContent>
         </Card>
     )
 }

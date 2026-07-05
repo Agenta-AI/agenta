@@ -7,11 +7,12 @@ import {
     useTriggerEvent,
     type TriggerCatalogEvent,
 } from "@agenta/entities/gatewayTrigger"
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, MagnifyingGlass} from "@phosphor-icons/react"
-import {Card, Divider, Empty, Form, Input, Spin, Tag} from "antd"
+import {Divider, Empty, Form, Input, Spin, Tag} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import SchemaForm from "../../gatewayTool/components/SchemaForm"
@@ -141,28 +142,29 @@ function EventsView({
                                     />
                                 )}
                                 <Card
-                                    hoverable
                                     onClick={() => onSelect(event)}
-                                    className="cursor-pointer"
-                                    size="small"
+                                    className="cursor-pointer transition-colors hover:bg-muted/30 hover:ring-foreground/20"
+                                    size="sm"
                                 >
-                                    <div className="flex flex-col gap-0.5">
-                                        <div className="flex items-center gap-2">
-                                            <span className="truncate font-semibold">
-                                                {event.name}
-                                            </span>
-                                            {event.categories?.slice(0, 2).map((c) => (
-                                                <Tag key={c} className="text-xs">
-                                                    {c}
-                                                </Tag>
-                                            ))}
+                                    <CardContent>
+                                        <div className="flex flex-col gap-0.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="truncate font-semibold">
+                                                    {event.name}
+                                                </span>
+                                                {event.categories?.slice(0, 2).map((c) => (
+                                                    <Tag key={c} className="text-xs">
+                                                        {c}
+                                                    </Tag>
+                                                ))}
+                                            </div>
+                                            {event.description && (
+                                                <span className="text-xs text-muted-foreground">
+                                                    {event.description}
+                                                </span>
+                                            )}
                                         </div>
-                                        {event.description && (
-                                            <span className="text-xs text-muted-foreground">
-                                                {event.description}
-                                            </span>
-                                        )}
-                                    </div>
+                                    </CardContent>
                                 </Card>
                             </React.Fragment>
                         ))}

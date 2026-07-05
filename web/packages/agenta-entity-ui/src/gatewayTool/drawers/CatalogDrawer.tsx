@@ -13,12 +13,13 @@ import {
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Badge, Button, Card, Divider, Dropdown, Empty, Input, Spin, Tag} from "antd"
+import {Badge, Button, Divider, Dropdown, Empty, Input, Spin, Tag} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -198,42 +199,43 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                                     />
                                 )}
                                 <Card
-                                    hoverable
                                     onClick={() => onSelect(integration)}
-                                    className="cursor-pointer"
-                                    size="small"
+                                    className="cursor-pointer transition-colors hover:bg-muted/30 hover:ring-foreground/20"
+                                    size="sm"
                                 >
-                                    <div className="flex items-start gap-3">
-                                        {integration.logo && (
-                                            <Image
-                                                src={integration.logo}
-                                                alt={integration.name}
-                                                width={32}
-                                                height={32}
-                                                className="w-8 h-8 rounded object-contain shrink-0"
-                                                unoptimized
-                                            />
-                                        )}
-                                        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="truncate font-semibold">
-                                                    {integration.name}
-                                                </span>
-                                                {integration.actions_count != null && (
-                                                    <Badge
-                                                        count={`${integration.actions_count} actions`}
-                                                        size="small"
-                                                        color="blue"
-                                                    />
+                                    <CardContent>
+                                        <div className="flex items-start gap-3">
+                                            {integration.logo && (
+                                                <Image
+                                                    src={integration.logo}
+                                                    alt={integration.name}
+                                                    width={32}
+                                                    height={32}
+                                                    className="w-8 h-8 rounded object-contain shrink-0"
+                                                    unoptimized
+                                                />
+                                            )}
+                                            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="truncate font-semibold">
+                                                        {integration.name}
+                                                    </span>
+                                                    {integration.actions_count != null && (
+                                                        <Badge
+                                                            count={`${integration.actions_count} actions`}
+                                                            size="small"
+                                                            color="blue"
+                                                        />
+                                                    )}
+                                                </div>
+                                                {integration.description && (
+                                                    <span className="text-xs line-clamp-2 text-muted-foreground">
+                                                        {integration.description}
+                                                    </span>
                                                 )}
                                             </div>
-                                            {integration.description && (
-                                                <span className="text-xs line-clamp-2 text-muted-foreground">
-                                                    {integration.description}
-                                                </span>
-                                            )}
                                         </div>
-                                    </div>
+                                    </CardContent>
                                 </Card>
                             </React.Fragment>
                         ))}
@@ -405,24 +407,29 @@ function ActionsView({
                                         isFetching={isFetchingNextPage}
                                     />
                                 )}
-                                <Card hoverable className="cursor-pointer" size="small">
-                                    <div className="flex flex-col gap-0.5">
-                                        <div className="flex items-center gap-2">
-                                            <span className="truncate font-semibold">
-                                                {action.name}
-                                            </span>
-                                            {action.categories?.slice(0, 2).map((c) => (
-                                                <Tag key={c} className="text-xs">
-                                                    {c}
-                                                </Tag>
-                                            ))}
+                                <Card
+                                    className="cursor-pointer transition-colors hover:bg-muted/30 hover:ring-foreground/20"
+                                    size="sm"
+                                >
+                                    <CardContent>
+                                        <div className="flex flex-col gap-0.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="truncate font-semibold">
+                                                    {action.name}
+                                                </span>
+                                                {action.categories?.slice(0, 2).map((c) => (
+                                                    <Tag key={c} className="text-xs">
+                                                        {c}
+                                                    </Tag>
+                                                ))}
+                                            </div>
+                                            {action.description && (
+                                                <span className="text-xs text-muted-foreground">
+                                                    {action.description}
+                                                </span>
+                                            )}
                                         </div>
-                                        {action.description && (
-                                            <span className="text-xs text-muted-foreground">
-                                                {action.description}
-                                            </span>
-                                        )}
-                                    </div>
+                                    </CardContent>
                                 </Card>
                             </React.Fragment>
                         ))}

@@ -1,11 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Card, CardContent, CardHeader, CardTitle} from "@agenta/primitive-ui/components/card"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
-import {Card} from "antd"
 import {useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
@@ -448,42 +448,42 @@ const ScenarioAnnotationPanel = ({
 
     return (
         <div className="flex w-5/12 max-w-[400px] sticky top-0 self-start">
-            <Card
-                title="Annotations"
-                className="w-full relative"
-                classNames={{body: "!p-2"}}
-                id="focus-section-annotations"
-            >
-                {showRunOverlay && (
-                    <RunOverlay isRunning={isRunningInvocation} onRun={onRunInvocation} />
-                )}
+            <Card className="w-full relative" id="focus-section-annotations">
+                <CardHeader>
+                    <CardTitle>Annotations</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2">
+                    {showRunOverlay && (
+                        <RunOverlay isRunning={isRunningInvocation} onRun={onRunInvocation} />
+                    )}
 
-                {hasInvocationOutput && evaluators?.length > 0 ? (
-                    <div className="flex flex-col gap-3">
-                        <AnnotationForm
-                            evaluators={evaluators}
-                            metrics={metrics}
-                            errors={errors}
-                            disabled={!hasInvocationOutput}
-                            onMetricChange={handleMetricChange}
-                            onDismissError={dismissError}
-                        />
-                        <Button
-                            className="w-full"
-                            disabled={!canSubmit || isSubmitting || isSubmitting}
-                            onClick={handleSave}
-                        >
-                            {isSubmitting ? <Spinner /> : null}
-                            Annotate
-                        </Button>
-                    </div>
-                ) : (
-                    <span className="text-muted-foreground">
-                        {!hasInvocationOutput
-                            ? "Run the invocation to generate output before annotating."
-                            : "No evaluators configured for this run."}
-                    </span>
-                )}
+                    {hasInvocationOutput && evaluators?.length > 0 ? (
+                        <div className="flex flex-col gap-3">
+                            <AnnotationForm
+                                evaluators={evaluators}
+                                metrics={metrics}
+                                errors={errors}
+                                disabled={!hasInvocationOutput}
+                                onMetricChange={handleMetricChange}
+                                onDismissError={dismissError}
+                            />
+                            <Button
+                                className="w-full"
+                                disabled={!canSubmit || isSubmitting || isSubmitting}
+                                onClick={handleSave}
+                            >
+                                {isSubmitting ? <Spinner /> : null}
+                                Annotate
+                            </Button>
+                        </div>
+                    ) : (
+                        <span className="text-muted-foreground">
+                            {!hasInvocationOutput
+                                ? "Run the invocation to generate output before annotating."
+                                : "No evaluators configured for this run."}
+                        </span>
+                    )}
+                </CardContent>
             </Card>
         </div>
     )

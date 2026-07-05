@@ -11,6 +11,7 @@
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
@@ -23,7 +24,7 @@ import {
     Plus,
 } from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Card, Divider, Dropdown, Empty, Input, Spin, Tag} from "antd"
+import {Button, Divider, Dropdown, Empty, Input, Spin, Tag} from "antd"
 import Image from "next/image"
 
 import {AppCard} from "./CatalogAppCard"
@@ -553,36 +554,39 @@ function ItemsView<I, T, C>({
                                         />
                                     )}
                                     <Card
-                                        hoverable={!pickDisabled}
                                         className={
-                                            pickDisabled ? "cursor-not-allowed" : "cursor-pointer"
+                                            pickDisabled
+                                                ? "cursor-not-allowed"
+                                                : "cursor-pointer transition-colors hover:bg-muted/30 hover:ring-foreground/20"
                                         }
-                                        size="small"
+                                        size="sm"
                                         onClick={pickDisabled ? undefined : () => handlePick(item)}
                                     >
-                                        <div className="flex items-start gap-2">
-                                            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="truncate font-semibold">
-                                                        {adapter.item.name(item) ||
-                                                            adapter.item.key(item)}
-                                                    </span>
-                                                    {categories?.slice(0, 2).map((c) => (
-                                                        <Tag key={c} className="text-xs">
-                                                            {c}
-                                                        </Tag>
-                                                    ))}
+                                        <CardContent>
+                                            <div className="flex items-start gap-2">
+                                                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate font-semibold">
+                                                            {adapter.item.name(item) ||
+                                                                adapter.item.key(item)}
+                                                        </span>
+                                                        {categories?.slice(0, 2).map((c) => (
+                                                            <Tag key={c} className="text-xs">
+                                                                {c}
+                                                            </Tag>
+                                                        ))}
+                                                    </div>
+                                                    {itemDescription && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {itemDescription}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                {itemDescription && (
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {itemDescription}
-                                                    </span>
-                                                )}
+                                                <span className="mt-0.5">
+                                                    <ItemTrailingIcon state={state} />
+                                                </span>
                                             </div>
-                                            <span className="mt-0.5">
-                                                <ItemTrailingIcon state={state} />
-                                            </span>
-                                        </div>
+                                        </CardContent>
                                     </Card>
                                 </React.Fragment>
                             )

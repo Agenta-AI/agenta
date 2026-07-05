@@ -1,6 +1,7 @@
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Alert, Card, Space} from "antd"
+import {Alert, Space} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -24,19 +25,21 @@ const CustomWorkflowBanner = ({
             return (
                 <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
                     <Card className="max-w-[520px] w-[90%] text-center">
-                        <h3 className="!mb-2 text-lg font-semibold leading-snug">
-                            Unable to establish connection
-                        </h3>
-                        <p className="!mb-4 text-muted-foreground">
-                            Agenta is unable to communicate with your server. Try refreshing or
-                            re-configure your workflow URL.
-                        </p>
-                        <Space orientation="horizontal" align="center">
-                            <Button onClick={() => openModal()} variant="outline">
-                                {<PencilSimple size={14} />}
-                                Configure
-                            </Button>
-                        </Space>
+                        <CardContent>
+                            <h3 className="!mb-2 text-lg font-semibold leading-snug">
+                                Unable to establish connection
+                            </h3>
+                            <p className="!mb-4 text-muted-foreground">
+                                Agenta is unable to communicate with your server. Try refreshing or
+                                re-configure your workflow URL.
+                            </p>
+                            <Space orientation="horizontal" align="center">
+                                <Button onClick={() => openModal()} variant="outline">
+                                    {<PencilSimple size={14} />}
+                                    Configure
+                                </Button>
+                            </Space>
+                        </CardContent>
                     </Card>
                 </main>
             )
