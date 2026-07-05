@@ -31,6 +31,7 @@ EXPECTED_DEFAULT_BUILD_KIT_OPS = (
     "commit_revision",
     "annotate_trace",
     "query_spans",
+    "test_run",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
