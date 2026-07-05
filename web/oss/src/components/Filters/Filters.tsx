@@ -3,6 +3,14 @@ import React, {useMemo, useState} from "react"
 import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {
+    Combobox,
+    ComboboxContent,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -13,13 +21,21 @@ import {
 } from "@agenta/primitive-ui/components/dropdown-menu"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {TagInput} from "@agenta/primitive-ui/components/tags-input"
+import {
     ArrowClockwiseIcon,
     CaretDownIcon,
     FunnelIcon,
     PlusIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
-import {Button, Divider, Input, Select, Space, TreeSelect} from "antd"
+import {Button, Divider, Input, Space, TreeSelect} from "antd"
 import {useAtomValue} from "jotai"
 import isEqual from "lodash/isEqual"
 
@@ -1504,61 +1520,61 @@ const Filters: React.FC<Props> = ({
 
                                             {!singleOperator && (
                                                 <Select
-                                                    placeholder="Operator"
-                                                    labelRender={(label) =>
-                                                        !label.value ? "Condition" : label.label
-                                                    }
-                                                    suffixIcon={<CaretDownIcon size={14} />}
-                                                    onChange={(value) =>
+                                                    value={operatorValue}
+                                                    onValueChange={(value) =>
                                                         onFilterChange({
                                                             columnName: "operator",
                                                             value,
                                                             idx,
                                                         })
                                                     }
-                                                    className="w-[140px]"
-                                                    popupMatchSelectWidth={140}
-                                                    value={operatorValue}
-                                                    options={operatorOptions}
                                                     disabled={item.isPermanent}
-                                                    getPopupContainer={(t) => getWithinPopover(t)}
-                                                    styles={{
-                                                        popup: {
-                                                            root: {
-                                                                ...dropdownPanelStyle,
-                                                            },
-                                                        },
-                                                    }}
-                                                />
+                                                >
+                                                    <SelectTrigger className="w-[140px]">
+                                                        <SelectValue placeholder="Condition" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {operatorOptions.map((o) => (
+                                                            <SelectItem
+                                                                key={o.value}
+                                                                value={o.value}
+                                                            >
+                                                                {o.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             )}
 
                                             {isAnnotationFieldSelected ? (
                                                 isEvaluatorActive ? (
                                                     <div className="flex items-center gap-2 w-full">
                                                         <Select
-                                                            className="w-[220px] flex-1"
-                                                            showSearch
-                                                            placeholder="Evaluator"
-                                                            value={annotationValue?.evaluator}
-                                                            options={annotationEvaluatorOptions}
-                                                            onChange={(value) =>
-                                                                handleEvaluatorChange(value)
+                                                            value={
+                                                                annotationValue?.evaluator ?? null
                                                             }
-                                                            allowClear
-                                                            suffixIcon={<CaretDownIcon size={14} />}
-                                                            optionFilterProp="label"
-                                                            getPopupContainer={(t) =>
-                                                                getWithinPopover(t)
+                                                            onValueChange={(value) =>
+                                                                handleEvaluatorChange(
+                                                                    value ?? undefined,
+                                                                )
                                                             }
-                                                            styles={{
-                                                                popup: {
-                                                                    root: {
-                                                                        ...(dropdownPanelStyle ||
-                                                                            {}),
-                                                                    },
-                                                                },
-                                                            }}
-                                                        />
+                                                        >
+                                                            <SelectTrigger className="w-[220px] flex-1">
+                                                                <SelectValue placeholder="Evaluator" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {annotationEvaluatorOptions.map(
+                                                                    (o) => (
+                                                                        <SelectItem
+                                                                            key={o.value}
+                                                                            value={o.value}
+                                                                        >
+                                                                            {o.label}
+                                                                        </SelectItem>
+                                                                    ),
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
 
                                                         <Button
                                                             type="link"
@@ -1593,11 +1609,10 @@ const Filters: React.FC<Props> = ({
                                                     className="flex-1 min-w-[120px] w-full"
                                                 />
                                             ) : valueAs === "tags" ? (
-                                                <Select
-                                                    mode="tags"
+                                                <TagInput
                                                     className="flex-1 min-w-[160px] w-full"
                                                     options={valueOptions}
-                                                    tokenSeparators={[",", " ", "\n", "\t", ";"]}
+                                                    separator={[",", " ", "\n", "\t", ";"]}
                                                     value={
                                                         Array.isArray(item.value)
                                                             ? (item.value as any)
@@ -1611,45 +1626,41 @@ const Filters: React.FC<Props> = ({
                                                         })
                                                     }
                                                     placeholder={valuePlaceholder}
-                                                    suffixIcon={<CaretDownIcon size={14} />}
-                                                    popupMatchSelectWidth
                                                     disabled={item.isPermanent}
-                                                    status={valueHasError ? "error" : undefined}
-                                                    getPopupContainer={(t) => getWithinPopover(t)}
-                                                    styles={{
-                                                        popup: {
-                                                            root: {
-                                                                ...(dropdownPanelStyle || {}),
-                                                            },
-                                                        },
-                                                    }}
                                                 />
                                             ) : valueAs === "select" ? (
                                                 <Select
-                                                    className="flex-1 min-w-[160px] w-full"
-                                                    options={valueOptions}
-                                                    value={item.value as any}
-                                                    onChange={(v) =>
+                                                    value={item.value as string}
+                                                    onValueChange={(v) =>
                                                         onFilterChange({
                                                             columnName: "value",
                                                             value: v,
                                                             idx,
                                                         })
                                                     }
-                                                    placeholder={valuePlaceholder}
-                                                    suffixIcon={<CaretDownIcon size={14} />}
-                                                    popupMatchSelectWidth
                                                     disabled={item.isPermanent}
-                                                    status={valueHasError ? "error" : undefined}
-                                                    getPopupContainer={(t) => getWithinPopover(t)}
-                                                    styles={{
-                                                        popup: {
-                                                            root: {
-                                                                ...(dropdownPanelStyle || {}),
-                                                            },
-                                                        },
-                                                    }}
-                                                />
+                                                >
+                                                    <SelectTrigger
+                                                        className="flex-1 min-w-[160px] w-full"
+                                                        aria-invalid={
+                                                            valueHasError ? true : undefined
+                                                        }
+                                                    >
+                                                        <SelectValue
+                                                            placeholder={valuePlaceholder}
+                                                        />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {valueOptions?.map((o: any) => (
+                                                            <SelectItem
+                                                                key={o.value}
+                                                                value={o.value}
+                                                            >
+                                                                {o.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             ) : valueAs === "range" ? (
                                                 <Input
                                                     placeholder={valuePlaceholder}
@@ -1692,9 +1703,8 @@ const Filters: React.FC<Props> = ({
 
                                             {field?.optionKey === "custom" && (
                                                 <Select
-                                                    className="w-[130px]"
                                                     value={item.customValueType ?? "string"}
-                                                    onChange={(
+                                                    onValueChange={(
                                                         v: "string" | "number" | "boolean",
                                                     ) =>
                                                         onFilterChange({
@@ -1703,23 +1713,23 @@ const Filters: React.FC<Props> = ({
                                                             idx,
                                                         })
                                                     }
-                                                    options={[
-                                                        {label: "String", value: "string"},
-                                                        {label: "Number", value: "number"},
-                                                        {label: "Boolean", value: "boolean"},
-                                                    ]}
-                                                    suffixIcon={<CaretDownIcon size={14} />}
-                                                    popupMatchSelectWidth
                                                     disabled={item.isPermanent}
-                                                    getPopupContainer={(t) => getWithinPopover(t)}
-                                                    styles={{
-                                                        popup: {
-                                                            root: {
-                                                                ...(dropdownPanelStyle || {}),
-                                                            },
-                                                        },
-                                                    }}
-                                                />
+                                                >
+                                                    <SelectTrigger className="w-[130px]">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="string">
+                                                            String
+                                                        </SelectItem>
+                                                        <SelectItem value="number">
+                                                            Number
+                                                        </SelectItem>
+                                                        <SelectItem value="boolean">
+                                                            Boolean
+                                                        </SelectItem>
+                                                    </SelectContent>
+                                                </Select>
                                             )}
 
                                             {!item.isPermanent &&
@@ -1741,95 +1751,98 @@ const Filters: React.FC<Props> = ({
                                                     <span className="whitespace-nowrap text-muted-foreground">
                                                         Feedback
                                                     </span>
-                                                    <Select
-                                                        className="w-[180px]"
-                                                        showSearch
-                                                        mode={
-                                                            annotationValue?.evaluator
-                                                                ? undefined
-                                                                : "multiple"
-                                                        }
-                                                        placeholder={
-                                                            annotationValue?.evaluator
-                                                                ? "Feedback"
-                                                                : "Select one or more"
-                                                        }
-                                                        value={feedbackFieldValueForSelect}
-                                                        options={feedbackOptionsForSelect}
-                                                        onSearch={(searchValue) =>
-                                                            setFeedbackFieldSearch((prev) => ({
-                                                                ...prev,
-                                                                [idx]: searchValue,
-                                                            }))
-                                                        }
-                                                        onChange={(val) => {
-                                                            handleFeedbackFieldChange(
-                                                                val as string | string[],
+                                                    <Combobox
+                                                        value={
+                                                            Array.isArray(
+                                                                feedbackFieldValueForSelect,
                                                             )
+                                                                ? (feedbackFieldValueForSelect[0] ??
+                                                                  "")
+                                                                : (feedbackFieldValueForSelect ??
+                                                                  "")
+                                                        }
+                                                        onValueChange={(val) => {
+                                                            handleFeedbackFieldChange(val)
                                                             setFeedbackFieldSearch((prev) => ({
                                                                 ...prev,
                                                                 [idx]: "",
                                                             }))
                                                         }}
-                                                        onOpenChange={(open) => {
-                                                            if (!open)
-                                                                setFeedbackFieldSearch((prev) => ({
-                                                                    ...prev,
-                                                                    [idx]: "",
-                                                                }))
-                                                        }}
-                                                        suffixIcon={<CaretDownIcon size={14} />}
-                                                        optionFilterProp="label"
-                                                        getPopupContainer={(t) =>
-                                                            getWithinPopover(t)
-                                                        }
-                                                        styles={{
-                                                            popup: {
-                                                                root: {
-                                                                    ...(dropdownPanelStyle || {}),
-                                                                },
-                                                            },
-                                                        }}
-                                                    />
+                                                    >
+                                                        <ComboboxTrigger className="w-[180px]">
+                                                            <ComboboxValue
+                                                                placeholder={
+                                                                    annotationValue?.evaluator
+                                                                        ? "Feedback"
+                                                                        : "Select one or more"
+                                                                }
+                                                            />
+                                                        </ComboboxTrigger>
+                                                        <ComboboxContent>
+                                                            <ComboboxInput
+                                                                placeholder="Search feedback fields..."
+                                                                onValueChange={(v) =>
+                                                                    setFeedbackFieldSearch(
+                                                                        (prev) => ({
+                                                                            ...prev,
+                                                                            [idx]: v,
+                                                                        }),
+                                                                    )
+                                                                }
+                                                            />
+                                                            {feedbackOptionsForSelect.map((o) => (
+                                                                <ComboboxItem
+                                                                    key={o.value}
+                                                                    value={o.value}
+                                                                >
+                                                                    {o.label}
+                                                                </ComboboxItem>
+                                                            ))}
+                                                        </ComboboxContent>
+                                                    </Combobox>
                                                     <Select
-                                                        className="w-[80px]"
                                                         value={currentFeedback?.operator}
-                                                        options={feedbackOperatorOptions}
-                                                        onChange={handleFeedbackOperatorChange}
-                                                        suffixIcon={<CaretDownIcon size={14} />}
-                                                        getPopupContainer={(t) =>
-                                                            getWithinPopover(t)
-                                                        }
-                                                        styles={{
-                                                            popup: {
-                                                                root: {
-                                                                    ...(dropdownPanelStyle || {}),
-                                                                },
-                                                            },
-                                                        }}
-                                                    />
+                                                        onValueChange={handleFeedbackOperatorChange}
+                                                    >
+                                                        <SelectTrigger className="w-[80px]">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {feedbackOperatorOptions.map((o) => (
+                                                                <SelectItem
+                                                                    key={o.value}
+                                                                    value={o.value}
+                                                                >
+                                                                    {o.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
                                                     {feedbackValueType === "boolean" ? (
                                                         <Select
-                                                            className="flex-1"
-                                                            value={currentFeedback?.value ?? true}
-                                                            options={[
-                                                                {label: "true", value: true},
-                                                                {label: "false", value: false},
-                                                            ]}
-                                                            onChange={handleFeedbackValueChange}
-                                                            suffixIcon={<CaretDownIcon size={14} />}
-                                                            getPopupContainer={(t) =>
-                                                                getWithinPopover(t)
+                                                            value={
+                                                                currentFeedback?.value != null
+                                                                    ? String(currentFeedback.value)
+                                                                    : "true"
                                                             }
-                                                            styles={{
-                                                                popup: {
-                                                                    root: {
-                                                                        ...(dropdownPanelStyle ||
-                                                                            {}),
-                                                                    },
-                                                                },
-                                                            }}
-                                                        />
+                                                            onValueChange={(v) =>
+                                                                handleFeedbackValueChange(
+                                                                    v === "true",
+                                                                )
+                                                            }
+                                                        >
+                                                            <SelectTrigger className="flex-1">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="true">
+                                                                    true
+                                                                </SelectItem>
+                                                                <SelectItem value="false">
+                                                                    false
+                                                                </SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
                                                     ) : (
                                                         <Input
                                                             className="flex-1"
@@ -1843,30 +1856,28 @@ const Filters: React.FC<Props> = ({
                                                         />
                                                     )}
                                                     <Select
-                                                        className="w-[100px]"
                                                         value={feedbackValueType}
-                                                        options={[
-                                                            {label: "Text", value: "string"},
-                                                            {label: "Number", value: "number"},
-                                                            {label: "Boolean", value: "boolean"},
-                                                        ]}
-                                                        onChange={(value) =>
+                                                        onValueChange={(value) =>
                                                             handleFeedbackTypeChange(
                                                                 value as AnnotationFeedbackValueType,
                                                             )
                                                         }
-                                                        suffixIcon={<CaretDownIcon size={14} />}
-                                                        getPopupContainer={(t) =>
-                                                            getWithinPopover(t)
-                                                        }
-                                                        styles={{
-                                                            popup: {
-                                                                root: {
-                                                                    ...(dropdownPanelStyle || {}),
-                                                                },
-                                                            },
-                                                        }}
-                                                    />
+                                                    >
+                                                        <SelectTrigger className="w-[100px]">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="string">
+                                                                Text
+                                                            </SelectItem>
+                                                            <SelectItem value="number">
+                                                                Number
+                                                            </SelectItem>
+                                                            <SelectItem value="boolean">
+                                                                Boolean
+                                                            </SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
 
                                                     <Button
                                                         type="link"

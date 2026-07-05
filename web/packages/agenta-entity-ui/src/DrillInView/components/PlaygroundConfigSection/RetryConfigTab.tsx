@@ -1,8 +1,15 @@
 import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {formatLabel} from "@agenta/ui/drill-in"
-import {Select, Tooltip} from "antd"
+import {Tooltip} from "antd"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
 import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
@@ -103,29 +110,32 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                 <Tooltip title={!isPolicyEnabled ? retryRequiredMessage : undefined}>
                     <span>
                         <Select
-                            size="small"
-                            allowClear
                             value={retryPolicy ?? undefined}
-                            onChange={(nextValue) => onPolicyChange(nextValue ?? null)}
-                            options={retryPolicyOptions}
-                            placeholder={isPolicyEnabled ? "Select one" : retryRequiredMessage}
+                            onValueChange={(nextValue) => onPolicyChange(nextValue ?? null)}
                             disabled={!isPolicyEnabled}
-                            className="w-full"
-                            optionRender={(option) => {
-                                const description = (option.data as {description?: string})
-                                    .description
-                                return (
-                                    <div className="flex items-center justify-between gap-3">
-                                        <span>{option.label}</span>
-                                        {description && (
-                                            <span className="text-muted-foreground">
-                                                {description}
-                                            </span>
-                                        )}
-                                    </div>
-                                )
-                            }}
-                        />
+                        >
+                            <SelectTrigger className="w-full">
+                                <SelectValue
+                                    placeholder={
+                                        isPolicyEnabled ? "Select one" : retryRequiredMessage
+                                    }
+                                />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {retryPolicyOptions.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <span>{option.label}</span>
+                                            {option.description && (
+                                                <span className="text-muted-foreground">
+                                                    {option.description}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </span>
                 </Tooltip>
             </div>

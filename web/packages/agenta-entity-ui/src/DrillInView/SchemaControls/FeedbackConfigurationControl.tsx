@@ -12,10 +12,17 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Info, Plus, Trash} from "@phosphor-icons/react"
-import {Input, InputNumber, Select, Switch, Tooltip} from "antd"
+import {Input, InputNumber, Switch, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -513,17 +520,21 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                     description="Choose the format for your evaluation results"
                 >
                     <Select
-                        style={{width: "100%"}}
                         value={responseFormat}
-                        onChange={handleResponseFormatChange}
+                        onValueChange={handleResponseFormatChange}
                         disabled={disabled}
-                        size="small"
-                        options={[
-                            {label: "Boolean (True/False)", value: "boolean"},
-                            {label: "Continuous (Numeric Range)", value: "continuous"},
-                            {label: "Categorical (Predefined Options)", value: "categorical"},
-                        ]}
-                    />
+                    >
+                        <SelectTrigger className="w-full" data-size="sm">
+                            <SelectValue placeholder="Select response format" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="boolean">Boolean (True/False)</SelectItem>
+                            <SelectItem value="continuous">Continuous (Numeric Range)</SelectItem>
+                            <SelectItem value="categorical">
+                                Categorical (Predefined Options)
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
                 </LabeledField>
             </div>
 

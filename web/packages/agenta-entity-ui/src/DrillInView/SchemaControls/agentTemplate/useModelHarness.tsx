@@ -7,12 +7,19 @@ import {useCallback, useEffect, useMemo} from "react"
 import {customSecretsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Check, Cube, EyeSlash, Key, Lightbulb, ShieldCheck, Warning} from "@phosphor-icons/react"
-import {Select} from "antd"
 import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../../drawers/shared/RailField"
@@ -502,18 +509,28 @@ export function useModelHarness({
                 description="Which stored connection supplies the credential. Project default uses the project's provider key."
                 withTooltip={withTooltip}
             >
-                <Select<string>
+                <Combobox
                     value={connection.slug ?? "__default__"}
-                    onChange={(v) => writeModel({slug: v === "__default__" ? null : (v ?? null)})}
-                    options={[
-                        {value: "__default__", label: "Project default"},
-                        ...connectionOptions.map((o) => ({value: o.value, label: o.label})),
-                    ]}
+                    onValueChange={(v) =>
+                        writeModel({slug: v === "__default__" ? null : (v ?? null)})
+                    }
                     disabled={disabled}
-                    className="w-full"
-                    showSearch
-                    optionFilterProp="label"
-                />
+                >
+                    <ComboboxTrigger className="w-full">
+                        <ComboboxValue placeholder="Select connection" />
+                    </ComboboxTrigger>
+                    <ComboboxContent>
+                        <ComboboxInput placeholder="Search connections..." />
+                        {[
+                            {value: "__default__", label: "Project default"},
+                            ...connectionOptions.map((o) => ({value: o.value, label: o.label})),
+                        ].map((o) => (
+                            <ComboboxItem key={o.value} value={o.value}>
+                                {o.label}
+                            </ComboboxItem>
+                        ))}
+                    </ComboboxContent>
+                </Combobox>
             </LabeledField>
         ) : null
     const authControls = props.llm ? (

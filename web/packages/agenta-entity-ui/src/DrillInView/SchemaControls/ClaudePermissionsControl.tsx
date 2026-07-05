@@ -14,7 +14,14 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {Input, Select} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {Input} from "antd"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
@@ -136,15 +143,22 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
     return (
         <>
             <RailField label={railInfoLabel(modeLabel, modeDescription)} align="center">
-                <Select<ClaudePermissionMode>
+                <Select
                     value={current.defaultMode ?? undefined}
-                    onChange={(v) => write({defaultMode: v ?? null})}
-                    options={modeOptions}
+                    onValueChange={(v) => write({defaultMode: (v as ClaudePermissionMode) ?? null})}
                     disabled={disabled}
-                    placeholder="Claude default"
-                    allowClear
-                    className="w-full"
-                />
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Claude default" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {modeOptions.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </RailField>
 
             <RailField

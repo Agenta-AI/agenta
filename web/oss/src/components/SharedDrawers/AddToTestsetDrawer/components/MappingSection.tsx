@@ -1,9 +1,16 @@
 import {useMemo} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {ArrowRight, Crosshair, Plus, Trash} from "@phosphor-icons/react"
-import {AutoComplete, Select} from "antd"
+import {AutoComplete} from "antd"
 
 import {createMappingId, Mapping, TestsetColumn} from "../assets/types"
 
@@ -126,27 +133,37 @@ export function MappingSection({
                                     />
                                     <ArrowRight size={16} className="flex-shrink-0 text-gray-400" />
                                     <Select
-                                        className={
-                                            mapping.column === "create" ? "w-[120px]" : "flex-1"
-                                        }
-                                        placeholder="Select a column"
                                         value={mapping.column || undefined}
-                                        onChange={(value) =>
+                                        onValueChange={(value) =>
                                             onMappingOptionChange({
                                                 pathName: "column",
                                                 value,
                                                 idx,
                                             })
                                         }
-                                        options={[
-                                            ...(testsetId
-                                                ? customSelectOptions(
-                                                      selectedTestsetColumns.length > 0,
-                                                  )
-                                                : []),
-                                            ...getAvailableColumnOptions(idx),
-                                        ]}
-                                    />
+                                    >
+                                        <SelectTrigger
+                                            className={
+                                                mapping.column === "create" ? "w-[120px]" : "flex-1"
+                                            }
+                                        >
+                                            <SelectValue placeholder="Select a column" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {[
+                                                ...(testsetId
+                                                    ? customSelectOptions(
+                                                          selectedTestsetColumns.length > 0,
+                                                      )
+                                                    : []),
+                                                ...getAvailableColumnOptions(idx),
+                                            ].map((o) => (
+                                                <SelectItem key={o.value} value={o.value}>
+                                                    {o.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
 
                                     {mapping.column === "create" && (
                                         <Tooltip>

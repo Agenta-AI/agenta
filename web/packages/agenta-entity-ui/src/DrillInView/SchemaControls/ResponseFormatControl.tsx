@@ -16,10 +16,17 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {EnhancedModal, ModalFooter} from "@agenta/ui/components/modal"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Button, Select} from "antd"
+import {Button} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom, type PrimitiveAtom} from "jotai"
 import {atomWithReset} from "jotai/utils"
@@ -225,16 +232,18 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
     return (
         <div className={clsx("flex items-center gap-1", className)}>
             {/* Format type dropdown */}
-            <Select
-                size={size}
-                value={formatType}
-                onChange={handleFormatChange}
-                options={RESPONSE_FORMAT_OPTIONS}
-                className="min-w-[130px]"
-                popupMatchSelectWidth={false}
-                disabled={disabled}
-                style={{height: 24}}
-            />
+            <Select value={formatType} onValueChange={handleFormatChange} disabled={disabled}>
+                <SelectTrigger className="min-w-[130px]" size={size === "small" ? "sm" : undefined}>
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    {RESPONSE_FORMAT_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
 
             {/* Schema name button (only shown for json_schema) */}
             {formatType === "json_schema" && (

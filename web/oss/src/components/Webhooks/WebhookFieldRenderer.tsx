@@ -1,7 +1,14 @@
 import {Fragment, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
-import {Divider, Form, Input, Select} from "antd"
+import {
+    Select as ShadcnSelect,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {Divider, Form, Input} from "antd"
 
 import {FieldDescriptor} from "./assets/types"
 import {AdvanceConfigWidget} from "./widgets/AdvanceConfigWidget"
@@ -11,6 +18,73 @@ import {HeaderListWidget} from "./widgets/HeaderListWidget"
 interface Props {
     fields: FieldDescriptor[]
     isEditMode: boolean
+}
+
+function AntdFormSelect({
+    value,
+    onChange,
+    options,
+    placeholder,
+    disabled,
+}: {
+    value?: string
+    onChange?: (v: string) => void
+    options?: {label: string; value: string}[]
+    placeholder?: string
+    disabled?: boolean
+}) {
+    return (
+        <ShadcnSelect
+            value={value ?? ""}
+            onValueChange={(v) => onChange?.(v || "")}
+            disabled={disabled}
+        >
+            <SelectTrigger>
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+                {options?.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </ShadcnSelect>
+    )
+}
+
+function FormMultiSelect({
+    value,
+    onChange,
+    options,
+    placeholder,
+    disabled,
+}: {
+    value?: string[]
+    onChange?: (v: string[]) => void
+    options?: {value: string; label: string}[]
+    placeholder?: string
+    disabled?: boolean
+}) {
+    return (
+        <ShadcnSelect
+            multiple
+            value={value || []}
+            onValueChange={(vals) => onChange?.(vals)}
+            disabled={disabled}
+        >
+            <SelectTrigger>
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+                {options?.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </ShadcnSelect>
+    )
 }
 
 const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditMode: boolean}) => {
@@ -117,12 +191,19 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
                 {InputComponent}
             </Form.Item>
         )
-    } else if (field.component === "select" || field.component === "multi-select") {
+    } else if (field.component === "select") {
         InputComponent = (
-            <Select
+            <AntdFormSelect
                 placeholder={field.placeholder}
                 disabled={isDisabled}
-                mode={field.component === "multi-select" ? "multiple" : undefined}
+                options={field.options}
+            />
+        )
+    } else if (field.component === "multi-select") {
+        InputComponent = (
+            <FormMultiSelect
+                placeholder={field.placeholder}
+                disabled={isDisabled}
                 options={field.options}
             />
         )

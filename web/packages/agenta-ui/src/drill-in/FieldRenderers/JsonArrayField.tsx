@@ -4,7 +4,13 @@
  * Renders a JSON array with navigation select and JSON editor.
  */
 
-import {Select} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
 import type {JsonArrayFieldProps} from "./types"
@@ -34,20 +40,20 @@ export function JsonArrayField({
             {/* Navigation select for drilling into items */}
             {arrayItems.length > 0 && (
                 <Select
-                    placeholder="Jump to item"
-                    className="w-full"
-                    size="small"
-                    value={null}
-                    options={arrayItems.map((arrItem: unknown, idx: number) => ({
-                        value: idx,
-                        label: `${idx + 1}. ${getPreview(arrItem)}`,
-                    }))}
-                    onSelect={(idx: number | null) => {
-                        if (idx !== null) {
-                            setCurrentPath([...fullPath, String(idx)])
-                        }
-                    }}
-                />
+                    value={undefined}
+                    onValueChange={(val) => setCurrentPath([...fullPath, val])}
+                >
+                    <SelectTrigger className="w-full" size="sm">
+                        <SelectValue placeholder="Jump to item" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {arrayItems.map((arrItem: unknown, idx: number) => (
+                            <SelectItem key={idx} value={String(idx)}>
+                                {idx + 1}. {getPreview(arrItem)}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             )}
 
             {/* Editable JSON editor for array content */}

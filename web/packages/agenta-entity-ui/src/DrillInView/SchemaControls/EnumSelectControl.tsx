@@ -8,10 +8,18 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {formatEnumLabel} from "@agenta/shared/utils"
 import {LabeledField, SimpleDropdownSelect} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Select} from "antd"
 
 export interface EnumSelectControlProps {
     /** The schema property defining enum options */
@@ -143,20 +151,20 @@ export const EnumSelectControl = memo(function EnumSelectControl({
             withTooltip={withTooltip && !!label}
             className={cn(className)}
         >
-            <Select
-                value={value ?? undefined}
-                onChange={(val) => onChange(val ?? null)}
-                options={options}
-                disabled={disabled}
-                placeholder={placeholder}
-                allowClear={allowClear}
-                className="w-full"
-                size="small"
-                showSearch
-                filterOption={(input, option) =>
-                    (option?.label?.toString() ?? "").toLowerCase().includes(input.toLowerCase())
-                }
-            />
+            <Combobox value={value ?? undefined} onValueChange={(val) => onChange(val ?? null)}>
+                <ComboboxTrigger className="w-full" size="sm">
+                    <ComboboxValue placeholder={placeholder} />
+                </ComboboxTrigger>
+                <ComboboxContent>
+                    <ComboboxInput placeholder="Search..." />
+                    <ComboboxEmpty>No results found</ComboboxEmpty>
+                    {options.map((o) => (
+                        <ComboboxItem key={o.value} value={o.value}>
+                            {o.label}
+                        </ComboboxItem>
+                    ))}
+                </ComboboxContent>
+            </Combobox>
         </LabeledField>
     )
 })

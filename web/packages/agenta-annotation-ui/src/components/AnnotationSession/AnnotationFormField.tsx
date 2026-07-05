@@ -9,8 +9,16 @@
 
 import {memo, useCallback, type ReactNode} from "react"
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {TagInput} from "@agenta/primitive-ui/components/tags-input"
 import {X} from "@phosphor-icons/react"
-import {Button, Input, InputNumber, Radio, Select, Slider} from "antd"
+import {Button, Input, InputNumber, Radio, Slider} from "antd"
 
 import type {AnnotationMetricField} from "../../hooks/useAnnotationFormState"
 
@@ -309,15 +317,51 @@ const SelectField = memo(function SelectField({
                 onClear={() => onChange(null)}
                 clearDisabled={disabled || readOnly || normalizedValue === undefined}
             />
-            <Select
-                value={normalizedValue}
-                onChange={handleChange}
-                disabled={isDisabled}
-                options={options}
-                mode={mode}
-                placeholder={mode ? "Select options" : "Select"}
-                className="w-full"
-            />
+            {mode === "tags" ? (
+                <TagInput
+                    value={Array.isArray(normalizedValue) ? normalizedValue : []}
+                    onChange={(vals) => handleChange(vals)}
+                    options={options}
+                    disabled={isDisabled}
+                    placeholder="Select options"
+                    className="w-full"
+                />
+            ) : mode === "multiple" ? (
+                <Select
+                    multiple
+                    value={Array.isArray(normalizedValue) ? normalizedValue : []}
+                    onValueChange={(vals) => handleChange(vals)}
+                    disabled={isDisabled}
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select options" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {options?.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            ) : (
+                <Select
+                    value={normalizedValue as string | undefined}
+                    onValueChange={(v) => handleChange(v)}
+                    disabled={isDisabled}
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {options?.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            )}
         </div>
     )
 })

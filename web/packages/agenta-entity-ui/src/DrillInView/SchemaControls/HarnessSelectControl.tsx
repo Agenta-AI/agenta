@@ -17,10 +17,18 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {formatEnumLabel} from "@agenta/shared/utils"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Select} from "antd"
 
 interface HarnessMeta {
     label: string
@@ -127,14 +135,6 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
     const labelFor = (id: string) => titles[id] ?? metaFor(id).label
     const metaWithLabel = (id: string): HarnessMeta => ({...metaFor(id), label: labelFor(id)})
 
-    const options = useMemo(() => {
-        const values = Array.isArray(schema?.enum) ? (schema?.enum as unknown[]) : []
-        return values.map((v) => {
-            const id = String(v)
-            return {value: id, label: titles[id] ?? metaFor(id).label}
-        })
-    }, [schema, titles])
-
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     return (
@@ -144,37 +144,39 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
             withTooltip={withTooltip && !!label}
             className={cn(className)}
         >
-            <Select
-                value={value ?? undefined}
-                onChange={(val) => onChange(val ?? null)}
+            <Combobox
+                value={value ?? null}
+                onValueChange={(val) => onChange(val ?? null)}
                 disabled={disabled}
-                placeholder="Select harness"
-                className="w-full"
-                options={options}
-                optionLabelProp="label"
-                showSearch
-                filterOption={(input, option) =>
-                    (option?.label?.toString() ?? "").toLowerCase().includes(input.toLowerCase())
-                }
-                labelRender={(cur) => {
-                    const meta = metaWithLabel(String(cur.value))
-                    return (
+            >
+                <ComboboxTrigger className="w-full">
+                    {value ? (
                         <span className="flex items-center gap-2">
-                            <HarnessAvatar meta={meta} size={18} />
-                            <span>{meta.label}</span>
+                            <HarnessAvatar meta={metaWithLabel(String(value))} size={18} />
+                            <span>{labelFor(String(value))}</span>
                         </span>
-                    )
-                }}
-                optionRender={(opt) => {
-                    const meta = metaWithLabel(String(opt.value))
-                    return (
-                        <span className="flex items-center gap-2 py-0.5">
-                            <HarnessAvatar meta={meta} size={22} />
-                            <span>{meta.label}</span>
-                        </span>
-                    )
-                }}
-            />
+                    ) : (
+                        <ComboboxValue placeholder="Select harness" />
+                    )}
+                </ComboboxTrigger>
+                <ComboboxContent>
+                    <ComboboxInput placeholder="Search..." />
+                    <ComboboxEmpty>No results</ComboboxEmpty>
+                    {Array.isArray(schema?.enum) &&
+                        schema.enum.map((v) => {
+                            const id = String(v)
+                            const meta = metaWithLabel(id)
+                            return (
+                                <ComboboxItem key={id} value={id}>
+                                    <span className="flex items-center gap-2 py-0.5">
+                                        <HarnessAvatar meta={meta} size={22} />
+                                        <span>{meta.label}</span>
+                                    </span>
+                                </ComboboxItem>
+                            )
+                        })}
+                </ComboboxContent>
+            </Combobox>
         </LabeledField>
     )
 })

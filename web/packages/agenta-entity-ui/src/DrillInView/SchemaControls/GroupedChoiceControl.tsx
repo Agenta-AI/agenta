@@ -13,11 +13,21 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxGroup,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxLabel,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Select} from "antd"
 
 import {getOptionsFromSchema} from "./schemaUtils"
 
@@ -134,17 +144,25 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
             withTooltip={withTooltip && !!label}
             className={cn(className)}
         >
-            <Select
-                value={value ?? undefined}
-                onChange={(val) => onChange(val ?? null)}
-                options={selectOptions}
-                disabled={disabled}
-                placeholder={placeholder}
-                className="w-full"
-                size="small"
-                showSearch
-                optionFilterProp="label"
-            />
+            <Combobox value={value ?? undefined} onValueChange={(val) => onChange(val ?? null)}>
+                <ComboboxTrigger className="w-full" size="sm">
+                    <ComboboxValue placeholder={placeholder} />
+                </ComboboxTrigger>
+                <ComboboxContent>
+                    <ComboboxInput placeholder="Search..." />
+                    <ComboboxEmpty>No results found</ComboboxEmpty>
+                    {selectOptions.map((group) => (
+                        <ComboboxGroup key={group.label}>
+                            <ComboboxLabel>{group.label}</ComboboxLabel>
+                            {group.options.map((opt) => (
+                                <ComboboxItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                </ComboboxItem>
+                            ))}
+                        </ComboboxGroup>
+                    ))}
+                </ComboboxContent>
+            </Combobox>
         </LabeledField>
     )
 })

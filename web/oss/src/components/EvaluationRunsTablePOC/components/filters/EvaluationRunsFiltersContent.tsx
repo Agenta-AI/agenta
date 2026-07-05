@@ -1,8 +1,16 @@
 import {useCallback, useEffect, useMemo} from "react"
-import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react"
+import type {ReactNode} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
-import {Divider, Select, Tag} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {TagInput} from "@agenta/primitive-ui/components/tags-input"
+import {Divider} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {RunFlagsFilter} from "@/oss/lib/hooks/usePreviewEvaluations"
@@ -27,17 +35,7 @@ import {EVALUATION_KIND_FILTER_OPTIONS, STATUS_OPTIONS} from "../../constants"
 import type {ConcreteEvaluationRunKind} from "../../types"
 import {buildTestsetOptions} from "../../utils/testsetOptions"
 
-import QueryFilterOption from "./QueryFilterOption"
 import QuickDateRangePicker from "./QuickDateRangePicker"
-
-interface TagRenderProps {
-    label: ReactNode
-    value: string
-    closable?: boolean
-    onClose?: (event: ReactMouseEvent<HTMLElement>) => void
-    className?: string
-    style?: CSSProperties
-}
 
 const REFERENCE_FILTER_KEYS = ["testset", "evaluator", "app", "variant", "query"] as const
 
@@ -173,7 +171,6 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
     const clearDraft = useSetAtom(evaluationRunsFiltersDraftClearAtom)
     const testsetsQuery = useAtomValue(testsetsListQueryAtomFamily(null))
     const testsets = testsetsQuery.data?.testsets ?? []
-    const testsetsLoading = testsetsQuery.isPending
 
     const draftStatusFilters = draft?.statusFilters ?? summary.statusFilters
     const draftReferences = draft?.referenceFilters ?? createReferenceDraftFromSummary(summary)
@@ -414,36 +411,6 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
         setMetaUpdater,
     ])
 
-    const preventTagMouseDown = (event: ReactMouseEvent) => {
-        event.preventDefault()
-        event.stopPropagation()
-    }
-
-    const referenceTagRenderers = useMemo(() => {
-        const createRenderer = (key: ReferenceFilterKey) => (tagProps: TagRenderProps) => {
-            const isLocked = lockedReferenceSets[key].has(tagProps.value as string)
-            const {label, value, closable, onClose, className, style} = tagProps
-            return (
-                <Tag
-                    className={className}
-                    style={style}
-                    onMouseDown={preventTagMouseDown}
-                    closable={!isLocked && closable}
-                    onClose={isLocked ? undefined : onClose}
-                >
-                    {label ?? value}
-                </Tag>
-            )
-        }
-        return {
-            testset: createRenderer("testset"),
-            evaluator: createRenderer("evaluator"),
-            app: createRenderer("app"),
-            variant: createRenderer("variant"),
-            query: createRenderer("query"),
-        }
-    }, [lockedReferenceSets])
-
     const shouldShowEvaluatorSection =
         filtersContext.isAutoOrHuman ||
         filtersContext.evaluationKind === "online" ||
@@ -469,32 +436,42 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                 <div className="grid grid-cols-2 gap-3">
                     <Section title="Status">
                         <Select
-                            mode="multiple"
-                            allowClear
-                            className={chipSelectClassName}
+                            multiple
                             value={draftStatusFilters}
-                            options={STATUS_OPTIONS}
-                            optionFilterProp="label"
-                            placeholder="Select statuses"
-                            onChange={(values) => handleStatusChange(values as (string | number)[])}
-                        />
+                            onValueChange={(values) => handleStatusChange(values)}
+                        >
+                            <SelectTrigger className={chipSelectClassName}>
+                                <SelectValue placeholder="Select statuses" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {STATUS_OPTIONS.map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </Section>
 
                     {shouldShowEvaluationTypeSection ? (
                         <Section title="Type">
                             <Select
-                                mode="multiple"
-                                allowClear
+                                multiple
                                 disabled={evaluationTypeDisabled}
-                                className={chipSelectClassName}
                                 value={draftEvaluationTypes}
-                                options={EVALUATION_KIND_FILTER_OPTIONS}
-                                optionFilterProp="label"
-                                placeholder="Select evaluation types"
-                                onChange={(values) =>
-                                    handleEvaluationTypeChange(values as (string | number)[])
-                                }
-                            />
+                                onValueChange={(values) => handleEvaluationTypeChange(values)}
+                            >
+                                <SelectTrigger className={chipSelectClassName}>
+                                    <SelectValue placeholder="Select evaluation types" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {EVALUATION_KIND_FILTER_OPTIONS.map((o) => (
+                                        <SelectItem key={o.value} value={o.value}>
+                                            {o.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             {/* {evaluationTypeDisabled ? (
                                 <Typography.Text type="secondary" className="text-xs">
                                     Evaluation type is controlled by the selected tab.
@@ -513,50 +490,30 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                             {/* For online: Query → Evaluators */}
                             {shouldShowQuerySection ? (
                                 <Section title="Queries">
-                                    <Select
-                                        mode="tags"
+                                    <TagInput
                                         className={chipSelectClassName}
                                         value={draftReferences.query}
-                                        loading={queryOptionsState.isLoading}
                                         disabled={!queryOptionsState.enabled}
-                                        tagRender={referenceTagRenderers.query}
                                         onChange={(values) =>
-                                            handleReferenceChange("query", values as string[])
+                                            handleReferenceChange("query", values)
                                         }
-                                        optionLabelProp="label"
-                                        optionFilterProp="label"
+                                        options={queryOptionsState.options}
                                         placeholder={
                                             queryOptionsState.enabled
                                                 ? "Add query slugs or IDs"
                                                 : "Queries unavailable"
                                         }
-                                    >
-                                        {queryOptionsState.options.map((option) => (
-                                            <Select.Option
-                                                key={option.value}
-                                                value={option.value}
-                                                label={option.label}
-                                            >
-                                                <QueryFilterOption option={option} />
-                                            </Select.Option>
-                                        ))}
-                                    </Select>
+                                    />
                                 </Section>
                             ) : null}
                             {shouldShowEvaluatorSection ? (
                                 <Section title="Evaluators">
-                                    <Select
-                                        mode="tags"
+                                    <TagInput
                                         className={chipSelectClassName}
                                         value={draftReferences.evaluator}
                                         options={filterOptions.evaluatorOptions}
-                                        loading={
-                                            shouldShowEvaluatorSection &&
-                                            filterOptions.evaluatorLoading
-                                        }
-                                        tagRender={referenceTagRenderers.evaluator}
                                         onChange={(values) =>
-                                            handleReferenceChange("evaluator", values as string[])
+                                            handleReferenceChange("evaluator", values)
                                         }
                                         placeholder="Add evaluator slugs"
                                     />
@@ -564,19 +521,14 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                             ) : null}
                             {shouldShowTestsetSection ? (
                                 <Section title="Test sets">
-                                    <Select
-                                        mode="tags"
+                                    <TagInput
                                         className={chipSelectClassName}
                                         value={draftReferences.testset}
                                         options={testsetOptions}
-                                        loading={testsetsLoading}
                                         disabled={!projectId}
-                                        tagRender={referenceTagRenderers.testset}
                                         onChange={(values) =>
-                                            handleReferenceChange("testset", values as string[])
+                                            handleReferenceChange("testset", values)
                                         }
-                                        optionLabelProp="label"
-                                        optionFilterProp="label"
                                         placeholder={
                                             projectId ? "Add testset IDs" : "Select a project first"
                                         }
@@ -585,32 +537,24 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                             ) : null}
                             {shouldShowAppSection ? (
                                 <Section title="Applications">
-                                    <Select
-                                        mode="tags"
+                                    <TagInput
                                         className={chipSelectClassName}
                                         value={draftReferences.app}
                                         options={filterOptions.appOptions}
-                                        loading={filterOptions.appsLoading}
-                                        tagRender={referenceTagRenderers.app}
-                                        onChange={(values) =>
-                                            handleReferenceChange("app", values as string[])
-                                        }
+                                        onChange={(values) => handleReferenceChange("app", values)}
                                         placeholder="Add application IDs"
                                     />
                                 </Section>
                             ) : null}
                             {shouldShowVariantSection ? (
                                 <Section title="Variants">
-                                    <Select
-                                        mode="tags"
+                                    <TagInput
                                         className={chipSelectClassName}
                                         value={draftReferences.variant}
                                         options={variantOptionsState.options}
-                                        loading={variantOptionsState.isLoading}
                                         disabled={!variantOptionsState.enabled}
-                                        tagRender={referenceTagRenderers.variant}
                                         onChange={(values) =>
-                                            handleReferenceChange("variant", values as string[])
+                                            handleReferenceChange("variant", values)
                                         }
                                         placeholder={
                                             variantOptionsState.enabled

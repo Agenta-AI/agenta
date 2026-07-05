@@ -2,9 +2,17 @@ import {memo, useCallback, useEffect, useMemo} from "react"
 
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
-import {Select, SelectProps} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
@@ -101,9 +109,8 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
         return loadedScenarios.findIndex((row) => row.scenarioId === scenarioId)
     }, [loadedScenarios, scenarioId])
 
-    const handleSelect = useCallback<NonNullable<SelectProps["onSelect"]>>(
-        (value) => {
-            const nextScenarioId = typeof value === "string" ? value : String(value)
+    const handleValueChange = useCallback(
+        (nextScenarioId: string) => {
             const targetRow = loadedScenarios.find((row) => row.scenarioId === nextScenarioId)
             changeScenario(nextScenarioId, targetRow?.scenarioIndex, targetRow?.testcaseId)
         },
@@ -148,28 +155,27 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
                 >
                     {<CaretDownIcon size={14} />}
                 </Button>
-                <Select
-                    showSearch
-                    size="small"
-                    value={scenarioId ?? undefined}
-                    options={options}
-                    placeholder={`Select a ${scenarioLabel.toLowerCase()}`}
-                    onSelect={handleSelect}
-                    filterOption={(input, option) =>
-                        (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-                    }
-                    style={{minWidth: 160}}
-                    optionRender={(option) => (
-                        <div className="flex flex-col">
-                            <span>{option.data.label}</span>
-                            {option.data.description ? (
-                                <span className="text-xs text-muted-foreground">
-                                    {option.data.description}
-                                </span>
-                            ) : null}
-                        </div>
-                    )}
-                />
+                <Combobox value={scenarioId ?? ""} onValueChange={handleValueChange}>
+                    <ComboboxTrigger className="min-w-40" size="sm">
+                        <ComboboxValue placeholder={`Select a ${scenarioLabel.toLowerCase()}`} />
+                    </ComboboxTrigger>
+                    <ComboboxContent>
+                        <ComboboxInput placeholder="Search..." />
+                        <ComboboxEmpty>No results</ComboboxEmpty>
+                        {options.map((o) => (
+                            <ComboboxItem key={o.value} value={o.value}>
+                                <div className="flex flex-col">
+                                    <span>{o.label}</span>
+                                    {o.description ? (
+                                        <span className="text-xs text-muted-foreground">
+                                            {o.description}
+                                        </span>
+                                    ) : null}
+                                </div>
+                            </ComboboxItem>
+                        ))}
+                    </ComboboxContent>
+                </Combobox>
             </div>
 
             {selectedOption?.description ? (

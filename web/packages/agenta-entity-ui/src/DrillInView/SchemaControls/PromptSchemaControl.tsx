@@ -17,13 +17,20 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Info, Plus} from "@phosphor-icons/react"
-import {Button, Select} from "antd"
+import {Button} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 import {ResponseFormatControl, type ResponseFormatValue} from "./ResponseFormatControl"
@@ -594,9 +601,8 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
 
                     {/* Template format */}
                     <Select
-                        size="small"
                         value={localTemplateFormat}
-                        onChange={(val) => {
+                        onValueChange={(val) => {
                             const format = val as TemplateFormat
                             setLocalTemplateFormat(format)
                             onTemplateFormatChange?.(format)
@@ -606,14 +612,21 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                                 [templateFormatKey]: format,
                             })
                         }}
-                        options={buildTemplateFormatOptions(
-                            localTemplateFormat,
-                            originalTemplateFormatRef.current,
-                        )}
-                        className="min-w-[130px]"
-                        popupMatchSelectWidth={false}
-                        style={{height: 24}}
-                    />
+                    >
+                        <SelectTrigger className="min-w-[130px]" size="sm">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {buildTemplateFormatOptions(
+                                localTemplateFormat,
+                                originalTemplateFormatRef.current,
+                            ).map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
             )}
 

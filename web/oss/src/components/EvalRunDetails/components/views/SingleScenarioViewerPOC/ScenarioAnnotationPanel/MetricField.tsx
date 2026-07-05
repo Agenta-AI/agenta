@@ -1,6 +1,14 @@
 import {memo, useCallback, useMemo} from "react"
 
-import {InputNumber, Radio, Select, Slider} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {TagInput} from "@agenta/primitive-ui/components/tags-input"
+import {InputNumber, Radio, Slider} from "antd"
 import clsx from "clsx"
 
 interface MetricFieldProps {
@@ -120,13 +128,21 @@ const MetricField = ({fieldKey, field, schema, disabled = false, onChange}: Metr
                 <span className="text-sm font-medium">{fieldKey}</span>
                 <Select
                     value={value === null ? "null" : (value as string)}
-                    onChange={(val) => handleChange(val === "null" ? null : val)}
-                    options={enumOptions}
+                    onValueChange={(val) => handleChange(val === "null" ? null : val)}
                     disabled={disabled}
-                    allowClear
-                    placeholder="Select a value"
-                    className="w-full"
-                />
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a value" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {value != null && <SelectItem value="null">None of the above</SelectItem>}
+                        {enumOptions?.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
         )
     }
@@ -136,13 +152,11 @@ const MetricField = ({fieldKey, field, schema, disabled = false, onChange}: Metr
         return (
             <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">{fieldKey}</span>
-                <Select
-                    mode="tags"
+                <TagInput
                     value={Array.isArray(value) ? value : []}
                     onChange={handleChange}
                     options={tagOptions}
                     disabled={disabled}
-                    allowClear
                     placeholder="Select or enter values"
                     className="w-full"
                 />
@@ -150,16 +164,14 @@ const MetricField = ({fieldKey, field, schema, disabled = false, onChange}: Metr
         )
     }
 
-    // Default: string input (using Select for consistency, but could use Input)
+    // Default: string input (using TagInput for consistency)
     return (
         <div className="flex flex-col gap-1">
             <span className="text-sm font-medium">{fieldKey}</span>
-            <Select
-                mode="tags"
+            <TagInput
                 value={value ? [value as string] : []}
                 onChange={(vals) => handleChange(vals?.[0] ?? "")}
                 disabled={disabled}
-                allowClear
                 placeholder="Enter value"
                 className="w-full"
             />

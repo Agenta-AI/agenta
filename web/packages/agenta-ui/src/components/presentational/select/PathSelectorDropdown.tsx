@@ -23,8 +23,16 @@
 
 import {memo} from "react"
 
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {Lightning, Table, Database} from "@phosphor-icons/react"
-import {Select} from "antd"
 
 import {cn} from "../../../utils/styles"
 
@@ -110,33 +118,33 @@ export const PathSelectorDropdown = memo(function PathSelectorDropdown({
     const iconSize = size === "small" ? 12 : 14
 
     return (
-        <Select
-            value={value || undefined}
-            onChange={onChange}
-            placeholder={placeholder}
-            className={cn("w-full", className)}
-            size={size}
-            allowClear={allowClear}
-            disabled={disabled}
-            showSearch
-            optionFilterProp="label"
-            options={paths.map((p) => ({
-                value: p.pathString || p.path,
-                label: (
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                            {renderSourceIcon
-                                ? renderSourceIcon(p.source || "unknown")
-                                : defaultSourceIcon(p.source, iconSize)}
-                            <span className="truncate">{p.label}</span>
+        <Combobox value={value || undefined} onValueChange={onChange}>
+            <ComboboxTrigger
+                className={cn("w-full", className)}
+                size={size === "small" ? "sm" : undefined}
+            >
+                <ComboboxValue placeholder={placeholder} />
+            </ComboboxTrigger>
+            <ComboboxContent>
+                <ComboboxInput placeholder="Search..." />
+                <ComboboxEmpty>No results found</ComboboxEmpty>
+                {paths.map((p) => (
+                    <ComboboxItem key={p.pathString || p.path} value={p.pathString || p.path}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                                {renderSourceIcon
+                                    ? renderSourceIcon(p.source || "unknown")
+                                    : defaultSourceIcon(p.source, iconSize)}
+                                <span className="truncate">{p.label}</span>
+                            </div>
+                            <span className="text-xs ml-2 text-muted-foreground">
+                                {p.valueType || p.type || ""}
+                            </span>
                         </div>
-                        <span className="text-xs ml-2 text-muted-foreground">
-                            {p.valueType || p.type || ""}
-                        </span>
-                    </div>
-                ),
-            }))}
-        />
+                    </ComboboxItem>
+                ))}
+            </ComboboxContent>
+        </Combobox>
     )
 })
 

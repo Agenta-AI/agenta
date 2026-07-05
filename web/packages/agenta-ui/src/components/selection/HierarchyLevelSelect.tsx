@@ -28,8 +28,17 @@
 
 import React, {useMemo} from "react"
 
-import {Select} from "antd"
-import type {DefaultOptionType} from "antd/es/select"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxGroup,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxLabel,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 
 import {cn, textColors} from "../../utils/styles"
 
@@ -166,18 +175,16 @@ export interface HierarchyLevelSelectProps<T> {
     className?: string
 }
 
-interface HierarchyLevelSelectLeafOption extends DefaultOptionType {
+interface HierarchyLevelSelectLeafOption {
     value: string
     label: React.ReactNode
     searchLabel: string
 }
 
-interface HierarchyLevelSelectGroupOption extends DefaultOptionType {
+interface HierarchyLevelSelectGroupOption {
     label: React.ReactNode
     options: HierarchyLevelSelectLeafOption[]
 }
-
-type HierarchyLevelSelectOption = HierarchyLevelSelectLeafOption | HierarchyLevelSelectGroupOption
 
 // ============================================================================
 // COMPONENT
@@ -306,28 +313,45 @@ export function HierarchyLevelSelect<T>({
                     )}
                 </span>
             )}
-            <Select<string, HierarchyLevelSelectOption>
-                className="w-full"
-                placeholder={effectivePlaceholder}
+            <Combobox
                 value={selectedId}
-                onChange={handleChange}
-                loading={isLoading}
+                onValueChange={handleChange}
                 disabled={disabled || !isEnabled || isLoading}
-                status={isError ? "error" : undefined}
-                options={options}
-                size={size}
-                showSearch
-                filterOption={(input, option) => {
-                    // Use searchLabel for filtering if available, otherwise try label
-                    const searchText =
-                        option && "searchLabel" in option && typeof option.searchLabel === "string"
-                            ? option.searchLabel
-                            : String(option?.label ?? "")
-                    return searchText.toLowerCase().includes(input.toLowerCase())
-                }}
-                notFoundContent={getNotFoundContentText()}
-                allowClear={allowClear}
-            />
+            >
+                <ComboboxTrigger className="w-full" size={size === "small" ? "sm" : undefined}>
+                    <ComboboxValue
+                        placeholder={
+                            typeof effectivePlaceholder === "string"
+                                ? effectivePlaceholder
+                                : "Select..."
+                        }
+                    />
+                </ComboboxTrigger>
+                <ComboboxContent>
+                    <ComboboxInput placeholder="Search..." />
+                    <ComboboxEmpty>{getNotFoundContentText()}</ComboboxEmpty>
+                    {options.map((opt) => {
+                        if ("options" in opt && Array.isArray(opt.options)) {
+                            return (
+                                <ComboboxGroup key={String(opt.label)}>
+                                    <ComboboxLabel>{opt.label}</ComboboxLabel>
+                                    {opt.options.map((leaf) => (
+                                        <ComboboxItem key={leaf.value} value={leaf.value}>
+                                            {leaf.label}
+                                        </ComboboxItem>
+                                    ))}
+                                </ComboboxGroup>
+                            )
+                        }
+                        const leaf = opt as HierarchyLevelSelectLeafOption
+                        return (
+                            <ComboboxItem key={leaf.value} value={leaf.value}>
+                                {leaf.label}
+                            </ComboboxItem>
+                        )
+                    })}
+                </ComboboxContent>
+            </Combobox>
         </div>
     )
 }

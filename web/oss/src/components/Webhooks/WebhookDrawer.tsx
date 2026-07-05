@@ -1,4 +1,4 @@
-import {createElement, useCallback, useEffect, useMemo, useState} from "react"
+import {createElement, ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     Accordion,
@@ -8,12 +8,19 @@ import {
 } from "@agenta/primitive-ui/components/accordion"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
+import {
+    Select as ShadcnSelect,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
-import {Form, message, Select, Switch} from "antd"
+import {Form, message, Switch} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import {
@@ -40,6 +47,62 @@ import {buildSubscription} from "./utils/buildSubscription"
 import {WEBHOOK_TEST_FAILURE_MESSAGE, handleTestResult} from "./utils/handleTestResult"
 import {WebhookFieldRenderer} from "./WebhookFieldRenderer"
 import WebhookLogsTab from "./WebhookLogsTab"
+
+function FormMultiSelect({
+    value,
+    onChange,
+    options,
+    placeholder,
+}: {
+    value?: string[]
+    onChange?: (v: string[]) => void
+    options: {value: string; label: string}[]
+    placeholder: string
+}) {
+    return (
+        <ShadcnSelect multiple value={value || []} onValueChange={(vals) => onChange?.(vals)}>
+            <SelectTrigger>
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+                {options.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </ShadcnSelect>
+    )
+}
+
+function AntdFormSelect({
+    value,
+    onChange,
+    options,
+    placeholder,
+    disabled,
+}: {
+    value?: string
+    onChange?: (v: string) => void
+    options: {value: string; label: ReactNode}[]
+    placeholder: string
+    disabled?: boolean
+}) {
+    return (
+        <ShadcnSelect value={value || ""} onValueChange={(v) => onChange?.(v)} disabled={disabled}>
+            <SelectTrigger>
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+                {options.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </ShadcnSelect>
+    )
+}
 
 const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [form] = Form.useForm()
@@ -348,7 +411,7 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                                     initialValue="webhook"
                                     className="!mb-0"
                                 >
-                                    <Select
+                                    <AntdFormSelect
                                         disabled={isEdit}
                                         options={providerOptions}
                                         placeholder="Select webhook/github"
@@ -385,10 +448,9 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                                         },
                                     ]}
                                 >
-                                    <Select
-                                        mode="multiple"
-                                        placeholder="Select events"
+                                    <FormMultiSelect
                                         options={EVENT_OPTIONS}
+                                        placeholder="Select events"
                                     />
                                 </Form.Item>
 

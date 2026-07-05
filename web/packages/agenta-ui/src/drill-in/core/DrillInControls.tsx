@@ -7,8 +7,15 @@
 import {useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {Plus} from "@phosphor-icons/react"
-import {Input, Select, Tooltip} from "antd"
+import {Input, Tooltip} from "antd"
 
 import type {PropertyType} from "../coreTypes"
 
@@ -115,11 +122,19 @@ export function DrillInControls({
                     />
                     <Select
                         value={newPropertyType}
-                        onChange={(value) => setNewPropertyType(value)}
-                        size="middle"
-                        style={{width: 110}}
-                        options={propertyTypeOptions}
-                    />
+                        onValueChange={(v) => setNewPropertyType(v as PropertyType)}
+                    >
+                        <SelectTrigger style={{width: 110}}>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {propertyTypeOptions.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <Button onClick={handleAddProperty} disabled={!newPropertyName.trim()}>
                         Add
                     </Button>

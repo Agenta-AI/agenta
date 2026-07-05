@@ -7,10 +7,17 @@ import {
 } from "@agenta/entities/simpleQueue"
 import {evaluatorWorkflowMetaMapAtom} from "@agenta/entities/workflow"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
+import {
+    Select as ShadcnSelect,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {projectIdAtom} from "@agenta/shared/state"
 import {ModalContent, ModalFooter, message} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Divider, Form, Input, Select} from "antd"
+import {Divider, Form, Input} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigationSafe} from "../../context"
@@ -81,6 +88,41 @@ function FieldLabel({
                 <span className="!text-xs !leading-5 text-muted-foreground">{description}</span>
             ) : null}
         </div>
+    )
+}
+
+function AntdFormSelect({
+    value,
+    onChange,
+    options,
+    placeholder,
+    disabled,
+    className,
+}: {
+    value?: string
+    onChange?: (v: string) => void
+    options?: {label: string; value: string}[]
+    placeholder?: string
+    disabled?: boolean
+    className?: string
+}) {
+    return (
+        <ShadcnSelect
+            value={value ?? ""}
+            onValueChange={(v) => onChange?.(v || "")}
+            disabled={disabled}
+        >
+            <SelectTrigger className={className}>
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+                {options?.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </ShadcnSelect>
     )
 }
 
@@ -322,7 +364,7 @@ function CreateQueueDrawerContent({
                         label={<FieldLabel>Queue type</FieldLabel>}
                         rules={[{required: true, message: "Type is required"}]}
                     >
-                        <Select
+                        <AntdFormSelect
                             options={[
                                 {label: "Traces", value: "traces"},
                                 {label: "Test cases", value: "testcases"},

@@ -1,9 +1,16 @@
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import type {DataType} from "@agenta/ui/drill-in"
 import {ArrowCounterClockwise, Code, Trash, TreeStructure} from "@phosphor-icons/react"
-import {Button, Segmented, Select} from "antd"
+import {Button, Segmented} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {EntityAPI, EntityDrillIn} from "@/oss/state/entities/shared"
@@ -202,12 +209,20 @@ function EntityDualViewEditorInner<TEntity>({
         return (
             <div className="flex items-center">
                 <Select
-                    size="small"
                     value={selectedItemId ?? entityId}
-                    onChange={(value) => onItemChange?.(value)}
-                    options={selectOptions}
-                    popupMatchSelectWidth={false}
-                />
+                    onValueChange={(value) => onItemChange?.(value)}
+                >
+                    <SelectTrigger size="sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {selectOptions.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
                 <span className="text-gray-300 mx-2 text-sm">/</span>
             </div>
         )

@@ -2,8 +2,16 @@ import {useCallback, useEffect, useMemo} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
+import type {SelectOption} from "@agenta/primitive-ui/components/select"
+import {
+    Select as ShadcnSelect,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Form, FormListFieldData, InputNumber, Select, Switch} from "antd"
+import {Form, FormListFieldData, InputNumber, Switch} from "antd"
 import dynamic from "next/dynamic"
 
 import {isSlugInputValid} from "@/oss/lib/helpers/utils"
@@ -15,6 +23,41 @@ const ModelNameInput = dynamic(
         import("@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer/assets/ModelNameInput"),
     {ssr: false},
 )
+
+function AntdFormSelect({
+    value,
+    onChange,
+    options,
+    placeholder,
+    disabled,
+    className,
+}: {
+    value?: string
+    onChange?: (v: string) => void
+    options?: SelectOption[]
+    placeholder?: string
+    disabled?: boolean
+    className?: string
+}) {
+    return (
+        <ShadcnSelect
+            value={value ?? ""}
+            onValueChange={(v) => onChange?.(v || "")}
+            disabled={disabled}
+        >
+            <SelectTrigger className={className}>
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+                {options?.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </ShadcnSelect>
+    )
+}
 
 const CreateNewMetric = ({
     field,
@@ -156,13 +199,8 @@ const CreateNewMetric = ({
                     rules={[{required: true, message: "Add feedback type!"}]}
                     className="mb-0"
                 >
-                    <Select
-                        className="w-full !rounded-lg"
-                        classNames={{
-                            popup: {
-                                root: "!capitalize",
-                            },
-                        }}
+                    <AntdFormSelect
+                        className="w-full rounded-lg"
                         placeholder="Select type"
                         options={EVALUATOR_OPTIONS}
                     />

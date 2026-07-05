@@ -2,9 +2,17 @@ import {memo, useCallback, useEffect, useMemo} from "react"
 
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {LeftOutlined, RightOutlined} from "@ant-design/icons"
-import {Select, SelectProps} from "antd"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
@@ -67,9 +75,8 @@ const ScenarioNavigator = ({
         return loadedScenarios.findIndex((row) => row.scenarioId === scenarioId)
     }, [loadedScenarios, scenarioId])
 
-    const handleSelect = useCallback<NonNullable<SelectProps["onSelect"]>>(
-        (value) => {
-            const nextScenarioId = typeof value === "string" ? value : String(value)
+    const handleValueChange = useCallback(
+        (nextScenarioId: string) => {
             onChange(nextScenarioId)
         },
         [onChange],
@@ -131,28 +138,27 @@ const ScenarioNavigator = ({
                 >
                     {<RightOutlined />}
                 </Button>
-                <Select
-                    showSearch
-                    size="small"
-                    value={scenarioId ?? undefined}
-                    options={options}
-                    placeholder="Select a scenario"
-                    onSelect={handleSelect}
-                    filterOption={(input, option) =>
-                        (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-                    }
-                    style={{minWidth: 200}}
-                    optionRender={(option) => (
-                        <div className="flex flex-col">
-                            <span>{option.data.label}</span>
-                            {option.data.description ? (
-                                <span className="text-xs text-muted-foreground">
-                                    {option.data.description}
-                                </span>
-                            ) : null}
-                        </div>
-                    )}
-                />
+                <Combobox value={scenarioId ?? ""} onValueChange={handleValueChange}>
+                    <ComboboxTrigger className="min-w-48" size="sm">
+                        <ComboboxValue placeholder="Select a scenario" />
+                    </ComboboxTrigger>
+                    <ComboboxContent>
+                        <ComboboxInput placeholder="Search..." />
+                        <ComboboxEmpty>No results</ComboboxEmpty>
+                        {options.map((o) => (
+                            <ComboboxItem key={o.value} value={o.value}>
+                                <div className="flex flex-col">
+                                    <span>{o.label}</span>
+                                    {o.description ? (
+                                        <span className="text-xs text-muted-foreground">
+                                            {o.description}
+                                        </span>
+                                    ) : null}
+                                </div>
+                            </ComboboxItem>
+                        ))}
+                    </ComboboxContent>
+                </Combobox>
             </div>
             {showScenarioIdTag && selectedOption?.description ? (
                 <Badge className="bg-[var(--ag-c-0517290F)] font-normal" variant="secondary">

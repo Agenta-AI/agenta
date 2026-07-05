@@ -7,10 +7,17 @@ import {
     AccordionTrigger,
 } from "@agenta/primitive-ui/components/accordion"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
-import {Form, Input, InputNumber, Switch, Select} from "antd"
+import {Form, Input, InputNumber, Switch} from "antd"
 import type {FormInstance} from "antd"
 
 export interface SchemaFormHandle {
@@ -162,6 +169,36 @@ export default SchemaForm
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Wraps shadcn Select to accept antd Form.Item's injected value/onChange */
+function AntdFormSelect({
+    value,
+    onChange,
+    placeholder,
+    allowClear,
+    options = [],
+}: {
+    value?: string
+    onChange?: (v: string) => void
+    placeholder?: string
+    allowClear?: boolean
+    options: {value: string; label: string}[]
+}) {
+    return (
+        <Select value={value} onValueChange={onChange}>
+            <SelectTrigger className="w-full">
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+                {options.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    )
+}
 
 /** Recursively parse stringified JSON in nested form values */
 function cleanFormValues(values: Record<string, unknown>): Record<string, unknown> {
@@ -317,9 +354,8 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
                     rules={rules}
                     initialValue={field.default}
                 >
-                    <Select
+                    <AntdFormSelect
                         placeholder={field.label}
-                        allowClear={!field.required}
                         options={(field.enumValues ?? []).map((v) => ({value: v, label: v}))}
                     />
                 </Form.Item>
@@ -555,7 +591,7 @@ function ArrayObjectItem({
                             rules={childRules}
                             initialValue={child.default}
                         >
-                            <Select
+                            <AntdFormSelect
                                 placeholder={child.label}
                                 options={(child.enumValues ?? []).map((v) => ({
                                     value: v,

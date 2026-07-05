@@ -1,4 +1,10 @@
-import {Select} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
 import {
@@ -129,14 +135,20 @@ export function RunVersionField({
                         {envHint}
                     </span>
                     <Select
-                        placeholder="Select an environment"
-                        className="w-full max-w-prose"
                         value={environmentSlug ?? undefined}
-                        onChange={onEnvironmentChange}
-                        loading={envLoading}
-                        options={envOptions}
-                        notFoundContent={envNotFound}
-                    />
+                        onValueChange={onEnvironmentChange}
+                    >
+                        <SelectTrigger className="w-full max-w-prose">
+                            <SelectValue placeholder="Select an environment" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {envOptions.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </>
             )}
         </SectionRail>

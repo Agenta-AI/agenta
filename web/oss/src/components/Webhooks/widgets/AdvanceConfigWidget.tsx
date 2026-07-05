@@ -1,4 +1,4 @@
-import {useState} from "react"
+import React, {useState} from "react"
 
 import {
     Accordion,
@@ -7,9 +7,31 @@ import {
     AccordionTrigger,
 } from "@agenta/primitive-ui/components/accordion"
 import {Button} from "@agenta/primitive-ui/components/button"
-import {Form, Input, Select} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {Form, Input} from "antd"
 
-const {Option} = Select
+/** Wraps shadcn Select to accept antd Form.Item's injected value/onChange */
+function AntdFormSelect({
+    value,
+    onChange,
+    children,
+}: {
+    value?: string
+    onChange?: (v: string) => void
+    children: React.ReactNode
+}) {
+    return (
+        <Select value={value} onValueChange={onChange}>
+            {children}
+        </Select>
+    )
+}
 
 export const AdvanceConfigWidget = ({isEditMode}: {isEditMode: boolean}) => {
     const form = Form.useFormInstance()
@@ -29,10 +51,15 @@ export const AdvanceConfigWidget = ({isEditMode}: {isEditMode: boolean}) => {
                         className="!mb-4"
                         initialValue="signature"
                     >
-                        <Select>
-                            <Option value="signature">Signature (HMAC)</Option>
-                            <Option value="authorization">Authorization Header</Option>
-                        </Select>
+                        <AntdFormSelect>
+                            <SelectTrigger className="w-full">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="signature">Signature (HMAC)</SelectItem>
+                                <SelectItem value="authorization">Authorization Header</SelectItem>
+                            </SelectContent>
+                        </AntdFormSelect>
                     </Form.Item>
 
                     {authMode === "authorization" && (

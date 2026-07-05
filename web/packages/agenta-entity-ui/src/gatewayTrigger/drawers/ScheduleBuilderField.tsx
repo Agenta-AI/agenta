@@ -12,10 +12,17 @@ import {
     type ScheduleBuilderState,
 } from "@agenta/entities/gatewayTrigger"
 import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {dayjs} from "@agenta/shared/utils"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {CheckCircle, Plus} from "@phosphor-icons/react"
-import {Button, Form, Input, InputNumber, Select, Tag, TimePicker, message} from "antd"
+import {Button, Form, Input, InputNumber, Tag, TimePicker, message} from "antd"
 
 const CADENCES: {value: CronCadence; label: string}[] = [
     {value: "hourly", label: "Hourly"},
@@ -284,18 +291,26 @@ function CadenceDetails({
                 <div>
                     <FieldLabel>On day(s) of the month</FieldLabel>
                     <Select
-                        mode="multiple"
-                        className="mt-1.5 w-full"
-                        value={builder.daysOfMonth}
-                        options={DOM_OPTIONS}
-                        onChange={(days: number[]) =>
+                        multiple
+                        value={builder.daysOfMonth.map(String)}
+                        onValueChange={(days: string[]) =>
                             onChange({
                                 ...builder,
-                                daysOfMonth: days.length ? days : builder.daysOfMonth,
+                                daysOfMonth: days.length ? days.map(Number) : builder.daysOfMonth,
                             })
                         }
-                        maxTagCount="responsive"
-                    />
+                    >
+                        <SelectTrigger className="mt-1.5 w-full">
+                            <SelectValue placeholder="Select days" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {DOM_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={String(o.value)}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
                 <TimesField
                     times={builder.times}

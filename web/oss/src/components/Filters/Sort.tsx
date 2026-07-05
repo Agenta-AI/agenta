@@ -2,7 +2,6 @@ import {useState} from "react"
 
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Calendar, CaretRight, Clock} from "@phosphor-icons/react"
-import type {SelectProps} from "antd"
 import {Button, DatePicker, Divider} from "antd"
 import dayjs, {Dayjs} from "dayjs"
 import {createUseStyles} from "react-jss"
@@ -159,7 +158,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, e
         }
     }
 
-    const options: SelectProps["options"] = SORT_PRESETS.map((preset) => ({
+    const options: {value: string; label: string}[] = SORT_PRESETS.map((preset) => ({
         value: preset.label,
         label: preset.label === "all time" ? "All time" : preset.label,
     }))

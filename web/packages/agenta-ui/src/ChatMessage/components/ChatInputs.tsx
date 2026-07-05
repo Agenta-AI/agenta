@@ -1,10 +1,17 @@
 import {useEffect, useRef, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {useLazyEffect} from "@agenta/shared/hooks"
 import {extractTextFromContent} from "@agenta/shared/utils"
 import {MinusOutlined, PlusOutlined, PictureOutlined} from "@ant-design/icons"
-import {Input, Select, Space, Tooltip} from "antd"
+import {Input, Space, Tooltip} from "antd"
 import cloneDeep from "lodash/cloneDeep"
 import {v4 as uuidv4} from "uuid"
 
@@ -281,15 +288,26 @@ const ChatInputs: React.FC<ChatInputsProps> = ({
                     <div className="flex flex-col gap-4" key={msg.id || msg.role + ix}>
                         <div className="flex items-center gap-2 [&_.ant-select]:w-[110px] [&_.ant-select]:self-start [&_textarea]:!mt-0 [&_textarea]:flex-1 [&_textarea]:min-w-[240px] [&_textarea]:max-w-[800px]">
                             <Select
-                                style={{width: 150}}
-                                disabled={disableEditRole}
-                                options={Object.keys(CHAT_ROLES).map((role) => ({
-                                    label: role,
-                                    value: CHAT_ROLES[role as keyof typeof CHAT_ROLES],
-                                }))}
                                 value={msg.role}
-                                onChange={(newRole) => handleRoleChange(ix, newRole)}
-                            />
+                                onValueChange={(newRole) =>
+                                    handleRoleChange(ix, newRole as ChatRole)
+                                }
+                                disabled={disableEditRole}
+                            >
+                                <SelectTrigger style={{width: 150}}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.keys(CHAT_ROLES).map((role) => (
+                                        <SelectItem
+                                            key={role}
+                                            value={CHAT_ROLES[role as keyof typeof CHAT_ROLES]}
+                                        >
+                                            {role}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <div className="relative w-full">
                                 <Input.TextArea
                                     className={

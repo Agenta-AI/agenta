@@ -12,11 +12,18 @@ import {useCallback, useMemo} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {ArrowSquareOut, CaretLeft, CaretRight, Copy, Plus} from "@phosphor-icons/react"
-import {Button, Select, Switch, Tag, Tooltip} from "antd"
+import {Button, Switch, Tag, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
@@ -168,16 +175,23 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                 <Select
                     value={
                         scenarioIds.length > 0 && currentVisibleIndex >= 0
-                            ? currentVisibleIndex
+                            ? String(currentVisibleIndex)
                             : undefined
                     }
-                    onChange={handleSelect}
-                    options={options}
-                    size="small"
-                    className="min-w-[100px]"
-                    popupMatchSelectWidth={false}
+                    onValueChange={(v) => handleSelect(Number(v))}
                     disabled={scenarioIds.length === 0}
-                />
+                >
+                    <SelectTrigger className="min-w-[100px]" data-size="sm">
+                        <SelectValue placeholder="Select scenario" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {options.map((opt) => (
+                            <SelectItem key={opt.value} value={String(opt.value)}>
+                                {opt.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
 
                 {displayId && (
                     <CopyTooltip

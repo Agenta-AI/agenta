@@ -2,9 +2,16 @@ import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {CaretRight, X} from "@phosphor-icons/react"
-import {Select, Tooltip} from "antd"
+import {Tooltip} from "antd"
 
 interface PolicyOption {
     label: string
@@ -59,25 +66,28 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                     <span className="text-muted-foreground">{policyDescription}</span>
                 </div>
                 <Select
-                    size="small"
-                    allowClear
                     value={fallbackPolicy ?? undefined}
-                    onChange={(nextValue) => onPolicyChange(nextValue ?? null)}
-                    options={fallbackPolicyOptions}
-                    placeholder="Select one"
+                    onValueChange={(nextValue) => onPolicyChange(nextValue ?? null)}
                     disabled={disabled}
-                    optionRender={(option) => {
-                        const description = (option.data as {description?: string}).description
-                        return (
-                            <div className="flex items-center justify-between gap-3">
-                                <span>{option.label}</span>
-                                {description && (
-                                    <span className="text-muted-foreground">{description}</span>
-                                )}
-                            </div>
-                        )
-                    }}
-                />
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select one" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {fallbackPolicyOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                                <div className="flex items-center justify-between gap-3">
+                                    <span>{option.label}</span>
+                                    {option.description && (
+                                        <span className="text-muted-foreground">
+                                            {option.description}
+                                        </span>
+                                    )}
+                                </div>
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
             <div className="flex flex-col gap-2">
                 <div className="flex flex-col gap-0.5">

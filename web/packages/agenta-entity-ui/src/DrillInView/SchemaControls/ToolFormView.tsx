@@ -13,8 +13,15 @@
  */
 import {useState} from "react"
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {Code} from "@phosphor-icons/react"
-import {Input, Select, Switch} from "antd"
+import {Input, Switch} from "antd"
 
 import {RailField} from "../../drawers/shared/RailField"
 
@@ -149,17 +156,28 @@ function ToolBasics({
                 </RailField>
 
                 <RailField label="Permission" align="center">
-                    <Select<ToolPermission>
+                    <Select
                         value={permission ?? undefined}
-                        onChange={(v) => setPermission(v ?? null)}
-                        options={PERMISSION_OPTIONS}
-                        placeholder={
-                            permissionDefault ? `${permissionDefault} (default)` : "Inherit policy"
-                        }
-                        allowClear
-                        className="w-full"
+                        onValueChange={(v) => setPermission((v as ToolPermission) ?? null)}
                         disabled={disabled}
-                    />
+                    >
+                        <SelectTrigger className="w-full">
+                            <SelectValue
+                                placeholder={
+                                    permissionDefault
+                                        ? `${permissionDefault} (default)`
+                                        : "Inherit policy"
+                                }
+                            />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {PERMISSION_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </RailField>
 
                 <RailField label="Allow extra properties" align="center">

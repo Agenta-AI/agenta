@@ -14,8 +14,16 @@
 import {useEffect, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {TagInput} from "@agenta/primitive-ui/components/tags-input"
 import {Plus} from "@phosphor-icons/react"
-import {Input, Select, Switch} from "antd"
+import {Input, Switch} from "antd"
 
 import {RailField} from "../../../drawers/shared/RailField"
 
@@ -219,21 +227,35 @@ export function ParameterNodeEditor({
 
                 <RailField label="Type" align="center">
                     <div className={type === "array" ? "grid grid-cols-2 gap-2" : ""}>
-                        <Select
-                            className="w-full"
-                            value={type}
-                            options={TYPE_OPTIONS}
-                            onChange={changeType}
-                            disabled={disabled}
-                        />
+                        <Select value={type} onValueChange={changeType} disabled={disabled}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {TYPE_OPTIONS.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         {type === "array" ? (
                             <Select
-                                className="w-full"
                                 value={itemType}
-                                options={ITEM_TYPE_OPTIONS}
-                                onChange={changeItemType}
+                                onValueChange={changeItemType}
                                 disabled={disabled}
-                            />
+                            >
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select item type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ITEM_TYPE_OPTIONS.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         ) : null}
                     </div>
                 </RailField>
@@ -241,15 +263,12 @@ export function ParameterNodeEditor({
                 {isScalar ? (
                     <>
                         <RailField label="Allowed values">
-                            <Select
-                                mode="tags"
+                            <TagInput
                                 className="w-full"
                                 value={enumValues}
                                 onChange={changeEnum}
-                                tokenSeparators={[",", "\n"]}
+                                separator={[",", "\n"]}
                                 placeholder="Any value — add to restrict"
-                                open={false}
-                                suffixIcon={null}
                                 disabled={disabled}
                             />
                         </RailField>
@@ -257,14 +276,24 @@ export function ParameterNodeEditor({
                         <RailField label="Default" align="center">
                             {enumValues.length ? (
                                 <Select
-                                    className="w-full"
-                                    value={defaultValue != null ? String(defaultValue) : undefined}
-                                    onChange={(v) => changeDefault(v)}
-                                    options={enumValues.map((v) => ({value: v, label: v}))}
-                                    placeholder="No default"
-                                    allowClear
+                                    value={defaultValue != null ? String(defaultValue) : ""}
+                                    onValueChange={(v) => changeDefault(v || undefined)}
                                     disabled={disabled}
-                                />
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="No default" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {defaultValue != null && (
+                                            <SelectItem value="">None</SelectItem>
+                                        )}
+                                        {enumValues.map((v) => (
+                                            <SelectItem key={v} value={v}>
+                                                {v}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             ) : (
                                 <Input
                                     value={defaultValue != null ? String(defaultValue) : ""}

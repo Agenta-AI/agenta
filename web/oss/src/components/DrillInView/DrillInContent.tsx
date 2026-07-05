@@ -8,6 +8,13 @@ import {
     useState,
 } from "react"
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {ChatMessageEditor, ChatMessageList} from "@agenta/ui"
 import {
     detectDataType,
@@ -26,7 +33,7 @@ import {
     useLexicalComposerContext,
 } from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {InputNumber, Select, Switch} from "antd"
+import {InputNumber, Switch} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
 
@@ -1422,19 +1429,20 @@ function renderFieldContent({
                 {/* Navigation select for drilling into items */}
                 {arrayItems.length > 0 && (
                     <Select
-                        placeholder="Jump to item"
-                        className="w-full"
-                        size="small"
-                        value={null}
-                        options={arrayItems.map((arrItem: unknown, idx: number) => ({
-                            value: idx,
-                            label: `${idx + 1}. ${getPreview(arrItem)}`,
-                        }))}
-                        onSelect={(idx) => {
-                            if (idx == null) return
-                            setCurrentPath([...fullPath, String(idx)])
-                        }}
-                    />
+                        value={undefined}
+                        onValueChange={(val) => setCurrentPath([...fullPath, val])}
+                    >
+                        <SelectTrigger className="w-full" size="sm">
+                            <SelectValue placeholder="Jump to item" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {arrayItems.map((arrItem: unknown, idx: number) => (
+                                <SelectItem key={idx} value={String(idx)}>
+                                    {idx + 1}. {getPreview(arrItem)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 )}
 
                 {/* Editable JSON editor for array content */}

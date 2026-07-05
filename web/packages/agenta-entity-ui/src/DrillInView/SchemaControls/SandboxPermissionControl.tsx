@@ -16,7 +16,14 @@
  */
 import {useCallback, useMemo} from "react"
 
-import {Input, Select} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {Input} from "antd"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
@@ -111,13 +118,22 @@ export function SandboxPermissionControl({
     return (
         <>
             <RailField label={railInfoLabel("Network egress", NETWORK_EGRESS_HINT)} align="center">
-                <Select<NetworkMode>
+                <Select
                     value={current.networkMode}
-                    onChange={(v) => write({networkMode: v})}
-                    options={NETWORK_MODE_OPTIONS}
+                    onValueChange={(v) => write({networkMode: v as NetworkMode})}
                     disabled={disabled}
-                    className="w-full"
-                />
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {NETWORK_MODE_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </RailField>
 
             {current.networkMode === "allowlist" ? (
@@ -141,25 +157,43 @@ export function SandboxPermissionControl({
             ) : null}
 
             <RailField label={railInfoLabel("Filesystem", FILESYSTEM_HINT)} align="center">
-                <Select<FilesystemMode>
+                <Select
                     value={current.filesystem ?? undefined}
-                    onChange={(v) => write({filesystem: (v as FilesystemMode | undefined) ?? null})}
-                    options={FILESYSTEM_OPTIONS}
+                    onValueChange={(v) =>
+                        write({filesystem: (v as FilesystemMode | undefined) ?? null})
+                    }
                     disabled={disabled}
-                    placeholder="Not declared"
-                    allowClear
-                    className="w-full"
-                />
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Not declared" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {FILESYSTEM_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </RailField>
 
             <RailField label={railInfoLabel("Enforcement", ENFORCEMENT_HINT)} align="center">
-                <Select<Enforcement>
+                <Select
                     value={current.enforcement}
-                    onChange={(v) => write({enforcement: v})}
-                    options={ENFORCEMENT_OPTIONS}
+                    onValueChange={(v) => write({enforcement: v as Enforcement})}
                     disabled={disabled}
-                    className="w-full"
-                />
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {ENFORCEMENT_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </RailField>
         </>
     )

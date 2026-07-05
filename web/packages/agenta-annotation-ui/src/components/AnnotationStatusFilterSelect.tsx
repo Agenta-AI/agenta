@@ -1,5 +1,11 @@
 import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
-import {Select} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 
 const STATUS_OPTIONS: {value: EvaluationStatus | ""; label: string}[] = [
     {value: "", label: "All status"},
@@ -30,14 +36,21 @@ const AnnotationStatusFilterSelect = ({
     return (
         <Select
             value={value ?? ""}
-            onChange={(nextValue) =>
+            onValueChange={(nextValue) =>
                 onChange(nextValue === "" ? null : (nextValue as EvaluationStatus))
             }
-            options={STATUS_OPTIONS}
-            className={className}
-            size={size}
-            popupMatchSelectWidth={popupMatchSelectWidth}
-        />
+        >
+            <SelectTrigger className={className} size={size === "small" ? "sm" : undefined}>
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+                {STATUS_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     )
 }
 

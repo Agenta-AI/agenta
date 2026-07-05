@@ -1,9 +1,15 @@
 import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Select} from "antd"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
 import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
@@ -45,17 +51,24 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
                 <div key={key} className="flex flex-col gap-1">
                     <span className="font-medium">{formatLabel(schema.title || key)}</span>
                     <Select
-                        value={(value?.[key] as string | null) ?? undefined}
-                        onChange={(v) => onChange(key, v ?? null)}
+                        value={value?.[key] as string | undefined}
+                        onValueChange={(v) => onChange(key, v || null)}
                         disabled={disabled}
-                        size="small"
-                        allowClear
-                        placeholder="Select one"
-                        options={enumValues.map((v) => ({
-                            label: formatLabel(String(v)),
-                            value: v,
-                        }))}
-                    />
+                    >
+                        <SelectTrigger className="w-full" data-size="sm">
+                            <SelectValue placeholder="Select one" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {(value?.[key] as string | null) != null && (
+                                <SelectItem value="">None</SelectItem>
+                            )}
+                            {enumValues.map((v) => (
+                                <SelectItem key={v} value={v}>
+                                    {formatLabel(String(v))}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
             )
         }

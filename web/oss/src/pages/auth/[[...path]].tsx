@@ -3,6 +3,13 @@ import {useEffect, useMemo, useRef, useState} from "react"
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
 import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {
     AppleOutlined,
@@ -14,7 +21,7 @@ import {
     GlobalOutlined,
 } from "@ant-design/icons"
 import {Warning, Info} from "@phosphor-icons/react"
-import {Divider, Select} from "antd"
+import {Divider} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -652,13 +659,22 @@ const Auth = () => {
                                             Or switch to a different organization:
                                         </span>
                                         <Select
-                                            placeholder="Select an organization"
-                                            className="w-full"
-                                            options={orgSelectOptions}
-                                            onChange={(value) => {
+                                            value={undefined}
+                                            onValueChange={(value) => {
                                                 router.replace(`/w/${value}`)
                                             }}
-                                        />
+                                        >
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="Select an organization" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {orgSelectOptions.map((opt) => (
+                                                    <SelectItem key={opt.value} value={opt.value}>
+                                                        {opt.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 )}
                                 <Button

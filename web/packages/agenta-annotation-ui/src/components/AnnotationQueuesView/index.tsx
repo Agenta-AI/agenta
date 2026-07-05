@@ -11,6 +11,13 @@ import {
 import type {SimpleQueueKind} from "@agenta/entities/simpleQueue"
 import {useEntityDelete} from "@agenta/entity-ui"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {copyToClipboard} from "@agenta/ui"
 import {
     InfiniteVirtualTableFeatureShell,
@@ -19,7 +26,7 @@ import {
     FiltersPopoverTrigger,
 } from "@agenta/ui/table"
 import {ArrowRight, Copy, PlusIcon, Trash} from "@phosphor-icons/react"
-import {Divider, Input, Select, Tag} from "antd"
+import {Divider, Input, Tag} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -187,10 +194,21 @@ const QueuesFiltersContent = ({onClose}: {onClose: () => void}) => {
                 <span className="text-gray-700 font-semibold">Type</span>
                 <Select
                     value={draftKind ?? ""}
-                    onChange={(val) => setDraftKind(val === "" ? null : (val as SimpleQueueKind))}
-                    options={KIND_OPTIONS}
-                    className="w-full"
-                />
+                    onValueChange={(val) =>
+                        setDraftKind(val === "" ? null : (val as SimpleQueueKind))
+                    }
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {KIND_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
             <Divider className="!my-0" />
             <div className="flex justify-end gap-2">

@@ -2,9 +2,16 @@ import {useRef, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Plus} from "@phosphor-icons/react"
-import {Input, Select} from "antd"
+import {Input} from "antd"
 
 export type PropertyType = "string" | "number" | "boolean" | "object" | "array"
 
@@ -64,13 +71,18 @@ export function AddPropertyForm({onAdd, mode = "inline"}: AddPropertyFormProps) 
                     }
                 }}
             />
-            <Select
-                value={type}
-                onChange={setType}
-                size="small"
-                style={{width: 90}}
-                options={propertyTypeOptions}
-            />
+            <Select value={type} onValueChange={(v) => setType(v as PropertyType)}>
+                <SelectTrigger className="w-[90px]" size="sm">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    {propertyTypeOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
             <Button onClick={handleAdd} disabled={!name.trim()} size="sm">
                 Add
             </Button>

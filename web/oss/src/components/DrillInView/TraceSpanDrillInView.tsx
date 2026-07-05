@@ -12,6 +12,13 @@ import {
 import {traceSpanMolecule} from "@agenta/entities/trace"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {
     CopyButton,
     Editor as EditorWrapper,
     EditorProvider,
@@ -32,7 +39,7 @@ import {
     MagnifyingGlassIcon,
     XIcon,
 } from "@phosphor-icons/react"
-import {Button, Select} from "antd"
+import {Button} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
@@ -493,16 +500,20 @@ export const TraceSpanDrillInView = memo(
                                 disabled={!isCodeMode}
                             />
                             <Select
-                                size="small"
                                 value={viewMode}
-                                options={availableViewModes.map((mode) => ({
-                                    label: RAW_SPAN_VIEW_MODE_LABELS[mode],
-                                    value: mode,
-                                }))}
-                                onChange={(value) => setViewMode(value as RawSpanDisplayMode)}
-                                className="min-w-[126px]"
-                                popupMatchSelectWidth={false}
-                            />
+                                onValueChange={(value) => setViewMode(value as RawSpanDisplayMode)}
+                            >
+                                <SelectTrigger className="min-w-[126px]" size="sm">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableViewModes.map((mode) => (
+                                        <SelectItem key={mode} value={mode}>
+                                            {RAW_SPAN_VIEW_MODE_LABELS[mode]}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <CopyButton
                                 text={activeOutput}
                                 icon={true}

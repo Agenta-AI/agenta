@@ -1,8 +1,16 @@
 import {type ChangeEvent, useCallback} from "react"
 
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {CommitMessageInput} from "@agenta/ui"
-import {Select, Form, Checkbox} from "antd"
+import {Form, Checkbox} from "antd"
 import clsx from "clsx"
 
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
@@ -60,17 +68,25 @@ const CreateVariantModalContent = ({
                     <div className="flex flex-col gap-2">
                         <span>Base variant</span>
                         <Form.Item>
-                            <Select
-                                showSearch
-                                className="w-full"
-                                placeholder="Select a variant"
-                                value={templateVariantName}
-                                onChange={handleTemplateVariantChange}
-                                options={variants?.map((variant) => ({
-                                    value: variant.variantName,
-                                    label: <div>{variant.variantName}</div>,
-                                }))}
-                            />
+                            <Combobox
+                                value={templateVariantName ?? ""}
+                                onValueChange={handleTemplateVariantChange}
+                            >
+                                <ComboboxTrigger className="w-full">
+                                    <ComboboxValue placeholder="Select a variant" />
+                                </ComboboxTrigger>
+                                <ComboboxContent>
+                                    <ComboboxInput placeholder="Search variants..." />
+                                    {variants?.map((variant) => (
+                                        <ComboboxItem
+                                            key={variant.variantName}
+                                            value={variant.variantName}
+                                        >
+                                            {variant.variantName}
+                                        </ComboboxItem>
+                                    ))}
+                                </ComboboxContent>
+                            </Combobox>
                         </Form.Item>
                     </div>
 

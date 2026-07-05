@@ -2,6 +2,15 @@ import {Fragment, memo, useCallback, useEffect, useMemo, useRef, useState} from 
 
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
+import {
     DropdownMenu,
     DropdownMenuTrigger,
     DropdownMenuContent,
@@ -14,7 +23,7 @@ import {InitialsAvatar} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArrowsLeftRight, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {ButtonProps, Form, Input, Select, message} from "antd"
+import {ButtonProps, Form, Input, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -153,7 +162,6 @@ const ListOfOrgs = ({
             })
         return options
     }, [workspaceMembers, user?.id])
-    const transferOwnerOptionCount = transferOwnerOptions.length
     const transferOwnerOptionByValue = useMemo(() => {
         const map = new Map<string, (typeof transferOwnerOptions)[number]>()
         transferOwnerOptions.forEach((option) => {
@@ -661,66 +669,62 @@ const ListOfOrgs = ({
                         required
                         tooltip="The new owner will have full administrative rights over the organization."
                     >
-                        <Select
-                            placeholder="Select a member"
-                            showSearch
-                            optionFilterProp="label"
-                            options={transferOwnerOptions}
-                            className="w-full"
-                            popupClassName="[&_.ant-select-item-option-content]:overflow-visible"
-                            value={newOwnerId}
-                            onChange={(value) => {
-                                setNewOwnerId(String(value))
-                            }}
-                            filterOption={(input, option) =>
-                                (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
-                            }
-                            labelRender={(option) => {
-                                const data = transferOwnerOptionByValue.get(String(option.value))
-                                if (!data) return <span>{option.label}</span>
-                                return (
-                                    <div className="flex items-center gap-2 w-full min-w-0">
-                                        <span className="truncate font-normal">
-                                            {data.displayName}
-                                        </span>
-                                        {data.email && (
+                        <Combobox
+                            value={newOwnerId ?? null}
+                            onValueChange={(value) => setNewOwnerId(value)}
+                        >
+                            <ComboboxTrigger className="w-full">
+                                <ComboboxValue placeholder="Select a member">
+                                    {() => {
+                                        if (!newOwnerId) return null
+                                        const data = transferOwnerOptionByValue.get(
+                                            String(newOwnerId),
+                                        )
+                                        if (!data) return null
+                                        return (
                                             <>
-                                                <span className="text-gray-400">·</span>
-                                                <span className="font-mono text-xs font-normal px-2 py-0.5 bg-gray-100 rounded shrink-0">
-                                                    {data.email}
+                                                <span className="truncate font-normal">
+                                                    {data.displayName}
                                                 </span>
+                                                {data.email && (
+                                                    <>
+                                                        <span className="text-gray-400">·</span>
+                                                        <span className="font-mono text-xs font-normal px-2 py-0.5 bg-gray-100 rounded shrink-0">
+                                                            {data.email}
+                                                        </span>
+                                                    </>
+                                                )}
                                             </>
-                                        )}
-                                    </div>
-                                )
-                            }}
-                            optionRender={(option, info) => {
-                                const isLast =
-                                    typeof info?.index === "number" &&
-                                    info.index === transferOwnerOptionCount - 1
-                                return (
-                                    <div
-                                        className={clsx(
-                                            "grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-3 py-2 px-2 w-full",
-                                            !isLast && "border-b border-gray-100",
-                                        )}
-                                    >
-                                        <InitialsAvatar
-                                            size="small"
-                                            name={option.data.displayName}
-                                        />
-                                        <span className="truncate font-normal">
-                                            {option.data.displayName}
-                                        </span>
-                                        {option.data.email && (
-                                            <span className="font-mono text-xs font-normal justify-self-end pr-2">
-                                                {option.data.email}
+                                        )
+                                    }}
+                                </ComboboxValue>
+                            </ComboboxTrigger>
+                            <ComboboxContent>
+                                <ComboboxInput placeholder="Search..." />
+                                <ComboboxEmpty>No results</ComboboxEmpty>
+                                {transferOwnerOptions.map((opt, idx) => (
+                                    <ComboboxItem key={opt.value} value={opt.value}>
+                                        <div
+                                            className={clsx(
+                                                "grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-3 py-2 px-2 w-full",
+                                                idx !== transferOwnerOptions.length - 1 &&
+                                                    "border-b border-gray-100",
+                                            )}
+                                        >
+                                            <InitialsAvatar size="small" name={opt.displayName} />
+                                            <span className="truncate font-normal">
+                                                {opt.displayName}
                                             </span>
-                                        )}
-                                    </div>
-                                )
-                            }}
-                        />
+                                            {opt.email && (
+                                                <span className="font-mono text-xs font-normal justify-self-end pr-2">
+                                                    {opt.email}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </ComboboxItem>
+                                ))}
+                            </ComboboxContent>
+                        </Combobox>
                     </Form.Item>
                 </Form>
             </EnhancedModal>

@@ -12,9 +12,17 @@
  */
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {useLexicalComposerContext} from "@agenta/ui"
 import {$isCodeNode, getCodeLanguageOptions, getLanguageFriendlyName} from "@lexical/code"
-import {Select} from "antd"
 import {$getNodeByKey, $getRoot} from "lexical"
 import {createPortal} from "react-dom"
 
@@ -98,42 +106,37 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
             {menus.map((m) => (
                 <div
                     key={m.key}
-                    className={[
-                        "fixed z-[1100] rounded-md bg-[var(--ant-color-bg-elevated)]",
-                        "[&_.ant-select-selector]:!h-6 [&_.ant-select-selector]:!px-2",
-                        "[&_.ant-select-selection-item]:!text-[11px] [&_.ant-select-selection-item]:!leading-6",
-                        "[&_.ant-select-selection-placeholder]:!text-[11px] [&_.ant-select-selection-placeholder]:!leading-6",
-                        "[&_.ant-select-selection-search-input]:!h-6",
-                        // Portaled to <body>, antd sets a serif fallback font on the inner item; make
-                        // it inherit the app font set on the wrapper below.
-                        "[&_.ant-select-selection-item]:!font-[inherit]",
-                        "[&_.ant-select-selection-placeholder]:!font-[inherit]",
-                        "[&_.ant-select-selection-search-input]:!font-[inherit]",
-                    ].join(" ")}
+                    className="fixed z-[1100] rounded-md bg-[var(--ant-color-bg-elevated)]"
                     style={{
                         top: m.top + 7,
                         right: m.right + 8,
                         fontFamily: "var(--ant-font-family)",
                     }}
-                    // Don't let interactions here reach the editor.
                     onMouseDown={(e) => e.stopPropagation()}
                 >
-                    <Select
-                        showSearch
+                    <Combobox
+                        value={m.lang || ""}
+                        onValueChange={(lang) => setLanguage(m.key, lang)}
                         disabled={!editable}
-                        value={m.lang || undefined}
-                        placeholder="Plain text"
-                        options={options}
-                        onChange={(lang) => setLanguage(m.key, lang)}
-                        optionFilterProp="label"
-                        popupMatchSelectWidth={false}
-                        variant="borderless"
-                        className="min-w-[96px]"
-                        // Show the friendly name ("JavaScript") for the selected value, not the raw id.
-                        labelRender={({value}) =>
-                            value ? getLanguageFriendlyName(String(value)) : "Plain text"
-                        }
-                    />
+                    >
+                        <ComboboxTrigger
+                            className="min-w-24 border-0 bg-transparent shadow-none data-[size=sm]:h-6 px-2"
+                            size="sm"
+                        >
+                            <ComboboxValue placeholder="Plain text">
+                                {() => (m.lang ? getLanguageFriendlyName(m.lang) : "Plain text")}
+                            </ComboboxValue>
+                        </ComboboxTrigger>
+                        <ComboboxContent className="w-auto min-w-32" align="end">
+                            <ComboboxInput placeholder="Search..." />
+                            <ComboboxEmpty>No results</ComboboxEmpty>
+                            {options.map((opt) => (
+                                <ComboboxItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                </ComboboxItem>
+                            ))}
+                        </ComboboxContent>
+                    </Combobox>
                 </div>
             ))}
         </>,

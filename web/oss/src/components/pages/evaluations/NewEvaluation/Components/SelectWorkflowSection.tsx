@@ -1,11 +1,20 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {WorkflowKindTag, WorkflowTypeTag} from "@agenta/entity-ui/workflow"
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {createStandardColumns} from "@agenta/ui/table"
 import {InfoCircleOutlined} from "@ant-design/icons"
-import {Input, Select, Switch} from "antd"
+import {Input, Switch} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -201,23 +210,6 @@ const SelectWorkflowSection = ({
         [selectedWorkflowId, onSelectRow, disabled],
     )
 
-    // "All types" sits ungrouped at the top so the reset path is always one
-    // click away. App types are always present; evaluator types only appear
-    // when the toggle is on.
-    const typeOptions = useMemo(() => {
-        const items: (
-            | {label: string; value: WorkflowSubtype | "all"}
-            | {label: string; options: {label: string; value: WorkflowSubtype}[]}
-        )[] = [
-            {label: "All types", value: "all"},
-            {label: "Applications", options: APP_TYPE_OPTIONS},
-        ]
-        if (showEvaluators) {
-            items.push({label: "Evaluators", options: EVALUATOR_TYPE_OPTIONS})
-        }
-        return items
-    }, [showEvaluators])
-
     const emptyDescription = disabled
         ? "Application selection is locked in app scope"
         : showEvaluators
@@ -247,19 +239,35 @@ const SelectWorkflowSection = ({
                 )}
                 <div className="flex items-center gap-2 shrink-0">
                     {!disabled && (
-                        <Select<WorkflowSubtype | "all">
-                            className="w-[180px]"
+                        <Select
                             value={typeFilter}
-                            onChange={(value) => setTypeFilter(value)}
-                            options={typeOptions}
-                            // Antd's grouped options ship an extra left
-                            // indent (`.ant-select-item-option-grouped`) on
-                            // top of the regular item padding. With only one
-                            // or two groups visible the indent reads as
-                            // accidental — flatten it so subitems align with
-                            // the ungrouped "All types" entry.
-                            popupClassName="[&_.ant-select-item-option-grouped]:!ps-3"
-                        />
+                            onValueChange={(v) => setTypeFilter(v as WorkflowSubtype | "all")}
+                        >
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All types</SelectItem>
+                                <SelectGroup>
+                                    <SelectLabel>Applications</SelectLabel>
+                                    {APP_TYPE_OPTIONS.map((o) => (
+                                        <SelectItem key={o.value} value={o.value}>
+                                            {o.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectGroup>
+                                {showEvaluators && (
+                                    <SelectGroup>
+                                        <SelectLabel>Evaluators</SelectLabel>
+                                        {EVALUATOR_TYPE_OPTIONS.map((o) => (
+                                            <SelectItem key={o.value} value={o.value}>
+                                                {o.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                )}
+                            </SelectContent>
+                        </Select>
                     )}
                     <Input.Search
                         placeholder="Search"

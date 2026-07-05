@@ -23,10 +23,26 @@ import {
     type RunSchema,
 } from "@agenta/entities/evaluationRun/etl"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
+import {
+    Select as ShadcnSelect,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {TagInput} from "@agenta/primitive-ui/components/tags-input"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
-import {Divider, InputNumber, Select} from "antd"
+import {Divider, InputNumber} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
 
@@ -85,10 +101,6 @@ const blankCondition = (): RowPredicate => ({
     op: "eq",
     value: "",
 })
-
-/** Keep antd Select dropdowns inside the popover so they don't close it. */
-const getWithinPopover = (trigger: HTMLElement) =>
-    (trigger.closest('[data-slot="popover-content"]') as HTMLElement | null) ?? document.body
 
 export interface ScenarioFilterBarProps {
     runId: string
@@ -241,28 +253,25 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
                                 {index === 0 ? (
                                     <span className="pl-2">Where</span>
                                 ) : (
-                                    <Select<"and" | "or">
-                                        variant="borderless"
-                                        className="w-full"
+                                    <ShadcnSelect
                                         value={draft.op}
-                                        options={[
-                                            {label: "And", value: "and"},
-                                            {label: "Or", value: "or"},
-                                        ]}
-                                        getPopupContainer={getWithinPopover}
-                                        onChange={(op) => setDraft((d) => ({...d, op}))}
-                                    />
+                                        onValueChange={(op) =>
+                                            setDraft((d) => ({...d, op: op as "and" | "or"}))
+                                        }
+                                    >
+                                        <SelectTrigger className="w-full border-0 bg-transparent shadow-none">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="and">And</SelectItem>
+                                            <SelectItem value="or">Or</SelectItem>
+                                        </SelectContent>
+                                    </ShadcnSelect>
                                 )}
                             </div>
-                            <Select<string>
-                                placeholder="Column"
-                                className="w-[200px] shrink-0"
-                                showSearch
-                                optionFilterProp="label"
-                                value={fieldKey}
-                                options={fieldOptions}
-                                getPopupContainer={getWithinPopover}
-                                onChange={(value) => {
+                            <Combobox
+                                value={fieldKey ?? ""}
+                                onValueChange={(value) => {
                                     const picked = fieldByKey.get(value)
                                     if (!picked) return
                                     const nextOps = UI_OPERATORS.filter((o) =>
@@ -276,24 +285,42 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
                                         value: picked.valueType === "boolean" ? true : "",
                                     })
                                 }}
-                            />
-                            <Select<FilterOperator>
-                                className="w-[110px] shrink-0"
+                            >
+                                <ComboboxTrigger className="w-[200px] shrink-0">
+                                    <ComboboxValue placeholder="Column" />
+                                </ComboboxTrigger>
+                                <ComboboxContent>
+                                    <ComboboxInput placeholder="Search columns..." />
+                                    {fieldOptions.map((o) => (
+                                        <ComboboxItem key={o.value} value={o.value}>
+                                            {o.label}
+                                        </ComboboxItem>
+                                    ))}
+                                </ComboboxContent>
+                            </Combobox>
+                            <ShadcnSelect
                                 value={condition.op}
-                                disabled={!field}
-                                options={ops.map((o) => ({value: o, label: OP_LABELS[o]}))}
-                                getPopupContainer={getWithinPopover}
-                                onChange={(op) => {
-                                    // Switching between scalar and list
-                                    // operators changes the value shape —
-                                    // reset it so it stays valid.
-                                    const isList = isListOperator(op)
+                                onValueChange={(op) => {
+                                    const opVal = op as FilterOperator
+                                    const isList = isListOperator(opVal)
                                     const wasList = Array.isArray(condition.value)
                                     const value =
                                         isList === wasList ? condition.value : isList ? [] : ""
-                                    updateCondition(index, {op, value})
+                                    updateCondition(index, {op: opVal, value})
                                 }}
-                            />
+                                disabled={!field}
+                            >
+                                <SelectTrigger className="w-[110px] shrink-0">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ops.map((o) => (
+                                        <SelectItem key={o} value={o}>
+                                            {OP_LABELS[o]}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </ShadcnSelect>
                             <ConditionValueInput
                                 op={condition.op}
                                 valueType={valueType}
@@ -399,16 +426,12 @@ const ConditionValueInput = ({
     if (isListOperator(op)) {
         const tags = Array.isArray(value) ? value.map((v) => String(v)) : []
         return (
-            <Select
-                mode="tags"
+            <TagInput
                 className="w-full"
                 placeholder="Add values…"
                 disabled={disabled}
                 value={tags}
-                open={false}
-                suffixIcon={null}
-                tokenSeparators={[","]}
-                getPopupContainer={getWithinPopover}
+                separator=","
                 onChange={(vals: string[]) => {
                     const coerced =
                         valueType === "number"
@@ -423,18 +446,19 @@ const ConditionValueInput = ({
         // antd Select option values must be string|number — encode the
         // boolean as a string and decode on change.
         return (
-            <Select<string>
-                className="w-full"
-                placeholder="Value"
-                disabled={disabled}
+            <ShadcnSelect
                 value={value === true ? "true" : value === false ? "false" : undefined}
-                options={[
-                    {label: "true", value: "true"},
-                    {label: "false", value: "false"},
-                ]}
-                getPopupContainer={getWithinPopover}
-                onChange={(v) => onChange(v === "true")}
-            />
+                onValueChange={(v) => onChange(v === "true")}
+                disabled={disabled}
+            >
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Value" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="true">true</SelectItem>
+                    <SelectItem value="false">false</SelectItem>
+                </SelectContent>
+            </ShadcnSelect>
         )
     }
     if (valueType === "number") {

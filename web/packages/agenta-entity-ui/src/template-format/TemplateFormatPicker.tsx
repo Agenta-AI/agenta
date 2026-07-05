@@ -23,7 +23,13 @@
 
 import {useMemo} from "react"
 
-import {Select} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 
 import {
     buildTemplateFormatOptions,
@@ -52,16 +58,22 @@ export function TemplateFormatPicker({
     const options = useMemo(() => buildTemplateFormatOptions(resolvedValue), [resolvedValue])
 
     return (
-        <Select<TemplateFormat>
-            size="small"
-            value={resolvedValue as TemplateFormat}
+        <Select
+            value={resolvedValue}
             disabled={disabled}
-            onChange={onChange}
-            className={className}
-            style={{minWidth: 180}}
-            popupMatchSelectWidth={false}
-            options={options}
-        />
+            onValueChange={(v) => onChange(v as TemplateFormat)}
+        >
+            <SelectTrigger className={className} style={{minWidth: 180}} size="sm">
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+                {options.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     )
 }
 

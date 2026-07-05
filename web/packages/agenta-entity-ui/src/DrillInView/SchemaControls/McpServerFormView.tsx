@@ -12,7 +12,15 @@
  */
 import {useState} from "react"
 
-import {Input, Select} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
+import {TagInput} from "@agenta/primitive-ui/components/tags-input"
+import {Input} from "antd"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
@@ -107,15 +115,18 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
 
             <RailField label="Transport" align="center">
                 <Select
-                    className="w-full"
                     value={transport}
-                    onChange={(v) => set("transport", v)}
+                    onValueChange={(v) => set("transport", v)}
                     disabled={disabled}
-                    options={[
-                        {label: "stdio (local command)", value: "stdio"},
-                        {label: "http (remote URL)", value: "http"},
-                    ]}
-                />
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select transport" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="stdio">stdio (local command)</SelectItem>
+                        <SelectItem value="http">http (remote URL)</SelectItem>
+                    </SelectContent>
+                </Select>
             </RailField>
 
             {transport === "stdio" ? (
@@ -129,15 +140,12 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                         />
                     </RailField>
                     <RailField label="Arguments" align="center">
-                        <Select
-                            mode="tags"
+                        <TagInput
                             className="w-full"
                             value={server.args ?? []}
                             onChange={(v) => set("args", v)}
                             placeholder="one argument per token"
                             disabled={disabled}
-                            open={false}
-                            suffixIcon={null}
                         />
                     </RailField>
                 </>
@@ -184,15 +192,12 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 )}
                 align="center"
             >
-                <Select
-                    mode="tags"
+                <TagInput
                     className="w-full"
                     value={server.tools ?? []}
                     onChange={(v) => set("tools", v.length ? v : undefined)}
                     placeholder="tool names"
                     disabled={disabled}
-                    open={false}
-                    suffixIcon={null}
                 />
             </RailField>
         </div>

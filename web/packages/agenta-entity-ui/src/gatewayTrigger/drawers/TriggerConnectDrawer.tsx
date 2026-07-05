@@ -1,10 +1,17 @@
 import {useCallback, useRef, useState} from "react"
 
 import {createTriggerConnection, fetchTriggerConnection} from "@agenta/entities/gatewayTrigger"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/primitive-ui/components/select"
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
 import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
-import {Divider, Form, Input, message, Select, Tooltip} from "antd"
+import {Divider, Form, Input, message, Tooltip} from "antd"
 import Image from "next/image"
 
 const DEFAULT_PROVIDER = "composio"
@@ -255,12 +262,19 @@ export default function TriggerConnectDrawer({
                         <Form.Item label="Auth Method" className="!mb-0">
                             <Select
                                 value={selectedMode}
-                                onChange={setSelectedMode}
-                                options={availableModes.map((m) => ({
-                                    value: m,
-                                    label: m === "oauth" ? "OAuth" : "API Key",
-                                }))}
-                            />
+                                onValueChange={(v) => setSelectedMode(v as AuthMode)}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableModes.map((m) => (
+                                        <SelectItem key={m} value={m}>
+                                            {m === "oauth" ? "OAuth" : "API Key"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </Form.Item>
                     )}
                 </Form>

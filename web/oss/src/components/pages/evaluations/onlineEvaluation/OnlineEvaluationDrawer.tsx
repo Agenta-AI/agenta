@@ -15,11 +15,21 @@ import {
     AccordionContent,
 } from "@agenta/primitive-ui/components/accordion"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxValue,
+} from "@agenta/primitive-ui/components/combobox"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {TagInput} from "@agenta/primitive-ui/components/tags-input"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {DatePicker, Form, Input, Select, Switch} from "antd"
+import {DatePicker, Form, Input, Switch} from "antd"
 import dayjs from "dayjs"
 import type {Dayjs} from "dayjs"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -514,12 +524,10 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                 <Tooltip>
                                     <TooltipTrigger
                                         render={
-                                            <Select
-                                                mode="tags"
+                                            <TagInput
                                                 className="w-full"
                                                 placeholder="Coming soon"
-                                                tokenSeparators={[","]}
-                                                allowClear
+                                                separator=","
                                                 disabled
                                             />
                                         }
@@ -602,52 +610,26 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                 label="Evaluator"
                                 style={{marginBottom: 12}}
                                 rules={[{required: true, message: "Select an evaluator"}]}
+                                trigger="onValueChange"
                             >
-                                <Select
-                                    className="w-full"
-                                    placeholder="Select"
-                                    options={evaluatorOptions}
-                                    optionLabelProp="label"
-                                    disabled={!hasEvaluatorOptions}
-                                    loading={isLoadingEvaluators}
-                                    notFoundContent={
-                                        isLoadingEvaluators
-                                            ? "Loading evaluators..."
-                                            : "No supported evaluators available"
-                                    }
-                                    showSearch
-                                    filterOption={(input, option) => {
-                                        if (!option) return false
-                                        const query = input.toLowerCase()
-                                        if (!query.length) return true
-                                        const searchableTexts: string[] = []
-
-                                        const searchText =
-                                            typeof (option as any)?.searchText === "string"
-                                                ? (option as any).searchText
-                                                : undefined
-                                        if (searchText) {
-                                            searchableTexts.push(searchText)
-                                        }
-                                        if (typeof option.title === "string") {
-                                            searchableTexts.push(option.title)
-                                        }
-                                        if (typeof option.label === "string") {
-                                            searchableTexts.push(option.label)
-                                        }
-                                        if (
-                                            typeof option.value === "string" ||
-                                            typeof option.value === "number"
-                                        ) {
-                                            searchableTexts.push(String(option.value))
-                                        }
-
-                                        return searchableTexts
-                                            .map((text) => text.toLowerCase())
-                                            .some((text) => text.includes(query))
-                                    }}
-                                    allowClear
-                                />
+                                <Combobox disabled={!hasEvaluatorOptions}>
+                                    <ComboboxTrigger className="w-full">
+                                        <ComboboxValue placeholder="Select" />
+                                    </ComboboxTrigger>
+                                    <ComboboxContent>
+                                        <ComboboxInput placeholder="Search..." />
+                                        <ComboboxEmpty>
+                                            {isLoadingEvaluators
+                                                ? "Loading evaluators..."
+                                                : "No supported evaluators available"}
+                                        </ComboboxEmpty>
+                                        {evaluatorOptions?.map((opt) => (
+                                            <ComboboxItem key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </ComboboxItem>
+                                        ))}
+                                    </ComboboxContent>
+                                </Combobox>
                                 {!isLoadingEvaluators && !hasEvaluatorOptions ? (
                                     <span className="block mt-2 text-muted-foreground">
                                         No supported evaluators are available. Add an evaluator
