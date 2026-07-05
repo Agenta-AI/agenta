@@ -17,6 +17,10 @@ export const processEnv = {
     // flow). Unset/false keeps the current config-definition drawer flow. Both are kept behind this
     // flag to experiment while the agent builder is unreliable.
     NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER,
+    // Playground-native onboarding: when "true", the project-scoped `/playground` route lands on an
+    // ephemeral agent (templates + "what do you want to build?" composer) and commits it in place on
+    // send — no redirect. Unset/false leaves the current agent-home + redirect onboarding untouched.
+    NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING: process.env.NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,

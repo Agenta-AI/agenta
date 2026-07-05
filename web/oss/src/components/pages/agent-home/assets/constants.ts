@@ -10,6 +10,16 @@ import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 export const TEMPLATE_BUILDER_MODE =
     (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER") || "").toLowerCase() === "true"
 
+/**
+ * Playground-native onboarding toggle (`NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`). When true, the
+ * project-scoped `/playground` route lands on an ephemeral agent (onboarding lives INSIDE the
+ * playground) and commits it in place on send — no redirect. When false/unset (default), onboarding
+ * stays on the agent-home page and navigates to the app playground after create. Additive: both flows
+ * coexist so we can A/B the seamless single-page experience against the current redirect flow.
+ */
+export const PLAYGROUND_NATIVE_ONBOARDING =
+    (getEnv("NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING") || "").toLowerCase() === "true"
+
 export const HERO = {
     eyebrowNew: "New",
     eyebrowLabel: "Agent builder",

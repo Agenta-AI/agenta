@@ -1,13 +1,30 @@
 import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {ArrowRight, Robot} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
+import {Button, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 const {Text} = Typography
+
+/** Copy for the onboarding ("what do you want to build?") empty state — kept local to avoid a circular
+ * import with the agent-home module (which itself imports from this slice). */
+const ONBOARDING_COPY = {
+    eyebrowNew: "New",
+    eyebrow: "Agent builder",
+    title: "What do you want to build?",
+    subtitle:
+        "Describe an agent in plain language below — I'll name it, wire up what it needs, and run it, all right here.",
+    hint: "← Not sure? Pick a template on the left",
+    videoDuration: "2:04",
+    videoLabel: "Watch 2-min tour",
+}
+
+/** Quick-start prompts in the onboarding empty state — click to prefill the composer. Kept HERE (not
+ * the composer footer) so the composer's height doesn't shift when the empty state clears on submit. */
+const ONBOARDING_STARTERS = ["Triage #support tickets", "Review my PRs", "Summarize standups"]
 
 /** Curated starter prompts for the Build-mode empty state. Clicking one sends it. */
 const BUILD_STARTERS = [
@@ -67,6 +84,8 @@ const AgentChatEmptyState = ({
     onStart,
     firstRunPrompt,
     canStart = true,
+    onboarding = false,
+    onPrefill,
 }: {
     entityId: string
     onStart: (text: string) => void
@@ -74,12 +93,93 @@ const AgentChatEmptyState = ({
     firstRunPrompt?: string | null
     /** Whether the Start CTA is enabled (false when the model isn't connected). */
     canStart?: boolean
+    /**
+     * Playground-native onboarding state: the pre-commit "what do you want to build?" hero (this IS the
+     * agent-chat view — the composer below renders the Create-agent / Continue-in-IDE controls). Takes
+     * precedence over the other states.
+     */
+    onboarding?: boolean
+    /** Prefill the composer with a quick-start prompt (onboarding "Try" chips). */
+    onPrefill?: (text: string) => void
 }) => {
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
+
+    if (onboarding) {
+        return (
+            <div className="relative flex h-full min-h-[420px] w-full flex-1 flex-col justify-center py-6">
+                {/* Tutorial video — floats top-right (placeholder poster until a clip is wired). */}
+                <div className="absolute right-2 top-2 flex flex-col items-center gap-1.5">
+                    <button
+                        type="button"
+                        aria-label={ONBOARDING_COPY.videoLabel}
+                        className="relative flex size-[68px] cursor-pointer items-center justify-center overflow-hidden rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] p-0 transition-opacity hover:opacity-90"
+                    >
+                        <span
+                            className="absolute inset-0 opacity-50"
+                            style={{
+                                background:
+                                    "repeating-linear-gradient(45deg, transparent, transparent 5px, var(--ag-colorFillSecondary) 5px, var(--ag-colorFillSecondary) 10px)",
+                            }}
+                        />
+                        <Play
+                            weight="fill"
+                            size={18}
+                            className="relative text-[var(--ag-colorText)]"
+                        />
+                        <span className="absolute bottom-1.5 text-[10px] font-semibold text-[var(--ag-colorText)]">
+                            {ONBOARDING_COPY.videoDuration}
+                        </span>
+                    </button>
+                    <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                        {ONBOARDING_COPY.videoLabel}
+                    </span>
+                </div>
+
+                {/* Same centered column as the composer (CHAT_COLUMN = mx-auto max-w-[880px]) so the
+                    hero's left edge lines up with the editor's left edge, not a narrower centered block. */}
+                <div className="mx-auto flex w-full max-w-[880px] flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                        <Tag
+                            color="processing"
+                            className="!m-0 !rounded !px-1.5 !py-0 !text-[10px] !font-semibold !uppercase !leading-5"
+                        >
+                            {ONBOARDING_COPY.eyebrowNew}
+                        </Tag>
+                        <span className="text-xs font-medium text-[var(--ag-colorTextSecondary)]">
+                            {ONBOARDING_COPY.eyebrow}
+                        </span>
+                    </div>
+                    <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
+                        {ONBOARDING_COPY.title}
+                    </Typography.Title>
+                    <Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                        {ONBOARDING_COPY.subtitle}
+                    </Text>
+                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        {ONBOARDING_COPY.hint}
+                    </span>
+
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">Try</span>
+                        {ONBOARDING_STARTERS.map((starter) => (
+                            <button
+                                key={starter}
+                                type="button"
+                                onClick={() => onPrefill?.(starter)}
+                                className="box-border cursor-pointer rounded-full border border-solid border-[var(--ag-colorBorder)] bg-transparent px-3 py-1 text-xs text-[var(--ag-colorTextSecondary)] transition-colors hover:border-[var(--ag-colorPrimary)] hover:text-[var(--ag-colorText)]"
+                            >
+                                {starter}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     if (!buildMode) {
         return (

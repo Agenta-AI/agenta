@@ -10,6 +10,12 @@ export interface AgentFirstRunSeed {
     appId: string
     revisionId: string
     seedMessage: string
+    /**
+     * The seed is an explicit "go" (the onboarding Create-agent click), so send it as soon as the model
+     * is ready — don't wait for a Start click. Redirect-seeds omit this: a model ready on arrival still
+     * shows Start (Arda: never auto-send a seed that merely arrived with a ready model).
+     */
+    autoSend?: boolean
 }
 
 export const agentFirstRunSeedAtom = atom<AgentFirstRunSeed | null>(null)

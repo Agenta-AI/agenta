@@ -13,12 +13,20 @@ import {HeightCollapse} from "@agenta/ui"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
-import {ArrowDown, Paperclip, TreeStructure, UploadSimple} from "@phosphor-icons/react"
+import {
+    ArrowDown,
+    ArrowRight,
+    Code,
+    Paperclip,
+    TreeStructure,
+    UploadSimple,
+} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 
+import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import {SessionInspectorButton} from "@/oss/components/SessionInspector"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
@@ -403,12 +411,112 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // false "connect a model" gate (the static provider catalog reads keyless until the query lands).
     const modelBlocked = !!modelKey.providerEntry && !modelKey.hasKey && !modelKey.loading
 
+    // ── Playground-native onboarding ──────────────────────────────────────────
+    // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
+    // "what do you want to build?" hero and the composer renders Create-agent / Continue-in-IDE controls
+    // (submit = commit the ephemeral in place, not send). Read from the OnboardingContext, present ONLY
+    // inside the onboarding playground — null everywhere else, so every other chat usage is unchanged.
+    const onboarding = useOptionalOnboardingContext()
+    const onboardingActive = !!onboarding && !onboarding.realEntityId
+
+    // Optimistic first turn: the description the user submitted with "Create agent", shown as a sent
+    // user message + assistant loading placeholder DURING commit + until the real conversation takes
+    // over — so the onboarding hero never flashes back and the switch reads as one continuous chat.
+    const [pendingFirstTurn, setPendingFirstTurn] = useState<string | null>(null)
+
+    const handleCreateAgent = useCallback(() => {
+        if (!onboarding || onboarding.committing) return
+        const text = richInputRef.current?.getMarkdown().trim() ?? ""
+        setPendingFirstTurn(text || null)
+        // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
+        richInputRef.current?.setMarkdown("")
+        onboarding.commit(text)
+    }, [onboarding])
+
+    // Also cover the template-click commit path (which goes straight through `commit()`, not the
+    // Create button): whenever a commit is in flight, show its seed as the optimistic turn and clear
+    // any lingering composer text (e.g. a "Try" chip the user had prefilled).
+    useEffect(() => {
+        if (onboarding?.committing && onboarding.committingSeed) {
+            setPendingFirstTurn(onboarding.committingSeed)
+            richInputRef.current?.setMarkdown("")
+        }
+    }, [onboarding?.committing, onboarding?.committingSeed])
+
+    // Once the real conversation has a message (auto-send fired post-commit), the placeholder handed
+    // off — drop it so the real turn owns the view.
+    useEffect(() => {
+        if (messages.length > 0 && pendingFirstTurn) setPendingFirstTurn(null)
+    }, [messages.length, pendingFirstTurn])
+
+    // Commit failed (committing went true→false without producing a real agent): restore the hero so
+    // the user can retry, rather than stranding the placeholder with an eternal spinner.
+    const sawCommittingRef = useRef(false)
+    useEffect(() => {
+        if (onboarding?.committing) {
+            sawCommittingRef.current = true
+        } else if (sawCommittingRef.current && !onboarding?.realEntityId && messages.length === 0) {
+            sawCommittingRef.current = false
+            setPendingFirstTurn(null)
+        }
+    }, [onboarding?.committing, onboarding?.realEntityId, messages.length])
+
+    const pendingFirstMessage = useMemo<UIMessage>(
+        () => ({
+            id: "pending-first-turn",
+            role: "user",
+            parts: [{type: "text", text: pendingFirstTurn ?? ""}],
+        }),
+        [pendingFirstTurn],
+    )
+
+    // "Continue in IDE" — surface the install command + prompt as a streamed-looking assistant bubble
+    // (a pseudo response; there's no real agent to run pre-commit). Reveals the text in chunks.
+    const streamIdeBubble = useCallback(() => {
+        const prompt = richInputRef.current?.getMarkdown().trim() ?? ""
+        const cmd = "npx agenta@latest skills add"
+        const intro =
+            "Prefer your IDE? Install Agenta and hand your prompt to Claude Code, Cursor, or any coding agent:"
+        const full = prompt
+            ? `${intro}\n\n\`\`\`bash\n${cmd}\n\n${prompt}\n\`\`\``
+            : `${intro}\n\n\`\`\`bash\n${cmd}\n\`\`\``
+        const id = `ide-${generateId()}`
+        stickRef.current = false
+        armBottomRef.current = true
+        animateBottomRef.current = true
+        setShowJump(false)
+        setStopped(false)
+        setMessages(
+            (prev) =>
+                [
+                    ...prev,
+                    {id, role: "assistant", parts: [{type: "text", text: ""}]},
+                ] as typeof prev,
+        )
+        let shown = 0
+        const chunk = Math.max(3, Math.ceil(full.length / 36))
+        const tick = () => {
+            shown = Math.min(full.length, shown + chunk)
+            const text = full.slice(0, shown)
+            setMessages(
+                (prev) =>
+                    prev.map((m) =>
+                        m.id === id ? {...m, parts: [{type: "text", text}]} : m,
+                    ) as typeof prev,
+            )
+            if (shown < full.length) window.setTimeout(tick, 28)
+        }
+        window.setTimeout(tick, 120)
+    }, [setMessages])
+
     // First-run seed: a freshly-created agent (from Home's composer/template) surfaces its starting
     // prompt in the empty state (see AgentChatEmptyState) rather than pre-filling the composer, so it
     // reads as "here's what we'll do" not stray user input. Consumed once by the active session on a
     // fresh conversation, matching either the revision or app id, then cleared.
     const [firstRunSeed, setFirstRunSeed] = useAtom(agentFirstRunSeedAtom)
     const [firstRunPrompt, setFirstRunPrompt] = useState<string | null>(null)
+    // An explicit-"go" seed (the onboarding Create-agent click) sends as soon as the model is ready.
+    const [firstRunAutoSend, setFirstRunAutoSend] = useState(false)
     const seedConsumedRef = useRef(false)
     useEffect(() => {
         if (seedConsumedRef.current || !firstRunSeed) return
@@ -416,6 +524,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         if (activeSessionId !== sessionId || messages.length > 0) return
         seedConsumedRef.current = true
         setFirstRunPrompt(firstRunSeed.seedMessage)
+        setFirstRunAutoSend(!!firstRunSeed.autoSend)
         setFirstRunSeed(null)
     }, [firstRunSeed, entityId, activeSessionId, sessionId, messages.length, setFirstRunSeed])
     const consumedRunNonceRef = useRef<number | null>(null)
@@ -925,13 +1034,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         setAttachmentsOpen(false)
     }
 
-    // First-run auto-start: a freshly-created agent (from Home) lands with a seeded prompt, but its
-    // model is often gated (no provider key yet). Connecting the key IS the user's go-ahead — so once
-    // the gate clears we send the seeded prompt automatically, rather than making them click Start a
-    // second time ("no explicit action twice"). Fires ONLY on the blocked→unblocked transition (a
-    // model that was ready on arrival still waits for an explicit Start click), exactly once, and only
-    // while the conversation is still empty. `handleSubmit` is read via a ref so the transition — not a
-    // token re-render — drives the send.
+    // First-run auto-start: a freshly-created agent lands with a seeded prompt, but its model is often
+    // gated (no provider key yet). Connecting the key IS the go-ahead — so once the gate clears we send
+    // the seeded prompt automatically, rather than making them click Start a second time ("no explicit
+    // action twice"). Fires once, while the conversation is still empty, when EITHER: the model just
+    // unblocked (was gated), OR the seed is an explicit "go" (`firstRunAutoSend` — the onboarding
+    // Create-agent click) and the model is ready. A redirect-seed that merely arrived with a ready model
+    // still waits for Start. `handleSubmit` is read via a ref so the transition drives the send.
     const handleSubmitRef = useRef(handleSubmit)
     handleSubmitRef.current = handleSubmit
     const autoStartedSeedRef = useRef(false)
@@ -942,10 +1051,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             seedWasBlockedRef.current = true
             return
         }
-        if (!seedWasBlockedRef.current || messages.length > 0) return
+        if ((!seedWasBlockedRef.current && !firstRunAutoSend) || messages.length > 0) return
         autoStartedSeedRef.current = true
         handleSubmitRef.current(firstRunPrompt)
-    }, [firstRunPrompt, modelBlocked, messages.length])
+    }, [firstRunPrompt, firstRunAutoSend, modelBlocked, messages.length])
 
     const handleRewind = useCallback(
         (message: UIMessage) => {
@@ -1129,14 +1238,35 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                             WebkitMaskImage: EDGE_FADE_MASK,
                         }}
                     >
-                        {messages.length === 0 && (
-                            <AgentChatEmptyState
-                                entityId={entityId}
-                                onStart={handleSubmit}
-                                firstRunPrompt={firstRunPrompt}
-                                canStart={!modelBlocked}
-                            />
-                        )}
+                        {messages.length === 0 &&
+                            (pendingFirstTurn ? (
+                                // Optimistic first turn: the submitted description as a sent user bubble +
+                                // an assistant loading placeholder (mirrors a real `status:"submitted"`
+                                // turn), so the commit reads as one continuous chat, not an empty state.
+                                <MessageRow mid="pending-first-turn" enter>
+                                    <AgentMessage
+                                        message={pendingFirstMessage}
+                                        isLastMessage
+                                        onRewind={handleRewind}
+                                        onClientToolOutput={handleClientToolOutput}
+                                    />
+                                    <Bubble
+                                        placement="start"
+                                        variant="borderless"
+                                        loading
+                                        content=""
+                                    />
+                                </MessageRow>
+                            ) : (
+                                <AgentChatEmptyState
+                                    entityId={entityId}
+                                    onStart={handleSubmit}
+                                    firstRunPrompt={firstRunPrompt}
+                                    canStart={!modelBlocked}
+                                    onboarding={onboardingActive}
+                                    onPrefill={(text) => richInputRef.current?.setMarkdown(text)}
+                                />
+                            ))}
                         {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
                         {activeStart < messages.length && (
                             // The active turn reserves a viewport (min-h-full) when there's prior
@@ -1195,9 +1325,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 animates in/out, and inside the composer region so the paused gate can't scroll out
                 of reach and its collapse adds no gap to the surrounding column. */}
                 <div className="px-3">
-                    <div className={CHAT_COLUMN}>
-                        <ConnectModelBanner {...modelKey} />
-                    </div>
+                    {/* Defer the provider-key check until the agent is actually committed — pre-commit
+                        onboarding is just "describe your agent", so a "connect a model" banner is premature
+                        (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
+                    {!onboardingActive && (
+                        <div className={CHAT_COLUMN}>
+                            <ConnectModelBanner {...modelKey} />
+                        </div>
+                    )}
                     <ApprovalDock
                         className={CHAT_COLUMN}
                         approvals={pendingApprovals}
@@ -1207,12 +1342,18 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     <RichChatInput
                         ref={richInputRef}
                         className={`${CHAT_COLUMN} mb-3`}
-                        onSubmit={handleSubmit}
-                        disabled={modelBlocked}
+                        // Onboarding: submit = commit the ephemeral (not send); Enter inserts a newline
+                        // (you're writing a description), and the Create-agent button (trailing) commits.
+                        onSubmit={onboardingActive ? () => handleCreateAgent() : handleSubmit}
+                        disabled={onboardingActive ? false : modelBlocked}
+                        hideSendButton={onboardingActive}
+                        submitOnEnter={!onboardingActive}
                         placeholder={
-                            modelBlocked
-                                ? "Connect a model to start chatting…"
-                                : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                            onboardingActive
+                                ? "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything."
+                                : modelBlocked
+                                  ? "Connect a model to start chatting…"
+                                  : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                         }
                         onPasteFile={(pasted) => addFiles(Array.from(pasted))}
                         sendForceEnabled={files.length > 0}
@@ -1249,6 +1390,29 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                 />
                             </HeightCollapse>
                         }
+                        trailing={
+                            onboardingActive ? (
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        icon={<Code size={14} />}
+                                        onClick={streamIdeBubble}
+                                        className="!shadow-none"
+                                    >
+                                        Continue in IDE
+                                    </Button>
+                                    <Button
+                                        type="primary"
+                                        icon={<ArrowRight size={14} />}
+                                        iconPosition="end"
+                                        loading={!!onboarding?.committing}
+                                        onClick={handleCreateAgent}
+                                        className="!shadow-none"
+                                    >
+                                        Create agent
+                                    </Button>
+                                </div>
+                            ) : undefined
+                        }
                     />
                 </div>
             </div>
@@ -1271,6 +1435,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
  */
 const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const scope = useChatScopeKey()
+    // Pre-commit onboarding: one ephemeral session, no multi-session UX — hide the whole session bar
+    // (tabs / new / search / history). Once committed (realEntityId) it's the normal playground.
+    const onboarding = useOptionalOnboardingContext()
+    const onboardingActive = !!onboarding && !onboarding.realEntityId
     const sessions = useAtomValue(sessionsListAtomFamily(scope))
     const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
     const addSession = useSetAtom(addSessionAtomFamily(scope))
@@ -1324,12 +1492,14 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 activeKey={activeId}
                 onChange={setActiveSession}
                 renderTabBar={() => (
-                    // Chat mode has no inline session controls (they live in the SessionRail), so the
-                    // bar would be an empty 48px strip. Collapse its height to 0 — animated to match
-                    // the rail/config panes — rather than leaving dead space or snapping it away.
+                    // Kept mounted in ALL states so its height ANIMATES on transitions rather than the node
+                    // mounting at full height (which snapped the content down). Collapsed to 0 in chat mode
+                    // (controls live in the SessionRail) AND during onboarding (single ephemeral session);
+                    // expands to 48 when the committed build view takes over — same eased height transition
+                    // as the rail/config panes.
                     <div
                         className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                        style={{height: chatMaximized ? 0 : 48}}
+                        style={{height: onboardingActive || chatMaximized ? 0 : 48}}
                     >
                         <SessionTagBar
                             sessions={sessions}

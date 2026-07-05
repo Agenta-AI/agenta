@@ -6,7 +6,10 @@ import {Flask, Plus} from "@phosphor-icons/react"
 import {Button, Space, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
+import {PLAYGROUND_NATIVE_ONBOARDING} from "@/oss/components/pages/agent-home/assets/constants"
+import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 const PlaygroundLoadingShell = () => {
@@ -49,6 +52,14 @@ const Playground = dynamic(() => import("../Playground/Playground"), {
     loading: PlaygroundLoadingShell,
 })
 
+// Same Playground component + chunk, but the onboarding-branded loader as the chunk-download fallback,
+// so the ephemeral onboarding flow shows one continuous "setting up" screen (matching OnboardingEntry +
+// the mint state) instead of the generic Playground header shell. Webpack dedupes the shared chunk.
+const OnboardingPlayground = dynamic(() => import("../Playground/Playground"), {
+    ssr: false,
+    loading: OnboardingLoader,
+})
+
 // When the current workflow is an evaluator we render the evaluator-flavored
 // page (with `EvaluatorPlaygroundHeader` + `connectAppToEvaluatorAtom`) instead
 // of the generic app `<Playground />`. Same code path that powers
@@ -59,8 +70,31 @@ const ConfigureEvaluatorPage = dynamic(
     {ssr: false, loading: PlaygroundLoadingShell},
 )
 
+// The project-scoped playground route (no `app_id`), distinct from `/apps/[app_id]/playground` and the
+// evaluator `/evaluators/playground`. Onboarding only activates on this exact route.
+const PROJECT_PLAYGROUND_PATHNAME = "/w/[workspace_id]/p/[project_id]/playground"
+
 const PlaygroundRouter = () => {
     const ctx = useAtomValue(currentWorkflowContextAtom)
+    const router = useRouter()
+
+    // Flag ON + landing on the bare project playground → the real playground in ONBOARDING mode (it
+    // mints + drives an ephemeral agent and shows the templates + "what do you want to build?" composer).
+    // Reuses the full Playground machinery; the app-scoped/evaluator routes and flag-off are unchanged.
+    const onboardingActive =
+        PLAYGROUND_NATIVE_ONBOARDING && router.pathname === PROJECT_PLAYGROUND_PATHNAME
+    if (PLAYGROUND_NATIVE_ONBOARDING && typeof window !== "undefined") {
+        console.log("%c[agent-onboarding]", "color:#84cc16;font-weight:bold", "PlaygroundRouter:", {
+            flag: PLAYGROUND_NATIVE_ONBOARDING,
+            pathname: router.pathname,
+            expected: PROJECT_PLAYGROUND_PATHNAME,
+            matches: router.pathname === PROJECT_PLAYGROUND_PATHNAME,
+            willRenderOnboarding: onboardingActive,
+        })
+    }
+    if (onboardingActive) {
+        return <OnboardingPlayground onboarding />
+    }
 
     // Evaluators get the evaluator-flavored page so the upstream-app picker
     // is visible (the generic header only exposes the reverse direction —

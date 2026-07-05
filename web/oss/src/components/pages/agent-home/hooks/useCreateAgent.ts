@@ -18,13 +18,26 @@ interface CreateAgentParams {
     name?: string
     /** Composer text / template seed — pre-fills the playground composer via the first-run seed. */
     seedMessage?: string
+    /**
+     * Commit THIS existing ephemeral (`local-*`) instead of minting a fresh one. Used by
+     * playground-native onboarding, which already minted the ephemeral to render the shell.
+     */
+    entityId?: string
+    /**
+     * Called after a successful commit with the real ids INSTEAD of navigating to the app playground.
+     * The caller then handles placement (e.g. an in-place `setEntityIds` + shallow URL update, no
+     * redirect). Omit for the default `router.push` to `/apps/<id>/playground`.
+     */
+    onCommitted?: (ids: {appId: string; revisionId: string}) => void
+    /** Mark the seed as an explicit "go" so the chat auto-sends it once the model is ready (no Start). */
+    autoSendSeed?: boolean
 }
 
 /**
- * Create a new agent app and land the user in its playground — no drawer. Creates the ephemeral,
- * commits it (so it gets a real app id + is classified as an agent), stashes the first-run seed on
- * the new revision, and navigates to `/apps/<id>/playground`. Everything else (connect-a-model, the
- * seed prompt, chat-to-build) is handled in the playground.
+ * Create a new agent and either land in its playground (default) or hand the real ids back to the
+ * caller (`onCommitted`). Mints an ephemeral (or commits a provided one), commits it (so it gets a
+ * real app id + is classified as an agent), and stashes the first-run seed on the new revision.
+ * Default flow navigates to `/apps/<id>/playground`; `onCommitted` lets onboarding commit in place.
  */
 export function useCreateAgent() {
     const {message} = App.useApp()
@@ -34,14 +47,22 @@ export function useCreateAgent() {
     const commitFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
 
     return useCallback(
-        async ({name, seedMessage}: CreateAgentParams = {}) => {
+        async ({
+            name,
+            seedMessage,
+            entityId,
+            onCommitted,
+            autoSendSeed,
+        }: CreateAgentParams = {}) => {
             try {
                 const agentName = name?.trim() || "New agent"
-                const entityId = await createEphemeralAppFromTemplate({
-                    type: "agent",
-                    defaultName: agentName,
-                })
-                if (!entityId) {
+                const ephemeralId =
+                    entityId ??
+                    (await createEphemeralAppFromTemplate({
+                        type: "agent",
+                        defaultName: agentName,
+                    }))
+                if (!ephemeralId) {
                     message.error("Couldn't start agent creation — please retry")
                     return
                 }
@@ -53,7 +74,7 @@ export function useCreateAgent() {
                     .padStart(2, "0")}`
                 const slug = `${generateSlug(agentName) || "agent"}-${uniqueSuffix}`
                 const result = await commitFromEphemeral({
-                    revisionId: entityId,
+                    revisionId: ephemeralId,
                     name: agentName,
                     slug,
                 })
@@ -76,10 +97,15 @@ export function useCreateAgent() {
                         appId,
                         revisionId,
                         seedMessage: seedMessage.trim(),
+                        autoSend: autoSendSeed,
                     })
                 }
 
-                void router.push(`${baseAppURL}/${appId}/playground?revisions=${revisionId}`)
+                if (onCommitted) {
+                    onCommitted({appId, revisionId})
+                } else {
+                    void router.push(`${baseAppURL}/${appId}/playground?revisions=${revisionId}`)
+                }
             } catch (error) {
                 message.error(extractApiErrorMessage(error))
             }
