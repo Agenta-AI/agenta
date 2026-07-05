@@ -1,7 +1,8 @@
 import {type FC} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
-import {Badge, Space, Tooltip} from "antd"
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Space, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -13,11 +14,16 @@ export const statusMap: Record<string, {badge: string}> = {
     development: {badge: "#9254DE"},
 }
 
+export const statusVariantMap: Record<string, "success" | "warning" | "secondary"> = {
+    production: "success",
+    staging: "warning",
+    development: "secondary",
+}
+
 const EnvironmentStatus: FC<{
     variant: Pick<VariantStatusInfo, "deployedIn" | "id">
     className?: string
 }> = ({variant, className}) => {
-    // Fallback to environment entity if deployedIn is not embedded on the variant
     const fallbackDeployedIn = useAtomValue(
         environmentMolecule.atoms.revisionDeployment(variant?.id || ""),
     )
@@ -34,7 +40,8 @@ const EnvironmentStatus: FC<{
                     <Tooltip key={env.name} title={env.name}>
                         <div>
                             <Badge
-                                color={statusMap[env.name]?.badge ?? "transparent"}
+                                variant={statusVariantMap[env.name] ?? "secondary"}
+                                dot
                                 title={env.name}
                             />
                         </div>

@@ -13,6 +13,7 @@ import {
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {
     DropdownMenu,
@@ -24,7 +25,7 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
-import {Badge, Button, Divider, Empty, Input, Spin, Tag} from "antd"
+import {Button, Divider, Empty, Input, Spin, Tag} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -226,11 +227,9 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                                                         {integration.name}
                                                     </span>
                                                     {integration.actions_count != null && (
-                                                        <Badge
-                                                            count={`${integration.actions_count} actions`}
-                                                            size="small"
-                                                            color="blue"
-                                                        />
+                                                        <Badge variant="info">
+                                                            {integration.actions_count} actions
+                                                        </Badge>
                                                     )}
                                                 </div>
                                                 {integration.description && (

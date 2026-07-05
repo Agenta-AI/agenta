@@ -4,13 +4,13 @@ import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import type {Workflow} from "@agenta/entities/workflow"
 import {VariantNameCell} from "@agenta/entity-ui/variant"
+import {statusVariantMap} from "@agenta/entity-ui/variant"
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Badge as AntBadge, Flex} from "antd"
+import {Flex} from "antd"
 
-import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 
@@ -49,10 +49,9 @@ const VariantPopover = ({env, selectedDeployedVariant}: VariantPopoverProps) => 
                         onClick={(e) => e.stopPropagation()}
                         variant="secondary"
                     >
-                        <AntBadge
-                            text={formatVariantIdWithHash(env.deployedRevisionId as string)}
-                            color={statusMap[env.name]?.badge ?? "transparent"}
-                        />
+                        <Badge variant={statusVariantMap[env.name] ?? "secondary"} dot>
+                            {formatVariantIdWithHash(env.deployedRevisionId as string)}
+                        </Badge>
                     </Badge>
                 }
             />

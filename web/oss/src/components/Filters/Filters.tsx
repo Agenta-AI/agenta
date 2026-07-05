@@ -1,6 +1,7 @@
 import React, {useMemo, useState} from "react"
 
 import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -38,7 +39,6 @@ import {
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {Filter, FilterConditions} from "@/oss/lib/Types"
 
-import CustomAntdBadge from "../CustomUIs/CustomAntdBadge"
 import {
     NUM_OPS,
     STRING_EQU_AND_CONTAINS_OPS,
@@ -821,13 +821,13 @@ const Filters: React.FC<Props> = ({
                             <div className="w-[14px] flex items-center justify-center">
                                 {sanitizedFilters.filter(({field, operator}) => field && operator)
                                     .length > 0 && (
-                                    <CustomAntdBadge
-                                        count={
+                                    <Badge className="h-[14px] min-w-[14px] rounded-[4px] text-[10px] px-1 bg-black text-white leading-none">
+                                        {
                                             sanitizedFilters.filter(
                                                 ({field, operator}) => field && operator,
                                             ).length
                                         }
-                                    />
+                                    </Badge>
                                 )}
                             </div>
                         </div>

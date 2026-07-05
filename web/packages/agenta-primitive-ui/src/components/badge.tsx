@@ -29,12 +29,66 @@ const badgeVariants = cva(
     },
 )
 
+const dotVariants = cva("inline-block size-2 shrink-0 rounded-full", {
+    variants: {
+        variant: {
+            default: "bg-primary",
+            secondary: "bg-secondary",
+            destructive: "bg-destructive",
+            outline: "border-2 border-border bg-transparent",
+            ghost: "bg-transparent",
+            link: "bg-primary",
+            success: "bg-emerald-500",
+            warning: "bg-amber-500",
+            info: "bg-blue-500",
+        },
+    },
+    defaultVariants: {
+        variant: "default",
+    },
+})
+
 function Badge({
     className,
     variant = "default",
+    dot,
     render,
     ...props
-}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
+}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants> & {dot?: boolean}) {
+    if (dot) {
+        const dotElement = <span className={cn(dotVariants({variant}))} />
+        const hasChildren = props.children != null
+
+        return useRender({
+            defaultTagName: "span",
+            props: mergeProps<"span">(
+                {
+                    className: cn(
+                        hasChildren ? "inline-flex items-center gap-1.5" : "inline-flex",
+                        className,
+                    ),
+                },
+                props,
+                hasChildren
+                    ? {
+                          children: (
+                              <>
+                                  {dotElement}
+                                  {props.children}
+                              </>
+                          ),
+                      }
+                    : {children: dotElement},
+            ),
+            render,
+            state: {
+                slot: "badge",
+                variant,
+                dot: true,
+            },
+        })
+    }
+
     return useRender({
         defaultTagName: "span",
         props: mergeProps<"span">(
