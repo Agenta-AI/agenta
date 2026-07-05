@@ -1,12 +1,10 @@
 import {PropsWithChildren} from "react"
 
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {Skeleton, Typography} from "antd"
 import clsx from "clsx"
 
 import ReadOnlyBox from "@/oss/components/pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
-
-const {Text} = Typography
 
 interface CopyableTextProps {
     value?: string | null
@@ -26,7 +24,7 @@ export const CopyableText = ({
     strong = false,
 }: CopyableTextProps) => {
     if (!value || value.trim() === "") {
-        return <Text type="secondary">{placeholder}</Text>
+        return <span className="text-muted-foreground">{placeholder}</span>
     }
 
     const toneClass = {
@@ -37,18 +35,18 @@ export const CopyableText = ({
 
     return (
         <TooltipWithCopyAction title="Copy value" copyText={copyValue ?? value}>
-            <Text
+            <span
                 className={clsx(
                     "inline-flex w-full max-w-full cursor-copy items-center",
+                    strong && "font-semibold",
                     toneClass,
                     className,
                 )}
-                strong={strong}
             >
                 <span className="block w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
                     {value}
                 </span>
-            </Text>
+            </span>
         </TooltipWithCopyAction>
     )
 }
@@ -80,7 +78,7 @@ export const ReferenceSummary = ({
                     tone="secondary"
                 />
             ) : null}
-            {tertiary ? <Text type="secondary">{tertiary}</Text> : null}
+            {tertiary ? <span className="text-muted-foreground">{tertiary}</span> : null}
         </div>
     </ReadOnlyBox>
 )
@@ -93,7 +91,7 @@ export const ReadOnlyCopy = ({value}: {value: string | null | undefined}) => (
 
 export const ReadOnlySkeleton = () => (
     <ReadOnlyBox>
-        <Skeleton.Input active size="small" style={{width: "100%"}} />
+        <Skeleton className="h-5 w-full" />
     </ReadOnlyBox>
 )
 

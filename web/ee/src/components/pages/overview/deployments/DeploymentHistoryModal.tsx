@@ -11,7 +11,7 @@ import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {ClockCounterClockwise, GearSix} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Spin, Table, Tag, Typography} from "antd"
+import {Button, Dropdown, Space, Spin, Table, Tag} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -20,8 +20,6 @@ import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 import DeploymentRevertModal from "./DeploymentRevertModal"
 import HistoryConfig from "./HistoryConfig"
-
-const {Title} = Typography
 
 // ============================================================================
 // TYPES
@@ -366,13 +364,15 @@ const DeploymentHistoryModal = ({
                 closeIcon={null}
                 destroyOnHidden
                 title={
-                    <Space className="[&_h1.ant-typography]:text-lg [&_h1.ant-typography]:font-medium [&_h1.ant-typography]:capitalize">
+                    <Space>
                         <Button
                             onClick={() => setIsHistoryModalOpen(false)}
                             type="text"
                             icon={<CloseOutlined />}
                         />
-                        <Title>{environmentName} deployment history</Title>
+                        <h1 className="!m-0 text-lg font-medium capitalize">
+                            {environmentName} deployment history
+                        </h1>
                     </Space>
                 }
                 width={1200}
@@ -384,9 +384,7 @@ const DeploymentHistoryModal = ({
                     <div className="flex-1">
                         {compareDeployment && currentDeploymentRow?.appRevisionId ? (
                             <div className="flex-1 flex flex-col gap-6 overflow-y-auto h-full">
-                                <Typography.Text className="text-base font-medium">
-                                    Current Deployment
-                                </Typography.Text>
+                                <span className="text-base font-medium">Current Deployment</span>
                                 <HistoryConfig
                                     revisionId={currentDeploymentRow.appRevisionId}
                                     showOriginal
@@ -418,11 +416,11 @@ const DeploymentHistoryModal = ({
                         ) : (
                             <>
                                 <Space className="justify-between">
-                                    <Typography.Text className="text-base font-medium">
+                                    <span className="text-base font-medium">
                                         Deployment v{selectedRow.appDeploymentIndex}
-                                    </Typography.Text>
+                                    </span>
                                     {isShowingCurrentDeployment ? (
-                                        <Typography.Text>Current Deployment</Typography.Text>
+                                        <span>Current Deployment</span>
                                     ) : (
                                         <Space>
                                             <Button
@@ -460,17 +458,17 @@ const DeploymentHistoryModal = ({
 
                                 {selectedRow.variantSlug && (
                                     <div className="flex justify-between">
-                                        <Typography.Text className="text-sm font-medium">
+                                        <span className="text-sm font-medium">
                                             Variant Deployed
-                                        </Typography.Text>
+                                        </span>
                                         <Tag>{selectedRow.variantSlug}</Tag>
                                     </div>
                                 )}
 
                                 {selectedRow.message && (
-                                    <Typography.Text type="secondary">
+                                    <span className="text-muted-foreground">
                                         {selectedRow.message}
-                                    </Typography.Text>
+                                    </span>
                                 )}
 
                                 {selectedRow.appRevisionId ? (
@@ -479,9 +477,9 @@ const DeploymentHistoryModal = ({
                                         showOriginal
                                     />
                                 ) : (
-                                    <Typography.Text type="secondary" className="text-center mt-12">
+                                    <span className="text-center mt-12 text-muted-foreground">
                                         No configuration data available
-                                    </Typography.Text>
+                                    </span>
                                 )}
                             </>
                         )}

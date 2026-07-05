@@ -8,7 +8,7 @@ import {
     SlidersHorizontal,
     Timer,
 } from "@phosphor-icons/react"
-import {Button, Divider, Input, Popover, Space, Tooltip, Typography} from "antd"
+import {Button, Divider, Input, Popover, Space, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
@@ -30,8 +30,6 @@ import {TraceTreeSettingsState} from "../TraceTreeSettings/types"
 import {filterKeySpans} from "./assets/spanVisibility"
 import {TraceTreeProps} from "./assets/types"
 
-const treeHeaderClass =
-    "[&_.ant-typography]:text-sm [&_.ant-typography]:leading-[1.5714285714285714] [&_.ant-typography]:font-medium"
 const treeTitleClass = "text-xs leading-[1.6666666666666667]"
 const treeContentContainerClass = "text-colorTextSecondary"
 const treeContentClass = "flex items-center font-mono gap-0.5"
@@ -48,7 +46,7 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
             <Space size={4}>
                 <AvatarTreeContent value={value} />
                 <Tooltip title={span_name} mouseEnterDelay={0.25}>
-                    <Typography.Text
+                    <span
                         className={
                             status_code === StatusCode.STATUS_CODE_ERROR
                                 ? `${treeTitleClass} text-[var(--ag-c-D61010)] font-[500]`
@@ -56,7 +54,7 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                         }
                     >
                         {span_name}
-                    </Typography.Text>
+                    </span>
                 </Tooltip>
             </Space>
 
@@ -174,12 +172,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
 
     return (
         <div className={"h-full overflow-hidden flex flex-col"}>
-            <div
-                className={clsx(
-                    "flex items-center justify-between h-[43px] pl-2 pr-2",
-                    treeHeaderClass,
-                )}
-            >
+            <div className={clsx("flex items-center justify-between h-[43px] pl-2 pr-2")}>
                 <Input
                     variant="borderless"
                     placeholder="Search in tree"
@@ -222,10 +215,10 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                 {hiddenCount > 0 && (
                     <div className="flex items-center gap-2 mx-2 mb-2 px-3 py-2 rounded-md bg-colorFillTertiary border border-solid border-colorBorderSecondary">
                         <Info size={14} className="shrink-0 text-colorTextTertiary" />
-                        <Typography.Text className="text-[12px] text-colorTextSecondary">
+                        <span className="text-[12px] text-colorTextSecondary">
                             <span className="font-medium text-colorText">{hiddenCount}</span>{" "}
                             {hiddenCount === 1 ? "span" : "spans"} hidden by key spans
-                        </Typography.Text>
+                        </span>
                         <Button
                             type="link"
                             size="small"

@@ -4,7 +4,6 @@ import {environmentMolecule} from "@agenta/entities/environment"
 import {workflowRevisionsListDataAtomFamily} from "@agenta/entities/workflow"
 import {EnvironmentStatus} from "@agenta/entity-ui"
 import {PencilSimpleLine} from "@phosphor-icons/react"
-import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 
 interface VariantGroupTitleProps {
@@ -24,9 +23,9 @@ const VariantGroupTitle = ({parent, defaultNode}: VariantGroupTitleProps) => {
             <div className="flex items-center justify-between pr-0 grow">
                 <div className="flex items-center gap-1.5">
                     <PencilSimpleLine size={14} className="text-[var(--ag-c-9254DE)]" />
-                    <Typography.Text className="font-medium text-[var(--ag-c-9254DE)]">
+                    <span className="font-medium text-[var(--ag-c-9254DE)]">
                         {defaultNode ?? parent.variantName ?? parent.name ?? "Local Drafts"}
-                    </Typography.Text>
+                    </span>
                 </div>
             </div>
         )
@@ -85,9 +84,9 @@ const RegularVariantGroupTitle = ({
 
     return (
         <div className="flex items-center justify-between pr-0 grow">
-            <Typography.Text ellipsis={{tooltip: displayName}}>
+            <span className="truncate" title={displayName}>
                 {defaultNode ?? displayName}
-            </Typography.Text>
+            </span>
             <EnvironmentStatus className="mr-2" variant={{deployedIn}} />
         </div>
     )

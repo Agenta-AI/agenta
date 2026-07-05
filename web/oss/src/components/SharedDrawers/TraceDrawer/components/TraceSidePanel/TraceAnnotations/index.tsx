@@ -3,7 +3,7 @@ import {useMemo, useState} from "react"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {evaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
 import {CloseOutlined} from "@ant-design/icons"
-import {Button, Popover, Space, Typography} from "antd"
+import {Button, Popover, Space} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -173,9 +173,9 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                 evaluator={group.evaluator}
                                 fallbackLabel={group.refId}
                             >
-                                <Typography.Text type="secondary" className="text-[10px]">
+                                <span className="text-[10px] text-muted-foreground">
                                     {group?.evaluator?.name || group.refId}
-                                </Typography.Text>
+                                </span>
                             </EvaluatorDetailsPopover>
                         </div>
 
@@ -190,11 +190,11 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                 (metric.average !== undefined || metric.latest !== undefined) ? (
                                     <div className="flex items-center justify-between">
                                         <Space className="truncate overflow-hidden">
-                                            <Typography.Text>
+                                            <span>
                                                 {metric.latest !== undefined
                                                     ? "Value:"
                                                     : "Total mean:"}
-                                            </Typography.Text>
+                                            </span>
                                             <CustomAntdTag
                                                 value={
                                                     metric.latest !== undefined
@@ -217,9 +217,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                 ) : (
                                     <div className="flex items-center justify-between gap-2">
                                         <div className="flex flex-col overflow-hidden">
-                                            <Typography.Text className="truncate">
-                                                {key}
-                                            </Typography.Text>
+                                            <span className="truncate">{key}</span>
                                         </div>
                                         <Button
                                             type="text"
@@ -259,12 +257,9 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                                 name={annotation.user || ""}
                                                                 showAvatar
                                                             />
-                                                            <Typography.Text
-                                                                type="secondary"
-                                                                className="px-1"
-                                                            >
+                                                            <span className="px-1 text-muted-foreground">
                                                                 {getStringOrJson(annotation.value)}
-                                                            </Typography.Text>
+                                                            </span>
                                                         </div>
                                                     ),
                                                 )}
@@ -278,21 +273,19 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                 "rounded-lg border border-[var(--ag-c-BDC7D1)] border-solid",
                                             )}
                                         >
-                                            <Typography.Text className="truncate overflow-hidden text-ellipsis flex-1">
+                                            <span className="truncate overflow-hidden text-ellipsis flex-1">
                                                 {key}
-                                            </Typography.Text>
+                                            </span>
                                             {summaryValue ? (
-                                                <Typography.Text
-                                                    type={
-                                                        booleanColorClass ? undefined : "secondary"
-                                                    }
+                                                <span
                                                     className={clsx(
                                                         "truncate overflow-hidden text-ellipsis",
-                                                        booleanColorClass,
+                                                        booleanColorClass ||
+                                                            "text-muted-foreground",
                                                     )}
                                                 >
                                                     {summaryValue}
-                                                </Typography.Text>
+                                                </span>
                                             ) : null}
                                         </div>
                                     </Popover>

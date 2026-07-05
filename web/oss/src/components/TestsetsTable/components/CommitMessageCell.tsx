@@ -1,6 +1,5 @@
 import {memo, useEffect, useMemo} from "react"
 
-import {Typography} from "antd"
 import {useSetAtom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
@@ -62,21 +61,18 @@ const CommitMessageCell = memo(function CommitMessageCell({
 
     // Show loading state while fetching
     if (isPending) {
-        return (
-            <Typography.Text type="secondary" className="text-xs animate-pulse">
-                Loading...
-            </Typography.Text>
-        )
+        return <span className="text-xs text-muted-foreground animate-pulse">Loading...</span>
     }
 
-    // Render the commit message with ellipsis and tooltip
+    // Render the commit message with line-clamp ellipsis; title shows the full text.
     return (
-        <Typography.Paragraph
-            ellipsis={{rows: maxLines, tooltip: message}}
-            className="text-gray-600 !mb-0"
+        <p
+            className="text-gray-600 !mb-0 overflow-hidden"
+            style={{display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: maxLines}}
+            title={message ?? undefined}
         >
             {message}
-        </Typography.Paragraph>
+        </p>
     )
 })
 

@@ -1,6 +1,7 @@
 import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
-import {Card, Tag, Typography} from "antd"
+import {CopyTooltip} from "@agenta/ui/copy-tooltip"
+import {Card, Tag} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -423,11 +424,11 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     }
 
     if (!scenarioIds.length) {
-        return <Typography.Text type="secondary">No scenarios to display.</Typography.Text>
+        return <span className="text-muted-foreground">No scenarios to display.</span>
     }
 
     if (!activeId) {
-        return <Typography.Text type="secondary">Loading scenario...</Typography.Text>
+        return <span className="text-muted-foreground">Loading scenario...</span>
     }
 
     if (isLoadingSteps) {
@@ -452,13 +453,11 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                                     {String(scenarioRow.status)}
                                 </Tag>
                             ) : null}
-                            <Typography.Text
-                                type="secondary"
-                                copyable={{text: activeId}}
-                                className="text-xs"
-                            >
-                                {activeId}
-                            </Typography.Text>
+                            <CopyTooltip copyText={activeId} title="Copy scenario id">
+                                <span className="text-xs text-muted-foreground cursor-copy">
+                                    {activeId}
+                                </span>
+                            </CopyTooltip>
                         </div>
                     </div>
                 </div>
@@ -470,16 +469,14 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                             {/* Inputs Card */}
                             <Card title="Inputs" id="focus-section-inputs">
                                 {!columnResult ? (
-                                    <Typography.Text type="secondary">
-                                        Loading inputs…
-                                    </Typography.Text>
+                                    <span className="text-muted-foreground">Loading inputs…</span>
                                 ) : inputColumns.length ? (
                                     <div className="flex flex-col gap-4">
                                         {inputColumns.map((column) => (
                                             <div key={column.id} className="flex flex-col gap-2">
-                                                <Typography.Text strong>
+                                                <span className="font-semibold">
                                                     {column.displayLabel ?? column.label}
-                                                </Typography.Text>
+                                                </span>
                                                 <ColumnValueView
                                                     column={column}
                                                     scenarioId={activeId}
@@ -495,26 +492,24 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                                                 key={step.id ?? getStepKey(step)}
                                                 className="flex flex-col gap-2"
                                             >
-                                                <Typography.Text strong>
+                                                <span className="font-semibold">
                                                     {getStepKey(step) || "Input"}
-                                                </Typography.Text>
+                                                </span>
                                                 <StepContentRenderer step={step} />
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <Typography.Text type="secondary">
-                                        No input data.
-                                    </Typography.Text>
+                                    <span className="text-muted-foreground">No input data.</span>
                                 )}
                             </Card>
 
                             {/* Output Card */}
                             <Card title="Output" id="focus-section-outputs">
                                 {!columnResult ? (
-                                    <Typography.Text type="secondary">
+                                    <span className="text-muted-foreground">
                                         Loading invocation…
-                                    </Typography.Text>
+                                    </span>
                                 ) : outputColumns.length ? (
                                     <div className="flex flex-col gap-4">
                                         {outputColumns.map((column) => (
@@ -552,9 +547,9 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                                         ))}
                                     </div>
                                 ) : (
-                                    <Typography.Text type="secondary">
+                                    <span className="text-muted-foreground">
                                         No invocation data.
-                                    </Typography.Text>
+                                    </span>
                                 )}
                             </Card>
                         </div>

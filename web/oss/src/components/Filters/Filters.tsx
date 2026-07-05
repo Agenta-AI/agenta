@@ -8,18 +8,7 @@ import {
     PlusIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
-import {
-    Button,
-    Divider,
-    Dropdown,
-    Input,
-    MenuProps,
-    Popover,
-    Select,
-    Space,
-    TreeSelect,
-    Typography,
-} from "antd"
+import {Button, Divider, Dropdown, Input, MenuProps, Popover, Select, Space, TreeSelect} from "antd"
 import {useAtomValue} from "jotai"
 import isEqual from "lodash/isEqual"
 
@@ -78,8 +67,7 @@ const popoverClass =
     "[&.ant-popover]:max-w-[100vw] [&_.ant-popover-container]:w-[clamp(320px,60vw,700px)] [&_.ant-popover-container]:max-w-[calc(100vw-24px)] [&_.ant-popover-container]:max-h-[min(70vh,640px)] [&_.ant-popover-container]:p-0"
 const fieldDropdownSubmenuClass =
     "[&_.ant-dropdown-menu]:w-full [&_.ant-dropdown-menu]:max-w-[min(560px,calc(100vw-32px))] [&_.ant-dropdown-menu]:max-h-[60vh] [&_.ant-dropdown-menu]:overflow-auto"
-const filterHeadingClass =
-    "flex items-center justify-between py-2 pr-2 pl-4 gap-3 [&_.ant-typography]:text-sm [&_.ant-typography]:leading-[1.5714285714285714] [&_.ant-typography]:font-medium"
+const filterHeadingClass = "flex items-center justify-between py-2 pr-2 pl-4 gap-3"
 const filterContainerClass = "flex gap-2 flex-col p-2"
 
 type AnnotationFeedbackValueType = "string" | "number" | "boolean"
@@ -859,7 +847,9 @@ const Filters: React.FC<Props> = ({
             content={
                 <section>
                     <div className={filterHeadingClass}>
-                        <Typography.Text>Filter</Typography.Text>
+                        <span className="text-sm font-medium leading-[1.5714285714285714]">
+                            Filter
+                        </span>
                     </div>
                     <div className="-ml-4 -mr-2">
                         <Divider className="!m-0" />
@@ -1288,9 +1278,9 @@ const Filters: React.FC<Props> = ({
                                     size={0}
                                     key={idx}
                                 >
-                                    <Typography.Text type="secondary">
+                                    <span className="text-muted-foreground">
                                         {idx === 0 ? "Where" : "And"}
-                                    </Typography.Text>
+                                    </span>
 
                                     <Space orientation="vertical" className="w-full">
                                         <div className="flex items-center gap-2 w-full">
@@ -1520,12 +1510,9 @@ const Filters: React.FC<Props> = ({
                                                 ))}
 
                                             {isAnnotationFieldSelected && (
-                                                <Typography.Text
-                                                    type="secondary"
-                                                    className="whitespace-nowrap"
-                                                >
+                                                <span className="whitespace-nowrap text-muted-foreground">
                                                     That
-                                                </Typography.Text>
+                                                </span>
                                             )}
 
                                             {!singleOperator && (
@@ -1764,12 +1751,9 @@ const Filters: React.FC<Props> = ({
                                         {(isEvaluatorActive || isFeedbackActive) &&
                                             (isFeedbackActive ? (
                                                 <div className="w-full flex items-center gap-2">
-                                                    <Typography.Text
-                                                        type="secondary"
-                                                        className="whitespace-nowrap"
-                                                    >
+                                                    <span className="whitespace-nowrap text-muted-foreground">
                                                         Feedback
-                                                    </Typography.Text>
+                                                    </span>
                                                     <Select
                                                         className="w-[180px]"
                                                         showSearch

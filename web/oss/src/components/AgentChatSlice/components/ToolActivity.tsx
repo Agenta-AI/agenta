@@ -11,11 +11,8 @@ import {
     Wrench,
 } from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
-import {Typography} from "antd"
 
 import {formatToolValue, stripFence} from "../assets/toolFormat"
-
-const {Text} = Typography
 
 /** Friendly name for a tool part. `dynamic-tool` carries the name on `toolName`; the typed
  * tool parts encode it as `tool-<name>`. */
@@ -154,17 +151,18 @@ const ToolRow = ({
     const header = (
         <>
             <StatusIcon state={state} />
-            <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
+            <span className="!text-xs !font-medium min-w-0 truncate" title={name}>
                 {name}
-            </Text>
+            </span>
             {midText ? (
-                <Text
-                    type={state === "output-error" ? "danger" : "secondary"}
-                    className="!text-xs min-w-0 truncate"
+                <span
+                    className={`!text-xs min-w-0 truncate ${
+                        state === "output-error" ? "text-destructive" : "text-muted-foreground"
+                    }`}
                     title={typeof midText === "string" ? midText : undefined}
                 >
                     {midText}
-                </Text>
+                </span>
             ) : null}
         </>
     )
@@ -296,10 +294,10 @@ const ToolActivity = ({
                     weight="fill"
                     className={`shrink-0 ${failed > 0 ? "text-colorError" : "text-colorSuccess"}`}
                 />
-                <Text type="secondary" className="!text-xs">
+                <span className="!text-xs text-muted-foreground">
                     {label}
                     {failed > 0 ? ` · ${failed} failed` : ""}
-                </Text>
+                </span>
             </button>
 
             <HeightCollapse open={expanded}>

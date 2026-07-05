@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {ArrowRight, Crosshair, Plus, Trash} from "@phosphor-icons/react"
-import {AutoComplete, Button, Select, Tooltip, Typography} from "antd"
+import {AutoComplete, Button, Select, Tooltip} from "antd"
 
 import {createMappingId, Mapping, TestsetColumn} from "../assets/types"
 
@@ -74,21 +74,18 @@ export function MappingSection({
 
     return (
         <div className="flex flex-col gap-1" data-testid="mapping-section">
-            <Typography.Text
-                className="font-medium"
-                type={hasDuplicateColumns ? "danger" : undefined}
-            >
+            <span className={`font-medium ${hasDuplicateColumns ? "text-destructive" : ""}`}>
                 3. Review Mappings
-            </Typography.Text>
-            <Typography.Text type="secondary" className="text-xs">
+            </span>
+            <span className="text-xs text-muted-foreground">
                 {mappingData.length > 0
                     ? "Your field mappings are shown below. You can also add mappings manually."
                     : "Map fields from the data preview above, or add mappings manually here."}
-            </Typography.Text>
+            </span>
             {hasDuplicateColumns && (
-                <Typography.Text type="danger" className="text-xs">
+                <span className="text-xs text-destructive">
                     Duplicate columns detected. Ensure each column is unique.
-                </Typography.Text>
+                </span>
             )}
 
             {(selectedRevisionId && selectedRevisionId !== "draft") ||
@@ -230,9 +227,9 @@ export function MappingSection({
                 </>
             ) : (
                 <div className="py-4 px-3 bg-gray-50 rounded-md border border-dashed border-gray-200 text-center">
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         Select a testset above to start mapping fields
-                    </Typography.Text>
+                    </span>
                 </div>
             )}
         </div>

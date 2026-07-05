@@ -1,6 +1,6 @@
 import {ReactNode} from "react"
 
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import Image from "next/image"
 
 const NoResultsFound = ({
@@ -21,13 +21,15 @@ const NoResultsFound = ({
 }) => {
     return (
         <div
-            className={`w-full flex flex-col items-center justify-center py-20 gap-4 [&>span.ant-typography]:leading-[1.4] [&>span.ant-typography]:text-xl [&>span.ant-typography]:font-medium [&>span.ant-typography]:text-colorText ${className}`}
+            className={`w-full flex flex-col items-center justify-center py-20 gap-4 ${className}`}
         >
             <Image src="/assets/not-found.png" alt="not-found" width={240} height={210} />
-            <Typography.Text>{!title ? "No Results found" : title}</Typography.Text>
-            <Typography.Paragraph type="secondary">
+            <span className="leading-[1.4] text-xl font-medium text-colorText">
+                {!title ? "No Results found" : title}
+            </span>
+            <p className="text-muted-foreground">
                 {!description ? "No results match the search criteria." : description}
-            </Typography.Paragraph>
+            </p>
             {primaryActionSlot
                 ? primaryActionSlot
                 : onPrimaryAction && (

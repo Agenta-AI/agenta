@@ -1,7 +1,5 @@
 import {memo} from "react"
 
-import {Typography} from "antd"
-
 import {SpanCategory} from "@/oss/services/tracing/types"
 
 import {spanTypeStyles} from "../assets/constants"
@@ -19,9 +17,9 @@ const NodeNameCell = memo(({name, type}: Props) => {
             <div className="grid place-items-center shrink-0">
                 <Icon size={16} />
             </div>
-            <Typography.Text ellipsis={{tooltip: name}} className="flex-1 min-w-0">
+            <span className="flex-1 min-w-0 truncate" title={name}>
                 {name}
-            </Typography.Text>
+            </span>
         </div>
     )
 })

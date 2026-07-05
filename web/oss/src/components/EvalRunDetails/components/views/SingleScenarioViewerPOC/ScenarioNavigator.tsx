@@ -1,7 +1,8 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
+import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {LeftOutlined, RightOutlined} from "@ant-design/icons"
-import {Button, Select, SelectProps, Tag, Typography} from "antd"
+import {Button, Select, SelectProps, Tag} from "antd"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
@@ -141,9 +142,9 @@ const ScenarioNavigator = ({
                         <div className="flex flex-col">
                             <span>{option.data.label}</span>
                             {option.data.description ? (
-                                <Typography.Text type="secondary" className="text-xs">
+                                <span className="text-xs text-muted-foreground">
                                     {option.data.description}
-                                </Typography.Text>
+                                </span>
                             ) : null}
                         </div>
                     )}
@@ -151,9 +152,9 @@ const ScenarioNavigator = ({
             </div>
             {showScenarioIdTag && selectedOption?.description ? (
                 <Tag bordered={false} className="bg-[var(--ag-c-0517290F)] font-normal">
-                    <Typography.Text copyable={{text: selectedOption.description}}>
-                        {selectedOption.description}
-                    </Typography.Text>
+                    <CopyTooltip copyText={selectedOption.description} title="Copy scenario id">
+                        <span className="cursor-copy">{selectedOption.description}</span>
+                    </CopyTooltip>
                 </Tag>
             ) : null}
         </div>

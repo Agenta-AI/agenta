@@ -1,13 +1,10 @@
-import {Button, Card, Flex, Space, Typography} from "antd"
+import {Button, Card, Flex, Space} from "antd"
 import Image from "next/image"
 
 import {useOrgData} from "@/oss/state/org"
 import {useProjectData} from "@/oss/state/project"
 
-const demoAppCardClass =
-    "w-[400px] [&_.ant-card-body]:p-3 [&_.ant-card-body_span.ant-typography]:text-ellipsis [&_.ant-card-body_span.ant-typography]:text-sm [&_.ant-card-body_span.ant-typography]:font-medium [&_.ant-card-body_span.ant-typography]:leading-[1.5714285714285714] [&_.ant-card-body_span.ant-typography]:text-[inherit] [&_.ant-card-body_div.ant-typography]:text-sm [&_.ant-card-body_div.ant-typography]:leading-[1.5714285714285714] [&_.ant-card-body_div.ant-typography]:text-colorTextSecondary"
-
-const {Text, Title, Paragraph} = Typography
+const demoAppCardClass = "w-[400px] [&_.ant-card-body]:p-3"
 
 const DemoApplicationsSection = () => {
     const {projects} = useProjectData()
@@ -23,12 +20,12 @@ const DemoApplicationsSection = () => {
     return (
         <div className="my-10 flex flex-col gap-4">
             <Space orientation="vertical" size={8}>
-                <Title level={2}>Explore demo applications</Title>
-                <Text>
+                <h2 className="text-xl font-semibold leading-tight">Explore demo applications</h2>
+                <span>
                     See Agenta in action by exploring fully build prompts, evaluations,
                     observability and traces. Learn how to set your application by watching
                     tutorials.
-                </Text>
+                </span>
             </Space>
 
             <div>
@@ -46,11 +43,13 @@ const DemoApplicationsSection = () => {
                 >
                     <Space orientation="vertical" size={24}>
                         <Space orientation="vertical">
-                            <Text>RAG Q&A with Wikipedia</Text>
-                            <Paragraph>
+                            <span className="text-ellipsis text-sm font-medium leading-[1.5714285714285714]">
+                                RAG Q&A with Wikipedia
+                            </span>
+                            <p className="text-sm leading-[1.5714285714285714] text-colorTextSecondary">
                                 Use RAG to answer questions by fetching relevant information from
                                 wikipedia
-                            </Paragraph>
+                            </p>
                         </Space>
                         <Flex gap={8}>
                             <Button

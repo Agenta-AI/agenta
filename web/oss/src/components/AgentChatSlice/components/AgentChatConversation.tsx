@@ -2,11 +2,12 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval} from "@agenta/playground"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
+import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {Paperclip} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Alert, Button, Tag, Tooltip, Typography, type UploadFile} from "antd"
+import {Alert, Button, Tag, Tooltip, type UploadFile} from "antd"
 import {useSetAtom, useStore} from "jotai"
 
 import {useAgConfigStatus} from "../assets/agConfig"
@@ -19,8 +20,6 @@ import {persistSessionMessagesAtom, sessionMessagesAtom} from "../state/sessions
 import AgentMessage from "./AgentMessage"
 import ApprovalDock, {getPendingApprovals} from "./ApprovalDock"
 import type {ClientToolOutputHandler} from "./clientTools"
-
-const {Text} = Typography
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
  * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
@@ -225,27 +224,22 @@ const AgentChatConversation = ({
             {confirmDialog}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-col">
-                    <Text type="secondary" className="!text-xs">
-                        POST {trackApi(track)}
-                    </Text>
-                    <Text
-                        type="secondary"
-                        className="!text-[11px] font-mono"
-                        copyable={{text: sessionId}}
-                    >
-                        session: {sessionId}
-                    </Text>
+                    <span className="!text-xs text-muted-foreground">POST {trackApi(track)}</span>
+                    <CopyTooltip copyText={sessionId} title="Copy session id">
+                        <span className="!text-[11px] font-mono text-muted-foreground cursor-copy">
+                            session: {sessionId}
+                        </span>
+                    </CopyTooltip>
                 </div>
                 <div className="flex items-center gap-2">
                     {appId && <ConfigBadge appId={appId} />}
                     {messages.length > 0 && (
-                        <Text
-                            type="secondary"
-                            className="!text-xs cursor-pointer hover:underline"
+                        <span
+                            className="!text-xs text-muted-foreground cursor-pointer hover:underline"
                             onClick={() => setMessages([])}
                         >
                             Clear
-                        </Text>
+                        </span>
                     )}
                 </div>
             </div>

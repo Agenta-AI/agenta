@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import {ClockCounterClockwise, Trash} from "@phosphor-icons/react"
-import {Button, Empty, Popover, Tag, Tooltip, Typography} from "antd"
+import {Button, Empty, Popover, Tag, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useChatScopeKey} from "../state/scope"
@@ -14,8 +14,6 @@ import {
     sessionMessagesAtom,
     timeAgo,
 } from "../state/sessions"
-
-const {Text} = Typography
 
 /**
  * The scrollable history list. Rendered as Popover content (so it only mounts — and only
@@ -66,12 +64,12 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
                         className="group flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-colorFillTertiary"
                     >
                         <div className="flex min-w-0 flex-1 flex-col">
-                            <Text className="!text-xs" ellipsis={{tooltip: label}}>
+                            <span className="!text-xs truncate" title={label}>
                                 {label}
-                            </Text>
-                            <Text type="secondary" className="!text-[11px]">
+                            </span>
+                            <span className="!text-[11px] text-muted-foreground">
                                 {timeAgo(session.createdAt)}
-                            </Text>
+                            </span>
                         </div>
                         {isOpen && (
                             <Tag color="processing" className="!m-0 !text-[11px]">

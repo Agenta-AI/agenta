@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
-import {Tag, Typography} from "antd"
+import {CopyTooltip} from "@agenta/ui/copy-tooltip"
+import {Tag} from "antd"
 
 import ScenarioNavigator from "./ScenarioNavigator"
 import type {ScenarioHeaderProps} from "./types"
@@ -24,13 +25,11 @@ const ScenarioHeader = ({runId, scenarioId, status, onScenarioChange}: ScenarioH
                             {String(status)}
                         </Tag>
                     ) : null}
-                    <Typography.Text
-                        type="secondary"
-                        copyable={{text: scenarioId}}
-                        className="text-xs"
-                    >
-                        {scenarioId}
-                    </Typography.Text>
+                    <CopyTooltip copyText={scenarioId} title="Copy scenario id">
+                        <span className="text-xs text-muted-foreground cursor-copy">
+                            {scenarioId}
+                        </span>
+                    </CopyTooltip>
                 </div>
             </div>
         </div>

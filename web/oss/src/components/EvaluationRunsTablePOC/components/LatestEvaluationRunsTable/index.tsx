@@ -1,6 +1,5 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {Typography} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -46,10 +45,8 @@ const LatestEvaluationRunsTable = ({
     const headerTitle = useMemo(
         () =>
             title ? (
-                <div className="flex items-center gap-3 [&_>_h1.ant-typography]:text-xs">
-                    <Typography.Title level={3} className="!m-0">
-                        {title}
-                    </Typography.Title>
+                <div className="flex items-center gap-3">
+                    <h3 className="!m-0 text-lg font-semibold leading-snug">{title}</h3>
                 </div>
             ) : null,
         [title],
