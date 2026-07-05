@@ -1,9 +1,15 @@
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {UploadOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
-import {Collapse, Form, Upload, theme} from "antd"
+import {Form, Upload, theme} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -159,85 +165,78 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 </div>
 
                 <div>
-                    <Collapse
-                        defaultActiveKey={["1"]}
-                        expandIconPlacement="end"
-                        items={[
-                            {
-                                key: "1",
-                                label: "Instructions",
-                                children: (
-                                    <div className="flex flex-col items-start gap-4">
-                                        {uploadType === "CSV" ? (
-                                            <>
+                    <Accordion defaultValue={["1"]}>
+                        <AccordionItem value="1">
+                            <AccordionTrigger>Instructions</AccordionTrigger>
+                            <AccordionContent>
+                                <div className="flex flex-col items-start gap-4">
+                                    {uploadType === "CSV" ? (
+                                        <>
+                                            <span>
+                                                The testset should be in CSV format with the
+                                                following requirements:
+                                            </span>
+                                            <div className="flex flex-col">
+                                                <span>1. Comma separated values</span>
                                                 <span>
-                                                    The testset should be in CSV format with the
-                                                    following requirements:
+                                                    2. The first row should contain the headers
                                                 </span>
-                                                <div className="flex flex-col">
-                                                    <span>1. Comma separated values</span>
-                                                    <span>
-                                                        2. The first row should contain the headers
-                                                    </span>
-                                                </div>
-                                                <p>
-                                                    Here is an example of a valid CSV file: <br />
-                                                    recipe_name,correct_answer <br />
-                                                    ChickenParmesan,Chicken <br /> "a, special,
-                                                    recipe",Beef
-                                                </p>
-                                            </>
-                                        ) : (
-                                            <>
+                                            </div>
+                                            <p>
+                                                Here is an example of a valid CSV file: <br />
+                                                recipe_name,correct_answer <br />
+                                                ChickenParmesan,Chicken <br /> "a, special,
+                                                recipe",Beef
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>
+                                                The testset should be in JSON format with the
+                                                following requirements:
+                                            </span>
+
+                                            <div className="flex flex-col">
+                                                <span>1. A json file with an array of rows</span>
                                                 <span>
-                                                    The testset should be in JSON format with the
-                                                    following requirements:
+                                                    2. Each row in the array should be an object
                                                 </span>
+                                                <span>
+                                                    of column header name as key and row data as
+                                                    value.
+                                                </span>
+                                            </div>
 
-                                                <div className="flex flex-col">
-                                                    <span>
-                                                        1. A json file with an array of rows
-                                                    </span>
-                                                    <span>
-                                                        2. Each row in the array should be an object
-                                                    </span>
-                                                    <span>
-                                                        of column header name as key and row data as
-                                                        value.
-                                                    </span>
-                                                </div>
+                                            <p>
+                                                Here is an example of a valid JSON file: <br />
+                                                {JSON.stringify(
+                                                    [
+                                                        {
+                                                            recipe_name: "Chicken Parmesan",
+                                                            correct_answer: "Chicken",
+                                                        },
+                                                        {
+                                                            recipe_name: "a, special, recipe",
+                                                            correct_answer: "Beef",
+                                                        },
+                                                    ],
+                                                    null,
+                                                    2,
+                                                )}
+                                            </p>
+                                        </>
+                                    )}
 
-                                                <p>
-                                                    Here is an example of a valid JSON file: <br />
-                                                    {JSON.stringify(
-                                                        [
-                                                            {
-                                                                recipe_name: "Chicken Parmesan",
-                                                                correct_answer: "Chicken",
-                                                            },
-                                                            {
-                                                                recipe_name: "a, special, recipe",
-                                                                correct_answer: "Beef",
-                                                            },
-                                                        ],
-                                                        null,
-                                                        2,
-                                                    )}
-                                                </p>
-                                            </>
-                                        )}
-
-                                        <a
-                                            href="https://agenta.ai/docs/evaluation/managing-test-sets/upload-csv"
-                                            target="_blank"
-                                        >
-                                            <Button variant="outline">Read the docs</Button>
-                                        </a>
-                                    </div>
-                                ),
-                            },
-                        ]}
-                    />
+                                    <a
+                                        href="https://agenta.ai/docs/evaluation/managing-test-sets/upload-csv"
+                                        target="_blank"
+                                    >
+                                        <Button variant="outline">Read the docs</Button>
+                                    </a>
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
                 </div>
             </div>
 

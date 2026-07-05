@@ -67,4 +67,9 @@ function AccordionContent({className, children, ...props}: AccordionPrimitive.Pa
     )
 }
 
+export type AccordionProps = AccordionPrimitive.Root.Props
+export type AccordionItemProps = AccordionPrimitive.Item.Props
+export type AccordionTriggerProps = AccordionPrimitive.Trigger.Props
+export type AccordionContentProps = AccordionPrimitive.Panel.Props
+
 export {Accordion, AccordionItem, AccordionTrigger, AccordionContent}

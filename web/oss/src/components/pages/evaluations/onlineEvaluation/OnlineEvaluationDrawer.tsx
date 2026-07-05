@@ -8,12 +8,18 @@ import {
     evaluatorTemplatesQueryAtom,
     isOnlineCapableEvaluator,
 } from "@agenta/entities/workflow"
+import {
+    Accordion,
+    AccordionItem,
+    AccordionTrigger,
+    AccordionContent,
+} from "@agenta/primitive-ui/components/accordion"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Collapse, DatePicker, Form, Input, Select, Switch} from "antd"
+import {DatePicker, Form, Input, Select, Switch} from "antd"
 import dayjs from "dayjs"
 import type {Dayjs} from "dayjs"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -58,7 +64,7 @@ const {RangePicker} = DatePicker
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 
 const collapseClass =
-    "[&_.ant-collapse-item]:!border-none [&_.ant-collapse-item]:!rounded-[10px] [&_.ant-collapse-item]:overflow-hidden [&_.ant-collapse-item]:bg-colorBgContainer [&_.ant-collapse-item]:shadow-[0_1px_2px_rgba(15,23,42,0.06)] [&_.ant-collapse-item+.ant-collapse-item]:mt-2 [&_.ant-collapse-header]:!bg-[var(--ag-c-FAFAFB)] [&_.ant-collapse-header]:!border-b [&_.ant-collapse-header]:!border-solid [&_.ant-collapse-header]:!border-[var(--ag-colorSplit)] [&_.ant-collapse-header]:!p-[12px_16px] [&_.ant-collapse-content]:!border-t-0 [&_.ant-collapse-content]:!rounded-[0_0_10px_10px] [&_.ant-collapse-content>.ant-collapse-content-box]:!p-4"
+    "[&_[data-slot=accordion-item]]:!border-none [&_[data-slot=accordion-item]]:!rounded-[10px] [&_[data-slot=accordion-item]]:overflow-hidden [&_[data-slot=accordion-item]]:bg-colorBgContainer [&_[data-slot=accordion-item]]:shadow-[0_1px_2px_rgba(15,23,42,0.06)] [&_[data-slot=accordion-item]+[data-slot=accordion-item]]:mt-2 [&_[data-slot=accordion-trigger]]:!bg-[var(--ag-c-FAFAFB)] [&_[data-slot=accordion-trigger]]:!border-b [&_[data-slot=accordion-trigger]]:!border-solid [&_[data-slot=accordion-trigger]]:!border-[var(--ag-colorSplit)] [&_[data-slot=accordion-trigger]]:!p-[12px_16px] [&_[data-slot=accordion-content]]:!border-t-0 [&_[data-slot=accordion-content]]:!rounded-[0_0_10px_10px] [&_[data-slot=accordion-content]>div]:!p-4"
 
 const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawerProps) => {
     const baseEvaluatorTemplatesQuery = useAtomValue(evaluatorTemplatesQueryAtom)
@@ -460,232 +466,216 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 requiredMark={false}
                 initialValues={{historical: false, tags: [], sampling_rate: 100}}
             >
-                <Collapse
-                    defaultActiveKey={["general", "query", "evaluator"]}
-                    bordered={false}
+                <Accordion
+                    multiple
+                    defaultValue={["general", "query", "evaluator"]}
                     className={collapseClass}
-                    items={[
-                        {
-                            key: "general",
-                            label: buildPanelHeader("General"),
-                            style: {marginBottom: 4},
-                            children: (
-                                <>
-                                    <Form.Item
-                                        name="name"
-                                        label="Name"
-                                        rules={[{required: true, message: "Enter a name"}]}
-                                        style={{marginBottom: 12}}
-                                    >
-                                        <Input
-                                            className="w-full"
-                                            placeholder="Testing evaluator"
-                                            allowClear
-                                        />
-                                    </Form.Item>
+                >
+                    <AccordionItem value="general">
+                        <AccordionTrigger>{buildPanelHeader("General")}</AccordionTrigger>
+                        <AccordionContent>
+                            <Form.Item
+                                name="name"
+                                label="Name"
+                                rules={[{required: true, message: "Enter a name"}]}
+                                style={{marginBottom: 12}}
+                            >
+                                <Input
+                                    className="w-full"
+                                    placeholder="Testing evaluator"
+                                    allowClear
+                                />
+                            </Form.Item>
 
-                                    <Form.Item
-                                        name="description"
-                                        label="Description"
-                                        style={{marginBottom: 12}}
-                                    >
-                                        <Input.TextArea
-                                            rows={3}
-                                            placeholder="Describe this evaluation"
-                                            autoSize={{minRows: 3, maxRows: 5}}
-                                        />
-                                    </Form.Item>
+                            <Form.Item
+                                name="description"
+                                label="Description"
+                                style={{marginBottom: 12}}
+                            >
+                                <Input.TextArea
+                                    rows={3}
+                                    placeholder="Describe this evaluation"
+                                    autoSize={{minRows: 3, maxRows: 5}}
+                                />
+                            </Form.Item>
 
-                                    <Form.Item
-                                        name="tags"
-                                        label={
-                                            <div className="flex items-center justify-between">
-                                                <span>
-                                                    Add tags{" "}
-                                                    <span className="text-muted-foreground">
-                                                        Optional
-                                                    </span>
-                                                </span>
-                                            </div>
-                                        }
-                                        style={{marginBottom: 0}}
-                                    >
-                                        <Tooltip>
-                                            <TooltipTrigger
-                                                render={
-                                                    <Select
-                                                        mode="tags"
-                                                        className="w-full"
-                                                        placeholder="Coming soon"
-                                                        tokenSeparators={[","]}
-                                                        allowClear
-                                                        disabled
-                                                    />
-                                                }
-                                            />
-                                            <TooltipContent>{"Feature coming soon"}</TooltipContent>
-                                        </Tooltip>
-                                    </Form.Item>
-                                </>
-                            ),
-                        },
-                        {
-                            key: "query",
-                            label: buildPanelHeader("Query", querySummary),
-                            style: {marginBottom: 4},
-                            children: (
-                                <>
-                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                        <Form.Item
-                                            label="Run for filters"
-                                            style={{marginBottom: 0}}
-                                        >
-                                            <Filters
-                                                filterData={filters}
-                                                columns={filterColumns}
-                                                onApplyFilter={(newFilters: Filter[]) =>
-                                                    setFilters(newFilters)
-                                                }
-                                                onClearFilter={(newFilters: Filter[]) =>
-                                                    setFilters(newFilters)
-                                                }
-                                                buttonProps={{
-                                                    size: "middle",
-                                                    className: "!flex !items-center !gap-2",
-                                                }}
-                                            />
-                                        </Form.Item>
-                                        <Form.Item
-                                            name="sampling_rate"
-                                            label="Sampling rate"
-                                            style={{marginBottom: 0}}
-                                        >
-                                            <SamplingRateControl />
-                                        </Form.Item>
+                            <Form.Item
+                                name="tags"
+                                label={
+                                    <div className="flex items-center justify-between">
+                                        <span>
+                                            Add tags{" "}
+                                            <span className="text-muted-foreground">Optional</span>
+                                        </span>
                                     </div>
-
-                                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <Form.Item
-                                                name="historical"
-                                                valuePropName="checked"
-                                                className="mb-0"
-                                            >
-                                                <Switch size="small" disabled />
-                                            </Form.Item>
-                                            <Tooltip>
-                                                <TooltipTrigger
-                                                    render={
-                                                        <span className="text-muted-foreground">
-                                                            Run on historical data
-                                                        </span>
-                                                    }
-                                                />
-                                                <TooltipContent>
-                                                    {"Not available yet"}
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </div>
-                                        <Form.Item name="historical_range" className="mb-0">
-                                            <RangePicker
+                                }
+                                style={{marginBottom: 0}}
+                            >
+                                <Tooltip>
+                                    <TooltipTrigger
+                                        render={
+                                            <Select
+                                                mode="tags"
+                                                className="w-full"
+                                                placeholder="Coming soon"
+                                                tokenSeparators={[","]}
                                                 allowClear
-                                                allowEmpty
                                                 disabled
-                                                className="w-[200px]"
-                                                placeholder={["Start date", "End date"]}
                                             />
-                                        </Form.Item>
-                                    </div>
-                                </>
-                            ),
-                        },
-                        {
-                            key: "evaluator",
-                            label: buildPanelHeader("Evaluator", evaluatorSummary),
-                            style: {marginBottom: 4},
-                            children: (
-                                <>
-                                    <Form.Item
-                                        name="evaluator"
-                                        label="Evaluator"
-                                        style={{marginBottom: 12}}
-                                        rules={[{required: true, message: "Select an evaluator"}]}
-                                    >
-                                        <Select
-                                            className="w-full"
-                                            placeholder="Select"
-                                            options={evaluatorOptions}
-                                            optionLabelProp="label"
-                                            disabled={!hasEvaluatorOptions}
-                                            loading={isLoadingEvaluators}
-                                            notFoundContent={
-                                                isLoadingEvaluators
-                                                    ? "Loading evaluators..."
-                                                    : "No supported evaluators available"
-                                            }
-                                            showSearch
-                                            filterOption={(input, option) => {
-                                                if (!option) return false
-                                                const query = input.toLowerCase()
-                                                if (!query.length) return true
-                                                const searchableTexts: string[] = []
-
-                                                const searchText =
-                                                    typeof (option as any)?.searchText === "string"
-                                                        ? (option as any).searchText
-                                                        : undefined
-                                                if (searchText) {
-                                                    searchableTexts.push(searchText)
-                                                }
-                                                if (typeof option.title === "string") {
-                                                    searchableTexts.push(option.title)
-                                                }
-                                                if (typeof option.label === "string") {
-                                                    searchableTexts.push(option.label)
-                                                }
-                                                if (
-                                                    typeof option.value === "string" ||
-                                                    typeof option.value === "number"
-                                                ) {
-                                                    searchableTexts.push(String(option.value))
-                                                }
-
-                                                return searchableTexts
-                                                    .map((text) => text.toLowerCase())
-                                                    .some((text) => text.includes(query))
-                                            }}
-                                            allowClear
-                                        />
-                                        {!isLoadingEvaluators && !hasEvaluatorOptions ? (
-                                            <span className="block mt-2 text-muted-foreground">
-                                                No supported evaluators are available. Add an
-                                                evaluator configured as Custom, LLM-as-a-judge,
-                                                Code, Regex test, or Webhook test to continue.
-                                                {evaluatorRegistryHref ? (
-                                                    <>
-                                                        {" "}
-                                                        <a href={evaluatorRegistryHref}>
-                                                            Open evaluator registry
-                                                        </a>
-                                                        .
-                                                    </>
-                                                ) : null}
-                                            </span>
-                                        ) : null}
-                                    </Form.Item>
-
-                                    <EvaluatorDetailsPreview
-                                        details={evaluatorDetails}
-                                        typeLabel={finalTypeLabel}
-                                        typeKey={finalTypeKey}
-                                        key={selectedEvaluatorRevisionId ?? "empty"}
-                                        showType={hasEvaluatorType}
+                                        }
                                     />
-                                </>
-                            ),
-                        },
-                    ]}
-                />
+                                    <TooltipContent>{"Feature coming soon"}</TooltipContent>
+                                </Tooltip>
+                            </Form.Item>
+                        </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem value="query">
+                        <AccordionTrigger>
+                            {buildPanelHeader("Query", querySummary)}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <Form.Item label="Run for filters" style={{marginBottom: 0}}>
+                                    <Filters
+                                        filterData={filters}
+                                        columns={filterColumns}
+                                        onApplyFilter={(newFilters: Filter[]) =>
+                                            setFilters(newFilters)
+                                        }
+                                        onClearFilter={(newFilters: Filter[]) =>
+                                            setFilters(newFilters)
+                                        }
+                                        buttonProps={{
+                                            size: "middle",
+                                            className: "!flex !items-center !gap-2",
+                                        }}
+                                    />
+                                </Form.Item>
+                                <Form.Item
+                                    name="sampling_rate"
+                                    label="Sampling rate"
+                                    style={{marginBottom: 0}}
+                                >
+                                    <SamplingRateControl />
+                                </Form.Item>
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <Form.Item
+                                        name="historical"
+                                        valuePropName="checked"
+                                        className="mb-0"
+                                    >
+                                        <Switch size="small" disabled />
+                                    </Form.Item>
+                                    <Tooltip>
+                                        <TooltipTrigger
+                                            render={
+                                                <span className="text-muted-foreground">
+                                                    Run on historical data
+                                                </span>
+                                            }
+                                        />
+                                        <TooltipContent>{"Not available yet"}</TooltipContent>
+                                    </Tooltip>
+                                </div>
+                                <Form.Item name="historical_range" className="mb-0">
+                                    <RangePicker
+                                        allowClear
+                                        allowEmpty
+                                        disabled
+                                        className="w-[200px]"
+                                        placeholder={["Start date", "End date"]}
+                                    />
+                                </Form.Item>
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem value="evaluator">
+                        <AccordionTrigger>
+                            {buildPanelHeader("Evaluator", evaluatorSummary)}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                            <Form.Item
+                                name="evaluator"
+                                label="Evaluator"
+                                style={{marginBottom: 12}}
+                                rules={[{required: true, message: "Select an evaluator"}]}
+                            >
+                                <Select
+                                    className="w-full"
+                                    placeholder="Select"
+                                    options={evaluatorOptions}
+                                    optionLabelProp="label"
+                                    disabled={!hasEvaluatorOptions}
+                                    loading={isLoadingEvaluators}
+                                    notFoundContent={
+                                        isLoadingEvaluators
+                                            ? "Loading evaluators..."
+                                            : "No supported evaluators available"
+                                    }
+                                    showSearch
+                                    filterOption={(input, option) => {
+                                        if (!option) return false
+                                        const query = input.toLowerCase()
+                                        if (!query.length) return true
+                                        const searchableTexts: string[] = []
+
+                                        const searchText =
+                                            typeof (option as any)?.searchText === "string"
+                                                ? (option as any).searchText
+                                                : undefined
+                                        if (searchText) {
+                                            searchableTexts.push(searchText)
+                                        }
+                                        if (typeof option.title === "string") {
+                                            searchableTexts.push(option.title)
+                                        }
+                                        if (typeof option.label === "string") {
+                                            searchableTexts.push(option.label)
+                                        }
+                                        if (
+                                            typeof option.value === "string" ||
+                                            typeof option.value === "number"
+                                        ) {
+                                            searchableTexts.push(String(option.value))
+                                        }
+
+                                        return searchableTexts
+                                            .map((text) => text.toLowerCase())
+                                            .some((text) => text.includes(query))
+                                    }}
+                                    allowClear
+                                />
+                                {!isLoadingEvaluators && !hasEvaluatorOptions ? (
+                                    <span className="block mt-2 text-muted-foreground">
+                                        No supported evaluators are available. Add an evaluator
+                                        configured as Custom, LLM-as-a-judge, Code, Regex test, or
+                                        Webhook test to continue.
+                                        {evaluatorRegistryHref ? (
+                                            <>
+                                                {" "}
+                                                <a href={evaluatorRegistryHref}>
+                                                    Open evaluator registry
+                                                </a>
+                                                .
+                                            </>
+                                        ) : null}
+                                    </span>
+                                ) : null}
+                            </Form.Item>
+
+                            <EvaluatorDetailsPreview
+                                details={evaluatorDetails}
+                                typeLabel={finalTypeLabel}
+                                typeKey={finalTypeKey}
+                                key={selectedEvaluatorRevisionId ?? "empty"}
+                                showType={hasEvaluatorType}
+                            />
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
             </Form>
         </EnhancedDrawer>
     )

@@ -1,7 +1,13 @@
 import {memo, useMemo} from "react"
 
-import {CaretDown, CaretUp, Desktop, Flask, NotePencil, TreeView} from "@phosphor-icons/react"
-import {Collapse, Progress} from "antd"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
+import {Desktop, Flask, NotePencil, TreeView} from "@phosphor-icons/react"
+import {Progress} from "antd"
 
 import type {OnboardingWidgetItem, OnboardingWidgetSection} from "@/oss/lib/onboarding"
 
@@ -45,13 +51,15 @@ const WidgetSection = memo(function WidgetSection({
         return {completed, total, percent}
     }, [section.items, completionMap])
 
-    const collapseItems = useMemo(
-        () => [
-            {
-                key: section.id,
-                label: (
+    return (
+        <Accordion
+            value={isExpanded ? [section.id] : []}
+            onValueChange={(val) => val.includes(section.id) && onToggle(section.id)}
+            className="rounded-lg [&_[data-slot=accordion-trigger]]:!p-3 [&_[data-slot=accordion-trigger]]:!bg-colorInfoBg [&_[data-slot=accordion-content]]:!bg-colorInfoBg [&_[data-slot=accordion-content]>div]:!px-4 [&_[data-slot=accordion-content]>div]:!pb-4 [&_[data-slot=accordion-content]>div]:!pt-2"
+        >
+            <AccordionItem value={section.id}>
+                <AccordionTrigger>
                     <div className="flex w-full flex-col gap-2 pb-4">
-                        {/* Header with icon and title */}
                         <div className="flex gap-2">
                             <span className="text-colorText mt-0.5">
                                 {getSectionIcon(section.iconId)}
@@ -66,8 +74,6 @@ const WidgetSection = memo(function WidgetSection({
                             </div>
                         </div>
 
-                        {/* Section Progress */}
-
                         <Progress
                             percent={sectionStats.percent}
                             showInfo={true}
@@ -77,8 +83,8 @@ const WidgetSection = memo(function WidgetSection({
                             className="w-[90%] absolute bottom-3 left-[50%] right-[50%] translate-x-[-50%]"
                         />
                     </div>
-                ),
-                children: (
+                </AccordionTrigger>
+                <AccordionContent>
                     <div className="flex flex-col gap-2">
                         {section.items.map((item) => (
                             <WidgetSectionItem
@@ -89,36 +95,9 @@ const WidgetSection = memo(function WidgetSection({
                             />
                         ))}
                     </div>
-                ),
-            },
-        ],
-        [
-            section.id,
-            section.iconId,
-            section.title,
-            section.items,
-            sectionStats,
-            completionMap,
-            onItemClick,
-        ],
-    )
-
-    return (
-        <Collapse
-            activeKey={isExpanded ? [section.id] : []}
-            onChange={() => onToggle(section.id)}
-            expandIconPlacement="end"
-            expandIcon={({isActive}) =>
-                isActive ? (
-                    <CaretUp size={16} className="text-colorText" />
-                ) : (
-                    <CaretDown size={16} className="text-colorText" />
-                )
-            }
-            className="rounded-lg [&_.ant-collapse-header]:!p-3 [&_.ant-collapse-header]:!bg-colorInfoBg [&_.ant-collapse-body]:!bg-colorInfoBg [&_.ant-collapse-content-box]:!px-4 [&_.ant-collapse-content-box]:!pb-4 [&_.ant-collapse-content-box]:!pt-2"
-            items={collapseItems}
-            bordered={false}
-        />
+                </AccordionContent>
+            </AccordionItem>
+        </Accordion>
     )
 })
 

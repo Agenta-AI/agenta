@@ -1,5 +1,11 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
@@ -7,7 +13,7 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/com
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
-import {Collapse, Form, message, Select, Switch} from "antd"
+import {Form, message, Select, Switch} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import {
@@ -400,18 +406,16 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                                     </>
                                 )}
 
-                                <Collapse
-                                    className="[&_.ant-collapse-content]:bg-transparent"
-                                    size="small"
-                                >
-                                    <Collapse.Panel
-                                        header="Example Request"
-                                        key="preview"
-                                        forceRender
-                                    >
-                                        <RequestPreview form={form} />
-                                    </Collapse.Panel>
-                                </Collapse>
+                                <Accordion className="[&_[data-slot=accordion-content]]:bg-transparent">
+                                    <AccordionItem value="preview">
+                                        <AccordionTrigger className="py-1.5 text-xs font-medium">
+                                            Example Request
+                                        </AccordionTrigger>
+                                        <AccordionContent keepMounted>
+                                            <RequestPreview form={form} />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
                             </div>
                         </Form>
                     </div>

@@ -1,9 +1,14 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Warning} from "@phosphor-icons/react"
-import {Collapse, CollapseProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -136,7 +141,7 @@ const Annotate = ({
         }))
     }, [])
 
-    const items: CollapseProps["items"] = useMemo(() => {
+    const items = useMemo(() => {
         const annotationItems = annotations.map((ann) => {
             const metrics = updatedMetrics[ann.references?.evaluator?.slug || ""] || {}
             const metadata = transformMetadata({data: metrics})
@@ -278,21 +283,27 @@ const Annotate = ({
                   ))
                 : null}
 
-            <Collapse
-                activeKey={activeCollapse}
-                onChange={handleCollapseChange}
-                items={items}
-                defaultActiveKey={items.map((item) => item.key as string)}
+            <Accordion
+                value={activeCollapse}
+                onValueChange={handleCollapseChange}
+                defaultValue={items.map((item) => item.key as string)}
                 className={clsx(
                     "rounded-none",
-                    "[&_.ant-collapse-content-box]:!p-0",
-                    "[&_.ant-collapse-content]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-content]:p-3",
+                    "[&_[data-slot=accordion-item]]:border-none",
+                    "[&_[data-slot=accordion-content]>div]:!p-0",
+                    "[&_[data-slot=accordion-content]]:!bg-[var(--ag-c-FFFFFF)] [&_[data-slot=accordion-content]]:p-3",
                     "[&_.playground-property-control]:!mb-0",
                     "[&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1",
-                    "[&_.ant-collapse-header-text]:w-[95%]",
+                    "[&_[data-slot=accordion-trigger]]:w-[95%]",
                 )}
-                bordered={false}
-            />
+            >
+                {items.map((item) => (
+                    <AccordionItem key={item.key} value={item.key}>
+                        <AccordionTrigger>{item.label}</AccordionTrigger>
+                        <AccordionContent keepMounted>{item.children}</AccordionContent>
+                    </AccordionItem>
+                ))}
+            </Accordion>
         </section>
     )
 }

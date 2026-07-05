@@ -1,10 +1,16 @@
 import {forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react"
 
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
-import {Collapse, Form, Input, InputNumber, Switch, Select} from "antd"
+import {Form, Input, InputNumber, Switch, Select} from "antd"
 import type {FormInstance} from "antd"
 
 export interface SchemaFormHandle {
@@ -130,24 +136,20 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                           <SchemaFormField key={field.name} field={field} />
                       ))
                     : optionalFields.length > 0 && (
-                          <Collapse
-                              ghost
-                              size="small"
-                              className="!-mx-4 !mt-1"
-                              items={[
-                                  {
-                                      key: "optional",
-                                      label: (
-                                          <span className="text-xs text-muted-foreground">
-                                              Optional ({optionalFields.length})
-                                          </span>
-                                      ),
-                                      children: optionalFields.map((field) => (
+                          <Accordion className="!-mx-4 !mt-1 bg-transparent [&_[data-slot=accordion-item]]:border-none [&_[data-slot=accordion-trigger]]:border-none [&_[data-slot=accordion-trigger]]:!py-1 [&_[data-slot=accordion-content]>div]:!pt-1 [&_[data-slot=accordion-content]>div]:!pb-1">
+                              <AccordionItem value="optional">
+                                  <AccordionTrigger>
+                                      <span className="text-xs text-muted-foreground">
+                                          Optional ({optionalFields.length})
+                                      </span>
+                                  </AccordionTrigger>
+                                  <AccordionContent>
+                                      {optionalFields.map((field) => (
                                           <SchemaFormField key={field.name} field={field} />
-                                      )),
-                                  },
-                              ]}
-                          />
+                                      ))}
+                                  </AccordionContent>
+                              </AccordionItem>
+                          </Accordion>
                       )}
             </Form>
         )
@@ -222,34 +224,31 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
     // Object with nested children → render in a collapsible section
     if (field.type === "object" && field.children && field.children.length > 0) {
         return (
-            <Collapse
-                ghost
-                size="small"
-                defaultActiveKey={field.required ? ["obj"] : undefined}
-                className={depth > 0 ? "!-mx-2 border-l border-gray-200 ml-2" : "!-mx-4 !mb-2"}
-                items={[
-                    {
-                        key: "obj",
-                        label: (
-                            <div className="flex flex-col leading-tight">
-                                <span className="font-medium">
-                                    {field.label}
-                                    {field.required && <span className="text-red-500 ml-1">*</span>}
+            <Accordion
+                defaultValue={field.required ? ["obj"] : undefined}
+                className={`${depth > 0 ? "!-mx-2 border-l border-gray-200 ml-2" : "!-mx-4 !mb-2"} bg-transparent [&_[data-slot=accordion-item]]:border-none [&_[data-slot=accordion-trigger]]:border-none [&_[data-slot=accordion-trigger]]:!py-1 [&_[data-slot=accordion-content]>div]:!pt-1 [&_[data-slot=accordion-content]>div]:!pb-1`}
+            >
+                <AccordionItem value="obj">
+                    <AccordionTrigger>
+                        <div className="flex flex-col leading-tight">
+                            <span className="font-medium">
+                                {field.label}
+                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                            </span>
+                            {field.description && (
+                                <span className="!text-xs leading-snug text-muted-foreground">
+                                    {field.description}
                                 </span>
-                                {field.description && (
-                                    <span className="!text-xs leading-snug text-muted-foreground">
-                                        {field.description}
-                                    </span>
-                                )}
-                            </div>
-                        ),
-                        children: field.children.map((child) => (
+                            )}
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent keepMounted>
+                        {field.children.map((child) => (
                             <SchemaFormField key={child.name} field={child} depth={depth + 1} />
-                        )),
-                        forceRender: true,
-                    },
-                ]}
-            />
+                        ))}
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
         )
     }
 
@@ -469,153 +468,118 @@ function ArrayObjectItem({
     depth: number
 }) {
     return (
-        <Collapse
-            ghost
-            size="small"
-            defaultActiveKey={["item"]}
-            className="!-mx-2 border border-solid border-gray-200 rounded-lg"
-            items={[
-                {
-                    key: "item",
-                    label: (
-                        <div className="flex items-center justify-between w-full">
-                            <span className="text-xs">Item {name + 1}</span>
+        <div className="!-mx-2 border border-solid border-gray-200 rounded-lg p-2">
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-xs">Item {name + 1}</span>
+                <Button
+                    aria-label="Remove object item"
+                    onClick={onRemove}
+                    className="opacity-50 hover:opacity-100"
+                    variant="ghost"
+                    size="icon-sm"
+                >
+                    {<MinusCircle size={14} />}
+                </Button>
+            </div>
+            {itemChildren.map((child) => {
+                const childRules = child.required
+                    ? [{required: true, message: `${child.label} is required`}]
+                    : []
+                const childLabel = <FieldLabel field={child} />
+
+                if (child.type === "object" && child.children && child.children.length > 0) {
+                    return (
+                        <div key={child.name} className="!-mx-2 ml-2 border-l border-gray-200">
+                            <span className="font-medium">{child.label}</span>
+                            {child.children.map((gc) => (
+                                <Form.Item
+                                    key={gc.name}
+                                    {...restField}
+                                    name={[name, ...gc.name.split(".")]}
+                                    label={<FieldLabel field={gc} />}
+                                    rules={
+                                        gc.required
+                                            ? [
+                                                  {
+                                                      required: true,
+                                                      message: `${gc.label} is required`,
+                                                  },
+                                              ]
+                                            : []
+                                    }
+                                >
+                                    <Input placeholder={gc.label} />
+                                </Form.Item>
+                            ))}
                         </div>
-                    ),
-                    extra: (
-                        <Button
-                            aria-label="Remove object item"
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                onRemove()
-                            }}
-                            className="opacity-50 hover:opacity-100"
-                            variant="ghost"
-                            size="icon-sm"
+                    )
+                }
+
+                if (child.type === "boolean") {
+                    return (
+                        <Form.Item
+                            key={child.name}
+                            {...restField}
+                            name={[name, child.name]}
+                            label={childLabel}
+                            valuePropName="checked"
+                            initialValue={child.default ?? false}
                         >
-                            {<MinusCircle size={14} />}
-                        </Button>
-                    ),
-                    children: itemChildren.map((child) => {
-                        const childRules = child.required
-                            ? [{required: true, message: `${child.label} is required`}]
-                            : []
-                        const childLabel = <FieldLabel field={child} />
+                            <Switch size="small" />
+                        </Form.Item>
+                    )
+                }
 
-                        // Nested object within array item
-                        if (
-                            child.type === "object" &&
-                            child.children &&
-                            child.children.length > 0
-                        ) {
-                            return (
-                                <Collapse
-                                    key={child.name}
-                                    ghost
-                                    size="small"
-                                    className="!-mx-2 ml-2 border-l border-gray-200"
-                                    items={[
-                                        {
-                                            key: "nested",
-                                            label: (
-                                                <span className="font-medium">{child.label}</span>
-                                            ),
-                                            children: child.children.map((gc) => (
-                                                <Form.Item
-                                                    key={gc.name}
-                                                    {...restField}
-                                                    name={[name, ...gc.name.split(".")]}
-                                                    label={<FieldLabel field={gc} />}
-                                                    rules={
-                                                        gc.required
-                                                            ? [
-                                                                  {
-                                                                      required: true,
-                                                                      message: `${gc.label} is required`,
-                                                                  },
-                                                              ]
-                                                            : []
-                                                    }
-                                                >
-                                                    <Input placeholder={gc.label} />
-                                                </Form.Item>
-                                            )),
-                                            forceRender: true,
-                                        },
-                                    ]}
-                                />
-                            )
-                        }
+                if (child.type === "number") {
+                    return (
+                        <Form.Item
+                            key={child.name}
+                            {...restField}
+                            name={[name, child.name]}
+                            label={childLabel}
+                            rules={childRules}
+                            initialValue={child.default}
+                        >
+                            <InputNumber className="w-full" placeholder={child.label} />
+                        </Form.Item>
+                    )
+                }
 
-                        if (child.type === "boolean") {
-                            return (
-                                <Form.Item
-                                    key={child.name}
-                                    {...restField}
-                                    name={[name, child.name]}
-                                    label={childLabel}
-                                    valuePropName="checked"
-                                    initialValue={child.default ?? false}
-                                >
-                                    <Switch size="small" />
-                                </Form.Item>
-                            )
-                        }
+                if (child.type === "enum") {
+                    return (
+                        <Form.Item
+                            key={child.name}
+                            {...restField}
+                            name={[name, child.name]}
+                            label={childLabel}
+                            rules={childRules}
+                            initialValue={child.default}
+                        >
+                            <Select
+                                placeholder={child.label}
+                                options={(child.enumValues ?? []).map((v) => ({
+                                    value: v,
+                                    label: v,
+                                }))}
+                            />
+                        </Form.Item>
+                    )
+                }
 
-                        if (child.type === "number") {
-                            return (
-                                <Form.Item
-                                    key={child.name}
-                                    {...restField}
-                                    name={[name, child.name]}
-                                    label={childLabel}
-                                    rules={childRules}
-                                    initialValue={child.default}
-                                >
-                                    <InputNumber className="w-full" placeholder={child.label} />
-                                </Form.Item>
-                            )
-                        }
-
-                        if (child.type === "enum") {
-                            return (
-                                <Form.Item
-                                    key={child.name}
-                                    {...restField}
-                                    name={[name, child.name]}
-                                    label={childLabel}
-                                    rules={childRules}
-                                    initialValue={child.default}
-                                >
-                                    <Select
-                                        placeholder={child.label}
-                                        options={(child.enumValues ?? []).map((v) => ({
-                                            value: v,
-                                            label: v,
-                                        }))}
-                                    />
-                                </Form.Item>
-                            )
-                        }
-
-                        // Default: string input
-                        return (
-                            <Form.Item
-                                key={child.name}
-                                {...restField}
-                                name={[name, child.name]}
-                                label={childLabel}
-                                rules={childRules}
-                                initialValue={child.default}
-                            >
-                                <Input placeholder={child.label} />
-                            </Form.Item>
-                        )
-                    }),
-                    forceRender: true,
-                },
-            ]}
-        />
+                return (
+                    <Form.Item
+                        key={child.name}
+                        {...restField}
+                        name={[name, child.name]}
+                        label={childLabel}
+                        rules={childRules}
+                        initialValue={child.default}
+                    >
+                        <Input placeholder={child.label} />
+                    </Form.Item>
+                )
+            })}
+        </div>
     )
 }
 

@@ -1,6 +1,13 @@
 import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
 import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
+import type {AccordionProps} from "@agenta/primitive-ui/components/accordion"
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuRadioGroup,
@@ -28,7 +35,7 @@ import {
     MagnifyingGlassIcon,
     XIcon,
 } from "@phosphor-icons/react"
-import {Collapse, Radio, Space, theme} from "antd"
+import {Radio, Space, theme} from "antd"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
@@ -61,7 +68,7 @@ type AccordionTreePanelProps = {
     enableSearch?: boolean
     viewModePreset?: "default" | "message"
     defaultCollapsed?: boolean
-} & React.ComponentProps<typeof Collapse>
+} & AccordionProps
 
 /**
  * View modes for an accordion panel.
@@ -96,7 +103,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         flexDirection: "column",
         position: "relative",
-        "& .ant-collapse-item": {
+        "& [data-slot=accordion-item]": {
             display: "flex !important",
             flexDirection: "column",
             height: "100%",
@@ -105,15 +112,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             border: `1px solid ${theme.colorBorder}`,
             overflowY: "auto",
         },
-        "& .ant-collapse-item:last-child": {
-            borderBottom: `1px solid ${theme.colorBorder}`,
-        },
-        "& .ant-collapse-header": {
+        "& [data-slot=accordion-trigger]": {
             alignItems: "center !important",
             height: 42,
             backgroundColor: `${theme.colorBgContainer} !important`,
         },
-        "& .ant-collapse-panel": {
+        "& [data-slot=accordion-content]": {
             borderTop: `1px solid ${theme.colorBorder} !important`,
             padding: `0px`,
             lineHeight: theme.lineHeight,
@@ -122,7 +126,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             borderBottomRightRadius: theme.borderRadius,
             fontSize: theme.fontSize,
             flexGrow: 1,
-            "& .ant-collapse-body": {
+            "& > div": {
                 height: "100%",
                 padding: "0px !important",
             },
@@ -476,75 +480,16 @@ const AccordionTreePanel = ({
                     />
                 </div>
             )}
-            <Collapse
+            <Accordion
                 {...props}
-                defaultActiveKey={defaultCollapsed ? [] : [label]}
-                items={[
-                    {
-                        key: label,
-                        label,
-                        children: (
-                            <div
-                                ref={editorRef}
-                                style={{
-                                    height: fullEditorHeight ? "100%" : "auto",
-                                    maxHeight: fullEditorHeight ? "none" : 800,
-                                    overflowY: "auto",
-                                }}
-                            >
-                                {isCodeMode ? (
-                                    <DrillInProvider
-                                        value={{
-                                            enabled: false,
-                                            decodeEscapedJsonStrings:
-                                                panelViewMode === "decoded-json",
-                                        }}
-                                    >
-                                        <EditorProvider
-                                            codeOnly={true}
-                                            enableTokens={false}
-                                            showToolbar={false}
-                                            className={classes.editor}
-                                            readOnly
-                                            disabled
-                                            noProvider
-                                        >
-                                            <LanguageAwareViewer
-                                                initialValue={
-                                                    panelViewMode === "yaml"
-                                                        ? yamlOutput
-                                                        : panelViewMode === "decoded-json"
-                                                          ? decodedJsonOutput
-                                                          : jsonOutput
-                                                }
-                                                language={panelViewMode}
-                                                searchProps={
-                                                    isSearchOpen
-                                                        ? {
-                                                              searchTerm,
-                                                              currentResultIndex,
-                                                              onResultCountChange: setResultCount,
-                                                          }
-                                                        : undefined
-                                                }
-                                            />
-                                        </EditorProvider>
-                                    </DrillInProvider>
-                                ) : isPrettyMode ? (
-                                    <PrettyJsonView
-                                        data={prettyJsonSource}
-                                        keyPrefix={`accordion-${textViewerId}`}
-                                    />
-                                ) : (
-                                    <TextModeViewer
-                                        editorId={`accordion-${textViewerId}`}
-                                        value={textOutput}
-                                        mode={panelViewMode as "text" | "markdown"}
-                                    />
-                                )}
-                            </div>
-                        ),
-                        extra: (
+                multiple
+                defaultValue={defaultCollapsed ? [] : [label]}
+                className={classes.collapseContainer}
+            >
+                <AccordionItem value={label}>
+                    <AccordionTrigger>
+                        <div className="flex w-full items-center justify-between">
+                            <span>{label}</span>
                             <Space size={8} onClick={(e) => e.stopPropagation()}>
                                 {enableSearch && isCodeMode && (
                                     <EnhancedButton
@@ -607,12 +552,70 @@ const AccordionTreePanel = ({
                                     size="small"
                                 />
                             </Space>
-                        ),
-                    },
-                ]}
-                className={classes.collapseContainer}
-                bordered={false}
-            />
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        <div
+                            ref={editorRef}
+                            style={{
+                                height: fullEditorHeight ? "100%" : "auto",
+                                maxHeight: fullEditorHeight ? "none" : 800,
+                                overflowY: "auto",
+                            }}
+                        >
+                            {isCodeMode ? (
+                                <DrillInProvider
+                                    value={{
+                                        enabled: false,
+                                        decodeEscapedJsonStrings: panelViewMode === "decoded-json",
+                                    }}
+                                >
+                                    <EditorProvider
+                                        codeOnly={true}
+                                        enableTokens={false}
+                                        showToolbar={false}
+                                        className={classes.editor}
+                                        readOnly
+                                        disabled
+                                        noProvider
+                                    >
+                                        <LanguageAwareViewer
+                                            initialValue={
+                                                panelViewMode === "yaml"
+                                                    ? yamlOutput
+                                                    : panelViewMode === "decoded-json"
+                                                      ? decodedJsonOutput
+                                                      : jsonOutput
+                                            }
+                                            language={panelViewMode}
+                                            searchProps={
+                                                isSearchOpen
+                                                    ? {
+                                                          searchTerm,
+                                                          currentResultIndex,
+                                                          onResultCountChange: setResultCount,
+                                                      }
+                                                    : undefined
+                                            }
+                                        />
+                                    </EditorProvider>
+                                </DrillInProvider>
+                            ) : isPrettyMode ? (
+                                <PrettyJsonView
+                                    data={prettyJsonSource}
+                                    keyPrefix={`accordion-${textViewerId}`}
+                                />
+                            ) : (
+                                <TextModeViewer
+                                    editorId={`accordion-${textViewerId}`}
+                                    value={textOutput}
+                                    mode={panelViewMode as "text" | "markdown"}
+                                />
+                            )}
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
         </div>
     )
 

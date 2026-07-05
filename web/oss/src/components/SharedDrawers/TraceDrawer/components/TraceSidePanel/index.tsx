@@ -1,7 +1,12 @@
 import {useMemo} from "react"
 
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
-import {Collapse, CollapseProps} from "antd"
 import clsx from "clsx"
 
 import {TracesWithAnnotations} from "@/oss/services/observability/types"
@@ -78,7 +83,7 @@ const TraceSidePanel = ({
         emptyState("No references found.")
     )
 
-    const items: CollapseProps["items"] = useMemo(
+    const items = useMemo(
         () => [
             {
                 key: "annotations",
@@ -105,15 +110,21 @@ const TraceSidePanel = ({
     )
 
     return (
-        <Collapse
-            items={items}
-            defaultActiveKey={["annotations", "details", "linked", "references"]}
+        <Accordion
+            defaultValue={["annotations", "details", "linked", "references"]}
             className={clsx(
                 "transition-all duration-300 ease-[ease] max-w-full overflow-hidden opacity-100 rounded-none border-0",
-                "[&_.ant-collapse-content]:border-[var(--ag-colorSplit)] [&_.ant-collapse-content_.ant-collapse-content-box]:p-3 [&_.ant-collapse-item]:border-[var(--ag-colorSplit)]",
-                "[&_.ant-collapse-header]:!py-[10.5px]",
+                "[&_[data-slot=accordion-content]]:border-[var(--ag-colorSplit)] [&_[data-slot=accordion-content]>div]:p-3 [&_[data-slot=accordion-item]]:border-[var(--ag-colorSplit)]",
+                "[&_[data-slot=accordion-trigger]]:!py-[10.5px]",
             )}
-        />
+        >
+            {items.map((item) => (
+                <AccordionItem key={item.key} value={item.key}>
+                    <AccordionTrigger>{item.label}</AccordionTrigger>
+                    <AccordionContent keepMounted>{item.children}</AccordionContent>
+                </AccordionItem>
+            ))}
+        </Accordion>
     )
 }
 

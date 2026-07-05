@@ -1,8 +1,13 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Warning} from "@phosphor-icons/react"
-import {Collapse} from "antd"
 import clsx from "clsx"
 
 import {transformMetadata} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
@@ -40,8 +45,8 @@ const AnnotationForm = ({
         setActiveKeys(evaluatorSlugs)
     }, [evaluatorSlugs])
 
-    const handleCollapseChange = useCallback((keys: string | string[]) => {
-        setActiveKeys(Array.isArray(keys) ? keys : [keys])
+    const handleCollapseChange = useCallback((value: string[]) => {
+        setActiveKeys(value)
     }, [])
 
     // Handle metric change - adapts the AnnotateCollapseContent onChange signature
@@ -134,20 +139,26 @@ const AnnotationForm = ({
                 </Alert>
             ))}
 
-            <Collapse
-                activeKey={activeKeys}
-                onChange={handleCollapseChange}
-                items={items}
+            <Accordion
+                value={activeKeys}
+                onValueChange={handleCollapseChange}
                 className={clsx(
                     "rounded-none",
-                    "[&_.ant-collapse-content-box]:!p-0",
-                    "[&_.ant-collapse-content]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-content]:p-3",
+                    "[&_[data-slot=accordion-item]]:border-none",
+                    "[&_[data-slot=accordion-content]>div]:!p-0",
+                    "[&_[data-slot=accordion-content]]:!bg-[var(--ag-c-FFFFFF)] [&_[data-slot=accordion-content]]:p-3",
                     "[&_.playground-property-control]:!mb-0",
                     "[&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1",
-                    "[&_.ant-collapse-header-text]:w-[95%]",
+                    "[&_[data-slot=accordion-trigger]]:w-[95%]",
                 )}
-                bordered={false}
-            />
+            >
+                {items.map((item) => (
+                    <AccordionItem key={item.key} value={item.key}>
+                        <AccordionTrigger>{item.label}</AccordionTrigger>
+                        <AccordionContent keepMounted>{item.children}</AccordionContent>
+                    </AccordionItem>
+                ))}
+            </Accordion>
         </section>
     )
 }

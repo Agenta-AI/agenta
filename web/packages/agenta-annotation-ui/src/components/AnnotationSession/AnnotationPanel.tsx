@@ -16,6 +16,12 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {AnnotationMetricField} from "@agenta/annotation"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
@@ -23,7 +29,7 @@ import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {Editor} from "@agenta/ui/editor"
 import {Info, Warning} from "@phosphor-icons/react"
-import {Collapse, Tag} from "antd"
+import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationFormState} from "../../hooks/useAnnotationFormState"
@@ -174,8 +180,8 @@ const AnnotationPanel = memo(function AnnotationPanel({
         setActiveKeys(evaluatorSlugs)
     }, [evaluatorSlugs])
 
-    const handleCollapseChange = useCallback((keys: string | string[]) => {
-        setActiveKeys(Array.isArray(keys) ? keys : [keys])
+    const handleCollapseChange = useCallback((value: string[]) => {
+        setActiveKeys(value)
     }, [])
 
     const handleFieldChange = useCallback(
@@ -331,13 +337,18 @@ const AnnotationPanel = memo(function AnnotationPanel({
 
             {/* Queue description helper + form fields */}
             <div className="flex-1 overflow-y-auto">
-                <Collapse
-                    activeKey={activeKeys}
-                    onChange={handleCollapseChange}
-                    items={collapseItems}
-                    className="rounded-none [&_.ant-collapse-item]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-header]:!bg-[var(--ag-c-05172905)] [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
-                    bordered={false}
-                />
+                <Accordion
+                    value={activeKeys}
+                    onValueChange={handleCollapseChange}
+                    className="rounded-none [&_[data-slot=accordion-item]]:!bg-[var(--ag-c-FFFFFF)] [&_[data-slot=accordion-item]]:border-none [&_[data-slot=accordion-trigger]]:!bg-[var(--ag-c-05172905)] [&_[data-slot=accordion-content]>div]:!p-0 [&_[data-slot=accordion-content]]:!bg-[var(--ag-c-FFFFFF)] [&_[data-slot=accordion-content]]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
+                >
+                    {collapseItems.map((item) => (
+                        <AccordionItem key={item.key} value={item.key}>
+                            <AccordionTrigger>{item.label}</AccordionTrigger>
+                            <AccordionContent keepMounted>{item.children}</AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
             </div>
 
             {/* Mark completed button (drawer mode) */}

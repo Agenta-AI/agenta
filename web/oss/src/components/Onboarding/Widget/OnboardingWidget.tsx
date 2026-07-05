@@ -2,10 +2,16 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {useNextStep} from "@agentaai/nextstepjs"
 import {CaretDown, CaretUp, RocketLaunch, X} from "@phosphor-icons/react"
-import {Collapse, message} from "antd"
+import {message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -444,72 +450,6 @@ const OnboardingWidgetContent = () => {
 
     const isMinimized = widgetUIState.isMinimized
 
-    const widgetCollapseItems = useMemo(
-        () => [
-            {
-                key: "widget",
-                label: (
-                    <div className="flex min-w-0 flex-1 items-center gap-1">
-                        <RocketLaunch
-                            size={16}
-                            weight="regular"
-                            className="shrink-0 text-colorText"
-                        />
-                        <span className="text-sm font-semibold text-colorText">
-                            {WIDGET_HEADER_TITLE}
-                        </span>
-                    </div>
-                ),
-                extra: (
-                    <div className="flex gap-1">
-                        <Button
-                            className="flex h-6 w-6 items-center justify-center !p-1 !rounded-md"
-                            onClick={isMinimized ? expandWidget : minimizeWidget}
-                            variant="ghost"
-                            size="icon-sm"
-                        >
-                            {isMinimized ? (
-                                <CaretUp size={14} className="text-colorText" />
-                            ) : (
-                                <CaretDown size={14} className="text-colorText" />
-                            )}
-                        </Button>
-                        <Button
-                            className="flex h-6 w-6 items-center justify-center !p-1 !rounded-md"
-                            onClick={closeWidget}
-                            variant="ghost"
-                            size="icon-sm"
-                        >
-                            {<X size={14} className="text-colorText" />}
-                        </Button>
-                    </div>
-                ),
-                children: (
-                    <div className="flex h-[400px] max-h-[70vh] flex-col gap-2 overflow-y-auto pb-1">
-                        {config.sections.map((section) => (
-                            <WidgetSection
-                                key={section.id}
-                                section={section}
-                                completionMap={completionMap}
-                                isExpanded={computedExpanded[section.id] ?? false}
-                                onToggle={toggleSection}
-                                onItemClick={handleItemClick}
-                            />
-                        ))}
-                    </div>
-                ),
-            },
-        ],
-        [
-            config.sections,
-            completionMap,
-            computedExpanded,
-            toggleSection,
-            handleItemClick,
-            isMinimized,
-        ],
-    )
-
     return (
         <section
             className={clsx(
@@ -521,13 +461,67 @@ const OnboardingWidgetContent = () => {
                 "dark:border dark:border-solid dark:border-colorBorder",
             )}
         >
-            <Collapse
-                activeKey={!isMinimized ? ["widget"] : []}
-                className="[&_.ant-collapse-item]:!border-none [&_.ant-collapse-header]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-body]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-header]:!py-3 [&_.ant-collapse-header]:!px-4 [&_.ant-collapse-content-box]:!p-0"
-                expandIcon={() => null}
-                items={widgetCollapseItems}
-                bordered={false}
-            />
+            <Accordion
+                value={!isMinimized ? ["widget"] : []}
+                className="[&_[data-slot=accordion-item]]:!border-none [&_[data-slot=accordion-trigger]]:!bg-[var(--ag-c-FFFFFF)] [&_[data-slot=accordion-content]]:!bg-[var(--ag-c-FFFFFF)] [&_[data-slot=accordion-trigger]]:!py-3 [&_[data-slot=accordion-trigger]]:!px-4 [&_[data-slot=accordion-content]>div]:!p-0 [&_[data-slot=accordion-trigger-icon]]:hidden"
+            >
+                <AccordionItem value="widget">
+                    <AccordionTrigger>
+                        <div className="flex min-w-0 flex-1 items-center gap-1">
+                            <RocketLaunch
+                                size={16}
+                                weight="regular"
+                                className="shrink-0 text-colorText"
+                            />
+                            <span className="text-sm font-semibold text-colorText">
+                                {WIDGET_HEADER_TITLE}
+                            </span>
+                        </div>
+                        <div className="flex gap-1">
+                            <Button
+                                className="flex h-6 w-6 items-center justify-center !p-1 !rounded-md"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    isMinimized ? expandWidget() : minimizeWidget()
+                                }}
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {isMinimized ? (
+                                    <CaretUp size={14} className="text-colorText" />
+                                ) : (
+                                    <CaretDown size={14} className="text-colorText" />
+                                )}
+                            </Button>
+                            <Button
+                                className="flex h-6 w-6 items-center justify-center !p-1 !rounded-md"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    closeWidget()
+                                }}
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<X size={14} className="text-colorText" />}
+                            </Button>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        <div className="flex h-[400px] max-h-[70vh] flex-col gap-2 overflow-y-auto pb-1">
+                            {config.sections.map((section) => (
+                                <WidgetSection
+                                    key={section.id}
+                                    section={section}
+                                    completionMap={completionMap}
+                                    isExpanded={computedExpanded[section.id] ?? false}
+                                    onToggle={toggleSection}
+                                    onItemClick={handleItemClick}
+                                />
+                            ))}
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
         </section>
     )
 }

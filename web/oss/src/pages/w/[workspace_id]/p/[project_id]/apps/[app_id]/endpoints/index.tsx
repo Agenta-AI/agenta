@@ -6,11 +6,17 @@ import {
     workflowVariantsListDataAtomFamily,
     workflowVariantsListQueryStateAtomFamily,
 } from "@agenta/entities/workflow"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
 import {Warning} from "@phosphor-icons/react"
-import {Collapse, type CollapseProps, Empty, Radio, type RadioChangeEvent, Tooltip} from "antd"
+import {Empty, Radio, type RadioChangeEvent, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -222,22 +228,6 @@ function VariantEndpointContent() {
         [appSlug, selectedEnvironment?.name],
     )
 
-    const collapseItems = useMemo<CollapseProps["items"]>(
-        () => [
-            {
-                key: "1",
-                label: "Invoke LLM App",
-                children: <DynamicCodeBlock codeSnippets={invokeLlmAppCodeSnippet} />,
-            },
-            {
-                key: "2",
-                label: "Fetch Prompt/Config",
-                children: <DynamicCodeBlock codeSnippets={fetchConfigCodeSnippet} />,
-            },
-        ],
-        [invokeLlmAppCodeSnippet, fetchConfigCodeSnippet],
-    )
-
     const handleRadioChange = useCallback(
         (e: RadioChangeEvent) => handleEnvironmentClick({key: e.target.value}),
         [handleEnvironmentClick],
@@ -249,7 +239,22 @@ function VariantEndpointContent() {
                 key: "overview",
                 label: "Overview",
                 icon: <AppstoreOutlined />,
-                children: <Collapse accordion defaultActiveKey={["1"]} items={collapseItems} />,
+                children: (
+                    <Accordion defaultValue={["1"]}>
+                        <AccordionItem value="1">
+                            <AccordionTrigger>Invoke LLM App</AccordionTrigger>
+                            <AccordionContent>
+                                <DynamicCodeBlock codeSnippets={invokeLlmAppCodeSnippet} />
+                            </AccordionContent>
+                        </AccordionItem>
+                        <AccordionItem value="2">
+                            <AccordionTrigger>Fetch Prompt/Config</AccordionTrigger>
+                            <AccordionContent>
+                                <DynamicCodeBlock codeSnippets={fetchConfigCodeSnippet} />
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                ),
             },
             {
                 key: "history",

@@ -12,12 +12,18 @@ import {
     ConnectionStatusBadge,
     ToolExecutionDrawer,
 } from "@agenta/entity-ui/gatewayTool"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@agenta/primitive-ui/components/accordion"
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Play, Plus} from "@phosphor-icons/react"
-import {Collapse, Empty} from "antd"
+import {Empty} from "antd"
 import {useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -75,36 +81,41 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
                     className="my-2"
                 />
             ) : (
-                <Collapse
-                    size="small"
-                    items={integrationKeys.map((integrationKey) => ({
-                        key: integrationKey,
-                        label: <IntegrationSectionLabel integrationKey={integrationKey} />,
-                        extra: (
-                            <Badge className="text-xs" variant="secondary">
-                                {grouped[integrationKey].length}
-                            </Badge>
-                        ),
-                        children: (
-                            <div className="flex flex-col gap-1">
-                                {grouped[integrationKey].map((conn, index) => (
-                                    <ConnectionRow
-                                        key={conn.id ?? conn.slug ?? `${integrationKey}-${index}`}
-                                        connection={conn}
-                                        onTest={() => {
-                                            if (!conn.id || !conn.slug) return
-                                            setExecutionDrawer({
-                                                connectionId: conn.id,
-                                                connectionSlug: conn.slug,
-                                                integrationKey: conn.integration_key,
-                                            })
-                                        }}
-                                    />
-                                ))}
-                            </div>
-                        ),
-                    }))}
-                />
+                <Accordion
+                    multiple
+                    className="[&_[data-slot=accordion-trigger]]:!py-1.5 [&_[data-slot=accordion-content]>div]:!pt-1 [&_[data-slot=accordion-content]>div]:!pb-1.5"
+                >
+                    {integrationKeys.map((integrationKey) => (
+                        <AccordionItem value={integrationKey} key={integrationKey}>
+                            <AccordionTrigger>
+                                <IntegrationSectionLabel integrationKey={integrationKey} />
+                                <Badge className="text-xs" variant="secondary">
+                                    {grouped[integrationKey].length}
+                                </Badge>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <div className="flex flex-col gap-1">
+                                    {grouped[integrationKey].map((conn, index) => (
+                                        <ConnectionRow
+                                            key={
+                                                conn.id ?? conn.slug ?? `${integrationKey}-${index}`
+                                            }
+                                            connection={conn}
+                                            onTest={() => {
+                                                if (!conn.id || !conn.slug) return
+                                                setExecutionDrawer({
+                                                    connectionId: conn.id,
+                                                    connectionSlug: conn.slug,
+                                                    integrationKey: conn.integration_key,
+                                                })
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
             )}
 
             {/* Shared drawers (opt-in to avoid duplicate mounts in parent contexts) */}
