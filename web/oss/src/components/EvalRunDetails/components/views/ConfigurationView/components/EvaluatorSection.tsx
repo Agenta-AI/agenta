@@ -1,11 +1,13 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {EvaluatorDefinition} from "@agenta/entities/workflow"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {DownOutlined, PlusOutlined} from "@ant-design/icons"
-import {Alert, Form, Segmented} from "antd"
+import {WarningCircle} from "@phosphor-icons/react"
+import {Form, Segmented} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -76,12 +78,10 @@ const EvaluatorSection = ({
 
     if (error) {
         return (
-            <Alert
-                type="error"
-                showIcon
-                message="Failed to load evaluator details"
-                description={stringifyError(error)}
-            />
+            <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                <AlertTitle>Failed to load evaluator details</AlertTitle>
+                <AlertDescription>{stringifyError(error)}</AlertDescription>
+            </Alert>
         )
     }
 

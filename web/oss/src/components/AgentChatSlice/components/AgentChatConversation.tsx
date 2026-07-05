@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval} from "@agenta/playground"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
@@ -9,8 +10,9 @@ import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {Paperclip} from "@phosphor-icons/react"
+import {WarningCircle} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Alert, type UploadFile} from "antd"
+import {type UploadFile} from "antd"
 import {useSetAtom, useStore} from "jotai"
 
 import {useAgConfigStatus} from "../assets/agConfig"
@@ -250,7 +252,10 @@ const AgentChatConversation = ({
             </div>
 
             {error && (
-                <Alert type="error" showIcon message="Stream error" description={error.message} />
+                <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                    <AlertTitle>Stream error</AlertTitle>
+                    <AlertDescription>{error.message}</AlertDescription>
+                </Alert>
             )}
 
             <div

@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
-import {Alert} from "antd"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
+import {WarningCircle} from "@phosphor-icons/react"
 
 import {isBooleanMetricStats} from "@/oss/components/EvalRunDetails/utils/metricDistributions"
 import type {TemporalMetricPoint} from "@/oss/components/Evaluations/atoms/runMetrics"
@@ -258,12 +259,10 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
 
         if (errorMessage && chartEntries.length === 0) {
             return (
-                <Alert
-                    className="m-4"
-                    type="error"
-                    message="Unable to load evaluator metrics"
-                    description={errorMessage}
-                />
+                <Alert variant="destructive" icon={<WarningCircle size={16} />} className="m-4">
+                    <AlertTitle>Unable to load evaluator metrics</AlertTitle>
+                    <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
             )
         }
 

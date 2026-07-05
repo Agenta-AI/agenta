@@ -1,7 +1,14 @@
+import {
+    Alert,
+    AlertTitle,
+    AlertDescription,
+    AlertAction,
+} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Card, CardContent} from "@agenta/primitive-ui/components/card"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Alert, Space} from "antd"
+import {Warning} from "@phosphor-icons/react"
+import {Space} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -46,23 +53,19 @@ const CustomWorkflowBanner = ({
         }
 
         return (
-            <Alert
-                className="m-2"
-                message={"Unable to establish connection"}
-                description={
-                    "Agenta is unable to communicate with your server. Try refreshing or consider re-configuring your workflow URL."
-                }
-                showIcon
-                type={"warning"}
-                action={
-                    <Space orientation="vertical">
-                        <Button onClick={() => openModal()} variant="outline">
-                            {<PencilSimple size={14} />}
-                            Configure
-                        </Button>
-                    </Space>
-                }
-            />
+            <Alert variant="warning" icon={<Warning size={16} />} className="m-2">
+                <AlertTitle>Unable to establish connection</AlertTitle>
+                <AlertDescription>
+                    Agenta is unable to communicate with your server. Try refreshing or consider
+                    re-configuring your workflow URL.
+                </AlertDescription>
+                <AlertAction>
+                    <Button onClick={() => openModal()} variant="outline" size="sm">
+                        <PencilSimple size={14} />
+                        Configure
+                    </Button>
+                </AlertAction>
+            </Alert>
         )
     }
 

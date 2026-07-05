@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Alert, Collapse} from "antd"
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
+import {Warning} from "@phosphor-icons/react"
+import {Collapse} from "antd"
 import clsx from "clsx"
 
 import {transformMetadata} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
@@ -122,13 +124,14 @@ const AnnotationForm = ({
             {errors.map((err, idx) => (
                 <Alert
                     key={idx}
-                    showIcon
+                    variant="warning"
+                    icon={<Warning size={16} />}
                     closable
-                    message={err}
-                    type="warning"
-                    className="!rounded-none"
                     onClose={() => onDismissError(idx)}
-                />
+                    className="!rounded-none"
+                >
+                    <AlertTitle>{err}</AlertTitle>
+                </Alert>
             ))}
 
             <Collapse

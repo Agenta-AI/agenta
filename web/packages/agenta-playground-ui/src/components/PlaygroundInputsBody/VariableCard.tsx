@@ -36,6 +36,7 @@ import {
     valueToDisplay,
 } from "@agenta/entity-ui/view-types"
 import type {ExpectedType, LogicalType, ViewOption, ViewType} from "@agenta/entity-ui/view-types"
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import type {SimpleChatMessage} from "@agenta/ui/chat-message"
@@ -43,7 +44,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
 import {CaretDown, CaretRight, CopySimple, Database, Info, Warning} from "@phosphor-icons/react"
-import {Alert, Input, InputNumber, Switch, Tag, Tooltip, message} from "antd"
+import {Input, InputNumber, Switch, Tag, Tooltip, message} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
@@ -489,22 +490,11 @@ export function VariableCard({
             </div>
             {shapeConflicts.length > 0 && editable ? (
                 <Alert
-                    type="warning"
-                    showIcon
+                    variant="warning"
                     icon={<Warning size={14} />}
                     className="!py-1.5 !px-2 !rounded-md"
-                    message={
-                        // Custom flex layout — antd's `action` prop renders
-                        // alongside `message` but doesn't reflow cleanly when
-                        // the text wraps. We render text + button inside the
-                        // message slot with a flex container so the button
-                        // either sits inline (short text) or wraps to the
-                        // next line (long text) without overlapping.
-                        //
-                        // Code chip uses a contrasting white bg with a thin
-                        // amber border — the previous `bg-[#fff7e6]` was the
-                        // SAME color as the warning Alert background, making
-                        // the chip invisible (Arda screenshot 2026-06-01).
+                >
+                    <AlertTitle>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                             <span className="text-[12px]">
                                 The prompt now expects nested fields at{" "}
@@ -528,8 +518,8 @@ export function VariableCard({
                                 Use prompt shape
                             </Button>
                         </div>
-                    }
-                />
+                    </AlertTitle>
+                </Alert>
             ) : null}
             <div className="block">
                 <CardBody

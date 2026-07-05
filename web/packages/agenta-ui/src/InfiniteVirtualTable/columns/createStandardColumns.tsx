@@ -1,4 +1,4 @@
-import type {ComponentType, ReactNode} from "react"
+import React, {type ComponentType, type ReactNode} from "react"
 
 import {
     DropdownMenu,

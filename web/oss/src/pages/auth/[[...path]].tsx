@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {
@@ -12,7 +13,8 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Divider, Select} from "antd"
+import {Warning, Info} from "@phosphor-icons/react"
+import {Divider, Select} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -461,12 +463,15 @@ const Auth = () => {
                         {/* Show invite email mismatch message */}
                         {hasInviteEmailMismatch && (
                             <div className="flex flex-col gap-4">
-                                <Alert
-                                    showIcon
-                                    message="Signed in with a different account"
-                                    description={`This invitation was sent to ${inviteEmail}, but you're currently signed in as ${currentUserEmail}. Please sign out and sign in with the correct account to accept this invitation.`}
-                                    type="warning"
-                                />
+                                <Alert variant="warning" icon={<Warning size={16} />}>
+                                    <AlertTitle>Signed in with a different account</AlertTitle>
+                                    <AlertDescription>
+                                        This invitation was sent to {inviteEmail}, but you're
+                                        currently signed in as {currentUserEmail}. Please sign out
+                                        and sign in with the correct account to accept this
+                                        invitation.
+                                    </AlertDescription>
+                                </Alert>
                                 <div className="flex gap-3 justify-center">
                                     <Button onClick={() => router.replace("/w")} variant="outline">
                                         Go to your organizations
@@ -489,12 +494,10 @@ const Auth = () => {
 
                         {/* Show auth upgrade required message prominently */}
                         {isAuthUpgradeRequired && authMessage && !hasInviteEmailMismatch && (
-                            <Alert
-                                showIcon
-                                message="Additional authentication required"
-                                description={authMessage}
-                                type="warning"
-                            />
+                            <Alert variant="warning" icon={<Warning size={16} />}>
+                                <AlertTitle>Additional authentication required</AlertTitle>
+                                <AlertDescription>{authMessage}</AlertDescription>
+                            </Alert>
                         )}
 
                         {/* Step 1: Show social auth options (if configured) */}
@@ -709,12 +712,13 @@ const Auth = () => {
 
             {message.type && message.type !== "error" ? (
                 <Alert
-                    showIcon
+                    variant={message.type === "warning" ? "warning" : "info"}
+                    icon={message.type === "warning" ? <Warning size={16} /> : <Info size={16} />}
                     closable
-                    message={message.message}
-                    type={message.type}
                     className="absolute bottom-6 right-6"
-                />
+                >
+                    <AlertTitle>{message.message}</AlertTitle>
+                </Alert>
             ) : null}
         </main>
     )

@@ -4,7 +4,9 @@
  * Modal content with name input and save-as-new option.
  */
 
-import {Input, Alert, Checkbox} from "antd"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
+import {WarningCircle} from "@phosphor-icons/react"
+import {Input, Checkbox} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -70,7 +72,10 @@ export function EntitySaveContent() {
 
             {/* Error display */}
             {error && (
-                <Alert type="error" message="Save failed" description={error.message} showIcon />
+                <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                    <AlertTitle>Save failed</AlertTitle>
+                    <AlertDescription>{error.message}</AlertDescription>
+                </Alert>
             )}
         </div>
     )

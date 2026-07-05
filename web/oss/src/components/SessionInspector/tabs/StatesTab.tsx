@@ -1,7 +1,9 @@
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {WarningCircle} from "@phosphor-icons/react"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Descriptions} from "antd"
+import {Descriptions} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -31,7 +33,12 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
                 <Skeleton className="h-3 w-3/5" />
             </div>
         )
-    if (error) return <Alert type="error" message="Failed to load state" showIcon />
+    if (error)
+        return (
+            <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                <AlertTitle>Failed to load state</AlertTitle>
+            </Alert>
+        )
     if (!data)
         return <span className="text-muted-foreground">No durable state for this session yet.</span>
 

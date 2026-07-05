@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {
     DropdownMenu,
@@ -20,8 +21,9 @@ import {
     Copy,
     CornersIn,
     CornersOut,
+    WarningCircle,
 } from "@phosphor-icons/react"
-import {Alert, Skeleton, Tooltip} from "antd"
+import {Skeleton, Tooltip} from "antd"
 
 import type {RootDrawerViewMode} from "./codeFormat"
 
@@ -425,12 +427,12 @@ function TestcaseDrawer<TData = unknown>({
                     )}
                     {isError && (
                         <div className="p-6">
-                            <Alert
-                                type="error"
-                                message="Failed to load testcase"
-                                description={errorMessage ?? "Unknown error"}
-                                showIcon
-                            />
+                            <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                                <AlertTitle>Failed to load testcase</AlertTitle>
+                                <AlertDescription>
+                                    {errorMessage ?? "Unknown error"}
+                                </AlertDescription>
+                            </Alert>
                         </div>
                     )}
                     {testcaseData &&

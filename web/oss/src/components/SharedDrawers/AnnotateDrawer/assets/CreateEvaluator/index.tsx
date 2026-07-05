@@ -6,13 +6,14 @@ import {
     updateHumanEvaluatorAtom,
     type HumanEvaluatorMetric,
 } from "@agenta/entities/workflow"
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Textarea} from "@agenta/primitive-ui/components/textarea"
 import {message} from "@agenta/ui/app-message"
-import {Plus} from "@phosphor-icons/react"
-import {Alert, Form} from "antd"
+import {Plus, WarningCircle} from "@phosphor-icons/react"
+import {Form} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
@@ -295,14 +296,15 @@ const CreateEvaluator = ({
             {errorMessage?.map((msg, idx) => (
                 <Alert
                     key={idx}
-                    message={msg}
-                    type="error"
-                    showIcon
+                    variant="destructive"
+                    icon={<WarningCircle size={16} />}
                     closable
                     onClose={() =>
                         setErrorMessage((prev) => prev?.filter((_, i) => i !== idx) || [])
                     }
-                />
+                >
+                    <AlertTitle>{msg}</AlertTitle>
+                </Alert>
             ))}
 
             <div className="w-full flex flex-col gap-2">

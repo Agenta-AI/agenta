@@ -1,5 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {EnhancedModal as Modal} from "@agenta/ui"
@@ -12,7 +13,8 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Divider} from "antd"
+import {Warning} from "@phosphor-icons/react"
+import {Divider} from "antd"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
 import EmailPasswordSignIn from "@/oss/components/pages/auth/EmailPasswordSignIn"
@@ -176,7 +178,11 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
                 {organizationName && (
                     <span>{organizationName} requires additional authentication to continue.</span>
                 )}
-                {detailMessage && <Alert showIcon message={detailMessage} type="warning" />}
+                {detailMessage && (
+                    <Alert variant="warning" icon={<Warning size={16} />}>
+                        <AlertTitle>{detailMessage}</AlertTitle>
+                    </Alert>
+                )}
                 {showSso && (
                     <>
                         <div className="flex flex-col gap-2">
@@ -249,11 +255,11 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
                 )}
 
                 {!noAllowedMethods && !showEmail && !showSocial && !showSso && (
-                    <Alert
-                        showIcon
-                        message="No authentication methods are configured for this organization."
-                        type="warning"
-                    />
+                    <Alert variant="warning" icon={<Warning size={16} />}>
+                        <AlertTitle>
+                            No authentication methods are configured for this organization.
+                        </AlertTitle>
+                    </Alert>
                 )}
                 {noAllowedMethods && (
                     <Button onClick={onCancel} className="w-full">

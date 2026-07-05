@@ -10,11 +10,12 @@
 
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Info, Plus, Trash} from "@phosphor-icons/react"
-import {Alert, Input, InputNumber, Select, Switch, Tooltip} from "antd"
+import {Input, InputNumber, Select, Switch, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -528,12 +529,12 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
 
             {/* Boolean info */}
             {responseFormat === "boolean" && (
-                <Alert
-                    title="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
-                    type="info"
-                    showIcon
-                    className="mb-4"
-                />
+                <Alert variant="info" icon={<Info size={16} />} className="mb-4">
+                    <AlertTitle>
+                        The evaluator will provide a true (1) or false (0) response based on the
+                        feedback criteria.
+                    </AlertTitle>
+                </Alert>
             )}
 
             {/* Continuous fields */}

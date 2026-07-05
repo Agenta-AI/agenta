@@ -16,13 +16,14 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {AnnotationMetricField} from "@agenta/annotation"
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {Editor} from "@agenta/ui/editor"
-import {Info} from "@phosphor-icons/react"
-import {Alert, Collapse, Tag} from "antd"
+import {Info, Warning} from "@phosphor-icons/react"
+import {Collapse, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationFormState} from "../../hooks/useAnnotationFormState"
@@ -304,23 +305,28 @@ const AnnotationPanel = memo(function AnnotationPanel({
             {/* Errors */}
             {submitError && (
                 <Alert
-                    showIcon
+                    variant="warning"
+                    icon={<Warning size={16} />}
                     closable
-                    message={submitError}
-                    type="warning"
-                    className="!rounded-none"
                     onClose={() => clearSubmitError(scenarioId)}
-                />
+                    className="!rounded-none"
+                >
+                    <AlertTitle>{submitError}</AlertTitle>
+                </Alert>
             )}
 
             {evaluatorResolution.hasError && evaluators.length > 0 && (
                 <Alert
-                    showIcon
+                    variant="warning"
+                    icon={<Warning size={16} />}
                     closable
-                    type="warning"
-                    message="Some evaluators could not be loaded. Loaded evaluator fields are still available."
                     className="!rounded-none"
-                />
+                >
+                    <AlertTitle>
+                        Some evaluators could not be loaded. Loaded evaluator fields are still
+                        available.
+                    </AlertTitle>
+                </Alert>
             )}
 
             {/* Queue description helper + form fields */}

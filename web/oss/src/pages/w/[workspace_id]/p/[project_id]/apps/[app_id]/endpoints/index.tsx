@@ -6,17 +6,11 @@ import {
     workflowVariantsListDataAtomFamily,
     workflowVariantsListQueryStateAtomFamily,
 } from "@agenta/entities/workflow"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
-import {
-    Alert,
-    Collapse,
-    type CollapseProps,
-    Empty,
-    Radio,
-    type RadioChangeEvent,
-    Tooltip,
-} from "antd"
+import {Warning} from "@phosphor-icons/react"
+import {Collapse, type CollapseProps, Empty, Radio, type RadioChangeEvent, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -349,12 +343,13 @@ function VariantEndpointContent() {
                     ))}
                 </Tabs>
             ) : (
-                <Alert
-                    message="Publish Required"
-                    description={`No variants have been published to ${selectedEnvironment?.name} environment. Please publish a variant from the playground to proceed`}
-                    type="warning"
-                    showIcon
-                />
+                <Alert variant="warning" icon={<Warning size={16} />}>
+                    <AlertTitle>Publish Required</AlertTitle>
+                    <AlertDescription>
+                        No variants have been published to {selectedEnvironment?.name} environment.
+                        Please publish a variant from the playground to proceed
+                    </AlertDescription>
+                </Alert>
             )}
         </div>
     )

@@ -1,10 +1,11 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
+import {Warning} from "@phosphor-icons/react"
 import {Collapse, CollapseProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
-import dynamic from "next/dynamic"
 
 import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
@@ -17,8 +18,6 @@ import {
 import {AnnotateProps} from "../types"
 
 import AnnotateCollapseContent from "./assets/AnnotateCollapseContent"
-
-const Alert = dynamic(() => import("antd").then((mod) => mod.Alert), {ssr: false})
 
 const Annotate = ({
     annotations = [],
@@ -252,22 +251,20 @@ const Annotate = ({
     return (
         <section className="w-full flex flex-col">
             {tempSelectedEvaluators.length > 0 && (
-                <Alert
-                    message="You have not added any human annotations from the web yet."
-                    type="warning"
-                    className="!rounded-none"
-                    showIcon
-                />
+                <Alert variant="warning" icon={<Warning size={16} />} className="!rounded-none">
+                    <AlertTitle>
+                        You have not added any human annotations from the web yet.
+                    </AlertTitle>
+                </Alert>
             )}
 
             {errorMessage && errorMessage?.length > 0
                 ? errorMessage?.map((err, idx) => (
                       <Alert
-                          showIcon
+                          variant="warning"
+                          icon={<Warning size={16} />}
                           closable
                           key={idx}
-                          message={err}
-                          type="warning"
                           className="!rounded-none"
                           onClose={() =>
                               onCaptureError?.(
@@ -275,7 +272,9 @@ const Annotate = ({
                                   false,
                               )
                           }
-                      />
+                      >
+                          <AlertTitle>{err}</AlertTitle>
+                      </Alert>
                   ))
                 : null}
 

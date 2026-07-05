@@ -1,8 +1,10 @@
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {WarningCircle} from "@phosphor-icons/react"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Collapse, Empty} from "antd"
+import {Collapse, Empty} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -32,7 +34,12 @@ const RecordsTab = ({sessionId}: {sessionId: string}) => {
                 <Skeleton className="h-3 w-3/5" />
             </div>
         )
-    if (error) return <Alert type="error" message="Failed to load records" showIcon />
+    if (error)
+        return (
+            <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                <AlertTitle>Failed to load records</AlertTitle>
+            </Alert>
+        )
 
     const records = data?.records ?? []
     if (!records.length) return <Empty description="No record events yet" />

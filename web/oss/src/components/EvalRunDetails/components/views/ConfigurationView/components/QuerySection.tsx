@@ -1,6 +1,8 @@
 import {useMemo, useState} from "react"
 
-import {Alert, Segmented} from "antd"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
+import {WarningCircle} from "@phosphor-icons/react"
+import {Segmented} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -75,13 +77,10 @@ const QuerySection = ({runId}: QuerySectionProps) => {
     return (
         <>
             {queryRevisionError ? (
-                <Alert
-                    type="error"
-                    showIcon
-                    className="mb-1"
-                    message="Failed to resolve query revision"
-                    description={stringifyError(queryRevisionError)}
-                />
+                <Alert variant="destructive" icon={<WarningCircle size={16} />} className="mb-1">
+                    <AlertTitle>Failed to resolve query revision</AlertTitle>
+                    <AlertDescription>{stringifyError(queryRevisionError)}</AlertDescription>
+                </Alert>
             ) : null}
 
             <SectionHeaderRow

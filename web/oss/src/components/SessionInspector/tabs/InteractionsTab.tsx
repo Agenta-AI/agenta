@@ -1,13 +1,15 @@
 import {useState} from "react"
 
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Card, CardContent, CardHeader, CardTitle} from "@agenta/primitive-ui/components/card"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
+import {WarningCircle} from "@phosphor-icons/react"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Empty, Space, Tag} from "antd"
+import {Empty, Space, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -69,7 +71,12 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                 <Skeleton className="h-3 w-3/5" />
             </div>
         )
-    if (error) return <Alert type="error" message="Failed to load interactions" showIcon />
+    if (error)
+        return (
+            <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                <AlertTitle>Failed to load interactions</AlertTitle>
+            </Alert>
+        )
 
     const interactions = data?.interactions ?? []
 

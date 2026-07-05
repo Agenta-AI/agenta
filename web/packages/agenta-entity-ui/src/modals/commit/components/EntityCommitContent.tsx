@@ -8,6 +8,7 @@
 import {useState, useEffect, useRef} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {
     formatCount,
@@ -21,8 +22,8 @@ import {CommitMessageInput} from "@agenta/ui/components/presentational"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
-import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
-import {Input, Alert, Radio, Tag} from "antd"
+import {ArrowClockwise, Warning, WarningCircle} from "@phosphor-icons/react"
+import {Input, Radio, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
@@ -495,12 +496,13 @@ export function EntityCommitContent({
 
                     {/* Cannot commit warning */}
                     {!canCommit && (
-                        <Alert
-                            type="warning"
-                            title="This entity cannot be committed"
-                            description="Check that there are changes to commit and the entity is in a valid state."
-                            showIcon
-                        />
+                        <Alert variant="warning" icon={<Warning size={16} />}>
+                            <AlertTitle>This entity cannot be committed</AlertTitle>
+                            <AlertDescription>
+                                Check that there are changes to commit and the entity is in a valid
+                                state.
+                            </AlertDescription>
+                        </Alert>
                     )}
 
                     {/* Commit mode selector (optional) — agent commits use the statement toggle. */}
@@ -564,12 +566,13 @@ export function EntityCommitContent({
                     {/* Error display */}
                     {error && (
                         <Alert
-                            type="error"
-                            title={`${actionLabel} failed`}
-                            description={error.message}
-                            className="[&_.ant-alert]:!py-5"
-                            showIcon
-                        />
+                            variant="destructive"
+                            icon={<WarningCircle size={16} />}
+                            className="py-5"
+                        >
+                            <AlertTitle>{actionLabel} failed</AlertTitle>
+                            <AlertDescription>{error.message}</AlertDescription>
+                        </Alert>
                     )}
                 </div>
 

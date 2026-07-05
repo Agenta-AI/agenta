@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from "react"
 
-import {Alert, Spin} from "antd"
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
+import {Warning, Info} from "@phosphor-icons/react"
+import {Spin} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -163,12 +165,13 @@ const Callback = () => {
 
             {message.message && (
                 <Alert
-                    showIcon
+                    variant={message.type === "warning" ? "warning" : "info"}
+                    icon={message.type === "warning" ? <Warning size={16} /> : <Info size={16} />}
                     closable
-                    message={message.message}
-                    type={message.type}
                     className="absolute bottom-6 right-6 z-50"
-                />
+                >
+                    <AlertTitle>{message.message}</AlertTitle>
+                </Alert>
             )}
         </>
     )

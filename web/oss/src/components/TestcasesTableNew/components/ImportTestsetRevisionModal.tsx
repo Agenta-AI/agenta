@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {
     Popover,
@@ -12,7 +13,8 @@ import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
-import {Alert, Upload, UploadFile} from "antd"
+import {WarningCircle} from "@phosphor-icons/react"
+import {Upload, UploadFile} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {FilePreviewTable} from "@/oss/components/pages/testset/modals/components/FilePreviewTable"
@@ -330,12 +332,13 @@ export function ImportTestsetRevisionModal({
 
                         {validationError && (
                             <Alert
-                                message={validationError}
-                                type="error"
-                                showIcon
+                                variant="destructive"
+                                icon={<WarningCircle size={16} />}
                                 closable
                                 onClose={() => setValidationError(null)}
-                            />
+                            >
+                                <AlertTitle>{validationError}</AlertTitle>
+                            </Alert>
                         )}
 
                         {previewData.length > 0 && (

@@ -7,7 +7,8 @@
 
 import {useMemo} from "react"
 
-import {Alert} from "antd"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
+import {WarningCircle, Warning} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {Trash2} from "lucide-react"
 
@@ -49,27 +50,23 @@ export function EntityDeleteContent() {
 
             {/* Warnings */}
             {warnings.length > 0 && (
-                <Alert
-                    type="warning"
-                    showIcon
-                    message="Warning"
-                    description={
+                <Alert variant="warning" icon={<Warning size={16} />}>
+                    <AlertTitle>Warning</AlertTitle>
+                    <AlertDescription>
                         <ul className="list-disc list-inside m-0 pl-0">
                             {warnings.map((warning, i) => (
                                 <li key={i}>{warning}</li>
                             ))}
                         </ul>
-                    }
-                />
+                    </AlertDescription>
+                </Alert>
             )}
 
             {/* Blocked entities */}
             {blocked.length > 0 && (
-                <Alert
-                    type="error"
-                    showIcon
-                    message="Cannot Delete"
-                    description={
+                <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                    <AlertTitle>Cannot Delete</AlertTitle>
+                    <AlertDescription>
                         <div>
                             <span>The following items cannot be deleted:</span>
                             <ul className="list-disc list-inside m-0 pl-0 mt-2">
@@ -80,13 +77,16 @@ export function EntityDeleteContent() {
                                 ))}
                             </ul>
                         </div>
-                    }
-                />
+                    </AlertDescription>
+                </Alert>
             )}
 
             {/* Error message */}
             {error && (
-                <Alert type="error" showIcon message="Delete Failed" description={error.message} />
+                <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                    <AlertTitle>Delete Failed</AlertTitle>
+                    <AlertDescription>{error.message}</AlertDescription>
+                </Alert>
             )}
         </div>
     )

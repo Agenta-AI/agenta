@@ -11,10 +11,11 @@ import {
     type CronTimeOfDay,
     type ScheduleBuilderState,
 } from "@agenta/entities/gatewayTrigger"
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {dayjs} from "@agenta/shared/utils"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
-import {Plus} from "@phosphor-icons/react"
-import {Alert, Button, Form, Input, InputNumber, Select, Tag, TimePicker, message} from "antd"
+import {CheckCircle, Plus} from "@phosphor-icons/react"
+import {Button, Form, Input, InputNumber, Select, Tag, TimePicker, message} from "antd"
 
 const CADENCES: {value: CronCadence; label: string}[] = [
     {value: "hourly", label: "Hourly"},
@@ -187,17 +188,14 @@ export function ScheduleBuilderField({
             </div>
 
             {summary && (
-                <Alert
-                    type="success"
-                    showIcon
-                    className="!mt-3 !py-1.5"
-                    message={
+                <Alert variant="success" icon={<CheckCircle size={16} />} className="!mt-3 !py-1.5">
+                    <AlertTitle>
                         <span className="text-xs leading-snug">
                             <span className="font-medium">{summary}</span>
                             {nextRun ? <> · next {fmtRun(nextRun)}</> : null}
                         </span>
-                    }
-                />
+                    </AlertTitle>
+                </Alert>
             )}
         </Form.Item>
     )

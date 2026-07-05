@@ -1,7 +1,9 @@
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {WarningCircle} from "@phosphor-icons/react"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Empty, List} from "antd"
+import {Empty, List} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -31,7 +33,12 @@ const MountsTab = ({sessionId}: {sessionId: string}) => {
                 <Skeleton className="h-3 w-3/5" />
             </div>
         )
-    if (error) return <Alert type="error" message="Failed to load mounts" showIcon />
+    if (error)
+        return (
+            <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                <AlertTitle>Failed to load mounts</AlertTitle>
+            </Alert>
+        )
 
     const mounts = data?.mounts ?? []
     if (!mounts.length) return <Empty description="No mounts bound to this session" />

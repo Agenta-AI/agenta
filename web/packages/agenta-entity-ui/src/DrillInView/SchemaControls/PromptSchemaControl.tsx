@@ -16,13 +16,14 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {Alert, AlertTitle} from "@agenta/primitive-ui/components/alert"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Info, Plus} from "@phosphor-icons/react"
-import {Alert, Button, Select} from "antd"
+import {Button, Select} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 import {ResponseFormatControl, type ResponseFormatValue} from "./ResponseFormatControl"
@@ -642,11 +643,11 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                     originalTemplateFormatRef.current === "fstring") &&
                 localTemplateFormat !== originalTemplateFormatRef.current && (
                     <Alert
-                        type="info"
-                        showIcon
+                        variant="info"
                         icon={<Info size={14} />}
                         className="!py-1 !px-2 !rounded-md"
-                        message={
+                    >
+                        <AlertTitle>
                             <span className="text-[12px]">
                                 Switching from{" "}
                                 <code className="font-mono text-[11px] bg-[#e6f4ff] px-1 rounded">
@@ -655,8 +656,8 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                                 is permanent — once you commit, you won&apos;t be able to switch
                                 back. Discard the draft to revert.
                             </span>
-                        }
-                    />
+                        </AlertTitle>
+                    </Alert>
                 )}
         </div>
     )

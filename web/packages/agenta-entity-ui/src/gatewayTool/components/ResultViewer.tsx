@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import type {ToolResult} from "@agenta/entities/gatewayTool"
+import {Alert, AlertTitle, AlertDescription} from "@agenta/primitive-ui/components/alert"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {
     buildFormFieldsFromData,
@@ -8,8 +9,8 @@ import {
     type FormFieldDescriptor,
 } from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
-import {CopySimple} from "@phosphor-icons/react"
-import {Alert, Form, Input, InputNumber, message} from "antd"
+import {CopySimple, WarningCircle} from "@phosphor-icons/react"
+import {Form, Input, InputNumber, message} from "antd"
 
 interface Props {
     result: ToolResult | null
@@ -20,7 +21,12 @@ interface Props {
 
 export default function ResultViewer({result, error, outputSchema, jsonMode}: Props) {
     if (error) {
-        return <Alert type="error" message="Execution Failed" description={error} showIcon />
+        return (
+            <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                <AlertTitle>Execution Failed</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        )
     }
 
     if (!result) return null
@@ -33,16 +39,14 @@ export default function ResultViewer({result, error, outputSchema, jsonMode}: Pr
 
     if (hasStatusError) {
         return (
-            <Alert
-                type="error"
-                message="Tool returned an error"
-                description={
-                    statusCode && statusMessage
+            <Alert variant="destructive" icon={<WarningCircle size={16} />}>
+                <AlertTitle>Tool returned an error</AlertTitle>
+                <AlertDescription>
+                    {statusCode && statusMessage
                         ? `${statusCode}: ${statusMessage}`
-                        : (statusMessage ?? statusCode ?? "Unknown tool execution error")
-                }
-                showIcon
-            />
+                        : (statusMessage ?? statusCode ?? "Unknown tool execution error")}
+                </AlertDescription>
+            </Alert>
         )
     }
 
