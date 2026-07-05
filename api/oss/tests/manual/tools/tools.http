@@ -115,7 +115,7 @@ DELETE {{base_url}}/connections/{{gmail_connection_id}}
 Authorization: {{authorization}}
 
 # =====================================================================
-# TOOL DISCOVERY  (find_capabilities)
+# TOOL DISCOVERY  (discover_tools)
 # =====================================================================
 
 ###
@@ -136,28 +136,6 @@ Authorization: {{authorization}}
   ],
   "provider": "composio",
   "limit_alternatives": 3
-}
-
-###
-# @name call_find_capabilities
-# The reserved agent-facing tool, exercised over /tools/call exactly as the runner would relay it
-# (call_ref out of the Composio 5-segment namespace). NOTE: the SDK-side declaration that lets an
-# agent config carry this tool is still pending; this shows the server-side route works today.
-POST {{base_url}}/call
-Content-Type: application/json
-Authorization: {{authorization}}
-
-{
-  "data": {
-    "id": "call_{{$guid}}",
-    "type": "function",
-    "function": {
-      "name": "tools.agenta.find_capabilities",
-      "arguments": {
-        "use_cases": ["create a github issue"]
-      }
-    }
-  }
 }
 
 # =====================================================================

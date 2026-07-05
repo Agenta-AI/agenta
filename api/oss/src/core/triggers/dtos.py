@@ -101,7 +101,7 @@ class TriggerCatalogEventsPage(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Trigger discovery (find_triggers)
+# Trigger discovery (discover_triggers)
 # ---------------------------------------------------------------------------
 
 

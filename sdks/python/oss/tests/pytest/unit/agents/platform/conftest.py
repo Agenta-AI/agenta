@@ -19,6 +19,7 @@ from agenta.sdk.agents.platform import PlatformConnection
 _ENV_VARS = (
     "AGENTA_API_URL",
     "AGENTA_API_KEY",
+    "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS",
 )
 
 

@@ -56,15 +56,18 @@ The same `POST /tools/call` serves three kinds of callback tool, routed by the `
   `response.data.outputs` is serialized into `call.data.content`. Auth is minted server-side from
   the caller's project + user, so the workflow's own connections/secrets stay server-side — the
   same safety property as a gateway tool.
-- **`tools.agenta.{op}`** — a reserved Agenta platform tool (out of the Composio 5-segment
-  namespace). v1 op: `tools.agenta.find_capabilities`, routed by `_call_agenta_tool` to
-  `ToolsService.discover_capabilities` (same logic as the `POST /tools/discover` endpoint). The
-  `CapabilitiesResult` is serialized into `call.data.content`. **Status:** this server-side
-  `/tools/call` route still exists, but agents no longer reach it through this `call_ref` —
-  `find_capabilities` is now a [platform tool](../in-service/tool-models-and-resolution.md) whose
-  SDK resolution emits a direct `call` to `POST /api/tools/discover` (the `call` descriptor below),
-  bypassing `/tools/call`. The `tools.agenta.*` route is retained during migration and removed in a
-  later phase once nothing routes through it.
+- **`tools.agenta.{op}`**: a reserved Agenta server-side handler (out of the Composio 5-segment
+  namespace). The router (`_call_reserved_agenta_tool`) dispatches a registered ref through the
+  handler registry in `api/oss/src/core/tools/platform_handlers.py`; an unregistered
+  `tools.agenta.*` ref fails loud with a 404. The first registered handler is
+  `tools.agenta.test_run` (run the agent's own variant once, digest + verdict; an argument
+  `delta` requires `EDIT_WORKFLOWS`). **Status:** the legacy v1 dispatch
+  (`tools.agenta.find_capabilities` via `_call_agenta_tool`) is deleted; discovery is the
+  `discover_tools` [platform tool](../in-service/tool-models-and-resolution.md), whose SDK
+  resolution emits a direct `call` to `POST /api/tools/discover` (the `call` descriptor below),
+  bypassing `/tools/call`. Handler-mode resolution is flag-gated off
+  (`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`) until the runner dispatches reserved refs with
+  spec-level context injection.
 
 The runner is unchanged for all three: it relays a `callback` spec with whatever `call_ref` the
 resolver put on it. Only the router's prefix dispatch is aware of the grammars.
@@ -87,18 +90,23 @@ deep-sets LAST — so a self-targeting tool's own trace/variant is filled server
 can never set or override a bound field. A token that does not resolve is skipped (the field stays
 unset); deep-set is prototype-pollution-safe.
 
-**Status (direct-call tools):** Phase 1 added the `call` field (plumbing), Phase 2 added the
-runner dispatch branch (host-direct via the relay path, with the SSRF guardrails), and Phase 3a
-added the `runContext` wire field + the `call.context` binding in `assembleBody`. Live behavior is
-still unchanged because **no resolver emits `call` or `call.context` yet** — gateway and reference
-tools still route through `/tools/call`. The platform-op catalog that emits them is Phase 3b. Full
-spec: `docs/design/agent-workflows/projects/direct-call-tools/`.
+**Status (direct-call tools):** wired end to end for endpoint-mode platform ops. The SDK
+platform-op resolver emits `call` (and `call.context` for self-targeting ops such as
+`commit_revision`); the runner dispatches it host-direct with the SSRF guardrails. Gateway and
+reference tools still route through `/tools/call`. Handler-mode platform ops add a second wire
+shape: a reserved `tools.agenta.{op}` `call_ref` plus spec-level `contextBindings` and
+`timeoutMs` (SDK side only so far: `tools/models.py` + `wire_models.py`); the resolver
+only emits it behind `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` (default off) because the runner
+(`protocol.ts` included) does not yet carry or dispatch the new spec fields. Full spec:
+`docs/design/agent-workflows/projects/direct-call-tools/` and
+`docs/design/agent-workflows/projects/build-kit-tools-cleanup/api-design.md`.
 
 ## Owned by
 
 - `services/agent/src/tools/callback.ts`: the runner caller (sends the envelope, reads `content`).
 - `services/agent/src/tools/dispatch.ts`: runner-side dispatch.
 - `api/oss/src/apis/fastapi/tools/router.py`: the endpoint that parses, executes, and serializes.
+- `api/oss/src/core/tools/platform_handlers.py`: the reserved-ref handler registry (`test_run`).
 - `services/oss/src/agent/tools/resolver.py`: re-exports the SDK resolver; no service-layer logic.
 
 ## Watch for when changing
@@ -107,16 +115,21 @@ spec: `docs/design/agent-workflows/projects/direct-call-tools/`.
   reference, the `workflow.{axis}.*` reference (`workflow.variant.{slug}[.{version}]` /
   `workflow.environment.{environment}.{slug}`), the reserved `tools.agenta.{op}` reference, and
   the `__`/`.` normalization are a paired contract across runner and router. The router
-  dispatches by prefix: `workflow.` → `_call_workflow_tool`, `tools.agenta.` → `_call_agenta_tool`,
-  else the 5-segment Composio parse. Keep the SDK resolvers and the router parser in agreement.
+  dispatches by prefix: a registered reserved ref → `_call_reserved_agenta_tool` (the handler
+  registry), `workflow.` → `_call_workflow_tool`, else the 5-segment Composio parse. Keep the
+  SDK resolvers and the router parser in agreement.
 - **The `call` descriptor (direct path) and `runContext` binding.** A callback spec carries
   `call` XOR `call_ref`; the descriptor (`method`/`path`/`body`/`context`/`args_into`) must stay
   mirrored across `protocol.ts`, the SDK `CallbackToolSpec`, `wire_models.py`, and the golden
   fixtures. The `call.context` binding reads the per-turn `runContext` blob (also mirrored across
   `protocol.ts` / `wire_models.py` / `wire.py` / the goldens); its inner keys are the snake_case
-  `$ctx.<key>` namespace, not camelCase. The runner now dispatches `call` and fills `call.context`
-  (`tools/direct.ts` `assembleBody`), but no resolver EMITS `call`/`context` yet (the platform-op
-  catalog is Phase 3b), so live behavior is unchanged.
+  `$ctx.<key>` namespace, not camelCase. The runner dispatches `call` and fills `call.context`
+  (`tools/direct.ts` `assembleBody`); the platform-op catalog emits them for endpoint-mode ops.
+- **Handler-mode spec fields.** A handler-mode op emits a reserved `call_ref` plus spec-level
+  `contextBindings` and `timeoutMs` (today only on the SDK side, `tools/models.py` +
+  `wire_models.py`). The runner does not carry or read them yet; keep the flag
+  (`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`) off until `protocol.ts` mirrors them and the relay
+  injects them, and move the mirrors and the goldens together when it does.
 - **Tool result content.** `call.data.content` is a JSON string already; do not double-encode
   it on the way out.
 - **Argument normalization.** Keep accepting both string and object arguments.

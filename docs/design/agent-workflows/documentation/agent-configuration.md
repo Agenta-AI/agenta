@@ -214,7 +214,7 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 | model / provider | yes, `model: str` | yes, `Optional[str]` | wired to the runner | Loose string. No `ModelRef`, no provider enum. There is no separate provider field. |
 | tools | yes, strict list | yes, lenient coercion | wired, resolved to builtin names + tool specs | Entries strict, list lenient. |
 | mcp_servers | yes, strict list | yes | wired, resolved to runner mcp servers | Strict per entry. Gated by `AGENTA_AGENT_ENABLE_MCP` at the service. |
-| skills | no | no | wired but forced only | Not author-settable. Only the Agenta harness injects forced skills. See below. |
+| skills | yes, embed/inline list | yes | wired | Author-settable (`SkillConfig` inline or `@ag.embed` references). The playground build-kit overlay embeds one skill, the `build-an-agent` playbook; the `pi_agenta` harness additionally force-unions `getting-started`. See below. |
 | persona | no | no | wired but forced only | Not a config field. The Agenta harness hardcodes an append-system preamble. See below. |
 | agents_md | yes, `agents_md: str` | yes, as `instructions` | wired to `agentsMd` | The schema names it `agents_md`. The neutral config names it `instructions`. |
 | harness | yes, enum | yes, on `AgentConfig` | wired, picks the harness class | Enum-enforced. The runtime validates via `make_harness`. |
@@ -223,15 +223,19 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 
 ## Notable gaps and quirks
 
-`skills` and `persona` are not author config. They are runtime injections of the Agenta
-harness only. `skills` is a `List[str]` on `AgentaAgentConfig`, force-populated from a fixed
-list. `persona` is a forced append-system string. Neither appears in any schema, neither
-appears on the neutral config, and the playground renders no control for either. Pi and
-Claude harnesses get no forced skills or persona.
+`persona` is not author config; it is a runtime injection of the Agenta harness only (a forced
+append-system string). `skills` used to work the same way, but is author config now: inline
+`SkillConfig` packages or `@ag.embed` references the backend inlines before the runner sees
+them. Two platform skills still arrive without the author writing anything: the playground
+build-kit overlay embeds the `build-an-agent` playbook, and the `pi_agenta` harness
+force-unions the `getting-started` skill (`AGENTA_FORCED_SKILLS` in
+`sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py`). Each is delivered exactly once.
+Pi (`pi_core`) and Claude harnesses get no forced skills or persona.
 
 Per-harness divergence is real in other ways, but not in permission enforcement anymore: the
 permission policy is now enforced on both Claude and Pi. Builtin tool names are dropped for
-Claude with a warning, because builtins are Pi-only. Skills and persona are Agenta-only. Pi's
+Claude with a warning, because builtins are Pi-only. Forced skills and persona are
+Agenta-only. Pi's
 `system` and `append_system` overrides come through the `harness_kwargs` escape hatch on the
 neutral config, which is itself absent from the schema.
 

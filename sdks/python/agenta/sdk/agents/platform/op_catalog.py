@@ -7,7 +7,7 @@ schema, any self-targeting fields bound from run context, and the default permis
 
 It mirrors two patterns already in the codebase:
 
-- the reserved ``tools.agenta.*`` namespace (PR #4884, ``find_capabilities``): a reserved op id
+- the reserved ``tools.agenta.*`` namespace: a reserved op id
   under ``tools.agenta.<op>`` with a code-defined description + input schema;
 - the evaluators catalog (``api/oss/src/resources/evaluators/evaluators.py``): a code-defined
   table of named ops with metadata, validated at import.
@@ -44,13 +44,18 @@ __all__ = [
     "get_platform_op",
 ]
 
-# Reserved namespace for a platform op's stable id (mirrors ``tools.agenta.find_capabilities``).
+# Reserved namespace for a platform op's stable id.
 # The model-visible tool name is the bare ``op``; ``reserved_id`` is the stable namespaced id.
 PLATFORM_OP_NAMESPACE = "tools.agenta."
 
 # Every ``context_bindings`` value addresses the run-context namespace through this token prefix
 # (e.g. ``$ctx.workflow.variant.id``); the runner resolves it at dispatch (see ``RunContext``).
 _CTX_TOKEN_PREFIX = "$ctx."
+
+# Exact allowlist of handler call-refs a handler-mode op may target. Must match the
+# server's registered handlers (``PLATFORM_TOOL_HANDLERS`` in the API's
+# ``core/tools/platform_handlers.py``); an op naming anything else fails at import.
+_HANDLER_CALL_REFS = frozenset({f"{PLATFORM_OP_NAMESPACE}test_run"})
 
 
 class PlatformOp(BaseModel):
@@ -68,10 +73,13 @@ class PlatformOp(BaseModel):
     description: str = Field(
         min_length=1, description="Model-facing description (SDK-owned)."
     )
-    method: Literal["GET", "POST", "DELETE"]
+    method: Optional[Literal["GET", "POST", "DELETE"]] = None
     # An EXISTING Agenta endpoint, as a path relative to the API origin (e.g. ``/api/tools/discover``).
     # The runner binds the origin to the run's own Agenta and confines the path to the API mount.
-    path: str = Field(min_length=1)
+    path: Optional[str] = Field(default=None, min_length=1)
+    # A server-side handler call-ref in the reserved Agenta namespace. Handler-mode ops still go
+    # through `/tools/call`, but the business logic lives behind the registered Python handler.
+    handler: Optional[str] = Field(default=None, min_length=1)
     # Exactly one of the two below. ``input_schema`` is an inline JSON Schema (SDK-owned); it MAY
     # carry ``x-ag-type-ref`` markers, expanded against ``CATALOG_TYPES`` at resolve time.
     # ``input_schema_ref`` names a whole catalog type by key (the endpoint's request schema).
@@ -85,6 +93,8 @@ class PlatformOp(BaseModel):
     args_into: Optional[str] = None
     # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
     read_only: bool = False
+    # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
+    timeout_ms: Optional[int] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def _check(self) -> "PlatformOp":
@@ -101,11 +111,31 @@ class PlatformOp(BaseModel):
                 f"platform op '{self.op}' input_schema_ref '{self.input_schema_ref}' "
                 "is not a known CATALOG_TYPES key"
             )
-        if not self.path.startswith("/") or self.path.startswith("//"):
+
+        has_direct_target = self.method is not None or self.path is not None
+        has_handler_target = self.handler is not None
+        if has_direct_target == has_handler_target:
+            raise ValueError(
+                f"platform op '{self.op}' must set exactly one of "
+                "`method` + `path` or `handler`"
+            )
+        if has_direct_target and (self.method is None or self.path is None):
+            raise ValueError(
+                f"platform op '{self.op}' must set both `method` and `path` "
+                "for endpoint mode"
+            )
+        if self.path is not None and (
+            not self.path.startswith("/") or self.path.startswith("//")
+        ):
             raise ValueError(
                 f"platform op '{self.op}' path '{self.path}' must be a relative path "
                 "starting with a single '/'"
             )
+        if self.handler is not None and self.handler not in _HANDLER_CALL_REFS:
+            raise ValueError(
+                f"platform op '{self.op}' handler '{self.handler}' is not allowlisted"
+            )
+
         for field, token in self.context_bindings.items():
             if not field:
                 raise ValueError(
@@ -120,7 +150,7 @@ class PlatformOp(BaseModel):
 
     @property
     def reserved_id(self) -> str:
-        """The stable reserved id, ``tools.agenta.<op>`` (the ``find_capabilities`` precedent)."""
+        """The stable reserved id, ``tools.agenta.<op>``."""
         return f"{PLATFORM_OP_NAMESPACE}{self.op}"
 
     def resolved_input_schema(self) -> Dict[str, Any]:
@@ -143,9 +173,9 @@ class PlatformOp(BaseModel):
         return schema
 
     def to_call(self) -> ToolCall:
-        """The direct ``call`` descriptor: the endpoint to hit, where args land, and the
-        context bindings (emitted as ``context`` so the runner fills bound fields from run
-        context at dispatch)."""
+        """The direct ``call`` descriptor for endpoint-mode ops."""
+        if self.method is None or self.path is None or self.handler is not None:
+            raise ValueError(f"platform op '{self.op}' is not an endpoint-mode op")
         return ToolCall(
             method=self.method,
             path=self.path,
@@ -153,16 +183,26 @@ class PlatformOp(BaseModel):
             args_into=self.args_into,
         )
 
+    def to_call_ref(self) -> str:
+        """The reserved ``callRef`` for handler-mode ops."""
+        if self.handler is None:
+            raise ValueError(f"platform op '{self.op}' is not a handler-mode op")
+        return self.handler
+
 
 def _strip_field(schema: Dict[str, Any], dotted_path: str) -> None:
     """Delete the property at ``dotted_path`` from a JSON Schema's ``properties`` tree, in place,
-    and drop it from the enclosing ``required`` list. A path that does not resolve is a no-op."""
+    and drop it from the enclosing ``required`` list. Ancestor objects left empty by the removal
+    are pruned too, so the model never sees a hollow required container (e.g. ``target`` once its
+    only field is context-bound). A path that does not resolve is a no-op."""
     parts = dotted_path.split(".")
     node: Any = schema
+    stack: list[tuple[Dict[str, Any], str]] = []
     for part in parts[:-1]:
         properties = node.get("properties") if isinstance(node, dict) else None
         if not isinstance(properties, dict) or part not in properties:
             return
+        stack.append((node, part))
         node = properties[part]
     if not isinstance(node, dict):
         return
@@ -176,22 +216,40 @@ def _strip_field(schema: Dict[str, Any], dotted_path: str) -> None:
         if not required:
             node.pop("required", None)
 
+    while stack and _is_empty_object_schema(node):
+        parent, part = stack.pop()
+        parent_props = parent.get("properties")
+        if isinstance(parent_props, dict):
+            parent_props.pop(part, None)
+        parent_required = parent.get("required")
+        if isinstance(parent_required, list) and part in parent_required:
+            parent_required.remove(part)
+            if not parent_required:
+                parent.pop("required", None)
+        node = parent
+
+
+def _is_empty_object_schema(node: Any) -> bool:
+    if not isinstance(node, dict):
+        return False
+    properties = node.get("properties")
+    return isinstance(properties, dict) and not properties and not node.get("required")
+
 
 # ---------------------------------------------------------------------------
 # The catalog — the first, minimal-useful set of ops (more are a data add).
 # ---------------------------------------------------------------------------
 
-# Discovery (read). Migrates ``find_capabilities`` off the server-side ``/tools/call``
-# ``tools.agenta.*`` dispatch onto a direct call to ``POST /api/tools/discover`` (PR #4884 built
-# the server side). Description + input schema mirror ``api/oss/src/core/tools/discovery.py``
-# (copied here because the SDK must not import from the API).
-_FIND_CAPABILITIES_DESCRIPTION = (
+# Discovery (read). Direct call to ``POST /api/tools/discover``. Description + input schema
+# mirror ``api/oss/src/core/tools/discovery.py`` (copied here because the SDK must not import
+# from the API).
+_DISCOVER_TOOLS_DESCRIPTION = (
     "Discover the Agenta tools that fit a set of plain-language use cases. Returns the "
     "best-match tool per use case (with its input schema), companion/alternative tools, "
     "each integration's connection state and how to connect it, and operating guidance. "
     "Use it while wiring tools for an agent you are building."
 )
-_FIND_CAPABILITIES_INPUT_SCHEMA: Dict[str, Any] = {
+_DISCOVER_TOOLS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {
         "use_cases": {
@@ -241,6 +299,266 @@ _QUERY_WORKFLOWS_INPUT_SCHEMA: Dict[str, Any] = {
         "windowing": {
             "type": "object",
             "description": "Cursor-based pagination controls (pass `next` back for the next page).",
+        },
+    },
+}
+
+# Spans query (read): inspect trace/span records for this project. Project scope comes from the
+# caller credential on the existing endpoint; there is no model-supplied project id and no $ctx
+# target field to bind.
+_QUERY_SPANS_DESCRIPTION = (
+    "Query span records in this project. Use it to verify a past run or scheduled trigger fire "
+    "actually executed its tools. Returns `{count, spans}` with flat spans, including span names, "
+    "status, attributes, events, and Agenta metrics. Filter by `trace_id` when you know it, or "
+    "bracket the test with `windowing.oldest`/`windowing.newest`; then read the tool-call spans "
+    "in order and confirm the terminal span completed without an error status."
+)
+_QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "$defs": {
+        "ComparisonOperator": {
+            "type": "string",
+            "enum": ["is", "is_not"],
+        },
+        "NumericOperator": {
+            "type": "string",
+            "enum": ["eq", "neq", "gt", "lt", "gte", "lte", "btwn"],
+        },
+        "StringOperator": {
+            "type": "string",
+            "enum": ["startswith", "endswith", "contains", "matches", "like"],
+        },
+        "DictOperator": {
+            "type": "string",
+            "enum": ["has", "has_not"],
+        },
+        "ListOperator": {
+            "type": "string",
+            "enum": ["in", "not_in"],
+        },
+        "ExistenceOperator": {
+            "type": "string",
+            "enum": ["exists", "not_exists"],
+        },
+        "LogicalOperator": {
+            "type": "string",
+            "enum": ["and", "or", "not", "nand", "nor"],
+        },
+        "TextOptions": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "case_sensitive": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": False,
+                },
+                "exact_match": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": False,
+                },
+            },
+        },
+        "ListOptions": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "all": {
+                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
+                    "default": False,
+                }
+            },
+        },
+        "Condition": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "field": {
+                    "type": "string",
+                    "description": (
+                        "Span field to filter, such as `trace_id`, `span_name`, "
+                        "`span_type`, `status_code`, `attributes`, or `content`."
+                    ),
+                },
+                "key": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": (
+                        "Optional nested key when filtering dictionary fields like "
+                        "`attributes`."
+                    ),
+                },
+                "value": {
+                    "anyOf": [
+                        {"type": "string"},
+                        {"type": "integer"},
+                        {"type": "number"},
+                        {"type": "boolean"},
+                        {"type": "array", "items": {}},
+                        {"type": "object", "additionalProperties": True},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Comparison value for the condition.",
+                },
+                "operator": {
+                    "anyOf": [
+                        {"$ref": "#/$defs/ComparisonOperator"},
+                        {"$ref": "#/$defs/NumericOperator"},
+                        {"$ref": "#/$defs/StringOperator"},
+                        {"$ref": "#/$defs/ListOperator"},
+                        {"$ref": "#/$defs/DictOperator"},
+                        {"$ref": "#/$defs/ExistenceOperator"},
+                        {"type": "null"},
+                    ],
+                    "default": "is",
+                },
+                "options": {
+                    "anyOf": [
+                        {"$ref": "#/$defs/TextOptions"},
+                        {"$ref": "#/$defs/ListOptions"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                },
+            },
+            "required": ["field"],
+        },
+        "Filtering": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "operator": {
+                    "$ref": "#/$defs/LogicalOperator",
+                    "default": "and",
+                    "description": "How to combine conditions.",
+                },
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "anyOf": [
+                            {"$ref": "#/$defs/Condition"},
+                            {"$ref": "#/$defs/Filtering"},
+                        ]
+                    },
+                    "default": [],
+                    "description": (
+                        "Filter objects, for example "
+                        '`[{"field": "trace_id", "operator": "is", "value": "..."}]`.'
+                    ),
+                },
+            },
+        },
+        "Windowing": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "newest": {
+                    "anyOf": [
+                        {"type": "string", "format": "date-time"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Window end time as an ISO timestamp.",
+                },
+                "oldest": {
+                    "anyOf": [
+                        {"type": "string", "format": "date-time"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Window start time as an ISO timestamp.",
+                },
+                "next": {
+                    "anyOf": [
+                        {"type": "string", "format": "uuid"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Cursor token returned by a prior query page.",
+                },
+                "limit": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Maximum spans to return.",
+                },
+                "order": {
+                    "anyOf": [
+                        {"type": "string", "enum": ["ascending", "descending"]},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                    "description": "Sort order for the window.",
+                },
+                "interval": {
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Positive bucket interval for aggregate query windows.",
+                },
+                "rate": {
+                    "anyOf": [{"type": "number"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Optional sampling rate between 0.0 and 1.0.",
+                },
+            },
+        },
+        "Reference": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "version": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                },
+                "slug": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                },
+                "id": {
+                    "anyOf": [
+                        {"type": "string", "format": "uuid"},
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                },
+            },
+        },
+    },
+    "properties": {
+        "filtering": {
+            "anyOf": [{"$ref": "#/$defs/Filtering"}, {"type": "null"}],
+            "default": None,
+            "description": (
+                "Span-level conditions. For verification, filter on "
+                '`{"field": "trace_id", "operator": "is", "value": "<trace_id>"}` '
+                "when the trace id is known."
+            ),
+        },
+        "windowing": {
+            "anyOf": [{"$ref": "#/$defs/Windowing"}, {"type": "null"}],
+            "default": None,
+            "description": (
+                "Cursor pagination and time range. Bracket manual verification with "
+                "`oldest`/`newest` and set a sensible `limit`."
+            ),
+        },
+        "query_ref": {
+            "anyOf": [{"$ref": "#/$defs/Reference"}, {"type": "null"}],
+            "default": None,
+            "description": "Resolve filtering/windowing from a saved query.",
+        },
+        "query_variant_ref": {
+            "anyOf": [{"$ref": "#/$defs/Reference"}, {"type": "null"}],
+            "default": None,
+            "description": "Resolve from the latest revision of a specific query variant.",
+        },
+        "query_revision_ref": {
+            "anyOf": [{"$ref": "#/$defs/Reference"}, {"type": "null"}],
+            "default": None,
+            "description": (
+                "Resolve from a specific query revision. Returns `409` when the stored query "
+                "has `formatting.focus=trace`."
+            ),
         },
     },
 }
@@ -372,12 +690,12 @@ _ANNOTATE_TRACE_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["references", "data"],
 }
 
-_FIND_TRIGGERS_DESCRIPTION = (
+_DISCOVER_TRIGGERS_DESCRIPTION = (
     "Discover trigger events that fit plain-language use cases. Returns the best-match "
     "event per use case with event_key, trigger_config schema, sample payload, connection "
     "state and connection instructions, alternatives, and setup guidance."
 )
-_FIND_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
+_DISCOVER_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {
         "use_cases": {
@@ -473,7 +791,7 @@ _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
             "properties": {
                 "event_key": {
                     "type": "string",
-                    "description": "Provider event key returned by find_triggers.",
+                    "description": "Provider event key returned by discover_triggers.",
                 },
                 "trigger_config": {
                     "type": "object",
@@ -504,7 +822,7 @@ _TEST_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
             "properties": {
                 "event_key": {
                     "type": "string",
-                    "description": "Provider event key returned by find_triggers.",
+                    "description": "Provider event key returned by discover_triggers.",
                 },
                 "trigger_config": {
                     "type": "object",
@@ -515,6 +833,70 @@ _TEST_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
         },
     },
     "required": ["connection_id", "data"],
+}
+
+_TEST_RUN_DESCRIPTION = (
+    "Run this agent headlessly once against test messages and return its output, tools, "
+    "approval gates, resolved execution metadata, trace id, and verdict. The target workflow "
+    "variant is filled automatically from the current run context and cannot be retargeted. "
+    "This is a real run: external write tools may perform their action if approved."
+)
+_TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "target": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "workflow_variant_id": {
+                    "type": "string",
+                    "description": "Server-bound current workflow variant id.",
+                }
+            },
+            "required": ["workflow_variant_id"],
+        },
+        "inputs": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "messages": {
+                    "x-ag-type-ref": "messages",
+                    "description": "Test conversation messages for the headless run.",
+                }
+            },
+            "required": ["messages"],
+        },
+        "delta": {
+            "type": "object",
+            "additionalProperties": False,
+            "description": "Optional uncommitted revision delta to apply in memory before the test.",
+            "properties": {
+                "set": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "description": "Partial revision data tree deep-merged onto the committed revision.",
+                },
+                "remove": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Dotted paths to delete from the revision data tree.",
+                },
+            },
+        },
+        "expectations": {
+            "type": "object",
+            "additionalProperties": False,
+            "description": "Optional checks that define a passing test run.",
+            "properties": {
+                "terminal_tool": {
+                    "type": "string",
+                    "description": "Expected final/terminal tool name that must run and return.",
+                }
+            },
+        },
+    },
+    "required": ["target", "inputs"],
 }
 
 _EMPTY_INPUT_SCHEMA: Dict[str, Any] = {"type": "object", "properties": {}}
@@ -534,11 +916,11 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in (
         PlatformOp(
-            op="find_capabilities",
-            description=_FIND_CAPABILITIES_DESCRIPTION,
+            op="discover_tools",
+            description=_DISCOVER_TOOLS_DESCRIPTION,
             method="POST",
             path="/api/tools/discover",
-            input_schema=_FIND_CAPABILITIES_INPUT_SCHEMA,
+            input_schema=_DISCOVER_TOOLS_INPUT_SCHEMA,
             read_only=True,
         ),
         PlatformOp(
@@ -548,6 +930,23 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             path="/api/workflows/query",
             input_schema=_QUERY_WORKFLOWS_INPUT_SCHEMA,
             read_only=True,
+        ),
+        PlatformOp(
+            op="query_spans",
+            description=_QUERY_SPANS_DESCRIPTION,
+            method="POST",
+            path="/api/spans/query",
+            input_schema=_QUERY_SPANS_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="test_run",
+            description=_TEST_RUN_DESCRIPTION,
+            handler="tools.agenta.test_run",
+            input_schema=_TEST_RUN_INPUT_SCHEMA,
+            context_bindings={"target.workflow_variant_id": "$ctx.workflow.variant.id"},
+            read_only=False,
+            timeout_ms=120000,
         ),
         PlatformOp(
             op="commit_revision",
@@ -574,11 +973,11 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             read_only=False,
         ),
         PlatformOp(
-            op="find_triggers",
-            description=_FIND_TRIGGERS_DESCRIPTION,
+            op="discover_triggers",
+            description=_DISCOVER_TRIGGERS_DESCRIPTION,
             method="POST",
             path="/api/triggers/discover",
-            input_schema=_FIND_TRIGGERS_INPUT_SCHEMA,
+            input_schema=_DISCOVER_TRIGGERS_INPUT_SCHEMA,
             read_only=True,
         ),
         PlatformOp(

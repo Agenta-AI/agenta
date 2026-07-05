@@ -14,6 +14,7 @@ from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.engines.running.utils import (
     retrieve_handler,
     parse_uri,
+    seed_empty_parameters_from_configuration,
 )
 from agenta.sdk.engines.running.handlers import remote_forward_v0
 from agenta.sdk.engines.running.errors import (
@@ -567,7 +568,9 @@ class ResolverMiddleware:
         call_next: Callable[[WorkflowInvokeRequest], Any],
     ):
         ctx = RunningContext.get()
-        revision = await resolve_revision(request=request)
+        revision = seed_empty_parameters_from_configuration(
+            await resolve_revision(request=request)
+        )
 
         request_has_parameters = bool(request.data and request.data.parameters)
         needs_reference_hydration = bool(
@@ -590,6 +593,7 @@ class ResolverMiddleware:
             _merge_tracing_references(retrieval_references)
             _merge_tracing_selector(retrieval_selector)
             revision = hydrated_revision or existing_revision
+            revision = seed_empty_parameters_from_configuration(revision)
 
         if not request.data:
             request.data = WorkflowRequestData()

@@ -58,9 +58,9 @@ def test_reference_tool_discriminator_is_reference():
 
 
 def test_platform_tool_discriminator():
-    config = PlatformToolConfig(op="find_capabilities")
+    config = PlatformToolConfig(op="discover_tools")
     assert config.type == "platform"
-    assert config.op == "find_capabilities"
+    assert config.op == "discover_tools"
 
 
 def test_platform_tool_requires_op():
@@ -111,6 +111,24 @@ def test_callback_spec_has_stable_typed_contract():
     assert "call" not in spec.to_wire()
 
 
+def test_callback_spec_call_ref_can_carry_context_bindings_and_timeout():
+    spec = CallbackToolSpec(
+        name="test_run",
+        description="Test run",
+        call_ref="tools.agenta.test_run",
+        context_bindings={"target.workflow_variant_id": "$ctx.workflow.variant.id"},
+        timeout_ms=120000,
+    )
+
+    wire = spec.to_wire()
+    assert wire["callRef"] == "tools.agenta.test_run"
+    assert wire["contextBindings"] == {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id"
+    }
+    assert wire["timeoutMs"] == 120000
+    assert coerce_tool_spec(wire) == spec
+
+
 def test_callback_spec_direct_call_round_trips_on_the_wire():
     # A direct-call callback spec carries a `call` descriptor instead of `call_ref` (the
     # `call` XOR `call_ref` rule). The descriptor round-trips through the wire keeping its
@@ -150,6 +168,18 @@ def test_callback_spec_requires_exactly_one_call_target():
             description="t",
             call_ref="tools.composio.x.Y.c1",
             call={"method": "GET", "path": "/api/ping"},
+        )
+
+
+def test_callback_spec_rejects_context_bindings_on_a_direct_call():
+    # Spec-level bindings are injected by the gateway relay; a direct call has no relay,
+    # so the combination is invalid (direct-call bindings belong in `call.context`).
+    with pytest.raises(ValidationError, match="context_bindings"):
+        CallbackToolSpec(
+            name="t",
+            description="t",
+            call={"method": "GET", "path": "/api/ping"},
+            context_bindings={"target.id": "$ctx.workflow.variant.id"},
         )
 
 

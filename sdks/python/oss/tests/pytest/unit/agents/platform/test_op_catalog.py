@@ -6,7 +6,7 @@ and the per-op default permission/approval; the resolver (``AgentaPlatformToolRe
 config into a ``CallbackToolSpec`` carrying a direct ``call`` descriptor (no ``/tools/call`` hop).
 
 These tests cover: the catalog model's import-time validation, the resolver emitting a direct
-``call`` (find_capabilities), the self-update ``context_bindings`` stripping its bound field from the
+``call`` (discover_tools), the self-update ``context_bindings`` stripping its bound field from the
 model-visible schema, the catalog's permission/approval defaults and the config override, and the
 error paths (unknown op, missing API base).
 """
@@ -36,11 +36,13 @@ def _resolver(connection):
 
 def test_catalog_ships_platform_builder_ops():
     assert set(PLATFORM_OPS) == {
-        "find_capabilities",
+        "discover_tools",
         "query_workflows",
+        "query_spans",
+        "test_run",
         "commit_revision",
         "annotate_trace",
-        "find_triggers",
+        "discover_triggers",
         "create_schedule",
         "create_subscription",
         "list_schedules",
@@ -58,9 +60,9 @@ def test_catalog_ships_platform_builder_ops():
 
 
 def test_reserved_id_uses_the_tools_agenta_namespace():
-    # Mirrors the reserved `tools.agenta.find_capabilities` precedent (PR #4884).
-    assert get_platform_op("find_capabilities").reserved_id == (
-        "tools.agenta.find_capabilities"
+    # Mirrors the reserved `tools.agenta.discover_tools` precedent (PR #4884).
+    assert get_platform_op("discover_tools").reserved_id == (
+        "tools.agenta.discover_tools"
     )
 
 
@@ -86,6 +88,46 @@ def test_op_input_schema_ref_must_be_a_known_catalog_key():
             method="POST",
             path="/api/x",
             input_schema_ref="not-a-real-type",
+        )
+
+
+def test_op_requires_exactly_one_target_mode():
+    with pytest.raises(ValidationError, match="method.*path.*handler"):
+        PlatformOp(op="x", description="d", input_schema={"type": "object"})
+    with pytest.raises(ValidationError, match="method.*path.*handler"):
+        PlatformOp(
+            op="x",
+            description="d",
+            method="POST",
+            path="/api/x",
+            handler="tools.agenta.test_run",
+            input_schema={"type": "object"},
+        )
+    with pytest.raises(ValidationError, match="method.*path"):
+        PlatformOp(
+            op="x",
+            description="d",
+            method="POST",
+            input_schema={"type": "object"},
+        )
+
+
+def test_op_handler_must_be_allowlisted():
+    with pytest.raises(ValidationError, match="allowlisted"):
+        PlatformOp(
+            op="x",
+            description="d",
+            handler="tools.agenta.unknown",
+            input_schema={"type": "object"},
+        )
+    # The allowlist is an exact match, not a prefix match: an extension of an
+    # allowlisted ref is still rejected.
+    with pytest.raises(ValidationError, match="allowlisted"):
+        PlatformOp(
+            op="x",
+            description="d",
+            handler="tools.agenta.test_run_extra",
+            input_schema={"type": "object"},
         )
 
 
@@ -140,22 +182,22 @@ def test_unknown_op_raises_typed_error():
         get_platform_op("does_not_exist")
     assert caught.value.op == "does_not_exist"
     # The available ops are listed so the message is actionable.
-    assert "find_capabilities" in str(caught.value)
+    assert "discover_tools" in str(caught.value)
 
 
-# --- resolver: find_capabilities emits a direct call --------------------------
+# --- resolver: discover_tools emits a direct call --------------------------
 
 
-async def test_find_capabilities_emits_a_direct_call(connection):
-    # THE deferred item (PR #4884): find_capabilities becomes agent-usable as a direct call to
+async def test_discover_tools_emits_a_direct_call(connection):
+    # THE deferred item (PR #4884): discover_tools becomes agent-usable as a direct call to
     # POST /api/tools/discover, instead of the server-side /tools/call tools.agenta.* dispatch.
     resolution = await _resolver(connection).resolve(
-        [PlatformToolConfig(op="find_capabilities")]
+        [PlatformToolConfig(op="discover_tools")]
     )
     assert len(resolution.tool_specs) == 1
     spec = resolution.tool_specs[0]
     assert spec.kind == "callback"
-    assert spec.name == "find_capabilities"
+    assert spec.name == "discover_tools"
     # A direct call, NOT a gateway call_ref (the `call` XOR `call_ref` rule).
     assert spec.call_ref is None
     assert spec.call is not None
@@ -176,14 +218,120 @@ async def test_find_capabilities_emits_a_direct_call(connection):
     assert resolution.tool_callback.authorization == "Access tok"
 
 
-async def test_find_capabilities_wire_carries_call_not_call_ref(connection):
+async def test_discover_tools_wire_carries_call_not_call_ref(connection):
     resolution = await _resolver(connection).resolve(
-        [PlatformToolConfig(op="find_capabilities")]
+        [PlatformToolConfig(op="discover_tools")]
     )
     wire = resolution.tool_specs[0].to_wire()
     assert wire["kind"] == "callback"
     assert "callRef" not in wire
     assert wire["call"]["path"] == "/api/tools/discover"
+
+
+async def test_test_run_handler_call_ref_requires_platform_handlers_flag(connection):
+    with pytest.raises(
+        GatewayToolResolutionError,
+        match="AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS",
+    ):
+        await _resolver(connection).resolve([PlatformToolConfig(op="test_run")])
+
+
+async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout(
+    connection, monkeypatch
+):
+    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "true")
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="test_run")]
+    )
+    spec = resolution.tool_specs[0]
+
+    assert spec.kind == "callback"
+    assert spec.name == "test_run"
+    assert spec.call is None
+    assert spec.call_ref == "tools.agenta.test_run"
+    assert spec.context_bindings == {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id"
+    }
+    assert spec.timeout_ms == 120000
+    assert spec.read_only is False
+    assert spec.effective_permission() is None
+    assert "target" not in spec.input_schema["properties"]
+    assert set(spec.input_schema["properties"]) == {
+        "inputs",
+        "delta",
+        "expectations",
+    }
+    assert spec.input_schema["required"] == ["inputs"]
+    assert spec.input_schema["properties"]["inputs"]["required"] == ["messages"]
+
+    wire = spec.to_wire()
+    assert wire["callRef"] == "tools.agenta.test_run"
+    assert wire["contextBindings"] == {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id"
+    }
+    assert wire["timeoutMs"] == 120000
+    assert "call" not in wire
+
+
+async def test_query_spans_emits_project_scoped_read_call(connection):
+    # Project scoping comes from the caller credential on the endpoint; there is no target field
+    # for the model to supply and no run-context binding to inject.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="query_spans")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.kind == "callback"
+    assert spec.name == "query_spans"
+    assert spec.call_ref is None
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/spans/query"
+    assert spec.call.context is None
+    assert spec.read_only is True
+    assert spec.effective_permission() is None
+
+    assert set(spec.input_schema["properties"]) == {
+        "filtering",
+        "windowing",
+        "query_ref",
+        "query_variant_ref",
+        "query_revision_ref",
+    }
+    assert "required" not in spec.input_schema
+    assert {
+        "focus",
+        "format",
+        "filter",
+        "oldest",
+        "newest",
+        "limit",
+        "rate",
+    }.isdisjoint(spec.input_schema["properties"])
+
+    defs = spec.input_schema["$defs"]
+    filtering_schema = defs["Filtering"]
+    assert set(filtering_schema["properties"]) == {"operator", "conditions"}
+    condition_ref = filtering_schema["properties"]["conditions"]["items"]["anyOf"][0]
+    assert condition_ref == {"$ref": "#/$defs/Condition"}
+    condition_schema = defs["Condition"]
+    assert set(condition_schema["properties"]) == {
+        "field",
+        "key",
+        "value",
+        "operator",
+        "options",
+    }
+    assert condition_schema["required"] == ["field"]
+    assert "trace_id" in condition_schema["properties"]["field"]["description"]
+
+    assert set(defs["Windowing"]["properties"]) == {
+        "newest",
+        "oldest",
+        "next",
+        "limit",
+        "order",
+        "interval",
+        "rate",
+    }
 
 
 # --- resolver: commit_revision self-update binds + strips ---------------------
@@ -260,7 +408,7 @@ async def test_annotate_trace_is_not_read_only(connection):
 
 async def test_trigger_builder_ops_have_expected_paths_and_defaults(connection):
     expected_paths = {
-        "find_triggers": ("POST", "/api/triggers/discover"),
+        "discover_triggers": ("POST", "/api/triggers/discover"),
         "create_schedule": ("POST", "/api/triggers/schedules/"),
         "create_subscription": ("POST", "/api/triggers/subscriptions/"),
         "list_schedules": ("GET", "/api/triggers/schedules/"),
@@ -276,7 +424,7 @@ async def test_trigger_builder_ops_have_expected_paths_and_defaults(connection):
         "resume_subscription": ("POST", "/api/triggers/subscriptions/{id}/start"),
     }
     read_only = {
-        "find_triggers",
+        "discover_triggers",
         "list_schedules",
         "list_subscriptions",
         "list_deliveries",
@@ -342,14 +490,14 @@ async def test_unknown_op_in_config_raises(connection):
 async def test_missing_api_base_raises_typed_error():
     resolver = _resolver(PlatformConnection())  # no base URL configured
     with pytest.raises(GatewayToolResolutionError, match="API base URL"):
-        await resolver.resolve([PlatformToolConfig(op="find_capabilities")])
+        await resolver.resolve([PlatformToolConfig(op="discover_tools")])
 
 
 async def test_duplicate_platform_tool_rejected(connection):
     with pytest.raises(GatewayToolResolutionError, match="Duplicate platform tool"):
         await _resolver(connection).resolve(
             [
-                PlatformToolConfig(op="find_capabilities"),
-                PlatformToolConfig(op="find_capabilities"),
+                PlatformToolConfig(op="discover_tools"),
+                PlatformToolConfig(op="discover_tools"),
             ]
         )

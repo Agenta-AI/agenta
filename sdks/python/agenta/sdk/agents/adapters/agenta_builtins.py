@@ -52,22 +52,19 @@ AGENTA_FORCED_APPEND_SYSTEM = """\
 You are an Agenta agent. Be precise, cite what your tools and skills return, and do not
 fabricate results."""
 
-# Built-in tools the Agenta harness records as forced, unioned with the agent's resolved
-# tools. NOTE: this list is config-level metadata only today. The runner never reads
-# ``request.tools`` / ``builtin_names`` to grant builtins, and Pi already gets ``read`` (and
-# ``bash``) from its own DEFAULTS, so skills render regardless of this list. The intent is that
-# ``read`` is needed for Pi to render the skills section and ``bash`` lets skills run helper
-# scripts; wiring the forced set to actually deliver builtins over the wire is deferred (it
-# works via Pi defaults today).
+# Built-in tools the Agenta harness forces, unioned with the agent's resolved tools. These
+# grants are load-bearing on the wire: once ANY custom tool ships in ``request.tools``, the
+# runner flips Pi's builtin gating from "Pi defaults" to granted-only. So ``read`` and
+# ``bash`` must be granted explicitly wherever build-kit tools ship (e.g. the playground
+# overlay), or Pi loses them — skills are then announced but unloadable (``read`` loads
+# SKILL.md; ``bash`` runs skill helper scripts).
 AGENTA_FORCED_TOOLS: List[str] = ["read", "bash"]
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
 # SkillTemplate below. Kept here so the catalogue and the forced path share one slug constant.
 GETTING_STARTED_WITH_AGENTA_SLUG = "__ag__getting_started_with_agenta"
-BUILD_YOUR_FIRST_APP_SLUG = "__ag__build_your_first_app"
-DISCOVER_AND_WIRE_TOOLS_SLUG = "__ag__discover_and_wire_tools"
-SET_UP_TRIGGERS_SLUG = "__ag__set_up_triggers"
+BUILD_AN_AGENT_SLUG = "__ag__build_an_agent"
 
 # Canonical SKILL.md body for the platform "getting started" skill. Single source of the body
 # text: the server-side StaticWorkflowCatalog imports this constant rather than redeclaring it.
@@ -102,217 +99,120 @@ GETTING_STARTED_WITH_AGENTA_SKILL = SkillTemplate(
     body=_GETTING_STARTED_BODY,
 )
 
-_BUILD_YOUR_FIRST_APP_BODY = """\
-# Build your first app
+_BUILD_AN_AGENT_BODY = """\
+# Build an Agenta agent
 
-You are helping the user turn a plain-language goal into a working app. You are building
-yourself: the app you configure is you. This skill is the map. It names the order and the
-points where you stop for the user. Read the focused skill for a step before you act on it.
+You turn a plain-language request into a working, verified Agenta agent. You are configuring
+yourself: the committed template you edit is the agent that will keep running. Optimize for the
+fewest calls and the least time. A simple no-tool ask is two actions: write better
+`instructions.agents_md`, then call `commit_revision`.
 
 ## When to use
 
-Use this when the user asks you to build, set up, or automate something, and the app does not
-exist yet.
+Use this when the user asks you to build, set up, configure, or automate an agent.
 
-## The flow
+## The shape of your config
 
-1. Clarify the goal. Ask what the app should do, what should start it (a message, a schedule,
-   an outside event), and what tools or data it needs. Do not guess.
-2. See what exists. Call `query_workflows` to check the project for work you can reuse.
-3. Find the tools. Follow the `discover-and-wire-tools` skill. It calls `find_capabilities`
-   and reports which integrations need a connection.
-4. Connect the integrations. Hand the user the connection link, wait for them to finish, then
-   re-check. You never connect on their behalf.
-5. Configure yourself. Edit your own instructions and attach the tools, then commit with
-   `commit_revision`. This stops for the user's approval.
-6. Set the trigger. Follow the `set-up-triggers` skill for a cron job or an event trigger.
-   Each one stops for the user's approval.
-7. Test. Run once against a sample, then confirm the result with the user.
-8. Report. Tell the user what you became, what is connected, and what is now scheduled.
+You decide four things under `parameters.agent`:
 
-## Stop points
+- `instructions.agents_md`: who you are and what you do.
+- `tools`: integration actions and platform ops you can call.
+- `skills`: reusable know-how packaged as skill templates.
+- A trigger: either a schedule or an event subscription, only when the user asked for one.
 
-You pause for the user at every connection, every commit, every schedule, and every
-subscription. These are approval gates by design. Say what you are about to do, then wait.
-"""
+Everything else is fixed unless the user explicitly asks to change it. Configure yourself with
+`commit_revision` by setting `parameters.agent` fields; do not create a separate app.
 
-BUILD_YOUR_FIRST_APP_SKILL = SkillTemplate(
-    name="build-your-first-app",
-    description=(
-        "Guide the user through building their first Agenta app end to end. Use at the start "
-        "of a build conversation to plan the work, find and wire tools, set a trigger, and "
-        "commit. This skill is the map. Read the focused skill for each step."
-    ),
-    body=_BUILD_YOUR_FIRST_APP_BODY,
-)
+## Decision table
 
-_DISCOVER_AND_WIRE_TOOLS_BODY = """\
-# Discover and wire tools with `find_capabilities`
+| The ask... | Needs | What to add |
+|---|---|---|
+| transform text the user pastes, such as summarize, rewrite, classify | nothing extra | `instructions.agents_md` only |
+| apply reusable know-how, such as a style guide or review rubric | a skill | one `skills` entry |
+| read or write in an outside tool, such as GitHub or Slack | gateway tools | `discover_tools`, then `tools` entries |
+| run on a clock | a schedule | `create_schedule` after committing |
+| react to an outside event | a subscription | `discover_triggers`, then `create_subscription` |
 
-You are configuring yourself as an app. Before you can act in the world, you need tools:
-the right integration actions, working connections, and the schemas your model will call.
-`find_capabilities` does the discovery in one step so you do not guess slugs or stitch the
-catalog by hand.
-
-This skill is the discover -> resolve-connections -> configure -> test loop. It pairs with
-the configure step in the `build-your-first-app` skill: once the tools are chosen, commit
-the tools and instructions onto this agent.
-
-> **Availability (2026-06-27):** the server side is live, but the SDK does not yet declare
-> `find_capabilities` as a tool the model can call directly (that lands in Workstream A). Until
-> then, reach the same discovery from setup code: `POST /tools/discover` with
-> `{"use_cases": [...]}`, or `POST /tools/call` with call_ref `tools.agenta.find_capabilities`.
-> The response below is identical either way.
-
-## When to use it
-
-Use it whenever you are wiring tools for this agent and the task is described in plain
-language ("listen in Slack and file GitHub issues") rather than as exact tool slugs. One call
-returns the best-match tool per use case, alternatives the one-line request omitted, the input
-schemas, the connection state per integration, and operating guidance.
+Do not discover tools or triggers for an ask that does not need them.
 
 ## The loop
 
-### 1. Discover
+1. Clarify the ask. Get the missing timezone, channel, repo, account, output style, and success
+   criteria. Do not guess concrete destinations.
+2. Decide from the table. Most agents need only instructions. If the ask needs outside actions,
+   call `discover_tools` with one short fragment per capability, such as "list github issues" or
+   "post a slack message".
+3. Read discovery as a search result, not an oracle. Confirm the matched integration and the
+   action are both right. If a "new telegram message" search returns a Slack event, reword the
+   fragment or choose the right alternative.
+4. If a needed connection is not ready, call `request_connection` for that integration and stop.
+   Give the user the connection request and wait for them. Re-run `discover_tools` after they
+   connect; do not silently create, fake, or skip connections.
+5. Configure yourself. Put the chosen `capability.tool` entries and needed alternatives in
+   `tools`, write `instructions.agents_md`, and call `commit_revision`. This is an approval stop.
+   If the commit is denied or fails, earlier connections or triggers are not undone.
+6. Verify with `query_spans`. Ask the user to send the agreed test message in this chat. Then
+   call `query_spans` with `windowing.oldest` and `windowing.newest` bracketing the test, plus a
+   sensible `windowing.limit`; add `filtering.conditions` on `trace_id` if you know it. Find the
+   run's spans, read the tool-call spans in order, and pass only when the terminal tool span is
+   present, ordered correctly, and has no error status; a 200 response or empty assistant output is
+   not proof. If the terminal action is missing, rewrite the instructions as a blunter numbered
+   procedure and commit again.
+7. Add a trigger only if asked. For schedules, cron is UTC, five fields, with a one-minute floor;
+   convert the user's timezone yourself, then stop for approval before `create_schedule`: say what
+   you are about to create and wait for the gate. After approval, call `create_schedule`, then
+   confirm with `list_schedules`. For events, call `discover_triggers`, ensure the integration is
+   connected, then stop for approval before `create_subscription`: say what you are about to create
+   and wait for the gate. After approval, call `create_subscription`, and confirm with
+   `list_deliveries`. `test_subscription` waits for a real event, so warn the user before using it
+   in a chat turn. Use `remove_schedule` or `remove_subscription` only when cleaning up a wrong
+   trigger.
+8. Report short: what you became, what is connected, what is scheduled, what you verified, and
+   what still needs the human.
 
-Call `find_capabilities` with one short fragment per capability the agent needs. Keep each
-fragment to a single action ("create a github issue"), not a whole workflow.
+## Writing instructions for multi-tool and scheduled agents
 
-```jsonc
-find_capabilities({
-  "use_cases": [
-    "search github issues for a matching report",
-    "create a github issue",
-    "post a reply in a slack thread with a link"
-  ]
-})
-```
+When you write `instructions.agents_md` for a multi-tool or scheduled agent, write an explicit
+numbered procedure that names the exact tools in order, pins concrete ids, and ends on the
+terminal action.
 
-Project scope comes from your run's caller auth, so the connection state you get back is your
-project's real state. You do not pass a project id or a Composio user id.
+Example:
 
-### 2. Read the response (it is already in Agenta terms)
+> Every run, do exactly these steps and nothing else: (1) call LIST_REPOSITORY_ISSUES for
+> owner/repo X; (2) call LIST_COMMITS for X; (3) write a 3-bullet digest; (4) call SEND_MESSAGE to
+> channel C0XXXX with that digest. Do not check triggers, do not stop before step 4.
 
-You never see Composio. Each capability is Agenta-shaped:
+- Pin concrete ids, such as channel id and repo, instead of telling the agent to re-resolve them.
+- Make the final numbered step the terminal side effect, such as the post or write.
+- Say "finish by doing step N" so the run does not stop after the early read steps.
 
-- `capability.tool` — a `gateway` tool config (`provider` / `integration` / `action`), ready to
-  drop into this agent's `tools`. It also carries the `input_schema` and `description` the
-  model needs, plus `provider_action` (opaque, debugging only — do not show it).
-- `capability.tool.connection` — filled **only** when the integration is `ready`. If it is
-  missing, the connection is not set up yet (see step 3).
-- `capability.alternatives` — companion or prerequisite actions the one-line request omitted
-  (for example `slack.FIND_CHANNELS` before `slack.SEND_MESSAGE`). Add the ones the task needs.
-- `capability.connection.state` — `ready`, `needs_auth`, or `needs_input`.
-- `connections[]` — one entry per integration, deduped, with what to do when it is not ready.
-- `guidance` — `plan_steps` and `pitfalls` you compose into this agent's
-  `instructions.agents_md`.
-- `ready` — `true` only when every primary connection is ready (you can configure and run now).
-- `notes` — scope notes, e.g. a use case that looks like a trigger (see "Triggers" below).
+## Prefer wired tools
 
-### 3. Resolve connections (a human approves; you never auto-connect)
-
-For each integration in `connections[]`:
-
-- **`ready`** — reuse it. The `slug` is already on `capability.tool.connection`. Nothing to do.
-- **`needs_auth`** (OAuth) — run the returned `connect` affordance
-  (`POST /tools/connections/` with the given `body`). It returns a `redirect_url`. Surface that
-  link to the human and **pause** until they finish authorizing. Then re-run `find_capabilities`
-  (or check the connection) to confirm the integration flipped to `ready`.
-- **`needs_input`** (API key) — ask the human for the secret the integration needs, then create
-  the connection with the `connect` affordance.
-
-Do not create connections silently. A human approves OAuth and supplies secrets.
-
-### 4. Configure this agent
-
-Once the tools are chosen and their connections are `ready`, build this agent's template:
-
-- Put each chosen `capability.tool` (and any needed `alternatives`, shaped as gateway tools
-  with a `connection`) into `tools` on the agent template.
-- Compose `instructions.agents_md` from `guidance`: turn `plan_steps` into the operating
-  procedure and `pitfalls` into "things to avoid". The guidance already uses friendly
-  `integration.action` names, so it reads cleanly.
-
-Then return to the `build-your-first-app` configure step: edit this agent's own template and
-commit it with `commit_revision`. If a tool call fails on a missing connection, return to
-step 3.
-
-## Triggers (listening for events) are a separate step
-
-`find_capabilities` covers **action** tools (do a thing). It does not discover triggers
-(listen for an event), because the engine has no semantic trigger search. If a use case reads
-like a trigger ("listen for new messages...", "when a new issue is created..."), the response
-flags it in `notes` and on that `capability.note`. Treat the listening half as a trigger
-subscription with the `set-up-triggers` skill, and wire the action tools as usual.
-
-## Good habits
-
-- One capability per `use_case` fragment; let discovery return the alternatives.
-- Always check `connection.state` before assuming a tool will run; `ready` means it will
-  resolve at invoke time.
-- Never surface `provider_action` or any raw provider slug to the user — speak Agenta.
-- Re-run discovery after a human finishes a connection to confirm `ready` before creating.
-"""
-
-DISCOVER_AND_WIRE_TOOLS_SKILL = SkillTemplate(
-    name="discover-and-wire-tools",
-    description=(
-        "Use find_capabilities to discover the right Agenta tools for an agent you are "
-        "configuring, report what each integration needs to connect, and wire the tools into "
-        "this agent's template. Use when a setup/builder agent must turn a plain-language task "
-        "into attached, connected, ready-to-run tools."
-    ),
-    body=_DISCOVER_AND_WIRE_TOOLS_BODY,
-)
-
-_SET_UP_TRIGGERS_BODY = """\
-# Set up triggers
-
-A trigger makes the app run on its own. There are two kinds. A schedule runs on a clock. A
-subscription runs when an outside event arrives. Either way, the trigger targets you: it is
-set on this agent automatically, and you never name a destination.
-
-## When to use
-
-Use this when the user says the app should run on a timer, on a cron, or whenever something
-happens in a connected tool.
-
-## Schedules (cron)
-
-1. Get the cron expression right. Five fields, UTC, one-minute floor. Confirm the user's
-   timezone and convert to UTC.
-2. Set the optional window if the job should only run between two dates.
-3. Map the inputs the job passes to the app on each run.
-4. Create it with `create_schedule`. This stops for the user's approval.
-
-## Subscriptions (events)
-
-1. Find the event. Call `find_triggers` with a short keyword for the event you want.
-2. Make sure the connection exists. A subscription needs a connected integration. If it is
-   missing, run the connection round-trip first and wait.
-3. Map the event into the run inputs.
-4. Create it with `create_subscription`. This stops for the user's approval.
-
-## Confirm it works
-
-Test before you go live. If the catalog has a sample event, map the sample and run yourself
-on it, with no connection. To prove the live wiring, call `test_subscription`, then read the
-delivery with `list_deliveries`. Tell the user what fired and what it produced.
+Prefer your wired tools (`discover_tools`, `request_connection`, `commit_revision`,
+`query_spans`, `create_schedule`, `list_schedules`, `discover_triggers`,
+`create_subscription`, `test_subscription`, `list_deliveries`, `remove_schedule`,
+`remove_subscription`) over harness builtins. Touch Terminal, RemoteTrigger, File tools, or raw
+HTTP only when your wired tools cannot do the job, and say so when you do.
 
 ## Footguns
 
-- Cron is UTC. Always convert from the user's timezone.
-- A subscription with no connection never fires. Connect first.
-- The inputs must match what the app expects, or the run starts empty.
+- Empty output with a healthy tool sequence is not failure; inspect the spans before judging.
+- Never surface raw provider slugs such as `provider_action` to the user; speak in Agenta terms.
+- Re-run discovery after the user connects an integration so the committed tool gets the concrete
+  connection id.
+- A subscription without a ready connection never fires.
+- Trigger inputs must match what the instructions expect, or the run starts empty.
 """
 
-SET_UP_TRIGGERS_SKILL = SkillTemplate(
-    name="set-up-triggers",
+# Slice 5 seam: replace the query_spans verification paragraph above with the test_run paragraph
+# when that platform op ships.
+BUILD_AN_AGENT_SKILL = SkillTemplate(
+    name="build-an-agent",
     description=(
-        "Set up a cron job (a schedule) or an event trigger (a subscription) for the app. Use "
-        "when the user wants the app to run on a timer or react to an outside event."
+        "Build or configure an Agenta agent end to end. Use when the user asks to set up, "
+        "automate, connect tools for, schedule, or subscribe an agent."
     ),
-    body=_SET_UP_TRIGGERS_BODY,
+    body=_BUILD_AN_AGENT_BODY,
 )
 
 # Platform skills every pi_agenta run carries, regardless of the author's config. These are the

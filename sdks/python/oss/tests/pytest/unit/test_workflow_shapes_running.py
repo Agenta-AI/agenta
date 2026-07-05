@@ -225,3 +225,76 @@ async def test_sync_function_returning_coroutine_is_awaited():
 
     assert isinstance(response, WorkflowServiceBatchResponse)
     assert response.data.outputs == "inner:e"
+
+
+async def _noop_revision_default_call_next(_request):
+    return "ok"
+
+
+@pytest.mark.asyncio
+async def test_inline_agent_revision_without_parameters_uses_default_template():
+    from agenta.sdk.contexts.running import RunningContext, running_context_manager
+    from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
+    from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+    from agenta.sdk.models.workflows import WorkflowInvokeRequest, WorkflowRequestData
+    from agenta.sdk.utils.types import build_agent_v0_default
+
+    request = WorkflowInvokeRequest(
+        data=WorkflowRequestData(
+            revision={
+                "data": {
+                    "uri": "agenta:builtin:agent:v0",
+                    "url": "https://agent.internal",
+                    "schemas": {"parameters": {"type": "object"}},
+                }
+            }
+        )
+    )
+
+    with (
+        running_context_manager(RunningContext()),
+        tracing_context_manager(TracingContext()),
+    ):
+        await ResolverMiddleware()(request, _noop_revision_default_call_next)
+        revision = RunningContext.get().revision
+
+    expected_parameters = {"agent": build_agent_v0_default()}
+    assert request.data.parameters == expected_parameters
+    assert revision["data"]["parameters"] == expected_parameters
+
+
+@pytest.mark.asyncio
+async def test_inline_agent_revision_with_parameters_stays_authoritative():
+    from agenta.sdk.contexts.running import RunningContext, running_context_manager
+    from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
+    from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+    from agenta.sdk.models.workflows import WorkflowInvokeRequest, WorkflowRequestData
+
+    explicit_parameters = {
+        "agent": {
+            "instructions": {"agents_md": "Use only this template."},
+            "llm": {"provider": "openai", "model": "gpt-custom"},
+            "tools": [{"type": "builtin", "name": "read_file"}],
+        }
+    }
+    request = WorkflowInvokeRequest(
+        data=WorkflowRequestData(
+            revision={
+                "data": {
+                    "uri": "agenta:builtin:agent:v0",
+                    "url": "https://agent.internal",
+                    "parameters": explicit_parameters,
+                }
+            }
+        )
+    )
+
+    with (
+        running_context_manager(RunningContext()),
+        tracing_context_manager(TracingContext()),
+    ):
+        await ResolverMiddleware()(request, _noop_revision_default_call_next)
+        revision = RunningContext.get().revision
+
+    assert request.data.parameters == explicit_parameters
+    assert revision["data"]["parameters"] == explicit_parameters
