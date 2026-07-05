@@ -39,21 +39,8 @@ const TestsetsHeaderFilters = ({tableMode = "active"}: TestsetsHeaderFiltersProp
                 filterCount={filterCount}
                 buttonType={filterCount > 0 ? "primary" : "default"}
                 onOpenChange={handleFiltersOpenChange}
-                popoverProps={{
-                    overlayStyle: {
-                        backgroundColor: "transparent",
-                        boxShadow: "none",
-                        padding: 0,
-                    },
-                    arrow: false,
-                    styles: {
-                        body: {
-                            maxWidth: "360px",
-                            backgroundColor: "transparent",
-                            boxShadow: "none",
-                            border: "none",
-                        },
-                    },
+                contentProps={{
+                    className: "w-auto max-w-[360px] bg-transparent p-0 shadow-none ring-0",
                 }}
                 renderContent={(close) => (
                     <TestsetsFiltersContent tableMode={tableMode} onClose={close} />

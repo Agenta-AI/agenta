@@ -1,8 +1,8 @@
-import {memo, useCallback, type ReactNode} from "react"
+import {memo, useCallback, useState, type ReactElement, type ReactNode} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Copy} from "@phosphor-icons/react"
-import {Popover} from "antd"
 
 import {message} from "../utils/appMessageContext"
 
@@ -33,7 +33,7 @@ PopoverContentWrapper.displayName = "PopoverContentWrapper"
 
 interface CellContentPopoverProps {
     /** The cell content to wrap */
-    children: ReactNode
+    children: ReactElement
     /** Full content to show in popover */
     fullContent: ReactNode
     /** Raw text for copy functionality */
@@ -64,6 +64,8 @@ const CellContentPopover = memo(
         maxWidth = 500,
         showCopy = true,
     }: CellContentPopoverProps) => {
+        const [open, setOpen] = useState(false)
+
         const handleCopy = useCallback(() => {
             if (copyText) {
                 navigator.clipboard.writeText(copyText)
@@ -77,23 +79,23 @@ const CellContentPopover = memo(
 
         return (
             <Popover
-                trigger="hover"
-                mouseEnterDelay={0.5}
-                mouseLeaveDelay={0.2}
-                destroyOnHidden
-                styles={{
-                    root: {
-                        maxWidth,
-                        maxHeight: 400,
-                    },
+                open={open}
+                onOpenChange={(nextOpen, eventDetails) => {
+                    if (eventDetails.reason !== "trigger-press") setOpen(nextOpen)
                 }}
-                content={
+            >
+                <PopoverTrigger
+                    render={children as ReactElement}
+                    nativeButton={false}
+                    openOnHover
+                    delay={500}
+                    closeDelay={200}
+                />
+                <PopoverContent className="max-h-[400px] w-auto" style={{maxWidth}}>
                     <PopoverContentWrapper onCopy={showCopy && copyText ? handleCopy : undefined}>
                         {fullContent}
                     </PopoverContentWrapper>
-                }
-            >
-                {children}
+                </PopoverContent>
             </Popover>
         )
     },

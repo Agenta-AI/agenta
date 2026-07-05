@@ -1,8 +1,9 @@
 import {useEffect, useMemo, useState, type CSSProperties} from "react"
 
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Export, Link, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Popover, Space} from "antd"
+import {Button, Dropdown, Space} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -97,6 +98,7 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
 
     // Track whether revisions have been requested (to distinguish "not loaded" from "loaded but empty")
     const [revisionsRequested, setRevisionsRequested] = useState(false)
+    const [metadataOpen, setMetadataOpen] = useState(false)
 
     // Enable revisions list query when dropdown is opened
     const handleRevisionDropdownOpenChange = (open: boolean) => {
@@ -348,9 +350,23 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                 </TableDescription>
             ) : (
                 <Popover
-                    trigger="hover"
-                    placement="bottomLeft"
-                    content={
+                    open={metadataOpen}
+                    onOpenChange={(open, eventDetails) => {
+                        if (eventDetails.reason === "trigger-press") return
+                        setMetadataOpen(open)
+                    }}
+                >
+                    <PopoverTrigger
+                        nativeButton={false}
+                        openOnHover
+                        render={<span className="cursor-help" />}
+                    >
+                        <TableDescription>
+                            {description ||
+                                "Specify column names similar to the Input parameters. A column with 'correct_answer' name will be treated as a ground truth column."}
+                        </TableDescription>
+                    </PopoverTrigger>
+                    <PopoverContent side="bottom" align="start" className="w-auto max-w-xs">
                         <div className="flex flex-col gap-2 max-w-xs">
                             {metadata?.testsetSlug && (
                                 <div>
@@ -395,14 +411,7 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                                 </div>
                             )}
                         </div>
-                    }
-                >
-                    <span className="cursor-help">
-                        <TableDescription>
-                            {description ||
-                                "Specify column names similar to the Input parameters. A column with 'correct_answer' name will be treated as a ground truth column."}
-                        </TableDescription>
-                    </span>
+                    </PopoverContent>
                 </Popover>
             )}
         </div>

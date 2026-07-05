@@ -22,6 +22,7 @@ import {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema, getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
@@ -36,7 +37,7 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowLeft, CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
-import {Dropdown, Popover, Tooltip} from "antd"
+import {Dropdown, Tooltip} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
@@ -1644,18 +1645,24 @@ function PlaygroundConfigSection({
                                 </Tooltip>
                             )}
                             <Popover
-                                trigger="click"
                                 open={isModelConfigOpen}
                                 onOpenChange={handleConfigureOpenChange}
-                                placement="bottomRight"
-                                arrow={false}
-                                content={configurePopoverContent}
-                                overlayInnerStyle={{padding: 0}}
                             >
-                                <Button variant="outline" size="sm">
-                                    {promptModelInfo.currentModel || "Select model"}
-                                    <CaretDown size={12} />
-                                </Button>
+                                <PopoverTrigger
+                                    render={
+                                        <Button variant="outline" size="sm">
+                                            {promptModelInfo.currentModel || "Select model"}
+                                            <CaretDown size={12} />
+                                        </Button>
+                                    }
+                                />
+                                <PopoverContent
+                                    side="bottom"
+                                    align="end"
+                                    className="w-auto gap-0 p-0"
+                                >
+                                    {configurePopoverContent}
+                                </PopoverContent>
                             </Popover>
                         </div>
                     )}

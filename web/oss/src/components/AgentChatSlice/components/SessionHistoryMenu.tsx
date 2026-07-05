@@ -2,9 +2,16 @@ import {useState} from "react"
 
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Popover,
+    PopoverContent,
+    PopoverHeader,
+    PopoverTitle,
+    PopoverTrigger,
+} from "@agenta/primitive-ui/components/popover"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {ClockCounterClockwise, Trash} from "@phosphor-icons/react"
-import {Empty, Popover} from "antd"
+import {Empty} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useChatScopeKey} from "../state/scope"
@@ -113,15 +120,8 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
 const SessionHistoryMenu = () => {
     const [open, setOpen] = useState(false)
     return (
-        <Popover
-            open={open}
-            onOpenChange={setOpen}
-            trigger="click"
-            placement="bottomRight"
-            title={<span className="text-xs font-medium">Session history</span>}
-            content={<SessionHistoryList onPicked={() => setOpen(false)} />}
-        >
-            <span className="inline-flex">
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger nativeButton={false} render={<span className="inline-flex" />}>
                 <Tooltip>
                     <TooltipTrigger
                         render={
@@ -132,7 +132,13 @@ const SessionHistoryMenu = () => {
                     />
                     <TooltipContent>{"Session history"}</TooltipContent>
                 </Tooltip>
-            </span>
+            </PopoverTrigger>
+            <PopoverContent side="bottom" align="end">
+                <PopoverHeader>
+                    <PopoverTitle className="text-xs">Session history</PopoverTitle>
+                </PopoverHeader>
+                <SessionHistoryList onPicked={() => setOpen(false)} />
+            </PopoverContent>
         </Popover>
     )
 }

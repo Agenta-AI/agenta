@@ -409,7 +409,7 @@ async function selectMockModel(page: Page): Promise<void> {
     // The configure popover contains "Configure" somewhere in its header area.
     // Use a partial-text match so "Configure model" and "Configure" both match.
     const configurePopover = page
-        .locator(".ant-popover")
+        .locator('[data-slot="popover-content"]')
         .filter({has: page.getByText(/Configure/i)})
         .last()
     await expect(configurePopover).toBeVisible({timeout: 15000})

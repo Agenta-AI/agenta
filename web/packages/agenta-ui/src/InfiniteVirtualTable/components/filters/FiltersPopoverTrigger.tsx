@@ -1,9 +1,16 @@
 import {useCallback, useMemo, useState, type ReactNode} from "react"
 
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    type PopoverAlign,
+    type PopoverContentProps,
+    type PopoverSide,
+} from "@agenta/primitive-ui/components/popover"
 import {Funnel} from "@phosphor-icons/react"
-import {Button, Popover} from "antd"
+import {Button} from "antd"
 import type {ButtonProps} from "antd"
-import type {PopoverProps} from "antd/es/popover"
 
 interface FiltersPopoverTriggerProps {
     label?: ReactNode
@@ -11,10 +18,11 @@ interface FiltersPopoverTriggerProps {
     buttonType?: ButtonProps["type"]
     icon?: ReactNode
     renderContent: (close: () => void, context: {isOpen: boolean}) => ReactNode
-    placement?: PopoverProps["placement"]
+    side?: PopoverSide
+    align?: PopoverAlign
     initialOpen?: boolean
     buttonProps?: Omit<ButtonProps, "type" | "icon">
-    popoverProps?: Omit<PopoverProps, "content" | "children" | "trigger" | "open" | "onOpenChange">
+    contentProps?: Omit<PopoverContentProps, "children" | "side" | "align">
     onOpenChange?: (open: boolean) => void
 }
 
@@ -30,10 +38,11 @@ const FiltersPopoverTrigger = ({
     buttonType = "default",
     icon,
     renderContent,
-    placement = "bottomRight",
+    side = "bottom",
+    align = "end",
     initialOpen = false,
     buttonProps,
-    popoverProps,
+    contentProps,
     onOpenChange,
 }: FiltersPopoverTriggerProps) => {
     const [isOpen, setIsOpen] = useState(initialOpen)
@@ -52,28 +61,27 @@ const FiltersPopoverTrigger = ({
     )
 
     return (
-        <Popover
-            trigger="click"
-            placement={placement}
-            open={isOpen}
-            onOpenChange={handleOpenChange}
-            content={content}
-            destroyOnHidden
-            {...popoverProps}
-        >
-            <Button
-                icon={icon ?? <Funnel size={16} />}
-                type="default"
-                {...buttonProps}
-                onClick={(event) => {
-                    event.stopPropagation()
-                    buttonProps?.onClick?.(event)
-                }}
-                className="flex items-center gap-2 !px-1.5"
-            >
-                {label}
-                <FilterCountBadge count={filterCount} />
-            </Button>
+        <Popover open={isOpen} onOpenChange={handleOpenChange}>
+            <PopoverTrigger
+                render={
+                    <Button
+                        icon={icon ?? <Funnel size={16} />}
+                        type="default"
+                        {...buttonProps}
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            buttonProps?.onClick?.(event)
+                        }}
+                        className="flex items-center gap-2 !px-1.5"
+                    >
+                        {label}
+                        <FilterCountBadge count={filterCount} />
+                    </Button>
+                }
+            />
+            <PopoverContent side={side} align={align} {...contentProps}>
+                {content}
+            </PopoverContent>
         </Popover>
     )
 }

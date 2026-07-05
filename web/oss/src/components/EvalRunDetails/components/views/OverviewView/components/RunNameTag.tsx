@@ -1,7 +1,7 @@
-import {memo, useMemo} from "react"
+import {memo, useMemo, useState} from "react"
 
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
-import {Popover} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
@@ -59,6 +59,7 @@ const formatDateTime = (value: string | number | Date | null | undefined) => {
 }
 
 const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
+    const [open, setOpen] = useState(false)
     const style = useMemo(() => buildAccentStyle(accentColor), [accentColor])
     const runQuery = useAtomValueWithSchedule(
         useMemo(() => evaluationRunQueryAtomFamily(runId), [runId]),
@@ -158,8 +159,29 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
     )
 
     return (
-        <Popover mouseEnterDelay={0.2} arrow content={popoverContent}>
-            <ReferenceTag label={label || runId} showIcon={false} copyValue={runId} style={style} />
+        <Popover
+            open={open}
+            onOpenChange={(nextOpen, eventDetails) => {
+                if (eventDetails.reason === "trigger-press") return
+                setOpen(nextOpen)
+            }}
+        >
+            <PopoverTrigger
+                nativeButton={false}
+                openOnHover
+                delay={200}
+                render={
+                    <ReferenceTag
+                        label={label || runId}
+                        showIcon={false}
+                        copyValue={runId}
+                        style={style}
+                    />
+                }
+            />
+            <PopoverContent side="top" align="center">
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

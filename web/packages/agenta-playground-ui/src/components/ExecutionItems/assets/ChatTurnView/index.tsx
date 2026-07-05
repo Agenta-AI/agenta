@@ -9,8 +9,15 @@ import {
     getEvaluatorVerdictFromOutput,
     hasAssistantContent as checkHasAssistantContent,
 } from "@agenta/playground/utils"
+import {
+    Popover,
+    PopoverContent,
+    PopoverHeader,
+    PopoverTitle,
+    PopoverTrigger,
+} from "@agenta/primitive-ui/components/popover"
 import {LoadingOutlined} from "@ant-design/icons"
-import {Popover, Tag} from "antd"
+import {Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -43,6 +50,7 @@ const EvaluatorResultPopover = ({
     node: PlaygroundNode
     nodeName: string
 }) => {
+    const [popoverOpen, setPopoverOpen] = React.useState(false)
     // Session key is scoped per-variant: sess:rootEntityId:nodeEntityId
     // (matches the key used by webWorkerIntegration.ts when storing results)
     const scopedEntityId = `${rootEntityId}:${node.entityId}`
@@ -136,24 +144,37 @@ const EvaluatorResultPopover = ({
 
     return (
         <Popover
-            content={popoverContent}
-            title={nodeName}
-            trigger="hover"
-            mouseEnterDelay={0.2}
-            overlayStyle={{maxWidth: 360}}
+            open={popoverOpen}
+            onOpenChange={(nextOpen, eventDetails) => {
+                if (eventDetails.reason !== "trigger-press") setPopoverOpen(nextOpen)
+            }}
         >
-            <Tag color={tagColor} className="!m-0 cursor-pointer text-xs">
-                {status === "running" || status === "pending" ? (
-                    <span className="flex items-center gap-1">
-                        <LoadingOutlined style={{fontSize: 10}} spin />
-                        {nodeName}
-                    </span>
-                ) : (
-                    <span>
-                        {nodeName}: {tagLabel}
-                    </span>
-                )}
-            </Tag>
+            <PopoverTrigger
+                render={
+                    <Tag color={tagColor} className="!m-0 cursor-pointer text-xs">
+                        {status === "running" || status === "pending" ? (
+                            <span className="flex items-center gap-1">
+                                <LoadingOutlined style={{fontSize: 10}} spin />
+                                {nodeName}
+                            </span>
+                        ) : (
+                            <span>
+                                {nodeName}: {tagLabel}
+                            </span>
+                        )}
+                    </Tag>
+                }
+                nativeButton={false}
+                openOnHover
+                delay={200}
+                closeDelay={100}
+            />
+            <PopoverContent className="w-auto max-w-[360px]">
+                <PopoverHeader>
+                    <PopoverTitle>{nodeName}</PopoverTitle>
+                </PopoverHeader>
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

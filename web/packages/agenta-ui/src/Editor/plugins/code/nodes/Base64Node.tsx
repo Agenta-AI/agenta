@@ -7,8 +7,9 @@
 import React, {useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {FileArchive, FilePdf, FileText, Image as ImageIcon} from "@phosphor-icons/react"
-import {Popover, message} from "antd"
+import {message} from "antd"
 import {
     DecoratorNode,
     EditorConfig,
@@ -143,6 +144,7 @@ function Base64Component({
     nodeKey: string
 }) {
     const [copied, setCopied] = useState(false)
+    const [popoverOpen, setPopoverOpen] = useState(false)
     const parsed = parseBase64String(fullValue)
     const fileTypeLabel = getFileTypeLabel(mimeType)
     const isImage = mimeType?.startsWith("image/")
@@ -203,14 +205,30 @@ function Base64Component({
     )
 
     return (
-        <Popover content={popoverContent} title={null} trigger="hover" placement="bottom">
-            <span
-                className="token token-string cursor-help border-b border-dashed border-gray-400"
-                data-lexical-base64="true"
-                data-node-key={nodeKey}
-            >
-                &quot;{parsed.preview}&quot;
-            </span>
+        <Popover
+            open={popoverOpen}
+            onOpenChange={(nextOpen, eventDetails) => {
+                if (eventDetails.reason !== "trigger-press") setPopoverOpen(nextOpen)
+            }}
+        >
+            <PopoverTrigger
+                render={
+                    <span
+                        className="token token-string cursor-help border-b border-dashed border-gray-400"
+                        data-lexical-base64="true"
+                        data-node-key={nodeKey}
+                    >
+                        &quot;{parsed.preview}&quot;
+                    </span>
+                }
+                nativeButton={false}
+                openOnHover
+                delay={100}
+                closeDelay={100}
+            />
+            <PopoverContent side="bottom" className="w-auto">
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

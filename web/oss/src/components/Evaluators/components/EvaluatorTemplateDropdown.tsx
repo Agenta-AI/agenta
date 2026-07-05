@@ -6,13 +6,19 @@ import {
     type EvaluatorCatalogTemplate,
 } from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    type PopoverAlign,
+    type PopoverSide,
+} from "@agenta/primitive-ui/components/popover"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {Tabs, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Empty, Popover, Tag} from "antd"
-import type {PopoverProps} from "antd"
+import {Empty, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {
@@ -34,8 +40,10 @@ interface EvaluatorTemplateDropdownProps {
     open?: boolean
     /** Callback when open state changes (required when using controlled `open`) */
     onOpenChange?: (open: boolean) => void
-    /** Popover placement relative to the trigger. */
-    placement?: PopoverProps["placement"]
+    /** Popover side relative to the trigger. */
+    side?: PopoverSide
+    /** Popover alignment relative to the trigger. */
+    align?: PopoverAlign
 }
 
 /**
@@ -48,7 +56,8 @@ const EvaluatorTemplateDropdown = ({
     className,
     open: controlledOpen,
     onOpenChange: controlledOnOpenChange,
-    placement = "bottomRight",
+    side = "bottom",
+    align = "end",
 }: EvaluatorTemplateDropdownProps) => {
     const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
     const [internalOpen, setInternalOpen] = useState(false)
@@ -186,16 +195,14 @@ const EvaluatorTemplateDropdown = ({
     const defaultTrigger = <Button variant="outline">{<PlusOutlined />}Create new evaluator</Button>
 
     return (
-        <Popover
-            open={open}
-            onOpenChange={setOpen}
-            trigger={["click"]}
-            content={popoverContent}
-            placement={placement}
-            arrow={false}
-            styles={{container: {padding: 0}}}
-        >
-            <span className={className}>{trigger || defaultTrigger}</span>
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger
+                nativeButton={false}
+                render={<span className={className}>{trigger || defaultTrigger}</span>}
+            />
+            <PopoverContent side={side} align={align} className="w-auto gap-0 p-0">
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

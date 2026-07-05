@@ -2,6 +2,7 @@ import {memo, useCallback, useState, type ReactNode} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {
@@ -16,7 +17,7 @@ import {
     Trash,
     X,
 } from "@phosphor-icons/react"
-import {Dropdown, Popover} from "antd"
+import {Dropdown} from "antd"
 import type {MenuProps} from "antd"
 
 export interface DrillInFieldHeaderProps {
@@ -182,8 +183,6 @@ const MappingPopover = memo(
 
         return (
             <Popover
-                content={content}
-                trigger="click"
                 open={open}
                 onOpenChange={(visible) => {
                     setOpen(visible)
@@ -192,9 +191,8 @@ const MappingPopover = memo(
                         setNewColumnName("")
                     }
                 }}
-                placement="bottomRight"
             >
-                <span className="inline-flex">
+                <PopoverTrigger nativeButton={false} render={<span className="inline-flex" />}>
                     <Tooltip>
                         <TooltipTrigger
                             render={
@@ -211,7 +209,10 @@ const MappingPopover = memo(
                             {isMapped ? "Mapping options" : "Map to column"}
                         </TooltipContent>
                     </Tooltip>
-                </span>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="end">
+                    {content}
+                </PopoverContent>
             </Popover>
         )
     },

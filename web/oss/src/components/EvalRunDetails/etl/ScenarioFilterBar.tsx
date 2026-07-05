@@ -24,8 +24,9 @@ import {
 } from "@agenta/entities/evaluationRun/etl"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
-import {Divider, InputNumber, Popover, Select} from "antd"
+import {Divider, InputNumber, Select} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
 
@@ -87,7 +88,7 @@ const blankCondition = (): RowPredicate => ({
 
 /** Keep antd Select dropdowns inside the popover so they don't close it. */
 const getWithinPopover = (trigger: HTMLElement) =>
-    (trigger.closest(".ant-popover") as HTMLElement | null) ?? document.body
+    (trigger.closest('[data-slot="popover-content"]') as HTMLElement | null) ?? document.body
 
 export interface ScenarioFilterBarProps {
     runId: string
@@ -352,18 +353,15 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
     )
 
     return (
-        <Popover
-            open={open}
-            onOpenChange={handleOpenChange}
-            trigger="click"
-            placement="bottomRight"
-            arrow={false}
-            content={popoverContent}
-        >
-            <Button
-                aria-label="Filter scenarios"
-                className="inline-flex items-center gap-1"
-                variant="outline"
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger
+                render={
+                    <Button
+                        aria-label="Filter scenarios"
+                        className="inline-flex items-center gap-1"
+                        variant="outline"
+                    />
+                }
             >
                 {<FilterIcon size={14} />}
                 <span
@@ -375,7 +373,10 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
                 >
                     {appliedCount}
                 </span>
-            </Button>
+            </PopoverTrigger>
+            <PopoverContent side="bottom" align="end" className="w-auto">
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

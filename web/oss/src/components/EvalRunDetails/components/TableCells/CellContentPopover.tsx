@@ -1,7 +1,7 @@
-import {memo, type ReactNode} from "react"
+import {memo, useState, type ReactElement, type ReactNode} from "react"
 
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {CopyButton} from "@agenta/ui"
-import {Popover} from "antd"
 
 interface CellContentPopoverProps {
     children: ReactNode
@@ -20,6 +20,8 @@ const CellContentPopover = ({
     disabled,
     copyContent,
 }: CellContentPopoverProps) => {
+    const [open, setOpen] = useState(false)
+
     if (disabled) {
         return <>{children}</>
     }
@@ -44,15 +46,26 @@ const CellContentPopover = ({
 
     return (
         <Popover
-            content={popoverContent}
-            trigger="hover"
-            mouseEnterDelay={0.5}
-            mouseLeaveDelay={0.1}
-            placement="top"
-            overlayClassName="scenario-cell-popover"
-            arrow={false}
+            open={open}
+            onOpenChange={(nextOpen, eventDetails) => {
+                if (eventDetails.reason === "trigger-press") return
+                setOpen(nextOpen)
+            }}
         >
-            {children}
+            <PopoverTrigger
+                nativeButton={false}
+                render={children as ReactElement}
+                openOnHover
+                delay={500}
+                closeDelay={100}
+            />
+            <PopoverContent
+                side="top"
+                align="center"
+                className="w-auto p-3 shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
+            >
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

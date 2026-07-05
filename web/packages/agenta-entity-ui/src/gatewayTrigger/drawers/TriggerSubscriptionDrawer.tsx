@@ -1744,7 +1744,8 @@ function MappingSection({
                         Map the event into the workflow inputs (JSON).
                     </span>
                     <EventSourcePicker
-                        placement="bottomRight"
+                        side="bottom"
+                        align="end"
                         trigger={
                             <button
                                 type="button"
@@ -1798,7 +1799,8 @@ function MappingSection({
                                 Event fields
                             </span>
                             <EventSourcePicker
-                                placement="bottomRight"
+                                side="bottom"
+                                align="end"
                                 trigger={
                                     <button
                                         type="button"
@@ -1957,7 +1959,8 @@ function RunSubscriptionButton({
 
     return (
         <EventSourcePicker
-            placement="topRight"
+            side="top"
+            align="end"
             trigger={<Button variant="outline">{<Lightning size={14} />}Run in playground</Button>}
             recentEvents={[]}
             onPick={run}

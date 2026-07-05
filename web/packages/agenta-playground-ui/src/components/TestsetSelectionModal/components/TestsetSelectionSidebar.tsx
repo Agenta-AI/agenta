@@ -65,7 +65,8 @@ export function TestsetSelectionSidebar({
                     showSearch
                     sectionLabel="Test sets"
                     emptyMessage="No testsets found"
-                    popoverPlacement="rightTop"
+                    popoverSide="right"
+                    popoverAlign="start"
                     autoSelectLatest
                     selectLatestOnParentClick
                     maxHeight={220}

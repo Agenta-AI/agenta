@@ -1,7 +1,7 @@
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {formatCurrency, formatLatency} from "@agenta/shared/utils"
-import {Popover} from "antd"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
@@ -63,25 +63,6 @@ const buildPrimitiveRows = (stats: Record<string, any> | undefined, metricKey?: 
 
     return rows
 }
-
-const POPOVER_STYLES = {
-    root: {
-        maxWidth: 360,
-        width: "calc(100vw - 32px)",
-    },
-    body: {
-        padding: 0,
-        borderRadius: 16,
-        border: "1px solid var(--ag-colorBorderSecondary)",
-        boxShadow: "0px 18px 45px rgba(15, 23, 42, 0.18)",
-        background: "var(--ag-colorBgElevated)",
-        maxHeight: 480,
-        overflowY: "auto",
-    },
-    arrow: {
-        color: "var(--ag-colorBgElevated)",
-    },
-} as const
 
 const Section = ({title, children}: {title: string; children: ReactNode}) => (
     <section className="flex flex-col gap-2">
@@ -695,19 +676,29 @@ const MetricDetailsPreviewPopover = memo(
         fullWidth?: boolean
         children: React.ReactNode
     }) => {
+        const [open, setOpen] = useState(false)
         const [shouldLoad, setShouldLoad] = useState(false)
-        const handleOpenChange = useCallback((next: boolean) => {
+        const handleOpenChange = useCallback((next: boolean, details: {reason: string}) => {
+            if (next && details.reason === "trigger-press") return
+            setOpen(next)
             if (next) setShouldLoad(true)
         }, [])
 
         return (
-            <Popover
-                trigger={["hover", "focus"]}
-                onOpenChange={handleOpenChange}
-                placement="top"
-                styles={POPOVER_STYLES}
-                destroyOnHidden
-                content={
+            <Popover open={open} onOpenChange={handleOpenChange}>
+                <PopoverTrigger
+                    nativeButton={false}
+                    openOnHover
+                    render={
+                        <div className={fullWidth ? "flex w-full" : "inline-flex w-fit"}>
+                            {children}
+                        </div>
+                    }
+                />
+                <PopoverContent
+                    side="top"
+                    className="max-h-[480px] w-[calc(100vw-32px)] max-w-[360px] gap-0 overflow-y-auto rounded-2xl border border-colorBorderSecondary bg-[var(--ag-colorBgElevated)] p-0 shadow-[0px_18px_45px_rgba(15,23,42,0.18)]"
+                >
                     <MetricPopoverContent
                         runId={runId}
                         metricKey={metricKey}
@@ -723,9 +714,7 @@ const MetricDetailsPreviewPopover = memo(
                         evaluationType={evaluationType}
                         scenarioTimestamp={scenarioTimestamp}
                     />
-                }
-            >
-                <div className={fullWidth ? "flex w-full" : "inline-flex w-fit"}>{children}</div>
+                </PopoverContent>
             </Popover>
         )
     },

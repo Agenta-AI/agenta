@@ -25,9 +25,10 @@ import {
 } from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {DownOutlined} from "@ant-design/icons"
 import {Plus} from "@phosphor-icons/react"
-import {Popover, Space} from "antd"
+import {Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
@@ -403,8 +404,15 @@ const SelectVariant = ({
                     {<Plus size={14} />}
                     Compare
                 </Button>
-                <Popover
-                    content={
+                <Popover open={comparePopoverOpen} onOpenChange={setComparePopoverOpen}>
+                    <PopoverTrigger
+                        render={
+                            <Button variant="outline" size="icon">
+                                {<DownOutlined style={{fontSize: 10}} />}
+                            </Button>
+                        }
+                    />
+                    <PopoverContent side="bottom" align="end" className="w-auto gap-0 p-0">
                         <TreeSelectPopupContent<WorkflowRevisionSelectionResult>
                             adapter={scopedAdapter}
                             onSelect={handleSelect}
@@ -416,18 +424,7 @@ const SelectVariant = ({
                             maxHeight={400}
                             width={280}
                         />
-                    }
-                    open={comparePopoverOpen}
-                    onOpenChange={setComparePopoverOpen}
-                    trigger="click"
-                    placement="bottomRight"
-                    arrow={false}
-                    destroyOnHidden
-                    overlayClassName="[&_.ant-popover-container]:!p-0"
-                >
-                    <Button variant="outline" size="icon">
-                        {<DownOutlined style={{fontSize: 10}} />}
-                    </Button>
+                    </PopoverContent>
                 </Popover>
             </Space.Compact>
         )
@@ -437,8 +434,23 @@ const SelectVariant = ({
     if (mode === "browse") {
         return (
             <div style={style ?? {width: 200}}>
-                <Popover
-                    content={
+                <Popover open={singlePopoverOpen} onOpenChange={setSinglePopoverOpen}>
+                    <PopoverTrigger
+                        render={
+                            <Button
+                                title={triggerLabel}
+                                className="w-full flex items-center justify-between text-left overflow-hidden"
+                                variant="outline"
+                                size="sm"
+                            >
+                                <span className="truncate text-xs">{triggerLabel}</span>
+                                <DownOutlined
+                                    style={{fontSize: 10, marginLeft: 4, flexShrink: 0}}
+                                />
+                            </Button>
+                        }
+                    />
+                    <PopoverContent side="bottom" align="start" className="w-auto gap-0 p-0">
                         <div>
                             {singlePopoverOpen && (
                                 <TreeSelectPopupContent<WorkflowRevisionSelectionResult>
@@ -455,24 +467,7 @@ const SelectVariant = ({
                                 />
                             )}
                         </div>
-                    }
-                    open={singlePopoverOpen}
-                    onOpenChange={setSinglePopoverOpen}
-                    trigger="click"
-                    placement="bottomLeft"
-                    arrow={false}
-                    destroyOnHidden
-                    overlayClassName="[&_.ant-popover-container]:!p-0"
-                >
-                    <Button
-                        title={triggerLabel}
-                        className="w-full flex items-center justify-between text-left overflow-hidden"
-                        variant="outline"
-                        size="sm"
-                    >
-                        <span className="truncate text-xs">{triggerLabel}</span>
-                        <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
-                    </Button>
+                    </PopoverContent>
                 </Popover>
             </div>
         )
@@ -482,8 +477,38 @@ const SelectVariant = ({
     // when the user clicks — prevents fetching all variants on mount.
     return (
         <div style={borderlessTrigger ? undefined : (style ?? {width: 120})}>
-            <Popover
-                content={
+            <Popover open={singlePopoverOpen} onOpenChange={setSinglePopoverOpen}>
+                <PopoverTrigger
+                    render={
+                        borderlessTrigger ? (
+                            <button
+                                type="button"
+                                className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm font-medium leading-none text-[var(--ant-color-text)] hover:bg-[var(--ant-color-fill-tertiary)] border-0 bg-transparent cursor-pointer"
+                            >
+                                <span className="truncate">{triggerLabel}</span>
+                                <DownOutlined
+                                    style={{
+                                        fontSize: 10,
+                                        flexShrink: 0,
+                                        color: "var(--ant-color-text-tertiary)",
+                                    }}
+                                />
+                            </button>
+                        ) : (
+                            <Button
+                                className="w-full flex items-center justify-between text-left overflow-hidden"
+                                variant="outline"
+                                size="sm"
+                            >
+                                <span className="truncate text-xs">{triggerLabel}</span>
+                                <DownOutlined
+                                    style={{fontSize: 10, marginLeft: 4, flexShrink: 0}}
+                                />
+                            </Button>
+                        )
+                    }
+                />
+                <PopoverContent side="bottom" align="start" className="w-auto gap-0 p-0">
                     <div>
                         {singlePopoverOpen && (
                             <TreeSelectPopupContent<WorkflowRevisionSelectionResult>
@@ -499,41 +524,7 @@ const SelectVariant = ({
                             />
                         )}
                     </div>
-                }
-                open={singlePopoverOpen}
-                onOpenChange={setSinglePopoverOpen}
-                trigger="click"
-                placement="bottomLeft"
-                arrow={false}
-                destroyOnHidden
-                overlayClassName="[&_.ant-popover-container]:!p-0"
-            >
-                {borderlessTrigger ? (
-                    // Identity-first trigger: borderless, content-width, hover-highlighted —
-                    // reads as the revision you're viewing, not a form switch.
-                    <button
-                        type="button"
-                        className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm font-medium leading-none text-[var(--ant-color-text)] hover:bg-[var(--ant-color-fill-tertiary)] border-0 bg-transparent cursor-pointer"
-                    >
-                        <span className="truncate">{triggerLabel}</span>
-                        <DownOutlined
-                            style={{
-                                fontSize: 10,
-                                flexShrink: 0,
-                                color: "var(--ant-color-text-tertiary)",
-                            }}
-                        />
-                    </button>
-                ) : (
-                    <Button
-                        className="w-full flex items-center justify-between text-left overflow-hidden"
-                        variant="outline"
-                        size="sm"
-                    >
-                        <span className="truncate text-xs">{triggerLabel}</span>
-                        <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
-                    </Button>
-                )}
+                </PopoverContent>
             </Popover>
         </div>
     )

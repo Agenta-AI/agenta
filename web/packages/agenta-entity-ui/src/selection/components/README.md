@@ -181,7 +181,8 @@ interface ListPopoverVariantProps<TSelection> extends EntityPickerBaseProps<TSel
   disabledChildTooltip?: string
 
   /** Popover placement */
-  popoverPlacement?: "right" | "rightTop" | "rightBottom"
+  popoverSide?: PopoverSide
+  popoverAlign?: PopoverAlign
 
   /** Popover trigger */
   popoverTrigger?: "hover" | "click"

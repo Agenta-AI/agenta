@@ -1,7 +1,8 @@
 import React, {useMemo, useRef, useState, useEffect} from "react"
 
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {CaretRight, X} from "@phosphor-icons/react"
-import {Input, InputRef, Popover, Select, Tooltip} from "antd"
+import {Input, InputRef, Select, Tooltip} from "antd"
 import clsx from "clsx"
 
 import {LLMIconMap} from "../LLMIcons"
@@ -241,14 +242,46 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 return (
                                     <Popover
                                         key={`provider-${group.label}-${idx}`}
-                                        placement="rightTop"
                                         open={isHovered}
-                                        onOpenChange={(visible) =>
-                                            setHoveredProvider(visible ? group.label || null : null)
-                                        }
-                                        arrow={false}
-                                        styles={{container: {padding: 0}}}
-                                        content={
+                                        onOpenChange={(visible, eventDetails) => {
+                                            if (eventDetails.reason !== "trigger-press") {
+                                                setHoveredProvider(
+                                                    visible ? group.label || null : null,
+                                                )
+                                            }
+                                        }}
+                                    >
+                                        <PopoverTrigger
+                                            render={
+                                                <div
+                                                    className={clsx([
+                                                        "px-3 py-[5px] cursor-pointer flex items-center gap-2 hover:bg-[var(--ag-c-F5F5F5)]",
+                                                        isHovered && "bg-[var(--ag-c-F5F5F5)]",
+                                                    ])}
+                                                >
+                                                    {Icon && (
+                                                        <Icon className="w-4 h-4 flex-shrink-0" />
+                                                    )}
+                                                    <span className="flex-1">{displayName}</span>
+                                                    <span className="text-[var(--ag-rgba-000-45)] text-xs">
+                                                        {group.options.length}
+                                                    </span>
+                                                    <CaretRight
+                                                        size={12}
+                                                        className="text-[var(--ag-rgba-000-45)]"
+                                                    />
+                                                </div>
+                                            }
+                                            nativeButton={false}
+                                            openOnHover
+                                            delay={100}
+                                            closeDelay={100}
+                                        />
+                                        <PopoverContent
+                                            side="right"
+                                            align="start"
+                                            className="w-auto min-w-[200px] p-0"
+                                        >
                                             <div className="max-h-[300px] overflow-y-auto min-w-[200px] py-1">
                                                 {group.options.map((option) => (
                                                     <div
@@ -264,25 +297,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                     </div>
                                                 ))}
                                             </div>
-                                        }
-                                        trigger="hover"
-                                    >
-                                        <div
-                                            className={clsx([
-                                                "px-3 py-[5px] cursor-pointer flex items-center gap-2 hover:bg-[var(--ag-c-F5F5F5)]",
-                                                isHovered && "bg-[var(--ag-c-F5F5F5)]",
-                                            ])}
-                                        >
-                                            {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-                                            <span className="flex-1">{displayName}</span>
-                                            <span className="text-[var(--ag-rgba-000-45)] text-xs">
-                                                {group.options.length}
-                                            </span>
-                                            <CaretRight
-                                                size={12}
-                                                className="text-[var(--ag-rgba-000-45)]"
-                                            />
-                                        </div>
+                                        </PopoverContent>
                                     </Popover>
                                 )
                             })}

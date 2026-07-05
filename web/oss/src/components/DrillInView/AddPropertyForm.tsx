@@ -1,9 +1,10 @@
 import {useRef, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Plus} from "@phosphor-icons/react"
-import {Input, Popover, Select} from "antd"
+import {Input, Select} from "antd"
 
 export type PropertyType = "string" | "number" | "boolean" | "object" | "array"
 
@@ -90,12 +91,8 @@ export function AddPropertyForm({onAdd, mode = "inline"}: AddPropertyFormProps) 
                         setType("string")
                     }
                 }}
-                content={formContent}
-                trigger="click"
-                placement="bottomLeft"
-                arrow={false}
             >
-                <span className="inline-flex">
+                <PopoverTrigger nativeButton={false} render={<span className="inline-flex" />}>
                     <Tooltip>
                         <TooltipTrigger
                             render={
@@ -109,7 +106,10 @@ export function AddPropertyForm({onAdd, mode = "inline"}: AddPropertyFormProps) 
                         />
                         <TooltipContent>{open ? undefined : "Add property"}</TooltipContent>
                     </Tooltip>
-                </span>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="start">
+                    {formContent}
+                </PopoverContent>
             </Popover>
         )
     }

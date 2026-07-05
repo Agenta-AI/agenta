@@ -37,10 +37,6 @@
     margin-inline-end: 0;
 }
 
-.compare-runs-popover-overlay .ant-popover-inner-content {
-    padding: 0;
-}
-
 .compare-runs-header {
     padding: 8px;
     border-bottom: 1px solid var(--ag-c-EAEFF5);
@@ -350,15 +346,4 @@
         rgba(0, 0, 0, 0.03) 4px,
         rgba(0, 0, 0, 0.03) 8px
     );
-}
-
-/* Scenario cell hover popover styles */
-.scenario-cell-popover .ant-popover-inner {
-    padding: 12px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.scenario-cell-popover .ant-popover-inner-content {
-    padding: 0;
 }

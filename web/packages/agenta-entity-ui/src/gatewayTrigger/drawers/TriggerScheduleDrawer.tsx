@@ -26,6 +26,13 @@ import {
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
 import {appWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {
+    Popover,
+    PopoverContent,
+    PopoverHeader,
+    PopoverTitle,
+    PopoverTrigger,
+} from "@agenta/primitive-ui/components/popover"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
@@ -34,7 +41,7 @@ import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Editor} from "@agenta/ui/editor"
 import {CalendarBlank, ChatText, Clock, GitBranch, Play, Tag} from "@phosphor-icons/react"
-import {DatePicker, Form, Input, Popover, Spin, Tooltip} from "antd"
+import {DatePicker, Form, Input, Spin, Tooltip} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {DrawerFooter} from "../../drawers/shared/DrawerFooter"
@@ -950,19 +957,23 @@ function RunInPlaygroundButton({
     }
 
     return (
-        <Popover
-            placement="topRight"
-            title="Agent will receive"
-            content={
+        <Popover>
+            <PopoverTrigger
+                render={
+                    <Button onClick={handleRun} variant="outline">
+                        {<Play size={14} />}
+                        Run in playground
+                    </Button>
+                }
+            />
+            <PopoverContent side="top" align="end" className="w-auto">
+                <PopoverHeader>
+                    <PopoverTitle>Agent will receive</PopoverTitle>
+                </PopoverHeader>
                 <pre className="m-0 max-h-[240px] max-w-[320px] overflow-auto whitespace-pre-wrap break-words text-[11px] leading-snug">
                     {parsed.ok ? preview : "Inputs is not valid JSON."}
                 </pre>
-            }
-        >
-            <Button onClick={handleRun} variant="outline">
-                {<Play size={14} />}
-                Run in playground
-            </Button>
+            </PopoverContent>
         </Popover>
     )
 }

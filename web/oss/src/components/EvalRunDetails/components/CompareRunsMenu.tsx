@@ -1,9 +1,10 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
-import {Button, Checkbox, Input, List, Popover, Space} from "antd"
+import {Button, Checkbox, Input, List, Space} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Image from "next/image"
@@ -104,29 +105,31 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
     )
 
     return (
-        <Popover
-            open={open && availability.canCompare}
-            onOpenChange={handlePopoverOpenChange}
-            trigger={["click"]}
-            placement="bottomRight"
-            destroyOnHidden
-            className="[&_.ant-popover-container]:p-0"
-            overlayClassName="[&_.ant-popover-container]:p-0"
-            styles={{root: {minWidth: 360, maxHeight: 440}}}
-            content={
-                open && availability.canCompare ? (
-                    <CompareRunsPopoverContent runId={runId} availability={availability} />
-                ) : null
-            }
-        >
+        <Popover open={open && availability.canCompare} onOpenChange={handlePopoverOpenChange}>
             {disabledReason ? (
-                <Tooltip>
-                    <TooltipTrigger render={<span>{button}</span>} />
-                    <TooltipContent side="bottom">{disabledReason}</TooltipContent>
-                </Tooltip>
+                <PopoverTrigger
+                    nativeButton={false}
+                    render={
+                        <span className="inline-flex">
+                            <Tooltip>
+                                <TooltipTrigger render={<span>{button}</span>} />
+                                <TooltipContent side="bottom">{disabledReason}</TooltipContent>
+                            </Tooltip>
+                        </span>
+                    }
+                />
             ) : (
-                button
+                <PopoverTrigger render={button} />
             )}
+            <PopoverContent
+                side="bottom"
+                align="end"
+                className="max-h-[440px] w-auto min-w-[360px] gap-0 p-0"
+            >
+                {open && availability.canCompare ? (
+                    <CompareRunsPopoverContent runId={runId} availability={availability} />
+                ) : null}
+            </PopoverContent>
         </Popover>
     )
 }

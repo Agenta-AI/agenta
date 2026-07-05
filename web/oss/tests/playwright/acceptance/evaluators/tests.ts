@@ -133,7 +133,7 @@ const openEvaluatorTemplateDropdown = async (page: Page) => {
     await createButton.click()
 
     const popover = page
-        .locator(".ant-popover")
+        .locator('[data-slot="popover-content"]')
         .filter({hasText: EVALUATOR_TEMPLATE_DROPDOWN_TITLE})
     await expect(popover.first()).toBeVisible({timeout: 5000})
     return popover.first()

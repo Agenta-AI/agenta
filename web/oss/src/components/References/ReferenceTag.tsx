@@ -1,6 +1,13 @@
 import {useEffect, useRef, useState, type ComponentType, type ReactNode} from "react"
 
 import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    type PopoverAlign,
+    type PopoverSide,
+} from "@agenta/primitive-ui/components/popover"
+import {
     ArrowSquareOut,
     BracketsCurly,
     Check,
@@ -13,8 +20,7 @@ import {
     SquaresFour,
     type IconProps,
 } from "@phosphor-icons/react"
-import {Popover, Tag, type TagProps, Tooltip} from "antd"
-import type {TooltipPlacement} from "antd/es/tooltip"
+import {Tag, type TagProps, Tooltip} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
 
@@ -54,7 +60,8 @@ interface ReferenceTagProps extends TagProps {
     showLinkIcon?: boolean
     /** Identifier hovercard (default true when identifiers exist). */
     hovercard?: boolean
-    hovercardPlacement?: TooltipPlacement
+    hovercardSide?: PopoverSide
+    hovercardAlign?: PopoverAlign
     /** Deleted entity: muted chip, struck-through name, no icon/arrow/hovercard. */
     deleted?: boolean
 }
@@ -279,7 +286,8 @@ const ReferenceTag = ({
     identifiers,
     showLinkIcon,
     hovercard = true,
-    hovercardPlacement,
+    hovercardSide = "bottom",
+    hovercardAlign = "start",
     deleted = false,
     ...props
 }: ReferenceTagProps) => {
@@ -429,14 +437,23 @@ const ReferenceTag = ({
         return (
             <Popover
                 open={cardOpen}
-                onOpenChange={setCardOpen}
-                trigger={["hover", "focus"]}
-                mouseEnterDelay={0.15}
-                mouseLeaveDelay={0.18}
-                placement={hovercardPlacement ?? "bottomLeft"}
-                arrow={false}
-                styles={{container: {padding: 0}}}
-                content={
+                onOpenChange={(open, details) => {
+                    if (open && details.reason === "trigger-press") return
+                    setCardOpen(open)
+                }}
+            >
+                <PopoverTrigger
+                    nativeButton={false}
+                    openOnHover
+                    delay={150}
+                    closeDelay={180}
+                    render={tagNode}
+                />
+                <PopoverContent
+                    side={hovercardSide}
+                    align={hovercardAlign}
+                    className="w-auto gap-0 p-0"
+                >
                     <ReferenceHovercard
                         kind={kind}
                         name={hovercardName}
@@ -447,9 +464,7 @@ const ReferenceTag = ({
                             navigate()
                         }}
                     />
-                }
-            >
-                {tagNode}
+                </PopoverContent>
             </Popover>
         )
     }

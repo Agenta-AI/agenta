@@ -18,7 +18,8 @@ import {projectIdAtom} from "@/oss/state/project"
 const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
 
 // The side panel hugs the right edge of the screen, so hovercards open leftward.
-const HOVERCARD_PLACEMENT = "bottomRight" as const
+const HOVERCARD_SIDE = "bottom" as const
+const HOVERCARD_ALIGN = "end" as const
 
 const labelMap: Record<string, string> = {
     evaluator: "Evaluators",
@@ -79,7 +80,8 @@ const TraceReferences = () => {
                         projectURL={projectURL}
                         label={slug}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
+                        hovercardSide={HOVERCARD_SIDE}
+                        hovercardAlign={HOVERCARD_ALIGN}
                     />
                 )
             case "testset":
@@ -90,7 +92,8 @@ const TraceReferences = () => {
                         projectId={projectId}
                         projectURL={projectURL}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
+                        hovercardSide={HOVERCARD_SIDE}
+                        hovercardAlign={HOVERCARD_ALIGN}
                     />
                 )
             case "evaluator":
@@ -102,7 +105,8 @@ const TraceReferences = () => {
                         href={buildEvaluatorTarget({id, slug})?.href ?? undefined}
                         label={slug}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
+                        hovercardSide={HOVERCARD_SIDE}
+                        hovercardAlign={HOVERCARD_ALIGN}
                     />
                 )
             case "environment":
@@ -115,7 +119,8 @@ const TraceReferences = () => {
                         projectURL={projectURL}
                         label={slug}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
+                        hovercardSide={HOVERCARD_SIDE}
+                        hovercardAlign={HOVERCARD_ALIGN}
                     />
                 )
             case "application_variant": {
@@ -138,7 +143,8 @@ const TraceReferences = () => {
                         href={href || undefined}
                         fallbackLabel={slug}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
+                        hovercardSide={HOVERCARD_SIDE}
+                        hovercardAlign={HOVERCARD_ALIGN}
                     />
                 )
             }

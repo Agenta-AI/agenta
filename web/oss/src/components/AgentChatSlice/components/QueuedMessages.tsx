@@ -1,5 +1,6 @@
 import {memo, useState} from "react"
 
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {
     CaretDown,
     CaretUp,
@@ -10,7 +11,6 @@ import {
     X,
 } from "@phosphor-icons/react"
 import type {FileUIPart} from "ai"
-import {Popover} from "antd"
 
 import {fileKind, filePartName} from "../assets/files"
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
@@ -128,24 +128,23 @@ const QueuedMessages = ({
     const [open, setOpen] = useState(false)
     if (queued.length === 0) return null
     return (
-        <Popover
-            open={open}
-            onOpenChange={setOpen}
-            trigger="click"
-            placement="topLeft"
-            arrow={false}
-            styles={{content: {padding: 0}}}
-            content={<QueuedList queued={queued} onRemove={onRemove} onClear={onClear} />}
-        >
-            <button
-                type="button"
-                aria-label={`${queued.length} queued message${queued.length > 1 ? "s" : ""}`}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-solid border-colorBorder bg-colorBgContainer px-2.5 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorText"
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger
+                render={
+                    <button
+                        type="button"
+                        aria-label={`${queued.length} queued message${queued.length > 1 ? "s" : ""}`}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-solid border-colorBorder bg-colorBgContainer px-2.5 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorText"
+                    />
+                }
             >
                 <Stack size={13} />
                 {queued.length} queued
                 {open ? <CaretDown size={10} /> : <CaretUp size={10} />}
-            </button>
+            </PopoverTrigger>
+            <PopoverContent side="top" align="start" className="w-auto p-0">
+                <QueuedList queued={queued} onRemove={onRemove} onClear={onClear} />
+            </PopoverContent>
         </Popover>
     )
 }

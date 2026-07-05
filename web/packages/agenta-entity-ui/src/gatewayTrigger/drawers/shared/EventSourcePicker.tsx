@@ -1,7 +1,14 @@
 import {useState, type ReactNode} from "react"
 
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    type PopoverAlign,
+    type PopoverSide,
+} from "@agenta/primitive-ui/components/popover"
 import {ClockCountdown, Lightning} from "@phosphor-icons/react"
-import {Empty, Popover, Spin} from "antd"
+import {Empty, Spin} from "antd"
 
 /**
  * A real event sampled from the provider — used to build the inputs mapping against
@@ -34,7 +41,8 @@ export function EventSourcePicker({
     onPick,
     onWaitForEvent,
     onOpenChange,
-    placement = "bottomRight",
+    side = "bottom",
+    align = "end",
     waitLabel = "Wait for a new event",
     waitHint,
 }: {
@@ -46,7 +54,8 @@ export function EventSourcePicker({
     onWaitForEvent?: () => Promise<SampledEvent | null>
     /** Fired when the popover opens/closes — use to lazy-load `recentEvents` on open. */
     onOpenChange?: (open: boolean) => void
-    placement?: "bottomRight" | "topRight" | "bottomLeft" | "topLeft"
+    side?: PopoverSide
+    align?: PopoverAlign
     waitLabel?: string
     waitHint?: string
 }) {
@@ -147,12 +156,21 @@ export function EventSourcePicker({
     return (
         <Popover
             open={open}
-            onOpenChange={handleOpenChange}
-            trigger="click"
-            placement={placement}
-            content={content}
+            onOpenChange={(nextOpen, details) => {
+                if (details.reason !== "trigger-press") handleOpenChange(nextOpen)
+            }}
         >
-            {trigger}
+            <PopoverTrigger
+                nativeButton={false}
+                render={
+                    <span className="inline-flex" onClickCapture={() => handleOpenChange(!open)}>
+                        {trigger}
+                    </span>
+                }
+            />
+            <PopoverContent side={side} align={align} className="w-auto">
+                {content}
+            </PopoverContent>
         </Popover>
     )
 }

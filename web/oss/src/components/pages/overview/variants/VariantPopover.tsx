@@ -1,20 +1,23 @@
+import {useState} from "react"
+
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import type {Workflow} from "@agenta/entities/workflow"
 import {VariantNameCell} from "@agenta/entity-ui/variant"
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Badge as AntBadge, Flex, Popover} from "antd"
+import {Badge as AntBadge, Flex} from "antd"
 
 import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 
-type VariantPopoverProps = {
+interface VariantPopoverProps {
     env: AppEnvironmentDeployment
     selectedDeployedVariant: Workflow | undefined
-} & React.ComponentProps<typeof Popover>
+}
 
 const ModifiedByText = ({variant}: {variant: Workflow}) => {
     const authorId = variant.updated_by_id ?? variant.created_by_id ?? null
@@ -23,22 +26,37 @@ const ModifiedByText = ({variant}: {variant: Workflow}) => {
     return <span className="font-normal">{resolvedName}</span>
 }
 
-const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopoverProps) => {
+const VariantPopover = ({env, selectedDeployedVariant}: VariantPopoverProps) => {
     const {goToPlayground} = usePlaygroundNavigation()
+    const [open, setOpen] = useState(false)
 
     return (
         <Popover
-            {...props}
-            placement="bottom"
-            trigger={"hover"}
-            styles={{
-                root: {
-                    minWidth: 256,
-                    maxWidth: 360,
-                },
+            open={open}
+            onOpenChange={(nextOpen, eventDetails) => {
+                if (eventDetails.reason === "trigger-press") return
+                setOpen(nextOpen)
             }}
-            arrow={false}
-            title={
+        >
+            <PopoverTrigger
+                nativeButton={false}
+                openOnHover
+                delay={100}
+                closeDelay={100}
+                render={
+                    <Badge
+                        className="w-fit cursor-pointer py-[1px] px-2"
+                        onClick={(e) => e.stopPropagation()}
+                        variant="secondary"
+                    >
+                        <AntBadge
+                            text={formatVariantIdWithHash(env.deployedRevisionId as string)}
+                            color={statusMap[env.name]?.badge ?? "transparent"}
+                        />
+                    </Badge>
+                }
+            />
+            <PopoverContent side="bottom" align="center" className="w-auto min-w-64 max-w-[360px]">
                 <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-4">
                     <Flex justify="space-between">
                         <VariantNameCell revisionId={selectedDeployedVariant?.id} showBadges />
@@ -63,18 +81,7 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                         </span>
                     )}
                 </div>
-            }
-        >
-            <Badge
-                className="w-fit cursor-pointer py-[1px] px-2"
-                onClick={(e) => e.stopPropagation()}
-                variant="secondary"
-            >
-                <AntBadge
-                    text={formatVariantIdWithHash(env.deployedRevisionId as string)}
-                    color={statusMap[env.name]?.badge ?? "transparent"}
-                />
-            </Badge>
+            </PopoverContent>
         </Popover>
     )
 }

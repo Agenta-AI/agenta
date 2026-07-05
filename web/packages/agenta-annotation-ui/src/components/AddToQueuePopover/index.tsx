@@ -8,10 +8,11 @@ import {
     type SimpleQueue,
 } from "@agenta/entities/simpleQueue"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
-import {Divider, Input, Popover, Skeleton} from "antd"
+import {Divider, Input, Skeleton} from "antd"
 import "dayjs/plugin/relativeTime"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -277,15 +278,31 @@ const AddToQueuePopover = ({
     return (
         <Popover
             open={open}
-            onOpenChange={(nextOpen) => {
+            onOpenChange={(nextOpen, details) => {
+                if (details.reason === "trigger-press" && !toggleOnTriggerClick) return
                 if (disabled && nextOpen) return
                 setOpen(nextOpen)
             }}
-            trigger="click"
-            placement="bottomRight"
-            arrow={false}
-            content={
-                open ? (
+        >
+            <PopoverTrigger
+                nativeButton={false}
+                disabled={disabled}
+                render={
+                    <span
+                        role="button"
+                        tabIndex={disabled ? -1 : 0}
+                        className={
+                            disabled
+                                ? "inline-flex pointer-events-none opacity-50"
+                                : "inline-flex cursor-pointer"
+                        }
+                    >
+                        {children}
+                    </span>
+                }
+            />
+            <PopoverContent side="bottom" align="end" className="w-auto gap-0 p-0">
+                {open ? (
                     <QueueListContent
                         itemType={itemType}
                         itemIds={itemIds}
@@ -293,26 +310,8 @@ const AddToQueuePopover = ({
                         onItemsAdded={onItemsAdded}
                         onQueueSelected={onQueueSelected}
                     />
-                ) : null
-            }
-            styles={{container: {padding: 0}}}
-        >
-            <span
-                role="button"
-                tabIndex={disabled ? -1 : 0}
-                className={
-                    disabled
-                        ? "inline-flex pointer-events-none opacity-50"
-                        : "inline-flex cursor-pointer"
-                }
-                onClick={() => {
-                    if (!disabled && toggleOnTriggerClick) {
-                        setOpen(!open)
-                    }
-                }}
-            >
-                {children}
-            </span>
+                ) : null}
+            </PopoverContent>
         </Popover>
     )
 }

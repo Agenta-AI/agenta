@@ -1,8 +1,9 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {MagnifyingGlass, SlidersHorizontal} from "@phosphor-icons/react"
-import {Divider, Input, Popover} from "antd"
+import {Divider, Input} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
@@ -163,22 +164,16 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
                     allowClear
                 />
 
-                <Popover
-                    styles={{
-                        container: {padding: 0, width: 180},
-                    }}
-                    trigger="click"
-                    content={
+                <Popover>
+                    <PopoverTrigger render={<Button variant="ghost" size="icon-sm" />}>
+                        {<SlidersHorizontal size={14} />}
+                    </PopoverTrigger>
+                    <PopoverContent side="bottom" align="end" className="w-[180px] p-0">
                         <TraceTreeSettings
                             settings={traceTreeSettings}
                             setSettings={setTraceTreeSettings}
                         />
-                    }
-                    placement="bottomRight"
-                >
-                    <Button variant="ghost" size="icon-sm">
-                        {<SlidersHorizontal size={14} />}
-                    </Button>
+                    </PopoverContent>
                 </Popover>
             </div>
             <Divider orientation="horizontal" className="m-0" />

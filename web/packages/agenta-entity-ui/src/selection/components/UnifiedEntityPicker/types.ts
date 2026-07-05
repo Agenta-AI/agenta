@@ -6,6 +6,8 @@
 
 import type {ReactNode} from "react"
 
+import type {PopoverAlign, PopoverSide} from "@agenta/primitive-ui/components/popover"
+
 import type {EntitySelectionAdapter, EntitySelectionResult} from "../../types"
 
 // ============================================================================
@@ -301,10 +303,16 @@ export interface ListPopoverVariantProps<
     disabledChildTooltip?: string
 
     /**
-     * Popover placement
-     * @default "rightTop"
+     * Popover side
+     * @default "right"
      */
-    popoverPlacement?: "right" | "rightTop" | "rightBottom" | "left" | "leftTop" | "leftBottom"
+    popoverSide?: PopoverSide
+
+    /**
+     * Popover alignment
+     * @default "start"
+     */
+    popoverAlign?: PopoverAlign
 
     /**
      * Popover trigger
@@ -547,7 +555,7 @@ export interface CascaderVariantProps<
 /**
  * Props for popover-cascader variant (button-triggered popover with cascading panels)
  *
- * Renders a trigger Button that opens an Ant Design Popover containing
+ * Renders a trigger Button that opens a popover containing
  * side-by-side cascading panels. The left panel shows root items with search,
  * the right panel shows children when a root item is selected.
  *
@@ -592,10 +600,16 @@ export interface PopoverCascaderVariantProps<
     showDropdownIcon?: boolean
 
     /**
-     * Popover placement
-     * @default "bottomLeft"
+     * Popover side
+     * @default "bottom"
      */
-    placement?: "bottomLeft" | "bottomRight" | "topLeft" | "topRight"
+    side?: PopoverSide
+
+    /**
+     * Popover alignment
+     * @default "start"
+     */
+    align?: PopoverAlign
 
     /**
      * Minimum width of each cascading panel (px)

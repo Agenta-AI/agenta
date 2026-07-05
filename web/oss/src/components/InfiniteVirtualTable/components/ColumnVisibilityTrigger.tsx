@@ -2,9 +2,10 @@ import type {MouseEvent, ReactNode} from "react"
 import {useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {GearSix} from "@phosphor-icons/react"
-import {Checkbox, Divider, Popover, Space} from "antd"
+import {Checkbox, Divider, Space} from "antd"
 
 import type {ColumnVisibilityState} from "../types"
 
@@ -84,6 +85,7 @@ const ColumnVisibilityTrigger = <Row extends object>({
     const stopPropagation = (event: MouseEvent) => {
         event.preventDefault()
         event.stopPropagation()
+        setOpen((current) => !current)
     }
 
     const triggerNode =
@@ -118,14 +120,19 @@ const ColumnVisibilityTrigger = <Row extends object>({
 
     return (
         <Popover
-            trigger="click"
-            placement="bottomRight"
-            destroyOnHidden
             open={open}
-            onOpenChange={(value) => setOpen(value)}
-            content={content}
+            onOpenChange={(value, details) => {
+                if (details.reason !== "trigger-press") setOpen(value)
+            }}
         >
-            {triggerNode}
+            <PopoverTrigger
+                nativeButton={false}
+                onClick={stopPropagation}
+                render={<span className="inline-flex">{triggerNode}</span>}
+            />
+            <PopoverContent side="bottom" align="end" className="w-auto">
+                {content}
+            </PopoverContent>
         </Popover>
     )
 }

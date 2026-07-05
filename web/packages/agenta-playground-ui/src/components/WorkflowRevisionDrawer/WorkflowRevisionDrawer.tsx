@@ -81,7 +81,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
             // to prevent this drawer from closing when another drawer opens on top
             if (target.closest(".ant-drawer")) return
             // Ignore clicks on popovers (e.g. evaluator template dropdown)
-            if (target.closest(".ant-popover")) return
+            if (target.closest('[data-slot="popover-content"]')) return
             // Ignore clicks on modals
             if (target.closest(".ant-modal-root")) return
             // Close when clicking the main layout area behind the drawer

@@ -7,9 +7,10 @@
 import React, {type KeyboardEvent, useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {TextAlignLeft, ArrowSquareOut} from "@phosphor-icons/react"
-import {Popover, message} from "antd"
+import {message} from "antd"
 import {
     DecoratorNode,
     EditorConfig,
@@ -265,39 +266,46 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
     if (expanded) {
         return (
             <Popover
-                content={popoverContent}
-                title={null}
-                trigger={["hover"]}
                 open={popoverOpen}
-                onOpenChange={setPopoverOpen}
-                placement="topLeft"
-                mouseEnterDelay={0.3}
-                mouseLeaveDelay={0.2}
-                overlayStyle={{pointerEvents: "auto"}}
-                arrow={{pointAtCenter: false}}
+                onOpenChange={(nextOpen, eventDetails) => {
+                    if (eventDetails.reason !== "trigger-press") setPopoverOpen(nextOpen)
+                }}
             >
-                <span
-                    className="inline-flex items-start gap-1 cursor-pointer rounded border border-dashed border-blue-300 bg-blue-50/40 px-1 py-[1px] hover:border-blue-400 hover:bg-blue-50/60 transition-colors"
-                    onClick={handleCollapse}
-                    role="button"
-                    tabIndex={0}
-                    aria-expanded
-                    onKeyDown={handleExpandedKeyDown}
-                    title="Click to collapse"
-                >
-                    <span className="text-[10px] text-blue-500 mt-[2px] select-none">[-]</span>
-                    <span className="text-[10px] text-blue-500 mt-[2px] shrink-0 select-none">
-                        [{formatCharCount(parsed.charCount)}]
-                    </span>
-                    <span
-                        ref={spanRef}
-                        className="token token-string whitespace-pre-wrap break-words hover:opacity-80 transition-opacity"
-                        data-lexical-longtext="true"
-                        data-node-key={nodeKey}
-                    >
-                        &quot;{parsed.fullValue}&quot;
-                    </span>
-                </span>
+                <PopoverTrigger
+                    render={
+                        <span
+                            className="inline-flex items-start gap-1 cursor-pointer rounded border border-dashed border-blue-300 bg-blue-50/40 px-1 py-[1px] hover:border-blue-400 hover:bg-blue-50/60 transition-colors"
+                            onClick={handleCollapse}
+                            role="button"
+                            tabIndex={0}
+                            aria-expanded
+                            onKeyDown={handleExpandedKeyDown}
+                            title="Click to collapse"
+                        >
+                            <span className="text-[10px] text-blue-500 mt-[2px] select-none">
+                                [-]
+                            </span>
+                            <span className="text-[10px] text-blue-500 mt-[2px] shrink-0 select-none">
+                                [{formatCharCount(parsed.charCount)}]
+                            </span>
+                            <span
+                                ref={spanRef}
+                                className="token token-string whitespace-pre-wrap break-words hover:opacity-80 transition-opacity"
+                                data-lexical-longtext="true"
+                                data-node-key={nodeKey}
+                            >
+                                &quot;{parsed.fullValue}&quot;
+                            </span>
+                        </span>
+                    }
+                    nativeButton={false}
+                    openOnHover
+                    delay={300}
+                    closeDelay={200}
+                />
+                <PopoverContent side="top" align="start" className="w-auto">
+                    {popoverContent}
+                </PopoverContent>
             </Popover>
         )
     }
@@ -305,33 +313,38 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
     // Collapsed state with hover actions and click-to-expand
     return (
         <Popover
-            content={popoverContent}
-            title={null}
             open={popoverOpen}
-            onOpenChange={setPopoverOpen}
-            trigger={["hover"]}
-            placement="topLeft"
-            mouseEnterDelay={0.3}
-            mouseLeaveDelay={0.2}
-            overlayStyle={{pointerEvents: "auto"}}
-            arrow={{pointAtCenter: false}}
+            onOpenChange={(nextOpen, eventDetails) => {
+                if (eventDetails.reason !== "trigger-press") setPopoverOpen(nextOpen)
+            }}
         >
-            <span
-                ref={spanRef}
-                className="token token-string cursor-pointer border-b border-dashed border-blue-400"
-                data-lexical-longtext="true"
-                data-node-key={nodeKey}
-                onClick={handleExpand}
-                onKeyDown={handleCollapsedKeyDown}
-                role="button"
-                tabIndex={0}
-                aria-expanded={false}
-            >
-                &quot;{parsed.preview}...&quot;
-                <span className="text-[10px] text-blue-500 ml-1">
-                    [{formatCharCount(parsed.charCount)}]
-                </span>
-            </span>
+            <PopoverTrigger
+                render={
+                    <span
+                        ref={spanRef}
+                        className="token token-string cursor-pointer border-b border-dashed border-blue-400"
+                        data-lexical-longtext="true"
+                        data-node-key={nodeKey}
+                        onClick={handleExpand}
+                        onKeyDown={handleCollapsedKeyDown}
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={false}
+                    >
+                        &quot;{parsed.preview}...&quot;
+                        <span className="text-[10px] text-blue-500 ml-1">
+                            [{formatCharCount(parsed.charCount)}]
+                        </span>
+                    </span>
+                }
+                nativeButton={false}
+                openOnHover
+                delay={300}
+                closeDelay={200}
+            />
+            <PopoverContent side="top" align="start" className="w-auto">
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

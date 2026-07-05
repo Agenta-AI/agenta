@@ -1,8 +1,8 @@
 import {memo, useMemo} from "react"
 
 import {getWorkflowTypeColor, workflowMolecule} from "@agenta/entities/workflow"
+import type {PopoverAlign, PopoverSide} from "@agenta/primitive-ui/components/popover"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
-import type {TooltipPlacement} from "antd/es/tooltip"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -32,7 +32,8 @@ export const TestsetTag = memo(
         toneOverride,
         showIconOverride,
         openExternally = false,
-        hovercardPlacement,
+        hovercardSide,
+        hovercardAlign,
     }: {
         testsetId: string
         revisionId?: string | null
@@ -41,7 +42,8 @@ export const TestsetTag = memo(
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
         openExternally?: boolean
-        hovercardPlacement?: TooltipPlacement
+        hovercardSide?: PopoverSide
+        hovercardAlign?: PopoverAlign
     }) => {
         const queryAtom = useMemo(
             () => previewTestsetReferenceAtomFamily({projectId, testsetId}),
@@ -96,7 +98,8 @@ export const TestsetTag = memo(
                 deleted={isDeleted}
                 showIcon={showIconOverride ?? true}
                 openExternally={openExternally}
-                hovercardPlacement={hovercardPlacement}
+                hovercardSide={hovercardSide}
+                hovercardAlign={hovercardAlign}
             />
         )
     },
@@ -116,7 +119,8 @@ export const EnvironmentReferenceLabel = memo(
         href: explicitHref,
         openExternally = false,
         label: customLabel,
-        hovercardPlacement,
+        hovercardSide,
+        hovercardAlign,
     }: {
         environmentId?: string | null
         environmentSlug?: string | null
@@ -126,7 +130,8 @@ export const EnvironmentReferenceLabel = memo(
         href?: string | null
         openExternally?: boolean
         label?: string
-        hovercardPlacement?: TooltipPlacement
+        hovercardSide?: PopoverSide
+        hovercardAlign?: PopoverAlign
     }) => {
         const queryAtom = useMemo(
             () =>
@@ -201,7 +206,8 @@ export const EnvironmentReferenceLabel = memo(
                 }}
                 deleted={isDeleted}
                 openExternally={openExternally}
-                hovercardPlacement={hovercardPlacement}
+                hovercardSide={hovercardSide}
+                hovercardAlign={hovercardAlign}
             />
         )
     },
@@ -222,7 +228,8 @@ export const TestsetTagList = memo(
         toneOverride,
         showIconOverride,
         openExternally = false,
-        hovercardPlacement,
+        hovercardSide,
+        hovercardAlign,
     }: {
         ids: string[]
         revisionMap?: Map<string, string | null>
@@ -232,7 +239,8 @@ export const TestsetTagList = memo(
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
         openExternally?: boolean
-        hovercardPlacement?: TooltipPlacement
+        hovercardSide?: PopoverSide
+        hovercardAlign?: PopoverAlign
     }) => {
         if (!ids.length) {
             return <span className="text-muted-foreground">—</span>
@@ -250,7 +258,8 @@ export const TestsetTagList = memo(
                         toneOverride={toneOverride}
                         showIconOverride={showIconOverride}
                         openExternally={openExternally}
-                        hovercardPlacement={hovercardPlacement}
+                        hovercardSide={hovercardSide}
+                        hovercardAlign={hovercardAlign}
                     />
                 ))}
             </div>
@@ -272,7 +281,8 @@ export const ApplicationReferenceLabel = memo(
         label: customLabel,
         toneOverride,
         showIconOverride,
-        hovercardPlacement,
+        hovercardSide,
+        hovercardAlign,
     }: {
         applicationId: string | null
         projectId: string | null
@@ -282,7 +292,8 @@ export const ApplicationReferenceLabel = memo(
         label?: string
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
-        hovercardPlacement?: TooltipPlacement
+        hovercardSide?: PopoverSide
+        hovercardAlign?: PopoverAlign
     }) => {
         const queryAtom = useMemo(
             () => appReferenceAtomFamily({projectId, appId: applicationId}),
@@ -332,7 +343,8 @@ export const ApplicationReferenceLabel = memo(
                 deleted={isDeleted}
                 showIcon={showIconOverride ?? true}
                 openExternally={openExternally}
-                hovercardPlacement={hovercardPlacement}
+                hovercardSide={hovercardSide}
+                hovercardAlign={hovercardAlign}
             />
         )
     },
@@ -356,7 +368,8 @@ export const VariantReferenceLabel = memo(
         label: customLabel,
         toneOverride,
         showIconOverride,
-        hovercardPlacement,
+        hovercardSide,
+        hovercardAlign,
     }: {
         revisionId?: string | null
         projectId: string | null
@@ -368,7 +381,8 @@ export const VariantReferenceLabel = memo(
         label?: string
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
-        hovercardPlacement?: TooltipPlacement
+        hovercardSide?: PopoverSide
+        hovercardAlign?: PopoverAlign
     }) => {
         const dataAtom = useMemo(
             () => workflowMolecule.selectors.data(revisionId ?? ""),
@@ -427,7 +441,8 @@ export const VariantReferenceLabel = memo(
                 deleted={isDeleted}
                 showIcon={showIconOverride ?? true}
                 openExternally={openExternally}
-                hovercardPlacement={hovercardPlacement}
+                hovercardSide={hovercardSide}
+                hovercardAlign={hovercardAlign}
             />
         )
     },
@@ -448,7 +463,8 @@ export const VariantRevisionLabel = memo(
         href: explicitHref,
         toneOverride,
         showIconOverride,
-        hovercardPlacement,
+        hovercardSide,
+        hovercardAlign,
     }: {
         variantId?: string | null
         revisionId?: string | null
@@ -458,7 +474,8 @@ export const VariantRevisionLabel = memo(
         href?: string | null
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
-        hovercardPlacement?: TooltipPlacement
+        hovercardSide?: PopoverSide
+        hovercardAlign?: PopoverAlign
     }) => {
         const dataAtom = useMemo(
             () => workflowMolecule.selectors.data(revisionId ?? ""),
@@ -523,7 +540,8 @@ export const VariantRevisionLabel = memo(
                 }}
                 deleted={isDeleted}
                 showIcon={showIconOverride ?? true}
-                hovercardPlacement={hovercardPlacement}
+                hovercardSide={hovercardSide}
+                hovercardAlign={hovercardAlign}
             />
         )
     },
@@ -588,7 +606,8 @@ export const EvaluatorReferenceLabel = memo(
         label: customLabel,
         toneOverride,
         className,
-        hovercardPlacement,
+        hovercardSide,
+        hovercardAlign,
     }: {
         evaluatorId?: string | null
         evaluatorSlug?: string | null
@@ -598,7 +617,8 @@ export const EvaluatorReferenceLabel = memo(
         label?: string
         toneOverride?: ReferenceTone | null
         className?: string
-        hovercardPlacement?: TooltipPlacement
+        hovercardSide?: PopoverSide
+        hovercardAlign?: PopoverAlign
     }) => {
         const queryAtom = useMemo(
             () => evaluatorReferenceAtomFamily({projectId, slug: evaluatorSlug, id: evaluatorId}),
@@ -665,7 +685,8 @@ export const EvaluatorReferenceLabel = memo(
                 openExternally={openExternally}
                 style={workflowTypeStyle}
                 iconColor={workflowTypeColor?.text}
-                hovercardPlacement={hovercardPlacement}
+                hovercardSide={hovercardSide}
+                hovercardAlign={hovercardAlign}
             />
         )
     },
@@ -683,7 +704,8 @@ export const QueryReferenceLabel = memo(
         href: explicitHref,
         openExternally = false,
         label: customLabel,
-        hovercardPlacement,
+        hovercardSide,
+        hovercardAlign,
     }: {
         queryId?: string | null
         querySlug?: string | null
@@ -691,7 +713,8 @@ export const QueryReferenceLabel = memo(
         href?: string | null
         openExternally?: boolean
         label?: string
-        hovercardPlacement?: TooltipPlacement
+        hovercardSide?: PopoverSide
+        hovercardAlign?: PopoverAlign
     }) => {
         const queryAtom = useMemo(
             () => queryReferenceAtomFamily({projectId, queryId, querySlug}),
@@ -735,7 +758,8 @@ export const QueryReferenceLabel = memo(
                 }}
                 deleted={isDeleted}
                 openExternally={openExternally}
-                hovercardPlacement={hovercardPlacement}
+                hovercardSide={hovercardSide}
+                hovercardAlign={hovercardAlign}
             />
         )
     },

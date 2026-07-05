@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {
     ArrowClockwiseIcon,
     CaretDownIcon,
@@ -8,7 +9,7 @@ import {
     PlusIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
-import {Button, Divider, Dropdown, Input, MenuProps, Popover, Select, Space, TreeSelect} from "antd"
+import {Button, Divider, Dropdown, Input, MenuProps, Select, Space, TreeSelect} from "antd"
 import {useAtomValue} from "jotai"
 import isEqual from "lodash/isEqual"
 
@@ -63,8 +64,6 @@ import {
     SelectOption,
 } from "./types"
 
-const popoverClass =
-    "[&.ant-popover]:max-w-[100vw] [&_.ant-popover-container]:w-[clamp(320px,60vw,700px)] [&_.ant-popover-container]:max-w-[calc(100vw-24px)] [&_.ant-popover-container]:max-h-[min(70vh,640px)] [&_.ant-popover-container]:p-0"
 const fieldDropdownSubmenuClass =
     "[&_.ant-dropdown-menu]:w-full [&_.ant-dropdown-menu]:max-w-[min(560px,calc(100vw-32px))] [&_.ant-dropdown-menu]:max-h-[60vh] [&_.ant-dropdown-menu]:overflow-auto"
 const filterHeadingClass = "flex items-center justify-between py-2 pr-2 pl-4 gap-3"
@@ -821,7 +820,8 @@ const Filters: React.FC<Props> = ({
     }
 
     const getWithinPopover = (trigger: HTMLElement | null) =>
-        (trigger && (trigger.closest(".ant-popover") as HTMLElement)) || document.body
+        (trigger && (trigger.closest('[data-slot="popover-content"]') as HTMLElement)) ||
+        document.body
 
     const dropdownPanelStyle = {
         maxWidth: "calc(100vw - 32px)",
@@ -831,20 +831,42 @@ const Filters: React.FC<Props> = ({
 
     return (
         <Popover
-            title={null}
-            trigger="click"
-            overlayClassName={popoverClass}
-            arrow={false}
             onOpenChange={(open) => {
                 setIsFilterOpen(open)
                 if (!open) setActiveFieldDropdown(null)
             }}
             open={isFilterOpen}
-            placement="bottomLeft"
-            autoAdjustOverflow
-            styles={{body: {maxHeight: "70vh"}, root: {maxWidth: "100vw"}}}
-            destroyOnHidden
-            content={
+        >
+            <PopoverTrigger
+                render={
+                    <Button
+                        onClick={() => setIsFilterOpen(true)}
+                        className="flex items-center gap-2 px-2"
+                        {...buttonProps}
+                    >
+                        <div className="flex items-center gap-1 min-w-[18px]">
+                            <FunnelIcon size={14} />
+                            <div className="w-[14px] flex items-center justify-center">
+                                {sanitizedFilters.filter(({field, operator}) => field && operator)
+                                    .length > 0 && (
+                                    <CustomAntdBadge
+                                        count={
+                                            sanitizedFilters.filter(
+                                                ({field, operator}) => field && operator,
+                                            ).length
+                                        }
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </Button>
+                }
+            />
+            <PopoverContent
+                side="bottom"
+                align="start"
+                className="max-h-[min(70vh,640px)] w-[clamp(320px,60vw,700px)] max-w-[calc(100vw-24px)] gap-0 overflow-y-auto p-0"
+            >
                 <section>
                     <div className={filterHeadingClass}>
                         <span className="text-sm font-medium leading-[1.5714285714285714]">
@@ -1938,29 +1960,7 @@ const Filters: React.FC<Props> = ({
                         </Space>
                     </Space>
                 </section>
-            }
-        >
-            <Button
-                onClick={() => setIsFilterOpen(true)}
-                className="flex items-center gap-2 px-2"
-                {...buttonProps}
-            >
-                <div className="flex items-center gap-1 min-w-[18px]">
-                    <FunnelIcon size={14} />
-                    <div className="w-[14px] flex items-center justify-center">
-                        {sanitizedFilters.filter(({field, operator}) => field && operator).length >
-                            0 && (
-                            <CustomAntdBadge
-                                count={
-                                    sanitizedFilters.filter(
-                                        ({field, operator}) => field && operator,
-                                    ).length
-                                }
-                            />
-                        )}
-                    </div>
-                </div>
-            </Button>
+            </PopoverContent>
         </Popover>
     )
 }

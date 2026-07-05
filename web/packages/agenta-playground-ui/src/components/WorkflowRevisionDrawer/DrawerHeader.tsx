@@ -18,8 +18,9 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {ArrowsIn, ArrowsOut, CaretDown, CaretUp, Info, X} from "@phosphor-icons/react"
-import {Input, Popover} from "antd"
+import {Input} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useDrawerProviders} from "./DrawerContext"
@@ -110,19 +111,19 @@ const MetadataPopover = memo(({entityId}: {entityId: string}) => {
     if (isCreateContext(context)) return null
 
     return (
-        <Popover
-            trigger="click"
-            placement="bottomRight"
-            styles={{container: {padding: 0}}}
-            content={
+        <Popover>
+            <PopoverTrigger
+                render={
+                    <Button variant="ghost" size="icon-sm">
+                        {<Info size={14} />}
+                    </Button>
+                }
+            />
+            <PopoverContent side="bottom" align="end" className="w-[240px] p-0">
                 <div className="w-[240px]">
                     <MetadataSidebar revisionId={entityId} context={context} isCompact={true} />
                 </div>
-            }
-        >
-            <Button variant="ghost" size="icon-sm">
-                {<Info size={14} />}
-            </Button>
+            </PopoverContent>
         </Popover>
     )
 })

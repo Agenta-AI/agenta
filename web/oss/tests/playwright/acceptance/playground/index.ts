@@ -484,7 +484,9 @@ const playgroundTests = () => {
 
                     await managedOption.hover()
                     await expect(
-                        page.locator('.ant-popover:visible [role="option"][aria-selected="true"]'),
+                        page.locator(
+                            '[data-slot="popover-content"]:visible [role="option"][aria-selected="true"]',
+                        ),
                     ).toHaveCount(1)
 
                     await expect(

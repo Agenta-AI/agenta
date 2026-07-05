@@ -2,8 +2,9 @@ import {useCallback, useRef} from "react"
 
 import {executionItemController} from "@agenta/playground"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {CaretDown} from "@phosphor-icons/react"
-import {InputNumber, Popover, Slider} from "antd"
+import {InputNumber, Slider} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 interface RunOptionsPopoverProps {
@@ -65,26 +66,26 @@ const RunOptionsPopover = ({isRunning, onRepeatCountChange}: RunOptionsPopoverPr
     )
 
     return (
-        <Popover
-            content={content}
-            trigger="click"
-            placement="bottomRight"
-            arrow={false}
-            styles={{container: {padding: "16px"}}}
-            onOpenChange={handleOpenChange}
-        >
-            <Button
-                disabled={isRunning}
-                style={{
-                    borderRadius: "0 6px 6px 0",
-                    borderLeft: "1px solid rgba(255, 255, 255, 0.4)",
-                    width: "32px",
-                    padding: 0,
-                }}
-                size="icon-sm"
-            >
-                {<CaretDown size={14} />}
-            </Button>
+        <Popover onOpenChange={handleOpenChange}>
+            <PopoverTrigger
+                render={
+                    <Button
+                        disabled={isRunning}
+                        style={{
+                            borderRadius: "0 6px 6px 0",
+                            borderLeft: "1px solid rgba(255, 255, 255, 0.4)",
+                            width: "32px",
+                            padding: 0,
+                        }}
+                        size="icon-sm"
+                    >
+                        {<CaretDown size={14} />}
+                    </Button>
+                }
+            />
+            <PopoverContent side="bottom" align="end" className="w-[332px] p-4">
+                {content}
+            </PopoverContent>
         </Popover>
     )
 }

@@ -1,8 +1,9 @@
 import {useState} from "react"
 
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Calendar, CaretRight, Clock} from "@phosphor-icons/react"
 import type {SelectProps} from "antd"
-import {Button, DatePicker, Divider, Popover} from "antd"
+import {Button, DatePicker, Divider} from "antd"
 import dayjs, {Dayjs} from "dayjs"
 import {createUseStyles} from "react-jss"
 
@@ -20,12 +21,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         gap: 16,
         display: "flex",
         flexDirection: "column",
-    },
-    popover: {
-        "& .ant-popover-container": {
-            transition: "width 0.3s ease",
-            padding: 4,
-        },
     },
     popupItems: {
         display: "flex",
@@ -172,20 +167,46 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, e
     return (
         <>
             <Popover
-                title={null}
-                trigger="click"
-                overlayClassName={`${classes.popover} ${customOptionSelected ? "!w-[536px]" : "!w-[256px]"} h-[345px]`}
-                arrow={false}
-                afterOpenChange={() => {
+                open={dropdownVisible}
+                onOpenChange={setDropdownVisible}
+                onOpenChangeComplete={(open) => {
+                    if (open) return
                     if (sort == "custom" && !customTime.startTime && !customTime.endTime) {
                         setSort(defaultSortValue)
                         setCustomOptionSelected(false)
                     }
                 }}
-                onOpenChange={() => setDropdownVisible(false)}
-                open={dropdownVisible}
-                placement="bottomLeft"
-                content={
+            >
+                <PopoverTrigger
+                    render={
+                        <Button
+                            type={type}
+                            disabled={disabled}
+                            icon={<Calendar size={14} className="mt-0.5" />}
+                            onClick={() => setDropdownVisible(true)}
+                            className="flex items-center gap-2"
+                        >
+                            {sort ? (
+                                <>
+                                    {sort === "custom" ? (
+                                        "Custom date"
+                                    ) : sort === "all time" ? (
+                                        "All time"
+                                    ) : (
+                                        <>Last {sort}</>
+                                    )}
+                                </>
+                            ) : (
+                                "Sort by Date"
+                            )}
+                        </Button>
+                    }
+                />
+                <PopoverContent
+                    side="bottom"
+                    align="start"
+                    className={`${customOptionSelected ? "w-[536px]" : "w-[256px]"} h-[345px] gap-0 p-1 transition-[width] duration-300`}
+                >
                     <section className="flex gap-2">
                         <div className="flex-1">
                             <div>
@@ -292,29 +313,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, e
                             </>
                         )}
                     </section>
-                }
-            >
-                <Button
-                    type={type}
-                    disabled={disabled}
-                    icon={<Calendar size={14} className="mt-0.5" />}
-                    onClick={() => setDropdownVisible(true)}
-                    className="flex items-center gap-2"
-                >
-                    {sort ? (
-                        <>
-                            {sort === "custom" ? (
-                                "Custom date"
-                            ) : sort === "all time" ? (
-                                "All time"
-                            ) : (
-                                <>Last {sort}</>
-                            )}
-                        </>
-                    ) : (
-                        "Sort by Date"
-                    )}
-                </Button>
+                </PopoverContent>
             </Popover>
         </>
     )

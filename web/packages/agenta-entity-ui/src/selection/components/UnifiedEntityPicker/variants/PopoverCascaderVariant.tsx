@@ -16,11 +16,12 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties} from "react"
 
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tabs, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {cn} from "@agenta/ui"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
 import {CaretDown, Plus, X} from "@phosphor-icons/react"
-import {Button, Checkbox, Empty, Popover, Spin} from "antd"
+import {Button, Checkbox, Empty, Spin} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
@@ -378,7 +379,8 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     placeholder = "Select...",
     icon,
     showDropdownIcon = true,
-    placement = "bottomLeft",
+    side = "bottom",
+    align = "start",
     panelMinWidth = 220,
     panelWidth,
     childPanelWidth,
@@ -909,30 +911,30 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 />
             ) : null}
             <Popover
-                content={content}
-                trigger="click"
                 open={open}
                 onOpenChange={handleOpenChange}
-                afterOpenChange={handleAfterOpenChange}
-                placement={placement}
-                styles={{container: {padding: 0}}}
-                arrow={false}
-                destroyOnHidden
-                autoAdjustOverflow
+                onOpenChangeComplete={handleAfterOpenChange}
             >
-                <Button
-                    size={size}
-                    disabled={disabled}
-                    className={
-                        className
-                            ? `flex items-center gap-1 ${className}`
-                            : "flex items-center gap-1"
+                <PopoverTrigger
+                    render={
+                        <Button
+                            size={size}
+                            disabled={disabled}
+                            className={
+                                className
+                                    ? `flex items-center gap-1 ${className}`
+                                    : "flex items-center gap-1"
+                            }
+                        >
+                            {icon}
+                            {placeholder}
+                            {showDropdownIcon ? <CaretDown size={10} /> : null}
+                        </Button>
                     }
-                >
-                    {icon}
-                    {placeholder}
-                    {showDropdownIcon ? <CaretDown size={10} /> : null}
-                </Button>
+                />
+                <PopoverContent side={side} align={align} className="w-auto gap-0 p-0">
+                    {content}
+                </PopoverContent>
             </Popover>
         </>
     )

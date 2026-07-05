@@ -3,8 +3,9 @@ import {useMemo, useState} from "react"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {evaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {CloseOutlined} from "@ant-design/icons"
-import {Popover, Space} from "antd"
+import {Space} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -16,9 +17,6 @@ import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/asse
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
-
-const annotationPopoverClass =
-    "w-[300px] [&_.ant-popover-container]:!p-0 [&_.ant-popover-title]:p-2 [&_.ant-popover-title]:border-b [&_.ant-popover-title]:border-solid [&_.ant-popover-title]:border-[var(--ag-colorSplit)] [&_.ant-popover-content]:p-2 [&_.ant-popover-content]:max-h-[200px] [&_.ant-popover-content]:overflow-y-auto"
 
 interface TraceAnnotationsProps {
     annotations: AnnotationDto[]
@@ -234,7 +232,6 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                             return (
                                 <div key={key}>
                                     <Popover
-                                        overlayClassName={annotationPopoverClass}
                                         open={
                                             isAnnotationsPopoverOpen ===
                                             getPopoverKey(group.refId, key)
@@ -244,12 +241,42 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                 open ? getPopoverKey(group.refId, key) : null,
                                             )
                                         }}
-                                        placement="bottom"
-                                        trigger="click"
-                                        arrow={false}
-                                        title={popoverTitle}
-                                        content={
-                                            <div className="flex flex-col gap-2">
+                                    >
+                                        <PopoverTrigger
+                                            nativeButton={false}
+                                            render={
+                                                <div
+                                                    className={clsx(
+                                                        "flex items-center flex-wrap gap-1 justify-between",
+                                                        "py-1 px-3 cursor-pointer",
+                                                        "rounded-lg border border-[var(--ag-c-BDC7D1)] border-solid",
+                                                    )}
+                                                >
+                                                    <span className="truncate overflow-hidden text-ellipsis flex-1">
+                                                        {key}
+                                                    </span>
+                                                    {summaryValue ? (
+                                                        <span
+                                                            className={clsx(
+                                                                "truncate overflow-hidden text-ellipsis",
+                                                                booleanColorClass ||
+                                                                    "text-muted-foreground",
+                                                            )}
+                                                        >
+                                                            {summaryValue}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            }
+                                        />
+                                        <PopoverContent
+                                            side="bottom"
+                                            className="w-[300px] gap-0 p-0"
+                                        >
+                                            <div className="border-b border-solid border-[var(--ag-colorSplit)] p-2">
+                                                {popoverTitle}
+                                            </div>
+                                            <div className="flex max-h-[200px] flex-col gap-2 overflow-y-auto p-2">
                                                 {metric.annotations?.map(
                                                     (annotation: any, i: number) => (
                                                         <div
@@ -267,30 +294,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                     ),
                                                 )}
                                             </div>
-                                        }
-                                    >
-                                        <div
-                                            className={clsx(
-                                                "flex items-center flex-wrap gap-1 justify-between",
-                                                "py-1 px-3 cursor-pointer",
-                                                "rounded-lg border border-[var(--ag-c-BDC7D1)] border-solid",
-                                            )}
-                                        >
-                                            <span className="truncate overflow-hidden text-ellipsis flex-1">
-                                                {key}
-                                            </span>
-                                            {summaryValue ? (
-                                                <span
-                                                    className={clsx(
-                                                        "truncate overflow-hidden text-ellipsis",
-                                                        booleanColorClass ||
-                                                            "text-muted-foreground",
-                                                    )}
-                                                >
-                                                    {summaryValue}
-                                                </span>
-                                            ) : null}
-                                        </div>
+                                        </PopoverContent>
                                     </Popover>
                                 </div>
                             )

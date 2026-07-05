@@ -222,13 +222,8 @@ const QueuesHeaderFilters = () => {
             />
             <FiltersPopoverTrigger
                 filterCount={filterCount}
-                popoverProps={{
-                    overlayStyle: {
-                        backgroundColor: "transparent",
-                        boxShadow: "none",
-                        padding: 0,
-                    },
-                    arrow: false,
+                contentProps={{
+                    className: "w-auto bg-transparent p-0 shadow-none ring-0",
                 }}
                 renderContent={(close) => <QueuesFiltersContent onClose={close} />}
             />

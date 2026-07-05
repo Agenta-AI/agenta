@@ -7,11 +7,12 @@ import {
 } from "@agenta/entities/workflow"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Popover, message} from "antd"
+import {message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {getAppTypeIcon} from "../../../prompts/assets/iconHelpers"
@@ -193,16 +194,13 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
     )
 
     return (
-        <Popover
-            open={open}
-            onOpenChange={setOpen}
-            trigger={["click"]}
-            content={popoverContent}
-            placement="bottomRight"
-            arrow={false}
-            styles={{container: {padding: 0}}}
-        >
-            <span className={className}>{trigger ?? defaultTrigger}</span>
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger nativeButton={false} render={<span className={className} />}>
+                {trigger ?? defaultTrigger}
+            </PopoverTrigger>
+            <PopoverContent side="bottom" align="end" className="w-auto p-0">
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

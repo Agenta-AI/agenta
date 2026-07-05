@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {
     Coins,
@@ -10,7 +11,7 @@ import {
     SlidersHorizontal,
     Timer,
 } from "@phosphor-icons/react"
-import {Divider, Input, Popover, Space} from "antd"
+import {Divider, Input, Space} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
@@ -193,22 +194,17 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                     allowClear
                 />
 
-                <Popover
-                    trigger="click"
-                    content={
+                <Popover>
+                    <PopoverTrigger render={<Button variant="ghost" size="icon-sm" />}>
+                        {<SlidersHorizontal size={14} />}
+                    </PopoverTrigger>
+                    <PopoverContent side="bottom" align="end" className="w-[240px] p-0">
                         <TraceTreeSettings
                             settings={traceTreeSettings}
                             setSettings={setTraceTreeSettings}
                             showVisibility
                         />
-                    }
-                    placement="bottomRight"
-                    classNames={{body: "!p-0 w-[240px]"}}
-                    arrow={false}
-                >
-                    <Button variant="ghost" size="icon-sm">
-                        {<SlidersHorizontal size={14} />}
-                    </Button>
+                    </PopoverContent>
                 </Popover>
             </div>
             <Divider orientation="horizontal" className="m-0" />

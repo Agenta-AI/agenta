@@ -14,6 +14,7 @@
 import {type ReactNode, useCallback, useEffect, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from "@lexical/link"
 import {INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, ListNode} from "@lexical/list"
@@ -35,7 +36,7 @@ import {
     INSERT_TABLE_COMMAND,
 } from "@lexical/table"
 import {$getNearestNodeOfType} from "@lexical/utils"
-import {Dropdown, Input, type MenuProps, Popover} from "antd"
+import {Dropdown, Input, type MenuProps} from "antd"
 import {
     $createParagraphNode,
     $getSelection,
@@ -374,10 +375,23 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                     setLinkOpen(next)
                     if (next) setLinkDraft(linkUrl)
                 }}
-                trigger="click"
-                placement="bottom"
-                destroyTooltipOnHide
-                content={
+            >
+                <PopoverTrigger
+                    render={
+                        <button
+                            type="button"
+                            title="Link"
+                            aria-label="Link"
+                            aria-pressed={active.link}
+                            disabled={disabled}
+                            onMouseDown={(e) => e.preventDefault()}
+                            className={btnClass(disabled, active.link)}
+                        >
+                            <LinkIcon size={15} />
+                        </button>
+                    }
+                />
+                <PopoverContent side="bottom" className="w-[260px]" initialFocus>
                     <div className="flex w-60 flex-col gap-2">
                         <Input
                             autoFocus
@@ -400,19 +414,7 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                             </Button>
                         </div>
                     </div>
-                }
-            >
-                <button
-                    type="button"
-                    title="Link"
-                    aria-label="Link"
-                    aria-pressed={active.link}
-                    disabled={disabled}
-                    onMouseDown={(e) => e.preventDefault()}
-                    className={btnClass(disabled, active.link)}
-                >
-                    <LinkIcon size={15} />
-                </button>
+                </PopoverContent>
             </Popover>
 
             {/* Table — one control: inside a table it opens the row/column ops menu; otherwise a
@@ -431,24 +433,24 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                     </button>
                 </Dropdown>
             ) : (
-                <Popover
-                    open={disabled ? false : tableOpen}
-                    onOpenChange={setTableOpen}
-                    trigger="click"
-                    placement="bottom"
-                    destroyTooltipOnHide
-                    content={<TableSizePicker onPick={insertTable} />}
-                >
-                    <button
-                        type="button"
-                        title="Insert table"
-                        aria-label="Insert table"
-                        disabled={disabled}
-                        onMouseDown={(e) => e.preventDefault()}
-                        className={btnClass(disabled, false)}
-                    >
-                        <TableIcon size={15} />
-                    </button>
+                <Popover open={disabled ? false : tableOpen} onOpenChange={setTableOpen}>
+                    <PopoverTrigger
+                        render={
+                            <button
+                                type="button"
+                                title="Insert table"
+                                aria-label="Insert table"
+                                disabled={disabled}
+                                onMouseDown={(e) => e.preventDefault()}
+                                className={btnClass(disabled, false)}
+                            >
+                                <TableIcon size={15} />
+                            </button>
+                        }
+                    />
+                    <PopoverContent side="bottom" className="w-auto">
+                        <TableSizePicker onPick={insertTable} />
+                    </PopoverContent>
                 </Popover>
             )}
         </div>

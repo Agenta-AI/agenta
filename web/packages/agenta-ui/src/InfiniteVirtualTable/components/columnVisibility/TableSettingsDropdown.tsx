@@ -1,8 +1,9 @@
 import {type ReactNode, useState, useMemo, useCallback} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {DownloadSimple, Eye, GearSix, Trash} from "@phosphor-icons/react"
-import {Dropdown, Popover, Tooltip} from "antd"
+import {Dropdown, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 
 import type {ColumnVisibilityState} from "../../types"
@@ -118,12 +119,10 @@ const TableSettingsDropdown = <RowType extends object>({
 
     return (
         <Popover
-            trigger={[]}
-            placement="bottomRight"
             open={columnVisibilityOpen}
-            onOpenChange={setColumnVisibilityOpen}
-            content={renderColumnVisibilityContent(controls, handleCloseColumnVisibility)}
-            destroyOnHidden
+            onOpenChange={(open, eventDetails) => {
+                if (eventDetails.reason !== "trigger-press") setColumnVisibilityOpen(open)
+            }}
         >
             <Dropdown
                 trigger={["click"]}
@@ -142,16 +141,23 @@ const TableSettingsDropdown = <RowType extends object>({
                 }}
             >
                 <Tooltip title="Table settings">
-                    <Button
-                        onClick={(e) => e.stopPropagation()}
-                        variant="ghost"
-                        size="icon-sm"
-                        className="rounded-full"
-                    >
-                        {<GearSix size={16} weight="bold" />}
-                    </Button>
+                    <PopoverTrigger
+                        render={
+                            <Button
+                                onClick={(e) => e.stopPropagation()}
+                                variant="ghost"
+                                size="icon-sm"
+                                className="rounded-full"
+                            >
+                                {<GearSix size={16} weight="bold" />}
+                            </Button>
+                        }
+                    />
                 </Tooltip>
             </Dropdown>
+            <PopoverContent side="bottom" align="end" className="w-auto">
+                {renderColumnVisibilityContent(controls, handleCloseColumnVisibility)}
+            </PopoverContent>
         </Popover>
     )
 }

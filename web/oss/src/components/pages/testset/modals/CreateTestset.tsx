@@ -2,11 +2,18 @@ import {useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
+import {
+    Popover,
+    PopoverContent,
+    PopoverHeader,
+    PopoverTitle,
+    PopoverTrigger,
+} from "@agenta/primitive-ui/components/popover"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
 import {Code, Table} from "@phosphor-icons/react"
-import {Alert, Form, Popover, Upload, UploadFile} from "antd"
+import {Alert, Form, Upload, UploadFile} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -364,10 +371,24 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                 </p>
                                 <p className="ant-upload-hint">
                                     CSV and JSON formats are supported{" "}
-                                    <Popover
-                                        title="File format requirements"
-                                        content={
-                                            <div style={{maxWidth: 280}}>
+                                    <Popover>
+                                        <PopoverTrigger
+                                            nativeButton={false}
+                                            render={
+                                                <InfoCircleOutlined style={{cursor: "pointer"}} />
+                                            }
+                                        />
+                                        <PopoverContent
+                                            side="top"
+                                            align="center"
+                                            className="w-auto max-w-[280px]"
+                                        >
+                                            <PopoverHeader>
+                                                <PopoverTitle>
+                                                    File format requirements
+                                                </PopoverTitle>
+                                            </PopoverHeader>
+                                            <div>
                                                 <span className="font-semibold">CSV:</span>
                                                 <ul style={{paddingLeft: 16, margin: "4px 0 8px"}}>
                                                     <li>Comma-separated values</li>
@@ -379,9 +400,7 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                                     <li>Each object has column names as keys</li>
                                                 </ul>
                                             </div>
-                                        }
-                                    >
-                                        <InfoCircleOutlined style={{cursor: "pointer"}} />
+                                        </PopoverContent>
                                     </Popover>
                                 </p>
                             </Dragger>

@@ -1,6 +1,7 @@
 import {memo} from "react"
 
-import {Popover, Tag} from "antd"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
+import {Tag} from "antd"
 import clsx from "clsx"
 
 import type {ResultTagProps} from "./types"
@@ -33,18 +34,11 @@ const ResultTag = memo(
         )
 
         return popoverContent ? (
-            <Popover
-                placement="bottom"
-                trigger="click"
-                styles={{
-                    root: {
-                        width: 240,
-                    },
-                }}
-                arrow={false}
-                title={popoverContent}
-            >
-                {tag}
+            <Popover>
+                <PopoverTrigger nativeButton={false} render={tag} />
+                <PopoverContent side="bottom" align="center" className="w-[240px]">
+                    {popoverContent}
+                </PopoverContent>
             </Popover>
         ) : (
             tag

@@ -357,7 +357,8 @@ Displays parent list with hover popovers for children (2-level hierarchies only)
   selectedChildId={currentRevisionId}
   autoSelectLatest      // Auto-select latest child on mount
   selectLatestOnParentClick // Select latest when clicking parent
-  popoverPlacement="rightTop"
+  popoverSide="right"
+  popoverAlign="start"
   popoverTrigger="hover"
   disabledParentIds={disabledSet}
   disabledChildIds={disabledChildSet}

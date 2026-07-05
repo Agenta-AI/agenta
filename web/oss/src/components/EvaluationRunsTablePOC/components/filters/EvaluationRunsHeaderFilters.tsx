@@ -453,21 +453,8 @@ const EvaluationRunsHeaderFilters = () => {
                 filterCount={filtersButtonState.filterCount}
                 buttonType={filtersButtonState.buttonType as "default" | "primary"}
                 onOpenChange={handleFiltersOpenChange}
-                popoverProps={{
-                    arrow: false,
-                    styles: {
-                        body: {
-                            maxWidth: "360px",
-                            backgroundColor: "transparent",
-                            boxShadow: "none",
-                            border: "none",
-                        },
-                        root: {
-                            backgroundColor: "transparent",
-                            boxShadow: "none",
-                            padding: 0,
-                        },
-                    },
+                contentProps={{
+                    className: "w-auto max-w-[360px] bg-transparent p-0 shadow-none ring-0",
                 }}
                 renderContent={(close) => (
                     <EvaluationRunsFiltersContent isOpen={isFiltersOpen} onClose={close} />

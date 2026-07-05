@@ -2,8 +2,9 @@ import type {MouseEvent, ReactNode} from "react"
 import {useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {GearSix} from "@phosphor-icons/react"
-import {Checkbox, Popover, Tooltip} from "antd"
+import {Checkbox, Tooltip} from "antd"
 
 import type {ColumnVisibilityState} from "../types"
 
@@ -83,25 +84,34 @@ const ColumnVisibilityTrigger = <Row extends object>({
     const stopPropagation = (event: MouseEvent) => {
         event.preventDefault()
         event.stopPropagation()
+        setOpen((current) => !current)
     }
 
-    const triggerNode =
+    const trigger =
         variant === "icon" ? (
             <Tooltip title={label}>
-                <Button
-                    onClick={stopPropagation}
-                    variant="ghost"
-                    size="icon-sm"
-                    className="rounded-full"
-                >
-                    {<GearSix size={16} weight="bold" />}
-                </Button>
+                <PopoverTrigger
+                    render={
+                        <Button
+                            onClick={stopPropagation}
+                            variant="ghost"
+                            size="icon-sm"
+                            className="rounded-full"
+                        >
+                            {<GearSix size={16} weight="bold" />}
+                        </Button>
+                    }
+                />
             </Tooltip>
         ) : (
-            <Button onClick={stopPropagation} variant="outline">
-                {<GearSix size={14} weight="bold" />}
-                {label} ({visibleLeafCount})
-            </Button>
+            <PopoverTrigger
+                render={
+                    <Button onClick={stopPropagation} variant="outline">
+                        {<GearSix size={14} weight="bold" />}
+                        {label} ({visibleLeafCount})
+                    </Button>
+                }
+            />
         )
 
     const content = renderContent ? (
@@ -112,14 +122,15 @@ const ColumnVisibilityTrigger = <Row extends object>({
 
     return (
         <Popover
-            trigger="click"
-            placement="bottomRight"
-            destroyOnHidden
             open={open}
-            onOpenChange={(value) => setOpen(value)}
-            content={content}
+            onOpenChange={(value, eventDetails) => {
+                if (eventDetails.reason !== "trigger-press") setOpen(value)
+            }}
         >
-            {triggerNode}
+            {trigger}
+            <PopoverContent side="bottom" align="end" className="w-auto min-w-[220px]">
+                {content}
+            </PopoverContent>
         </Popover>
     )
 }

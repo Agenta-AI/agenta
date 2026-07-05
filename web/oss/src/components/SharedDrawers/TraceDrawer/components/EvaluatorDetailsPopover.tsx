@@ -1,10 +1,10 @@
-import {memo, ReactNode, useMemo} from "react"
+import {memo, useMemo, useState, type ReactElement, type ReactNode} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
-import {Popover} from "antd"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {useAtomValue} from "jotai"
 
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
@@ -40,6 +40,7 @@ const EvaluatorDetailsPopover = ({
     children,
 }: EvaluatorDetailsPopoverProps) => {
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
+    const [open, setOpen] = useState(false)
     const latestRevisionId =
         useAtomValue(workflowLatestRevisionQueryAtomFamily(evaluator?.id || "")).data?.id ?? null
 
@@ -133,8 +134,22 @@ const EvaluatorDetailsPopover = ({
     )
 
     return (
-        <Popover mouseEnterDelay={0.2} arrow content={popoverContent} trigger="hover">
-            {children || <span>{evaluatorName}</span>}
+        <Popover
+            open={open}
+            onOpenChange={(nextOpen, eventDetails) => {
+                if (eventDetails.reason === "trigger-press") return
+                setOpen(nextOpen)
+            }}
+        >
+            <PopoverTrigger
+                nativeButton={false}
+                openOnHover
+                delay={200}
+                render={(children || <span>{evaluatorName}</span>) as ReactElement}
+            />
+            <PopoverContent side="top" align="center">
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

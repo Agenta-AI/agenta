@@ -17,11 +17,12 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {AnnotationMetricField} from "@agenta/annotation"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {Editor} from "@agenta/ui/editor"
 import {Info} from "@phosphor-icons/react"
-import {Alert, Collapse, Popover, Tag} from "antd"
+import {Alert, Collapse, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationFormState} from "../../hooks/useAnnotationFormState"
@@ -224,18 +225,20 @@ const AnnotationPanel = memo(function AnnotationPanel({
             <div className="flex items-center gap-1">
                 <span className="font-medium">Annotations</span>
                 {queueDescription && (
-                    <Popover
-                        trigger="click"
-                        placement="bottomLeft"
-                        destroyOnHidden
-                        content={
-                            <div
-                                className="overflow-y-auto"
-                                style={{
-                                    width: "min(350px, calc(100vw - 250px))",
-                                    maxHeight: "min(320px, calc(100vh - 160px))",
-                                }}
-                            >
+                    <Popover>
+                        <PopoverTrigger
+                            render={
+                                <Button
+                                    className="!text-[var(--ag-c-758391)] !w-6 !h-6 !min-w-0 !p-0"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                >
+                                    {<Info size={14} />}
+                                </Button>
+                            }
+                        />
+                        <PopoverContent side="bottom" align="start" className="w-auto">
+                            <div className="w-[min(350px,calc(100vw-250px))] max-h-[min(320px,calc(100vh-160px))] overflow-y-auto">
                                 <Editor
                                     id="annotation-panel-description"
                                     initialValue={queueDescription}
@@ -246,15 +249,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                                     showMarkdownToggleButton={false}
                                 />
                             </div>
-                        }
-                    >
-                        <Button
-                            className="!text-[var(--ag-c-758391)] !w-6 !h-6 !min-w-0 !p-0"
-                            variant="ghost"
-                            size="icon-sm"
-                        >
-                            {<Info size={14} />}
-                        </Button>
+                        </PopoverContent>
                     </Popover>
                 )}
             </div>

@@ -12,9 +12,10 @@
 
 import React, {useCallback, useId} from "react"
 
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/primitive-ui/components/popover"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
 import {cn} from "@agenta/ui/styles"
-import {Divider, Empty, Popover, Spin, Tooltip} from "antd"
+import {Divider, Empty, Spin, Tooltip} from "antd"
 
 import {useListPopoverMode} from "../../../hooks"
 import type {EntitySelectionResult} from "../../../types"
@@ -60,7 +61,8 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
     disabledTooltip = "Already connected",
     disabledChildIds,
     disabledChildTooltip = "Already connected",
-    popoverPlacement = "rightTop",
+    popoverSide = "right",
+    popoverAlign = "start",
     popoverTrigger = "hover",
     maxHeight = 400,
     onParentHover,
@@ -211,10 +213,42 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                             <Popover
                                 key={parent.id}
                                 open={parent.isPopoverOpen}
-                                onOpenChange={(open) => handlePopoverOpenChange(parent.id, open)}
-                                placement={popoverPlacement}
-                                trigger={popoverTrigger}
-                                content={
+                                onOpenChange={(open, eventDetails) => {
+                                    if (
+                                        popoverTrigger === "hover" &&
+                                        eventDetails.reason === "trigger-press"
+                                    ) {
+                                        return
+                                    }
+                                    handlePopoverOpenChange(parent.id, open)
+                                }}
+                            >
+                                <PopoverTrigger
+                                    nativeButton={false}
+                                    openOnHover={popoverTrigger === "hover"}
+                                    delay={popoverTrigger === "hover" ? 100 : undefined}
+                                    closeDelay={popoverTrigger === "hover" ? 100 : undefined}
+                                    render={
+                                        <div
+                                            onMouseEnter={() => onParentHoverCombined(parent.id)}
+                                            onClick={() => onParentClickHandler(parent.entity)}
+                                        >
+                                            <EntityListItem
+                                                label={parent.label}
+                                                labelNode={parent.labelNode}
+                                                isSelectable={!disabled}
+                                                isSelected={parent.isSelected}
+                                                isHovered={isHovered}
+                                                hasChildren
+                                            />
+                                        </div>
+                                    }
+                                />
+                                <PopoverContent
+                                    side={popoverSide}
+                                    align={popoverAlign}
+                                    className="w-auto"
+                                >
                                     <ChildPopoverContent
                                         parentId={parent.id}
                                         parentLabel={parent.label}
@@ -226,21 +260,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                                             handleChildSelect(parent.id, parent.label, child)
                                         }
                                     />
-                                }
-                            >
-                                <div
-                                    onMouseEnter={() => onParentHoverCombined(parent.id)}
-                                    onClick={() => onParentClickHandler(parent.entity)}
-                                >
-                                    <EntityListItem
-                                        label={parent.label}
-                                        labelNode={parent.labelNode}
-                                        isSelectable={!disabled}
-                                        isSelected={parent.isSelected}
-                                        isHovered={isHovered}
-                                        hasChildren
-                                    />
-                                </div>
+                                </PopoverContent>
                             </Popover>
                         )
                     })}

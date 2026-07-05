@@ -677,7 +677,8 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     onSelect={handleTemplateSelect}
                                     open={templateDropdownOpen}
                                     onOpenChange={setTemplateDropdownOpen}
-                                    placement="bottomLeft"
+                                    side="bottom"
+                                    align="start"
                                     className="pointer-events-none absolute inset-0"
                                     trigger={<span className="block size-full" />}
                                 />
