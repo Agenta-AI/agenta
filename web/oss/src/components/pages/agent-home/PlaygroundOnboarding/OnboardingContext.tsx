@@ -17,6 +17,10 @@ export interface OnboardingContextValue {
     committingSeed: string | null
     /** Commit the ephemeral into a real agent IN PLACE (no redirect) and seed the first turn. */
     commit: (seedMessage: string, name?: string) => void
+    /** "Browse all templates" — swaps the right-panel empty state for the full in-place template
+     * gallery (set from the left config panel, read by the chat empty-state surface). */
+    browseAll: boolean
+    setBrowseAll: (next: boolean) => void
 }
 
 export const OnboardingContext = createContext<OnboardingContextValue | null>(null)

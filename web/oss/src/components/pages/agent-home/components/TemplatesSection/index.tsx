@@ -19,10 +19,12 @@ interface TemplatesSectionProps {
     onSelectTemplate: (template: AgentTemplate) => void
     /** Open the full template gallery. Wired in a later phase. */
     onBrowseAll?: () => void
+    /** Drop the title + Browse-all header row (the caller supplies its own, e.g. onboarding's Back). */
+    hideHeader?: boolean
 }
 
 /** "Or start from a template" — category side-rail (shared SectionRail) + a narrow card grid. */
-const TemplatesSection = ({onSelectTemplate, onBrowseAll}: TemplatesSectionProps) => {
+const TemplatesSection = ({onSelectTemplate, onBrowseAll, hideHeader}: TemplatesSectionProps) => {
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)
 
     // Rail items: All + each present category, counted so the rail doubles as a legend.
@@ -48,19 +50,21 @@ const TemplatesSection = ({onSelectTemplate, onBrowseAll}: TemplatesSectionProps
 
     return (
         <section className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-                <Typography.Title level={5} className="!m-0">
-                    {TEMPLATES_SECTION.title}
-                </Typography.Title>
-                <button
-                    type="button"
-                    onClick={onBrowseAll}
-                    className="inline-flex items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
-                >
-                    {TEMPLATES_SECTION.browseAll}
-                    <ArrowRight size={13} />
-                </button>
-            </div>
+            {!hideHeader && (
+                <div className="flex items-center justify-between gap-3">
+                    <Typography.Title level={5} className="!m-0">
+                        {TEMPLATES_SECTION.title}
+                    </Typography.Title>
+                    <button
+                        type="button"
+                        onClick={onBrowseAll}
+                        className="inline-flex items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                    >
+                        {TEMPLATES_SECTION.browseAll}
+                        <ArrowRight size={13} />
+                    </button>
+                </div>
+            )}
 
             <SectionRail
                 items={railItems}

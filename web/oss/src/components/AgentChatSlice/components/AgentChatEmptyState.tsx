@@ -5,6 +5,8 @@ import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
+
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 const {Text} = Typography
@@ -112,7 +114,10 @@ const AgentChatEmptyState = ({
         return (
             <div className="relative flex h-full min-h-[420px] w-full flex-1 flex-col justify-center py-6">
                 {/* Tutorial video — floats top-right (placeholder poster until a clip is wired). */}
-                <div className="absolute right-2 top-2 flex flex-col items-center gap-1.5">
+                <Reveal
+                    delay={120}
+                    className="absolute right-2 top-2 flex flex-col items-center gap-1.5"
+                >
                     <button
                         type="button"
                         aria-label={ONBOARDING_COPY.videoLabel}
@@ -137,11 +142,11 @@ const AgentChatEmptyState = ({
                     <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
                         {ONBOARDING_COPY.videoLabel}
                     </span>
-                </div>
+                </Reveal>
 
                 {/* Same centered column as the composer (CHAT_COLUMN = mx-auto max-w-[880px]) so the
                     hero's left edge lines up with the editor's left edge, not a narrower centered block. */}
-                <div className="mx-auto flex w-full max-w-[880px] flex-col gap-3">
+                <Reveal className="mx-auto flex w-full max-w-[880px] flex-col gap-3">
                     <div className="flex items-center gap-2">
                         <Tag
                             color="processing"
@@ -176,7 +181,7 @@ const AgentChatEmptyState = ({
                             </button>
                         ))}
                     </div>
-                </div>
+                </Reveal>
             </div>
         )
     }

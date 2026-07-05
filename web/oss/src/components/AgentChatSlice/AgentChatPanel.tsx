@@ -26,7 +26,10 @@ import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 
+import {IDE_INSTALL_COMMAND} from "@/oss/components/pages/agent-home/assets/constants"
+import OnboardingBrowseTemplates from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingBrowseTemplates"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
+import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
 import {SessionInspectorButton} from "@/oss/components/SessionInspector"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
@@ -46,6 +49,7 @@ import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
 import QueuedMessages from "./components/QueuedMessages"
+import RevealCollapse from "./components/RevealCollapse"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionRail from "./components/SessionRail"
 import SessionTagBar from "./components/SessionTagBar"
@@ -470,26 +474,35 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         [pendingFirstTurn],
     )
 
-    // "Continue in IDE" — surface the install command + prompt as a streamed-looking assistant bubble
-    // (a pseudo response; there's no real agent to run pre-commit). Reveals the text in chunks.
+    // "Continue in IDE" — the user's prompt lands as a real user turn, and a streamed-looking assistant
+    // bubble hands off the install command + prompt (a pseudo response; there's no agent to run
+    // pre-commit). Two clear steps: install the skill, then give the coding agent the prompt — the prompt
+    // is NOT inside the shell block (it's not a command). Clears the composer so the text isn't duplicated.
     const streamIdeBubble = useCallback(() => {
         const prompt = richInputRef.current?.getMarkdown().trim() ?? ""
-        const cmd = "npx agenta@latest skills add"
-        const intro =
-            "Prefer your IDE? Install Agenta and hand your prompt to Claude Code, Cursor, or any coding agent:"
+        const promptQuote = prompt
+            .split("\n")
+            .map((line) => `> ${line}`)
+            .join("\n")
         const full = prompt
-            ? `${intro}\n\n\`\`\`bash\n${cmd}\n\n${prompt}\n\`\`\``
-            : `${intro}\n\n\`\`\`bash\n${cmd}\n\`\`\``
+            ? `Prefer to build in your IDE? Install the Agenta skill for Claude Code, Cursor, or any coding agent:\n\n\`\`\`bash\n${IDE_INSTALL_COMMAND}\n\`\`\`\n\nThen hand it your prompt:\n\n${promptQuote}`
+            : `Prefer to build in your IDE? Install the Agenta skill for Claude Code, Cursor, or any coding agent:\n\n\`\`\`bash\n${IDE_INSTALL_COMMAND}\n\`\`\`\n\nThen describe the agent you want it to build.`
         const id = `ide-${generateId()}`
+        const userId = `ide-user-${generateId()}`
         stickRef.current = false
         armBottomRef.current = true
         animateBottomRef.current = true
         setShowJump(false)
         setStopped(false)
+        // Clear the composer — the prompt is now the sent user turn (and the editor is disabled after this).
+        richInputRef.current?.setMarkdown("")
         setMessages(
             (prev) =>
                 [
                     ...prev,
+                    ...(prompt
+                        ? [{id: userId, role: "user", parts: [{type: "text", text: prompt}]}]
+                        : []),
                     {id, role: "assistant", parts: [{type: "text", text: ""}]},
                 ] as typeof prev,
         )
@@ -507,6 +520,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             if (shown < full.length) window.setTimeout(tick, 28)
         }
         window.setTimeout(tick, 120)
+    }, [setMessages])
+
+    // After an IDE hand-off (onboarding + messages exist but nothing was committed), the chat is a
+    // dead-end — there's no agent to talk to. Disable the composer and offer a single "Start over".
+    const ideHandoffActive = onboardingActive && messages.length > 0
+    const handleStartOver = useCallback(() => {
+        setMessages([])
+        richInputRef.current?.setMarkdown("")
     }, [setMessages])
 
     // First-run seed: a freshly-created agent (from Home's composer/template) surfaces its starting
@@ -567,6 +588,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         stopped,
         sendQueued,
     })
+    // Latch the last non-empty queue so the row keeps its content while it animates closed on release.
+    const shownQueuedRef = useRef(queued)
+    if (queued.length > 0) shownQueuedRef.current = queued
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
     // composer (not inline in the transcript, so a paused run can't scroll out of reach). Trace
@@ -1257,6 +1281,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                         content=""
                                     />
                                 </MessageRow>
+                            ) : onboardingActive && onboarding?.browseAll ? (
+                                // "Browse all templates" swaps the hero for the full gallery IN PLACE.
+                                <OnboardingBrowseTemplates />
                             ) : (
                                 <AgentChatEmptyState
                                     entityId={entityId}
@@ -1308,15 +1335,15 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
                 composer (and the editor) upward. Streaming itself is signalled by the composer's
                 send button (it becomes a spinning Stop button), so there's no "Streaming…" row. */}
-                {queued.length > 0 && (
-                    <div className={`${CHAT_COLUMN} flex items-center gap-2 px-3 pb-2`}>
+                <RevealCollapse open={queued.length > 0} className={CHAT_COLUMN}>
+                    <div className="flex items-center gap-2 px-3 pb-2">
                         <QueuedMessages
-                            queued={queued}
+                            queued={shownQueuedRef.current}
                             onRemove={removeQueued}
                             onClear={clearQueue}
                         />
                     </div>
-                )}
+                </RevealCollapse>
 
                 {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
                 Wrapper `px-3` keeps the session-bar gutter; the input centers on CHAT_COLUMN so it
@@ -1324,15 +1351,16 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 HITL approval dock lives in this same block (above the input) — always mounted so it
                 animates in/out, and inside the composer region so the paused gate can't scroll out
                 of reach and its collapse adds no gap to the surrounding column. */}
-                <div className="px-3">
-                    {/* Defer the provider-key check until the agent is actually committed — pre-commit
-                        onboarding is just "describe your agent", so a "connect a model" banner is premature
-                        (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
-                    {!onboardingActive && (
-                        <div className={CHAT_COLUMN}>
-                            <ConnectModelBanner {...modelKey} />
-                        </div>
-                    )}
+                {/* The whole composer fades + rises in ONCE on mount (Reveal), so the input joins the
+                    empty-state/hero entrance instead of popping. Mount-only: it never remounts across the
+                    onboarding→chat transitions, so this never reintroduces layout shift on state changes. */}
+                <Reveal className="px-3">
+                    {/* Always mounted so it animates in/out (RevealCollapse) instead of popping. Pre-commit
+                        onboarding SUPPRESSES it — the provider-key check is deferred until the agent is
+                        committed (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
+                    <div className={CHAT_COLUMN}>
+                        <ConnectModelBanner {...modelKey} suppressed={onboardingActive} />
+                    </div>
                     <ApprovalDock
                         className={CHAT_COLUMN}
                         approvals={pendingApprovals}
@@ -1345,12 +1373,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         // Onboarding: submit = commit the ephemeral (not send); Enter inserts a newline
                         // (you're writing a description), and the Create-agent button (trailing) commits.
                         onSubmit={onboardingActive ? () => handleCreateAgent() : handleSubmit}
-                        disabled={onboardingActive ? false : modelBlocked}
+                        disabled={onboardingActive ? ideHandoffActive : modelBlocked}
                         hideSendButton={onboardingActive}
                         submitOnEnter={!onboardingActive}
                         placeholder={
                             onboardingActive
-                                ? "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything."
+                                ? ideHandoffActive
+                                    ? "Continue in your IDE from the steps above — or start over."
+                                    : "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything."
                                 : modelBlocked
                                   ? "Connect a model to start chatting…"
                                   : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
@@ -1392,29 +1422,35 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         }
                         trailing={
                             onboardingActive ? (
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        icon={<Code size={14} />}
-                                        onClick={streamIdeBubble}
-                                        className="!shadow-none"
-                                    >
-                                        Continue in IDE
+                                ideHandoffActive ? (
+                                    <Button onClick={handleStartOver} className="!shadow-none">
+                                        Start over
                                     </Button>
-                                    <Button
-                                        type="primary"
-                                        icon={<ArrowRight size={14} />}
-                                        iconPosition="end"
-                                        loading={!!onboarding?.committing}
-                                        onClick={handleCreateAgent}
-                                        className="!shadow-none"
-                                    >
-                                        Create agent
-                                    </Button>
-                                </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            icon={<Code size={14} />}
+                                            onClick={streamIdeBubble}
+                                            className="!shadow-none"
+                                        >
+                                            Continue in IDE
+                                        </Button>
+                                        <Button
+                                            type="primary"
+                                            icon={<ArrowRight size={14} />}
+                                            iconPosition="end"
+                                            loading={!!onboarding?.committing}
+                                            onClick={handleCreateAgent}
+                                            className="!shadow-none"
+                                        >
+                                            Create agent
+                                        </Button>
+                                    </div>
+                                )
                             ) : undefined
                         }
                     />
-                </div>
+                </Reveal>
             </div>
             <TurnInspector sessionId={sessionId} messages={messages} />
         </div>

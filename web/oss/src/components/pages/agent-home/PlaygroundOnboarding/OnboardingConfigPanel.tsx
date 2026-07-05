@@ -1,9 +1,7 @@
-import {ArrowRight} from "@phosphor-icons/react"
-import {Typography} from "antd"
-import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
+import {useEffect, useState} from "react"
 
-import {urlAtom} from "@/oss/state/url"
+import {ArrowLeft, ArrowRight} from "@phosphor-icons/react"
+import {Typography} from "antd"
 
 import {AGENT_TEMPLATES, templateBuilderMessage} from "../assets/templates"
 
@@ -16,16 +14,16 @@ import {useOnboardingContext} from "./OnboardingContext"
  * template's instruction. Once the agent is real, MainLayout renders the normal config forms instead.
  */
 const OnboardingConfigPanel = () => {
-    const {commit, committing} = useOnboardingContext()
-    const router = useRouter()
-    const {baseAppURL} = useAtomValue(urlAtom)
+    const {commit, committing, browseAll, setBrowseAll} = useOnboardingContext()
+    // Fade IN on mount, and OUT while committing (so the templates are gone before MainLayout swaps in
+    // the real config panel) — softens both ends of the left-panel handoff instead of hard cuts.
+    const [mounted, setMounted] = useState(false)
+    useEffect(() => setMounted(true), [])
 
     return (
-        // Fade the templates out while committing so they're gone before MainLayout swaps in the real
-        // config panel — softens the left-panel handoff instead of a hard cut.
         <div
             className={`flex h-full flex-col gap-2 p-4 motion-safe:transition-opacity motion-safe:duration-300 ${
-                committing ? "opacity-0" : "opacity-100"
+                mounted && !committing ? "opacity-100" : "opacity-0"
             }`}
         >
             <Typography.Text className="!px-1 !text-[11px] !font-semibold !uppercase !tracking-wide !text-[var(--ag-colorTextTertiary)]">
@@ -56,13 +54,23 @@ const OnboardingConfigPanel = () => {
                 ))}
             </div>
 
+            {/* Toggles the full in-place gallery in the right panel (no navigation away). */}
             <button
                 type="button"
-                onClick={() => baseAppURL && router.push(`${baseAppURL}/agent-templates`)}
+                onClick={() => setBrowseAll(!browseAll)}
                 className="mt-1 inline-flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent px-2 py-1 text-xs text-[var(--ag-colorPrimary)] hover:underline"
             >
-                Browse all templates
-                <ArrowRight size={13} />
+                {browseAll ? (
+                    <>
+                        <ArrowLeft size={13} />
+                        Back to composer
+                    </>
+                ) : (
+                    <>
+                        Browse all templates
+                        <ArrowRight size={13} />
+                    </>
+                )}
             </button>
         </div>
     )

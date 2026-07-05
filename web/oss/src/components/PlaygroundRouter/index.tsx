@@ -93,7 +93,16 @@ const PlaygroundRouter = () => {
         })
     }
     if (onboardingActive) {
-        return <OnboardingPlayground onboarding />
+        // Key on the project so switching projects (a Next nav to the SAME `/playground` route) REMOUNTS
+        // the onboarding: without this the mounted instance keeps the previous project's committed state
+        // (mint-once `startedRef` + `realEntityId`) and never re-mints, falling through to the generic
+        // empty playground instead of a fresh onboarding for the new project.
+        return (
+            <OnboardingPlayground
+                key={`onboarding-${String(router.query.project_id ?? "")}`}
+                onboarding
+            />
+        )
     }
 
     // Evaluators get the evaluator-flavored page so the upstream-app picker

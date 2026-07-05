@@ -729,7 +729,7 @@ export function AgentTemplateControl({
                 />
             ) : layout === "cards" ? (
                 <div className="flex flex-col gap-3 pt-1">
-                    {sections.map((s) => (
+                    {sections.map((s, index) => (
                         <ConfigAccordionSection
                             key={s.key}
                             icon={s.icon}
@@ -742,6 +742,8 @@ export function AgentTemplateControl({
                             collapsible={false}
                             noDivider
                             className={sectionCardClass}
+                            revealOnMount
+                            revealDelayMs={Math.min(index, 6) * 45}
                         >
                             {s.content}
                         </ConfigAccordionSection>
@@ -760,6 +762,10 @@ export function AgentTemplateControl({
                         onOpen={s.onOpen}
                         defaultOpen={s.defaultOpen}
                         noDivider={index === sections.length - 1}
+                        // Fade the sections in with a light stagger so they don't pop when the panel
+                        // resolves (esp. after an onboarding commit). Animates once on mount.
+                        revealOnMount
+                        revealDelayMs={Math.min(index, 6) * 45}
                     >
                         {s.content}
                     </ConfigAccordionSection>

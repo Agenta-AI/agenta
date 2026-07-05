@@ -26,7 +26,7 @@
  * </ConfigAccordionSection>
  * ```
  */
-import {type ReactNode, useCallback, useState} from "react"
+import {type ReactNode, useCallback, useEffect, useState} from "react"
 
 import {CaretDown, CaretRight, Lock} from "@phosphor-icons/react"
 import {Tooltip, Typography} from "antd"
@@ -113,6 +113,14 @@ export interface ConfigAccordionSectionProps {
     titleBadge?: ReactNode
     /** Additional CSS class for the section wrapper. */
     className?: string
+    /**
+     * Fade + subtle rise the section in on mount (opacity/transform only — no layout impact). Off by
+     * default so existing usages are unchanged; the agent config panel opts in (staggered via
+     * `revealDelayMs`) so its sections don't pop in when the panel resolves. Motion-safe.
+     */
+    revealOnMount?: boolean
+    /** Stagger for `revealOnMount` — delay (ms) before this section fades in. @default 0 */
+    revealDelayMs?: number
     /** Section body. */
     children?: ReactNode
 }
@@ -139,8 +147,25 @@ export function ConfigAccordionSection({
     summaryCollapsedOnly = false,
     titleBadge,
     className,
+    revealOnMount = false,
+    revealDelayMs = 0,
     children,
 }: ConfigAccordionSectionProps) {
+    // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
+    // flips one tick after mount (staggered by `revealDelayMs`) to play the transition; `done` fires
+    // after it settles and drops the grid/overflow wrapper so nothing (e.g. an indicator dot) can clip.
+    // Both start true when not animating, so every non-opting usage is byte-for-byte unchanged.
+    const [revealed, setRevealed] = useState(!revealOnMount)
+    const [done, setDone] = useState(!revealOnMount)
+    useEffect(() => {
+        if (!revealOnMount) return
+        const reveal = window.setTimeout(() => setRevealed(true), revealDelayMs)
+        const settle = window.setTimeout(() => setDone(true), revealDelayMs + 340)
+        return () => {
+            window.clearTimeout(reveal)
+            window.clearTimeout(settle)
+        }
+    }, [revealOnMount, revealDelayMs])
     // Indicator (unsaved edits / validation) takes precedence over the completion `status`.
     const indicatorColor = indicator ? sectionIndicatorColor(indicator.tone) : null
     // The glyph gets a soft, desaturated tint; the full accent lives on the dot so it still reads.
@@ -172,7 +197,7 @@ export function ConfigAccordionSection({
         onOpenChange?.(next)
     }, [opensDrawer, onOpen, canToggle, isOpen, isControlled, onOpenChange])
 
-    return (
+    const sectionInner = (
         <div
             className={cn(
                 "flex flex-col",
@@ -266,6 +291,24 @@ export function ConfigAccordionSection({
                     <div className="flex flex-col gap-3 pb-4">{children}</div>
                 </HeightCollapse>
             )}
+        </div>
+    )
+
+    // Once the mount reveal has settled, render the section directly — no grid/overflow wrapper, so it
+    // behaves exactly like a non-animating section (no clipping, no extra nodes).
+    if (!revealOnMount || done) return sectionInner
+
+    // Mount reveal: animate height 0→auto (the grid `0fr`→`1fr` trick — the correct way to transition to
+    // an intrinsic height) plus opacity. `min-h-0` lets the row collapse below content; `overflow-hidden`
+    // clips the growing content. Motion-safe, so reduced-motion users just get the staggered appearance.
+    return (
+        <div
+            className={cn(
+                "grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-300 motion-safe:ease-out",
+                revealed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+            )}
+        >
+            <div className="min-h-0 overflow-hidden">{sectionInner}</div>
         </div>
     )
 }

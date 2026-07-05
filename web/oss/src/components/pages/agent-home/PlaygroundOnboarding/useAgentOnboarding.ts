@@ -10,7 +10,11 @@ import {
 } from "react"
 
 import {createEphemeralAppFromTemplate, workflowMolecule} from "@agenta/entities/workflow"
-import {playgroundController} from "@agenta/playground"
+import {
+    hasPendingHydrationAtomFamily,
+    isAgentModeAtomFamily,
+    playgroundController,
+} from "@agenta/playground"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ONBOARDING_SCOPE_KEY} from "@/oss/components/AgentChatSlice/state/scope"
@@ -21,6 +25,7 @@ import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {useCreateAgent} from "../hooks/useCreateAgent"
 
 import OnboardingConfigPanel from "./OnboardingConfigPanel"
+import OnboardingConfigSettling from "./OnboardingConfigSettling"
 import {type OnboardingContextValue} from "./OnboardingContext"
 
 /** Filterable diagnostic log for the onboarding flow (search the console for "[agent-onboarding]"). */
@@ -56,6 +61,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const [realEntityId, setRealEntityId] = useState<string | null>(null)
     const [committing, setCommitting] = useState(false)
     const [committingSeed, setCommittingSeed] = useState<string | null>(null)
+    const [browseAll, setBrowseAll] = useState(false)
     const startedRef = useRef(false)
 
     // Mint one ephemeral agent when onboarding activates. Ref-guarded so it runs exactly once.
@@ -173,10 +179,46 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const contextValue = useMemo<OnboardingContextValue | null>(
         () =>
             active
-                ? {ephemeralId: entityId ?? "", realEntityId, committing, committingSeed, commit}
+                ? {
+                      ephemeralId: entityId ?? "",
+                      realEntityId,
+                      committing,
+                      committingSeed,
+                      commit,
+                      browseAll,
+                      setBrowseAll,
+                  }
                 : null,
-        [active, entityId, realEntityId, committing, committingSeed, commit],
+        [active, entityId, realEntityId, committing, committingSeed, commit, browseAll],
     )
+
+    // After commit, the real config panel resolves its schema asynchronously — mounting it immediately
+    // pops sections in one by one. Subscribe to the real entity's readiness here (which also DRIVES the
+    // resolution, since these are query-backed atoms) and keep a settling placeholder in the config slot
+    // until it's ready, so the real config appears in one clean pass. A timeout reveals anyway so a
+    // never-flipping signal can't strand the placeholder.
+    const realId = realEntityId ?? ""
+    const realIsAgent = useAtomValue(useMemo(() => isAgentModeAtomFamily(realId), [realId]))
+    const realPendingHydration = useAtomValue(
+        useMemo(() => hasPendingHydrationAtomFamily(realId), [realId]),
+    )
+    const [settleTimedOut, setSettleTimedOut] = useState(false)
+    useEffect(() => {
+        if (!realEntityId) return
+        setSettleTimedOut(false)
+        const id = window.setTimeout(() => setSettleTimedOut(true), 2500)
+        return () => window.clearTimeout(id)
+    }, [realEntityId])
+    const realConfigReady =
+        !!realEntityId && (settleTimedOut || (realIsAgent && !realPendingHydration))
+
+    const renderConfigOverride = !active
+        ? undefined
+        : !realEntityId
+          ? createElement(OnboardingConfigPanel)
+          : !realConfigReady
+            ? createElement(OnboardingConfigSettling)
+            : undefined
 
     return {
         ready: !!entityId,
@@ -185,8 +227,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         // read from the OnboardingContext. So we DON'T override the generation panel; Playground uses its
         // default AgentChatPanel. (OnboardingAgentPanel is now dead code — removed at cleanup.)
         agentPanel: null,
-        renderConfigOverride:
-            active && !realEntityId ? createElement(OnboardingConfigPanel) : undefined,
+        renderConfigOverride,
         contextValue,
     }
 }
