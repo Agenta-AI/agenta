@@ -1,20 +1,52 @@
-"""Reserved Agenta tool-call handlers for server-side platform tools."""
+"""Server-side handlers for reserved ``tools.agenta.*`` tool calls.
+
+Handler-mode platform ops route through ``POST /tools/call`` like gateway tools, but their
+business logic runs behind a registered Python handler instead of a provider adapter. The
+module enforces three constraints:
+
+- Only call_refs in ``PLATFORM_TOOL_HANDLERS`` dispatch; anything else in the reserved
+  namespace is a 404 (`PlatformToolHandlerNotFound`), never a fall-through to a provider.
+- A handler may demand an extra permission for specific argument shapes (the elevation
+  policy on its registration); the API boundary checks it via
+  :func:`required_elevated_permission` before dispatching.
+- ``test_run`` refuses recursion (a child test_run marked via ``x-agenta-run-kind``) and
+  confines revision deltas to the ``parameters`` tree so a caller can never redirect the
+  server-side child invoke (or its minted credentials) to another endpoint.
+
+Contracts (``TestRun*``) live in ``core/tools/dtos.py``; exceptions in
+``core/tools/exceptions.py``.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ValidationError
 
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
+from oss.src.core.access.permissions.types import Permission
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.tools.dtos import (
+    TestRunExpectations,
+    TestRunRequest,
+    TestRunResolved,
+    TestRunResponse,
+    TestRunToolDigest,
+    TestRunVerdict,
+)
+from oss.src.core.tools.exceptions import (
+    PlatformToolHandlerError,
+    PlatformToolHandlerNotFound,
+    PlatformToolHandlerRefused,
+    PlatformToolHandlerUnavailable,
+)
 from oss.src.core.tracing.dtos import (
     Condition,
     Filtering,
@@ -39,126 +71,21 @@ TEST_RUN_SERVER_TIMEOUT_CEILING_MS = 120_000
 TEST_RUN_RECURSION_HEADER = "x-agenta-run-kind"
 TEST_RUN_RECURSION_VALUE = "test"
 
-
-class PlatformToolHandlerError(Exception):
-    status_code = 400
-
-    def __init__(self, message: str):
-        self.message = message
-        super().__init__(message)
+# A test_run delta may only touch this subtree of the revision data. Everything else
+# (``url``, ``uri``, ``headers``, ``script``) changes where or how the child invoke
+# executes, which would let an EDIT_WORKFLOWS caller point the server-side POST at an
+# arbitrary endpoint.
+_DELTA_ALLOWED_ROOT = "parameters"
 
 
-class PlatformToolHandlerNotFound(PlatformToolHandlerError):
-    status_code = 404
+def is_reserved_agenta_call_ref(call_ref: str) -> bool:
+    return call_ref.startswith(AGENTA_TOOL_CALL_REF_PREFIX)
 
 
-class PlatformToolHandlerUnavailable(PlatformToolHandlerError):
-    status_code = 501
-
-
-class PlatformToolHandlerRefused(PlatformToolHandlerError):
-    status_code = 400
-
-
-class TestRunTarget(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    workflow_variant_id: UUID
-
-
-class TestRunInputs(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    messages: List[Dict[str, Any]]
-
-
-class TestRunExpectations(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    terminal_tool: Optional[str] = None
-
-
-class TestRunRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    target: TestRunTarget
-    inputs: TestRunInputs
-    delta: Optional[WorkflowRevisionDelta] = None
-    expectations: Optional[TestRunExpectations] = None
-
-
-class TestRunToolDigest(BaseModel):
-    name: str
-    called: bool = True
-    returned: bool = False
-    error: bool = Field(default=False, exclude=True)
-
-
-class TestRunResolved(BaseModel):
-    harness: Optional[str] = None
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    connection_mode: Optional[str] = None
-
-
-TestRunVerdict = Literal["pass", "incomplete", "unconfirmed", "failed"]
-
-
-class TestRunResponse(BaseModel):
-    output: str = ""
-    tools: List[TestRunToolDigest] = Field(default_factory=list)
-    approvals: List[str] = Field(default_factory=list)
-    resolved: TestRunResolved = Field(default_factory=TestRunResolved)
-    trace_id: Optional[str] = None
-    test_id: Optional[str] = None
-    verdict: TestRunVerdict
-    verdict_reason: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class PlatformToolHandlerRegistration:
-    call_ref: str
-    timeout_ms: int
-
-
-PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
-    TEST_RUN_CALL_REF: PlatformToolHandlerRegistration(
-        call_ref=TEST_RUN_CALL_REF,
-        timeout_ms=TEST_RUN_DEFAULT_TIMEOUT_MS,
-    )
-}
-
-
-async def dispatch_platform_tool_handler(
-    *,
-    call_ref: str,
-    arguments: Any,
-    headers: Any,
-    project_id: UUID,
-    user_id: UUID,
-    workflows_service: Optional[WorkflowsService],
-    tracing_service: Optional[TracingService],
-) -> TestRunResponse:
-    registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
-    if registration is None:
-        raise PlatformToolHandlerNotFound(
-            f"Unknown reserved Agenta tool handler: {call_ref}"
-        )
-
-    if call_ref == TEST_RUN_CALL_REF:
-        return await handle_test_run(
-            arguments=arguments,
-            headers=headers,
-            project_id=project_id,
-            user_id=user_id,
-            workflows_service=workflows_service,
-            tracing_service=tracing_service,
-            timeout_ms=registration.timeout_ms,
-        )
-
-    raise PlatformToolHandlerNotFound(
-        f"Unknown reserved Agenta tool handler: {call_ref}"
-    )
+# ---------------------------------------------------------------------------
+# test_run — run the target workflow variant once, headlessly, and digest the
+# outcome (parse -> resolve revision -> invoke child -> digest -> verdict).
+# ---------------------------------------------------------------------------
 
 
 async def handle_test_run(
@@ -219,10 +146,6 @@ async def handle_test_run(
     )
 
 
-def is_reserved_agenta_call_ref(call_ref: str) -> bool:
-    return call_ref.startswith(AGENTA_TOOL_CALL_REF_PREFIX)
-
-
 def _header_value(headers: Any, name: str) -> Optional[str]:
     if headers is None:
         return None
@@ -243,9 +166,29 @@ def _parse_test_run_arguments(arguments: Any) -> TestRunRequest:
     if not isinstance(arguments, dict):
         raise PlatformToolHandlerError("test_run arguments must be a JSON object.")
     try:
-        return TestRunRequest.model_validate(arguments)
+        request = TestRunRequest.model_validate(arguments)
     except ValidationError as e:
         raise PlatformToolHandlerError(f"Invalid test_run arguments: {e}") from e
+    if request.delta is not None:
+        _validate_delta_scope(request.delta)
+    return request
+
+
+def _validate_delta_scope(delta: WorkflowRevisionDelta) -> None:
+    out_of_scope = sorted(set(delta.set or {}) - {_DELTA_ALLOWED_ROOT})
+    if out_of_scope:
+        raise PlatformToolHandlerRefused(
+            "test_run delta may only set the revision's "
+            f"'{_DELTA_ALLOWED_ROOT}' tree (got: {', '.join(out_of_scope)})."
+        )
+    for path in delta.remove or []:
+        if path != _DELTA_ALLOWED_ROOT and not path.startswith(
+            f"{_DELTA_ALLOWED_ROOT}."
+        ):
+            raise PlatformToolHandlerRefused(
+                "test_run delta may only remove paths under the revision's "
+                f"'{_DELTA_ALLOWED_ROOT}' tree (got: {path})."
+            )
 
 
 async def _build_test_workflow_request(
@@ -261,16 +204,18 @@ async def _build_test_workflow_request(
         data=WorkflowServiceRequestData(inputs={"messages": request.inputs.messages}),
     )
 
-    if request.delta is not None:
-        await workflows_service._ensure_request_revision(
-            project_id=project_id,
-            request=workflow_request,
+    # Resolving the committed revision first (even with a delta) is the target validation:
+    # a delta can only ever be applied on top of a variant that exists in THIS project.
+    await workflows_service._ensure_request_revision(
+        project_id=project_id,
+        request=workflow_request,
+    )
+    if not workflow_request.data or not workflow_request.data.revision:
+        raise PlatformToolHandlerError(
+            "test_run could not resolve the target workflow variant revision."
         )
-        if not workflow_request.data or not workflow_request.data.revision:
-            raise PlatformToolHandlerError(
-                "test_run could not resolve the target workflow variant revision."
-            )
 
+    if request.delta is not None:
         resolved = await workflows_service._resolve_revision_delta(
             project_id=project_id,
             workflow_revision_commit=WorkflowRevisionCommit(
@@ -283,16 +228,7 @@ async def _build_test_workflow_request(
                 "test_run could not resolve the revision delta."
             )
         workflow_request.data.revision = {"data": resolved.data.model_dump(mode="json")}
-        return workflow_request
 
-    await workflows_service._ensure_request_revision(
-        project_id=project_id,
-        request=workflow_request,
-    )
-    if not workflow_request.data or not workflow_request.data.revision:
-        raise PlatformToolHandlerError(
-            "test_run could not resolve the target workflow variant revision."
-        )
     return workflow_request
 
 
@@ -402,11 +338,18 @@ async def _digest_test_run_response(
 def _failed_response(
     message: str, *, trace_id: Optional[str] = None
 ) -> TestRunResponse:
+    """A ``failed`` verdict for a run that never produced a digestible child response
+    (no service URL, timeout, non-2xx, malformed body). ``infra_failure`` marks it so
+    the API boundary reports an error status instead of a normal tool result."""
     return TestRunResponse(
         trace_id=trace_id,
         verdict="failed",
         verdict_reason=message,
+        infra_failure=True,
     )
+
+
+# --- transcript digest -----------------------------------------------------
 
 
 def _last_assistant_content(messages: List[Any]) -> str:
@@ -441,16 +384,22 @@ def _tools_from_messages(messages: List[Any]) -> Dict[str, TestRunToolDigest]:
             digest = by_name.setdefault(name, TestRunToolDigest(name=name))
             if call_id:
                 by_call_id[str(call_id)] = digest
-            if _has_tool_result_content(message):
-                digest.returned = True
-                digest.error = bool(message.get("is_error") or message.get("isError"))
+            _apply_tool_result(digest, message)
             continue
         if call_id and str(call_id) in by_call_id:
-            digest = by_call_id[str(call_id)]
-            if _has_tool_result_content(message):
-                digest.returned = True
-                digest.error = bool(message.get("is_error") or message.get("isError"))
+            _apply_tool_result(by_call_id[str(call_id)], message)
     return by_name
+
+
+def _apply_tool_result(digest: TestRunToolDigest, message: Dict[str, Any]) -> None:
+    """Flags only accumulate: a tool called twice keeps an earlier error even if a later
+    call succeeds, so a real failure can never be masked within one run."""
+    if not _has_tool_result_content(message):
+        return
+    digest.returned = True
+    digest.error = digest.error or bool(
+        message.get("is_error") or message.get("isError")
+    )
 
 
 def _has_tool_result_content(message: Dict[str, Any]) -> bool:
@@ -478,6 +427,9 @@ def _approvals_from_pending_interaction(interaction: Any) -> List[str]:
         or tool_call.get("toolName")
     )
     return [str(tool)] if tool else []
+
+
+# --- span digest -----------------------------------------------------------
 
 
 async def _query_trace_spans(
@@ -584,6 +536,27 @@ def _resolved_from_spans(spans: List[Any]) -> TestRunResolved:
     return TestRunResolved()
 
 
+def _span_attrs(span: Any) -> Dict[str, Any]:
+    attrs = getattr(span, "attributes", None)
+    if isinstance(attrs, dict):
+        return attrs
+    if hasattr(attrs, "model_dump"):
+        return attrs.model_dump(mode="json", exclude_none=True)
+    return {}
+
+
+def _get_path(data: Dict[str, Any], path: tuple[str, ...]) -> Any:
+    node: Any = data
+    for part in path:
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node
+
+
+# --- verdict ---------------------------------------------------------------
+
+
 def _verdict(
     *,
     tools: Dict[str, TestRunToolDigest],
@@ -612,19 +585,88 @@ def _verdict(
     )
 
 
-def _span_attrs(span: Any) -> Dict[str, Any]:
-    attrs = getattr(span, "attributes", None)
-    if isinstance(attrs, dict):
-        return attrs
-    if hasattr(attrs, "model_dump"):
-        return attrs.model_dump(mode="json", exclude_none=True)
-    return {}
+# ---------------------------------------------------------------------------
+# Registry — the only handlers a reserved call_ref can reach, plus their
+# per-handler policy (timeout budget, elevation). The API boundary consults
+# ``required_elevated_permission`` before ``dispatch_platform_tool_handler``.
+# ---------------------------------------------------------------------------
+
+PlatformToolHandler = Callable[..., Awaitable[TestRunResponse]]
 
 
-def _get_path(data: Dict[str, Any], path: tuple[str, ...]) -> Any:
-    node: Any = data
-    for part in path:
-        if not isinstance(node, dict) or part not in node:
-            return None
-        node = node[part]
-    return node
+def _arguments_include_delta(arguments: Any) -> bool:
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            return False
+    return isinstance(arguments, dict) and arguments.get("delta") is not None
+
+
+@dataclass(frozen=True)
+class PlatformToolHandlerRegistration:
+    call_ref: str
+    timeout_ms: int
+    handler: PlatformToolHandler
+    # Elevation policy: when ``requires_elevation(arguments)`` is true the caller must
+    # also hold ``elevated_permission`` (checked at the API boundary, before dispatch).
+    elevated_permission: Optional[Permission] = None
+    requires_elevation: Optional[Callable[[Any], bool]] = None
+
+
+PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
+    TEST_RUN_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=TEST_RUN_CALL_REF,
+        timeout_ms=TEST_RUN_DEFAULT_TIMEOUT_MS,
+        handler=handle_test_run,
+        # An in-memory delta edits the (uncommitted) revision, so it needs the same
+        # permission as committing one.
+        elevated_permission=Permission.EDIT_WORKFLOWS,
+        requires_elevation=_arguments_include_delta,
+    )
+}
+
+
+def required_elevated_permission(
+    *,
+    call_ref: str,
+    arguments: Any,
+) -> Optional[Permission]:
+    """The extra permission the caller must hold for this call, or ``None``.
+
+    Unknown call_refs return ``None``; dispatch will reject them with a 404 anyway."""
+    registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
+    if registration is None or registration.elevated_permission is None:
+        return None
+    if registration.requires_elevation is None or registration.requires_elevation(
+        arguments
+    ):
+        return registration.elevated_permission
+    return None
+
+
+async def dispatch_platform_tool_handler(
+    *,
+    call_ref: str,
+    arguments: Any,
+    headers: Any,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService],
+) -> TestRunResponse:
+    registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
+    if registration is None:
+        raise PlatformToolHandlerNotFound(
+            f"Unknown reserved Agenta tool handler: {call_ref}"
+        )
+
+    return await registration.handler(
+        arguments=arguments,
+        headers=headers,
+        project_id=project_id,
+        user_id=user_id,
+        workflows_service=workflows_service,
+        tracing_service=tracing_service,
+        timeout_ms=registration.timeout_ms,
+    )

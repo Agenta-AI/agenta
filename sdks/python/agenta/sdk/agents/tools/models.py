@@ -387,6 +387,13 @@ class CallbackToolSpec(ToolSpecBase):
                 "a callback tool spec must carry exactly one of `call_ref` (gateway) "
                 "or `call` (direct)"
             )
+        # Spec-level bindings are applied by the gateway relay before it posts to
+        # ``/tools/call``; a direct call has no relay, so the combination is invalid
+        # (direct-call bindings belong inside ``call.context``).
+        if self.context_bindings is not None and self.call_ref is None:
+            raise ValueError(
+                "`context_bindings` is only valid with `call_ref` (gateway dispatch)"
+            )
         return self
 
 

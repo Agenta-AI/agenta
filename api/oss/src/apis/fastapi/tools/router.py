@@ -65,11 +65,11 @@ from oss.src.core.tools.service import (
 from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.tracing.service import TracingService
+from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
-    TEST_RUN_CALL_REF,
-    PlatformToolHandlerError,
     dispatch_platform_tool_handler,
     is_reserved_agenta_call_ref,
+    required_elevated_permission,
 )
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
@@ -91,15 +91,6 @@ _WORKFLOW_CALL_REF_PREFIX = "workflow."
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
 
 log = get_module_logger(__name__)
-
-
-def _test_run_arguments_include_delta(arguments: object) -> bool:
-    if isinstance(arguments, str):
-        try:
-            arguments = json.loads(arguments)
-        except json.JSONDecodeError:
-            return False
-    return isinstance(arguments, dict) and arguments.get("delta") is not None
 
 
 def handle_adapter_exceptions():
@@ -1208,13 +1199,17 @@ class ToolsRouter:
         body: ToolCall,
         call_ref: str,
     ) -> ToolCallResponse:
-        if call_ref == TEST_RUN_CALL_REF and _test_run_arguments_include_delta(
-            body.data.function.arguments
-        ):
+        # Some handlers demand an extra permission for specific argument shapes (e.g. a
+        # test_run delta needs EDIT_WORKFLOWS); the policy lives on the handler registration.
+        elevated_permission = required_elevated_permission(
+            call_ref=call_ref,
+            arguments=body.data.function.arguments,
+        )
+        if elevated_permission is not None:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,
+                permission=elevated_permission,
             )
             if not has_permission:
                 raise FORBIDDEN_EXCEPTION
@@ -1232,6 +1227,9 @@ class ToolsRouter:
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
+        # A business-level failed verdict is still a successful tool call (OK); only an
+        # infrastructure failure (child invoke never completed) surfaces as an error status,
+        # mirroring the adapter path's successful/unsuccessful split.
         result = ToolResult(
             id=uuid4(),
             data=ToolResultData(
@@ -1240,7 +1238,10 @@ class ToolsRouter:
             ),
             status=Status(
                 timestamp=datetime.now(timezone.utc),
-                code="STATUS_CODE_OK",
+                code="STATUS_CODE_ERROR"
+                if response.infra_failure
+                else "STATUS_CODE_OK",
+                message=response.verdict_reason if response.infra_failure else None,
             ),
         )
 

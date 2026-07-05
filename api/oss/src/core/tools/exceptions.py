@@ -172,3 +172,31 @@ class AdapterError(ToolsError):
         if detail:
             msg += f": {detail}"
         super().__init__(msg)
+
+
+class PlatformToolHandlerError(ToolsError):
+    """Base for reserved ``tools.agenta.*`` handler failures.
+
+    ``status_code`` is the HTTP status the API boundary maps the error to; subclasses
+    override it instead of raising ``HTTPException`` from the core layer.
+    """
+
+    status_code = 400
+
+
+class PlatformToolHandlerNotFound(PlatformToolHandlerError):
+    """Raised when a reserved call_ref has no registered handler."""
+
+    status_code = 404
+
+
+class PlatformToolHandlerUnavailable(PlatformToolHandlerError):
+    """Raised when a handler exists but its backing service is not wired on this deployment."""
+
+    status_code = 501
+
+
+class PlatformToolHandlerRefused(PlatformToolHandlerError):
+    """Raised when a request is well-formed but violates a handler policy (e.g. recursion)."""
+
+    status_code = 400

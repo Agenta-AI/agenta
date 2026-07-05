@@ -23,11 +23,7 @@ from oss.src.core.applications.dtos import SimpleApplication
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.core.workflows.static_catalog import (
-    STATIC_SLUG_PREFIX,
-    StaticWorkflowCatalog,
-    _STATIC_WORKFLOWS,
-)
+from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 
 EXPECTED_DEFAULT_BUILD_KIT_OPS = (
     "discover_tools",
@@ -120,14 +116,9 @@ def test_agent_template_overlay_includes_reserved_static_workflow_tool_embeds():
         assert tool.get("name") == revision.name
 
     expected_slugs = set()
-    for slug in _STATIC_WORKFLOWS:
+    for slug in catalog.list_slugs():
         revision = catalog.retrieve_revision(slug=slug)
-        if (
-            slug.startswith(STATIC_SLUG_PREFIX)
-            and revision
-            and revision.flags
-            and not revision.flags.is_skill
-        ):
+        if revision and revision.flags and not revision.flags.is_skill:
             expected_slugs.add(slug)
 
     assert tool_embed_slugs == expected_slugs

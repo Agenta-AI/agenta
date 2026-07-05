@@ -120,6 +120,15 @@ def test_op_handler_must_be_allowlisted():
             handler="tools.agenta.unknown",
             input_schema={"type": "object"},
         )
+    # The allowlist is an exact match, not a prefix match: an extension of an
+    # allowlisted ref is still rejected.
+    with pytest.raises(ValidationError, match="allowlisted"):
+        PlatformOp(
+            op="x",
+            description="d",
+            handler="tools.agenta.test_run_extra",
+            input_schema={"type": "object"},
+        )
 
 
 def test_op_input_schema_ref_resolves_against_the_catalog():

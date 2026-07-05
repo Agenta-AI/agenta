@@ -14,7 +14,7 @@ Trust comes from the platform authoring the content in code: the reserved namesp
 user cannot author or shadow it, and resolution never falls through to Postgres.
 """
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid5, NAMESPACE_DNS
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
@@ -220,6 +220,13 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
                         f"Static workflow {slug!r} version {version!r} must be a "
                         f"WorkflowRevision with data.uri."
                     )
+
+    def list_slugs(self) -> List[str]:
+        """Every reserved slug in the catalogue, in declaration order.
+
+        The public way to enumerate the catalogue (each slug resolves through
+        :meth:`retrieve_revision`); callers must not reach into the backing dict."""
+        return list(self._catalog)
 
     def is_static_slug(self, slug: Optional[str]) -> bool:
         return is_static_workflow_slug(slug)

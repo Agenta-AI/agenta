@@ -171,6 +171,18 @@ def test_callback_spec_requires_exactly_one_call_target():
         )
 
 
+def test_callback_spec_rejects_context_bindings_on_a_direct_call():
+    # Spec-level bindings are injected by the gateway relay; a direct call has no relay,
+    # so the combination is invalid (direct-call bindings belong in `call.context`).
+    with pytest.raises(ValidationError, match="context_bindings"):
+        CallbackToolSpec(
+            name="t",
+            description="t",
+            call={"method": "GET", "path": "/api/ping"},
+            context_bindings={"target.id": "$ctx.workflow.variant.id"},
+        )
+
+
 def test_secret_values_are_hidden_from_repr():
     spec = CodeToolSpec(
         name="private",

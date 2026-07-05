@@ -367,7 +367,9 @@ async def test_test_run_delta_requires_existing_project_scoped_variant(monkeypat
             id="outer_call",
             function=ToolCallFunction(
                 name="tools.agenta.test_run",
-                arguments=_args(delta={"set": {"url": "https://evil.example"}}),
+                arguments=_args(
+                    delta={"set": {"parameters": {"agent": {"model": "changed"}}}}
+                ),
             ),
         )
     )
@@ -378,6 +380,40 @@ async def test_test_run_delta_requires_existing_project_scoped_variant(monkeypat
     assert exc_info.value.status_code == 400
     assert "target workflow variant revision" in exc_info.value.detail
     assert workflows.ensure_calls
+    assert not workflows.delta_calls
+    assert not workflows.prepare_calls
+    assert http.calls == []
+
+
+@pytest.mark.parametrize(
+    "delta",
+    [
+        {"set": {"url": "https://evil.example"}},
+        {"set": {"uri": "agenta:builtin:agent:v0"}},
+        {"set": {"headers": {"X-Exfil": "1"}}},
+        {"set": {"parameters": {"agent": {}}, "url": "https://evil.example"}},
+        {"remove": ["url"]},
+        {"remove": ["parameters_sibling"]},
+    ],
+)
+async def test_test_run_delta_outside_parameters_is_refused(monkeypatch, delta):
+    # The delta scope guard: anything outside the `parameters` tree could redirect the
+    # server-side child invoke (url/uri/headers), so it is refused before any resolution.
+    http = HttpxController(monkeypatch)
+    workflows = FakeWorkflowsService()
+
+    with pytest.raises(PlatformToolHandlerRefused) as exc_info:
+        await handle_test_run(
+            arguments=_args(delta=delta),
+            headers={},
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=workflows,
+            tracing_service=FakeTracingService(),
+        )
+
+    assert "parameters" in exc_info.value.message
+    assert not workflows.ensure_calls
     assert not workflows.delta_calls
     assert not workflows.prepare_calls
     assert http.calls == []
@@ -591,6 +627,40 @@ async def test_test_run_terminal_tool_missing_is_incomplete(monkeypatch):
     assert "slack__SEND_MESSAGE" in result.verdict_reason
 
 
+async def test_test_run_same_tool_twice_keeps_the_earlier_error(monkeypatch):
+    # Error flags accumulate per tool name: a second, successful call to the same tool
+    # must not wash out the first call's error.
+    outputs = {
+        "messages": [
+            {
+                "role": "tool",
+                "content": "",
+                "tool_call_id": "call_1",
+                "tool_name": "slack__SEND_MESSAGE",
+            },
+            {
+                "role": "tool",
+                "content": "boom",
+                "tool_call_id": "call_1",
+                "is_error": True,
+            },
+            {
+                "role": "tool",
+                "content": "",
+                "tool_call_id": "call_2",
+                "tool_name": "slack__SEND_MESSAGE",
+            },
+            {"role": "tool", "content": "ok", "tool_call_id": "call_2"},
+        ],
+        "stop_reason": "stop",
+    }
+
+    result, _, _ = await _run(monkeypatch, outputs=outputs)
+
+    assert result.verdict == "failed"
+    assert "slack__SEND_MESSAGE" in result.verdict_reason
+
+
 async def test_test_run_recursion_marker_is_refused(monkeypatch):
     HttpxController(monkeypatch)
 
@@ -680,3 +750,38 @@ async def test_registered_test_run_dispatches_through_tools_call(monkeypatch):
     content = json.loads(response.call.data.content)
     assert response.call.data.tool_call_id == "outer_call"
     assert content["verdict"] == "pass"
+    assert response.call.status.code == "STATUS_CODE_OK"
+
+
+async def test_infra_failure_surfaces_as_error_status_on_the_tool_result(monkeypatch):
+    # A run the child invoke never completed (timeout/5xx) must be distinguishable from a
+    # business-level failed verdict on the OUTER status, mirroring the adapter path.
+    async def _allow(**_kwargs):
+        return True
+
+    monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
+    HttpxController(monkeypatch, raises=httpx.ReadTimeout("too slow"))
+    router = ToolsRouter(
+        tools_service=SimpleNamespace(),
+        workflows_service=FakeWorkflowsService(),
+        tracing_service=FakeTracingService(),
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        headers={},
+    )
+    body = ToolCall(
+        data=ToolCallData(
+            id="outer_call",
+            function=ToolCallFunction(name="tools.agenta.test_run", arguments=_args()),
+        )
+    )
+
+    response = await router.call_tool(request, body=body)
+
+    content = json.loads(response.call.data.content)
+    assert content["verdict"] == "failed"
+    assert response.call.status.code == "STATUS_CODE_ERROR"
+    assert "timed out" in response.call.status.message
+    # The infra marker itself never rides in the tool-result payload.
+    assert "infra_failure" not in content

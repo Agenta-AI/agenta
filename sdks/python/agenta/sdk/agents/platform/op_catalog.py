@@ -51,7 +51,11 @@ PLATFORM_OP_NAMESPACE = "tools.agenta."
 # Every ``context_bindings`` value addresses the run-context namespace through this token prefix
 # (e.g. ``$ctx.workflow.variant.id``); the runner resolves it at dispatch (see ``RunContext``).
 _CTX_TOKEN_PREFIX = "$ctx."
-_HANDLER_PREFIXES = ("tools.agenta.test_run",)
+
+# Exact allowlist of handler call-refs a handler-mode op may target. Must match the
+# server's registered handlers (``PLATFORM_TOOL_HANDLERS`` in the API's
+# ``core/tools/platform_handlers.py``); an op naming anything else fails at import.
+_HANDLER_CALL_REFS = frozenset({f"{PLATFORM_OP_NAMESPACE}test_run"})
 
 
 class PlatformOp(BaseModel):
@@ -127,7 +131,7 @@ class PlatformOp(BaseModel):
                 f"platform op '{self.op}' path '{self.path}' must be a relative path "
                 "starting with a single '/'"
             )
-        if self.handler is not None and not self.handler.startswith(_HANDLER_PREFIXES):
+        if self.handler is not None and self.handler not in _HANDLER_CALL_REFS:
             raise ValueError(
                 f"platform op '{self.op}' handler '{self.handler}' is not allowlisted"
             )
@@ -188,7 +192,9 @@ class PlatformOp(BaseModel):
 
 def _strip_field(schema: Dict[str, Any], dotted_path: str) -> None:
     """Delete the property at ``dotted_path`` from a JSON Schema's ``properties`` tree, in place,
-    and drop it from the enclosing ``required`` list. A path that does not resolve is a no-op."""
+    and drop it from the enclosing ``required`` list. Ancestor objects left empty by the removal
+    are pruned too, so the model never sees a hollow required container (e.g. ``target`` once its
+    only field is context-bound). A path that does not resolve is a no-op."""
     parts = dotted_path.split(".")
     node: Any = schema
     stack: list[tuple[Dict[str, Any], str]] = []

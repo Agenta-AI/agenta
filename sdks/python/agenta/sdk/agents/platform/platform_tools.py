@@ -80,6 +80,9 @@ class AgentaPlatformToolResolver:
                 raise error
             seen.add(op.op)
 
+            # Both modes share the whole spec except the target: handler-mode ops carry a
+            # gateway ``call_ref`` (with spec-level bindings the relay injects); endpoint-mode
+            # ops carry a direct ``call`` descriptor (bindings ride inside ``call.context``).
             if op.handler is not None:
                 if not _platform_handlers_enabled():
                     error = GatewayToolResolutionError(
@@ -89,33 +92,25 @@ class AgentaPlatformToolResolver:
                     )
                     log.warning("agent: %s", error)
                     raise error
-
-                tool_specs.append(
-                    CallbackToolSpec(
-                        name=op.op,
-                        description=op.description,
-                        input_schema=op.resolved_input_schema(),
-                        call_ref=op.to_call_ref(),
-                        context_bindings=dict(op.context_bindings) or None,
-                        timeout_ms=op.timeout_ms,
-                        render=tool_config.render,
-                        permission=tool_config.permission,
-                        read_only=op.read_only,
-                    )
-                )
+                target: dict = {
+                    "call_ref": op.to_call_ref(),
+                    "context_bindings": dict(op.context_bindings) or None,
+                }
             else:
-                tool_specs.append(
-                    CallbackToolSpec(
-                        name=op.op,
-                        description=op.description,
-                        input_schema=op.resolved_input_schema(),
-                        call=op.to_call(),
-                        timeout_ms=op.timeout_ms,
-                        render=tool_config.render,
-                        permission=tool_config.permission,
-                        read_only=op.read_only,
-                    )
+                target = {"call": op.to_call()}
+
+            tool_specs.append(
+                CallbackToolSpec(
+                    name=op.op,
+                    description=op.description,
+                    input_schema=op.resolved_input_schema(),
+                    timeout_ms=op.timeout_ms,
+                    render=tool_config.render,
+                    permission=tool_config.permission,
+                    read_only=op.read_only,
+                    **target,
                 )
+            )
 
         return GatewayToolResolution(
             tool_specs=tool_specs,

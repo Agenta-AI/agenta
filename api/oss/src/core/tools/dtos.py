@@ -1,9 +1,12 @@
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
+from uuid import UUID
 
 from agenta.sdk.agents.tools import BuiltinToolConfig, GatewayToolConfig
 from agenta.sdk.models.workflows import JsonSchemas
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from oss.src.core.workflows.dtos import WorkflowRevisionDelta
 
 from oss.src.core.gateway.catalog.dtos import (
     CatalogCategory,
@@ -228,6 +231,91 @@ class ToolsResolution(BaseModel):
 
     builtins: List[str] = Field(default_factory=list)
     custom: List[ResolvedTool] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Platform tool handlers (reserved ``tools.agenta.*`` ops) — test_run contract
+# ---------------------------------------------------------------------------
+#
+# The request/response contract for the server-side ``test_run`` handler (see
+# ``core/tools/platform_handlers.py`` for the orchestration and the registry).
+# Every model forbids extra fields: the arguments come straight from a model
+# tool call and must not smuggle unknown keys.
+
+
+class TestRunTarget(BaseModel):
+    """The workflow variant under test. Bound from run context by the runner
+    (``$ctx.workflow.variant.id``), never chosen by the model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_variant_id: UUID
+
+
+class TestRunInputs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    messages: List[Dict[str, Any]]
+
+
+class TestRunExpectations(BaseModel):
+    """Checks that define a passing run. Without a ``terminal_tool`` the verdict can
+    never be ``pass``, only ``unconfirmed``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    terminal_tool: Optional[str] = None
+
+
+class TestRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target: TestRunTarget
+    inputs: TestRunInputs
+    # In-memory only: the delta is applied to the resolved revision for this one run and
+    # never committed. Its scope is restricted to the ``parameters`` tree (enforced by the
+    # handler) so it cannot redirect the child invoke.
+    delta: Optional[WorkflowRevisionDelta] = None
+    expectations: Optional[TestRunExpectations] = None
+
+
+class TestRunToolDigest(BaseModel):
+    """Per-tool observation, merged from transcript messages and trace spans.
+
+    ``error`` is excluded from the payload: it only feeds the verdict, so a transient
+    span-read failure cannot leak a false error flag to the model."""
+
+    name: str
+    called: bool = True
+    returned: bool = False
+    error: bool = Field(default=False, exclude=True)
+
+
+class TestRunResolved(BaseModel):
+    """Execution metadata resolved by the child run (read from its spans)."""
+
+    harness: Optional[str] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+    connection_mode: Optional[str] = None
+
+
+TestRunVerdict = Literal["pass", "incomplete", "unconfirmed", "failed"]
+
+
+class TestRunResponse(BaseModel):
+    output: str = ""
+    tools: List[TestRunToolDigest] = Field(default_factory=list)
+    approvals: List[str] = Field(default_factory=list)
+    resolved: TestRunResolved = Field(default_factory=TestRunResolved)
+    trace_id: Optional[str] = None
+    test_id: Optional[str] = None
+    verdict: TestRunVerdict
+    verdict_reason: Optional[str] = None
+    # Excluded from the payload: distinguishes "the child invoke never completed"
+    # (timeout / non-2xx / no output) from a business-level failed verdict, so the API
+    # boundary can set the outer ToolResult status accordingly.
+    infra_failure: bool = Field(default=False, exclude=True)
 
 
 # ---------------------------------------------------------------------------

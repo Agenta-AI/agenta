@@ -33,7 +33,6 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.workflows.static_catalog import (
     STATIC_SLUG_PREFIX,
     StaticWorkflowCatalog,
-    _STATIC_WORKFLOWS,
 )
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import (
@@ -88,6 +87,16 @@ _MULTI_VERSION_CATALOG = {
 # ---------------------------------------------------------------------------
 
 
+def test_list_slugs_enumerates_resolvable_reserved_slugs():
+    catalog = StaticWorkflowCatalog()
+
+    slugs = catalog.list_slugs()
+    assert {_STATIC_SLUG, _PLAYBOOK_SLUG} <= set(slugs)
+    for slug in slugs:
+        assert slug.startswith(STATIC_SLUG_PREFIX)
+        assert catalog.retrieve_revision(slug=slug) is not None
+
+
 def test_is_static_slug():
     catalog = StaticWorkflowCatalog()
 
@@ -102,14 +111,14 @@ def test_default_static_skill_catalog_replaces_old_authoring_skills():
     catalog = StaticWorkflowCatalog()
     skill_slugs = {
         slug
-        for slug in _STATIC_WORKFLOWS
+        for slug in catalog.list_slugs()
         if (revision := catalog.retrieve_revision(slug=slug))
         and revision.flags
         and revision.flags.is_skill
     }
 
     assert skill_slugs == {_STATIC_SLUG, _PLAYBOOK_SLUG}
-    assert _OLD_AUTHORING_SKILL_SLUGS.isdisjoint(_STATIC_WORKFLOWS)
+    assert _OLD_AUTHORING_SKILL_SLUGS.isdisjoint(catalog.list_slugs())
     for slug in _OLD_AUTHORING_SKILL_SLUGS:
         assert catalog.retrieve_revision(slug=slug) is None
 
