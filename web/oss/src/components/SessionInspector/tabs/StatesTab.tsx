@@ -1,6 +1,7 @@
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Descriptions, Skeleton} from "antd"
+import {Alert, Descriptions} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -21,7 +22,15 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
 
     const refresh = () => queryClient.invalidateQueries({queryKey})
 
-    if (isLoading) return <Skeleton active />
+    if (isLoading)
+        return (
+            <div className="flex w-full flex-col gap-3">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/5" />
+            </div>
+        )
     if (error) return <Alert type="error" message="Failed to load state" showIcon />
     if (!data)
         return <span className="text-muted-foreground">No durable state for this session yet.</span>

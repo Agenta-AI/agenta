@@ -2,8 +2,9 @@ import {useMemo, useState, type ReactNode} from "react"
 
 import type {EvaluatorDefinition} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {DownOutlined, PlusOutlined} from "@ant-design/icons"
-import {Alert, Form, Segmented, Skeleton, Tag} from "antd"
+import {Alert, Form, Segmented, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -62,7 +63,14 @@ const EvaluatorSection = ({
     const canAddEvaluator = isTerminalStatus(runStatus) && !runFlags?.isClosed
 
     if (isLoading) {
-        return <Skeleton active paragraph={{rows: 3}} />
+        return (
+            <div className="flex w-full flex-col gap-3">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/5" />
+            </div>
+        )
     }
 
     if (error) {

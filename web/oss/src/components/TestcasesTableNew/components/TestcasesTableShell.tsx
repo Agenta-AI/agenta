@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {
     ColumnVisibilityMenuTrigger,
     defaultHeaderVariant,
@@ -12,7 +13,7 @@ import {
 } from "@agenta/ui/table"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Skeleton, Tooltip} from "antd"
+import {Input, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
@@ -510,9 +511,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                     // Use row height to determine skeleton height (subtract padding)
                     const skeletonHeight = Math.max(24, rowHeight.heightPx - 32)
                     return (
-                        <Skeleton.Input
-                            active
-                            size="small"
+                        <Skeleton
                             className="w-full"
                             style={{height: skeletonHeight, minHeight: skeletonHeight}}
                         />
@@ -589,9 +588,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                     if (record.__isSkeleton || isShowingSkeleton) {
                         const skeletonHeight = Math.max(24, rowHeight.heightPx - 32)
                         return (
-                            <Skeleton.Input
-                                active
-                                size="small"
+                            <Skeleton
                                 className="w-full"
                                 style={{height: skeletonHeight, minHeight: skeletonHeight}}
                             />

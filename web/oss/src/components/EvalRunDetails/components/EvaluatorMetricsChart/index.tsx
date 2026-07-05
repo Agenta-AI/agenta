@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
-import {Card, Skeleton} from "antd"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {Card} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
@@ -683,7 +684,12 @@ const EvaluatorMetricsChart = ({
                 <div className="flex flex-1 px-4 py-4">
                     <div className="mt-auto h-[320px] w-full">
                         {isLoading ? (
-                            <Skeleton active className="w-full h-full" />
+                            <div className="flex w-full flex-col gap-3 w-full h-full">
+                                <Skeleton className="h-4 w-2/5" />
+                                <Skeleton className="h-3 w-full" />
+                                <Skeleton className="h-3 w-full" />
+                                <Skeleton className="h-3 w-3/5" />
+                            </div>
                         ) : hasError && !resolvedStats ? (
                             <div className="flex h-full items-center justify-center text-neutral-500">
                                 Unable to load metric data.

@@ -3,12 +3,13 @@ import {memo, useCallback, useMemo, useRef, useState} from "react"
 import {isValidElement} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {
     formatMetricDisplay,
     METRIC_PLACEHOLDER as METRIC_EMPTY_PLACEHOLDER,
 } from "@agenta/ui/cell-renderers"
 import {DownOutlined} from "@ant-design/icons"
-import {Popover, Skeleton} from "antd"
+import {Popover} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AlertCircle} from "lucide-react"
@@ -360,7 +361,7 @@ const RunMetricValue = memo(
                     {column.displayLabel ?? column.label ?? column.id}
                 </span>
                 {isLoading ? (
-                    <Skeleton.Input active size="small" style={{width: 120}} />
+                    <Skeleton className="h-6 w-40" />
                 ) : (
                     <MetricDetailsPreviewPopover
                         runId={runId}
@@ -522,7 +523,7 @@ const ScenarioColumnValue = memo(
             }
 
             const metricContent = showSkeleton ? (
-                <Skeleton.Input active size="small" style={{width: 120}} />
+                <Skeleton className="h-6 w-40" />
             ) : (
                 <MetricDetailsPreviewPopover
                     runId={runId}
@@ -559,7 +560,12 @@ const ScenarioColumnValue = memo(
 
         const renderValue = () => {
             if (showSkeleton && resolvedValue === undefined) {
-                return <Skeleton active paragraph={{rows: 1}} />
+                return (
+                    <div className="flex w-full flex-col gap-3">
+                        <Skeleton className="h-4 w-2/5" />
+                        <Skeleton className="h-3 w-3/5" />
+                    </div>
+                )
             }
 
             // Display step error if present (e.g., invocation failure)
@@ -1374,7 +1380,17 @@ export const FocusDrawerContent = ({
     }, [columnMap, descriptorMap, groups, runIndex])
 
     if (!columnResult) {
-        return <Skeleton active paragraph={{rows: 6}} />
+        return (
+            <div className="flex w-full flex-col gap-3">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/5" />
+            </div>
+        )
     }
 
     return (
@@ -1475,7 +1491,15 @@ const FocusDrawer = () => {
                     )
                 ) : (
                     <div className="p-6">
-                        <Skeleton active paragraph={{rows: 6}} />
+                        <div className="flex w-full flex-col gap-3">
+                            <Skeleton className="h-4 w-2/5" />
+                            <Skeleton className="h-3 w-full" />
+                            <Skeleton className="h-3 w-full" />
+                            <Skeleton className="h-3 w-full" />
+                            <Skeleton className="h-3 w-full" />
+                            <Skeleton className="h-3 w-full" />
+                            <Skeleton className="h-3 w-3/5" />
+                        </div>
                     </div>
                 )
             }

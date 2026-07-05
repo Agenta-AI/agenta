@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from "react"
 
-import {Skeleton} from "antd"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 
@@ -85,8 +85,8 @@ export default function QueryFiltersCell({record}: {record: RowRecord}) {
     if (isLoading) {
         return (
             <div className="flex flex-col gap-2">
-                <Skeleton.Input active size="small" block style={{height: 20}} />
-                <Skeleton.Input active size="small" block style={{height: 20}} />
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-6 w-full" />
             </div>
         )
     }

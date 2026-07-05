@@ -1,7 +1,8 @@
 import {memo, useCallback, useMemo, useRef} from "react"
 
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {CaretRight} from "@phosphor-icons/react"
-import {Menu, Skeleton, Tag, Tooltip} from "antd"
+import {Menu, Tag, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
@@ -196,12 +197,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                     const labelClassName = clsx("w-full", item.isPlaceholder && "text-gray-400")
                     const node = item.isLoading ? (
                         <span className={labelClassName}>
-                            <Skeleton.Button
-                                active
-                                size="small"
-                                block
-                                className="!h-4 !min-w-[72px]"
-                            />
+                            <Skeleton className="h-6 w-14 w-full !h-4 !min-w-[72px]" />
                         </span>
                     ) : item.link ? (
                         <Link

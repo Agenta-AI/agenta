@@ -1,4 +1,4 @@
-import {Skeleton} from "antd"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 
 import {
     sessionLatencyAtomFamily,
@@ -12,7 +12,12 @@ export const TotalLatencyCell = ({sessionId}: {sessionId: string}) => {
     const isLoading = useSessionAtomValue(sessionsLoadingAtom)
     const totalLatency = useSessionAtomValue(sessionLatencyAtomFamily(sessionId))
 
-    if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
+    if (isLoading)
+        return (
+            <div className="flex w-full flex-col gap-3">
+                <Skeleton className="h-4 w-2/5" />
+            </div>
+        )
 
     return <DurationCellDisplay ms={totalLatency} />
 }

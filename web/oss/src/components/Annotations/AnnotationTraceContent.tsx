@@ -13,7 +13,7 @@ import {memo} from "react"
 
 import type {TraceContentRendererProps} from "@agenta/annotation-ui"
 import {traceEntityAtomFamily, traceRootSpanAtomFamily} from "@agenta/entities/trace"
-import {Skeleton} from "antd"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {useAtomValue} from "jotai"
 
 import OverviewTabItem from "@/oss/components/SharedDrawers/TraceDrawer/components/TraceContent/components/OverviewTabItem"
@@ -28,7 +28,13 @@ const AnnotationTraceContent = memo(function AnnotationTraceContent({
     if (traceQuery.isPending) {
         return (
             <div className="p-4">
-                <Skeleton active paragraph={{rows: 4}} />
+                <div className="flex w-full flex-col gap-3">
+                    <Skeleton className="h-4 w-2/5" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/5" />
+                </div>
             </div>
         )
     }

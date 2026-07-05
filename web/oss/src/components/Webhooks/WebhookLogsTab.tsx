@@ -1,7 +1,8 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {bgColors, borderColors, cn, textColors} from "@agenta/ui"
-import {Empty, Skeleton} from "antd"
+import {Empty} from "antd"
 import {useAtomValue} from "jotai"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
@@ -110,7 +111,21 @@ export const WebhookLogsTab = ({subscriptionId}: {subscriptionId: string}) => {
     }, [selectedDelivery])
 
     if (isPending) {
-        return <Skeleton active paragraph={{rows: 10}} />
+        return (
+            <div className="flex w-full flex-col gap-3">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/5" />
+            </div>
+        )
     }
 
     if (!deliveries?.length) {

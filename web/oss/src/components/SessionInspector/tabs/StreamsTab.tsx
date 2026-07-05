@@ -1,10 +1,11 @@
 import {useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Descriptions, Popconfirm, Skeleton, Space, Tag} from "antd"
+import {Alert, Descriptions, Popconfirm, Space, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {isSessionStreamingAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
@@ -94,7 +95,15 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
         }
     }
 
-    if (isLoading) return <Skeleton active />
+    if (isLoading)
+        return (
+            <div className="flex w-full flex-col gap-3">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/5" />
+            </div>
+        )
     if (error) return <Alert type="error" message="Failed to load stream" showIcon />
 
     const nest = deriveNest(data?.flags)

@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
 import {getWorkflowTypeColor, workflowMolecule} from "@agenta/entities/workflow"
-import {Skeleton} from "antd"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import type {TooltipPlacement} from "antd/es/tooltip"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -65,7 +65,7 @@ export const TestsetTag = memo(
         const latestRevision = useAtomValue(latestRevisionAtom)
 
         if ((query.isPending || query.isFetching) && !query.isError) {
-            return <Skeleton.Input active size="small" style={{width: 160}} />
+            return <Skeleton className="h-6 w-40" />
         }
 
         const ref = query.data
@@ -154,7 +154,7 @@ export const EnvironmentReferenceLabel = memo(
         }
 
         if ((query.isPending || query.isFetching) && !query.isError) {
-            return <Skeleton.Input active size="small" style={{width: 140}} />
+            return <Skeleton className="h-6 w-40" />
         }
 
         const ref = query.data
@@ -300,7 +300,7 @@ export const ApplicationReferenceLabel = memo(
         }
 
         if ((query.isPending || query.isFetching) && !query.isError) {
-            return <Skeleton.Input active size="small" style={{width: 140}} />
+            return <Skeleton className="h-6 w-40" />
         }
 
         const ref = query.data
@@ -395,7 +395,7 @@ export const VariantReferenceLabel = memo(
         }
 
         if (query.isPending && !query.isError) {
-            return <Skeleton.Input active size="small" style={{width: 140}} />
+            return <Skeleton className="h-6 w-40" />
         }
 
         const hasResolvedData = data?.name || data?.slug || data?.version != null || fallbackLabel
@@ -483,7 +483,7 @@ export const VariantRevisionLabel = memo(
         }
 
         if (query.isPending && !query.isError) {
-            return <Skeleton.Input active size="small" style={{width: 140}} />
+            return <Skeleton className="h-6 w-40" />
         }
 
         // Get variant name from the variant entity, workflow data, or fallback
@@ -565,7 +565,7 @@ export const VariantReferenceText = memo(
         }
 
         if (query.isPending) {
-            return <Skeleton.Input active size="small" style={{width: 140}} />
+            return <Skeleton className="h-6 w-40" />
         }
 
         const label = data?.slug ?? revisionId
@@ -620,7 +620,7 @@ export const EvaluatorReferenceLabel = memo(
         }
 
         if ((query.isPending || query.isFetching) && !query.isError) {
-            return <Skeleton.Input active size="small" style={{width: 140}} />
+            return <Skeleton className="h-6 w-40" />
         }
 
         const ref = query.data
@@ -707,7 +707,7 @@ export const QueryReferenceLabel = memo(
         }
 
         if ((query.isPending || query.isFetching) && !query.isError) {
-            return <Skeleton.Input active size="small" style={{width: 140}} />
+            return <Skeleton className="h-6 w-40" />
         }
 
         const ref = query.data

@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
-import {Collapse, CollapseProps, Skeleton} from "antd"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {Collapse, CollapseProps} from "antd"
 import clsx from "clsx"
 
 import {TracesWithAnnotations} from "@/oss/services/observability/types"
@@ -30,7 +31,12 @@ const TraceSidePanel = ({
 
     const loadingContent = (
         <div className="px-3 py-4">
-            <Skeleton active paragraph={{rows: 4}} title={false} />
+            <div className="flex w-full flex-col gap-3">
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/5" />
+            </div>
         </div>
     )
 

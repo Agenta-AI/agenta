@@ -14,8 +14,9 @@ import {memo, useEffect, useMemo, useState} from "react"
 import type {TestcaseContentRendererProps} from "@agenta/annotation-ui"
 import {fetchTestcase} from "@agenta/entities/testcase"
 import type {Testcase} from "@agenta/entities/testcase"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {projectIdAtom} from "@agenta/shared/state"
-import {Skeleton, Space} from "antd"
+import {Space} from "antd"
 import {useAtomValue} from "jotai"
 
 import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
@@ -112,7 +113,13 @@ const AnnotationTestcaseContent = memo(function AnnotationTestcaseContent({
     if (isLoading) {
         return (
             <div className="p-4">
-                <Skeleton active paragraph={{rows: 4}} />
+                <div className="flex w-full flex-col gap-3">
+                    <Skeleton className="h-4 w-2/5" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/5" />
+                </div>
             </div>
         )
     }

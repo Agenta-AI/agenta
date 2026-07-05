@@ -1,8 +1,8 @@
 import {memo, useCallback, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {TreeStructure, Download, Sparkle, Speedometer} from "@phosphor-icons/react"
-import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
@@ -138,7 +138,15 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
     if (!columnResult) {
         return (
             <div className="p-4">
-                <Skeleton active paragraph={{rows: 6}} />
+                <div className="flex w-full flex-col gap-3">
+                    <Skeleton className="h-4 w-2/5" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/5" />
+                </div>
             </div>
         )
     }

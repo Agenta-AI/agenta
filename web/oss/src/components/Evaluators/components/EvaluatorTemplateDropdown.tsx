@@ -6,10 +6,11 @@ import {
     type EvaluatorCatalogTemplate,
 } from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Empty, Popover, Skeleton, Tabs, Tag} from "antd"
+import {Empty, Popover, Tabs, Tag} from "antd"
 import type {PopoverProps} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -94,11 +95,10 @@ const EvaluatorTemplateDropdown = ({
             return (
                 <div className="p-4 space-y-3">
                     {Array.from({length: 3}).map((_, index) => (
-                        <Skeleton
-                            key={`skeleton-${index}`}
-                            active
-                            paragraph={{rows: 1, width: ["100%"]}}
-                        />
+                        <div key={index} className="flex w-full flex-col gap-3">
+                            <Skeleton className="h-4 w-2/5" />
+                            <Skeleton className="h-3 w-3/5" />
+                        </div>
                     ))}
                 </div>
             )

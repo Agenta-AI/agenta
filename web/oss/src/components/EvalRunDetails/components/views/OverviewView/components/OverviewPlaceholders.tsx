@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {Skeleton} from "antd"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import clsx from "clsx"
 import {
     PolarAngleAxis,
@@ -171,7 +171,11 @@ export const OverviewLoadingPlaceholder = ({
                 {description ? (
                     <p className="!mb-3 text-xs text-neutral-500">{description}</p>
                 ) : null}
-                <Skeleton active paragraph={{rows: 3}} title={false} />
+                <div className="flex w-full flex-col gap-3">
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/5" />
+                </div>
             </div>
         )
     }

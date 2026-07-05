@@ -2,11 +2,12 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Input, Skeleton, Tag} from "antd"
+import {Input, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
@@ -129,7 +130,11 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
     if (isLoading) {
         return (
             <V2Card className="p-4">
-                <Skeleton active paragraph={{rows: 3}} title={false} />
+                <div className="flex w-full flex-col gap-3">
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/5" />
+                </div>
             </V2Card>
         )
     }

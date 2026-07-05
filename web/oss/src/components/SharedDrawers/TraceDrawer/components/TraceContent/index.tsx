@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {Skeleton, Splitter, Tabs, TabsProps} from "antd"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {Splitter, Tabs, TabsProps} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
@@ -19,7 +20,14 @@ import TraceTypeHeader from "./components/TraceTypeHeader"
 
 const loadingContent = (
     <div className="px-4 py-6">
-        <Skeleton active paragraph={{rows: 6}} title={false} />
+        <div className="flex w-full flex-col gap-3">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-3/5" />
+        </div>
     </div>
 )
 

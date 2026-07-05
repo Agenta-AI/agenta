@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
-import {Popover, Skeleton} from "antd"
+import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {Popover} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
@@ -101,8 +102,8 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
                 </div>
                 {isLoading ? (
                     <div className="flex flex-col gap-2">
-                        <Skeleton.Input active size="small" className="!w-full" />
-                        <Skeleton.Input active size="small" className="!w-full" />
+                        <Skeleton className="h-6 w-40 !w-full" />
+                        <Skeleton className="h-6 w-40 !w-full" />
                     </div>
                 ) : (
                     <div className="flex flex-col gap-2">
