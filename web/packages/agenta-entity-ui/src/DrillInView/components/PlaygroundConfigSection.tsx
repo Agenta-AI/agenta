@@ -949,8 +949,16 @@ function PlaygroundConfigSection({
                     ),
                 }
             } else {
-                updatedPrompt = updateConfigKey(currentPrompt, key, newValue)
-            }
+    // Migrate legacy flat prompt.model → prompt.llm_config.model
+    // so old-format prompts get upgraded on first model change.
+    const existingLlmConfig = (currentPrompt.llm_config as Record<string, unknown> | undefined) ?? {}
+    updatedPrompt = {
+        ...currentPrompt,
+        llm_config: updateConfigKey(existingLlmConfig, key, newValue),
+    }
+    // Remove legacy flat key to avoid duplicate
+    delete (updatedPrompt as Record<string, unknown>)[key]
+}
 
             dispatchUpdate(revisionId, {
                 ...parameters,
