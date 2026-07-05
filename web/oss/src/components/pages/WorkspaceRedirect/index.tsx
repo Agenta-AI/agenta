@@ -1,6 +1,6 @@
 import {useEffect, useMemo} from "react"
 
-import {Spin} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -45,7 +45,7 @@ const WorkspaceRedirect = () => {
 
     return (
         <section className="flex items-center justify-center w-full h-screen">
-            <Spin spinning={true} />
+            <Spinner />
         </section>
     )
 }

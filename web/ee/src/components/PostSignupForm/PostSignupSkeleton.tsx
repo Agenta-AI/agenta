@@ -1,4 +1,4 @@
-import {Spin} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 
 import type {Org} from "@/oss/lib/Types"
 
@@ -13,7 +13,7 @@ const PostSignupSkeleton = ({orgs}: PostSignupSkeletonProps) => {
         <>
             <PostSignupHeader orgs={orgs} />
             <div className="flex items-center justify-center w-full mt-24">
-                <Spin spinning size="large" />
+                <Spinner className="size-6" />
             </div>
         </>
     )

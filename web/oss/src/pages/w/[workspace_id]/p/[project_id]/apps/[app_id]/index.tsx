@@ -1,7 +1,7 @@
 import {useEffect} from "react"
 
 import {appWorkflowsListQueryAtom} from "@agenta/entities/workflow"
-import {Spin} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -99,7 +99,7 @@ const AppOverviewRedirect = () => {
 
     return (
         <section className="flex h-screen w-full items-center justify-center">
-            <Spin spinning={true} />
+            <Spinner />
         </section>
     )
 }

@@ -7,9 +7,9 @@
 
 import {type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {BulbOutlined} from "@ant-design/icons"
 import {Bubble, Prompts, Sender} from "@ant-design/x"
-import {Spin} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useRefinePrompt} from "../hooks/useRefinePrompt"
@@ -166,7 +166,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
                 {/* Loading indicator */}
                 {isLoading ? (
                     <div className="mt-3 flex items-center gap-2 text-[var(--ag-rgba-051729-45)]">
-                        <Spin size="small" />
+                        <Spinner className="size-3.5" />
                         <span className="text-[11px]">Refining prompt…</span>
                     </div>
                 ) : null}

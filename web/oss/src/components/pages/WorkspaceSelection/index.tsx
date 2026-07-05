@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef} from "react"
 
-import {Spin} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
@@ -92,7 +92,7 @@ const WorkspaceSelection = () => {
 
     return (
         <section className="flex items-center justify-center w-full h-screen">
-            <Spin spinning={true} />
+            <Spinner />
         </section>
     )
 }

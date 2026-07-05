@@ -13,7 +13,6 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {EntityNameWithVersion} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
-import {Spin} from "antd"
 import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -410,7 +409,7 @@ const BulkDeleteContent = ({
     if (checking) {
         return (
             <div className="flex items-center gap-3 py-6">
-                <Spin />
+                <Spinner />
                 <span>Checking if the selected item(s) can be deleted…</span>
             </div>
         )

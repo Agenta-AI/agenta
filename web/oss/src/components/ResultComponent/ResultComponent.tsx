@@ -1,7 +1,8 @@
 import {ReactNode} from "react"
 
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {CloseCircleFilled} from "@ant-design/icons"
-import {Result, Spin} from "antd"
+import {Result} from "antd"
 
 interface ResultComponentProps {
     status: ReactNode
@@ -16,7 +17,7 @@ const ResultComponent: React.FC<ResultComponentProps> = ({status, title, subtitl
             icon={status === "error" && <CloseCircleFilled className="text-[#ff4d4f]" />}
             title={<h3 className="capitalize text-lg font-semibold leading-snug">{title}</h3>}
             subTitle={subtitle}
-            extra={spinner && <Spin />}
+            extra={spinner && <Spinner />}
         />
     )
 }

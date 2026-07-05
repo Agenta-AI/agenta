@@ -1,6 +1,6 @@
 import {memo, useMemo, useCallback} from "react"
 
-import {Spin} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {useAtomValue, useSetAtom, getDefaultStore} from "jotai"
 
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
@@ -103,7 +103,7 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
     if (isRunQueryLoading) {
         return (
             <div className="flex h-full items-center justify-center">
-                <Spin size="small" />
+                <Spinner className="size-3.5" />
             </div>
         )
     }
@@ -130,7 +130,7 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
     if (isLoading) {
         return (
             <div className="flex h-full items-center justify-center">
-                <Spin size="small" />
+                <Spinner className="size-3.5" />
             </div>
         )
     }

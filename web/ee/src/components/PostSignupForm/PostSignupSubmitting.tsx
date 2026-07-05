@@ -1,4 +1,4 @@
-import {Spin} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 
 import type {Org} from "@/oss/lib/Types"
 
@@ -22,7 +22,7 @@ const PostSignupSubmitting = ({orgs}: PostSignupSubmittingProps) => {
         <>
             <PostSignupHeader orgs={orgs} />
             <div className="w-[400px] mx-auto mt-16 flex flex-col items-center gap-6 text-center">
-                <Spin size="large" />
+                <Spinner className="size-6" />
                 <div className="space-y-1">
                     <h3 className="!mb-0 text-lg font-semibold leading-snug">
                         Setting up your workspace

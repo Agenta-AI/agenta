@@ -1,6 +1,6 @@
 import {useEffect, useRef} from "react"
 
-import {Spin} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -32,7 +32,7 @@ function DeploymentsAppRedirect() {
 
     return (
         <div className="flex items-center justify-center w-full h-full min-h-[240px]">
-            <Spin />
+            <Spinner />
         </div>
     )
 }

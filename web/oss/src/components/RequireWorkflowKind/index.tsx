@@ -1,6 +1,6 @@
 import {type ReactNode} from "react"
 
-import {Spin} from "antd"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 
 import WorkflowNotFound from "@/oss/components/WorkflowNotFound"
 import {
@@ -45,7 +45,7 @@ function RequireWorkflowKind({
         return (
             (fallback as JSX.Element | null) ?? (
                 <div className="flex items-center justify-center w-full h-full min-h-[240px]">
-                    <Spin />
+                    <Spinner />
                 </div>
             )
         )

@@ -7,7 +7,7 @@ import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useQueryClient} from "@tanstack/react-query"
-import {DrawerProps, Spin} from "antd"
+import {DrawerProps} from "antd"
 import deepEqual from "fast-deep-equal"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -750,7 +750,7 @@ const PreviewAnnotateContent = ({
     if (stepsLoading) {
         return (
             <div className="flex items-center justify-center">
-                <Spin size="small" />
+                <Spinner className="size-3.5" />
             </div>
         )
     }

@@ -13,8 +13,9 @@ import {
     ToolExecutionDrawer,
 } from "@agenta/entity-ui/gatewayTool"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Play, Plus} from "@phosphor-icons/react"
-import {Collapse, Empty, Spin, Tag, Tooltip} from "antd"
+import {Collapse, Empty, Tag, Tooltip} from "antd"
 import {useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -59,7 +60,7 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
             {/* Content */}
             {isLoading ? (
                 <div className="flex justify-center py-2">
-                    <Spin size="small" />
+                    <Spinner className="size-3.5" />
                 </div>
             ) : integrationKeys.length === 0 ? (
                 <Empty
