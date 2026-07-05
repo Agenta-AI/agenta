@@ -10,6 +10,7 @@ export interface UseEvaluationRunsColumnsParams {
     onVariantNavigation: (params: {revisionId: string; appId?: string | null}) => void
     onTestsetNavigation: (testsetId: string, revisionId?: string | null) => void
     onRequestDelete: (record: EvaluationRunTableRow) => void
+    onEditEvaluation?: (record: EvaluationRunTableRow) => void
     resolveAppId: (record: EvaluationRunTableRow) => string | null
     onExportRow?: (record: EvaluationRunTableRow) => void
     rowExportingKey?: string | null

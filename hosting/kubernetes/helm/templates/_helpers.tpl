@@ -715,7 +715,7 @@ imagePullSecrets:
       optional: true
 {{- end }}
 - name: SENDGRID_FROM_ADDRESS
-  value: {{ $sendgrid.fromAddress | default "" | quote }}
+  value: {{ $sendgrid.fromEmail | default $sendgrid.fromAddress | default "" | quote }}
 {{- if $composio.apiKey }}
 - name: COMPOSIO_API_KEY
   valueFrom:
@@ -837,7 +837,7 @@ imagePullSecrets:
   value: {{ $posthog.apiUrl | quote }}
 {{- end }}
 - name: SENDGRID_FROM_ADDRESS
-  value: {{ $sendgrid.fromAddress | default "" | quote }}
+  value: {{ $sendgrid.fromEmail | default $sendgrid.fromAddress | default "" | quote }}
 - name: COMPOSIO_API_URL
   value: {{ $composio.apiUrl | default "" | quote }}
 - name: CLOUDFLARE_TURNSTILE_SITE_KEY

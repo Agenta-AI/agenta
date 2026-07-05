@@ -29,6 +29,13 @@ def _patch_ee(monkeypatch):
         "oss.src.apis.fastapi.environments.router.is_ee",
         lambda: False,
     )
+    # RBAC now enforces in both editions, so the handler's check_action_access
+    # runs regardless of is_ee(); stub it (these tests exercise commit
+    # validation, not access control).
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.environments.router.check_action_access",
+        AsyncMock(return_value=True),
+    )
 
 
 @pytest.mark.asyncio
@@ -48,7 +55,7 @@ async def test_commit_environment_revision_rejects_missing_data_and_delta(monkey
         await router.commit_environment_revision(
             _DummyRequest(),
             environment_revision_commit_request=EnvironmentRevisionCommitRequest(
-                environment_revision_commit=EnvironmentRevisionCommit(
+                environment_revision=EnvironmentRevisionCommit(
                     slug="env-slug",
                     environment_id=uuid4(),
                 )
@@ -78,7 +85,7 @@ async def test_commit_environment_revision_rejects_data_and_delta_together(monke
         await router.commit_environment_revision(
             _DummyRequest(),
             environment_revision_commit_request=EnvironmentRevisionCommitRequest(
-                environment_revision_commit=EnvironmentRevisionCommit(
+                environment_revision=EnvironmentRevisionCommit(
                     slug="env-slug",
                     environment_id=uuid4(),
                     data=EnvironmentRevisionData(),
@@ -111,7 +118,7 @@ async def test_commit_environment_revision_accepts_delta_only(monkeypatch):
     response = await router.commit_environment_revision(
         _DummyRequest(),
         environment_revision_commit_request=EnvironmentRevisionCommitRequest(
-            environment_revision_commit=EnvironmentRevisionCommit(
+            environment_revision=EnvironmentRevisionCommit(
                 slug="env-slug",
                 environment_id=uuid4(),
                 delta=EnvironmentRevisionDelta(),

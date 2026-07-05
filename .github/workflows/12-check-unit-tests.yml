@@ -88,12 +88,35 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-browsers
+          key: ${{ runner.os }}-playwright-browsers-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-browsers-
 
-      - name: Install Playwright if not cached
-        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)) && steps.restore-playwright-cache.outputs.cache-hit != 'true'
+      # System deps for chromium only (not the full webkit/firefox apt set,
+      # which pulls in the gstreamer/audio/video stack and takes ~14m). Runs
+      # every time since apt packages aren't covered by the browser cache.
+      - name: Install Playwright system deps
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
         working-directory: web/tests
-        run: pnpm exec playwright install --with-deps
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Playwright browser
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web/tests
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::playwright install chromium (attempt ${attempt}/3)"
+            if timeout 180 pnpm exec playwright install chromium; then
+              echo "::endgroup::"
+              echo "browser install succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "attempt ${attempt} stalled or failed; retrying after 5s..."
+            sleep 5
+          done
+          echo "playwright browser install failed after 3 attempts" >&2
+          exit 1
 
       - name: Run web unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)

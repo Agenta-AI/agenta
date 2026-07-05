@@ -473,6 +473,13 @@ export const VariantRevisionLabel = memo(
         const data = useAtomValue(dataAtom)
         const query = useAtomValue(queryAtom)
 
+        // Resolve the VARIANT's own label (name, then slug): SDK-created
+        // variants and revisions may carry no `name`, and the revision slug
+        // is an opaque hex.
+        const variantLabel = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.variantLabel(revisionId ?? ""), [revisionId]),
+        )
+
         if (!variantId && !revisionId) {
             return <Text type="secondary">—</Text>
         }
@@ -481,9 +488,9 @@ export const VariantRevisionLabel = memo(
             return <Skeleton.Input active size="small" style={{width: 140}} />
         }
 
-        // Get variant name from workflow data or fallback
+        // Get variant name from the variant entity, workflow data, or fallback
         // Prefer `name` over `slug` — slug can be an opaque ID on older revisions
-        const variantName = data?.name ?? data?.slug ?? fallbackVariantName ?? null
+        const variantName = variantLabel ?? data?.name ?? data?.slug ?? fallbackVariantName ?? null
 
         // Get revision number from workflow data or fallback
         const revision = data?.version ?? fallbackRevision ?? null

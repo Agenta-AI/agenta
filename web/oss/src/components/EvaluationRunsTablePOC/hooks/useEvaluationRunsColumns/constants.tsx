@@ -66,6 +66,12 @@ export const shouldUpdateEvaluatorCell = createShouldCellUpdate(
     PATH_PROJECT_ID,
 )
 export const shouldUpdateMetricCell = createShouldCellUpdate(
+    // previewMeta (steps + mappings) drives the descriptor's per-run availability
+    // (stepKeysByRunId/metricPathsByRunId). Without it, adding an evaluator whose metric
+    // column ALREADY EXISTS leaves the edited run's cell stuck "unavailable": the column
+    // descriptor merges in the new run, but antd reuses the old cell because the record's
+    // tracked paths didn't change. The reference cells track previewMeta for the same reason.
+    PATH_PREVIEW_META,
     PATH_PREVIEW_ID,
     PATH_RUN_ID,
     PATH_PROJECT_ID,

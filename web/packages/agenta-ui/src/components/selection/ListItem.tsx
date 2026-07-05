@@ -24,7 +24,7 @@ import React from "react"
 
 import {ChevronRight} from "lucide-react"
 
-import {bgColors, cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
+import {cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
 
 // ============================================================================
 // TYPES
@@ -51,6 +51,24 @@ export interface ListItemProps {
      * Optional icon
      */
     icon?: React.ReactNode
+
+    /**
+     * Node rendered before the icon/label (e.g., a selection checkbox).
+     * Click handling inside this node must stopPropagation itself so the
+     * row click (navigation/selection) is not triggered.
+     */
+    prefixNode?: React.ReactNode
+
+    /**
+     * Node rendered below the label/description block (e.g., selected-revision chips).
+     */
+    footerNode?: React.ReactNode
+
+    /**
+     * Node rendered after the label block, before the chevron (e.g., a type tag).
+     * Vertically centered against the whole row, independent of the label lines.
+     */
+    suffixNode?: React.ReactNode
 
     /**
      * Whether the item can be navigated into
@@ -105,6 +123,9 @@ export function ListItem({
     labelNode,
     description,
     icon,
+    prefixNode,
+    footerNode,
+    suffixNode,
     hasChildren = false,
     isSelectable = false,
     isSelected = false,
@@ -131,10 +152,10 @@ export function ListItem({
         }
     }
 
-    // Build class names for different states based on design tokens
-    // Default: no bg, textColors.secondary (colorTextSecondary)
-    // Hover: bgColors.subtle, textColors.primary (colorText)
-    // Selected: bgColors.subtle, textColors.primary, border-r-2 border-primary
+    // Hover/selected use overlay tokens (--ag-rgba-051729-*: dark-alpha in light mode,
+    // white-alpha in dark mode) rather than bgColors.subtle (bg-zinc-1). In dark mode
+    // zinc-1 maps to the elevated surface color (== popover/drawer bg), so a row inside a
+    // popover got no visible hover/selected highlight. Overlays stay visible on any surface.
     const baseClasses = cn(
         flexLayouts.rowCenter,
         justifyClasses.between,
@@ -145,15 +166,14 @@ export function ListItem({
         ? "opacity-50 cursor-not-allowed"
         : isSelected
           ? cn(
-                bgColors.subtle,
                 "cursor-pointer",
-                bgColors.hoverState,
+                "bg-[var(--ag-rgba-051729-06)] hover:bg-[var(--ag-rgba-051729-08)]",
                 textColors.primary,
                 "border-r-2 border-primary",
             )
           : isHovered
-            ? cn(bgColors.subtle, "cursor-pointer", textColors.primary)
-            : cn("cursor-pointer", bgColors.hoverSubtle, textColors.iconHover)
+            ? cn("cursor-pointer", "bg-[var(--ag-rgba-051729-06)]", textColors.primary)
+            : cn("cursor-pointer", "hover:bg-[var(--ag-rgba-051729-04)]", textColors.iconHover)
 
     return (
         <div
@@ -166,6 +186,9 @@ export function ListItem({
             aria-selected={isSelected}
         >
             <div className={cn(flexLayouts.rowCenter, gapClasses.md, "flex-1 min-w-0")}>
+                {prefixNode && (
+                    <span className="flex-shrink-0 flex items-center">{prefixNode}</span>
+                )}
                 {icon && <span className={cn("flex-shrink-0", textColors.tertiary)}>{icon}</span>}
                 <div className="flex-1 min-w-0">
                     <div className="truncate" title={label}>
@@ -174,8 +197,13 @@ export function ListItem({
                     {description && (
                         <div className={cn(textColors.tertiary, "truncate")}>{description}</div>
                     )}
+                    {footerNode}
                 </div>
             </div>
+
+            {suffixNode && (
+                <span className="flex-shrink-0 flex items-center ml-2">{suffixNode}</span>
+            )}
 
             {/* Show chevron for items with children (indicates popover/drill-down available) */}
             {hasChildren && (

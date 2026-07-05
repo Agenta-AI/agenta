@@ -21,7 +21,7 @@ Looking to deploy on Kubernetes instead? See the [Deploy on Kubernetes](/self-ho
 ```bash
 git clone --depth 1 --filter=blob:none --sparse https://github.com/Agenta-AI/agenta
 cd agenta
-git sparse-checkout set hosting/docker-compose
+git sparse-checkout set hosting/docker-compose api/oss/databases/postgres api/ee/databases/postgres
 ```
 
 2. Copy configuration and, optionally, edit it:
@@ -35,6 +35,10 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 ```
 
 4. Access Agenta at `http://localhost`.
+
+:::info Sign-ups are open by default
+Anyone who can reach your instance can sign up and gets their own organization. If the instance is exposed beyond a trusted network, see [Restrict Sign-ups and Organization Creation](/self-host/guides/restrict-organization-creation).
+:::
 
 ## Using a Custom Port
 

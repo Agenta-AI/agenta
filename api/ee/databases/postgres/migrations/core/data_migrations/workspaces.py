@@ -4,13 +4,11 @@ import click
 from sqlalchemy.future import select
 from sqlalchemy import delete, Connection, insert, func
 
-from oss.src.models.db_models import (
-    WorkspaceDB,
-    ProjectDB,
-)
-from ee.src.models.db_models import (
-    WorkspaceMemberDB,
-    ProjectMemberDB,
+from ee.databases.postgres.migrations.core.deprecated_models import (
+    DeprecatedWorkspaceDB as WorkspaceDB,
+    DeprecatedProjectDB as ProjectDB,
+    DeprecatedWorkspaceMemberDB as WorkspaceMemberDB,
+    DeprecatedProjectMemberDB as ProjectMemberDB,
 )
 
 BATCH_SIZE = 200

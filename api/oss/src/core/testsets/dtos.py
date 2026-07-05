@@ -19,11 +19,13 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    ArtifactFork,
     #
     Variant,
     VariantCreate,
     VariantEdit,
     VariantQuery,
+    VariantFork,
     #
     Revision,
     RevisionsLog,
@@ -31,6 +33,7 @@ from oss.src.core.git.dtos import (
     RevisionEdit,
     RevisionQuery,
     RevisionCommit,
+    RevisionFork,
 )
 from oss.src.core.testcases.dtos import (
     Testcase,
@@ -227,6 +230,48 @@ class TestsetRevisionDelta(BaseModel):
     rows: Optional[TestsetRevisionDeltaRows] = None
     # Column-level operations
     columns: Optional[TestsetRevisionDeltaColumns] = None
+
+
+class TestsetRevisionFork(RevisionFork):
+    data: Optional[TestsetRevisionData] = None
+
+
+class TestsetVariantFork(VariantFork):
+    pass
+
+
+class TestsetVariantForkAlias(AliasConfig):
+    testset_variant: Optional[TestsetVariantFork] = None
+
+    variant: Optional[VariantFork] = Field(
+        default=None,
+        exclude=True,
+        alias="testset_variant",
+    )
+
+
+class TestsetRevisionForkAlias(AliasConfig):
+    testset_revision: Optional[TestsetRevisionFork] = None
+
+    revision: Optional[RevisionFork] = Field(
+        default=None,
+        exclude=True,
+        alias="testset_revision",
+    )
+
+
+class TestsetFork(
+    ArtifactFork,
+    TestsetVariantIdAlias,
+    TestsetRevisionIdAlias,
+    TestsetVariantForkAlias,
+    TestsetRevisionForkAlias,
+):
+    def model_post_init(self, __context) -> None:
+        sync_alias("testset_variant", "variant", self)
+        sync_alias("testset_revision", "revision", self)
+        sync_alias("testset_variant_id", "variant_id", self)
+        sync_alias("testset_revision_id", "revision_id", self)
 
 
 class TestsetRevisionCommit(

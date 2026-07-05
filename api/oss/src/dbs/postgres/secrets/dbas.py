@@ -3,13 +3,13 @@ from sqlalchemy import Column, Enum as SQLEnum, UUID
 
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.dbs.postgres.shared.dbas import (
-    LegacyLifecycleDBA,
+    LifecycleDBA,
     HeaderDBA,
 )
 from oss.src.dbs.postgres.secrets.custom_fields import PGPString
 
 
-class SecretsDBA(LegacyLifecycleDBA, HeaderDBA):
+class SecretsDBA(LifecycleDBA, HeaderDBA):
     __abstract__ = True
 
     id = Column(

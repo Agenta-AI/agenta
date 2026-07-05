@@ -18,7 +18,7 @@
         "@agentaai/api-client": "workspace:../agenta-api-client"
     },
     "devDependencies": {
-        "@types/node": "^20.8.10",
+        "@types/node": "^20.19.20",
         "typescript": "^5.9.3"
     }
 }

@@ -3,7 +3,6 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, status, Depends, HTTPException
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
@@ -17,8 +16,6 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     EvaluatorRevisionCommit,
-    EvaluatorRevisionData,
-    #
     SimpleEvaluatorQuery,
     SimpleEvaluatorQueryFlags,
 )
@@ -38,7 +35,7 @@ from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorCreateRequest,
     EvaluatorEditRequest,
     EvaluatorQueryRequest,
-    EvaluatorForkRequest,
+    EvaluatorVariantForkRequest,
     EvaluatorRevisionsLogRequest,
     EvaluatorResponse,
     EvaluatorsResponse,
@@ -98,12 +95,9 @@ from oss.src.resources.workflows.catalog import (
     get_workflow_catalog_preset,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)
@@ -600,13 +594,12 @@ class EvaluatorsRouter:
         see `POST /simple/evaluators/`. See the Versioning guide for
         commit semantics.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator = await self.evaluators_service.create_evaluator(
             project_id=UUID(request.state.project_id),
@@ -636,13 +629,12 @@ class EvaluatorsRouter:
         without variant or revision data. Use the variant and revision
         endpoints to retrieve those layers.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator = await self.evaluators_service.fetch_evaluator(
             project_id=UUID(request.state.project_id),
@@ -671,13 +663,12 @@ class EvaluatorsRouter:
         evaluator behavior, commit a new revision on the variant — see
         `/evaluators/revisions/commit`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(evaluator_id) != str(evaluator_edit_request.evaluator.id):
             return EvaluatorResponse()
@@ -728,13 +719,12 @@ class EvaluatorsRouter:
         `/query` responses unless `include_archived=true`. Revision IDs
         remain resolvable so historical traces stay intact.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator = await self.evaluators_service.archive_evaluator(
             project_id=UUID(request.state.project_id),
@@ -760,13 +750,12 @@ class EvaluatorsRouter:
         Clears `deleted_at` on the evaluator so it re-appears in `/query`
         responses.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator = await self.evaluators_service.unarchive_evaluator(
             project_id=UUID(request.state.project_id),
@@ -795,13 +784,12 @@ class EvaluatorsRouter:
         to list all evaluators in the project. See the Query Pattern
         guide.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluators = await self.evaluators_service.query_evaluators(
             project_id=UUID(request.state.project_id),
@@ -837,13 +825,12 @@ class EvaluatorsRouter:
         revisions committed to this variant do not touch other variants.
         See the Versioning guide.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_variant = await self.evaluators_service.create_evaluator_variant(
             project_id=UUID(request.state.project_id),
@@ -872,13 +859,12 @@ class EvaluatorsRouter:
         committed revisions. Use `/evaluators/revisions/retrieve` to
         read the variant's current revision payload.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
             project_id=UUID(request.state.project_id),
@@ -908,13 +894,12 @@ class EvaluatorsRouter:
         behavior commit a new revision via
         `/evaluators/revisions/commit`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(evaluator_variant_id) != str(
             evaluator_variant_edit_request.evaluator_variant.id
@@ -948,13 +933,12 @@ class EvaluatorsRouter:
         by id; they are hidden from `/query` unless the caller sets
         `include_archived=true`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_variant = await self.evaluators_service.archive_evaluator_variant(
             project_id=UUID(request.state.project_id),
@@ -978,13 +962,12 @@ class EvaluatorsRouter:
         evaluator_variant_id: UUID,
     ) -> EvaluatorVariantResponse:
         """Restore a soft-deleted evaluator variant."""
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_variant = await self.evaluators_service.unarchive_evaluator_variant(
             project_id=UUID(request.state.project_id),
@@ -1015,13 +998,12 @@ class EvaluatorsRouter:
         the two are merged. Use `evaluator_refs` to scope to one or more
         evaluators, or `evaluator_variant_refs` for specific variants.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         body_json = None
         query_request_body = None
@@ -1070,7 +1052,7 @@ class EvaluatorsRouter:
         *,
         evaluator_variant_id: Optional[UUID] = None,
         #
-        evaluator_variant_fork_request: EvaluatorForkRequest,
+        evaluator_variant_fork_request: EvaluatorVariantForkRequest,
     ):
         """Fork an evaluator variant into a new variant.
 
@@ -1079,31 +1061,33 @@ class EvaluatorsRouter:
         The returned variant has a fresh id and slug but inherits
         lineage metadata from its source.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        fork_request = evaluator_variant_fork_request.evaluator
-
+        evaluator_variant_ref = evaluator_variant_fork_request.evaluator_variant_ref
         if evaluator_variant_id:
             if (
-                fork_request.evaluator_variant_id
-                and fork_request.evaluator_variant_id != evaluator_variant_id
+                evaluator_variant_ref.id
+                and evaluator_variant_ref.id != evaluator_variant_id
             ):
-                return EvaluatorVariantResponse()
-
-            if not fork_request.evaluator_variant_id:
-                fork_request.evaluator_variant_id = evaluator_variant_id
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Evaluator variant ID in path does not match evaluator_variant_ref.id in request body.",
+                )
+            if not evaluator_variant_ref.id:
+                evaluator_variant_ref = Reference(id=evaluator_variant_id)
 
         evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_fork=fork_request,
+            evaluator_variant_fork=evaluator_variant_fork_request.evaluator_variant,
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_variant_fork_request.evaluator_revision_ref,
         )
 
         evaluator_variant_response = EvaluatorVariantResponse(
@@ -1132,19 +1116,18 @@ class EvaluatorsRouter:
         new commit on the environment revision. See the Evaluators
         guide for the deployment model.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if not any(
             (
@@ -1295,13 +1278,12 @@ class EvaluatorsRouter:
         Pass `resolve=true` to expand embedded references on the
         returned payload.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_ref = evaluator_revision_retrieve_request.evaluator_ref
         evaluator_variant_ref = (
@@ -1427,13 +1409,12 @@ class EvaluatorsRouter:
         flow. This endpoint commits an initial revision with the `initial`
         guard, preventing duplicate initial revisions for the same variant.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_revision = await self.evaluators_service.commit_evaluator_revision(
             project_id=UUID(request.state.project_id),
@@ -1470,13 +1451,12 @@ class EvaluatorsRouter:
         variant without knowing its id, use
         `/evaluators/revisions/retrieve`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
             project_id=UUID(request.state.project_id),
@@ -1514,13 +1494,12 @@ class EvaluatorsRouter:
         for metadata fields only (description, tags, meta). To change
         evaluator behavior, commit a new revision instead.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(evaluator_revision_id) != str(
             evaluator_revision_edit_request.evaluator_revision.id
@@ -1551,13 +1530,12 @@ class EvaluatorsRouter:
         Archived revisions remain resolvable by id but are excluded from
         revision logs and queries unless `include_archived=true`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_revision = await self.evaluators_service.archive_evaluator_revision(
             project_id=UUID(request.state.project_id),
@@ -1579,13 +1557,12 @@ class EvaluatorsRouter:
         evaluator_revision_id: UUID,
     ) -> EvaluatorRevisionResponse:
         """Restore a soft-deleted evaluator revision."""
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_revision = await self.evaluators_service.unarchive_evaluator_revision(
             project_id=UUID(request.state.project_id),
@@ -1611,16 +1588,14 @@ class EvaluatorsRouter:
 
         Returns revision payloads. Use `evaluator_refs`,
         `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
-        the query. Pass `resolve=true` to expand embedded references on
-        each revision's `data`.
+        the query.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_revisions = await self.evaluators_service.query_evaluator_revisions(
             project_id=UUID(request.state.project_id),
@@ -1635,23 +1610,6 @@ class EvaluatorsRouter:
             #
             windowing=evaluator_revision_query_request.windowing,
         )
-
-        # Optionally resolve embeds for all revisions if requested
-        if evaluator_revisions and evaluator_revision_query_request.resolve:
-            embeds_service = self.evaluators_service.embeds_service
-
-            for revision in evaluator_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = EvaluatorRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
 
         response = EvaluatorRevisionsResponse(
             count=len(evaluator_revisions),
@@ -1681,19 +1639,18 @@ class EvaluatorsRouter:
         optional `message`, and the revision `data` (handler uri,
         schemas, parameters). A committed revision is immutable.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_revision = await self.evaluators_service.commit_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision_commit,
+            evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision,
         )
 
         response = EvaluatorRevisionResponse(
@@ -1718,18 +1675,17 @@ class EvaluatorsRouter:
         an evaluator, variant, or revision reference. Use the retrieve
         endpoint to fetch a specific revision's full payload.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluator_revisions = await self.evaluators_service.log_evaluator_revisions(
             project_id=UUID(request.state.project_id),
             #
-            evaluator_revisions_log=evaluator_revisions_log_request.evaluator,
+            evaluator_revisions_log=evaluator_revisions_log_request.evaluator_revisions,
         )
 
         revisions_response = EvaluatorRevisionsResponse(
@@ -1762,13 +1718,12 @@ class EvaluatorsRouter:
         The response includes a `resolution_info` block with counts,
         depth reached, and errors according to `error_policy`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         result = await self.evaluators_service.resolve_evaluator_revision(
             project_id=UUID(request.state.project_id),
@@ -1776,6 +1731,8 @@ class EvaluatorsRouter:
             evaluator_ref=evaluator_revision_resolve_request.evaluator_ref,
             evaluator_variant_ref=evaluator_revision_resolve_request.evaluator_variant_ref,
             evaluator_revision_ref=evaluator_revision_resolve_request.evaluator_revision_ref,
+            #
+            evaluator_revision=evaluator_revision_resolve_request.evaluator_revision,
             #
             max_depth=evaluator_revision_resolve_request.max_depth or 10,
             max_embeds=evaluator_revision_resolve_request.max_embeds or 100,
@@ -1788,15 +1745,18 @@ class EvaluatorsRouter:
             return EvaluatorRevisionResolveResponse()
 
         evaluator_revision, resolution_info = result
+        retrieval_info = None
+        if evaluator_revision_resolve_request.evaluator_revision is None:
+            retrieval_info = build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+            )
 
         return EvaluatorRevisionResolveResponse(
             count=1,
             evaluator_revision=evaluator_revision,
             resolution_info=resolution_info,
-            retrieval_info=build_retrieval_info(
-                revision=evaluator_revision,
-                entity_type="evaluator",
-            ),
+            retrieval_info=retrieval_info,
         )
 
 
@@ -1905,13 +1865,12 @@ class SimpleEvaluatorsRouter:
         (latest revision merged into `data`). Use this when you do not
         need to manage variants or revisions directly.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_evaluator = await self.simple_evaluators_service.create(
             project_id=UUID(request.state.project_id),
@@ -1942,13 +1901,12 @@ class SimpleEvaluatorsRouter:
         Returns the flat evaluator record including its current variant
         and revision ids and the merged `data` payload.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_evaluator = await self.simple_evaluators_service.fetch(
             project_id=UUID(request.state.project_id),
@@ -1978,13 +1936,12 @@ class SimpleEvaluatorsRouter:
         revision on the evaluator's variant. Renaming is temporarily
         disabled and returns 400.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(evaluator_id) != str(simple_evaluator_edit_request.evaluator.id):
             return SimpleEvaluatorResponse()
@@ -2036,13 +1993,12 @@ class SimpleEvaluatorsRouter:
         Archives the underlying artifact. Historical traces that
         reference specific revision ids remain resolvable.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_evaluator = await self.simple_evaluators_service.archive(
             project_id=UUID(request.state.project_id),
@@ -2066,13 +2022,12 @@ class SimpleEvaluatorsRouter:
         evaluator_id: UUID,
     ) -> SimpleEvaluatorResponse:
         """Restore a soft-deleted evaluator via the simple surface."""
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_evaluator = await self.simple_evaluators_service.unarchive(
             project_id=UUID(request.state.project_id),
@@ -2129,13 +2084,12 @@ class SimpleEvaluatorsRouter:
         list all evaluators in the project. See the Query Pattern
         guide.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         simple_evaluators = await self.simple_evaluators_service.query(
             project_id=UUID(request.state.project_id),
@@ -2162,7 +2116,7 @@ class SimpleEvaluatorsRouter:
         self,
         request: Request,
         *,
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> EvaluatorTemplatesResponse:
         """List the legacy built-in evaluator templates.
 

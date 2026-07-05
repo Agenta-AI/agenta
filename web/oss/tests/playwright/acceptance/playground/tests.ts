@@ -76,6 +76,36 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
             await expect(page.getByRole("button", {name: "Run", exact: true}).first()).toBeVisible({
                 timeout: 30000,
             })
+
+            // Wait for the playground to finish hydrating: at least one variable-card
+            // input or prompt editor must be visible, and no loading spinners should
+            // remain. Without this guard, selectTestModel / input locators can race
+            // against components that are still mounting after the Run button appears.
+            await expect
+                .poll(
+                    async () => {
+                        const hasInput =
+                            (await page
+                                .locator(
+                                    ".agenta-variable-card, .agenta-shared-editor [role='textbox']",
+                                )
+                                .first()
+                                .isVisible()
+                                .catch(() => false)) ||
+                            (await page
+                                .locator(".agenta-shared-editor [role='textbox']")
+                                .first()
+                                .isVisible()
+                                .catch(() => false))
+                        const hasSpinner = await page
+                            .locator(".ant-spin-spinning")
+                            .isVisible()
+                            .catch(() => false)
+                        return hasInput && !hasSpinner
+                    },
+                    {timeout: 20000},
+                )
+                .toBe(true)
         })
     },
 
@@ -92,9 +122,8 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await expect(typeof message).toBe("string")
 
                 // 2. Find out the empty textbox
-                const textboxes = page.locator(
-                    '.agenta-shared-editor:has(div:text-is("Enter a value")) [role="textbox"]',
-                )
+                // VariableCard renders antd TextArea (<textarea>), not SharedEditor.
+                const textboxes = page.locator(".agenta-variable-card textarea:placeholder-shown")
                 const targetTextbox = textboxes.first()
 
                 await targetTextbox.scrollIntoViewIfNeeded()
@@ -146,10 +175,34 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 const message = messages[i]
                 await expect(typeof message).toBe("string")
 
-                // 2. Find out the empty chat textbox
-                const targetTextbox = page.locator(
-                    '.agenta-shared-editor:has(div:text-is("Type your message\u2026")) [role="textbox"]',
-                )
+                // 2. Find the empty chat message textbox.
+                // Placeholder-based selectors ("Type your message\u2026" / "Enter message...") only
+                // work when the editor is empty AND in rich-text mode. When the persisted
+                // messageViewModeAtom is "text" (the default), Lexical switches to code/
+                // markdown-source mode \u2014 the editor is no longer empty from Lexical's
+                // perspective (it contains a CodeNode), so the placeholder div is not
+                // rendered. Use the last .editor-input[role="textbox"] instead: in the
+                // chat playground the user-message input is always the last editable editor.
+                const getChatEditorLocator = () =>
+                    page.locator('.agenta-shared-editor .editor-input[role="textbox"]').last()
+
+                let targetTextbox = getChatEditorLocator()
+
+                // If no editor is visible (empty messages array / json mode), click
+                // "Message" / "Add message" to create an initial user turn, then re-query.
+                const editorVisible = await targetTextbox
+                    .isVisible({timeout: 5000})
+                    .catch(() => false)
+                if (!editorVisible) {
+                    const addMsgButton = page
+                        .getByRole("button", {name: /^(Message|Add message)$/i})
+                        .first()
+                    if (await addMsgButton.isVisible({timeout: 5000}).catch(() => false)) {
+                        await addMsgButton.click()
+                        await expect(getChatEditorLocator()).toBeVisible({timeout: 10000})
+                    }
+                    targetTextbox = getChatEditorLocator()
+                }
 
                 await targetTextbox.scrollIntoViewIfNeeded()
                 await targetTextbox.click({force: true})
@@ -159,7 +212,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
                 await waitForSuccessfulRun(
                     async () => {
-                        await runButtons.click({force: true})
+                        await runButtons.first().click({force: true})
                     },
                     async () => {
                         return await apiHelpers.waitForApiResponse<Record<string, any>>({
@@ -188,26 +241,46 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 expect(typeof prompt).toBe("string")
                 expect(typeof role).toBe("string")
 
-                // 2. Click on the message button to create a new prompt
-                await page.getByRole("button", {name: "Message"}).first().click()
+                // 2. Click on the message button to create a new prompt slot.
+                // Scope role-selector lookup to the prompt editor that owns the clicked
+                // Message button. The chat-turn controls also have a Message button and
+                // .message-user-select controls, and some are intentionally disabled; a global
+                // nth() can land on those instead of the newly-added prompt-template message.
+                const roleButtonSelector = ".message-user-select"
+                const messageButton = page.getByRole("button", {name: "Message"}).first()
+                const promptToolbar = messageButton.locator(
+                    'xpath=ancestor::*[.//*[contains(normalize-space(.), "Prompt Syntax")]][1]',
+                )
+                const promptEditor = promptToolbar.locator("xpath=..")
+                const roleButtons = promptEditor.locator(roleButtonSelector)
+                const msgCountBefore = await roleButtons.count()
 
-                // 3. Find the empty editor input
-                const emptyEditorLocator = page
-                    .locator(
-                        `.agenta-shared-editor .editor-input[role="textbox"]:has(p:empty), ` +
-                            `.agenta-shared-editor .editor-input[role="textbox"]:has(p:has(br:only-child))`,
-                    )
-                    .first()
+                await messageButton.click()
 
-                await expect(emptyEditorLocator).toBeVisible()
+                // 3. Wait for the newly added role selector to appear.
+                await expect
+                    .poll(async () => roleButtons.count(), {timeout: 15000})
+                    .toBeGreaterThan(msgCountBefore)
 
-                // Get the parent agenta-shared-editor element
-                const editorContainer = emptyEditorLocator.locator(
+                // The new role button is always appended last in the template section.
+                const roleButton = roleButtons.nth(msgCountBefore)
+
+                // Wait for the role button to be enabled (may be briefly disabled while the
+                // ChatMessageList state settles after inserting the new message).
+                await expect(roleButton).toBeEnabled({timeout: 15000})
+
+                // Locate the text editor inside the same agenta-shared-editor container as
+                // the role button so typing lands in the correct slot.
+                const editorContainer = roleButton.locator(
                     'xpath=ancestor::div[contains(@class, "agenta-shared-editor")]',
                 )
+                const emptyEditorLocator = editorContainer
+                    .locator('.editor-input[role="textbox"]')
+                    .first()
 
-                // Click the role button and select the new role
-                const roleButton = editorContainer.getByRole("button").first()
+                await expect(emptyEditorLocator).toBeVisible({timeout: 10000})
+
+                // 4. Select the role
                 await roleButton.click()
 
                 // Wait for the dropdown to render and become stable, then click the menu item
@@ -216,11 +289,12 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await menuItem.scrollIntoViewIfNeeded()
                 await menuItem.click()
 
-                // 4. Add the prompt
+                // 5. Add the prompt
+                await emptyEditorLocator.scrollIntoViewIfNeeded()
                 await emptyEditorLocator.click()
                 await emptyEditorLocator.pressSequentially(prompt, {delay: 50})
 
-                // 5. Verify the prompt is added
+                // 6. Verify the prompt is added
                 await expect(page.getByText(prompt).first()).toBeVisible()
             }
         })
@@ -273,7 +347,10 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 }
 
                 // 1. Click on the save button
-                const commitButton = page.getByRole("button", {name: "Commit"})
+                const commitButton = page
+                    .locator("button.ant-btn-primary")
+                    .filter({hasText: "Commit"})
+                    .first()
                 const isCommitButtonDisabled = await commitButton.isDisabled()
 
                 if (!isCommitButtonDisabled) {

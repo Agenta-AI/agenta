@@ -122,7 +122,25 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             maxWidth: 400,
             render: (_, record) => {
                 const outputs = getTraceOutputs(record)
+                const exception = record.events?.find((event) => event.name === "exception")
                 const {data: sanitizedOutputs} = sanitizeDataWithBlobUrls(outputs)
+
+                if (!outputs && exception) {
+                    const exceptionMessage =
+                        (exception.attributes?.["exception.message"] as string) ||
+                        (exception.attributes?.["exception.type"] as string) ||
+                        "Exception"
+                    return (
+                        <SmartCellContent
+                            value={exceptionMessage}
+                            keyPrefix={`trace-output-${record.span_id}`}
+                            maxLines={4}
+                            chatPreference="output"
+                            className="h-[112px] overflow-hidden text-red-500"
+                        />
+                    )
+                }
+
                 return (
                     <SmartCellContent
                         value={sanitizedOutputs}

@@ -40,7 +40,6 @@ import {
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import type {Getter, Setter} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 
 import type {SnapshotLoadableConnection, SnapshotLocalTestset} from "../../snapshot"
 import {outputConnectionsAtom} from "../atoms/connections"
@@ -51,6 +50,7 @@ import {
     extraColumnsAtom,
     hasMultipleNodesAtom,
     mappingModalOpenAtom,
+    playgroundStoreAtom,
     playgroundDispatchAtom,
     playgroundNodesAtom,
     selectedNodeIdAtom,
@@ -85,6 +85,7 @@ import {
 import {pruneDanglingConnections} from "../helpers/connectionGraph"
 import {
     collectDownstreamReferencedColumns,
+    collectTestsetServerColumns,
     reconcileRowDataForEntity,
     resolveEntityInputContract,
 } from "../helpers/entityInputContract"
@@ -361,7 +362,7 @@ const connectDownstreamNodeAtom = atom(
         // For downstream entities, eagerly subscribe to the molecule's query atom
         // so the per-ID fetch fires immediately.
         if (entity.type === "workflow") {
-            const store = getDefaultStore()
+            const store = get(playgroundStoreAtom)
             const unsub = store.sub(workflowMolecule.selectors.data(entity.id), () => {})
             // Unsubscribe after a generous window — the query cache keeps the data alive.
             setTimeout(() => unsub(), 60_000)
@@ -2149,24 +2150,23 @@ function relinkLoadableSessions(
         set(executionStateAtomFamily(newLoadableId), nextExecState)
         set(executionStateAtomFamily(oldLoadableId), createInitialExecutionState())
 
-        // Also migrate row-level execution results stored on the loadable
-        // state itself. These render the per-row output cells; leaving them
-        // behind makes the just-committed revision look like it never ran.
-        // `linkToRunnable` will overwrite linkedRunnable* immediately after
-        // this, so we don't touch those fields here — only the
-        // execution-output map needs to move.
-        const oldLoadableState = get(loadableStateAtomFamily(oldLoadableId))
-        if (Object.keys(oldLoadableState.executionResults).length > 0) {
-            const newLoadableState = get(loadableStateAtomFamily(newLoadableId))
-            set(loadableStateAtomFamily(newLoadableId), {
-                ...newLoadableState,
-                executionResults: oldLoadableState.executionResults,
-            })
-            set(loadableStateAtomFamily(oldLoadableId), {
-                ...oldLoadableState,
-                executionResults: {},
-            })
-        }
+        // The loadable ID is anchored to the primary revision, so an anchor
+        // commit must move the whole loadable context. Migrating only execution
+        // results drops connectedSourceId and makes the connected testset appear
+        // disconnected under the new revision.
+        const oldLoadableStateAtom = loadableStateAtomFamily(oldLoadableId)
+        const oldLoadableState = get(oldLoadableStateAtom)
+        set(loadableStateAtomFamily(newLoadableId), {
+            ...oldLoadableState,
+            linkedRunnableId: newEntityId,
+            hiddenTestcaseIds: new Set(oldLoadableState.hiddenTestcaseIds),
+            disabledOutputMappingRowIds: new Set(oldLoadableState.disabledOutputMappingRowIds),
+        })
+
+        // Evict the old family key so future lookups receive fresh default state.
+        // Reset the captured atom as well for any subscribers that still hold it.
+        loadableStateAtomFamily.remove(oldLoadableId)
+        set(oldLoadableStateAtom, get(loadableStateAtomFamily(oldLoadableId)))
     } else if (execRewrote) {
         set(executionStateAtomFamily(oldLoadableId), nextExecState)
     }
@@ -2218,6 +2218,13 @@ function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string):
     if (!Array.isArray(displayRowIds) || displayRowIds.length === 0) return "noop"
 
     const protectedColumns = collectDownstreamReferencedColumns(get, get(playgroundNodesAtom))
+    // The synced test set's own columns are intentional data, not stale
+    // leftovers — keep them through the swap clean (#4647). Test-set-scoped
+    // (union across all server rows), so rows that joined the test set
+    // locally are covered too; same value for every row, hence hoisted.
+    for (const column of collectTestsetServerColumns(get)) {
+        protectedColumns.add(column)
+    }
 
     const updates: {id: string; updates: {data: Record<string, unknown>}}[] = []
 
@@ -2271,7 +2278,7 @@ const reconcileRowsToPrimaryAtom = atom(null, (get, set) => {
     const entityLoaded = get(workflowMolecule.selectors.data(entityId)) != null
     if (entityLoaded) return
 
-    const store = getDefaultStore()
+    const store = get(playgroundStoreAtom)
     const unsub = store.sub(workflowMolecule.selectors.inputPorts(entityId), () => {
         const retryStatus = pruneTestcaseRowsForEntity(store.get, store.set, entityId)
         const nowLoaded = store.get(workflowMolecule.selectors.data(entityId)) != null

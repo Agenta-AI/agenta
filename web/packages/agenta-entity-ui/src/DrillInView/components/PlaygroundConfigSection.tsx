@@ -20,6 +20,7 @@ import {
     getSchemaAtPath as getSchemaAtPathUtil,
 } from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import type {Workflow} from "@agenta/entities/workflow"
 import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema, getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
@@ -33,14 +34,21 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowLeft, CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
-import {Button, Popover, Tabs, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Popover, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 
-import {getModelSchema, getLLMConfigValue, getLLMConfigProperties} from "../SchemaControls"
+import {
+    getModelSchema,
+    getLLMConfigValue,
+    getLLMConfigProperties,
+    HookConfigControl,
+    CodeConfigControl,
+    SchemasConfigControl,
+} from "../SchemaControls"
 import {feedbackConfigModeAtomFamily} from "../SchemaControls/FeedbackConfigurationControl"
 import {
     validateConfigAgainstSchema,
@@ -287,13 +295,108 @@ function memoAtom<T>(factory: (id: string) => Atom<T>): (id: string) => Atom<T> 
 // DEFAULT ADAPTER (workflowMolecule — direct molecule access)
 // ============================================================================
 
+const RUNTIME_SELECT_OPTIONS = ["python", "typescript", "javascript"].map((value) => ({
+    label: <span className="capitalize">{value}</span>,
+    value,
+}))
+
+// Virtual section keys for sibling data fields; `["hook","url"]` maps to `data.url`.
+const SIBLING_GROUPS = {
+    hook: ["url", "headers"],
+    code: ["script", "runtime"],
+    schemas: ["parameters", "inputs", "outputs"],
+} as const
+type SiblingGroupKey = keyof typeof SIBLING_GROUPS
+const SIBLING_GROUP_KEYS = Object.keys(SIBLING_GROUPS) as SiblingGroupKey[]
+
+function isSiblingGroupKey(key: unknown): key is SiblingGroupKey {
+    return typeof key === "string" && key in SIBLING_GROUPS
+}
+
+// custom:hook → hook group, custom:code → code group (uri = provider:kind:key:version).
+function allowedSiblingGroup(uri: unknown): SiblingGroupKey | null {
+    if (typeof uri !== "string") return null
+    const [, kind, key] = uri.split(":")
+    if (kind !== "custom") return null
+    return isSiblingGroupKey(key) ? key : null
+}
+
+// Editable schemas (Parameters/Inputs/Outputs) belong only to custom workflows; legacy
+// builtin evaluators carry a fixed, server-owned schema that must not be edited here.
+function isCustomWorkflowUri(uri: unknown): boolean {
+    if (typeof uri !== "string") return false
+    return uri.split(":")[1] === "custom"
+}
+
+// Adapter data: `parameters` + one sibling group (hook/code) as a single section.
+function mergeSiblingFields(
+    config: Record<string, unknown> | null,
+    full: {data?: Record<string, unknown> | null} | null,
+): Record<string, unknown> | null {
+    const fullData = (full?.data ?? null) as Record<string, unknown> | null
+    const group = allowedSiblingGroup(fullData?.uri)
+    const merged: Record<string, unknown> = {parameters: (config ?? {}) as Record<string, unknown>}
+    if (group && fullData) {
+        const SIBLING_FIELD_DEFAULTS: Record<string, unknown> = {headers: {}, runtime: "python"}
+        const fields: Record<string, unknown> = {}
+        for (const field of SIBLING_GROUPS[group]) {
+            fields[field] = fullData[field] ?? SIBLING_FIELD_DEFAULTS[field] ?? ""
+        }
+        merged[group] = fields
+    }
+    // `schemas` nests under data.schemas; editable only for custom workflows.
+    const schemas = fullData?.schemas as Record<string, unknown> | null | undefined
+    if (schemas && typeof schemas === "object" && isCustomWorkflowUri(fullData?.uri)) {
+        const fields: Record<string, unknown> = {}
+        for (const field of SIBLING_GROUPS.schemas) {
+            fields[field] = schemas[field] ?? {}
+        }
+        merged.schemas = fields
+    }
+    if (!config && !group && !merged.schemas) return null
+    return merged
+}
+
+// A path targets a sibling group only when path[0] is a group key AND that group is
+// actually present on the data object. Guards against a legacy *parameter* named
+// "code"/"hook" (path ["code"]) being misrouted as a sibling write.
+function pathTargetsSibling(path: DataPath, data: unknown): boolean {
+    if (path.length === 0 || !isSiblingGroupKey(path[0])) return false
+    const d = data as Record<string, unknown> | null
+    return !!d && path[0] in d
+}
+
+// Renderable if there are parameters OR any sibling group (hook/code/schemas),
+// so sibling-only workflows aren't hidden as "No configuration needed".
+function hasRenderableConfigSections(data: unknown): boolean {
+    if (!data || typeof data !== "object") return false
+    const record = data as Record<string, unknown>
+    if (hasParameters(record)) return true
+    return SIBLING_GROUP_KEYS.some((group) => record[group] !== undefined)
+}
+
+// Route tagged `__siblingData` payloads to `actions.update`; otherwise treat as parameter updates.
+const configUpdateRouterAtom = atom(
+    null,
+    (_get, set, id: string, changes: Record<string, unknown>) => {
+        const siblingData = (changes as {__siblingData?: Record<string, unknown>}).__siblingData
+        if (siblingData) {
+            set(workflowMolecule.actions.update, id, {data: siblingData} as Partial<Workflow>)
+            return
+        }
+        set(workflowMolecule.actions.updateConfiguration, id, changes)
+    },
+)
+
 /**
  * Build adapter backed by workflowMolecule.
  *
  * Data mapping:
- * - workflowMolecule.selectors.configuration(id) → adapter's `parameters` (for UI display)
- * - workflowMolecule.actions.updateConfiguration → adapter's reducers.update
- * - workflowMolecule.selectors.parametersSchema(id) → adapter's agConfigSchema
+ * - workflowMolecule.selectors.configuration(id) → `parameters` fields (UI display)
+ * - sibling `data.*` fields (script/runtime/url/headers) surfaced alongside,
+ *   read from the full resolved data and written via the raw draft action
+ * - workflowMolecule.actions.updateConfiguration → parameter writes
+ * - workflowMolecule.selectors.parametersSchema(id) → agConfigSchema
  */
 function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
     return {
@@ -301,15 +404,15 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             data: memoAtom((id: string) =>
                 atom((get) => {
                     const config = get(workflowMolecule.selectors.configuration(id))
-                    if (!config) return null
-                    return {parameters: config as Record<string, unknown>}
+                    const full = get(workflowMolecule.selectors.resolvedData(id))
+                    return mergeSiblingFields(config as Record<string, unknown> | null, full)
                 }),
             ),
             serverData: memoAtom((id: string) =>
                 atom((get) => {
                     const config = get(workflowMolecule.selectors.serverConfiguration(id))
-                    if (!config) return null
-                    return {parameters: config as Record<string, unknown>}
+                    const full = get(workflowMolecule.selectors.serverData(id))
+                    return mergeSiblingFields(config as Record<string, unknown> | null, full)
                 }),
             ),
             draft: (id: string) => workflowMolecule.atoms.draft(id),
@@ -335,7 +438,7 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             ),
         },
         reducers: {
-            update: workflowMolecule.actions.updateConfiguration as WritableAtom<
+            update: configUpdateRouterAtom as WritableAtom<
                 unknown,
                 [id: string, changes: Record<string, unknown>],
                 void
@@ -343,36 +446,74 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             discard: workflowMolecule.actions.discard,
         },
         drillIn: {
+            // Flatten parameter keys + sibling fields to one level (each its own section).
             getRootData: (data: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
-                const rootData =
-                    d?.parameters && Object.keys(d.parameters).length > 0 ? d.parameters : d
-                return rootData
+                if (!d) return {}
+                const {parameters, ...siblings} = d
+                return {...(parameters ?? {}), ...siblings}
             },
             getRootItems: (data: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
+                const items: {key: string; name: string; value: unknown}[] = []
                 const params = d?.parameters
-                if (!params || typeof params !== "object") return []
-                return Object.entries(params).map(([key, value]) => ({
-                    key,
-                    name: key,
-                    value,
-                }))
+                if (params && typeof params === "object") {
+                    for (const [key, value] of Object.entries(params)) {
+                        items.push({key, name: key, value})
+                    }
+                }
+                for (const group of SIBLING_GROUP_KEYS) {
+                    if (d && group in d) {
+                        items.push({key: group, name: group, value: d[group as keyof typeof d]})
+                    }
+                }
+                return items
             },
             getValueAtPath: (data: unknown, path: DataPath) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
-                if (!d?.parameters) return undefined
+                if (!d) return undefined
+                if (pathTargetsSibling(path, d)) return getValueAtPath(d, path)
+                if (!d.parameters) return undefined
                 return getValueAtPath(d.parameters, path)
             },
             getChangesFromPath: (data: unknown, path: DataPath, value: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
-                const params = {...(d?.parameters ?? {})}
-                setValueAtPath(params, path, value)
-                return params
+                // Sibling edits emit a tagged __siblingData payload. setValueAtPath
+                // is immutable, so use its return value.
+                if (pathTargetsSibling(path, d)) {
+                    const group = path[0] as SiblingGroupKey
+                    const base = (d as Record<string, unknown>)?.[group] ?? {}
+                    const fields = setValueAtPath(base, path.slice(1), value) as Record<
+                        string,
+                        unknown
+                    >
+                    if (group === "schemas") {
+                        return {__siblingData: {schemas: fields}} as Record<string, unknown>
+                    }
+                    return {__siblingData: fields} as Record<string, unknown>
+                }
+                return setValueAtPath(d?.parameters ?? {}, path, value) as Record<string, unknown>
             },
-            getChangesFromRoot: (_entity: unknown, rootData: unknown, _path: DataPath) => {
-                // rootData is the updated parameters object
-                return rootData as Record<string, unknown>
+            // rootData flattened: a sibling group edit emits a tagged payload of the
+            // group's fields (paths drop the virtual group key); params emit param keys.
+            getChangesFromRoot: (_entity: unknown, rootData: unknown, path: DataPath) => {
+                const root = {...(rootData as Record<string, unknown>)}
+                if (pathTargetsSibling(path, _entity)) {
+                    const group = path[0] as SiblingGroupKey
+                    const fields = (root[group] ?? {}) as Record<string, unknown>
+                    // schemas nests under data.schemas; hook/code fields sit flat on data.
+                    if (group === "schemas") {
+                        return {__siblingData: {schemas: {...fields}}} as Record<string, unknown>
+                    }
+                    return {__siblingData: {...fields}} as Record<string, unknown>
+                }
+                // Only strip keys that are real sibling groups on the entity, so a
+                // legacy parameter named "code"/"hook" survives in the param payload.
+                const entity = _entity as Record<string, unknown> | null
+                for (const group of SIBLING_GROUP_KEYS) {
+                    if (entity && group in entity) delete root[group]
+                }
+                return root
             },
         },
         selectors: {
@@ -385,6 +526,17 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
     }
 }
 
+// Minimal object schema so the section is recognized; the hook/code body renders
+// via HookCodeConfigControl, not the schema renderer, so no field schemas needed.
+function siblingSchemaAtPath(path: (string | number)[]): PathSchema | null {
+    const group = path[0]
+    if (!isSiblingGroupKey(group)) return null
+    if (path.length === 1) {
+        return {type: "object", title: group} as EntitySchemaProperty
+    }
+    return null
+}
+
 /** Wrap schemaAtPath to work with the adapter's (id, path) → atom interface */
 const moleculeSchemaAtPathCache = new Map<string, Atom<unknown>>()
 function moleculeSchemaAtPath(params: {id: string; path: (string | number)[]}): Atom<unknown> {
@@ -392,6 +544,11 @@ function moleculeSchemaAtPath(params: {id: string; path: (string | number)[]}): 
     let cached = moleculeSchemaAtPathCache.get(key)
     if (!cached) {
         cached = atom((get) => {
+            const full = get(workflowMolecule.selectors.resolvedData(params.id))
+            const adapterData = mergeSiblingFields(null, full)
+            if (pathTargetsSibling(params.path as DataPath, adapterData)) {
+                return siblingSchemaAtPath(params.path)
+            }
             const schema = get(workflowMolecule.selectors.parametersSchema(params.id))
             if (!isEntitySchema(schema)) return null
             const resolved = getSchemaAtPathUtil(schema, params.path) ?? null
@@ -451,6 +608,15 @@ export interface PlaygroundConfigSectionProps {
     onRefinePrompt?: (promptKey: string) => void
     /** View mode controlled from parent (form/json/yaml) */
     viewMode?: ConfigViewMode
+    /**
+     * Top offset (px) for the sticky section headers. Defaults to 48 to clear
+     * the sticky `PlaygroundVariantConfigHeader` (h-[48px], `sticky top-0`) that
+     * sits above the config in the full playground. In the embedded drawer that
+     * header is rendered non-sticky (`grow`), so there is nothing to clear —
+     * pass 0 there to keep the section headers flush with the scroll top instead
+     * of floating 48px down into the editor content.
+     */
+    stickyHeaderTop?: number
 }
 
 function PlaygroundConfigSection({
@@ -461,6 +627,7 @@ function PlaygroundConfigSection({
     moleculeAdapter,
     onRefinePrompt,
     viewMode: externalViewMode,
+    stickyHeaderTop = 48,
 }: PlaygroundConfigSectionProps) {
     const {llmProviderConfig} = useDrillInUI()
 
@@ -495,6 +662,37 @@ function PlaygroundConfigSection({
     }, [useServerData, data, serverData])
 
     const parameters = (activeData?.parameters ?? {}) as Record<string, unknown>
+
+    // Sibling group (hook/code) surfaced as a section, if present.
+    const siblingGroups = useMemo(() => {
+        const out: Record<string, unknown> = {}
+        const d = activeData as Record<string, unknown> | null
+        if (d) {
+            for (const group of SIBLING_GROUP_KEYS) {
+                if (group in d) out[group] = d[group]
+            }
+        }
+        return out
+    }, [activeData])
+
+    // A field is a sibling group only when it is actually present in siblingGroups
+    // (built from data.uri). A legacy *parameter* named "code"/"hook" must NOT be
+    // treated as the canonical code/hook group — it falls through to the schema renderer.
+    const isPresentSiblingGroup = useCallback(
+        (fieldKey: string): fieldKey is SiblingGroupKey =>
+            isSiblingGroupKey(fieldKey) && fieldKey in siblingGroups,
+        [siblingGroups],
+    )
+
+    const codeRuntime = (siblingGroups.code as Record<string, unknown> | undefined)?.runtime as
+        | string
+        | undefined
+    const handleRuntimeChange = useCallback(
+        (runtime: string) => {
+            dispatchUpdate(revisionId, {__siblingData: {runtime}})
+        },
+        [dispatchUpdate, revisionId],
+    )
 
     // ========== ADAPTER ==========
     // Build adapter with schema support, swapping data source for useServerData
@@ -646,6 +844,8 @@ function PlaygroundConfigSection({
     // ========== COLLAPSE STATE ==========
     const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
         advanced_settings: true,
+        // Section open; individual schema cards default closed (SchemaEditor).
+        schemas: false,
     })
 
     const toggleSection = useCallback((key: string) => {
@@ -1322,14 +1522,17 @@ function PlaygroundConfigSection({
                 return null
             }
 
-            // Simple scalar fields and arrays rendered inline by SchemaPropertyRenderer
-            // don't need collapsible section headers — only plain objects do.
-            const fieldValue = parameters[fieldKey]
+            // Sibling group (hook/code) always gets a section header.
+            const isSibling = isPresentSiblingGroup(fieldKey)
+
+            // Scalar/array params render inline (no header); only objects get one.
+            const fieldValue = isSibling ? siblingGroups[fieldKey] : parameters[fieldKey]
             if (
-                fieldValue === null ||
-                fieldValue === undefined ||
-                typeof fieldValue !== "object" ||
-                Array.isArray(fieldValue)
+                !isSibling &&
+                (fieldValue === null ||
+                    fieldValue === undefined ||
+                    typeof fieldValue !== "object" ||
+                    Array.isArray(fieldValue))
             ) {
                 return null
             }
@@ -1362,7 +1565,12 @@ function PlaygroundConfigSection({
 
             return (
                 <div
-                    className="flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] cursor-pointer select-none sticky top-[48px] z-[2]"
+                    className={clsx(
+                        "flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] cursor-pointer select-none sticky z-[2]",
+                        // Space above the code/hook section when params precede it.
+                        isSibling && hasParameters(activeData) && "mt-4",
+                    )}
+                    style={{top: stickyHeaderTop}}
                     onClick={() => toggleSection(fieldKey)}
                 >
                     <div className="flex items-center gap-1">
@@ -1421,6 +1629,33 @@ function PlaygroundConfigSection({
                         </div>
                     )}
 
+                    {/* Code: runtime picker in section header (like the model picker). */}
+                    {isSibling && fieldKey === "code" && (
+                        <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-2 flex-shrink-0"
+                        >
+                            <Dropdown
+                                trigger={["click"]}
+                                disabled={disabled}
+                                menu={{
+                                    items: RUNTIME_SELECT_OPTIONS.map((o) => ({
+                                        key: o.value,
+                                        label: o.label,
+                                    })),
+                                    selectedKeys: codeRuntime ? [codeRuntime] : [],
+                                    onClick: ({key}) => handleRuntimeChange(key),
+                                }}
+                            >
+                                <Button size="small" type="default">
+                                    {RUNTIME_SELECT_OPTIONS.find((o) => o.value === codeRuntime)
+                                        ?.label ?? "Select runtime"}
+                                    <CaretDown size={12} />
+                                </Button>
+                            </Dropdown>
+                        </div>
+                    )}
+
                     {/* Feedback config: Advanced Mode toggle in section header */}
                     {fieldKey === "feedback_config" && (
                         <div
@@ -1458,6 +1693,10 @@ function PlaygroundConfigSection({
             configurePopoverContent,
             onRefinePrompt,
             updatePromptRootField,
+            siblingGroups,
+            isPresentSiblingGroup,
+            codeRuntime,
+            handleRuntimeChange,
         ],
     )
 
@@ -1475,7 +1714,40 @@ function PlaygroundConfigSection({
                 return null
             }
 
-            // Simple scalar fields and inline arrays render directly without HeightCollapse wrapper
+            // Sibling group (hook/code): render the dedicated control, not the
+            // schema renderer.
+            const isSibling = isPresentSiblingGroup(fieldKey)
+            const isCollapsed = !!collapsedSections[fieldKey]
+
+            if (isSibling) {
+                return (
+                    <HeightCollapse open={!isCollapsed}>
+                        <div className="px-4 py-3 flex flex-col gap-3">
+                            {fieldKey === "schemas" ? (
+                                <SchemasConfigControl
+                                    value={siblingGroups[fieldKey] as Record<string, unknown>}
+                                    onChange={(next) => props.onChange(next)}
+                                    disabled={disabled}
+                                />
+                            ) : fieldKey === "hook" ? (
+                                <HookConfigControl
+                                    value={siblingGroups[fieldKey] as Record<string, unknown>}
+                                    onChange={(next) => props.onChange(next)}
+                                    disabled={disabled}
+                                />
+                            ) : (
+                                <CodeConfigControl
+                                    value={siblingGroups[fieldKey] as Record<string, unknown>}
+                                    onChange={(next) => props.onChange(next)}
+                                    disabled={disabled}
+                                />
+                            )}
+                        </div>
+                    </HeightCollapse>
+                )
+            }
+
+            // Scalar/array params render directly, without HeightCollapse.
             const fieldValue = parameters[fieldKey]
             if (
                 fieldValue === null ||
@@ -1486,19 +1758,24 @@ function PlaygroundConfigSection({
                 return <div className="px-4 py-1.5">{props.defaultRender()}</div>
             }
 
-            const isCollapsed = !!collapsedSections[fieldKey]
-
             return (
                 <HeightCollapse open={!isCollapsed}>
                     <div className="px-4 py-3">{props.defaultRender()}</div>
                 </HeightCollapse>
             )
         },
-        [collapsedSections, parameters, promptModelInfo?.isRootLevel],
+        [
+            collapsedSections,
+            parameters,
+            siblingGroups,
+            isPresentSiblingGroup,
+            disabled,
+            promptModelInfo?.isRootLevel,
+        ],
     )
 
     // ========== LOADING / EMPTY STATE ==========
-    const isConfigLoading = schemaQuery.isPending && !hasParameters(activeData)
+    const isConfigLoading = schemaQuery.isPending && !hasRenderableConfigSections(activeData)
 
     if (isConfigLoading) {
         return (
@@ -1510,7 +1787,7 @@ function PlaygroundConfigSection({
         )
     }
 
-    if (!hasParameters(activeData)) {
+    if (!hasRenderableConfigSections(activeData)) {
         return (
             <div
                 className={clsx("flex flex-col items-center justify-center py-12 px-6", className)}
@@ -1578,7 +1855,10 @@ function PlaygroundConfigSection({
             ) : (
                 <>
                     {!hasTopLevelObjectSection && (
-                        <div className="flex items-center w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] sticky top-[48px] z-[2]">
+                        <div
+                            className="flex items-center w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] sticky z-[2]"
+                            style={{top: stickyHeaderTop}}
+                        >
                             <span className="capitalize font-medium text-sm">Config</span>
                         </div>
                     )}

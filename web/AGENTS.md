@@ -277,6 +277,39 @@ Do NOT use `useEffect` with manual state for data fetching. Use `atomWithQuery`.
 
 Legacy SWR + axios is present in older code but must not be used for new features.
 
+### Single project scope
+
+Exactly one `project_id` is in scope at any time in the web app. Never write code that
+handles multiple projects defensively. In particular, a `createBatchFetcher` `batchFn`
+must not group requests by project or fan out one query per project: take the project
+from the first request, throw if any request disagrees, and resolve all ids with a
+single call (the `/query` endpoints accept multiple refs). Grouping by other dimensions
+(a revision-scoped cache, a run id the API requires) is fine; the project dimension is
+always singular.
+
+## Entity display names (workflows, variants, revisions)
+
+Workflows are stored git-style: a workflow artifact has variants, and each variant has
+revisions. All three carry a `name` column, and reading the wrong one is a recurring bug
+class (evaluators showing "default", SDK-created apps showing "--" or hex slugs).
+
+- The entity display name lives on the workflow ARTIFACT: `artifact.name`, falling back
+  to its slug. Use `workflowMolecule.selectors.artifactName(entityId)`; it accepts a
+  revision id or a workflow id.
+- A variant label comes from the VARIANT: `variant.name`, then `variant.slug`. Resolve it
+  through the variants list by `workflow_variant_id`. Never label a variant from a
+  revision's fields.
+- `revision.name` is dead for display. Never read it as a label and never write entity
+  names into it. Revisions contribute only `version` (the vN tag) and `message`. Reason:
+  UI-created revisions carry the variant name ("default") and SDK-created revisions carry
+  no name at all.
+- Pick the label by entity kind. Evaluators and other entities that do not use variants
+  display artifact name + version. Applications in comparison or evaluation contexts
+  display the variant label + version.
+- Review blocker: any `.name` read off a revision entity (e.g. `selectors.data(id)?.name`
+  or a revision row's `name`) used as a display label. Point to the sanctioned selectors
+  above instead.
+
 ## Styling
 
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
@@ -355,6 +388,13 @@ const items = useMemo(() => [
 ], [])
 <AccordionTreePanel items={items} />
 ```
+
+### Keep in-code comments terse
+
+**Hard rule.** At most ONE short line per comment. No multi-line blocks narrating *why*
+in prose, no restating what the code shows. Before writing any comment, ask "can this be
+one line?" — if not, cut it. Longer comments only for a genuinely surprising constraint
+(documented bug, race, ordering requirement), and even then a sentence or two max.
 
 ## Packages, entities, and code placement
 

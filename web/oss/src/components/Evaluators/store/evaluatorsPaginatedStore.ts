@@ -21,6 +21,7 @@ import {
     fetchWorkflowsBatch,
     workflowMolecule,
     onEvaluatorMutation,
+    primeWorkflowArtifactCacheImperative,
 } from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -225,6 +226,10 @@ async function ensureEvaluatorWorkflowCache({
         workflowMolecule.set.seedEntity(w.id, w)
     }
 
+    // Prime the artifact cache so name cells resolve the entity display name
+    // (from the artifact, not the revision) without extra requests.
+    primeWorkflowArtifactCacheImperative(workflows)
+
     // Fetch latest revision for each workflow to classify by category.
     // Workflow-level flags only have is_evaluator — type-specific flags
     // (is_feedback, is_custom, etc.) only exist at the revision level.
@@ -361,7 +366,12 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
             // regresses.
             {is_evaluator: true, is_managed: true},
             {next: cursor ?? undefined, limit: limit ?? undefined, order: "descending"},
-            meta.searchTerm,
+            // Do NOT pass meta.searchTerm here: the search term is already
+            // applied at the workflow level in ensureEvaluatorWorkflowCache
+            // (via queryWorkflows name filter). cache.workflowIds already
+            // contains only the matching workflows. Filtering revisions by
+            // name again would exclude them when revision.name is null
+            // (which is the common case for evaluator revisions).
         )
 
         // Filter out v0 revisions (auto-created initial revisions)

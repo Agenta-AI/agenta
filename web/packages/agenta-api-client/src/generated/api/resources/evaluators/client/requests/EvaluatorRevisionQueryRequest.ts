@@ -19,6 +19,4 @@ export interface EvaluatorRevisionQueryRequest {
     include_archived?: boolean | null;
     /** Cursor-based pagination controls. */
     windowing?: AgentaApi.Windowing | null;
-    /** When true, resolve embedded references on each returned revision's `data`. */
-    resolve?: boolean | null;
 }

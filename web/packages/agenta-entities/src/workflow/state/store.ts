@@ -230,39 +230,22 @@ const workflowRevisionBatchFetcher = createBatchFetcher<WorkflowRevisionRequest,
     serializeKey: (req) => `${req.projectId}:${req.revisionId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Workflow | null>()
-        const byProject = new Map<string, {revisionIds: string[]; keys: string[]}>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("workflowRevisionBatchFetcher: requests span multiple projects")
+        }
+
+        const revisionIds = [...new Set(requests.map((req) => req.revisionId).filter(Boolean))]
+        if (revisionIds.length === 0) return results
+
+        const revisionMap = await fetchWorkflowRevisionsByIdsBatch(projectId, revisionIds)
         requests.forEach((req, index) => {
-            const key = serializedKeys[index]
-            if (!req.projectId || !req.revisionId) {
-                results.set(key, null)
-                return
-            }
-
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.revisionIds.push(req.revisionId)
-                existing.keys.push(key)
-            } else {
-                byProject.set(req.projectId, {
-                    revisionIds: [req.revisionId],
-                    keys: [key],
-                })
-            }
+            results.set(serializedKeys[index], revisionMap.get(req.revisionId) ?? null)
         })
-
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, group]) => {
-                const revisionMap = await fetchWorkflowRevisionsByIdsBatch(
-                    projectId,
-                    group.revisionIds,
-                )
-                group.revisionIds.forEach((revisionId, index) => {
-                    const key = group.keys[index]
-                    results.set(key, revisionMap.get(revisionId) ?? null)
-                })
-            }),
-        )
 
         return results
     },
@@ -277,75 +260,65 @@ const workflowLatestRevisionBatchFetcher = createBatchFetcher<
     serializeKey: (req) => `${req.projectId}:${req.workflowId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Workflow | null>()
-        const byProject = new Map<
-            string,
-            {workflowIds: string[]; keys: string[]; queryClients: Set<QueryClient>}
-        >()
+        serializedKeys.forEach((key) => results.set(key, null))
+
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("workflowLatestRevisionBatchFetcher: requests span multiple projects")
+        }
+
+        const pending: {workflowId: string; key: string}[] = []
+        const queryClients = new Set<QueryClient>()
 
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
-            if (!req.projectId || !req.workflowId) {
-                results.set(key, null)
-                return
-            }
+            if (!req.workflowId) return
 
             if (req.queryClient) {
                 const cached = findLatestWorkflowRevisionInCache(
                     req.queryClient,
-                    req.projectId,
+                    projectId,
                     req.workflowId,
                 )
                 if (cached) {
                     results.set(key, cached)
                     return
                 }
+                queryClients.add(req.queryClient)
             }
 
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.workflowIds.push(req.workflowId)
-                existing.keys.push(key)
-                if (req.queryClient) existing.queryClients.add(req.queryClient)
-            } else {
-                byProject.set(req.projectId, {
-                    workflowIds: [req.workflowId],
-                    keys: [key],
-                    queryClients: new Set(req.queryClient ? [req.queryClient] : []),
-                })
-            }
+            pending.push({workflowId: req.workflowId, key})
         })
 
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, group]) => {
-                try {
-                    const revisionMap = await fetchWorkflowsBatch(projectId, group.workflowIds)
-                    group.workflowIds.forEach((workflowId, index) => {
-                        const key = group.keys[index]
-                        const revision = revisionMap.get(workflowId) ?? null
-                        results.set(key, revision)
+        if (pending.length === 0) return results
 
-                        if (revision) {
-                            group.queryClients.forEach((queryClient) => {
-                                queryClient.setQueryData(
-                                    ["workflows", "latestRevision", workflowId, projectId],
-                                    revision,
-                                )
-                                primeWorkflowRevisionDetailCache(queryClient, projectId, revision)
-                            })
-                        }
-                    })
-                } catch (error) {
-                    console.error(
-                        "[workflowLatestRevisionBatchFetcher] Failed to fetch latest revisions:",
-                        group.workflowIds,
-                        error,
-                    )
-                    group.keys.forEach((key) => {
-                        results.set(key, null)
+        try {
+            const revisionMap = await fetchWorkflowsBatch(
+                projectId,
+                pending.map((entry) => entry.workflowId),
+            )
+            pending.forEach(({workflowId, key}) => {
+                const revision = revisionMap.get(workflowId) ?? null
+                results.set(key, revision)
+
+                if (revision) {
+                    queryClients.forEach((queryClient) => {
+                        queryClient.setQueryData(
+                            ["workflows", "latestRevision", workflowId, projectId],
+                            revision,
+                        )
+                        primeWorkflowRevisionDetailCache(queryClient, projectId, revision)
                     })
                 }
-            }),
-        )
+            })
+        } catch (error) {
+            console.error(
+                "[workflowLatestRevisionBatchFetcher] Failed to fetch latest revisions:",
+                error,
+            )
+        }
 
         return results
     },
@@ -375,7 +348,7 @@ export const workflowProjectIdAtom = projectIdAtom
  * - `flags` — filtering (is_evaluator, is_feedback, is_custom)
  * - `deleted_at` — archive filtering
  * - `description` — human evaluator list display
- * - `created_at` — sort order in some views
+ * - `created_at` / `updated_at` — sort order and metadata display in some views
  */
 export interface WorkflowListRef {
     id: string
@@ -385,6 +358,7 @@ export interface WorkflowListRef {
     flags: Workflow["flags"]
     deleted_at: string | null
     created_at: string | null
+    updated_at: string | null
 }
 
 /**
@@ -407,6 +381,7 @@ export function toWorkflowListRef(w: Workflow): WorkflowListRef {
         flags: w.flags,
         deleted_at: w.deleted_at ?? null,
         created_at: w.created_at ?? null,
+        updated_at: w.updated_at ?? null,
     }
 }
 
@@ -463,21 +438,41 @@ export const nonArchivedAppWorkflowsAtom = atom<Workflow[]>((get) => {
 // ============================================================================
 
 /**
- * Query atom family for fetching variants of a workflow.
- * Used in the Workflow → Variant → Revision selection hierarchy.
+ * Variants query keyed by explicit projectId. This is the canonical query;
+ * the explicit key lets it run inside isolated Jotai stores (e.g. the
+ * evaluation tables) where the global projectIdAtom is not hydrated.
  */
-export const workflowVariantsQueryAtomFamily = atomFamily((workflowId: string) =>
-    atomWithQuery((get) => {
-        const projectId = get(workflowProjectIdAtom)
-        return {
+export const workflowVariantsScopedQueryAtomFamily = atomFamily(
+    ({projectId, workflowId}: {projectId: string; workflowId: string}) =>
+        atomWithQuery(() => ({
             queryKey: ["workflows", "variants", workflowId, projectId],
             queryFn: async (): Promise<WorkflowVariantsResponse> => {
                 if (!projectId || !workflowId) return {count: 0, workflow_variants: []}
                 return queryWorkflowVariants(workflowId, projectId)
             },
-            enabled: get(sessionAtom) && !!projectId && !!workflowId,
+            enabled: !!projectId && !!workflowId,
             staleTime: 30_000,
+        })),
+    (a, b) => a.projectId === b.projectId && a.workflowId === b.workflowId,
+)
+
+/**
+ * Query atom family for fetching variants of a workflow.
+ * Used in the Workflow → Variant → Revision selection hierarchy.
+ * Default-store wrapper around the scoped query above.
+ */
+export const workflowVariantsQueryAtomFamily = atomFamily((workflowId: string) =>
+    atom((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        if (!projectId || !workflowId || !get(sessionAtom)) {
+            return {
+                data: undefined as WorkflowVariantsResponse | undefined,
+                isPending: Boolean(workflowId),
+                isError: false,
+                error: null,
+            }
         }
+        return get(workflowVariantsScopedQueryAtomFamily({projectId, workflowId}))
     }),
 )
 
@@ -804,10 +799,14 @@ export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: str
 /**
  * Derived atom family for the latest revision ID of a workflow.
  *
- * Tries to resolve the revision ID from already-cached data first
- * (revisions-by-workflow query), falling back to the dedicated latest
- * revision query only if no cached data is available.
- *`
+ * Priority order:
+ * 1. Dedicated latest-revision query — always correct; skips v0 auto-created
+ *    revisions via `selectMostRecentWorkflowRevision`.
+ * 2. Revisions-by-workflow refs (e.g. primed by the revisions table) — used
+ *    only as a fast-path when the dedicated query has no data yet. Refs are
+ *    sorted descending by recency and v0 is excluded to match the dedicated
+ *    query's semantics.
+ *
  * This avoids duplicating full revision data in memory — the molecule's
  * `workflowQueryAtomFamily(revisionId)` is the single source of truth
  * for revision content.
@@ -816,17 +815,29 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
     atom<string | null>((get) => {
         if (!workflowId) return null
 
-        // Try revisions-by-workflow cache first (already fetched by the table)
+        // Prefer the dedicated latest-revision query — it correctly skips v0
+        // auto-created revisions via selectMostRecentWorkflowRevision.
+        const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
+        if (query.data?.id) return query.data.id
+
+        // Fall back to the revisions-by-workflow cache (e.g. primed by the
+        // revisions table). The raw refs are NOT guaranteed to be ordered, so
+        // sort descending by recency and skip v0 before picking the first.
         const revisionsQuery = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
         const refs = revisionsQuery.data?.refs
         if (refs && refs.length > 0) {
-            // Refs are sorted by recency — first is latest
-            return refs[0].id ?? null
+            const sorted = [...refs]
+                .filter((r) => (r.version ?? 0) !== 0)
+                .sort((a, b) => {
+                    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+                    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+                    if (bTime !== aTime) return bTime - aTime
+                    return (b.version ?? 0) - (a.version ?? 0)
+                })
+            return sorted[0]?.id ?? null
         }
 
-        // Fallback to the dedicated latest revision query
-        const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
-        return query.data?.id ?? null
+        return null
     }),
 )
 
@@ -845,11 +856,126 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
  * when used inside InfiniteVirtualTable cells, which render in an isolated store.
  */
 export const workflowAppTypeAtomFamily = atomFamily((workflowId: string) =>
-    atom((get) => {
+    atom<ReturnType<typeof deriveWorkflowTypeFromRevision> | null>((get) => {
         const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
+
+        if (query.isPending || !query.data) return null
+
         return deriveWorkflowTypeFromRevision(query.data)
     }),
 )
+
+// ============================================================================
+// ARTIFACT QUERY (workflow-level container — entity name/description)
+// ============================================================================
+
+interface WorkflowArtifactRequest {
+    projectId: string
+    workflowId: string
+}
+
+const workflowArtifactBatchFetcher = createBatchFetcher<WorkflowArtifactRequest, Workflow | null>({
+    maxBatchSize: 50,
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.workflowId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, Workflow | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
+
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("workflowArtifactBatchFetcher: requests span multiple projects")
+        }
+
+        const workflowIds = [...new Set(requests.map((req) => req.workflowId).filter(Boolean))]
+        if (workflowIds.length === 0) return results
+
+        const response = await queryWorkflows({
+            projectId,
+            workflowRefs: workflowIds.map((id) => ({id})),
+            includeArchived: true,
+        })
+        const byId = new Map((response.workflows ?? []).map((workflow) => [workflow.id, workflow]))
+        requests.forEach((req, index) => {
+            results.set(serializedKeys[index], byId.get(req.workflowId) ?? null)
+        })
+
+        return results
+    },
+})
+
+/**
+ * Artifact query keyed by explicit projectId. This is the canonical query;
+ * the explicit key lets it run inside isolated Jotai stores (e.g. the
+ * evaluation tables) where the global projectIdAtom is not hydrated.
+ *
+ * Deliberately keyed apart from the revision caches: `workflowQueryAtomFamily`
+ * and the latest-revision query both resolve revisions, so the artifact would
+ * otherwise compete with a revision for the same cache slot. The artifact is
+ * the source of truth for the entity's display name — revision `name` carries
+ * the variant name ("default"), not the entity name.
+ */
+export const workflowArtifactScopedQueryAtomFamily = atomFamily(
+    ({projectId, workflowId}: WorkflowArtifactRequest) =>
+        atomWithQuery(() => ({
+            queryKey: ["workflows", "artifact", workflowId, projectId],
+            queryFn: async (): Promise<Workflow | null> => {
+                if (!projectId || !workflowId) return null
+                return workflowArtifactBatchFetcher({projectId, workflowId})
+            },
+            enabled:
+                !!projectId &&
+                !!workflowId &&
+                !isLocalDraftId(workflowId) &&
+                !isPlaceholderId(workflowId),
+            staleTime: 60_000,
+        })),
+    (a, b) => a.projectId === b.projectId && a.workflowId === b.workflowId,
+)
+
+/**
+ * Default-store wrapper around the scoped artifact query: fills projectId
+ * from the global atom and gates on the session.
+ */
+export const workflowArtifactQueryAtomFamily = atomFamily((workflowId: string) =>
+    atom((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        if (!projectId || !workflowId || !get(sessionAtom)) {
+            return {
+                data: null as Workflow | null,
+                isPending: Boolean(workflowId),
+                isError: false,
+                error: null,
+            }
+        }
+        return get(workflowArtifactScopedQueryAtomFamily({projectId, workflowId}))
+    }),
+)
+
+/**
+ * Prime the artifact query cache from an already-fetched workflows list
+ * (e.g. a page-level `queryWorkflows` call) so artifact-name lookups
+ * resolve without extra requests.
+ */
+export function primeWorkflowArtifactCacheImperative(
+    workflows: (Workflow | null | undefined)[],
+    options?: StoreOptions,
+): void {
+    const store = getStore(options)
+    const projectId = store.get(workflowProjectIdAtom)
+    if (!projectId) return
+    try {
+        const queryClient = store.get(queryClientAtom)
+        for (const workflow of workflows) {
+            if (!workflow?.id) continue
+            queryClient.setQueryData(["workflows", "artifact", workflow.id, projectId], workflow)
+        }
+    } catch {
+        // queryClientAtom may not be initialized yet (rare)
+    }
+}
 
 // ============================================================================
 // SINGLE ENTITY QUERY
@@ -1614,8 +1740,7 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-        // Get the effective current parameters (base entity = server/clone + draft overlay,
-        // without schema resolution — isDirty only compares parameters, never schemas)
+        // Compare the full `data` object (parameters + sibling fields), normalizing params/schemas to avoid false positives.
         const entityData = get(workflowBaseEntityAtomFamily(workflowId))
 
         // Get the comparison baseline — for local drafts this redirects to the
@@ -1662,13 +1787,6 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             serverParams = syncPromptInputKeysInParameters(serverParams) as typeof serverParams
         }
 
-        // No parameters on entity side — check for other data changes
-        if (!entityParams) {
-            if (!entityData.data) return false
-            const dataKeys = Object.keys(entityData.data as Record<string, unknown>)
-            return dataKeys.length > 0
-        }
-
         // Recursively sort object keys for consistent comparison
         // This handles json_schema property order differences
         const sortObjectKeys = (obj: unknown): unknown => {
@@ -1707,9 +1825,41 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             return sortObjectKeys(normalized)
         }
 
-        // Deep compare normalized parameters using fast-deep-equal
-        const normalizedEntity = normalizeForComparison(entityParams)
-        const normalizedServer = normalizeForComparison(serverParams)
+        // Server schemas.parameters stays flat for evaluators while the entity
+        // side is nested (nestEvaluatorSchema in workflowBaseEntityAtomFamily).
+        // Nest the server schema too so the whole-data diff is like-for-like.
+        const rawServerSchemaParams = serverData.data?.schemas?.parameters as
+            | Record<string, unknown>
+            | undefined
+        const serverSchemas =
+            rawServerSchemaParams && serverData.flags?.is_evaluator
+                ? {
+                      ...serverData.data?.schemas,
+                      parameters: nestEvaluatorSchema(rawServerSchemaParams),
+                  }
+                : serverData.data?.schemas
+
+        // Compare the whole data object (so code/hook fields register as dirty),
+        // keeping parameters and schemas normalized to avoid false positives.
+        const normalizeData = (
+            data: Record<string, unknown> | null | undefined,
+            normalizedParams: unknown,
+            normalizedSchemas: unknown,
+        ): unknown => {
+            const base = (data ?? {}) as Record<string, unknown>
+            return sortObjectKeys({
+                ...base,
+                parameters: normalizeForComparison(normalizedParams),
+                ...(normalizedSchemas !== undefined ? {schemas: normalizedSchemas} : {}),
+            })
+        }
+
+        const normalizedEntity = normalizeData(
+            entityData.data,
+            entityParams,
+            entityData.data?.schemas,
+        )
+        const normalizedServer = normalizeData(serverData.data, serverParams, serverSchemas)
         const isDirty = !isEqual(normalizedEntity, normalizedServer)
 
         return isDirty
@@ -2118,6 +2268,8 @@ export function invalidateWorkflowsListCache(options?: StoreOptions) {
     try {
         const qc = store.get(queryClientAtom)
         qc.invalidateQueries({queryKey: ["workflows", "apps"], exact: false})
+        // Artifact-level metadata (name/description) may have changed too
+        qc.invalidateQueries({queryKey: ["workflows", "artifact"], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }
@@ -2155,6 +2307,7 @@ export function seedCreatedWorkflowCache(
         flags: revision.flags,
         deleted_at: revision.deleted_at ?? null,
         created_at: revision.created_at ?? null,
+        updated_at: revision.updated_at ?? null,
     }
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)
@@ -2216,6 +2369,7 @@ export function invalidateWorkflowCache(workflowId: string, options?: StoreOptio
     try {
         const qc = store.get(queryClientAtom)
         qc.invalidateQueries({queryKey: ["workflows", "revision", workflowId], exact: false})
+        qc.invalidateQueries({queryKey: ["workflows", "artifact", workflowId], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }
@@ -2237,7 +2391,12 @@ export function invalidateWorkflowVariantsCache(workflowId: string, options?: St
     } catch {
         // queryClientAtom may not be initialized yet
     }
-    store.set(workflowVariantsQueryAtomFamily(workflowId))
+    // The query-key invalidation above refetches every active observer; the
+    // wrapper atom is read-only so there is no per-atom refetch trigger.
+    const projectId = store.get(workflowProjectIdAtom)
+    if (projectId && workflowId) {
+        store.set(workflowVariantsScopedQueryAtomFamily({projectId, workflowId}))
+    }
 }
 
 /**

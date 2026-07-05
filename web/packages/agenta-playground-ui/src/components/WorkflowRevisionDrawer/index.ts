@@ -22,6 +22,10 @@ export {
     workflowRevisionDrawerEntityIdAtom,
     workflowRevisionDrawerContextAtom,
     workflowRevisionDrawerExpandedAtom,
+    workflowRevisionDrawerIsolatedPlaygroundAtom,
+    workflowRevisionDrawerInitialAppSelectionAtom,
+    workflowRevisionDrawerPostCreateNavigationAtom,
+    workflowRevisionDrawerScopedDirtyAtom,
     workflowRevisionDrawerNavigationIdsAtom,
     workflowRevisionDrawerCallbackAtom,
     workflowRevisionDrawerViewModeAtom,
@@ -36,7 +40,9 @@ export {
     isCreateContext,
     // Types
     type DrawerContext,
+    type DrawerInitialAppSelection,
     type OpenDrawerParams,
+    type WorkflowCreatedResult,
 } from "./store"
 
 // Loading state (for external consumption, e.g., disabling nav buttons)

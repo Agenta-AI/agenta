@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from oss.src.utils.env import env
 from oss.src.services import db_manager
 from oss.src.resources.evaluators.evaluators import get_builtin_evaluators
-from oss.src.models.deprecated_models import (
+from oss.databases.postgres.migrations.core.deprecated_models import (
     ProjectScopedAppDB as AppDB,
     DeprecatedProjectDB as ProjectDB,
     DeprecatedAppVariantDB as AppVariantDB,
@@ -25,7 +25,7 @@ from oss.src.models.deprecated_models import (
     DeprecatedAppVariantRevisionsDB as AppVariantRevisionsDB,
     DeprecatedAppEnvironmentRevisionDB as AppEnvironmentRevisionDB,
 )
-from oss.src.models.db_models import (
+from oss.databases.postgres.migrations.core.deprecated_models import (
     VariantBaseDB,
     DeploymentDB,
     AppEnvironmentDB,
