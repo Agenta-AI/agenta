@@ -2,11 +2,10 @@
  * generate-tailwind-tokens.ts — emit theme artifacts from the single source of
  * truth (oss/src/styles/theme/palette.ts).
  *
- * v1 SCOPE (this pass): core antd-semantic --ag-color* vars + the role-inverted
- * scales + the --ag-rgba-* alpha fills, plus the antd dark-overrides module and
- * the tailwind color map. Feature families (ref / surface / env tokens) and the
- * ag-c codemod shim are NOT emitted yet — they're passthrough today and are the
- * next increment. See TODO(features) / TODO(shim).
+ * Emits (all palette-driven): the full theme-variables.css (core semantic + scales
+ * + alpha + feature families + the legacy --ag-c-* shim aliased to roles) and the
+ * antd dark-overrides module. Inputs are palette.ts + legacy-shim.ts only; the live
+ * theme-variables.css is read solely by the parity harness to verify losslessness.
  *
  * SAFETY: writes to $GEN_OUT (default: a scratch dir), never the live
  * theme-variables.css, so it can't collide with in-flight edits. Pass
@@ -19,6 +18,7 @@ import {createRequire} from "module"
 import {dirname, resolve as pathResolve} from "path"
 import {fileURLToPath} from "url"
 
+import {legacyShim} from "../oss/src/styles/theme/legacy-shim"
 import {palette, type ColorValue, type Pair} from "../oss/src/styles/theme/palette"
 
 const HERE = dirname(fileURLToPath(import.meta.url)) // web/scripts
@@ -109,8 +109,7 @@ function resolveValue(expr: string): string {
 // ---------------------------------------------------------------------------
 // Emit helpers
 // ---------------------------------------------------------------------------
-const asCss = (v: ColorValue): string =>
-    typeof v === "string" ? v : `/* antd:${v.antd} */` // antd() only on light shadows (not emitted as vars)
+const asCss = (v: ColorValue): string => (typeof v === "string" ? v : `/* antd:${v.antd} */`) // antd() only on light shadows (not emitted as vars)
 
 type Row = [cssVar: string, pair: Pair]
 
@@ -184,18 +183,6 @@ const darkBlock = (rows: Row[]) =>
 const coreDarkBlock = (rows: Row[]) =>
     rows.map(([name, p]) => `    --ag-${name}: ${coreDark(name, p)};`).join("\n")
 
-// ---------------------------------------------------------------------------
-// SHIM + PASSTHROUGH — the legacy --ag-c-* codemod tokens and the feature-family
-// blocks aren't roles, so they're sourced from the current file (read once) and
-// re-emitted. The --ag-c-* dark values are ALIASED to a core role wherever they
-// resolve to that role's value, so editing a role propagates to legacy classes
-// (this is where 25 distinct light tokens collapse onto one dark surface role).
-// Everything else is copied verbatim (lossless). Later increment: fold feature
-// families into palette.ts so they're palette-driven, not passthrough.
-// ---------------------------------------------------------------------------
-const current = parseThemeCss(readFileSync(CURRENT_CSS, "utf8"))
-const OWNED = new Set([...CORE, ...RAMPS, ...ALPHA].map(([n]) => `--ag-${n}`))
-
 // Fill the role-var → dark-value index the resolver uses for --ag refs.
 for (const [n, p] of CORE) agDark.set(`--ag-${n}`, coreDark(n, p))
 for (const [n, p] of [...RAMPS, ...ALPHA]) agDark.set(`--ag-${n}`, asCss(p.dark))
@@ -211,77 +198,157 @@ const aliasDark = (curDark: string): {value: string; aliased: boolean} => {
     return role ? {value: `var(${role})`, aliased: true} : {value: curDark, aliased: false}
 }
 
+// ---------------------------------------------------------------------------
+// SHIM — legacy --ag-c-* codemod tokens (frozen in legacy-shim.ts). Light = the
+// original hex; dark is ALIASED to a core role wherever it resolves to that role's
+// value (so editing a role propagates to legacy classes — this is where the 30
+// light tokens collapse onto one dark surface role), else kept literal.
+// ---------------------------------------------------------------------------
 let shimAliased = 0
-function shimAndPassthrough() {
-    const names = new Set([...current.root.keys(), ...current.dark.keys()])
-    const shimRoot: string[] = []
-    const shimDark: string[] = []
-    const passRoot: string[] = []
-    const passDark: string[] = []
-    for (const name of names) {
-        if (OWNED.has(name)) continue
-        const light = current.root.get(name)
-        const dark = current.dark.get(name)
-        if (name.startsWith("--ag-c-")) {
-            if (light != null) shimRoot.push(`    ${name}: ${light};`)
-            if (dark != null) {
-                const a = aliasDark(dark)
-                if (a.aliased) shimAliased++
-                shimDark.push(`    ${name}: ${a.value};`)
-            }
-        } else {
-            if (light != null) passRoot.push(`    ${name}: ${light};`)
-            if (dark != null) passDark.push(`    ${name}: ${dark};`)
+function buildShim() {
+    const root: string[] = []
+    const dark: string[] = []
+    for (const [name, {light, dark: d}] of Object.entries(legacyShim)) {
+        if (light != null) root.push(`    ${name}: ${light};`)
+        if (d != null) {
+            const a = aliasDark(d)
+            if (a.aliased) shimAliased++
+            dark.push(`    ${name}: ${a.value};`)
         }
     }
-    return {
-        shimRoot: shimRoot.join("\n"),
-        shimDark: shimDark.join("\n"),
-        passRoot: passRoot.join("\n"),
-        passDark: passDark.join("\n"),
+    return {root: root.join("\n"), dark: dark.join("\n")}
+}
+
+// ---------------------------------------------------------------------------
+// FEATURE FAMILIES — palette-driven (ref/env/cmp/type/surface/composer/status/
+// drawer/app-variant), mapped to their existing --ag var names.
+// ---------------------------------------------------------------------------
+type FVal = {light?: string; dark?: string}
+const s = (v: ColorValue) => asCss(v)
+const pairOf = (p: Pair): FVal => ({light: s(p.light), dark: s(p.dark)})
+const camelToKebab = (k: string) => k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())
+
+const SURFACE_NAME: Record<string, string> = {
+    app: "app",
+    gutter: "gutter",
+    divider: "divider",
+    raised: "raised",
+    card: "card",
+    cardBorder: "card-border",
+    inset: "inset",
+    insetBorder: "inset-border",
+    canvas: "canvas",
+    chat: "chat",
+    chatBorder: "chat-border",
+    chip: "chip",
+    chipBorder: "chip-border",
+    rowHover: "row-hover",
+    accent: "accent",
+    raisedShadow: "raised-shadow",
+    cardShadow: "card-shadow",
+    chatShadow: "chat-shadow",
+    inspectorShadow: "inspector-shadow",
+}
+const pf = palette
+const FEATURES: [string, FVal][] = [
+    ...Object.entries(pf.referenceTag).flatMap(([t, x]) => [
+        [`ref-${t}-text`, pairOf(x.text)] as [string, FVal],
+        [`ref-${t}-bg`, pairOf(x.bg)] as [string, FVal],
+        [`ref-${t}-border`, pairOf(x.border)] as [string, FVal],
+    ]),
+    ...Object.entries(pf.environmentTag).flatMap(([t, x]) => [
+        [`env-${t}-text`, pairOf(x.text)] as [string, FVal],
+        [`env-${t}-bg`, pairOf(x.bg)] as [string, FVal],
+        [`env-${t}-border`, pairOf(x.border)] as [string, FVal],
+    ]),
+    ...Object.entries(pf.compareTint).map(
+        ([n, p]) => [`cmp-tint-${n}`, pairOf(p)] as [string, FVal],
+    ),
+    ...Object.entries(pf.workflowType).flatMap(([k, x]) => [
+        [`type-${k}-bg`, {dark: x.bg}] as [string, FVal],
+        [`type-${k}-text`, {dark: x.text}] as [string, FVal],
+    ]),
+    ...Object.entries(pf.playgroundSurface).map(
+        ([k, p]) => [`surface-${SURFACE_NAME[k]}`, pairOf(p)] as [string, FVal],
+    ),
+    ["composer-border", pairOf(pf.composer.border)],
+    ["composer-focus", pairOf(pf.composer.focus)],
+    ["composer-placeholder", pairOf(pf.composer.placeholder)],
+    ["send-disabled-bg", pairOf(pf.composer.sendDisabledBg)],
+    ["send-disabled-fg", pairOf(pf.composer.sendDisabledFg)],
+    ["user-bubble-bg", pairOf(pf.composer.userBubbleBg)],
+    ["user-bubble-border", pairOf(pf.composer.userBubbleBorder)],
+    ["app-variant-row", pairOf(pf.appVariantCell.row)],
+    ["app-variant-label", pairOf(pf.appVariantCell.label)],
+    ["app-variant-chip-bg", pairOf(pf.appVariantCell.chipBg)],
+    ["status-error-bg", pairOf(pf.status.errorBg)],
+    ["status-error-border", pairOf(pf.status.errorBorder)],
+    ["status-error-text", pairOf(pf.status.errorText)],
+    ["status-success-bg", pairOf(pf.status.successBg)],
+    ["status-success-border", pairOf(pf.status.successBorder)],
+    ["status-success-text", pairOf(pf.status.successText)],
+    ["surface-error-well", pairOf(pf.status.errorWell)],
+    ["surface-error-well-border", pairOf(pf.status.errorWellBorder)],
+    ...Object.entries(pf.drawerDark).map(
+        ([k, v]) => [`drawer-${camelToKebab(k)}`, {dark: v as string}] as [string, FVal],
+    ),
+    ["sidebar-bg", {light: "var(--ag-surface-raised)", dark: "var(--ag-surface-raised)"}],
+]
+
+// Emit feature vars. A constant token (light === dark, e.g. surface-accent) is
+// emitted in :root only, matching the current file (it cascades into .dark).
+function buildFeatures() {
+    const root: string[] = []
+    const dark: string[] = []
+    for (const [name, v] of FEATURES) {
+        // A literal constant (e.g. surface-accent #c2d54a) lives in :root only and
+        // cascades into .dark. A var() ref that mirrors a role is declared in both.
+        const literalConstant = v.light != null && v.light === v.dark && !v.light.startsWith("var(")
+        if (v.light != null) root.push(`    --ag-${name}: ${v.light};`)
+        if (v.dark != null && !literalConstant) dark.push(`    --ag-${name}: ${v.dark};`)
     }
+    return {root: root.join("\n"), dark: dark.join("\n")}
 }
 
 function buildCss(): string {
-    const s = shimAndPassthrough()
+    const shim = buildShim()
+    const feat = buildFeatures()
     return `/* GENERATED by scripts/generate-tailwind-tokens.ts — do not edit by hand.
-   Source of truth: oss/src/styles/theme/palette.ts
-   Owned (palette-driven): core semantic + scales + alpha.
-   Shim (--ag-c-*, dark aliased to roles) + feature families: sourced from the
-   prior theme-variables.css until folded into palette.ts. */
+   Source of truth: oss/src/styles/theme/palette.ts (+ legacy-shim.ts for --ag-c-*).
+   Everything here is palette-driven; the shim aliases legacy tokens to roles. */
 
 :root {
-    /* --- owned: core semantic --- */
+    /* --- core semantic --- */
 ${rootBlock(CORE)}
 
-    /* --- owned: scales --- */
+    /* --- scales --- */
 ${rootBlock(RAMPS)}
 
-    /* --- owned: alpha fills --- */
+    /* --- alpha fills --- */
 ${rootBlock(ALPHA)}
 
-    /* --- shim: legacy --ag-c-* (light = original hex) --- */
-${s.shimRoot}
+    /* --- feature families --- */
+${feat.root}
 
-    /* --- passthrough: feature families --- */
-${s.passRoot}
+    /* --- legacy --ag-c-* shim (light = original hex) --- */
+${shim.root}
 }
 
 .dark {
-    /* --- owned: core semantic --- */
+    /* --- core semantic --- */
 ${coreDarkBlock(CORE)}
 
-    /* --- owned: scales --- */
+    /* --- scales --- */
 ${darkBlock(RAMPS)}
 
-    /* --- owned: alpha fills --- */
+    /* --- alpha fills --- */
 ${darkBlock(ALPHA)}
 
-    /* --- shim: legacy --ag-c-* (dark aliased to roles where possible) --- */
-${s.shimDark}
+    /* --- feature families --- */
+${feat.dark}
 
-    /* --- passthrough: feature families --- */
-${s.passDark}
+    /* --- legacy --ag-c-* shim (dark aliased to roles where possible) --- */
+${shim.dark}
 }
 `
 }
@@ -305,10 +372,34 @@ function buildAntdOverrides(): string {
         boxShadow: p.shadow.overlay.dark,
         boxShadowSecondary: p.shadow.overlay.dark,
         boxShadowTertiary: p.shadow.tertiary.dark,
+        boxShadowDrawerRight: p.shadow.drawerRight.dark,
+        boxShadowDrawerLeft: p.shadow.drawerLeft.dark,
+        boxShadowDrawerTop: p.shadow.drawerTop.dark,
+        boxShadowDrawerBottom: p.shadow.drawerBottom.dark,
     }
-    return `// GENERATED from palette.ts — do not edit by hand.
-export const DARK_TOKEN_OVERRIDES = ${JSON.stringify(o, null, 4)} as const
-export const darkComponents = ${JSON.stringify(p.componentsDark, null, 4)} as const
+    // Emit prettier-conformant TS (unquoted keys, trailing commas) so the generated
+    // file stays lint-clean and doesn't churn against format-fix.
+    // Match prettier: wrap the value onto its own indented line when the single-line
+    // form would exceed printWidth (100).
+    const flat = (obj: Record<string, string>, indent: string) =>
+        Object.entries(obj)
+            .map(([k, v]) => {
+                const json = JSON.stringify(v)
+                const line = `${indent}${k}: ${json},`
+                return line.length > 100 ? `${indent}${k}:\n${indent}    ${json},` : line
+            })
+            .join("\n")
+    const nested = Object.entries(p.componentsDark)
+        .map(([name, tokens]) => `    ${name}: {\n${flat(tokens, "        ")}\n    },`)
+        .join("\n")
+    return `// GENERATED from palette.ts by scripts/generate-tailwind-tokens.ts — do not edit by hand.
+export const DARK_TOKEN_OVERRIDES = {
+${flat(o, "    ")}
+}
+
+export const darkComponents = {
+${nested}
+}
 `
 }
 
@@ -319,7 +410,18 @@ function parseThemeCss(text: string) {
     const root = new Map<string, string>()
     const dark = new Map<string, string>()
     let scope: "root" | "dark" | null = null
+    let buf: string | null = null // accumulate multi-line values (e.g. wrapped rgba())
+    let bufName: string | null = null
     for (const line of text.split("\n")) {
+        if (buf != null) {
+            buf += " " + line.trim()
+            if (line.includes(";")) {
+                const val = buf.split(":").slice(1).join(":").split(";")[0].trim()
+                if (scope) (scope === "root" ? root : dark).set(bufName as string, val)
+                buf = bufName = null
+            }
+            continue
+        }
         const open = line.match(/^\s*(:root|\.dark)\s*\{/)
         if (open) {
             scope = open[1] === ":root" ? "root" : "dark"
@@ -329,14 +431,21 @@ function parseThemeCss(text: string) {
             scope = null
             continue
         }
-        const decl = line.match(/^\s*(--ag-[a-z0-9-]+)\s*:\s*([^;]+);/i)
-        if (decl && scope) (scope === "root" ? root : dark).set(decl[1], decl[2].trim())
+        const decl = line.match(/^\s*(--ag-[a-z0-9-]+)\s*:\s*(.*)$/i)
+        if (decl && scope) {
+            if (decl[2].includes(";"))
+                (scope === "root" ? root : dark).set(decl[1], decl[2].split(";")[0].trim())
+            else {
+                buf = `${decl[1]}: ${decl[2]}`
+                bufName = decl[1]
+            }
+        }
     }
     return {root, dark}
 }
 
-function parityCheck(generatedCss: string) {
-    const cur = parseThemeCss(readFileSync(CURRENT_CSS, "utf8"))
+function parityCheck(generatedCss: string, baselineText: string) {
+    const cur = parseThemeCss(baselineText)
     const gen = parseThemeCss(generatedCss)
     const mismatches: string[] = []
     let checked = 0
@@ -357,28 +466,49 @@ function parityCheck(generatedCss: string) {
         if (norm(genLight) !== norm(curLight))
             lightMismatches.push(`  ${name}: current ${curLight}  vs generated ${genLight}`)
     }
-    const emitted = new Set([...gen.root.keys()])
-    const uncovered = [...cur.root.keys()].filter((k) => !emitted.has(k))
-    return {checked, mismatches, lightMismatches, uncovered}
+    const uncovered = [...cur.root.keys()].filter((k) => !gen.root.has(k))
+    const darkUncovered = [...cur.dark.keys()].filter((k) => !gen.dark.has(k))
+    return {checked, mismatches, lightMismatches, uncovered, darkUncovered}
 }
 
 // ---------------------------------------------------------------------------
 // Main
+//   GEN_WRITE=1        → write the LIVE files (theme-variables.css + overrides).
+//                        Otherwise write to the scratch OUT dir (safe default).
+//   BASELINE_CSS=path  → verify the generated CSS is lossless vs this frozen
+//                        baseline. Omit for a plain regen (no parity, e.g. after
+//                        the designer intentionally changes palette.ts).
 // ---------------------------------------------------------------------------
-mkdirSync(OUT, {recursive: true})
-const css = buildCss()
-writeFileSync(pathResolve(OUT, "theme-variables.generated.css"), css)
-writeFileSync(pathResolve(OUT, "antd-dark-overrides.generated.ts"), buildAntdOverrides())
+const WRITE = process.env.GEN_WRITE === "1"
+const cssTarget = WRITE ? CURRENT_CSS : pathResolve(OUT, "theme-variables.generated.css")
+const overridesTarget = WRITE
+    ? pathResolve(OSS, "src/styles/theme/antd-overrides.generated.ts")
+    : pathResolve(OUT, "antd-dark-overrides.generated.ts")
 
-const {checked, mismatches, lightMismatches, uncovered} = parityCheck(css)
-console.log(`\nOutput → ${OUT}`)
-console.log(`\nPARITY (full file: owned + shim + passthrough)`)
-console.log(`  dark values checked: ${checked}`)
-console.log(`  dark mismatches:     ${mismatches.length}`)
-console.log(`  light mismatches:    ${lightMismatches.length}`)
-console.log(`  --ag-c-* dark aliased to roles: ${shimAliased}`)
-console.log(`  current vars NOT emitted: ${uncovered.length}`)
-if (mismatches.length) console.log("\nDARK MISMATCHES:\n" + mismatches.slice(0, 30).join("\n"))
-if (lightMismatches.length)
-    console.log("\nLIGHT MISMATCHES:\n" + lightMismatches.slice(0, 30).join("\n"))
-if (uncovered.length) console.log("\nUNCOVERED:\n  " + uncovered.join("\n  "))
+const css = buildCss()
+if (!WRITE) mkdirSync(OUT, {recursive: true})
+writeFileSync(cssTarget, css)
+writeFileSync(overridesTarget, buildAntdOverrides())
+console.log(`\nWrote:\n  ${cssTarget}\n  ${overridesTarget}`)
+
+if (process.env.BASELINE_CSS) {
+    const baselineText = readFileSync(pathResolve(WEB, process.env.BASELINE_CSS), "utf8")
+    const {checked, mismatches, lightMismatches, uncovered, darkUncovered} = parityCheck(
+        css,
+        baselineText,
+    )
+    console.log(`\nPARITY (vs ${process.env.BASELINE_CSS})`)
+    console.log(`  dark values checked:  ${checked}`)
+    console.log(`  dark mismatches:      ${mismatches.length}`)
+    console.log(`  light mismatches:     ${lightMismatches.length}`)
+    console.log(`  --ag-c-* dark aliased: ${shimAliased}`)
+    console.log(`  baseline root vars NOT emitted: ${uncovered.length}`)
+    console.log(`  baseline dark vars NOT emitted: ${darkUncovered.length}`)
+    if (mismatches.length) console.log("\nDARK MISMATCHES:\n" + mismatches.slice(0, 40).join("\n"))
+    if (lightMismatches.length)
+        console.log("\nLIGHT MISMATCHES:\n" + lightMismatches.slice(0, 40).join("\n"))
+    if (uncovered.length) console.log("\nROOT UNCOVERED:\n  " + uncovered.join("\n  "))
+    if (darkUncovered.length) console.log("\nDARK UNCOVERED:\n  " + darkUncovered.join("\n  "))
+} else {
+    console.log("\n(no BASELINE_CSS → skipped parity; plain regen)")
+}

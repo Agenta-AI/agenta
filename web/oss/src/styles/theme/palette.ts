@@ -111,6 +111,18 @@ export const shadow = {
         light: antd("boxShadowDrawerRight"),
         dark: "-1px 0 0 0 rgba(255, 255, 255, 0.16), -6px 0 16px 0 rgba(0, 0, 0, 0.44), -3px 0 6px -4px rgba(0, 0, 0, 0.52), -9px 0 28px 8px rgba(0, 0, 0, 0.28)",
     },
+    drawerLeft: {
+        light: antd("boxShadowDrawerLeft"),
+        dark: "1px 0 0 0 rgba(255, 255, 255, 0.16), 6px 0 16px 0 rgba(0, 0, 0, 0.44), 3px 0 6px -4px rgba(0, 0, 0, 0.52), 9px 0 28px 8px rgba(0, 0, 0, 0.28)",
+    },
+    drawerTop: {
+        light: antd("boxShadowDrawerTop"),
+        dark: "0 1px 0 0 rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
+    },
+    drawerBottom: {
+        light: antd("boxShadowDrawerBottom"),
+        dark: "0 -1px 0 0 rgba(255, 255, 255, 0.16), 0 -6px 16px 0 rgba(0, 0, 0, 0.44), 0 -3px 6px -4px rgba(0, 0, 0, 0.52), 0 -9px 28px 8px rgba(0, 0, 0, 0.28)",
+    },
 } satisfies Record<string, Pair>
 
 // Component-level dark overrides (antd `components` map).
@@ -342,6 +354,19 @@ export const playgroundSurface = {
     chipBorder: {light: "#e3e4e6", dark: "#303035"},
     rowHover: {light: "#f3f4f6", dark: "#212327"},
     accent: {light: "#c2d54a", dark: "#c2d54a"}, // brand accent, constant across themes
+    raisedShadow: {
+        light: "0 1px 3px rgba(16, 18, 22, 0.05)",
+        dark: "inset 0 1px 0 rgba(255, 255, 255, 0.045)",
+    },
+    cardShadow: {
+        light: "0 1px 2px rgba(16, 18, 22, 0.06)",
+        dark: "0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03)",
+    },
+    chatShadow: {light: "0 1px 2px rgba(16, 18, 22, 0.06)", dark: "0 1px 3px rgba(0, 0, 0, 0.45)"},
+    inspectorShadow: {
+        light: "-8px 0 24px rgba(16, 18, 22, 0.08)",
+        dark: "-8px 0 24px rgba(0, 0, 0, 0.35)",
+    },
 } satisfies Record<string, Pair>
 
 export const composer = {
@@ -370,6 +395,7 @@ export const drawerDark = {
     cardHover: "#2b2e33",
     tagBg: "rgba(255, 255, 255, 0.05)",
     tagText: "#9a9a9f",
+    shadow: "-16px 0 40px rgba(0, 0, 0, 0.5)",
 }
 
 /** Semantic status wells (playground). */
