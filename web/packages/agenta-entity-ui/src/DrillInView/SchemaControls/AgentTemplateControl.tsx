@@ -30,6 +30,7 @@ import {
     classifyAgentChanges,
     stableStringify,
 } from "@agenta/entities/workflow/commitDiff"
+import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {ConfigAccordionSection, sectionIndicatorColor} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -46,7 +47,7 @@ import {
 } from "@phosphor-icons/react"
 import {Button, Tabs, Tooltip, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
-import {useAtomValue, useStore} from "jotai"
+import {useAtom, useAtomValue, useStore} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
@@ -193,6 +194,14 @@ export function AgentTemplateControl({
         setDraftBuildKit(null)
         sectionBaseline.current = null
     }, [])
+
+    // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → Model & harness).
+    const [openSectionRequest, setOpenSectionRequest] = useAtom(openAgentConfigSectionAtom)
+    useEffect(() => {
+        if (!openSectionRequest) return
+        openSectionDrawer(openSectionRequest)
+        setOpenSectionRequest(null)
+    }, [openSectionRequest, openSectionDrawer, setOpenSectionRequest])
     // Cancel: nothing was written live, so just drop the draft.
     const cancelSection = closeSectionDraft
     const saveSection = useCallback(() => {
@@ -396,10 +405,12 @@ export function AgentTemplateControl({
 
     // Section headers: a blocking problem (invalid) outranks unsaved edits (draft).
     const sectionInvalidTip = (key: string): string | null => {
-        if (key === "model-harness")
-            return mh.hasModelOrHarness && !modelIdFromConfig(config.llm)
-                ? "No model is selected."
-                : null
+        if (key === "model-harness") {
+            if (mh.hasModelOrHarness && !modelIdFromConfig(config.llm))
+                return "No model is selected."
+            if (mh.modelUnsupported) return "The selected model isn't available on this harness."
+            return null
+        }
         if (key === "tools")
             return tools.some((t) => ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>))
                 ? "A tool is missing its name."
@@ -414,11 +425,19 @@ export function AgentTemplateControl({
                 : null
         return null
     }
+    // Structurally valid but missing setup the section needs to run (amber, ranks below invalid).
+    const sectionIncompleteTip = (key: string): string | null => {
+        if (key === "model-harness" && mh.needsProviderKey)
+            return "Connect the model's provider key to run this agent."
+        return null
+    }
     const headerIndicator = (
         key: string,
     ): {tone: "draft" | "invalid" | "incomplete"; tooltip?: string} | undefined => {
         const invalid = sectionInvalidTip(key)
         if (invalid) return {tone: "invalid", tooltip: invalid}
+        const incomplete = sectionIncompleteTip(key)
+        if (incomplete) return {tone: "incomplete", tooltip: incomplete}
         if (draftSectionKeys.has(key))
             return {
                 tone: "draft",
@@ -426,6 +445,29 @@ export function AgentTemplateControl({
             }
         return undefined
     }
+    // A short pill rendered next to a section title for the blocking cases the user must resolve,
+    // matching the header indicator's tone. Kept terse so it never crowds the title (the section
+    // shell truncates the title and keeps the pill `shrink-0`).
+    const sectionBadge = (key: string): React.ReactNode => {
+        if (key !== "model-harness") return null
+        const pill = (label: string, tone: "warning" | "error") => (
+            <span
+                className={cn(
+                    "whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium leading-none",
+                    tone === "error"
+                        ? "bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorError)]"
+                        : "bg-[var(--ag-colorWarningBg)] text-[var(--ag-colorWarning)]",
+                )}
+            >
+                {label}
+            </span>
+        )
+        if (mh.hasModelOrHarness && !modelIdFromConfig(config.llm)) return pill("No model", "error")
+        if (mh.modelUnsupported) return pill("Unavailable", "error")
+        if (mh.needsProviderKey) return pill("Connect key", "warning")
+        return null
+    }
+
     const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
         ? {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
         : undefined
@@ -521,7 +563,7 @@ export function AgentTemplateControl({
                     }
                 />
             ) : undefined,
-            defaultOpen: true,
+            defaultOpen: tools.length > 0,
             content: (
                 <ToolManagementList
                     tools={tools}
@@ -671,7 +713,8 @@ export function AgentTemplateControl({
                                         ) : null}
                                     </span>
                                 </Tooltip>
-                                {s.title}
+                                <span className="truncate">{s.title}</span>
+                                {sectionBadge(s.key)}
                             </span>
                         ),
                         children: (
@@ -691,6 +734,7 @@ export function AgentTemplateControl({
                             key={s.key}
                             icon={s.icon}
                             title={s.title}
+                            titleBadge={sectionBadge(s.key)}
                             summary={s.summary}
                             extra={s.extra}
                             indicator={s.indicator}
@@ -709,6 +753,7 @@ export function AgentTemplateControl({
                         key={s.key}
                         icon={s.icon}
                         title={s.title}
+                        titleBadge={sectionBadge(s.key)}
                         summary={s.summary}
                         extra={s.extra}
                         indicator={s.indicator}

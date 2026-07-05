@@ -18,6 +18,11 @@ export interface SectionRailItem {
     label: string
     /** Optional trailing count (e.g. a schema's field count). */
     count?: number
+    /**
+     * Optional trailing status dot — flags an item that needs attention (e.g. a missing provider
+     * key). `"warning"` is amber, `"invalid"` is red. Takes the trailing slot over `count`.
+     */
+    status?: "warning" | "invalid"
 }
 
 export interface SectionRailProps {
@@ -59,7 +64,7 @@ export function SectionRail({
                             disabled={disabled}
                             onClick={() => onChange(item.value)}
                             className={`!h-8 !rounded-md !px-2.5 !text-xs transition-colors ${
-                                item.count != null
+                                item.count != null || item.status
                                     ? "!flex !items-center !justify-between"
                                     : "!justify-start"
                             } ${
@@ -69,7 +74,15 @@ export function SectionRail({
                             }`}
                         >
                             <span className="truncate">{item.label}</span>
-                            {item.count != null ? (
+                            {item.status ? (
+                                <span
+                                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                        item.status === "invalid"
+                                            ? "bg-[var(--ag-colorError)]"
+                                            : "bg-[var(--ag-colorWarning)]"
+                                    }`}
+                                />
+                            ) : item.count != null ? (
                                 <span className="text-[10px] opacity-70">{item.count}</span>
                             ) : null}
                         </Button>

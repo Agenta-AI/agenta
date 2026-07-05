@@ -106,6 +106,11 @@ export interface ConfigAccordionSectionProps {
     indicator?: {tone: "draft" | "invalid" | "incomplete"; tooltip?: ReactNode}
     /** Only show `summary` while the section is collapsed. @default false (always). */
     summaryCollapsedOnly?: boolean
+    /**
+     * Small status pill rendered immediately after the title (e.g. "Connect key"). Kept `shrink-0`
+     * while the title itself truncates, so a long title + badge + summary never overlap.
+     */
+    titleBadge?: ReactNode
     /** Additional CSS class for the section wrapper. */
     className?: string
     /** Section body. */
@@ -132,6 +137,7 @@ export function ConfigAccordionSection({
     status = "default",
     indicator,
     summaryCollapsedOnly = false,
+    titleBadge,
     className,
     children,
 }: ConfigAccordionSectionProps) {
@@ -212,12 +218,13 @@ export function ConfigAccordionSection({
                     ) : null}
                     <Text
                         className={cn(
-                            "truncate font-medium",
+                            "min-w-0 truncate font-medium",
                             size === "compact" ? "text-xs" : "text-sm",
                         )}
                     >
                         {title}
                     </Text>
+                    {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">

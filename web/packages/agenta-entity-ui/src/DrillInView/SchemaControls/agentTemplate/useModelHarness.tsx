@@ -2,16 +2,20 @@
  * useModelHarness — the Model & harness + Advanced sections (the panel's most stateful part). One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {customSecretsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"
+import {
+    customSecretsAtom,
+    standardSecretsAtom,
+    vaultSecretsQueryAtom,
+} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Check, Cube, Key, Lightbulb, ShieldCheck, Warning} from "@phosphor-icons/react"
+import {Check, Cube, Key, Lightbulb, ShieldCheck, Sparkle, Warning} from "@phosphor-icons/react"
 import {Select, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -39,6 +43,7 @@ import {PiSettingsControl} from "../PiSettingsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {enumLabel} from "./agentTemplateUtils"
+import ProviderKeyField from "./ProviderKeyField"
 import {useBuildKit} from "./useBuildKit"
 
 type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
@@ -175,6 +180,35 @@ export function useModelHarness({
 
     // Vault custom_provider connections carry their own models; the harness catalog can't reach them.
     const customSecrets = useAtomValue(customSecretsAtom)
+
+    // Inline credential prompt: resolve the selected model's provider family and check whether the
+    // vault already holds its (standard) key. When it doesn't, the drawer surfaces a key field so the
+    // user can connect it here. `providerForModel` is the same catalog lookup the model picker uses.
+    const standardSecrets = useAtomValue(standardSecretsAtom)
+    const providerVaultEntry = useMemo(() => {
+        const family = (
+            providerForModel(capabilities, harnessValue, modelId) ??
+            connection.provider ??
+            ""
+        ).toLowerCase()
+        if (!family) return null
+        return (
+            standardSecrets.find(
+                (secret) =>
+                    (secret.name ?? "").toLowerCase().replace(/_api_key$/, "") === family ||
+                    (secret.title ?? "").toLowerCase() === family,
+            ) ?? null
+        )
+    }, [standardSecrets, capabilities, harnessValue, modelId, connection.provider])
+    const providerNeedsKey = !!providerVaultEntry && !providerVaultEntry.key
+
+    // Model section sub-tabs (rail): pick the model vs connect its provider key. Lands on "key" when a
+    // key is missing so the "Set up credentials" banner opens straight onto it; only re-forces on the
+    // needs-key → true transition, so manual navigation to "Model" is respected.
+    const [modelTab, setModelTab] = useState<"model" | "key">(providerNeedsKey ? "key" : "model")
+    useEffect(() => {
+        if (providerNeedsKey) setModelTab("key")
+    }, [providerNeedsKey])
 
     // The "Add provider" footer + drawer come from context, same source as the completion picker.
     const {llmProviderConfig} = useDrillInUI()
@@ -326,7 +360,35 @@ export function useModelHarness({
 
     // The Model picker (inspect-filtered when available, else the schema catalog), as a rail row —
     // the info tooltip only applies to the inspect-filtered variant (the fallback is the full catalog).
-    const modelPicker = props.llm ? (
+    // The bare model control (no label). In the capabilities layout the "Model" section header carries
+    // the label (matching the schedule drawer's "Name" section — title + bare input), so we render this
+    // directly; the flat/no-capabilities branch wraps it in a labelled `RailField` (`modelPicker`).
+    const modelControl = props.llm ? (
+        hasInspectModels ? (
+            <SelectLLMProviderBase
+                showGroup
+                options={modelGroups}
+                value={modelId ?? undefined}
+                onChange={(v) => writeModel({modelId: (v as string) ?? null})}
+                disabled={disabled}
+                placeholder="Select a model…"
+                className="w-full"
+                footerContent={llmProviderConfig?.footerContent}
+            />
+        ) : (
+            <GroupedChoiceControl
+                schema={
+                    (props.llm?.properties as Record<string, SchemaProperty> | undefined)?.model ??
+                    props.llm
+                }
+                value={modelId}
+                onChange={(v) => writeModel({modelId: v})}
+                disabled={disabled}
+            />
+        )
+    ) : null
+
+    const modelPicker = modelControl ? (
         <RailField
             label={
                 hasInspectModels
@@ -338,28 +400,7 @@ export function useModelHarness({
             }
             align="center"
         >
-            {hasInspectModels ? (
-                <SelectLLMProviderBase
-                    showGroup
-                    options={modelGroups}
-                    value={modelId ?? undefined}
-                    onChange={(v) => writeModel({modelId: (v as string) ?? null})}
-                    disabled={disabled}
-                    placeholder="Select a model…"
-                    className="w-full"
-                    footerContent={llmProviderConfig?.footerContent}
-                />
-            ) : (
-                <GroupedChoiceControl
-                    schema={
-                        (props.llm?.properties as Record<string, SchemaProperty> | undefined)
-                            ?.model ?? props.llm
-                    }
-                    value={modelId}
-                    onChange={(v) => writeModel({modelId: v})}
-                    disabled={disabled}
-                />
-            )}
+            {modelControl}
         </RailField>
     ) : null
 
@@ -395,103 +436,88 @@ export function useModelHarness({
     // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
     const harnessList = capabilities ? Object.keys(capabilities) : []
 
-    const harnessCards = (
-        <div className="flex flex-col gap-2">
-            {harnessList.map((h) => {
-                const caps = capabilities?.[h]
-                // `selected` = the (draft) pick → drives the radio + border. `isCurrent` = the SAVED
-                // harness → drives the "Current" badge, so the badge stays put until the draft is saved.
-                const selected = harnessValue === h
-                const isCurrent = (savedHarnessValue ?? harnessValue) === h
-                const providers = caps?.providers ?? []
-                const deployments = caps?.deployments ?? []
-                const modelCount = caps
-                    ? Object.values(caps.models ?? {}).reduce(
-                          (n, arr) => n + (Array.isArray(arr) ? arr.length : 0),
-                          0,
-                      )
-                    : 0
-                // A harness supports the model if it lists the exact id OR the model's PROVIDER family.
-                // The provider fallback matters because harnesses use different id namespaces: Claude
-                // Code's short alias "opus" isn't in Pi's full-id catalog, but Pi does list the anthropic
-                // provider — so it can run the model. Without this, cross-harness checks read as false
-                // "model not available". (Exact-id alone still can't map aliases; the provider is the
-                // reliable signal we have on the config.)
-                const modelProvider = connection.provider
-                const keepsModel =
-                    !modelId ||
-                    harnessAllowsModel(capabilities, h, modelId) ||
-                    (!!modelProvider && providers.includes(modelProvider))
-                return (
-                    <button
-                        key={h}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => setSection("harness", {...harness, kind: h})}
-                        className={cn(
-                            "flex w-full flex-col gap-1.5 rounded-lg border border-solid p-2.5 text-left transition-colors",
-                            disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
-                            selected
-                                ? "border-[var(--ant-color-primary-border-hover)] bg-[var(--ant-color-fill-secondary)]"
-                                : "border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] hover:border-[var(--ant-color-text-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)]",
-                        )}
-                    >
-                        <div className="flex items-center gap-2">
-                            <span
-                                className={cn(
-                                    "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-solid",
-                                    selected
-                                        ? "border-[var(--ant-color-primary)]"
-                                        : "border-[var(--ant-color-text-tertiary)]",
-                                )}
-                            >
-                                {selected && (
-                                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--ant-color-primary)]" />
-                                )}
-                            </span>
-                            <span className="text-xs font-medium">
-                                {enumLabel(harnessProps.kind, h) || h}
-                            </span>
-                            <span className="ml-auto flex items-center gap-2">
-                                {/* Model compatibility lives on the card itself: warn on the CURRENT
-                                    harness when it can't run the selected model (quiet when it can);
-                                    for alternatives, show whether switching would keep the model. */}
-                                {modelId && (!keepsModel || !selected) ? (
-                                    <span
-                                        className={cn(
-                                            "inline-flex items-center gap-1 text-[10.5px]",
-                                            keepsModel
-                                                ? "text-[var(--ant-color-success)]"
-                                                : "text-[var(--ant-color-warning)]",
-                                        )}
-                                    >
-                                        {keepsModel ? <Check size={11} /> : <Warning size={11} />}
-                                        {keepsModel ? "supports your model" : "model not available"}
-                                    </span>
-                                ) : null}
-                                {isCurrent ? (
-                                    <span className="rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
-                                        Current
-                                    </span>
-                                ) : null}
-                            </span>
-                        </div>
-                        {providers.length > 0 || modelCount > 0 ? (
-                            <div className="pl-[22px] text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                {providers.slice(0, 4).join(", ")}
-                                {providers.length > 4 ? ` +${providers.length - 4}` : ""}
-                                {modelCount ? ` · ${modelCount} models` : ""}
-                            </div>
-                        ) : null}
-                        {deployments.length > 0 ? (
-                            <div className="pl-[22px] text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                Hosting: {deployments.join(" · ")}
-                            </div>
-                        ) : null}
-                    </button>
-                )
-            })}
-        </div>
+    // Harness as a `[rail │ detail]` (experiment): the harness list on the rail with a model-compat dot,
+    // the selected harness's providers / hosting / models + compatibility badge in the content panel.
+    const selectedCaps = harnessValue ? capabilities?.[harnessValue] : null
+    const selectedProviders = selectedCaps?.providers ?? []
+    const selectedDeployments = selectedCaps?.deployments ?? []
+    const selectedModelCount = selectedCaps
+        ? Object.values(selectedCaps.models ?? {}).reduce(
+              (n, arr) => n + (Array.isArray(arr) ? arr.length : 0),
+              0,
+          )
+        : 0
+    // A harness supports the model if it lists the exact id OR the model's PROVIDER family (harnesses use
+    // different id namespaces; the provider is the reliable cross-harness signal on the config).
+    const selectedKeepsModel =
+        !modelId ||
+        harnessAllowsModel(capabilities, harnessValue, modelId) ||
+        (!!connection.provider && selectedProviders.includes(connection.provider))
+    const selectedIsCurrent = !!harnessValue && (savedHarnessValue ?? harnessValue) === harnessValue
+    const selectedHarnessLabel =
+        (harnessValue ? enumLabel(harnessProps.kind, harnessValue) : null) || harnessValue
+
+    const harnessSection = (
+        <SectionRail
+            disabled={disabled}
+            // No per-harness status dot: a harness isn't invalid because of the model — model
+            // compatibility is a property of the *model* choice, shown on the selected harness's
+            // detail ("supports your model" / "model not available") and on the Model section.
+            items={harnessList.map((h) => ({
+                value: h,
+                label: enumLabel(harnessProps.kind, h) || h,
+            }))}
+            value={harnessValue ?? ""}
+            onChange={(h) => setSection("harness", {...harness, kind: h})}
+        >
+            <div className="flex flex-col gap-3 py-0.5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="text-sm font-medium">{selectedHarnessLabel}</span>
+                    {selectedIsCurrent ? (
+                        <span className="rounded-full bg-[var(--ag-colorFillSecondary)] px-2 py-0.5 text-[11px] text-[var(--ag-colorPrimary)]">
+                            Current
+                        </span>
+                    ) : null}
+                    {modelId ? (
+                        <span
+                            className={cn(
+                                "inline-flex items-center gap-1 text-[11px]",
+                                selectedKeepsModel
+                                    ? "text-[var(--ag-colorSuccess)]"
+                                    : "text-[var(--ag-colorWarning)]",
+                            )}
+                        >
+                            {selectedKeepsModel ? <Check size={12} /> : <Warning size={12} />}
+                            {selectedKeepsModel ? "supports your model" : "model not available"}
+                        </span>
+                    ) : null}
+                </div>
+                {selectedProviders.length > 0 ? (
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                            Providers
+                        </span>
+                        <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+                            {selectedProviders.slice(0, 4).join(" · ")}
+                            {selectedProviders.length > 4
+                                ? ` +${selectedProviders.length - 4}`
+                                : ""}
+                            {selectedModelCount ? ` · ${selectedModelCount} models` : ""}
+                        </span>
+                    </div>
+                ) : null}
+                {selectedDeployments.length > 0 ? (
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                            Hosting
+                        </span>
+                        <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+                            {selectedDeployments.join(" · ")}
+                        </span>
+                    </div>
+                ) : null}
+            </div>
+        </SectionRail>
     )
 
     // Model & harness drawer body. With inspect capabilities: harness cards + model picker on the
@@ -500,15 +526,81 @@ export function useModelHarness({
     // Shared Model & harness controls — rendered by both the wide drawer body and the tabs-inline body.
     const modelHarnessControls = capabilities ? (
         <>
-            <div className="flex gap-2 rounded-md bg-[var(--ant-color-fill-quaternary)] p-2.5">
-                <Lightbulb size={15} className="mt-px shrink-0 text-[var(--ag-c-586673,#586673)]" />
-                <span className="text-[11.5px] leading-snug text-[var(--ag-c-586673,#586673)]">
-                    The harness is the runtime that executes your agent. It decides which providers,
-                    hosting and connection options you can use.
-                </span>
-            </div>
-            <RailField label="Harness">{harnessCards}</RailField>
-            {modelPicker}
+            <ConfigAccordionSection
+                size="compact"
+                icon={<Cube size={15} />}
+                title="Harness"
+                status={harnessValue ? "complete" : "default"}
+                summary={selectedHarnessLabel ?? undefined}
+                summaryCollapsedOnly
+            >
+                <div className="flex gap-2.5 rounded-md bg-[var(--ag-colorFillQuaternary)] p-3">
+                    <Lightbulb
+                        size={16}
+                        className="mt-0.5 shrink-0 text-[var(--ag-colorTextSecondary)]"
+                    />
+                    <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
+                        The harness is the runtime that executes your agent. It decides which
+                        providers, hosting and connection options you can use.
+                    </span>
+                </div>
+                {harnessSection}
+            </ConfigAccordionSection>
+
+            <ConfigAccordionSection
+                size="compact"
+                icon={<Sparkle size={15} />}
+                title="Model & credentials"
+                status={
+                    !modelId || !selectedKeepsModel || providerNeedsKey ? "warning" : "complete"
+                }
+                summary={modelId ?? undefined}
+                summaryCollapsedOnly
+            >
+                <SectionRail
+                    disabled={disabled}
+                    items={[
+                        {
+                            value: "model",
+                            label: "Model",
+                            status:
+                                !modelId || !selectedKeepsModel ? ("warning" as const) : undefined,
+                        },
+                        {
+                            value: "key",
+                            label: "Provider key",
+                            status: providerNeedsKey ? ("warning" as const) : undefined,
+                        },
+                    ]}
+                    value={modelTab}
+                    onChange={(v) => setModelTab(v as "model" | "key")}
+                >
+                    {modelTab === "model" ? (
+                        <div className="flex flex-col gap-2 py-0.5">
+                            {modelControl}
+                            {hasInspectModels ? (
+                                <Typography.Text
+                                    type="secondary"
+                                    className="!text-[11px] !leading-snug"
+                                >
+                                    Filtered to the models this harness can reach. Selecting a model
+                                    also sets its provider.
+                                </Typography.Text>
+                            ) : null}
+                        </div>
+                    ) : providerVaultEntry ? (
+                        <ProviderKeyField provider={providerVaultEntry} />
+                    ) : (
+                        <Typography.Text
+                            type="secondary"
+                            className="!text-[11px] !leading-snug py-0.5"
+                        >
+                            This model's provider is set up from the model list — use “+ Add
+                            provider” there to connect its credentials.
+                        </Typography.Text>
+                    )}
+                </SectionRail>
+            </ConfigAccordionSection>
         </>
     ) : (
         <>
@@ -524,6 +616,9 @@ export function useModelHarness({
                 </RailField>
             )}
             {modelPicker}
+            {providerNeedsKey && providerVaultEntry ? (
+                <ProviderKeyField provider={providerVaultEntry} />
+            ) : null}
         </>
     )
 
@@ -769,6 +864,12 @@ export function useModelHarness({
 
     return {
         hasModelOrHarness,
+        // The selected model's provider has a standard vault slot but no key yet — the config panel
+        // highlights the Model & harness section and the chat gates on it until it's connected.
+        needsProviderKey: providerNeedsKey,
+        // A model is selected but the chosen harness can't run it — a *model* problem (the harness
+        // itself stays valid), so the config panel flags the Model & harness section as invalid.
+        modelUnsupported: !!modelId && !selectedKeepsModel,
         modelSummary,
         modelHarnessDrawerBody,
         modelHarnessInline,
