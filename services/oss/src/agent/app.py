@@ -288,12 +288,16 @@ def create_agent_app():
     # canonical identity for the agent workflow). The SDK seeds the registries for this URI with a
     # minimal default interface; the service is the authoritative live owner in its own process, so:
     #
-    # 1. Instrument `_agent`, then register THAT under the builtin URI, REPLACING the SDK-seeded
-    #    composition-default `agent_v0` (register_handler replaces, like register_interface).
-    #    Order matters: `ag.workflow` only instruments inside `_register_handler`, which it skips
-    #    once a handler exists in the registry. Registering the raw `_agent` would lose tracing
-    #    instrumentation; registering the instrumented one keeps it (mirrors chat.py).
-    # 2. REPLACE the interface registry entry with the service interface (AGENT_SCHEMAS), so
+    # 1. Instrument `_agent`, then register THAT under the builtin URI. Order matters: `ag.workflow`
+    #    only instruments inside `_register_handler`, which it skips once a handler exists in the
+    #    registry. Registering the raw `_agent` would lose tracing instrumentation; registering the
+    #    instrumented one keeps it (mirrors chat.py, whose registry handler is pre-instrumented).
+    #    `replace=True` is load-bearing: the SDK statically seeds `agent.v0` with its bare
+    #    `agent_v0` (noop trace/run context, uninstrumented), and `register_handler` is
+    #    setdefault by default — without the override the seed silently keeps running, the
+    #    run request carries no telemetry credential, and every runner->API session call
+    #    (persist/heartbeat/interactions) 401s while responses return trace_id=None.
+    # 2. OVERRIDE the interface registry with the service interface (AGENT_SCHEMAS), so
     #    `retrieve_interface(AGENT_URI)` returns the SAME schemas `/inspect` advertises.
     # 3. Build the workflow against the URI. `ag.workflow.__init__` resolves the (instrumented)
     #    handler and merges the registered interface; the passed `schemas` still win.
@@ -304,10 +308,7 @@ def create_agent_app():
     # are resolved by the frontend via `x-ag-harness-ref` on the agent-config harness field — the
     # same catalog/ref mechanism as every other type. The agent service still imports the SDK
     # capability table directly for its server-side reject; it never publishes it on inspect.
-    register_handler(
-        auto_instrument(_agent),
-        uri=AGENT_URI,
-    )
+    register_handler(auto_instrument(_agent), uri=AGENT_URI, replace=True)
     register_interface(
         WorkflowRevisionData(uri=AGENT_URI, schemas=AGENT_SCHEMAS),
         uri=AGENT_URI,

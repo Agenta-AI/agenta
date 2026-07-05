@@ -409,8 +409,13 @@ def parse_uri(
     return provider, kind, key, version
 
 
-def register_handler(fn: Callable, uri: Optional[str] = None) -> str:
-    """Register (or REPLACE) a handler function in the global handler registry.
+def register_handler(
+    fn: Callable,
+    uri: Optional[str] = None,
+    *,
+    replace: bool = False,
+) -> str:
+    """Register a handler function in the global handler registry.
 
     Stores a callable in the HANDLER_REGISTRY with a hierarchical URI structure
     of provider:kind:key:version. If no URI is provided, generates one automatically
@@ -423,10 +428,19 @@ def register_handler(fn: Callable, uri: Optional[str] = None) -> str:
     already-bound URI (``Workflow.__call__`` skips when a handler resolved from
     the registry), so replace semantics cannot clobber an instrumented handler.
 
+    By default the registration is first-writer-wins (``setdefault``): a URI that is
+    already bound — including the statically seeded builtins above — keeps its existing
+    handler, SILENTLY. A service that owns a builtin URI in its own process (e.g. the
+    agent service composing tracing/usage onto ``agenta:builtin:agent:v0``) must pass
+    ``replace=True`` to actually take ownership; otherwise the SDK's bare seed keeps
+    running and the service's composition never executes.
+
     Args:
         fn: The callable function to register
         uri: Optional URI string in format "provider:kind:key:version".
              If None, auto-generates "user:custom:{module}.{name}:latest"
+        replace: When True, overwrite any existing handler for the URI
+             (last-writer-wins). Default False keeps the existing entry.
 
     Returns:
         The URI string used for registration
@@ -449,9 +463,15 @@ def register_handler(fn: Callable, uri: Optional[str] = None) -> str:
     if not provider or not kind or not key or not version:
         raise ValueError(f"Invalid URI: {uri}")
 
-    HANDLER_REGISTRY.setdefault(provider, {}).setdefault(kind, {}).setdefault(key, {})[
-        version
-    ] = fn
+    bucket = (
+        HANDLER_REGISTRY.setdefault(provider, {})
+        .setdefault(kind, {})
+        .setdefault(key, {})
+    )
+    if replace:
+        bucket[version] = fn
+    else:
+        bucket.setdefault(version, fn)
 
     return uri
 
