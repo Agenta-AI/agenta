@@ -25,7 +25,7 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "Anyscale", key: "", name: "ANYSCALE_API_KEY"},
     {title: "Perplexity AI", key: "", name: "PERPLEXITYAI_API_KEY"},
     {title: "DeepInfra", key: "", name: "DEEPINFRA_API_KEY"},
-    {title: "Together AI", key: "", name: "TOGETHERAI_API_KEY"},
+    {title: "Together AI", key: "", name: "TOGETHER_API_KEY"},
     {title: "Aleph Alpha", key: "", name: "ALEPHALPHA_API_KEY"},
     {title: "OpenRouter", key: "", name: "OPENROUTER_API_KEY"},
     {title: "Groq", key: "", name: "GROQ_API_KEY"},
