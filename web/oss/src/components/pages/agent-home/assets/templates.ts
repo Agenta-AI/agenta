@@ -44,6 +44,12 @@ export interface AgentTemplate {
     triggerDescription: string
     /** Pre-filled playground message, auto-sent on entering a Ready playground. */
     seedMessage: string
+    /**
+     * Optional initial instruction for the agent-BUILDER flow (`NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`):
+     * the message seeded into a blank agent's playground chat so the builder configures it. Falls back
+     * to a derived phrasing (see {@link templateBuilderMessage}) when omitted.
+     */
+    builderMessage?: string
     /** Default model (Agenta-managed · Pi). */
     model: string
     /** Integrations the template's tools require — drive the "Required to run" connect rows. */
@@ -69,6 +75,16 @@ export const templateProviderSlugs = (template: AgentTemplate): string[] =>
 /** Total tool count across a template's integrations (drawer Tools count). */
 export const templateToolCount = (template: AgentTemplate): number =>
     template.requiredIntegrations.reduce((n, integration) => n + integration.tools.length, 0)
+
+/**
+ * The initial instruction message for the agent-builder flow (Mahmoud's template mode): it seeds a
+ * blank agent's playground chat so the builder constructs the config, instead of writing config
+ * directly. Uses the template's explicit `builderMessage` when set, else derives a build request from
+ * its name + overview.
+ */
+export const templateBuilderMessage = (template: AgentTemplate): string =>
+    template.builderMessage?.trim() ||
+    `I want to build a "${template.name}" agent. ${template.overview}`
 
 /** Canonical chip order; only categories present in the templates render. */
 export const TEMPLATE_CATEGORY_ORDER = ["Engineering", "Support", "Ops", "Docs"] as const

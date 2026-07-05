@@ -1,12 +1,10 @@
 import {useCallback, useRef, useState} from "react"
 
-import {appTemplatesQueryAtom, createEphemeralAppFromTemplate} from "@agenta/entities/workflow"
-import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
-import {extractApiErrorMessage} from "@agenta/shared/utils"
+import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {App, Tag, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {Tag, Typography} from "antd"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
@@ -23,15 +21,16 @@ import UsageSummary from "./components/UsageSummary"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
 import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
+import {useCreateAgent} from "./hooks/useCreateAgent"
+import {useTemplateSelect} from "./hooks/useTemplateSelect"
 
 const AgentHome: React.FC = () => {
     const composerRef = useRef<RichChatInputHandle>(null)
     const {onCreate, onContinueInIde} = useAgentHomeActions(composerRef)
     const {firstRunOverride} = useAgentHomeVariants()
-    const {message} = App.useApp()
     const router = useRouter()
     const {baseAppURL} = useAtomValue(urlAtom)
-    const setOpenDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
+    const createAgent = useCreateAgent()
 
     // Warm the app-templates cache so the ephemeral-create factory resolves the agent template.
     useAtomValue(appTemplatesQueryAtom)
@@ -48,30 +47,19 @@ const AgentHome: React.FC = () => {
     // First-run only: a tutorial video sits beside the composer (hidden when unconfigured).
     const showVideo = firstRun && !!TUTORIAL_VIDEO
 
-    // Template card click opens the setup drawer (review + connect before Create).
+    // Template card click: builder mode → straight to a seeded playground; else open the setup
+    // drawer (review + connect before Create). Gated by NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER.
     const [setupTemplate, setSetupTemplate] = useState<AgentTemplate | null>(null)
+    const handleSelectTemplate = useTemplateSelect(setSetupTemplate)
 
-    // Create a real ephemeral agent (named from the drawer) and open it in the playground
-    // drawer to commit — mirrors the Agents page create flow. Template-specific config
-    // (instructions/model/tools) seeding is a follow-up; today it starts from the agent preset.
+    // Create the agent from the template and land in its playground (no drawer). The template's
+    // seed message pre-fills the playground composer; connect-a-model is handled there. The setup
+    // drawer stays open (showing its Create spinner) until navigation succeeds or an error surfaces.
     const handleTemplateCreate = useCallback(
-        async ({name}: TemplateSetupResult) => {
-            try {
-                const entityId = await createEphemeralAppFromTemplate({
-                    type: "agent",
-                    defaultName: name,
-                })
-                if (!entityId) {
-                    message.error("Couldn't start agent creation — please retry")
-                    return
-                }
-                setSetupTemplate(null)
-                setOpenDrawer({entityId, context: "app-create"})
-            } catch (error) {
-                message.error(extractApiErrorMessage(error))
-            }
+        async ({template, name}: TemplateSetupResult) => {
+            await createAgent({name, seedMessage: template.seedMessage})
         },
-        [message, setOpenDrawer],
+        [createAgent],
     )
 
     return (
@@ -126,7 +114,7 @@ const AgentHome: React.FC = () => {
                 {firstRun ? (
                     <>
                         <TemplatesSection
-                            onSelectTemplate={setSetupTemplate}
+                            onSelectTemplate={handleSelectTemplate}
                             onBrowseAll={handleBrowseAll}
                         />
                         <OnRamps />

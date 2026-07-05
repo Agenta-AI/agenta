@@ -1,10 +1,14 @@
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 /**
- * Dev flag gating the new agent onboarding Home. Set NEXT_PUBLIC_AGENT_ONBOARDING=true
- * to render <AgentHome/> in place of the legacy AppManagement dashboard.
+ * Template behavior toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`). When true, clicking a template
+ * (Home or the gallery) skips the config-review drawer and instead opens the playground seeded with
+ * the template's builder instruction — Mahmoud's agent-builder flow (no direct config write). When
+ * false/unset (default), the current config-definition drawer flow is used. Both are kept so we can
+ * A/B them while the agent builder is unreliable.
  */
-export const ENABLE_AGENT_ONBOARDING = getEnv("NEXT_PUBLIC_AGENT_ONBOARDING") === "true"
+export const TEMPLATE_BUILDER_MODE =
+    (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER") || "").toLowerCase() === "true"
 
 export const HERO = {
     eyebrowNew: "New",
