@@ -13,10 +13,14 @@ import {
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
+const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
 
 afterEach(() => {
   if (previousPiDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
   else process.env.PI_CODING_AGENT_DIR = previousPiDir;
+  if (previousDenyPermissions === undefined)
+    delete process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
+  else process.env.SANDBOX_AGENT_DENY_PERMISSIONS = previousDenyPermissions;
 });
 
 describe("buildRunPlan", () => {
@@ -116,6 +120,147 @@ describe("buildRunPlan", () => {
     if (!result.ok) return;
     assert.deepEqual(result.plan.executableToolSpecs, []);
     assert.equal(result.plan.useToolRelay, true);
+  });
+
+  it("turns builtin gating on when blanket allow has a reduced grant set", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+        tools: ["read", "write"],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, ["read", "write"]);
+    assert.equal(result.plan.builtinGatingActive, true);
+    assert.equal(result.plan.useToolRelay, true);
+  });
+
+  it("turns builtin gating on when grants include Pi-nondefault builtins", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+        tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "grep",
+      "find",
+      "ls",
+    ]);
+    assert.equal(result.plan.builtinGatingActive, true);
+  });
+
+  it("leaves the all-allow default-grants Pi fast path off", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+    ]);
+    assert.equal(result.plan.builtinGatingActive, false);
+    assert.equal(result.plan.useToolRelay, false);
+  });
+
+  it("distinguishes omitted tools from an explicit empty grant set", () => {
+    const omitted = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+    const none = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+        tools: [],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(omitted.ok, true);
+    assert.equal(none.ok, true);
+    if (!omitted.ok || !none.ok) return;
+    assert.deepEqual(omitted.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+    ]);
+    assert.equal(omitted.plan.builtinGatingActive, false);
+    assert.deepEqual(none.plan.builtinGrants, []);
+    assert.equal(none.plan.builtinGatingActive, true);
+    assert.equal(none.plan.useToolRelay, true);
+  });
+
+  it("turns builtin gating on when the permission kill switch is set", () => {
+    process.env.SANDBOX_AGENT_DENY_PERMISSIONS = "true";
+
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+    ]);
+    assert.equal(result.plan.builtinGatingActive, true);
+    assert.equal(result.plan.useToolRelay, true);
+  });
+
+  it("turns builtin gating on when an all-allow policy has a builtin rule", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: {
+          default: "allow",
+          rules: [{ pattern: "Bash(npm:*)", permission: "allow" }],
+        },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.builtinGatingActive, true);
   });
 
   it("carries the sandbox permission onto the plan and leaves an unrestricted run alone", () => {
@@ -499,6 +644,22 @@ describe("buildRunPlan", () => {
           sandbox: "local",
           messages: [{ role: "user", content: "hello" }],
           customTools: [{ name: "server_tool", kind: "callback" }],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "/tmp/local-cwd" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+
+    it("allows claude x local x client-only tools (the feature's primary configuration)", () => {
+      // Client tools ride the internal loopback MCP channel on local Claude (advertised in
+      // tools/list, paused in tools/call), so this combination must pass the gate.
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "request_connection", kind: "client" }],
         } as AgentRunRequest,
         { createLocalCwd: () => "/tmp/local-cwd" },
       );
