@@ -1,13 +1,11 @@
 import {memo, useMemo} from "react"
 
 import {PlaygroundConfigSection} from "@agenta/entity-ui"
-import {Empty, Typography} from "antd"
+import {Empty} from "antd"
 
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 
 import PromptConfigCardSkeleton from "./PromptConfigCardSkeleton"
-
-const {Text} = Typography
 
 interface PromptConfigCardProps {
     variantId?: string | null
@@ -31,10 +29,10 @@ const PromptConfigCard = ({variantId, isLoading = false, className}: PromptConfi
                 <div className="flex items-center justify-center py-8 px-4">
                     <Empty
                         description={
-                            <Text type="secondary" className="text-center">
+                            <span className="text-center text-muted-foreground">
                                 Prompt configuration unavailable because the revision identifier is
                                 missing.
-                            </Text>
+                            </span>
                         }
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                     />

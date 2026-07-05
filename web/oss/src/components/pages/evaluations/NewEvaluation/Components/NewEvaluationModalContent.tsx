@@ -4,7 +4,7 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {createEvaluatorFromTemplate} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {CloseCircleOutlined} from "@ant-design/icons"
-import {Input, Tabs, Tag, Typography} from "antd"
+import {Input, Tabs, Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -160,9 +160,9 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
 
     const items = useMemo(() => {
         const requireAppMessage = (
-            <Typography.Text type="secondary">
+            <span className="text-muted-foreground">
                 Select an application first to load this section.
-            </Typography.Text>
+            </span>
         )
 
         return [
@@ -191,9 +191,9 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                             disabled={appSelectionDisabled}
                         />
                         {!appSelectionComplete && !appSelectionDisabled ? (
-                            <Typography.Text type="secondary">
+                            <span className="text-muted-foreground">
                                 Please select an application to continue configuring the evaluation.
-                            </Typography.Text>
+                            </span>
                         ) : null}
                     </div>
                 ),
@@ -361,7 +361,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     return (
         <div className="flex flex-col w-full gap-4 h-full max-h-full overflow-hidden [&_.ant-tabs]:!flex [&_.ant-tabs]:!w-full [&_.ant-tabs]:!grow [&_.ant-tabs]:!min-h-0">
             <div className="flex flex-col gap-2">
-                <Typography.Text className="font-medium">Evaluation name</Typography.Text>
+                <span className="font-medium">Evaluation name</span>
                 <Input
                     ref={inputRef}
                     placeholder="Enter a name"

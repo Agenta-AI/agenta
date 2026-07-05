@@ -9,7 +9,7 @@ import {
 } from "@agenta/entities/trace"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
-import {Button, Space, Tag, Typography} from "antd"
+import {Button, Space, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -482,7 +482,7 @@ const TraceHeader = ({
                         </div>
                     )}
 
-                    <Typography.Text className="text-sm font-medium">Trace</Typography.Text>
+                    <span className="text-sm font-medium">Trace</span>
                     <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
                         <Tag className="font-mono bg-[var(--ag-c-0517290F)]" variant="filled">
                             # {displayTraceId || "-"}

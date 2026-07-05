@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import {Calendar, CaretRight, Clock} from "@phosphor-icons/react"
 import type {SelectProps} from "antd"
-import {Button, DatePicker, Divider, Popover, Typography} from "antd"
+import {Button, DatePicker, Divider, Popover} from "antd"
 import dayjs, {Dayjs} from "dayjs"
 import {createUseStyles} from "react-jss"
 
@@ -218,9 +218,9 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, e
                                                 setSort("custom")
                                             }}
                                         >
-                                            <Typography.Text className="flex items-center gap-2">
+                                            <span className="flex items-center gap-2">
                                                 <Clock size={12} /> Define start and end time
-                                            </Typography.Text>
+                                            </span>
                                             <CaretRight size={12} />
                                         </div>
                                     </>
@@ -234,13 +234,11 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, e
 
                                 <div className="flex-1 flex flex-col justify-between pt-2">
                                     <div>
-                                        <Typography.Text className={classes.title}>
-                                            Start and end time
-                                        </Typography.Text>
+                                        <span className={classes.title}>Start and end time</span>
 
                                         <div className={classes.customDateContainer}>
                                             <div className="w-full flex flex-col gap-1">
-                                                <Typography.Text>Start time</Typography.Text>
+                                                <span>Start time</span>
                                                 <DatePicker
                                                     showTime
                                                     value={customTime.startTime}
@@ -256,7 +254,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, e
                                             </div>
 
                                             <div className="w-full flex flex-col gap-1">
-                                                <Typography.Text>End time</Typography.Text>
+                                                <span>End time</span>
                                                 <DatePicker
                                                     showTime
                                                     value={customTime.endTime}

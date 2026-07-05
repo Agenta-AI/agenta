@@ -1,7 +1,7 @@
 import {useEffect, useState} from "react"
 
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Input, Typography} from "antd"
+import {Input} from "antd"
 
 import type {ChangesSummary} from "../hooks/types"
 
@@ -99,9 +99,7 @@ export function TestcaseModals(props: TestcaseModalsProps) {
             >
                 <div className="flex flex-col gap-4">
                     <div>
-                        <Typography.Text strong className="block mb-1">
-                            Name
-                        </Typography.Text>
+                        <span className="block mb-1 font-semibold">Name</span>
                         <Input
                             value={editModalName}
                             onChange={(e) => setEditModalName(e.target.value)}
@@ -110,9 +108,7 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                         />
                     </div>
                     <div>
-                        <Typography.Text strong className="block mb-1">
-                            Description
-                        </Typography.Text>
+                        <span className="block mb-1 font-semibold">Description</span>
                         <Input.TextArea
                             value={editModalDescription}
                             onChange={(e) => setEditModalDescription(e.target.value)}
@@ -151,7 +147,7 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                 destroyOnHidden
             >
                 <div className="py-2">
-                    <Typography.Text className="block mb-2">Column name:</Typography.Text>
+                    <span className="block mb-2">Column name:</span>
                     <Input
                         value={newColumnName}
                         onChange={(e) => setNewColumnName(e.target.value)}
@@ -159,12 +155,12 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                         onPressEnter={handleAddColumn}
                         autoFocus
                     />
-                    <Typography.Text type="secondary" className="text-xs mt-2 block">
+                    <span className="text-xs mt-2 block text-muted-foreground">
                         Tip: Use dot notation to create nested columns. For example,{" "}
                         <code className="bg-gray-100 px-1 rounded">parent.child</code> creates a{" "}
                         <code className="bg-gray-100 px-1 rounded">child</code> column under the{" "}
                         <code className="bg-gray-100 px-1 rounded">parent</code> group.
-                    </Typography.Text>
+                    </span>
                 </div>
             </EnhancedModal>
         </>

@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import {evaluatorsListDataAtom, resolveOutputSchemaProperties} from "@agenta/entities/workflow"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {ChatText} from "@phosphor-icons/react"
-import {Badge, Button, Flex, Space, Table, Typography} from "antd"
+import {Badge, Button, Flex, Space, Table} from "antd"
 import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -195,14 +195,12 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
                         <Space orientation="vertical" key={key} className="w-full @container">
                             <div className="w-full flex items-center justify-between">
                                 <EvaluatorDetailsPopover evaluator={evaluator} fallbackLabel={slug}>
-                                    <Typography.Text className="font-medium">
-                                        {evaluatorName}
-                                    </Typography.Text>
+                                    <span className="font-medium">{evaluatorName}</span>
                                 </EvaluatorDetailsPopover>
 
-                                <Typography.Text type="secondary" className="capitalize">
+                                <span className="capitalize text-muted-foreground">
                                     {kind} evaluator
-                                </Typography.Text>
+                                </span>
                             </div>
 
                             <Table

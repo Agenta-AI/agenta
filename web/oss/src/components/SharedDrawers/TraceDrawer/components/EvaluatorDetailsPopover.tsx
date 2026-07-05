@@ -3,7 +3,7 @@ import {memo, ReactNode, useMemo} from "react"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
-import {Button, Popover, Typography} from "antd"
+import {Button, Popover} from "antd"
 import {useAtomValue} from "jotai"
 
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
@@ -72,13 +72,11 @@ const EvaluatorDetailsPopover = ({
         <div className="w-[250px]">
             <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between gap-2">
-                    <Typography.Text strong className="truncate">
-                        {evaluatorName}
-                    </Typography.Text>
+                    <span className="truncate font-semibold">{evaluatorName}</span>
                 </div>
                 <div className="flex flex-col gap-2 *:text-nowrap">
                     <div className="flex items-center justify-between gap-3">
-                        <Typography.Text type="secondary">Evaluator ID</Typography.Text>
+                        <span className="text-muted-foreground">Evaluator ID</span>
                         <ReferenceTag
                             label={getShortId(
                                 typeof evaluatorId === "string"
@@ -104,18 +102,15 @@ const EvaluatorDetailsPopover = ({
                         />
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <Typography.Text type="secondary">Evaluator Type</Typography.Text>
-                        <Typography.Text>
-                            {" "}
-                            {isHuman ? "Human evaluator" : "Automatic evaluator"}
-                        </Typography.Text>
+                        <span className="text-muted-foreground">Evaluator Type</span>
+                        <span> {isHuman ? "Human evaluator" : "Automatic evaluator"}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <Typography.Text type="secondary">Created at</Typography.Text>
-                        <Typography.Text>{formatDateTime(createdAt)}</Typography.Text>
+                        <span className="text-muted-foreground">Created at</span>
+                        <span>{formatDateTime(createdAt)}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <Typography.Text type="secondary">Created by</Typography.Text>
+                        <span className="text-muted-foreground">Created by</span>
                         <UserAuthorLabel name={createdBy} showAvatar />
                     </div>
                 </div>
@@ -138,7 +133,7 @@ const EvaluatorDetailsPopover = ({
 
     return (
         <Popover mouseEnterDelay={0.2} arrow content={popoverContent} trigger="hover">
-            {children || <Typography.Text>{evaluatorName}</Typography.Text>}
+            {children || <span>{evaluatorName}</span>}
         </Popover>
     )
 }

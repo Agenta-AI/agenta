@@ -1,4 +1,3 @@
-import {Typography} from "antd"
 import dynamic from "next/dynamic"
 
 import {isAgentChatSliceEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
@@ -17,9 +16,9 @@ const AgentChatPage = () => {
     if (!isAgentChatSliceEnabled()) {
         return (
             <div className="flex h-full items-center justify-center">
-                <Typography.Text type="secondary">
+                <span className="text-muted-foreground">
                     Agent chat slice is disabled. Set NEXT_PUBLIC_AGENT_CHAT_SLICE=true to enable.
-                </Typography.Text>
+                </span>
             </div>
         )
     }

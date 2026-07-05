@@ -1,5 +1,5 @@
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Tabs, Typography} from "antd"
+import {Tabs} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -12,8 +12,6 @@ import MountsTab from "./tabs/MountsTab"
 import RecordsTab from "./tabs/RecordsTab"
 import StatesTab from "./tabs/StatesTab"
 import StreamsTab from "./tabs/StreamsTab"
-
-const {Text} = Typography
 
 const SessionInspectorDrawer = () => {
     const open = useAtomValue(sessionInspectorOpenAtom)
@@ -29,9 +27,9 @@ const SessionInspectorDrawer = () => {
             title={
                 <div className="flex flex-col">
                     <span>Session inspector</span>
-                    <Text type="secondary" className="text-xs font-normal font-mono">
+                    <span className="text-xs font-normal font-mono text-muted-foreground">
                         {sessionId ?? "—"}
-                    </Text>
+                    </span>
                 </div>
             }
         >

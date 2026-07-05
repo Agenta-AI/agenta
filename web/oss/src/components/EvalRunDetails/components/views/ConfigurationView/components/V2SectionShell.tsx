@@ -1,12 +1,10 @@
 import {useState, type PropsWithChildren, type ReactNode} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import clsx from "clsx"
 
 import {CountBadge, DiffersBadge, V2Card} from "./SectionPrimitives"
-
-const {Text} = Typography
 
 /**
  * Collapsible V2 section card. Header: title + mono count badge + one-line
@@ -47,12 +45,12 @@ const V2SectionShell = ({
                 )}
                 onClick={() => setCollapsed((value) => !value)}
             >
-                <Text className="shrink-0 text-[13px] font-semibold">{title}</Text>
+                <span className="shrink-0 text-[13px] font-semibold">{title}</span>
                 {count != null ? <CountBadge>{count}</CountBadge> : null}
                 {summary ? (
-                    <Text className="min-w-0 flex-1 truncate text-xs text-colorTextTertiary">
+                    <span className="min-w-0 flex-1 truncate text-xs text-colorTextTertiary">
                         {summary}
-                    </Text>
+                    </span>
                 ) : (
                     <span className="flex-1" />
                 )}

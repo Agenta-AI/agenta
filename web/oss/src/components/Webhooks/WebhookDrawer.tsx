@@ -2,18 +2,7 @@ import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
-import {
-    Button,
-    Collapse,
-    Form,
-    Input,
-    message,
-    Select,
-    Switch,
-    Tabs,
-    Tooltip,
-    Typography,
-} from "antd"
+import {Button, Collapse, Form, Input, message, Select, Switch, Tabs, Tooltip} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import {
@@ -395,12 +384,9 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                                 {selectedProviderConfig && (
                                     <>
                                         <div className="mt-4 mb-2">
-                                            <Typography.Text
-                                                type="secondary"
-                                                className="font-medium"
-                                            >
+                                            <span className="font-medium text-muted-foreground">
                                                 {selectedProviderConfig.subtitle}
-                                            </Typography.Text>
+                                            </span>
                                         </div>
                                         <WebhookFieldRenderer
                                             fields={selectedProviderConfig.fields}

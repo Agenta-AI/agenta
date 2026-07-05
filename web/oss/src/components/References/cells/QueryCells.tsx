@@ -1,6 +1,5 @@
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {SkeletonLine} from "@agenta/ui/table"
-import {Typography} from "antd"
 
 import {
     formatSamplingRate,
@@ -59,11 +58,11 @@ const PreviewQueryCellContent = ({
     }
 
     if (error) {
-        return <Typography.Text type="danger">Failed to load query</Typography.Text>
+        return <span className="text-destructive">Failed to load query</span>
     }
 
     if (!reference && !revision) {
-        return <Typography.Text className="text-gray-400">No query metadata</Typography.Text>
+        return <span className="text-gray-400">No query metadata</span>
     }
 
     if (!runId || !isOnlineEvaluation) {

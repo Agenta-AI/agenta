@@ -5,7 +5,7 @@ import {MoreOutlined} from "@ant-design/icons"
 import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 // TEMPORARY: Disabling name editing
 // import {PencilLine} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Typography} from "antd"
+import {Button, Dropdown, Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -31,8 +31,6 @@ const LatestEvaluationRunsTable: any = dynamic(() =>
     import("@/oss/components/EvaluationRunsTablePOC").then((m) => m.LatestEvaluationRunsTable),
 )
 
-const {Title} = Typography
-
 const AppDetailsSection = memo(() => {
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
     // TEMPORARY: Disabling name editing
@@ -52,9 +50,7 @@ const AppDetailsSection = memo(() => {
     return (
         <>
             <Space className="flex items-center gap-3">
-                <Title level={3} className="!m-0">
-                    {workflowName}
-                </Title>
+                <h3 className="!m-0 text-lg font-semibold leading-snug">{workflowName}</h3>
 
                 <Dropdown
                     trigger={["click"]}

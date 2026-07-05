@@ -17,7 +17,7 @@ import {
 import ExecutionItems, {
     type PlaygroundGenerationsProps,
 } from "@agenta/playground-ui/execution-items"
-import {Button, Splitter, Typography} from "antd"
+import {Button, Splitter} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -87,9 +87,9 @@ const GenerationComparisonRenderer = memo(() => {
 const RunDisabledPlaceholder = memo(({children}: {children?: ReactNode}) => (
     <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-4">
         {children ?? (
-            <Typography.Text type="secondary" className="text-sm">
+            <span className="text-sm text-muted-foreground">
                 Select an app workflow to run the evaluator chain
-            </Typography.Text>
+            </span>
         )}
     </div>
 ))
@@ -241,10 +241,10 @@ const PlaygroundMainView = ({
         return (
             <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
                 <div className="flex flex-col items-center justify-center gap-1">
-                    <Typography.Title level={3}>Something went wrong</Typography.Title>
-                    <Typography.Text className="mb-3 text-[14px]">
+                    <h3 className="text-lg font-semibold leading-snug">Something went wrong</h3>
+                    <span className="mb-3 text-[14px]">
                         Playground is unable to communicate with the service
-                    </Typography.Text>
+                    </span>
                     <Button>Try again</Button>
                 </div>
             </main>

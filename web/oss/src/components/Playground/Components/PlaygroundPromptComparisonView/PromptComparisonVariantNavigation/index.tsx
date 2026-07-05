@@ -5,7 +5,6 @@ import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {DndContext, closestCenter, PointerSensor, useSensor, useSensors} from "@dnd-kit/core"
 import {restrictToParentElement} from "@dnd-kit/modifiers"
 import {arrayMove, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
-import {Typography} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 
@@ -55,7 +54,7 @@ const PromptComparisonVariantNavigation = ({
     return (
         <div {...props} className={clsx([className, "z-[20]"])}>
             <div className="w-full h-[48px] flex items-center px-2 sticky top-0 z-10 bg-[var(--ag-c-FFFFFF)] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
-                <Typography.Text>Variants</Typography.Text>
+                <span>Variants</span>
             </div>
 
             <div className="flex flex-col gap-3 p-3">

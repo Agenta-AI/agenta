@@ -1,7 +1,5 @@
 import {memo, useMemo} from "react"
 
-import {Typography} from "antd"
-
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {DEFAULT_SPIDER_SERIES_COLOR, SPIDER_SERIES_COLORS} from "../constants"
@@ -73,9 +71,7 @@ const OverviewMetricComparison = ({runIds}: OverviewMetricComparisonProps) => {
 
     return (
         <div className="flex flex-col gap-4">
-            <Typography.Title level={5} className="!mb-0">
-                Metric comparison
-            </Typography.Title>
+            <h5 className="!mb-0 text-sm font-semibold leading-normal">Metric comparison</h5>
             <div className="grid gap-4 md:grid-cols-2">
                 {aggregatedMetrics.map((metric) => (
                     <MetricComparisonCard key={metric.id} metric={metric} />

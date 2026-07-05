@@ -3,7 +3,7 @@ import {useState} from "react"
 import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
 import {Code, Table} from "@phosphor-icons/react"
-import {Alert, Button, Form, Input, Popover, Typography, Upload, UploadFile} from "antd"
+import {Alert, Button, Form, Input, Popover, Upload, UploadFile} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -18,8 +18,6 @@ import {uploadTestsetPreview} from "@/oss/services/testsets/api"
 import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
 
 import {FilePreviewTable} from "./components/FilePreviewTable"
-
-const {Text} = Typography
 const {Dragger} = Upload
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -335,7 +333,7 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
 
     return (
         <section className={classes.container}>
-            <Text className={classes.headerText}>Create new testset</Text>
+            <span className={classes.headerText}>Create new testset</span>
 
             <Form form={form} layout="vertical">
                 <div className="flex flex-col gap-4">
@@ -367,12 +365,12 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         title="File format requirements"
                                         content={
                                             <div style={{maxWidth: 280}}>
-                                                <Text strong>CSV:</Text>
+                                                <span className="font-semibold">CSV:</span>
                                                 <ul style={{paddingLeft: 16, margin: "4px 0 8px"}}>
                                                     <li>Comma-separated values</li>
                                                     <li>First row must be headers</li>
                                                 </ul>
-                                                <Text strong>JSON:</Text>
+                                                <span className="font-semibold">JSON:</span>
                                                 <ul style={{paddingLeft: 16, margin: "4px 0 0"}}>
                                                     <li>Array of objects</li>
                                                     <li>Each object has column names as keys</li>
@@ -411,7 +409,7 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                             )}
 
                             <div className="flex flex-col gap-1">
-                                <Text className={classes.label}>Testset Name</Text>
+                                <span className={classes.label}>Testset Name</span>
                                 <Input
                                     placeholder="Enter a name"
                                     value={testsetName}
@@ -439,9 +437,9 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 </div>
             ) : (
                 <div className="flex flex-col gap-3 mt-2">
-                    <Text type="secondary" className="text-center">
+                    <span className="text-center text-muted-foreground">
                         Or create a testset manually
-                    </Text>
+                    </span>
                     <div className="flex gap-3">
                         <Button
                             block

@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {PencilSimple} from "@phosphor-icons/react"
-import {Cascader, Input, Typography} from "antd"
+import {Cascader, Input} from "antd"
 
 interface TestsetSelectorProps {
     cascaderValue: string[]
@@ -24,9 +24,9 @@ function addOptionRender(options: any[]): any[] {
         // Keep original label accessible for displayRender
         textLabel: typeof opt.label === "string" ? opt.label : opt.textLabel,
         label: (
-            <Typography.Text ellipsis style={{width: 170, display: "block"}}>
+            <span style={{width: 170, display: "block"}} className="truncate">
                 {opt.label}
-            </Typography.Text>
+            </span>
         ),
         children: opt.children ? addOptionRender(opt.children) : undefined,
     }))
@@ -49,10 +49,10 @@ export function TestsetSelector({
 
     return (
         <div className="flex flex-col gap-1">
-            <Typography.Text className="font-medium">1. Select Testset</Typography.Text>
-            <Typography.Text type="secondary" className="text-xs">
+            <span className="font-medium">1. Select Testset</span>
+            <span className="text-xs text-muted-foreground">
                 Choose an existing testset to append data, or create a new one
-            </Typography.Text>
+            </span>
             <div className="flex gap-2 mt-1">
                 <Cascader
                     showSearch

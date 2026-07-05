@@ -1,6 +1,6 @@
 import {type PropsWithChildren, useState, useCallback} from "react"
 
-import {Typography, Button, theme} from "antd"
+import {Button, theme} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
 
@@ -47,9 +47,9 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
                 "bg-colorBgContainer",
             ])}
         >
-            <Typography.Text className="w-8/12 text-center leading-1 text-lg">
+            <span className="w-8/12 text-center leading-1 text-lg">
                 Agenta works better in larger laptop or desktop screens.
-            </Typography.Text>
+            </span>
             <Button type="primary" size="large" onClick={handleDismiss}>
                 View anyway
             </Button>

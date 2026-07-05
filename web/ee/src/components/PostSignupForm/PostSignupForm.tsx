@@ -2,7 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import type {User} from "@agenta/shared/types"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Checkbox, Form, Input, Radio, Rate, Space, Typography} from "antd"
+import {Button, Checkbox, Form, Input, Radio, Rate, Space} from "antd"
 import {useRouter} from "next/router"
 import {
     type MultipleSurveyQuestion,
@@ -436,12 +436,12 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
             >
                 <div className={containerClass}>
                     <div className="space-y-1">
-                        <Typography.Paragraph>
+                        <p>
                             {currentStep + 1}/{totalSteps || 1}
-                        </Typography.Paragraph>
-                        <Typography.Title level={3}>
+                        </p>
+                        <h3 className="text-lg font-semibold leading-snug">
                             {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
-                        </Typography.Title>
+                        </h3>
                     </div>
 
                     <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>

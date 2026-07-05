@@ -1,15 +1,13 @@
 import {Component, ReactNode, useState} from "react"
 
 import {GlobalOutlined} from "@ant-design/icons"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import clsx from "clsx"
 
 import {REGIONS, RegionId} from "@/oss/lib/helpers/region"
 
 import RegionInfoModal from "./RegionInfoModal"
 import {useRegionSelector} from "./useRegionSelector"
-
-const {Text} = Typography
 
 const selectedButtonClass =
     "!border-[var(--ant-color-primary)] !bg-[var(--ant-color-primary-bg)] !text-[var(--ant-color-primary)]"
@@ -81,7 +79,7 @@ const RegionSelector = () => {
     return (
         <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-                <Text className="text-sm font-medium">Data Residency</Text>
+                <span className="text-sm font-medium">Data Residency</span>
                 <Button
                     type="link"
                     className="!h-auto !p-0 !text-xs !text-colorTextSecondary hover:!text-colorText"

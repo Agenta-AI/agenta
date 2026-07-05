@@ -3,7 +3,7 @@ import {memo, useCallback, useMemo, useState} from "react"
 import {message} from "@agenta/ui/app-message"
 import {PauseIcon, PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Tabs, Tooltip, Typography} from "antd"
+import {Button, Tabs, Tooltip} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
@@ -177,7 +177,7 @@ const PreviewEvalRunMeta = ({
     return (
         <div className={clsx("flex items-center justify-between gap-4 px-4", className)}>
             <div className="flex min-w-0 items-center gap-2">
-                <Typography.Text className="whitespace-nowrap">Evaluations:</Typography.Text>
+                <span className="whitespace-nowrap">Evaluations:</span>
                 <div className="flex flex-nowrap gap-2 min-w-0 overflow-x-auto">
                     {runDescriptors.map((run, index) => {
                         const isBaseRun = index === 0

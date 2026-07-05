@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
-import {Collapse, CollapseProps, Typography} from "antd"
+import {Collapse, CollapseProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -146,18 +146,18 @@ const Annotate = ({
                 key: ann.references?.evaluator?.slug || "",
                 label: (
                     <div className="flex items-center justify-between">
-                        <Typography.Text
+                        <span
                             className="capitalize truncate !w-[50%] text-start"
                             title={ann.meta?.name || ann.references?.evaluator?.slug}
                         >
                             {ann.meta?.name || ann.references?.evaluator?.slug}
-                        </Typography.Text>
-                        <Typography.Text
+                        </span>
+                        <span
                             className="text-[var(--ag-c-758391)] truncate !w-[40%] text-end"
                             title={ann.references?.evaluator?.slug}
                         >
                             {ann.references?.evaluator?.slug}
-                        </Typography.Text>
+                        </span>
                     </div>
                 ),
                 children: (
@@ -192,18 +192,15 @@ const Annotate = ({
                     key: eva.slug,
                     label: (
                         <div className="flex items-center justify-between text-start">
-                            <Typography.Text
-                                className="capitalize truncate !w-[50%]"
-                                title={eva.name}
-                            >
+                            <span className="capitalize truncate !w-[50%]" title={eva.name}>
                                 {eva.name}
-                            </Typography.Text>
-                            <Typography.Text
+                            </span>
+                            <span
                                 className="text-[var(--ag-c-758391)] truncate !w-[40%] text-end"
                                 title={eva.slug}
                             >
                                 {eva.slug}
-                            </Typography.Text>
+                            </span>
                         </div>
                     ),
                     children: (
@@ -247,9 +244,7 @@ const Annotate = ({
     if (!annotations.length && !selectedEvaluators.length) {
         return (
             <div className="h-full flex items-center justify-center">
-                <Typography.Text type="secondary">
-                    There are no available annotations
-                </Typography.Text>
+                <span className="text-muted-foreground">There are no available annotations</span>
             </div>
         )
     }

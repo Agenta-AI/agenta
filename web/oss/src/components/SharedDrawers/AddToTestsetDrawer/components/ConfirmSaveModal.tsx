@@ -1,5 +1,5 @@
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Tag, Typography} from "antd"
+import {Tag} from "antd"
 
 import {TestsetColumn} from "../assets/types"
 
@@ -40,14 +40,14 @@ export function ConfirmSaveModal({
             centered
         >
             <div className="flex flex-col gap-4 my-4">
-                <Typography.Text>
+                <span>
                     You are about to add new columns to the{" "}
                     <span className="font-bold">{testsetName}</span> testset. This will create a new
                     revision.
-                </Typography.Text>
+                </span>
 
                 <div className="flex flex-col gap-2">
-                    <Typography.Text type="secondary">New columns:</Typography.Text>
+                    <span className="text-muted-foreground">New columns:</span>
                     <div className="flex flex-wrap gap-1">
                         {newColumns.map((col) => (
                             <Tag key={col} color="blue">

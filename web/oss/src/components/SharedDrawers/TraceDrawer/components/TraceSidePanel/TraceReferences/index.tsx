@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {Space, Typography} from "antd"
+import {Space} from "antd"
 import {useAtomValue} from "jotai"
 
 import {
@@ -148,7 +148,7 @@ const TraceReferences = () => {
     }
 
     if (!references.length) {
-        return <Typography.Text type="secondary">No references found.</Typography.Text>
+        return <span className="text-muted-foreground">No references found.</span>
     }
 
     return (
@@ -158,7 +158,7 @@ const TraceReferences = () => {
                 if (!displayLabel) return null
                 return (
                     <Space key={key} orientation="vertical" size={6} className="w-full">
-                        <Typography.Text className={titleClass}>{displayLabel}</Typography.Text>
+                        <span className={titleClass}>{displayLabel}</span>
                         <div className="flex flex-col gap-1">
                             {refs?.map((ref, index) => {
                                 const tag = renderReferenceTag({

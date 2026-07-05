@@ -2,12 +2,9 @@ import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {ArrowRight, Robot} from "@phosphor-icons/react"
-import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
-
-const {Text} = Typography
 
 /** Curated starter prompts for the Build-mode empty state. Clicking one sends it. */
 const BUILD_STARTERS = [
@@ -76,10 +73,10 @@ const AgentChatEmptyState = ({
         return (
             <div className="m-auto flex max-w-sm flex-col items-center gap-2.5 text-center">
                 <Bot />
-                <Text className="!text-base !font-medium">What can I help you with?</Text>
-                <Text type="secondary" className="!text-xs !leading-relaxed">
+                <span className="!text-base !font-medium">What can I help you with?</span>
+                <span className="!text-xs !leading-relaxed text-muted-foreground">
                     Ask a question, or describe a task you want this agent to run.
-                </Text>
+                </span>
             </div>
         )
     }
@@ -94,12 +91,12 @@ const AgentChatEmptyState = ({
                 <div className="flex items-center gap-2.5">
                     <Bot size={34} />
                     <div className="min-w-0">
-                        <Text
+                        <span
                             className="!text-sm !font-medium block truncate"
                             title={name || "Agent"}
                         >
                             {name || "Agent"}
-                        </Text>
+                        </span>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                             {model ? (
                                 <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-[11px] text-colorTextSecondary">
@@ -116,15 +113,13 @@ const AgentChatEmptyState = ({
                 </div>
 
                 {summary ? (
-                    <Text type="secondary" className="!text-xs !leading-relaxed">
+                    <span className="!text-xs !leading-relaxed text-muted-foreground">
                         {summary}
-                    </Text>
+                    </span>
                 ) : null}
 
                 <div className="flex flex-col items-start gap-1.5">
-                    <Text type="secondary" className="!text-[11px]">
-                        Try
-                    </Text>
+                    <span className="!text-[11px] text-muted-foreground">Try</span>
                     {BUILD_STARTERS.map((starter) => (
                         <button
                             key={starter}

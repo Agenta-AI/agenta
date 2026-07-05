@@ -1,7 +1,7 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography} from "antd"
+import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Image from "next/image"
@@ -24,8 +24,6 @@ import useRunScopedUrls from "../hooks/useRunScopedUrls"
 import {setCompareQueryParams} from "../state/urlCompare"
 
 import usePreviewEvaluations from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
-
-const {Text} = Typography
 
 interface CompareRunsMenuProps {
     runId: string
@@ -242,9 +240,9 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
             <div className="compare-runs-header">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
-                        <Text className="whitespace-nowrap text-[var(--ag-c-475467)]">
+                        <span className="whitespace-nowrap text-[var(--ag-c-475467)]">
                             Testset:
-                        </Text>
+                        </span>
                         {availability.testsetIds.length ? (
                             <div className="flex flex-wrap gap-1 min-w-0 compare-runs-match-tags">
                                 {availability.testsetIds.map((id) => {
@@ -263,13 +261,13 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                                 })}
                             </div>
                         ) : (
-                            <Text type="secondary">—</Text>
+                            <span className="text-muted-foreground">—</span>
                         )}
                     </div>
                     <Space size={8}>
-                        <Text className="whitespace-nowrap">
+                        <span className="whitespace-nowrap">
                             Selected: {compareIds.length}/{MAX_COMPARISON_RUNS}
-                        </Text>
+                        </span>
                         {compareIds.length ? (
                             <Button
                                 size="small"
@@ -364,16 +362,15 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                                         }}
                                     >
                                         <div className="flex flex-col gap-1">
-                                            <Text>{item.name}</Text>
-                                            <Text
-                                                type="secondary"
+                                            <span>{item.name}</span>
+                                            <span
                                                 style={{fontSize: 12}}
-                                                className="text-left"
+                                                className="text-left text-muted-foreground"
                                             >
                                                 {item.description?.trim()
                                                     ? item.description
                                                     : "No description"}
-                                            </Text>
+                                            </span>
                                         </div>
                                     </Checkbox>
 
@@ -385,9 +382,12 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                                     >
                                         {item.status ? <StatusChip status={item.status} /> : null}
                                         {createdLabel ? (
-                                            <Text type="secondary" style={{fontSize: 12}}>
+                                            <span
+                                                style={{fontSize: 12}}
+                                                className="text-muted-foreground"
+                                            >
                                                 {createdLabel}
-                                            </Text>
+                                            </span>
                                         ) : null}
                                     </Space>
                                 </div>
@@ -516,9 +516,9 @@ const StatusFilterChips = memo(
 
         return (
             <div className="compare-runs-status-filters">
-                <Text type="secondary" className="compare-runs-status-filters__label">
+                <span className="compare-runs-status-filters__label text-muted-foreground">
                     Filters:
-                </Text>
+                </span>
                 <Space size={[4, 4]} wrap>
                     {STATUS_FILTER_OPTIONS.map((option) => (
                         <Button

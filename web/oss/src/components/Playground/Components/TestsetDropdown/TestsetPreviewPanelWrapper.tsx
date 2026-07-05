@@ -17,7 +17,7 @@ import type {PreviewPanelRenderProps} from "@agenta/playground-ui/components"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Typography} from "antd"
+import {Button, Input} from "antd"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import TestcaseEditDrawer from "@/oss/components/SharedDrawers/TestcaseDrawer"
@@ -221,7 +221,7 @@ export function TestsetPreviewPanelWrapper({
             >
                 <ModalContent>
                     <div className="flex flex-col gap-2">
-                        <Typography.Text className="text-sm">Column name</Typography.Text>
+                        <span className="text-sm">Column name</span>
                         <Input
                             value={newColumnName}
                             onChange={(e) => setNewColumnName(e.target.value)}
@@ -229,11 +229,11 @@ export function TestsetPreviewPanelWrapper({
                             autoFocus
                             onPressEnter={handleConfirmAddColumn}
                         />
-                        <Typography.Text type="secondary" className="text-xs">
+                        <span className="text-xs text-muted-foreground">
                             Tip: Use dot notation like{" "}
                             <code className="bg-gray-100 px-1 rounded">meta.correct_answer</code> to
                             group related columns.
-                        </Typography.Text>
+                        </span>
                     </div>
                 </ModalContent>
                 <ModalFooter>

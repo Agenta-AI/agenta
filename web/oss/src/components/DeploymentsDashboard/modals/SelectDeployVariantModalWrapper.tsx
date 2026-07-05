@@ -1,5 +1,4 @@
 import {EnhancedModal, ModalFooter} from "@agenta/ui"
-import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import SelectDeployVariantModalContent, {
@@ -27,9 +26,9 @@ const SelectDeployVariantModalWrapper = () => {
             open={state.open}
             onCancel={close}
             title={
-                <Typography.Text className="text-lg font-semibold leading-relaxed capitalize">
+                <span className="text-lg font-semibold leading-relaxed capitalize">
                     Deploy {state.envName}
-                </Typography.Text>
+                </span>
             }
             footer={
                 <ModalFooter

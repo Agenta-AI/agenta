@@ -8,7 +8,7 @@ import {
 } from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
-import {Alert, Button, Form, Input, Typography} from "antd"
+import {Alert, Button, Form, Input} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
@@ -302,7 +302,7 @@ const CreateEvaluator = ({
             ))}
 
             <div className="w-full flex flex-col gap-2">
-                <Typography.Text className="font-medium">Evaluator name</Typography.Text>
+                <span className="font-medium">Evaluator name</span>
                 <Form.Item
                     name="evaluatorName"
                     rules={[{required: true, message: "Evaluator name is required!"}]}
@@ -314,7 +314,7 @@ const CreateEvaluator = ({
             </div>
 
             <div className="w-full flex flex-col gap-2">
-                <Typography.Text className="font-medium">Evaluator slug</Typography.Text>
+                <span className="font-medium">Evaluator slug</span>
                 <Form.Item
                     name="evaluatorSlug"
                     rules={[
@@ -347,9 +347,9 @@ const CreateEvaluator = ({
             </div>
 
             <div className="w-full flex flex-col gap-2">
-                <Typography.Text className="font-medium">
+                <span className="font-medium">
                     Evaluator description <span className="text-gray-500">(optional)</span>
-                </Typography.Text>
+                </span>
                 <Form.Item name="evaluatorDescription" rules={[{required: false}]} className="mb-0">
                     <Input.TextArea placeholder="Enter a description" rows={2} />
                 </Form.Item>

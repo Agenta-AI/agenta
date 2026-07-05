@@ -1,10 +1,7 @@
 import {memo} from "react"
 
-import {Typography} from "antd"
 import clsx from "clsx"
 import Image from "next/image"
-
-const {Title} = Typography
 
 const SideBanner = () => {
     return (
@@ -21,14 +18,14 @@ const SideBanner = () => {
             ></div>
 
             <div className="w-[400px] gap-4">
-                <Title level={3} className="font-bold">
+                <h3 className="font-bold text-lg font-semibold leading-snug">
                     Build Robust AI Applications
-                </Title>
-                <Typography.Paragraph className="text-sm text-[var(--ag-c-586673)]">
+                </h3>
+                <p className="text-sm text-[var(--ag-c-586673)]">
                     Streamline the development of your LLM applications. Experiment, evaluate, and
                     monitor AI applications faster and easier than ever before. Empower your team
                     with seamless collaboration.
-                </Typography.Paragraph>
+                </p>
             </div>
             <Image
                 src="/assets/On-boarding.webp"

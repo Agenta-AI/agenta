@@ -13,7 +13,6 @@ import {
     MenuProps,
     Select,
     Tag,
-    Typography,
     message,
 } from "antd"
 import clsx from "clsx"
@@ -825,26 +824,23 @@ const ListOfOrgs = ({
                 <div className="flex flex-col gap-3">
                     <div className="rounded-lg border border-[var(--ant-color-error-border)] bg-[var(--ant-color-error-bg)] px-4 py-3">
                         <div className="flex flex-col gap-1">
-                            <Typography.Text strong className="!text-[var(--ant-color-error)]">
+                            <span className="!text-[var(--ant-color-error)] font-semibold">
                                 This action cannot be undone.
-                            </Typography.Text>
-                            <Typography.Paragraph className="!mb-0 text-[var(--ant-color-text)]">
+                            </span>
+                            <p className="!mb-0 text-[var(--ant-color-text)]">
                                 Permanently deletes{" "}
-                                <Typography.Text strong>{orgToDeleteName}</Typography.Text>,
-                                including all workspaces, projects, applications, and data.
-                            </Typography.Paragraph>
+                                <span className="font-semibold">{orgToDeleteName}</span>, including
+                                all workspaces, projects, applications, and data.
+                            </p>
                         </div>
                     </div>
 
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2 text-[var(--ant-color-text)]">
                             <span>Type</span>
-                            <Typography.Text
-                                code
-                                className="!text-[var(--ant-color-error)] !bg-[var(--ant-color-error-bg)] !border-[var(--ant-color-error-border)]"
-                            >
+                            <span className="!text-[var(--ant-color-error)] !bg-[var(--ant-color-error-bg)] !border-[var(--ant-color-error-border)] rounded bg-muted px-1 py-0.5 font-mono text-sm">
                                 {orgToDeleteName}
-                            </Typography.Text>
+                            </span>
                             <span>to confirm:</span>
                         </div>
                         <Input

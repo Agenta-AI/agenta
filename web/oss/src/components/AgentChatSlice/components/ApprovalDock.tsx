@@ -3,9 +3,7 @@ import {memo, useEffect, useMemo, useRef, useState} from "react"
 import {HeightCollapse} from "@agenta/ui"
 import {ArrowSquareOut, CaretRight, ShieldCheck} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-import {Button, Typography} from "antd"
-
-const {Text} = Typography
+import {Button} from "antd"
 
 export interface PendingApproval {
     approvalId: string
@@ -142,27 +140,24 @@ const ApprovalDock = ({
                                 weight="fill"
                                 className="shrink-0 text-colorPrimary"
                             />
-                            <Text className="!text-xs !font-medium">
+                            <span className="!text-xs !font-medium">
                                 Approval needed to continue
-                            </Text>
+                            </span>
                             {count > 1 ? (
-                                <Text
-                                    type="secondary"
-                                    className="!text-[11px] ml-auto tabular-nums"
-                                >
+                                <span className="!text-[11px] ml-auto tabular-nums text-muted-foreground">
                                     1 of {count}
-                                </Text>
+                                </span>
                             ) : null}
                         </div>
 
                         {/* Identity: which tool, plus a factual source tag when we can name one. */}
                         <div className="flex min-w-0 items-center gap-2">
-                            <Text
+                            <span
                                 className="!text-xs !font-medium min-w-0 truncate"
                                 title={current.toolName}
                             >
                                 {current.toolName}
-                            </Text>
+                            </span>
                             {source ? (
                                 <span className="shrink-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-1.5 py-px text-[11px] text-colorTextSecondary">
                                     {source}
@@ -170,9 +165,9 @@ const ApprovalDock = ({
                             ) : null}
                         </div>
 
-                        <Text type="secondary" className="!text-xs">
+                        <span className="!text-xs text-muted-foreground">
                             The agent wants to run this tool before it can keep going.
-                        </Text>
+                        </span>
 
                         {/* The payload — collapsed to a one-line preview, expandable to the full request. */}
                         {payload ? (

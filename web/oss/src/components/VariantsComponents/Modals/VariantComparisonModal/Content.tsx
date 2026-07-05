@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
-import {Dropdown, Typography} from "antd"
+import {Dropdown} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -10,8 +10,6 @@ import {
     comparisonModalCompareListAtom,
     type ComparisonRevision,
 } from "./store/comparisonModalStore"
-
-const {Title, Text} = Typography
 const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
     ssr: false,
 })
@@ -26,7 +24,7 @@ const ModifiedByText = ({variant}: {variant: ComparisonRevision}) => {
         (variant as any).modifiedBy ??
         (variant as any).createdBy ??
         "-"
-    return <Text>{displayName}</Text>
+    return <span>{displayName}</span>
 }
 
 const VariantComparisonContent = () => {
@@ -83,9 +81,9 @@ const VariantComparisonContent = () => {
                         showBadges={false}
                         className="flex-1"
                     />
-                    <Typography.Text type="secondary" className="text-xs ml-2">
+                    <span className="text-xs ml-2 text-muted-foreground">
                         {formatTimestamp(variant.createdAtTimestamp)}
-                    </Typography.Text>
+                    </span>
                 </div>
             ),
             onClick: () => onSelect(variant.id),
@@ -106,17 +104,15 @@ const VariantComparisonContent = () => {
         <div className="flex gap-6 h-[600px] pt-5">
             {/* Left sidebar with variant information */}
             <div className="w-80 flex-shrink-0 space-y-4">
-                <Title level={4} className="!mb-4 !mt-0">
+                <h4 className="!mb-4 !mt-0 text-base font-semibold leading-snug">
                     Variant Comparison
-                </Title>
+                </h4>
 
                 <div className="space-y-6">
                     <div className="space-y-3">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
-                            <Text strong className="text-red-700">
-                                Original Version
-                            </Text>
+                            <span className="text-red-700 font-semibold">Original Version</span>
                         </div>
                         <div className="ml-5">
                             <div className="p-3 bg-red-50 rounded-lg border border-red-200">
@@ -143,14 +139,14 @@ const VariantComparisonContent = () => {
                                 </div>
                                 <div className="space-y-2 text-sm">
                                     <div>
-                                        <Text strong>Modified by:</Text>{" "}
+                                        <span className="font-semibold">Modified by:</span>{" "}
                                         <ModifiedByText variant={originalVariant} />
                                     </div>
                                     <div>
-                                        <Text strong>Created:</Text>{" "}
-                                        <Text type="secondary">
+                                        <span className="font-semibold">Created:</span>{" "}
+                                        <span className="text-muted-foreground">
                                             {formatTimestamp(originalVariant.createdAtTimestamp)}
-                                        </Text>
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -160,9 +156,7 @@ const VariantComparisonContent = () => {
                     <div className="space-y-3">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 bg-green-100 border border-green-300 rounded"></div>
-                            <Text strong className="text-green-700">
-                                Modified Version
-                            </Text>
+                            <span className="text-green-700 font-semibold">Modified Version</span>
                         </div>
                         <div className="ml-5">
                             <div className="p-3 bg-green-50 rounded-lg border border-green-200">
@@ -189,14 +183,14 @@ const VariantComparisonContent = () => {
                                 </div>
                                 <div className="space-y-2 text-sm">
                                     <div>
-                                        <Text strong>Modified by:</Text>{" "}
+                                        <span className="font-semibold">Modified by:</span>{" "}
                                         <ModifiedByText variant={modifiedVariant} />
                                     </div>
                                     <div>
-                                        <Text strong>Created:</Text>{" "}
-                                        <Text type="secondary">
+                                        <span className="font-semibold">Created:</span>{" "}
+                                        <span className="text-muted-foreground">
                                             {formatTimestamp(modifiedVariant.createdAtTimestamp)}
-                                        </Text>
+                                        </span>
                                     </div>
                                 </div>
                             </div>

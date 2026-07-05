@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {evaluatorsListQueryAtom, humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
-import {Checkbox, CheckboxChangeEvent, Input, Skeleton, Tooltip, Typography} from "antd"
+import {Checkbox, CheckboxChangeEvent, Input, Skeleton, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -85,11 +85,11 @@ const SelectEvaluators = ({
 
             {filteredEvals?.length === 0 && (
                 <div className="h-full flex items-center justify-center">
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         {search.length > 0
                             ? "No results found"
                             : "There are no available evaluators"}
-                    </Typography.Text>
+                    </span>
                 </div>
             )}
         </section>

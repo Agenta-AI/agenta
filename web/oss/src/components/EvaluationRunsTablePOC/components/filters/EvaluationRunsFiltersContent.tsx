@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo} from "react"
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react"
 
-import {Button, Divider, Select, Tag, Typography} from "antd"
+import {Button, Divider, Select, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {RunFlagsFilter} from "@/oss/lib/hooks/usePreviewEvaluations"
@@ -141,9 +141,7 @@ const sectionClass = "flex flex-col gap-2"
 const chipSelectClassName = "filter-chip-select"
 
 const SectionTitle = ({children}: {children: React.ReactNode}) => (
-    <Typography.Text strong className="text-gray-700">
-        {children}
-    </Typography.Text>
+    <span className="text-gray-700 font-semibold">{children}</span>
 )
 
 const Section = ({title, children}: {title: React.ReactNode; children: React.ReactNode}) => (

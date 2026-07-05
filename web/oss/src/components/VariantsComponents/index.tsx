@@ -6,7 +6,7 @@ import {workflowRevisionDrawerNavigationIdsAtom} from "@agenta/playground-ui/wor
 import {PageLayout} from "@agenta/ui"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
-import {Button, Flex, Input, Radio, Typography} from "antd"
+import {Button, Flex, Input, Radio} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -302,9 +302,9 @@ const VariantsDashboard = () => {
         () => (
             <div className="flex items-center gap-2">
                 {selectedCount > 0 && (
-                    <Typography.Text type="secondary" className="flex-shrink-0">
+                    <span className="flex-shrink-0 text-muted-foreground">
                         {selectedCount} selected
-                    </Typography.Text>
+                    </span>
                 )}
                 <Button
                     type="link"

@@ -15,7 +15,7 @@ import type {TestcaseContentRendererProps} from "@agenta/annotation-ui"
 import {fetchTestcase} from "@agenta/entities/testcase"
 import type {Testcase} from "@agenta/entities/testcase"
 import {projectIdAtom} from "@agenta/shared/state"
-import {Skeleton, Space, Typography} from "antd"
+import {Skeleton, Space} from "antd"
 import {useAtomValue} from "jotai"
 
 import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
@@ -120,9 +120,9 @@ const AnnotationTestcaseContent = memo(function AnnotationTestcaseContent({
     if (error || !testcase) {
         return (
             <div className="flex items-center justify-center py-10">
-                <Typography.Text type="secondary">
+                <span className="text-muted-foreground">
                     {error || "Testcase data not available"}
-                </Typography.Text>
+                </span>
             </div>
         )
     }
@@ -132,9 +132,7 @@ const AnnotationTestcaseContent = memo(function AnnotationTestcaseContent({
     if (!hasData) {
         return (
             <div className="flex items-center justify-center py-10">
-                <Typography.Text type="secondary">
-                    No data available for this testcase
-                </Typography.Text>
+                <span className="text-muted-foreground">No data available for this testcase</span>
             </div>
         )
     }

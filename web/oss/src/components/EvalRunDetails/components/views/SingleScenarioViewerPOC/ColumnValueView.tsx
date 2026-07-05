@@ -1,7 +1,6 @@
 import {memo, useMemo} from "react"
 
 import {ExclamationCircleOutlined} from "@ant-design/icons"
-import {Typography} from "antd"
 
 import type {EvaluationTableColumn} from "../../../atoms/table"
 import useScenarioCellValue from "../../../hooks/useScenarioCellValue"
@@ -32,7 +31,7 @@ const ColumnValueView = ({column, scenarioId, runId}: ColumnValueViewProps) => {
     )
 
     if (showSkeleton) {
-        return <Typography.Text type="secondary">Loading…</Typography.Text>
+        return <span className="text-muted-foreground">Loading…</span>
     }
 
     // Display step error if present (e.g., invocation failure)
@@ -43,14 +42,14 @@ const ColumnValueView = ({column, scenarioId, runId}: ColumnValueViewProps) => {
                     <ExclamationCircleOutlined />
                     <span className="font-medium">Error</span>
                 </div>
-                <Typography.Text type="danger">{stepError.message}</Typography.Text>
+                <span className="text-destructive">{stepError.message}</span>
             </div>
         )
     }
 
     const resolved = (displayValue ?? value) as any
     if (resolved === null || typeof resolved === "undefined") {
-        return <Typography.Text type="secondary">—</Typography.Text>
+        return <span className="text-muted-foreground">—</span>
     }
 
     if (chatNodes && chatNodes.length) {
@@ -62,7 +61,7 @@ const ColumnValueView = ({column, scenarioId, runId}: ColumnValueViewProps) => {
         typeof resolved === "number" ||
         typeof resolved === "boolean"
     ) {
-        return <Typography.Text>{String(resolved)}</Typography.Text>
+        return <span>{String(resolved)}</span>
     }
 
     return (

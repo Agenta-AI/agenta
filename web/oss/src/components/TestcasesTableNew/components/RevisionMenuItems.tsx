@@ -1,6 +1,6 @@
 import React from "react"
 
-import {MenuProps, Typography} from "antd"
+import {MenuProps} from "antd"
 
 import {UserReference} from "@/oss/components/References/UserReference"
 
@@ -28,19 +28,18 @@ export const buildRevisionMenuItems = (
                         <div className="flex items-center gap-2">
                             <span className="font-medium">v{revision.version}</span>
                             {revision.created_at && (
-                                <Typography.Text type="secondary" className="text-xs">
+                                <span className="text-xs text-muted-foreground">
                                     {new Date(revision.created_at).toLocaleDateString()}
-                                </Typography.Text>
+                                </span>
                             )}
                         </div>
                         {revision.message && (
-                            <Typography.Text
-                                type="secondary"
-                                className="text-xs truncate max-w-[220px]"
+                            <span
+                                className="text-xs truncate max-w-[220px] text-muted-foreground"
                                 title={revision.message}
                             >
                                 {revision.message}
-                            </Typography.Text>
+                            </span>
                         )}
                         {revision.author && (
                             <div className="text-xs">

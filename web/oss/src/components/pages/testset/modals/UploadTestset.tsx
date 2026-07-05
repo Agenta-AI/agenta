@@ -1,6 +1,6 @@
 import {UploadOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, Typography, Upload, theme} from "antd"
+import {Button, Collapse, Form, Input, Upload, theme} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -9,8 +9,6 @@ import {useTestsetFileUpload} from "@/oss/hooks/useTestsetFileUpload"
 import useURL from "@/oss/hooks/useURL"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
-
-const {Text} = Typography
 
 interface Props {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -68,16 +66,16 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     onClick={() => setCurrent(0)}
                 />
 
-                <Text className="leading-[1.5714285714285714] text-[16px] font-semibold">
+                <span className="leading-[1.5714285714285714] text-[16px] font-semibold">
                     Upload a testset
-                </Text>
+                </span>
             </div>
 
             <div className="flex flex-col gap-6">
-                <Text>Upload your testset as CSV or JSON</Text>
+                <span>Upload your testset as CSV or JSON</span>
 
                 <div className="grid gap-1">
-                    <Text className="font-medium">Testset Name</Text>
+                    <span className="font-medium">Testset Name</span>
                     <Input
                         placeholder="Enter a name"
                         value={testsetName}
@@ -88,10 +86,10 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                         <div className="flex flex-col">
-                            <Text className="font-medium">Upload your testset file</Text>
-                            <Text type="secondary" style={{fontSize: 11}}>
+                            <span className="font-medium">Upload your testset file</span>
+                            <span style={{fontSize: 11}} className="text-muted-foreground">
                                 CSV and JSON formats are supported
-                            </Text>
+                            </span>
                         </div>
 
                         <Form onFinish={onFinish} form={form}>
@@ -139,7 +137,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                 ) : (
                                     <FileCode size={32} />
                                 )}
-                                <Text>{fileProgress.name}</Text>
+                                <span>{fileProgress.name}</span>
                             </div>
 
                             <Trash
@@ -166,44 +164,44 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                     <div className="flex flex-col items-start gap-4">
                                         {uploadType === "CSV" ? (
                                             <>
-                                                <Text>
+                                                <span>
                                                     The testset should be in CSV format with the
                                                     following requirements:
-                                                </Text>
+                                                </span>
                                                 <div className="flex flex-col">
-                                                    <Text>1. Comma separated values</Text>
-                                                    <Text>
+                                                    <span>1. Comma separated values</span>
+                                                    <span>
                                                         2. The first row should contain the headers
-                                                    </Text>
+                                                    </span>
                                                 </div>
-                                                <Typography.Paragraph>
+                                                <p>
                                                     Here is an example of a valid CSV file: <br />
                                                     recipe_name,correct_answer <br />
                                                     ChickenParmesan,Chicken <br /> "a, special,
                                                     recipe",Beef
-                                                </Typography.Paragraph>
+                                                </p>
                                             </>
                                         ) : (
                                             <>
-                                                <Text>
+                                                <span>
                                                     The testset should be in JSON format with the
                                                     following requirements:
-                                                </Text>
+                                                </span>
 
                                                 <div className="flex flex-col">
-                                                    <Text>
+                                                    <span>
                                                         1. A json file with an array of rows
-                                                    </Text>
-                                                    <Text>
+                                                    </span>
+                                                    <span>
                                                         2. Each row in the array should be an object
-                                                    </Text>
-                                                    <Text>
+                                                    </span>
+                                                    <span>
                                                         of column header name as key and row data as
                                                         value.
-                                                    </Text>
+                                                    </span>
                                                 </div>
 
-                                                <Typography.Paragraph>
+                                                <p>
                                                     Here is an example of a valid JSON file: <br />
                                                     {JSON.stringify(
                                                         [
@@ -219,16 +217,16 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                                         null,
                                                         2,
                                                     )}
-                                                </Typography.Paragraph>
+                                                </p>
                                             </>
                                         )}
 
-                                        <Typography.Link
+                                        <a
                                             href="https://agenta.ai/docs/evaluation/managing-test-sets/upload-csv"
                                             target="_blank"
                                         >
                                             <Button>Read the docs</Button>
-                                        </Typography.Link>
+                                        </a>
                                     </div>
                                 ),
                             },

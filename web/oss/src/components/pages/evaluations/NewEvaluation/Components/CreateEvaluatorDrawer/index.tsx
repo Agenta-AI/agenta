@@ -23,7 +23,7 @@ import {
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowsIn, ArrowsOut} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -65,7 +65,7 @@ const DrawerHeader = ({entityId, onClose}: {entityId: string; onClose: () => voi
 
     return (
         <div className="flex items-center justify-between px-4 py-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
-            <Typography.Text className="text-base font-semibold">{name}</Typography.Text>
+            <span className="text-base font-semibold">{name}</span>
             <div className="flex items-center gap-2">
                 <EvaluatorRunControls />
                 <Button

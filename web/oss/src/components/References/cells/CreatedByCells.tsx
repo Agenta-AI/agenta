@@ -2,7 +2,6 @@ import {memo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {SkeletonLine} from "@agenta/ui/table"
-import {Typography} from "antd"
 
 import {
     useRunRowDetails,
@@ -70,7 +69,7 @@ const PreviewCreatedByCellContent = ({
     const fallbackName = resolvePreviewCreatorName(camelRun)
 
     if (!candidateUserId && !fallbackName) {
-        return <Typography.Text>—</Typography.Text>
+        return <span>—</span>
     }
 
     return (

@@ -1,7 +1,6 @@
 import {useCallback, useMemo} from "react"
 
 import {traceSpanMolecule} from "@agenta/entities/trace"
-import {Typography} from "antd"
 
 import {EntityDualViewEditor} from "@/oss/components/DrillInView"
 
@@ -81,10 +80,10 @@ export function DataPreviewEditor({
         <div className="flex flex-col gap-1">
             {/* Custom header for the Add to Testset flow */}
             <div className="flex flex-col gap-0.5 mb-1">
-                <Typography.Text className="font-medium">2. Map Data Fields</Typography.Text>
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="font-medium">2. Map Data Fields</span>
+                <span className="text-xs text-muted-foreground">
                     Click on any field below to map it to a testset column
-                </Typography.Text>
+                </span>
             </div>
 
             <EntityDualViewEditor

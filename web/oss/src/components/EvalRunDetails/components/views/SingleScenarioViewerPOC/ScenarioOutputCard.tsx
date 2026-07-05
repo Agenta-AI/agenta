@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import {Card, Typography} from "antd"
+import {Card} from "antd"
 import dynamic from "next/dynamic"
 
 import ColumnValueView from "./ColumnValueView"
@@ -24,7 +24,7 @@ const ScenarioOutputCard = ({
     if (isLoading) {
         return (
             <Card title="Output">
-                <Typography.Text type="secondary">Loading invocation…</Typography.Text>
+                <span className="text-muted-foreground">Loading invocation…</span>
             </Card>
         )
     }
@@ -73,7 +73,7 @@ const ScenarioOutputCard = ({
 
     return (
         <Card title="Output">
-            <Typography.Text type="secondary">No invocation data.</Typography.Text>
+            <span className="text-muted-foreground">No invocation data.</span>
         </Card>
     )
 }

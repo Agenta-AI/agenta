@@ -1,9 +1,7 @@
 import {PropsWithChildren, ReactNode, type CSSProperties} from "react"
 
-import {Skeleton, Typography} from "antd"
+import {Skeleton} from "antd"
 import clsx from "clsx"
-
-const {Text} = Typography
 
 export const SectionCard = ({
     children,
@@ -36,9 +34,12 @@ export const SectionHeaderRow = ({
 )
 
 export const SectionLabel = ({children}: PropsWithChildren) => (
-    <Text type="secondary" style={{textTransform: "uppercase", fontWeight: 600, fontSize: 12}}>
+    <span
+        style={{textTransform: "uppercase", fontWeight: 600, fontSize: 12}}
+        className="text-muted-foreground"
+    >
         {children}
-    </Text>
+    </span>
 )
 
 export const ConfigBlock = ({
@@ -105,7 +106,7 @@ export const DefRow = ({
     differs,
 }: PropsWithChildren<{label: ReactNode; differs?: boolean}>) => (
     <div className="grid grid-cols-[120px_minmax(0,1fr)] items-start gap-2 border-0 border-b border-solid border-colorBorderSecondary py-[9px] last:border-b-0 @[860px]:grid-cols-[170px_minmax(0,1fr)]">
-        <Text className="pt-0.5 text-[13px] leading-5 text-colorTextTertiary">{label}</Text>
+        <span className="pt-0.5 text-[13px] leading-5 text-colorTextTertiary">{label}</span>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
             {children}
             {differs ? <DiffersBadge /> : null}

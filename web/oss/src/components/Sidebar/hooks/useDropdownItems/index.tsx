@@ -2,14 +2,12 @@ import {useMemo} from "react"
 
 import {InitialsAvatar} from "@agenta/ui"
 import {SignOut} from "@phosphor-icons/react"
-import {Space, Typography} from "antd"
+import {Space} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import useURL from "@/oss/hooks/useURL"
 
 import {UseDropdownItemsProps} from "./types"
-
-const {Text} = Typography
 
 export const useDropdownItems = ({
     selectedOrg,
@@ -36,7 +34,7 @@ export const useDropdownItems = ({
                     label: (
                         <Space>
                             <InitialsAvatar size="small" name={org.name} />
-                            <Text>{org.name}</Text>
+                            <span>{org.name}</span>
                         </Space>
                     ),
                     disabled: !interactive,

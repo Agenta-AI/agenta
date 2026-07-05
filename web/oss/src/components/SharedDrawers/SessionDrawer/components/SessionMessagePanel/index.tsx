@@ -2,7 +2,7 @@ import {useMemo, useRef, useState} from "react"
 
 import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Collapse, CollapseProps, Tag, Typography} from "antd"
+import {Button, Collapse, CollapseProps, Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -57,7 +57,7 @@ const SessionMessagePanel = ({
                         key: label,
                         label: (
                             <div className="flex items-center gap-2">
-                                <Typography.Text strong>{label}</Typography.Text>
+                                <span className="font-semibold">{label}</span>
                                 <EnhancedTooltip
                                     copyText={trace?.span_id}
                                     title="Copy span id"

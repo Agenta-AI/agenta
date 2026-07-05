@@ -2,7 +2,7 @@ import {useCallback, useState} from "react"
 
 import {CreateTestsetCard, type CreateCardRenderProps} from "@agenta/playground-ui/components"
 import {ArrowLeft, UploadSimple} from "@phosphor-icons/react"
-import {Button, Input, Typography} from "antd"
+import {Button, Input} from "antd"
 import {useSetAtom} from "jotai"
 
 import {useTestsetFileUpload} from "@/oss/hooks/useTestsetFileUpload"
@@ -91,7 +91,7 @@ export function CreateTestsetCardWrapper({
 
                 {/* Step 1: Testset name */}
                 <div className="flex flex-col gap-1">
-                    <Typography.Text className="text-xs font-medium">Test set name</Typography.Text>
+                    <span className="text-xs font-medium">Test set name</span>
                     <Input
                         placeholder="Enter test set name"
                         value={newTestsetName}
@@ -102,18 +102,17 @@ export function CreateTestsetCardWrapper({
 
                 {/* Step 2: Instructions */}
                 <div className="flex flex-col gap-1">
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-xs text-muted-foreground">
                         Add rows and columns in the table to build your test set. Press{" "}
                         <strong>Create &amp; Load</strong> when done.
-                    </Typography.Text>
+                    </span>
                 </div>
 
                 {/* Step 3: Commit message */}
                 <div className="flex flex-col gap-1">
-                    <Typography.Text className="text-xs font-medium">
-                        Commit message{" "}
-                        <Typography.Text type="secondary">(optional)</Typography.Text>
-                    </Typography.Text>
+                    <span className="text-xs font-medium">
+                        Commit message <span className="text-muted-foreground">(optional)</span>
+                    </span>
                     <Input.TextArea
                         placeholder="Initial commit"
                         value={newTestsetCommitMessage}
@@ -133,7 +132,7 @@ export function CreateTestsetCardWrapper({
         return (
             <div className="mt-3 rounded-2xl border border-gray-200 bg-[var(--ag-c-FFFFFF)] px-4 py-4 shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                    <Typography.Text className="font-medium text-sm">File selected</Typography.Text>
+                    <span className="font-medium text-sm">File selected</span>
                     <Button
                         type="text"
                         size="small"
@@ -145,10 +144,10 @@ export function CreateTestsetCardWrapper({
                     </Button>
                 </div>
                 <div className="flex flex-col gap-1">
-                    <Typography.Text className="text-sm">{selectedFile.name}</Typography.Text>
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-sm">{selectedFile.name}</span>
+                    <span className="text-xs text-muted-foreground">
                         Testset name: {testsetName || "(auto-generated)"}
-                    </Typography.Text>
+                    </span>
                 </div>
                 <Button
                     type="primary"

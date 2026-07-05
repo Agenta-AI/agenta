@@ -4,7 +4,7 @@ import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {CommitMessageInput} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined} from "@ant-design/icons"
-import {Button, Space, Typography} from "antd"
+import {Button, Space} from "antd"
 
 import type {DeploymentVariantInfo} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 
@@ -32,7 +32,7 @@ const DeploymentConfirmationModalContent = ({
     return (
         <Space orientation="vertical" size={16} className="w-full">
             <Space orientation="vertical" size={4}>
-                <Typography.Text>{confirmationText}</Typography.Text>
+                <span>{confirmationText}</span>
 
                 {variant && (
                     <VariantDetailsWithStatus
@@ -70,9 +70,9 @@ const DeploymentConfirmationModal = ({
             closeIcon={null}
             title={
                 <div className="flex items-center justify-between">
-                    <Typography.Text className="text-lg font-medium leading-relaxed capitalize">
+                    <span className="text-lg font-medium leading-relaxed capitalize">
                         {actionText} {envName}
-                    </Typography.Text>
+                    </span>
                     <Button
                         onClick={() => props.onCancel?.({} as any)}
                         type="text"

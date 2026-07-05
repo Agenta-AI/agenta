@@ -16,7 +16,7 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
-import {Avatar, Tooltip, Typography} from "antd"
+import {Avatar, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
@@ -34,8 +34,6 @@ import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/session
 
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
-
-const {Text} = Typography
 
 /** A trace span's `start_time` (ISO string / epoch) → ms, or undefined if absent/unparseable. */
 const parseTraceTime = (value: unknown): number | undefined => {
@@ -159,18 +157,18 @@ const RunErrorBody = ({text}: {text: string}) => {
         <div className="flex items-start gap-2 rounded-md bg-[var(--ant-color-error-bg)] px-3 py-2">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <Text className="!text-xs !font-medium !text-colorError">The agent run failed</Text>
+                <span className="!text-xs !font-medium !text-colorError">The agent run failed</span>
                 {expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-[11px] !text-colorErrorText">
                         {text}
                     </pre>
                 ) : (
-                    <Text
+                    <span
                         className="line-clamp-3 !text-xs break-words !text-colorErrorText"
                         title={isLong ? text : undefined}
                     >
                         {text}
-                    </Text>
+                    </span>
                 )}
                 {isLong && (
                     <button
@@ -443,9 +441,9 @@ const AgentMessage = ({
 
             {sources.length > 0 && (
                 <div className="flex flex-col gap-0.5 pt-1">
-                    <Text type="secondary" className="!text-[11px] uppercase tracking-wide">
+                    <span className="!text-[11px] uppercase tracking-wide text-muted-foreground">
                         Sources
-                    </Text>
+                    </span>
                     {sources.map((s, i) => (
                         <a
                             key={`${message.id}-source-${i}`}
@@ -461,9 +459,9 @@ const AgentMessage = ({
             )}
 
             {noResponse && (
-                <Text type="secondary" className="!text-xs italic">
+                <span className="!text-xs italic text-muted-foreground">
                     No response — the agent ended its turn without answering.
-                </Text>
+                </span>
             )}
         </div>
     )

@@ -3,7 +3,7 @@ import {memo, useCallback, useEffect, useRef, useState} from "react"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Input, Tooltip} from "antd"
 
 interface EditableColumnHeaderProps {
     columnKey: string
@@ -95,15 +95,13 @@ const EditableColumnHeader = ({
     ]
 
     if (disabled) {
-        return <Typography.Text ellipsis>{columnName}</Typography.Text>
+        return <span className="truncate">{columnName}</span>
     }
 
     return (
         <>
             <div ref={containerRef} className="flex items-center justify-between w-full group">
-                <Typography.Text ellipsis className="flex-1 min-w-0">
-                    {columnName}
-                </Typography.Text>
+                <span className="flex-1 min-w-0 truncate">{columnName}</span>
 
                 {useDropdown ? (
                     // Dropdown menu for narrow columns
@@ -168,7 +166,7 @@ const EditableColumnHeader = ({
                 }}
             >
                 <div className="py-2">
-                    <Typography.Text className="block mb-2">Column name:</Typography.Text>
+                    <span className="block mb-2">Column name:</span>
                     <Input
                         className="rename-column-modal-input"
                         value={newName}
@@ -176,12 +174,12 @@ const EditableColumnHeader = ({
                         placeholder="Enter column name"
                         onPressEnter={handleRename}
                     />
-                    <Typography.Text type="secondary" className="text-xs mt-2 block">
+                    <span className="text-xs mt-2 block text-muted-foreground">
                         Tip: Use dot notation to create nested columns. For example,{" "}
                         <code className="bg-gray-100 px-1 rounded">parent.child</code> creates a{" "}
                         <code className="bg-gray-100 px-1 rounded">child</code> column under the{" "}
                         <code className="bg-gray-100 px-1 rounded">parent</code> group.
-                    </Typography.Text>
+                    </span>
                 </div>
             </EnhancedModal>
 
@@ -195,10 +193,10 @@ const EditableColumnHeader = ({
                 destroyOnHidden
                 centered
             >
-                <Typography.Text>
+                <span>
                     Are you sure you want to delete the column &quot;{columnName}&quot;? This will
                     remove the column from all testcases.
-                </Typography.Text>
+                </span>
             </EnhancedModal>
         </>
     )

@@ -10,7 +10,7 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Button, Divider, Select, Typography} from "antd"
+import {Alert, Button, Divider, Select} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -43,8 +43,6 @@ const SideBanner = dynamic(() => import("@/oss/components/pages/auth/SideBanner"
 const RegionSelector = dynamic(() => import("@/oss/components/pages/auth/RegionSelector"), {
     ssr: false,
 })
-
-const {Text, Title} = Typography
 const LAST_SSO_ORG_SLUG_KEY = "lastSsoOrgSlug"
 
 const Auth = () => {
@@ -447,13 +445,13 @@ const Auth = () => {
                 />
                 <div className="w-full max-w-[400px] flex flex-col justify-start gap-8 mx-auto pt-24 pb-10 lg:pt-40 lg:pb-14">
                     <div>
-                        <Title level={2} className="font-bold">
+                        <h2 className="font-bold text-xl font-semibold leading-tight">
                             Welcome to Agenta AI
-                        </Title>
-                        <Text className="text-sm text-[var(--ag-c-586673)]">
+                        </h2>
+                        <span className="text-sm text-[var(--ag-c-586673)]">
                             Your All-In-One LLM Development Platform. Collaborate on prompts,
                             evaluate, and monitor LLM apps with confidence
-                        </Text>
+                        </span>
                     </div>
 
                     <div className="flex flex-col gap-6 min-h-[360px]">
@@ -645,9 +643,9 @@ const Auth = () => {
                             <div className="flex flex-col gap-3 pt-2 border-t border-[var(--ag-c-E5E7EB)]">
                                 {otherOrgs.length > 0 && (
                                     <div className="flex flex-col gap-2">
-                                        <Text className="text-sm text-[var(--ag-c-586673)]">
+                                        <span className="text-sm text-[var(--ag-c-586673)]">
                                             Or switch to a different organization:
-                                        </Text>
+                                        </span>
                                         <Select
                                             placeholder="Select an organization"
                                             className="w-full"
@@ -681,7 +679,7 @@ const Auth = () => {
                     </div>
 
                     {isDemo() && !isLoginCodeVisible && shouldShowNormalAuthFlow && (
-                        <Text>
+                        <span>
                             By clicking on next, you agree to the Agenta AI's{" "}
                             <a
                                 target="_blank"
@@ -700,7 +698,7 @@ const Auth = () => {
                             >
                                 Privacy Policy
                             </a>
-                        </Text>
+                        </span>
                     )}
                 </div>
             </section>

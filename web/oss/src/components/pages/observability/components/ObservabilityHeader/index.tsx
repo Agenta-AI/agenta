@@ -6,7 +6,7 @@ import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
-import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
+import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -88,9 +88,9 @@ const AutoRefreshControl: React.FC<{
         <Space size="small" className="ml-4">
             <Switch size="small" checked={checked} onChange={onChange} />
             <div className="relative inline-block">
-                <Typography.Text style={{fontSize: 12}} className="text-gray-600">
+                <span style={{fontSize: 12}} className="text-gray-600">
                     auto-refresh
-                </Typography.Text>
+                </span>
                 {checked && (
                     <div
                         className="absolute bottom-0 left-0 h-[2px] bg-gray-600 transition-[width] duration-100"

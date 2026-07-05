@@ -1,7 +1,7 @@
 import {memo, useCallback} from "react"
 
 import {X} from "@phosphor-icons/react"
-import {Button, Input, InputNumber, Radio, Select, Slider, Tooltip, Typography} from "antd"
+import {Button, Input, InputNumber, Radio, Select, Slider, Tooltip} from "antd"
 
 /**
  * Annotation input components that call onChange immediately (no debounce).
@@ -48,9 +48,7 @@ export const BooleanGroupTab = memo(function BooleanGroupTab({
         <div className="flex flex-col gap-0 mb-0 playground-property-control">
             <Tooltip title={description || ""} placement="right">
                 <div className="flex items-center gap-2 justify-between">
-                    <Typography.Text className="playground-property-control-label">
-                        {label}
-                    </Typography.Text>
+                    <span className="playground-property-control-label">{label}</span>
 
                     <div className="flex items-center gap-1">
                         <Radio.Group
@@ -114,9 +112,7 @@ export const StringInput = memo(function StringInput({
     return (
         <div className="flex flex-col gap-1 playground-property-control">
             <Tooltip title={description || ""} placement="right">
-                <Typography.Text className="playground-property-control-label">
-                    {label}
-                </Typography.Text>
+                <span className="playground-property-control-label">{label}</span>
             </Tooltip>
             {multiline ? (
                 <Input.TextArea
@@ -187,9 +183,7 @@ export const NumberInput = memo(function NumberInput({
         <div className="flex flex-col gap-1 playground-property-control">
             <Tooltip title={description || ""} placement="right">
                 <div className="flex items-center justify-between">
-                    <Typography.Text className="playground-property-control-label">
-                        {label}
-                    </Typography.Text>
+                    <span className="playground-property-control-label">{label}</span>
                     {useSlider && (
                         <InputNumber
                             value={displayValue}
@@ -289,9 +283,7 @@ export const SelectInput = memo(function SelectInput({
     return (
         <div className="flex flex-col gap-1 playground-property-control">
             <Tooltip title={description || ""} placement="right">
-                <Typography.Text className="playground-property-control-label">
-                    {label}
-                </Typography.Text>
+                <span className="playground-property-control-label">{label}</span>
             </Tooltip>
             <Select
                 value={normalizedValue}

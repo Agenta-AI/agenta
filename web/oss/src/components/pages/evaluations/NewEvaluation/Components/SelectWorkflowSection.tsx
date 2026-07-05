@@ -4,7 +4,7 @@ import {WorkflowKindTag, WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {createStandardColumns} from "@agenta/ui/table"
 import {InfoCircleOutlined} from "@ant-design/icons"
-import {Input, Select, Switch, Tooltip, Typography} from "antd"
+import {Input, Select, Switch, Tooltip} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -235,7 +235,7 @@ const SelectWorkflowSection = ({
                             checked={showEvaluators}
                             onChange={setShowEvaluators}
                         />
-                        <Typography.Text>Show evaluators</Typography.Text>
+                        <span>Show evaluators</span>
                         <Tooltip title={EVALUATOR_TOOLTIP}>
                             <InfoCircleOutlined className="text-gray-400" />
                         </Tooltip>

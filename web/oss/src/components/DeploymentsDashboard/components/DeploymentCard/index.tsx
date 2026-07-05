@@ -5,7 +5,7 @@ import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {dayjs} from "@agenta/shared/utils"
 import {EnvironmentTag} from "@agenta/ui"
 import {EntityListItemLabel, VersionBadge} from "@agenta/ui/components/presentational"
-import {Card, Space, Tag, Typography} from "antd"
+import {Card, Space, Tag} from "antd"
 
 import {deploymentCardClass} from "./styles"
 
@@ -34,7 +34,7 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
             <EnvironmentTag environment={env.name} />
 
             <Space className="justify-between">
-                <Typography.Text>Variant</Typography.Text>
+                <span>Variant</span>
                 {hasDeployment ? (
                     <EntityListItemLabel
                         label={env.deployedVariantName || "-"}
@@ -53,8 +53,8 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
                 )}
             </Space>
             <Space className="justify-between">
-                <Typography.Text>Last modified</Typography.Text>
-                <Typography.Text>{lastModifiedText}</Typography.Text>
+                <span>Last modified</span>
+                <span>{lastModifiedText}</span>
             </Space>
         </Card>
     )

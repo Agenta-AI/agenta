@@ -1,13 +1,11 @@
 import {memo, useMemo} from "react"
 
 import {CaretDown, CaretUp, Desktop, Flask, NotePencil, TreeView} from "@phosphor-icons/react"
-import {Collapse, Progress, Typography} from "antd"
+import {Collapse, Progress} from "antd"
 
 import type {OnboardingWidgetItem, OnboardingWidgetSection} from "@/oss/lib/onboarding"
 
 import WidgetSectionItem from "./WidgetSectionItem"
-
-const {Text} = Typography
 
 type SectionIconId = "prompts" | "evaluations" | "registry" | "tracing"
 
@@ -59,12 +57,12 @@ const WidgetSection = memo(function WidgetSection({
                                 {getSectionIcon(section.iconId)}
                             </span>
                             <div className="flex flex-col items-start gap-0.5 select-none">
-                                <Text className="font-semibold text-colorText">
+                                <span className="font-semibold text-colorText">
                                     {section.title}
-                                </Text>
-                                <Text className="text-colorTextSecondary">
+                                </span>
+                                <span className="text-colorTextSecondary">
                                     {sectionStats.completed} of {sectionStats.total} tasks completed
-                                </Text>
+                                </span>
                             </div>
                         </div>
 

@@ -13,7 +13,7 @@ import {memo} from "react"
 
 import type {TraceContentRendererProps} from "@agenta/annotation-ui"
 import {traceEntityAtomFamily, traceRootSpanAtomFamily} from "@agenta/entities/trace"
-import {Skeleton, Typography} from "antd"
+import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 import OverviewTabItem from "@/oss/components/SharedDrawers/TraceDrawer/components/TraceContent/components/OverviewTabItem"
@@ -36,9 +36,9 @@ const AnnotationTraceContent = memo(function AnnotationTraceContent({
     if (traceQuery.isError || !rootSpan) {
         return (
             <div className="flex items-center justify-center py-10">
-                <Typography.Text type="secondary">
+                <span className="text-muted-foreground">
                     {traceQuery.isError ? "Failed to load trace data" : "Trace data not available"}
-                </Typography.Text>
+                </span>
             </div>
         )
     }

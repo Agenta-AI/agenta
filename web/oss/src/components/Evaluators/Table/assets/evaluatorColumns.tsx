@@ -23,7 +23,7 @@ import {
     PencilSimple,
     PlusCircle,
 } from "@phosphor-icons/react"
-import {Tag, Typography} from "antd"
+import {Tag} from "antd"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -123,9 +123,7 @@ const AutomaticTagsCell = memo(({revisionId}: {revisionId: string}) => {
                 </Tag>
             ))}
             {tags.length > 3 && (
-                <Typography.Text type="secondary" className="text-xs">
-                    +{tags.length - 3}
-                </Typography.Text>
+                <span className="text-xs text-muted-foreground">+{tags.length - 3}</span>
             )}
         </div>
     )
@@ -152,9 +150,7 @@ const FeedbackCell = memo(({revisionId}: {revisionId: string}) => {
                 </Tag>
             ))}
             {metricNames.length > 3 && (
-                <Typography.Text type="secondary" className="text-xs">
-                    +{metricNames.length - 3}
-                </Typography.Text>
+                <span className="text-xs text-muted-foreground">+{metricNames.length - 3}</span>
             )}
         </div>
     )
@@ -286,9 +282,9 @@ const ModifiedByCell = memo(({workflowId}: {workflowId: string}) => {
     if (!userId) return null
     return (
         <div className="h-full flex items-center">
-            <Typography.Text type="secondary" className="text-xs truncate block">
+            <span className="text-xs truncate block text-muted-foreground">
                 <UserAuthorLabel userId={userId} showPrefix={false} showAvatar showYouLabel />
-            </Typography.Text>
+            </span>
         </div>
     )
 })
@@ -301,9 +297,9 @@ const ModifiedByRevisionCell = memo(({revisionId}: {revisionId: string}) => {
     if (!userId) return null
     return (
         <div className="h-full flex items-center">
-            <Typography.Text type="secondary" className="text-xs truncate block">
+            <span className="text-xs truncate block text-muted-foreground">
                 <UserAuthorLabel userId={userId} showPrefix={false} showAvatar showYouLabel />
-            </Typography.Text>
+            </span>
         </div>
     )
 })
@@ -316,9 +312,7 @@ const CommitMessageCell = memo(({revisionId}: {revisionId: string}) => {
     if (!commitMessage) return null
     return (
         <div className="h-full flex items-center">
-            <Typography.Text type="secondary" className="text-xs truncate block">
-                {commitMessage}
-            </Typography.Text>
+            <span className="text-xs truncate block text-muted-foreground">{commitMessage}</span>
         </div>
     )
 })
@@ -331,9 +325,7 @@ const DateCell = memo(({date}: {date: string | null}) => {
     if (!date) return null
     return (
         <div className="h-full flex items-center">
-            <Typography.Text type="secondary" className="text-xs">
-                {formatDateCell(date)}
-            </Typography.Text>
+            <span className="text-xs text-muted-foreground">{formatDateCell(date)}</span>
         </div>
     )
 })
@@ -346,9 +338,7 @@ const UpdatedAtCell = memo(({workflowId}: {workflowId: string}) => {
     if (!updatedAt) return null
     return (
         <div className="h-full flex items-center">
-            <Typography.Text type="secondary" className="text-xs">
-                {formatDateCell(updatedAt)}
-            </Typography.Text>
+            <span className="text-xs text-muted-foreground">{formatDateCell(updatedAt)}</span>
         </div>
     )
 })
@@ -361,9 +351,7 @@ const UpdatedAtRevisionCell = memo(({revisionId}: {revisionId: string}) => {
     if (!updatedAt) return null
     return (
         <div className="h-full flex items-center">
-            <Typography.Text type="secondary" className="text-xs">
-                {formatDateCell(updatedAt)}
-            </Typography.Text>
+            <span className="text-xs text-muted-foreground">{formatDateCell(updatedAt)}</span>
         </div>
     )
 })
@@ -479,17 +467,14 @@ export function createEvaluatorColumns(
                           if (!record.deletedById) return null
                           return (
                               <div className="h-full flex items-center">
-                                  <Typography.Text
-                                      type="secondary"
-                                      className="text-xs truncate block"
-                                  >
+                                  <span className="text-xs truncate block text-muted-foreground">
                                       <UserAuthorLabel
                                           userId={record.deletedById}
                                           showPrefix={false}
                                           showAvatar
                                           showYouLabel
                                       />
-                                  </Typography.Text>
+                                  </span>
                               </div>
                           )
                       },

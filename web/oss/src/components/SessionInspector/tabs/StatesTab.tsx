@@ -1,12 +1,10 @@
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Button, Descriptions, Skeleton, Typography} from "antd"
+import {Alert, Button, Descriptions, Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
 import {fetchState} from "../api"
-
-const {Text} = Typography
 
 const StatesTab = ({sessionId}: {sessionId: string}) => {
     const projectId = useAtomValue(projectIdAtom)
@@ -24,7 +22,8 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
 
     if (isLoading) return <Skeleton active />
     if (error) return <Alert type="error" message="Failed to load state" showIcon />
-    if (!data) return <Text type="secondary">No durable state for this session yet.</Text>
+    if (!data)
+        return <span className="text-muted-foreground">No durable state for this session yet.</span>
 
     return (
         <>

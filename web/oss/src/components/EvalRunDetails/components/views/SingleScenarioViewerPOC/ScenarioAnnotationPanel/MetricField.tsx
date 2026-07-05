@@ -1,6 +1,6 @@
 import {memo, useCallback, useMemo} from "react"
 
-import {InputNumber, Radio, Select, Slider, Typography} from "antd"
+import {InputNumber, Radio, Select, Slider} from "antd"
 import clsx from "clsx"
 
 interface MetricFieldProps {
@@ -64,7 +64,7 @@ const MetricField = ({fieldKey, field, schema, disabled = false, onChange}: Metr
     if (type === "boolean") {
         return (
             <div className="flex flex-col gap-1">
-                <Typography.Text className="text-sm font-medium">{fieldKey}</Typography.Text>
+                <span className="text-sm font-medium">{fieldKey}</span>
                 <Radio.Group
                     value={value}
                     onChange={(e) => handleChange(e.target.value)}
@@ -85,7 +85,7 @@ const MetricField = ({fieldKey, field, schema, disabled = false, onChange}: Metr
 
         return (
             <div className="flex flex-col gap-1">
-                <Typography.Text className="text-sm font-medium">{fieldKey}</Typography.Text>
+                <span className="text-sm font-medium">{fieldKey}</span>
                 <div className="flex items-center gap-3">
                     {hasRange && (
                         <Slider
@@ -117,7 +117,7 @@ const MetricField = ({fieldKey, field, schema, disabled = false, onChange}: Metr
         // Class/enum type - single select
         return (
             <div className="flex flex-col gap-1">
-                <Typography.Text className="text-sm font-medium">{fieldKey}</Typography.Text>
+                <span className="text-sm font-medium">{fieldKey}</span>
                 <Select
                     value={value === null ? "null" : (value as string)}
                     onChange={(val) => handleChange(val === "null" ? null : val)}
@@ -135,7 +135,7 @@ const MetricField = ({fieldKey, field, schema, disabled = false, onChange}: Metr
         // Array/tag type - multi select
         return (
             <div className="flex flex-col gap-1">
-                <Typography.Text className="text-sm font-medium">{fieldKey}</Typography.Text>
+                <span className="text-sm font-medium">{fieldKey}</span>
                 <Select
                     mode="tags"
                     value={Array.isArray(value) ? value : []}
@@ -153,7 +153,7 @@ const MetricField = ({fieldKey, field, schema, disabled = false, onChange}: Metr
     // Default: string input (using Select for consistency, but could use Input)
     return (
         <div className="flex flex-col gap-1">
-            <Typography.Text className="text-sm font-medium">{fieldKey}</Typography.Text>
+            <span className="text-sm font-medium">{fieldKey}</span>
             <Select
                 mode="tags"
                 value={value ? [value as string] : []}

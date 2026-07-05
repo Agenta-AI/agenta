@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Button, Form, FormListFieldData, Input, InputNumber, Select, Switch, Typography} from "antd"
+import {Button, Form, FormListFieldData, Input, InputNumber, Select, Switch} from "antd"
 import dynamic from "next/dynamic"
 
 import {isSlugInputValid} from "@/oss/lib/helpers/utils"
@@ -13,8 +13,6 @@ const ModelNameInput = dynamic(
         import("@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer/assets/ModelNameInput"),
     {ssr: false},
 )
-
-const {Text} = Typography
 
 const CreateNewMetric = ({
     field,
@@ -115,7 +113,7 @@ const CreateNewMetric = ({
         <div className="flex flex-col gap-4 p-2 bg-[var(--ag-c-F5F7FA)] rounded-lg">
             <div className="w-full flex flex-col gap-1">
                 <div className="w-full flex items-center justify-between">
-                    <Text className="font-medium">Feedback name</Text>
+                    <span className="font-medium">Feedback name</span>
                     <Button
                         icon={<Trash size={14} />}
                         type="text"
@@ -148,7 +146,7 @@ const CreateNewMetric = ({
                 </Form.Item>
             </div>
             <div className="w-full flex flex-col gap-1">
-                <Text className="font-medium">Feedback type</Text>
+                <span className="font-medium">Feedback type</span>
                 <Form.Item
                     name={[field.name, "type"]}
                     rules={[{required: true, message: "Add feedback type!"}]}
@@ -170,7 +168,7 @@ const CreateNewMetric = ({
             {metricType && NUMERIC_METRIC_TYPES.includes(metricType) && (
                 <>
                     <div className="w-full flex flex-col gap-1">
-                        <Text className="font-medium">Minimum</Text>
+                        <span className="font-medium">Minimum</span>
                         <Form.Item
                             name={[field.name, "minimum"]}
                             rules={[
@@ -212,7 +210,7 @@ const CreateNewMetric = ({
                         </Form.Item>
                     </div>
                     <div className="w-full flex flex-col gap-1">
-                        <Text className="font-medium">Maximum</Text>
+                        <span className="font-medium">Maximum</span>
                         <Form.Item
                             name={[field.name, "maximum"]}
                             rules={[
@@ -265,7 +263,7 @@ const CreateNewMetric = ({
                     {(fields, {add, remove}) => (
                         <div className="flex flex-col gap-2">
                             <div className="w-full flex items-center justify-between">
-                                <Text className="font-medium">Options</Text>
+                                <span className="font-medium">Options</span>
                                 <Button
                                     icon={<Plus size={14} />}
                                     size="small"
@@ -275,9 +273,9 @@ const CreateNewMetric = ({
                                 </Button>
                             </div>
                             {fields.length === 0 ? (
-                                <Text className="text-[var(--ag-c-586673)]">
+                                <span className="text-[var(--ag-c-586673)]">
                                     No options configured
-                                </Text>
+                                </span>
                             ) : (
                                 fields.map((fieldItem, index) => (
                                     <div key={fieldItem.key} className="flex items-center gap-2">
@@ -337,7 +335,7 @@ const CreateNewMetric = ({
             ) : null}
 
             <div className="w-full flex justify-between items-center gap-1">
-                <Text className="font-medium">Optional</Text>
+                <span className="font-medium">Optional</span>
                 <Form.Item name={[field.name, "optional"]} className="mb-0">
                     <Switch />
                 </Form.Item>

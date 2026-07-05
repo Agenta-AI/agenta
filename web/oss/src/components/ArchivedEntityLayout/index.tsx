@@ -1,5 +1,5 @@
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import {useRouter} from "next/router"
 
 import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
@@ -33,12 +33,8 @@ export default function ArchivedEntityLayout({
                     Back
                 </Button>
                 <div className="flex flex-col gap-1">
-                    <Typography.Text className="!my-0 text-lg font-semibold">
-                        {title}
-                    </Typography.Text>
-                    {subtitle ? (
-                        <Typography.Text type="secondary">{subtitle}</Typography.Text>
-                    ) : null}
+                    <span className="!my-0 text-lg font-semibold">{title}</span>
+                    {subtitle ? <span className="text-muted-foreground">{subtitle}</span> : null}
                 </div>
             </div>
 
@@ -48,12 +44,10 @@ export default function ArchivedEntityLayout({
                         <EmptyComponent
                             description={
                                 <div className="flex flex-col gap-2">
-                                    <Typography.Text className="text-lg font-medium">
-                                        {emptyTitle}
-                                    </Typography.Text>
-                                    <Typography.Text type="secondary">
+                                    <span className="text-lg font-medium">{emptyTitle}</span>
+                                    <span className="text-muted-foreground">
                                         Archived items will appear here and can be restored later.
-                                    </Typography.Text>
+                                    </span>
                                 </div>
                             }
                         />

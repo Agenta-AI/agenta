@@ -2,7 +2,6 @@ import {useMemo} from "react"
 
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {SkeletonLine} from "@agenta/ui/table"
-import {Typography} from "antd"
 
 import {
     useRunRowDetails,
@@ -131,11 +130,11 @@ const PreviewVariantCellContent = ({
     }
 
     if (!camelRun) {
-        return <Typography.Text>—</Typography.Text>
+        return <span>—</span>
     }
 
     if (!hasResolvedValue) {
-        return <Typography.Text>—</Typography.Text>
+        return <span>—</span>
     }
 
     return (

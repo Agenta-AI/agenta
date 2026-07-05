@@ -11,7 +11,7 @@ import {VersionBadge} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Button, Input, Tag, Typography} from "antd"
+import {Button, Input, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {saveEvaluationEditAtom} from "@/oss/components/EvalRunDetails/atoms/mutations/editEvaluation"
@@ -21,8 +21,6 @@ import {
 } from "@/oss/components/EvalRunDetails/atoms/table/evaluators"
 import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"
 import {derivedEvalTypeAtomFamily} from "@/oss/components/EvalRunDetails/state/evalType"
-
-const {Text} = Typography
 
 /**
  * Shared "Edit evaluation" drawer. A true edit form: name, description, and the
@@ -145,7 +143,7 @@ const EditEvaluationDrawer = ({runId, open, onClose}: EditEvaluationDrawerProps)
         >
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
-                    <Text strong>Name</Text>
+                    <span className="font-semibold">Name</span>
                     <Input
                         value={name}
                         onChange={(event) => setName(event.target.value)}
@@ -155,7 +153,7 @@ const EditEvaluationDrawer = ({runId, open, onClose}: EditEvaluationDrawerProps)
                 </div>
 
                 <div className="flex flex-col gap-1">
-                    <Text strong>Description</Text>
+                    <span className="font-semibold">Description</span>
                     <Input.TextArea
                         value={description}
                         onChange={(event) => setDescription(event.target.value)}
@@ -167,11 +165,11 @@ const EditEvaluationDrawer = ({runId, open, onClose}: EditEvaluationDrawerProps)
 
                 <div className="flex flex-col gap-2">
                     <div className="flex flex-col gap-1">
-                        <Text strong>Evaluators</Text>
-                        <Text type="secondary" className="text-xs">
+                        <span className="font-semibold">Evaluators</span>
+                        <span className="text-xs text-muted-foreground">
                             Add an evaluator to score this run&apos;s existing outputs. New scores
                             fill in without re-running the app.
-                        </Text>
+                        </span>
                     </div>
 
                     {connected.map((evaluator) => (
@@ -185,9 +183,9 @@ const EditEvaluationDrawer = ({runId, open, onClose}: EditEvaluationDrawerProps)
                         />
                     ))}
                     {connected.length === 0 && pending.length === 0 ? (
-                        <Text type="secondary" className="text-xs">
+                        <span className="text-xs text-muted-foreground">
                             No evaluators connected yet.
-                        </Text>
+                        </span>
                     ) : null}
 
                     {open && runId ? (
@@ -217,11 +215,7 @@ const EvaluatorMetricTags = ({
 }) => {
     const list = Array.isArray(metrics) ? metrics : []
     if (list.length === 0) {
-        return (
-            <Text type="secondary" className="text-xs">
-                No output metrics
-            </Text>
-        )
+        return <span className="text-xs text-muted-foreground">No output metrics</span>
     }
     return (
         <div className="flex flex-wrap gap-1">
@@ -240,15 +234,13 @@ const EvaluatorMetricTags = ({
 const ConnectedEvaluatorCard = ({evaluator}: {evaluator: EvaluatorDefinition}) => (
     <div className="flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-c-EAECF0)] px-3 py-2.5">
         <div className="flex items-center gap-2">
-            <Text className="truncate text-xs font-medium">
+            <span className="truncate text-xs font-medium">
                 {evaluator.name ?? evaluator.slug ?? "Evaluator"}
-            </Text>
+            </span>
             {typeof evaluator.version === "number" ? (
                 <VersionBadge version={evaluator.version} variant="chip" size="small" />
             ) : evaluator.version ? (
-                <Text type="secondary" className="text-xs">
-                    v{evaluator.version}
-                </Text>
+                <span className="text-xs text-muted-foreground">v{evaluator.version}</span>
             ) : null}
         </div>
         <EvaluatorMetricTags metrics={evaluator.metrics} />
@@ -271,7 +263,7 @@ const PendingEvaluatorCard = ({
     return (
         <div className="flex flex-col gap-2 rounded-lg border border-dashed border-[var(--ag-c-EAECF0)] px-3 py-2.5">
             <div className="flex items-center gap-2">
-                <Text className="truncate text-xs font-medium">{name}</Text>
+                <span className="truncate text-xs font-medium">{name}</span>
                 {typeof revision === "number" ? (
                     <VersionBadge version={revision} variant="chip" size="small" />
                 ) : null}
@@ -289,9 +281,7 @@ const PendingEvaluatorCard = ({
                 />
             </div>
             {isPending ? (
-                <Text type="secondary" className="text-xs">
-                    Loading metrics…
-                </Text>
+                <span className="text-xs text-muted-foreground">Loading metrics…</span>
             ) : (
                 <EvaluatorMetricTags metrics={definition?.metrics} />
             )}

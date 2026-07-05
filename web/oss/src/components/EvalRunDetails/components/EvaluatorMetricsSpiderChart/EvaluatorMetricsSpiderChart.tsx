@@ -1,7 +1,6 @@
 import {memo, useMemo} from "react"
 
 import {formatCurrency, formatLatency} from "@agenta/shared/utils"
-import {Typography} from "antd"
 import clsx from "clsx"
 import {
     PolarAngleAxis,
@@ -67,11 +66,11 @@ const EvaluatorMetricsSpiderChart = ({
     if (metrics.length < 3) {
         return (
             <div className={clsx("flex items-center justify-center", className)}>
-                <Typography.Text type="secondary">
+                <span className="text-muted-foreground">
                     {metrics.length === 0
                         ? "No metrics available"
                         : "At least 3 metrics required for spider chart"}
-                </Typography.Text>
+                </span>
             </div>
         )
     }

@@ -3,7 +3,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Card, Typography} from "antd"
+import {Button, Card} from "antd"
 import {useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
@@ -477,11 +477,11 @@ const ScenarioAnnotationPanel = ({
                         </Button>
                     </div>
                 ) : (
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         {!hasInvocationOutput
                             ? "Run the invocation to generate output before annotating."
                             : "No evaluators configured for this run."}
-                    </Typography.Text>
+                    </span>
                 )}
             </Card>
         </div>

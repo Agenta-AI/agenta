@@ -21,15 +21,13 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {ArrowClockwise, CheckCircle, Plugs, Spinner, Warning} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
 import {useToolsConnections} from "../../../pages/settings/Tools/hooks/useToolsConnections"
 
 import type {ClientToolHandlerProps} from "./types"
-
-const {Text} = Typography
 
 /**
  * No terminal signal within this bound settles the call as a timeout so the run can't wait forever.
@@ -225,9 +223,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     if (phase === "connecting") {
         return (
             <ChipRow icon={<Spinner size={13} className="animate-spin text-colorPrimary" />}>
-                <Text type="secondary" className="!text-xs">
-                    Connecting {label}…
-                </Text>
+                <span className="!text-xs text-muted-foreground">Connecting {label}…</span>
                 <Button type="text" onClick={cancel} className="!px-2">
                     Cancel
                 </Button>
@@ -243,7 +239,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 <ChipRow
                     icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
                 >
-                    <Text className="!text-xs">{label} connected</Text>
+                    <span className="!text-xs">{label} connected</span>
                 </ChipRow>
             )
         }
@@ -251,9 +247,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         // resolved, so this primes the vault and flips the chip on success).
         return (
             <ChipRow icon={<Warning size={13} weight="fill" className="text-colorWarning" />}>
-                <Text type="secondary" className="!text-xs">
-                    Connection not completed
-                </Text>
+                <span className="!text-xs text-muted-foreground">Connection not completed</span>
                 <RetryButton onClick={() => runConnect(false)} />
             </ChipRow>
         )
@@ -263,9 +257,9 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     if (phase === "error") {
         return (
             <ChipRow icon={<Warning size={13} weight="fill" className="text-colorError" />}>
-                <Text type="danger" className="!text-xs truncate" title={errorText ?? undefined}>
+                <span className="!text-xs truncate text-destructive" title={errorText ?? undefined}>
                     {errorText ?? "Connection failed."}
-                </Text>
+                </span>
                 <RetryButton onClick={() => runConnect(true)} />
             </ChipRow>
         )
@@ -274,7 +268,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     // ── Idle: the initial prompt ────────────────────────────────────────────────────────────────
     return (
         <ChipRow icon={<Plugs size={13} className="text-colorPrimary" />}>
-            <Text className="!text-xs">Connect {label}</Text>
+            <span className="!text-xs">Connect {label}</span>
             <Button type="primary" onClick={() => runConnect(true)}>
                 Connect
             </Button>

@@ -3,13 +3,10 @@ import {memo, useEffect, useRef, useState} from "react"
 import {CommitMessageInput} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Typography} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-
-const {Text} = Typography
 const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
     ssr: false,
 })
@@ -124,11 +121,11 @@ const CommitTestsetModal = ({
                     className={`flex flex-col gap-4 ${hasDiffData ? "w-[320px] shrink-0" : "w-full"} overflow-y-auto`}
                 >
                     <div className="rounded-lg border border-[var(--ag-c-E2E8F0)] bg-[var(--ag-c-F8FAFC)] p-3">
-                        <Text className="text-[var(--ag-c-475569)]">
+                        <span className="text-[var(--ag-c-475569)]">
                             This will create a new revision of your testset.
-                        </Text>
+                        </span>
                         <div className="mt-2 flex items-center gap-2 text-sm">
-                            <Text className="font-medium">Version</Text>
+                            <span className="font-medium">Version</span>
                             <span className="rounded bg-[var(--ag-c-E2E8F0)] px-1.5 py-0.5 text-xs font-medium">
                                 v{displayVersion ?? "?"}
                             </span>
@@ -159,13 +156,13 @@ const CommitTestsetModal = ({
                 {hasDiffData && (
                     <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-[var(--ag-c-E2E8F0)] bg-[var(--ag-c-FAFBFC)]">
                         <div className="flex items-center justify-between border-b border-[var(--ag-c-E2E8F0)] bg-[var(--ag-c-F8FAFC)] px-3 py-2 shrink-0">
-                            <Text className="text-xs font-semibold text-[var(--ag-c-475569)] uppercase tracking-wide">
+                            <span className="text-xs font-semibold text-[var(--ag-c-475569)] uppercase tracking-wide">
                                 Changes preview
-                            </Text>
-                            <Text className="text-xs text-[var(--ag-c-94A3B8)]">
+                            </span>
+                            <span className="text-xs text-[var(--ag-c-94A3B8)]">
                                 {displaySummary.modifiedCount || 0} change
                                 {(displaySummary.modifiedCount || 0) !== 1 ? "s" : ""}
-                            </Text>
+                            </span>
                         </div>
                         <div className="flex-1 overflow-auto">
                             <DiffView

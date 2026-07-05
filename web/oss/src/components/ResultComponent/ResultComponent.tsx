@@ -1,9 +1,7 @@
 import {ReactNode} from "react"
 
 import {CloseCircleFilled} from "@ant-design/icons"
-import {Result, Spin, Typography} from "antd"
-
-const {Title} = Typography
+import {Result, Spin} from "antd"
 
 interface ResultComponentProps {
     status: ReactNode
@@ -16,11 +14,7 @@ const ResultComponent: React.FC<ResultComponentProps> = ({status, title, subtitl
     return (
         <Result
             icon={status === "error" && <CloseCircleFilled className="text-[#ff4d4f]" />}
-            title={
-                <Title level={3} className="capitalize">
-                    {title}
-                </Title>
-            }
+            title={<h3 className="capitalize text-lg font-semibold leading-snug">{title}</h3>}
             subTitle={subtitle}
             extra={spinner && <Spin />}
         />

@@ -12,7 +12,6 @@ import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {textColors} from "@agenta/ui/styles"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
-import {Typography} from "antd"
 import {getDefaultStore} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -25,8 +24,6 @@ import {
     closeSelectDeployVariantModalAtom,
     selectDeployVariantStateAtom,
 } from "./store/deploymentModalsStore"
-
-const {Text} = Typography
 const EMPTY_ACTIONS = {}
 
 /** Resolve the currently deployed revision info for an environment + app */
@@ -232,10 +229,10 @@ const SelectDeployVariantModalContent = ({
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-[var(--ag-rgba-051729-06)] dark:bg-[var(--ag-rgba-051729-04)]">
                     {selectedRow ? (
                         <>
-                            <Text className={textColors.secondary}>
+                            <span className={textColors.secondary}>
                                 This will deploy the following revision to{" "}
                                 <span className="font-medium capitalize">{envName}</span>.
-                            </Text>
+                            </span>
                             <div className="mt-2 flex items-center gap-2 min-w-0">
                                 {currentDeployment ? (
                                     <>
@@ -263,10 +260,10 @@ const SelectDeployVariantModalContent = ({
                             )}
                         </>
                     ) : (
-                        <Text className={textColors.secondary}>
+                        <span className={textColors.secondary}>
                             Select a revision from the table to deploy to{" "}
                             <span className="font-medium capitalize">{envName}</span>.
-                        </Text>
+                        </span>
                     )}
                 </div>
 

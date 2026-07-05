@@ -2,7 +2,7 @@ import {useMemo, useState, type ReactNode} from "react"
 
 import type {EvaluatorDefinition} from "@agenta/entities/workflow"
 import {DownOutlined, PlusOutlined} from "@ant-design/icons"
-import {Alert, Button, Form, Segmented, Skeleton, Tag, Typography} from "antd"
+import {Alert, Button, Form, Segmented, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -22,8 +22,6 @@ import {editEvaluationDrawerRunIdAtom} from "../../../../state/editDrawer"
 import {stringifyError} from "../utils"
 
 import {DiffersBadge, SectionCard, SectionLabel} from "./SectionPrimitives"
-
-const {Text} = Typography
 const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => module.Editor), {
     ssr: false,
 })
@@ -78,7 +76,11 @@ const EvaluatorSection = ({
     }
 
     if (!evaluators.length) {
-        return <Text type="secondary">No evaluator reference found for this run.</Text>
+        return (
+            <span className="text-muted-foreground">
+                No evaluator reference found for this run.
+            </span>
+        )
     }
 
     return (
@@ -233,9 +235,9 @@ const EvaluatorCard = ({
                     ) : null}
                     {differs ? <DiffersBadge /> : null}
                     {collapsed && evaluator.description ? (
-                        <Text type="secondary" className="min-w-0 flex-1 truncate text-xs">
+                        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                             {evaluator.description}
-                        </Text>
+                        </span>
                     ) : null}
                 </div>
                 <div className="flex items-center gap-2">
@@ -263,7 +265,9 @@ const EvaluatorCard = ({
                     {rawEvaluator ? (
                         <>
                             {evaluator.description ? (
-                                <Text type="secondary">{evaluator.description}</Text>
+                                <span className="text-muted-foreground">
+                                    {evaluator.description}
+                                </span>
                             ) : null}
                             {view === "json" && hasEvaluatorJson ? (
                                 <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)]">
@@ -289,9 +293,9 @@ const EvaluatorCard = ({
                             )}
                         </>
                     ) : (
-                        <Text type="secondary">
+                        <span className="text-muted-foreground">
                             Evaluator configuration snapshot is unavailable for this run.
-                        </Text>
+                        </span>
                     )}
 
                     {metricsFallback.length > 0 ? (

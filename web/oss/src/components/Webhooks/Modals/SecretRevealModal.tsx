@@ -1,7 +1,6 @@
 import React, {useCallback} from "react"
 
 import {CopyButton, EnhancedModal, ModalContent} from "@agenta/ui"
-import {Typography} from "antd"
 import {useAtom} from "jotai"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -26,10 +25,10 @@ const SecretRevealModal: React.FC = () => {
             cancelText="Close"
         >
             <ModalContent className="my-3 flex flex-col gap-3">
-                <Typography.Text>
+                <span>
                     Please save this secret key in a secure location. You will need it to verify
                     that incoming webhook requests are from Agenta.
-                </Typography.Text>
+                </span>
 
                 <div className="flex items-center justify-between overflow-hidden rounded-md border border-slate-200 bg-slate-50 py-1 pl-3 pr-1 dark:border-slate-700">
                     <span className="truncate">{createdWebhookSecret}</span>

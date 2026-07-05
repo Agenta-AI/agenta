@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import {CopyButton} from "@agenta/ui"
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Dropdown, MenuProps, Space, Typography} from "antd"
+import {Button, Dropdown, MenuProps, Space} from "antd"
 
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
 import {LanguageItem} from "@/oss/lib/Types"
@@ -29,13 +29,11 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({codeSnippets}) => {
         setSelectedLanguage(newSelectedLanguage)
     }
 
-    const {Text} = Typography
-
     return (
         <div className="rounded-[10px] flex flex-col">
             <div className="flex items-center justify-end">
                 <div className="text-[1em] mr-[10px]">
-                    <Text>Language:</Text>
+                    <span>Language:</span>
                 </div>
 
                 {selectedLanguage && (

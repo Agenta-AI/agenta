@@ -1,14 +1,12 @@
 import {Fragment} from "react"
 
-import {Form, Tag, Tooltip, Typography} from "antd"
+import {Form, Tag, Tooltip} from "antd"
 
 import type {EvaluatorDetails, OutputMetric, ParameterPreviewItem} from "../types"
 
 import EvaluatorTypeTag from "./EvaluatorTypeTag"
 import PromptPreview from "./PromptPreview"
 import ReadOnlyBox from "./ReadOnlyBox"
-
-const {Text} = Typography
 
 interface EvaluatorDetailsPreviewProps {
     details: EvaluatorDetails
@@ -20,7 +18,7 @@ interface EvaluatorDetailsPreviewProps {
 const renderParameterValue = (param: ParameterPreviewItem) => {
     const displayValue = param.displayValue?.trim()
     if (!displayValue) {
-        return <Text type="secondary">Not provided</Text>
+        return <span className="text-muted-foreground">Not provided</span>
     }
 
     const isMultiline = displayValue.includes("\n")

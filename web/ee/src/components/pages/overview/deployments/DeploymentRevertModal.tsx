@@ -1,6 +1,5 @@
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Rocket} from "@phosphor-icons/react"
-import {Typography} from "antd"
 
 type DeploymentRevertModalProps = {
     revisionVersion: number
@@ -29,9 +28,7 @@ const DeploymentRevertModal = ({
             {...props}
         >
             <div>
-                <Typography.Title level={4} className="!mb-2">
-                    Revert Deployment
-                </Typography.Title>
+                <h4 className="!mb-2 text-base font-semibold leading-snug">Revert Deployment</h4>
 
                 <div className="flex flex-col gap-4">
                     <div>

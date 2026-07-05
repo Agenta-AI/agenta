@@ -1,9 +1,6 @@
 import {memo} from "react"
 
 import {type TurnRequestCapture} from "@agenta/playground"
-import {Typography} from "antd"
-
-const {Text} = Typography
 
 const format = (value: unknown): string => {
     if (value == null) return "null"
@@ -49,13 +46,11 @@ const Send = ({
     return (
         <div className="flex flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary p-3">
             <div className="flex items-center gap-2">
-                <Text className="!text-xs !font-medium">
+                <span className="!text-xs !font-medium">
                     Request {index + 1} of {total}
-                </Text>
+                </span>
                 {model ? (
-                    <Text type="secondary" className="!text-[11px] font-mono">
-                        {model}
-                    </Text>
+                    <span className="!text-[11px] font-mono text-muted-foreground">{model}</span>
                 ) : null}
             </div>
             {instructions != null ? (
@@ -83,10 +78,10 @@ const ContextTab = ({captures}: {captures: TurnRequestCapture[]}) => {
     return (
         <div className="flex flex-col gap-3">
             {captures.length > 1 ? (
-                <Text type="secondary" className="!text-xs">
+                <span className="!text-xs text-muted-foreground">
                     This turn made {captures.length} requests (initial + resumes). Compare them to
                     spot drift or a loop.
-                </Text>
+                </span>
             ) : null}
             {captures.map((c, i) => (
                 <Send key={c.requestId} capture={c} index={i} total={captures.length} />

@@ -1,7 +1,7 @@
 import {memo, useCallback, useMemo} from "react"
 
 import {QuestionCircleOutlined} from "@ant-design/icons"
-import {Button, Flex, Form, InputNumber, Tooltip, Typography} from "antd"
+import {Button, Flex, Form, InputNumber, Tooltip} from "antd"
 import deepEqual from "fast-deep-equal"
 
 import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
@@ -42,9 +42,7 @@ const AdvancedSettings = ({advanceSettings, setAdvanceSettings}: AdvancedSetting
                 <Form.Item
                     label={
                         <div className="w-full flex items-center gap-2 h-10">
-                            <Typography.Text className="text-md font-medium">
-                                Concurrency
-                            </Typography.Text>
+                            <span className="text-md font-medium">Concurrency</span>
                             {isAdvancedSettingsChanged && (
                                 <Button
                                     danger

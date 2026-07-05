@@ -1,12 +1,10 @@
 import {useState} from "react"
 
 import {Book, Play} from "@phosphor-icons/react"
-import {Typography, Button} from "antd"
+import {Button} from "antd"
 
 import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
 import {TracingCodeComponent} from "@/oss/components/pages/app-management/modals/SetupTracingModal/components/TracingCodeComponent"
-
-const {Title, Text} = Typography
 
 const CODE_SNIPPET = `import asyncio
 import agenta as ag
@@ -74,9 +72,9 @@ export const RunEvaluationView = () => {
         <div className="flex flex-col gap-8">
             <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-center">
-                    <Title level={1} style={{margin: 0}}>
+                    <h1 style={{margin: 0}} className="text-2xl font-semibold leading-tight">
                         Evaluate from SDK
-                    </Title>
+                    </h1>
                     <div className="flex items-center gap-2">
                         <Button
                             icon={<Play size={16} className="mt-1" />}
@@ -94,14 +92,14 @@ export const RunEvaluationView = () => {
                         </Button>
                     </div>
                 </div>
-                <Text>
+                <span>
                     Evaluate complex AI apps to compare changes and ensure they are reliable.
-                </Text>
+                </span>
             </div>
             <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
 
             <div className="flex flex-col gap-2">
-                <Text strong>1. Install the required packages:</Text>
+                <span className="font-semibold">1. Install the required packages:</span>
                 <TracingCodeComponent
                     command={{
                         title: "Bash",

@@ -1,12 +1,10 @@
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Button, Empty, List, Skeleton, Typography} from "antd"
+import {Alert, Button, Empty, List, Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
 import {fetchMounts} from "../api"
-
-const {Text} = Typography
 
 const MountsTab = ({sessionId}: {sessionId: string}) => {
     const projectId = useAtomValue(projectIdAtom)
@@ -38,9 +36,9 @@ const MountsTab = ({sessionId}: {sessionId: string}) => {
                         <List.Item.Meta
                             title={mount.name ?? mount.slug ?? mount.id}
                             description={
-                                <Text type="secondary" className="text-xs font-mono">
+                                <span className="text-xs font-mono text-muted-foreground">
                                     {mount.id}
-                                </Text>
+                                </span>
                             }
                         />
                     </List.Item>

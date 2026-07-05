@@ -1,8 +1,6 @@
 import {useEffect, useMemo, useCallback, useRef} from "react"
 import type {ReactNode} from "react"
 
-import {Typography} from "antd"
-
 import type {ColumnTreeNode} from "@/oss/components/InfiniteVirtualTable"
 import ColumnVisibilityMenuTrigger, {
     type ColumnVisibilityNodeMeta,
@@ -395,13 +393,13 @@ function VisibilityNodeTitle({
 }) {
     return (
         <div className="flex flex-col leading-tight">
-            <Typography.Text className={emphasize ? "font-semibold" : ""} ellipsis>
+            <span
+                className={[emphasize ? "font-semibold" : "", "truncate"].filter(Boolean).join(" ")}
+            >
                 {label}
-            </Typography.Text>
+            </span>
             {secondary ? (
-                <Typography.Text type="secondary" className="text-xs" ellipsis>
-                    {secondary}
-                </Typography.Text>
+                <span className="text-xs text-muted-foreground truncate">{secondary}</span>
             ) : null}
         </div>
     )

@@ -6,7 +6,7 @@ import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-rev
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {DeleteOutlined} from "@ant-design/icons"
 import {Play, SidebarSimple} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip, Typography} from "antd"
+import {Button, Tag, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -212,11 +212,9 @@ const TraceTypeHeader = ({
                 title={activeTrace?.span_name || (error ? "Error" : "")}
                 mouseEnterDelay={0.25}
             >
-                <Typography.Text
-                    className={clsx("truncate text-nowrap flex-1 text-sm font-medium")}
-                >
+                <span className={clsx("truncate text-nowrap flex-1 text-sm font-medium")}>
                     {activeTrace?.span_name || (error ? "Error" : "")}
-                </Typography.Text>
+                </span>
             </Tooltip>
 
             <div className="flex gap-2">

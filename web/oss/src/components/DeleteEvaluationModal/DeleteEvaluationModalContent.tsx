@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {Typography} from "antd"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
@@ -102,24 +101,22 @@ const DeleteEvaluationModalContent = ({
 
     return (
         <section className="flex flex-col gap-1">
-            <Typography.Text className="text-sm font-semibold mb-2">
-                Are you sure you want to delete?
-            </Typography.Text>
+            <span className="text-sm font-semibold mb-2">Are you sure you want to delete?</span>
 
             <div className="flex flex-col gap-4">
-                <Typography.Text>
+                <span>
                     {isMultiple
                         ? `The selected ${evaluationType.split(" | ").length} evaluations will be permanently deleted.`
                         : `A deleted ${evaluationType} cannot be restored.`}
-                </Typography.Text>
+                </span>
 
                 <div className="flex flex-col gap-1">
-                    <Typography.Text>
+                    <span>
                         {isMultiple
                             ? "You are about to delete the following evaluations:"
                             : "You are about to delete:"}
-                    </Typography.Text>
-                    <Typography.Text
+                    </span>
+                    <span
                         className={`text-sm font-medium ${isMultiple ? "max-h-40 overflow-y-auto" : ""}`}
                     >
                         {isMultiple
@@ -129,7 +126,7 @@ const DeleteEvaluationModalContent = ({
                                   </div>
                               ))
                             : evaluationType}
-                    </Typography.Text>
+                    </span>
                 </div>
             </div>
         </section>

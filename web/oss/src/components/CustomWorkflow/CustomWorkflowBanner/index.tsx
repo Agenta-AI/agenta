@@ -1,5 +1,5 @@
 import {PencilSimple} from "@phosphor-icons/react"
-import {Alert, Button, Card, Space, Typography} from "antd"
+import {Alert, Button, Card, Space} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -23,13 +23,13 @@ const CustomWorkflowBanner = ({
             return (
                 <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
                     <Card className="max-w-[520px] w-[90%] text-center">
-                        <Typography.Title level={3} className="!mb-2">
+                        <h3 className="!mb-2 text-lg font-semibold leading-snug">
                             Unable to establish connection
-                        </Typography.Title>
-                        <Typography.Paragraph type="secondary" className="!mb-4">
+                        </h3>
+                        <p className="!mb-4 text-muted-foreground">
                             Agenta is unable to communicate with your server. Try refreshing or
                             re-configure your workflow URL.
-                        </Typography.Paragraph>
+                        </p>
                         <Space orientation="horizontal" align="center">
                             <Button icon={<PencilSimple size={14} />} onClick={() => openModal()}>
                                 Configure

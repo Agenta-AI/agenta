@@ -1,9 +1,6 @@
 import {EnhancedModal, ModalContent} from "@agenta/ui"
-import {Typography} from "antd"
 
 import {REGIONS, RegionId} from "@/oss/lib/helpers/region"
-
-const {Paragraph} = Typography
 
 interface RegionInfoModalProps {
     open: boolean
@@ -15,9 +12,9 @@ const RegionInfoModal = ({open, onClose}: RegionInfoModalProps) => {
         <EnhancedModal title="Data Regions" open={open} onCancel={onClose} footer={null}>
             <ModalContent>
                 <div className="flex flex-col gap-3 text-sm text-colorTextSecondary">
-                    <Paragraph className="!m-0 text-colorTextSecondary">
+                    <p className="!m-0 text-colorTextSecondary">
                         Agenta Cloud is available in two regions:
-                    </Paragraph>
+                    </p>
                     <ul className="list-disc pl-5 text-colorTextSecondary">
                         {(Object.entries(REGIONS) as [RegionId, (typeof REGIONS)[RegionId]][]).map(
                             ([id, region]) => (
@@ -27,13 +24,13 @@ const RegionInfoModal = ({open, onClose}: RegionInfoModalProps) => {
                             ),
                         )}
                     </ul>
-                    <Paragraph className="!m-0 text-colorTextSecondary">
+                    <p className="!m-0 text-colorTextSecondary">
                         Regions are completely isolated. No data is shared between regions. Choose a
                         region based on data residency requirements and latency needs.
-                    </Paragraph>
-                    <Paragraph className="!m-0 text-colorTextSecondary">
+                    </p>
+                    <p className="!m-0 text-colorTextSecondary">
                         You can have accounts in multiple regions. Each requires a separate sign-up.
-                    </Paragraph>
+                    </p>
                 </div>
             </ModalContent>
         </EnhancedModal>

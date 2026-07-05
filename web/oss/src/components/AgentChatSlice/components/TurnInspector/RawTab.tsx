@@ -1,9 +1,7 @@
 import {memo} from "react"
 
 import {type TurnRequestCapture} from "@agenta/playground"
-import {App, Button, Typography} from "antd"
-
-const {Text} = Typography
+import {App, Button} from "antd"
 
 /** One capture's literal outgoing request body, copyable for repro / bug reports. */
 const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
@@ -26,9 +24,9 @@ const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
                         className="flex flex-col gap-1.5 rounded-lg border border-solid border-colorBorderSecondary p-3"
                     >
                         <div className="flex items-center gap-2">
-                            <Text className="!text-xs !font-medium whitespace-nowrap shrink-0">
+                            <span className="!text-xs !font-medium whitespace-nowrap shrink-0">
                                 Request {i + 1} of {captures.length}
-                            </Text>
+                            </span>
                             <Button
                                 type="link"
                                 className="!ml-auto !shrink-0 !px-0 !text-xs"
@@ -44,13 +42,12 @@ const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
                                 Copy JSON
                             </Button>
                         </div>
-                        <Text
-                            type="secondary"
-                            className="!text-[11px] font-mono truncate"
+                        <span
+                            className="!text-[11px] font-mono truncate text-muted-foreground"
                             title={c.invocationUrl}
                         >
                             {c.invocationUrl}
-                        </Text>
+                        </span>
                         <pre className="ag-surface-inset m-0 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
                             {json}
                         </pre>

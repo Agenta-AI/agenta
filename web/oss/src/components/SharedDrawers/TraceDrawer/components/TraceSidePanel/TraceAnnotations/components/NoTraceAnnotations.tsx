@@ -1,13 +1,9 @@
 import React from "react"
 
-import {Typography} from "antd"
-
 const NoTraceAnnotations = () => {
     return (
         <div className="flex items-center justify-center">
-            <Typography.Text type="secondary">
-                There are no annotations for this trace
-            </Typography.Text>
+            <span className="text-muted-foreground">There are no annotations for this trace</span>
         </div>
     )
 }

@@ -1,4 +1,4 @@
-import {Flex, Space, Typography} from "antd"
+import {Flex, Space} from "antd"
 import {useAtomValue} from "jotai"
 import {PlusCircle, Timer} from "lucide-react"
 
@@ -35,7 +35,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     return (
         <Flex vertical gap={12}>
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Type</Typography.Text>
+                <span className={titleClass}>Type</span>
 
                 <ResultTag
                     style={{
@@ -53,7 +53,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </Space>
 
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Status</Typography.Text>
+                <span className={titleClass}>Status</span>
                 <StatusRenderer
                     status={activeTrace?.status_code}
                     message={activeTrace?.status_message}
@@ -62,7 +62,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </Space>
 
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Latency</Typography.Text>
+                <span className={titleClass}>Latency</span>
                 <ResultTag
                     bordered={false}
                     className="bg-[var(--ag-c-0517290F)]"
@@ -75,7 +75,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </Space>
 
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Timestamp</Typography.Text>
+                <span className={titleClass}>Timestamp</span>
 
                 <ResultTag
                     value1={<div className={resultTagClass}>Start - {traceStartTime}</div>}
@@ -94,7 +94,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </Space>
 
             <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Tokens & Cost</Typography.Text>
+                <span className={titleClass}>Tokens & Cost</span>
                 <ResultTag
                     bordered={false}
                     className="bg-[var(--ag-c-0517290F)]"

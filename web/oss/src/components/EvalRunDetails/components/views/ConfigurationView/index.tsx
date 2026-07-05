@@ -1,6 +1,6 @@
 import {memo, useMemo, useState} from "react"
 
-import {Segmented, Typography} from "antd"
+import {Segmented} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -23,8 +23,6 @@ import SectionNavCard from "./components/SectionNavCard"
 import {SectionSkeleton} from "./components/SectionPrimitives"
 import TestsetSection from "./components/TestsetSection"
 import V2SectionShell from "./components/V2SectionShell"
-
-const {Text} = Typography
 
 interface ConfigurationViewProps {
     runId: string
@@ -290,7 +288,7 @@ const V2SectionStack = memo(
                                 differs={Boolean(diff?.testset)}
                             />
                         ) : (
-                            <Text type="secondary">No linked test sets.</Text>
+                            <span className="text-muted-foreground">No linked test sets.</span>
                         )}
                     </V2SectionShell>
                 ) : null}
@@ -322,7 +320,9 @@ const V2SectionStack = memo(
                                 diff={diff ? {app: diff.app, variant: diff.variant} : null}
                             />
                         ) : (
-                            <Text type="secondary">Application metadata unavailable.</Text>
+                            <span className="text-muted-foreground">
+                                Application metadata unavailable.
+                            </span>
                         )}
                     </V2SectionShell>
                 ) : null}
@@ -343,7 +343,9 @@ const V2SectionStack = memo(
                                 defaultOpenFirst={defaultOpenFirstEvaluator}
                             />
                         ) : (
-                            <Text type="secondary">No evaluator reference found for this run.</Text>
+                            <span className="text-muted-foreground">
+                                No evaluator reference found for this run.
+                            </span>
                         )}
                     </V2SectionShell>
                 ) : null}
@@ -404,9 +406,9 @@ const V2CompareColumn = memo(
                         className="h-2 w-2 shrink-0 rounded-[2px]"
                         style={{backgroundColor: swatchColor}}
                     />
-                    <Text className="min-w-0 truncate text-[13px] font-medium">
+                    <span className="min-w-0 truncate text-[13px] font-medium">
                         {runName ?? runId}
-                    </Text>
+                    </span>
                 </div>
                 <RunSummaryCard runId={runId} />
                 <V2SectionStack

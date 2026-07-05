@@ -1,6 +1,5 @@
 import {memo} from "react"
 
-import {Typography} from "antd"
 import dynamic from "next/dynamic"
 
 import {extractInputs, extractOutputs, getTraceTree, getTraceIdForStep} from "./utils"
@@ -21,7 +20,7 @@ const renderBlock = (label: string, value: any) => {
         typeof value === "string" ? value : value ? JSON.stringify(value, null, 2) : "No content"
     return (
         <div className="flex flex-col gap-2">
-            <Typography.Text type="secondary">{label}</Typography.Text>
+            <span className="text-muted-foreground">{label}</span>
             <pre className="whitespace-pre-wrap break-words bg-[var(--ag-c-F8FAFC)] rounded-lg p-3 max-h-80 overflow-auto border border-[var(--ag-c-EAECF0)]">
                 {display}
             </pre>
@@ -49,9 +48,7 @@ const StepContentRenderer = ({
                     showStatus={false}
                 />
             ) : null}
-            {!inputs && !outputs ? (
-                <Typography.Text type="secondary">No content</Typography.Text>
-            ) : null}
+            {!inputs && !outputs ? <span className="text-muted-foreground">No content</span> : null}
         </div>
     )
 }

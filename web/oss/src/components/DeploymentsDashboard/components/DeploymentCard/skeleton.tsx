@@ -1,5 +1,5 @@
 import {EnvironmentTag, environmentColors} from "@agenta/ui"
-import {Card, Skeleton, Space, Typography} from "antd"
+import {Card, Skeleton, Space} from "antd"
 
 import {deploymentCardClass} from "./styles"
 
@@ -26,12 +26,12 @@ const DeploymentCardSkeleton = ({envName, isSelected}: DeploymentCardSkeletonPro
             <EnvironmentTag environment={envName} />
 
             <Space className="justify-between">
-                <Typography.Text>Variant</Typography.Text>
+                <span>Variant</span>
                 <Skeleton.Button active size="small" style={{width: 140}} shape="round" />
             </Space>
 
             <Space className="justify-between">
-                <Typography.Text>Last modified</Typography.Text>
+                <span>Last modified</span>
                 <Skeleton.Button active size="small" style={{width: 110}} shape="round" />
             </Space>
         </Card>

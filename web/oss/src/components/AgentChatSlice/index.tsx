@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
-import {Segmented, Tabs, Tooltip, Typography} from "antd"
+import {Segmented, Tabs, Tooltip} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
@@ -23,8 +23,6 @@ import {
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
 } from "./state/sessions"
-
-const {Text, Title} = Typography
 
 /**
  * Agent chat streaming slice — contract v1.
@@ -114,12 +112,12 @@ const AgentChatSlice = () => {
     return (
         <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-3 p-4">
             <div>
-                <Title level={4} className="!mb-0">
+                <h4 className="!mb-0 text-base font-semibold leading-snug">
                     Agent chat (contract v1)
-                </Title>
-                <Text type="secondary" className="!text-xs">
+                </h4>
+                <span className="!text-xs text-muted-foreground">
                     Parallel agent conversations — add a tab for each.
-                </Text>
+                </span>
             </div>
 
             <Tabs

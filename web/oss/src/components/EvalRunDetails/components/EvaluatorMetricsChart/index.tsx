@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {Card, Skeleton, Typography} from "antd"
+import {Card, Skeleton} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
@@ -94,11 +94,7 @@ const EvaluatorMetricsChartTitle = memo(
             return match?.name || match?.slug || fallbackLabel
         }, [evaluatorDefinitions, evaluatorRef?.id, evaluatorRef?.slug, fallbackLabel])
 
-        return (
-            <Typography.Text className="text-sm font-medium text-neutral-900">
-                {resolvedLabel}
-            </Typography.Text>
-        )
+        return <span className="text-sm font-medium text-neutral-900">{resolvedLabel}</span>
     },
 )
 EvaluatorMetricsChartTitle.displayName = "EvaluatorMetricsChartTitle"
@@ -654,9 +650,7 @@ const EvaluatorMetricsChart = ({
                             evaluatorRef={evaluatorRef}
                             fallbackLabel={fallbackEvaluatorLabel}
                         />
-                        <Typography.Text className="text-xs capitalize text-neutral-500">
-                            {metricLabel}
-                        </Typography.Text>
+                        <span className="text-xs capitalize text-neutral-500">{metricLabel}</span>
                     </div>
                 </div>
                 <div className="px-4 pb-3">
@@ -666,13 +660,13 @@ const EvaluatorMetricsChart = ({
                                 key={entry.key}
                                 className="flex shrink-0 flex-col items-center gap-1"
                             >
-                                <Typography.Text
+                                <span
                                     className="text-xl font-semibold"
                                     style={{color: entry.color}}
                                 >
                                     {entry.displayValue}
-                                </Typography.Text>
-                                <Typography.Text
+                                </span>
+                                <span
                                     className={clsx("text-xs font-medium", {
                                         "text-emerald-600": entry.deltaTone === "positive",
                                         "text-red-600": entry.deltaTone === "negative",
@@ -680,7 +674,7 @@ const EvaluatorMetricsChart = ({
                                     })}
                                 >
                                     {entry.deltaText}
-                                </Typography.Text>
+                                </span>
                             </div>
                         ))}
                     </div>

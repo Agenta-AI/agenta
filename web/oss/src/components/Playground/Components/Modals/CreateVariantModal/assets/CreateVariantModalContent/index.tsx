@@ -1,14 +1,12 @@
 import {type ChangeEvent, useCallback} from "react"
 
 import {CommitMessageInput} from "@agenta/ui"
-import {Input, Select, Typography, Form, Checkbox} from "antd"
+import {Input, Select, Form, Checkbox} from "antd"
 import clsx from "clsx"
 
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 
 import {CreateVariantModalContentProps} from "../types"
-
-const {Text} = Typography
 
 const CreateVariantModalContent = ({
     setTemplateVariantName,
@@ -59,7 +57,7 @@ const CreateVariantModalContent = ({
                     className={clsx(["w-full flex flex-col gap-4", "[&_.ant-form-item]:mb-0"])}
                 >
                     <div className="flex flex-col gap-2">
-                        <Text>Base variant</Text>
+                        <span>Base variant</span>
                         <Form.Item>
                             <Select
                                 showSearch
@@ -76,7 +74,7 @@ const CreateVariantModalContent = ({
                     </div>
 
                     <div className="flex flex-col gap-2">
-                        <Text>Variant name</Text>
+                        <span>Variant name</span>
                         <Form.Item
                             validateStatus={
                                 nameExists

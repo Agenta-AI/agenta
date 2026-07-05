@@ -3,7 +3,7 @@ import {useCallback, useMemo} from "react"
 import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {InfiniteVirtualTable} from "@agenta/ui/table"
 import type {InfiniteTableRowBase} from "@agenta/ui/table"
-import {Tag, Typography} from "antd"
+import {Tag} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -142,7 +142,7 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
     if (!hasLinks) {
         return (
             <div className="flex items-center justify-center">
-                <Typography.Text type="secondary">No linked spans found.</Typography.Text>
+                <span className="text-muted-foreground">No linked spans found.</span>
             </div>
         )
     }

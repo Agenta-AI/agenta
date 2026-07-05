@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from "react"
 
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Menu, Divider, Typography, Input, Radio, Tag} from "antd"
+import {Menu, Divider, Input, Radio, Tag} from "antd"
 import yaml from "js-yaml"
 
 import {SettingsPreset} from "@/oss/lib/Types"
@@ -85,9 +85,7 @@ const LoadEvaluatorPresetContent = ({
 
             <div className="flex flex-col gap-4 flex-1 h-full overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 sticky top-0 z-10">
-                    <Typography.Text className="text-lg font-medium -mt-1">
-                        Select a Preset
-                    </Typography.Text>
+                    <span className="text-lg font-medium -mt-1">Select a Preset</span>
                     {!codePresetValues ? (
                         <Radio.Group
                             value={format}

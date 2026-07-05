@@ -1,5 +1,5 @@
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import {useRouter} from "next/router"
 
 import type {Org} from "@/oss/lib/Types"
@@ -34,12 +34,8 @@ const PostSignupFallback = ({orgs, reason}: PostSignupFallbackProps) => {
         <>
             <PostSignupHeader orgs={orgs} />
             <div className="w-[400px] mx-auto mt-12 flex flex-col gap-6 text-center">
-                <Typography.Title level={3} className="!mb-0">
-                    Welcome to Agenta
-                </Typography.Title>
-                <Typography.Paragraph className="!mb-0">
-                    {REASON_MESSAGES[reason]}
-                </Typography.Paragraph>
+                <h3 className="!mb-0 text-lg font-semibold leading-snug">Welcome to Agenta</h3>
+                <p className="!mb-0">{REASON_MESSAGES[reason]}</p>
                 <Button
                     type="primary"
                     size="large"

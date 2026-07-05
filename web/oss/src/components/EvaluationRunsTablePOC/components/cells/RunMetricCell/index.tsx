@@ -2,7 +2,6 @@ import {memo, useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {EvaluatorMetricBar} from "@agenta/ui/cell-renderers"
 import {SkeletonLine} from "@agenta/ui/table"
-import {Typography} from "antd"
 import {useSetAtomWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
 
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
@@ -201,7 +200,7 @@ const RunMetricCellContent = memo(
         // }, [runId, selection.state, selection.resolvedKey, setResolvedPaths])
 
         if (!runId) {
-            return <Typography.Text>—</Typography.Text>
+            return <span>—</span>
         }
 
         // Check if metric is unavailable for this run BEFORE checking loading state
@@ -220,7 +219,7 @@ const RunMetricCellContent = memo(
             return <RunMetricCellSkeleton />
         }
         if (selection.state === "hasError") {
-            return <Typography.Text type="secondary">—</Typography.Text>
+            return <span className="text-muted-foreground">—</span>
         }
 
         const stats = selection.stats as BasicStats | undefined

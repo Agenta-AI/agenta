@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {VariantNameCell} from "@agenta/entity-ui/variant"
 import {CommitMessageInput, EnvironmentTag, VersionBadge} from "@agenta/ui"
-import {Typography, Table} from "antd"
+import {Table} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtom, useAtomValue} from "jotai"
 
@@ -50,12 +50,12 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
 
     return (
         <section className="flex flex-col gap-4" data-tour="deploy-variant-modal">
-            <Typography.Text>
+            <span>
                 Select an environment to deploy <span className="font-medium">{variantName}</span>{" "}
                 {typeof revision !== "undefined" && (
                     <VersionBadge version={revision} variant="chip" />
                 )}
-            </Typography.Text>
+            </span>
 
             <Table
                 rowSelection={{

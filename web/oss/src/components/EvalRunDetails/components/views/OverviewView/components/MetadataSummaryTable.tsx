@@ -1,6 +1,6 @@
 import {memo, useMemo, type ReactNode} from "react"
 
-import {Table, Typography} from "antd"
+import {Table} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
@@ -93,15 +93,15 @@ const QuerySummaryCell = ({runId}: MetadataCellProps) => {
         }
     }
 
-    if (isLoading) return <Typography.Text type="secondary">…</Typography.Text>
+    if (isLoading) return <span className="text-muted-foreground">…</span>
 
     const filtersText = filtering ? formatFiltering(filtering) : "—"
     const sampleRateText = formatSampleRate(windowing?.rate)
 
     return (
         <div className="flex flex-col">
-            <Typography.Text>{`${filtersText}`}</Typography.Text>
-            <Typography.Text>{`Sample rate: ${sampleRateText}`}</Typography.Text>
+            <span>{`${filtersText}`}</span>
+            <span>{`Sample rate: ${sampleRateText}`}</span>
         </div>
     )
 }
@@ -145,15 +145,15 @@ const useRunDetails = (runId: string) => {
 const CreatedCell = ({runId}: MetadataCellProps) => {
     const createdAtom = useMemo(() => runCreatedAtAtomFamily(runId), [runId])
     const created = useAtomValueWithSchedule(createdAtom, {priority: LOW_PRIORITY})
-    if (!created) return <Typography.Text type="secondary">—</Typography.Text>
-    return <Typography.Text>{new Date(created).toLocaleString()}</Typography.Text>
+    if (!created) return <span className="text-muted-foreground">—</span>
+    return <span>{new Date(created).toLocaleString()}</span>
 }
 
 const UpdatedCell = ({runId}: MetadataCellProps) => {
     const updatedAtom = useMemo(() => runUpdatedAtAtomFamily(runId), [runId])
     const updated = useAtomValueWithSchedule(updatedAtom, {priority: LOW_PRIORITY})
-    if (!updated) return <Typography.Text type="secondary">—</Typography.Text>
-    return <Typography.Text>{new Date(updated).toLocaleString()}</Typography.Text>
+    if (!updated) return <span className="text-muted-foreground">—</span>
+    return <span>{new Date(updated).toLocaleString()}</span>
 }
 
 type StatusTone = "success" | "processing" | "default" | "error" | "warning"
@@ -187,7 +187,7 @@ const humanizeStatus = (value: string) =>
 const StatusCell = ({runId}: MetadataCellProps) => {
     const statusAtom = useMemo(() => runStatusAtomFamily(runId), [runId])
     const status = useAtomValueWithSchedule(statusAtom, {priority: LOW_PRIORITY})
-    if (!status) return <Typography.Text type="secondary">—</Typography.Text>
+    if (!status) return <span className="text-muted-foreground">—</span>
 
     const tone = mapStatusTone(status)
     const label = humanizeStatus(status)
@@ -199,7 +199,7 @@ const StatusCell = ({runId}: MetadataCellProps) => {
                 className="inline-block rounded-full"
                 style={{backgroundColor: dotColor, width: 10, height: 10}}
             />
-            <Typography.Text>{label}</Typography.Text>
+            <span>{label}</span>
         </span>
     )
 }
@@ -222,10 +222,10 @@ const MetadataRunNameCell = memo(
         const runData = runQuery?.data?.camelRun ?? runQuery?.data?.rawRun ?? null
         const isLoading = runQuery?.isPending && !runData
         if (isLoading) {
-            return <Typography.Text type="secondary">…</Typography.Text>
+            return <span className="text-muted-foreground">…</span>
         }
         if (!runData && !runName) {
-            return <Typography.Text type="secondary">—</Typography.Text>
+            return <span className="text-muted-foreground">—</span>
         }
         const resolvedName =
             runName ??
@@ -313,12 +313,12 @@ const makeMetricCell = (metricKey: string, format: (stats: any) => ReactNode) =>
             {priority: LOW_PRIORITY},
         )
         if (selection.state === "loading") {
-            return <Typography.Text type="secondary">…</Typography.Text>
+            return <span className="text-muted-foreground">…</span>
         }
         if (selection.state === "hasError") {
-            return <Typography.Text type="secondary">—</Typography.Text>
+            return <span className="text-muted-foreground">—</span>
         }
-        return <Typography.Text>{format(selection.stats as any)}</Typography.Text>
+        return <span>{format(selection.stats as any)}</span>
     })
 
 const InvocationCostCell = makeMetricCell(
@@ -497,20 +497,20 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
             const EvaluatorMetricCell = memo(({runId}: MetadataCellProps) => {
                 const selection = selectionMap.get(runId)
                 if (!selection) {
-                    return <Typography.Text type="secondary">—</Typography.Text>
+                    return <span className="text-muted-foreground">—</span>
                 }
                 if (selection.state === "loading") {
-                    return <Typography.Text type="secondary">…</Typography.Text>
+                    return <span className="text-muted-foreground">…</span>
                 }
                 if (selection.state !== "hasData" || !selection.stats) {
-                    return <Typography.Text type="secondary">—</Typography.Text>
+                    return <span className="text-muted-foreground">—</span>
                 }
 
                 const stats = selection.stats as BasicStats
                 if (isArrayMetric) {
                     const top = extractTopCategories(stats)
                     if (!top.length) {
-                        return <Typography.Text type="secondary">—</Typography.Text>
+                        return <span className="text-muted-foreground">—</span>
                     }
                     return (
                         <div className="flex flex-col items-start gap-1">
@@ -532,10 +532,10 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
                         : undefined
                 const resolved = resolveMetricValue(stats, scenarioCount)
                 if (!resolved) {
-                    return <Typography.Text type="secondary">—</Typography.Text>
+                    return <span className="text-muted-foreground">—</span>
                 }
 
-                return <Typography.Text>{resolved.formatted}</Typography.Text>
+                return <span>{resolved.formatted}</span>
             })
 
             const evaluatorLabel =

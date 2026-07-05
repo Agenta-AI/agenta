@@ -14,13 +14,11 @@ import {
 
 import type {CardComponentProps} from "@agentaai/nextstepjs"
 import {ArrowLeft, ArrowRight, DotsSixVertical} from "@phosphor-icons/react"
-import {Button, Card, Typography} from "antd"
+import {Button, Card} from "antd"
 import {useSetAtom} from "jotai"
 
 import type {OnboardingStep} from "@/oss/lib/onboarding"
 import {currentStepStateAtom} from "@/oss/lib/onboarding"
-
-const {Text} = Typography
 
 // We omit specific props to override them with our stricter types
 interface Props extends Omit<CardComponentProps, "step" | "arrow"> {
@@ -722,16 +720,16 @@ const OnboardingCard = ({
                             >
                                 <DotsSixVertical size={16} weight="bold" />
                             </div>
-                            <Text className="!mb-0 !text-sm font-medium leading-6 text-colorText flex-1">
+                            <span className="!mb-0 !text-sm font-medium leading-6 text-colorText flex-1">
                                 {step?.title}
-                            </Text>
-                            <Text className="!mb-0 !text-xs font-medium text-colorTextSecondary">
+                            </span>
+                            <span className="!mb-0 !text-xs font-medium text-colorTextSecondary">
                                 {currentStep + 1} / {totalSteps}
-                            </Text>
+                            </span>
                         </div>
-                        <Text className="!mb-0 !text-xs leading-5 text-colorTextSecondary">
+                        <span className="!mb-0 !text-xs leading-5 text-colorTextSecondary">
                             {step?.content}
-                        </Text>
+                        </span>
                     </div>
 
                     {/* Controls */}

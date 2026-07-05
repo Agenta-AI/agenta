@@ -3,7 +3,7 @@ import {memo} from "react"
 import {bgColors} from "@agenta/ui"
 import {DownOutlined} from "@ant-design/icons"
 import {Flask, Plus} from "@phosphor-icons/react"
-import {Button, Space, Typography} from "antd"
+import {Button, Space} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -15,9 +15,7 @@ const PlaygroundLoadingShell = () => {
             <div
                 className={`flex items-center justify-between gap-4 px-2.5 py-2 ${bgColors.active}`}
             >
-                <Typography className="text-[16px] leading-[18px] font-[600]">
-                    Playground
-                </Typography>
+                <span className="text-[16px] leading-[18px] font-[600]">Playground</span>
                 <div className="flex items-center gap-2">
                     <Button
                         type="text"

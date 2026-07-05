@@ -1,6 +1,5 @@
 import {useMemo} from "react"
 
-import {Typography} from "antd"
 import {useAtomValueWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
 
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
@@ -125,11 +124,7 @@ const MetricColumnHeader = ({
         descriptor.id
 
     if (!isEvaluatorColumn) {
-        return (
-            <Typography.Text className="font-medium" ellipsis>
-                {primaryLabel}
-            </Typography.Text>
-        )
+        return <span className="font-medium truncate">{primaryLabel}</span>
     }
 
     // const evaluatorLabel =
@@ -137,9 +132,7 @@ const MetricColumnHeader = ({
 
     return (
         <span className="flex min-w-0 flex-col text-left leading-tight break-keep">
-            <Typography.Text className="font-medium" ellipsis>
-                {primaryLabel}
-            </Typography.Text>
+            <span className="font-medium truncate">{primaryLabel}</span>
             {/* {evaluatorLabel ? (
                 <Typography.Text className="text-[11px] text-gray-500" ellipsis>
                     {evaluatorLabel}

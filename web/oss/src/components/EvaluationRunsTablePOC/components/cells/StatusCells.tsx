@@ -1,5 +1,5 @@
 import {SkeletonLine} from "@agenta/ui/table"
-import {Tooltip, Typography} from "antd"
+import {Tooltip} from "antd"
 
 import type {EvaluationRunTableRow} from "../../types"
 
@@ -61,7 +61,7 @@ export const PreviewStatusCell = ({record}: {record: EvaluationRunTableRow}) => 
     if (!status) {
         return (
             <div className={CELL_CLASS}>
-                <Typography.Text>—</Typography.Text>
+                <span>—</span>
             </div>
         )
     }

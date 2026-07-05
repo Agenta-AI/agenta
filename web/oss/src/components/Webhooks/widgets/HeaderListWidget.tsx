@@ -1,12 +1,10 @@
 import {MinusCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Form, Input, Typography} from "antd"
-
-const {Text} = Typography
+import {Button, Form, Input} from "antd"
 
 export const HeaderListWidget = () => {
     return (
         <div>
-            <Text className="mb-2 block">Custom Headers (optional)</Text>
+            <span className="mb-2 block">Custom Headers (optional)</span>
             <Form.List name="header_list">
                 {(fields, {add, remove}) => (
                     <div className="w-full">

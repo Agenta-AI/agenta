@@ -1,7 +1,5 @@
 import {useMemo, useCallback, useEffect, useRef} from "react"
 
-import {Typography} from "antd"
-
 import type {ColumnTreeNode, ColumnVisibilityState} from "@/oss/components/InfiniteVirtualTable"
 import ColumnVisibilityPopoverContentBase, {
     type ColumnVisibilityNodeMeta,
@@ -337,14 +335,10 @@ const VisibilityNodeTitle = ({
     emphasize?: boolean
 }) => (
     <div className="flex flex-col leading-tight">
-        <Typography.Text className={emphasize ? "font-semibold" : ""} ellipsis>
+        <span className={[emphasize ? "font-semibold" : "", "truncate"].filter(Boolean).join(" ")}>
             {label}
-        </Typography.Text>
-        {secondary ? (
-            <Typography.Text type="secondary" ellipsis>
-                {secondary}
-            </Typography.Text>
-        ) : null}
+        </span>
+        {secondary ? <span className="text-muted-foreground truncate">{secondary}</span> : null}
     </div>
 )
 

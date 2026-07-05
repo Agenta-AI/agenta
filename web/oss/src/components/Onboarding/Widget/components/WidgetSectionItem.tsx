@@ -1,12 +1,10 @@
 import {memo} from "react"
 
 import {ArrowRight, CheckCircle, CircleDashed} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 
 import type {OnboardingWidgetItem} from "@/oss/lib/onboarding"
-
-const {Text} = Typography
 
 interface WidgetSectionItemProps {
     item: OnboardingWidgetItem
@@ -55,7 +53,7 @@ const WidgetSectionItem = memo(function WidgetSectionItem({
                         className="shrink-0 text-colorTextTertiary"
                     />
                 )}
-                <Text className="flex-1 font-medium text-colorText">{item.title}</Text>
+                <span className="flex-1 font-medium text-colorText">{item.title}</span>
                 {!isCompleted && (
                     <Button
                         type="text"

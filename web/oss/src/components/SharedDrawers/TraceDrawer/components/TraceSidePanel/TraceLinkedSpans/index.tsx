@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {TreeStructureIcon} from "@phosphor-icons/react"
-import {Tag, Typography} from "antd"
+import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -38,7 +38,7 @@ const TraceLinkedSpans = () => {
     }, [linksAndReferences?.links])
 
     if (!validLinks.length) {
-        return <Typography.Text type="secondary">No linked spans found.</Typography.Text>
+        return <span className="text-muted-foreground">No linked spans found.</span>
     }
 
     return (

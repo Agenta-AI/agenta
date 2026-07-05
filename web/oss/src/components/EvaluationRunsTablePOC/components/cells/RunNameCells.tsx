@@ -1,7 +1,6 @@
 import {memo} from "react"
 
 import {SkeletonLine} from "@agenta/ui/table"
-import {Typography} from "antd"
 
 import {useRunRowSummary} from "../../context/RunRowDataContext"
 import type {EvaluationRunTableRow} from "../../types"
@@ -19,9 +18,9 @@ const PreviewRunNameCellContent = memo(({summary, runId}: {summary: any; runId: 
     const displayName = summary?.name || runId || "Untitled run"
 
     return (
-        <Typography.Text className="font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+        <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis">
             {displayName}
-        </Typography.Text>
+        </span>
     )
 })
 

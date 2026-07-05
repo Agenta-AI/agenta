@@ -4,7 +4,7 @@ import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Button, Input, Skeleton, Tag, Typography} from "antd"
+import {Button, Input, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
@@ -18,8 +18,6 @@ import {evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
 import {deriveRunTags} from "../utils"
 
 import {V2Card} from "./SectionPrimitives"
-
-const {Text} = Typography
 
 const STATUS_DOT_COLORS: Record<string, string> = {
     success: "#12B76A",
@@ -138,7 +136,7 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
         return (
             <V2Card className="gap-2.5 p-4">
                 <div className="flex flex-col gap-1">
-                    <Text className="text-[11px] text-colorTextTertiary">Name</Text>
+                    <span className="text-[11px] text-colorTextTertiary">Name</span>
                     <Input
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
@@ -148,7 +146,7 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
                     />
                 </div>
                 <div className="flex flex-col gap-1">
-                    <Text className="text-[11px] text-colorTextTertiary">Description</Text>
+                    <span className="text-[11px] text-colorTextTertiary">Description</span>
                     <Input.TextArea
                         value={editDescription}
                         onChange={(e) => setEditDescription(e.target.value)}
@@ -207,11 +205,11 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
                     Edit
                 </Button>
             </div>
-            <Text className="text-[13.5px] font-semibold leading-[1.45]">{runName || "—"}</Text>
+            <span className="text-[13.5px] font-semibold leading-[1.45]">{runName || "—"}</span>
             {runDescription ? (
-                <Text className="text-[12.5px] leading-[1.55] text-colorTextTertiary">
+                <span className="text-[12.5px] leading-[1.55] text-colorTextTertiary">
                     {runDescription}
-                </Text>
+                </span>
             ) : null}
             <div className="flex flex-wrap items-center gap-1.5 text-xs text-colorTextTertiary">
                 {createdAt ? <span>{formatDate24(createdAt)}</span> : null}

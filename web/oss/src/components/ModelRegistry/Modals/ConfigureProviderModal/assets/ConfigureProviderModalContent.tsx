@@ -1,12 +1,10 @@
 import {memo} from "react"
 
-import {Tag, Typography} from "antd"
+import {Tag} from "antd"
 
 import LabelInput from "../../../assets/LabelInput"
 
 import {ConfigureProviderModalContentProps} from "./types"
-
-const {Text} = Typography
 
 const ConfigureProviderModalContent = ({
     selectedProvider,
@@ -15,7 +13,7 @@ const ConfigureProviderModalContent = ({
     return (
         <div className="flex flex-col gap-4">
             <div className="flex flex-col items-start gap-1">
-                <Text>Provider</Text>
+                <span>Provider</span>
                 <Tag
                     bordered={false}
                     color="default"
@@ -32,9 +30,9 @@ const ConfigureProviderModalContent = ({
                     onFocus={(e) => e.target.select()}
                     {...props}
                 />
-                <Text className="text-[var(--ag-c-586673)]">
+                <span className="text-[var(--ag-c-586673)]">
                     This secret will be encrypted in transit and at rest.
-                </Text>
+                </span>
             </div>
         </div>
     )

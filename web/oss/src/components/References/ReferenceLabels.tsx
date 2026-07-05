@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
 import {getWorkflowTypeColor, workflowMolecule} from "@agenta/entities/workflow"
-import {Skeleton, Typography} from "antd"
+import {Skeleton} from "antd"
 import type {TooltipPlacement} from "antd/es/tooltip"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -17,8 +17,6 @@ import {
 } from "./atoms/entityReferences"
 import type {ReferenceTone} from "./referenceColors"
 import ReferenceTag from "./ReferenceTag"
-
-const {Text} = Typography
 
 /**
  * Generic testset tag that fetches and displays a testset reference.
@@ -152,7 +150,7 @@ export const EnvironmentReferenceLabel = memo(
                     />
                 )
             }
-            return <Text type="secondary">—</Text>
+            return <span className="text-muted-foreground">—</span>
         }
 
         if ((query.isPending || query.isFetching) && !query.isError) {
@@ -237,7 +235,7 @@ export const TestsetTagList = memo(
         hovercardPlacement?: TooltipPlacement
     }) => {
         if (!ids.length) {
-            return <Text type="secondary">—</Text>
+            return <span className="text-muted-foreground">—</span>
         }
 
         return (
@@ -298,7 +296,7 @@ export const ApplicationReferenceLabel = memo(
                     <ReferenceTag label={customLabel} className="max-w-[220px] w-fit" tone="app" />
                 )
             }
-            return <Text type="secondary">—</Text>
+            return <span className="text-muted-foreground">—</span>
         }
 
         if ((query.isPending || query.isFetching) && !query.isError) {
@@ -393,7 +391,7 @@ export const VariantReferenceLabel = memo(
                     />
                 )
             }
-            return <Text type="secondary">—</Text>
+            return <span className="text-muted-foreground">—</span>
         }
 
         if (query.isPending && !query.isError) {
@@ -481,7 +479,7 @@ export const VariantRevisionLabel = memo(
         )
 
         if (!variantId && !revisionId) {
-            return <Text type="secondary">—</Text>
+            return <span className="text-muted-foreground">—</span>
         }
 
         if (query.isPending && !query.isError) {
@@ -560,9 +558,9 @@ export const VariantReferenceText = memo(
 
         if (!revisionId) {
             return (
-                <Text type="secondary" className="w-fit">
+                <span className="w-fit text-muted-foreground">
                     {customLabel ?? fallback ?? "—"}
-                </Text>
+                </span>
             )
         }
 
@@ -572,7 +570,7 @@ export const VariantReferenceText = memo(
 
         const label = data?.slug ?? revisionId
 
-        return <Text>{label}</Text>
+        return <span>{label}</span>
     },
 )
 
@@ -618,7 +616,7 @@ export const EvaluatorReferenceLabel = memo(
                     />
                 )
             }
-            return <Text type="secondary">—</Text>
+            return <span className="text-muted-foreground">—</span>
         }
 
         if ((query.isPending || query.isFetching) && !query.isError) {
@@ -705,7 +703,7 @@ export const QueryReferenceLabel = memo(
             if (customLabel) {
                 return <ReferenceTag label={customLabel} className="max-w-[220px]" tone="query" />
             }
-            return <Text type="secondary">—</Text>
+            return <span className="text-muted-foreground">—</span>
         }
 
         if ((query.isPending || query.isFetching) && !query.isError) {

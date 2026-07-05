@@ -1,7 +1,6 @@
 import {memo} from "react"
 
 import {BranchesOutlined, StopOutlined} from "@ant-design/icons"
-import {Typography} from "antd"
 import {useSetAtom} from "jotai"
 import Link from "next/link"
 
@@ -39,10 +38,8 @@ const EmptyObservability = ({
                     image={<StopOutlined style={{fontSize: 32}} />}
                     description={
                         <div className="flex flex-col gap-2">
-                            <Typography.Text className="text-lg font-medium">
-                                Rate limit reached
-                            </Typography.Text>
-                            <Typography.Text type="secondary">
+                            <span className="text-lg font-medium">Rate limit reached</span>
+                            <span className="text-muted-foreground">
                                 {rateLimitMessage ||
                                     "You have reached your monthly quota limit. Please try again later or upgrade your plan."}
                                 {subscriptionHref && (
@@ -53,7 +50,7 @@ const EmptyObservability = ({
                                         </Link>
                                     </>
                                 )}
-                            </Typography.Text>
+                            </span>
                         </div>
                     }
                 />
@@ -68,12 +65,10 @@ const EmptyObservability = ({
                     image={<BranchesOutlined style={{fontSize: 32, color: "#d9d9d9"}} />}
                     description={
                         <div className="flex flex-col gap-2">
-                            <Typography.Text className="text-lg font-medium">
-                                No traces found
-                            </Typography.Text>
-                            <Typography.Text type="secondary">
+                            <span className="text-lg font-medium">No traces found</span>
+                            <span className="text-muted-foreground">
                                 Try adjusting your filters or time range to view traces.
-                            </Typography.Text>
+                            </span>
                         </div>
                     }
                 />

@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Divider, Typography} from "antd"
+import {Button, Divider} from "antd"
 import {useAtom} from "jotai"
 
 import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
@@ -20,9 +20,7 @@ type RangeValue = {from?: string | null; to?: string | null} | null
 const sectionClass = "flex flex-col gap-2"
 
 const SectionTitle = ({children}: {children: React.ReactNode}) => (
-    <Typography.Text strong className="text-gray-700">
-        {children}
-    </Typography.Text>
+    <span className="text-gray-700 font-semibold">{children}</span>
 )
 
 const Section = ({title, children}: {title: React.ReactNode; children: React.ReactNode}) => (

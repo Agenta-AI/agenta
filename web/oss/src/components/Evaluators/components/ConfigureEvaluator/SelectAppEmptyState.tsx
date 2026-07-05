@@ -14,7 +14,7 @@ import type {
     WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {AppstoreOutlined} from "@ant-design/icons"
-import {Typography, theme} from "antd"
+import {theme} from "antd"
 
 interface SelectAppEmptyStateProps {
     adapter: EntitySelectionAdapter<WorkflowRevisionSelectionResult>
@@ -34,13 +34,13 @@ const SelectAppEmptyState = ({adapter, onSelect, selectedAppLabel}: SelectAppEmp
                 <AppstoreOutlined style={{fontSize: 26}} />
             </div>
             <div className="flex flex-col gap-1 text-center">
-                <Typography.Text className="text-[15px] font-semibold">
+                <span className="text-[15px] font-semibold">
                     Select an app to run the evaluator on
-                </Typography.Text>
-                <Typography.Text type="secondary" className="text-[13px] leading-snug">
+                </span>
+                <span className="text-[13px] leading-snug text-muted-foreground">
                     The evaluator grades this app&apos;s output. Pick which app to run, then fill
                     its inputs or load a test set.
-                </Typography.Text>
+                </span>
             </div>
             <EntityPicker<WorkflowRevisionSelectionResult>
                 variant="popover-cascader"

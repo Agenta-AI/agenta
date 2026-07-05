@@ -1,7 +1,7 @@
 import {ReactNode} from "react"
 
 import {Check} from "@phosphor-icons/react"
-import {Divider, Switch, Typography} from "antd"
+import {Divider, Switch} from "antd"
 import clsx from "clsx"
 
 import {SPAN_VISIBILITY_OPTIONS, SpanVisibilityMode} from "../TraceTree/assets/spanVisibility"
@@ -15,9 +15,9 @@ const DISPLAY_TOGGLES = [
 ] as const
 
 const SectionLabel = ({children}: {children: ReactNode}) => (
-    <Typography.Text className="block px-3 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-colorTextTertiary">
+    <span className="block px-3 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-colorTextTertiary">
         {children}
-    </Typography.Text>
+    </span>
 )
 
 const TraceTreeSettings = ({
@@ -39,7 +39,7 @@ const TraceTreeSettings = ({
             <SectionLabel>Display</SectionLabel>
             {DISPLAY_TOGGLES.map(({key, label}) => (
                 <div key={key} className="flex items-center justify-between gap-3 px-3 py-1.5">
-                    <Typography.Text>{label}</Typography.Text>
+                    <span>{label}</span>
                     <Switch
                         size="small"
                         checked={settings[key]}
@@ -68,10 +68,10 @@ const TraceTreeSettings = ({
                             }}
                         >
                             <div className="flex flex-col min-w-0">
-                                <Typography.Text>{option.label}</Typography.Text>
-                                <Typography.Text className="text-[11px] leading-tight text-colorTextTertiary">
+                                <span>{option.label}</span>
+                                <span className="text-[11px] leading-tight text-colorTextTertiary">
                                     {option.hint}
-                                </Typography.Text>
+                                </span>
                             </div>
                             <Check
                                 size={14}

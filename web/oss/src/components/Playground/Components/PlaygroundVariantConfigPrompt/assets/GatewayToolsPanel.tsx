@@ -13,7 +13,7 @@ import {
     ToolExecutionDrawer,
 } from "@agenta/entity-ui/gatewayTool"
 import {Play, Plus} from "@phosphor-icons/react"
-import {Button, Collapse, Empty, Spin, Tag, Tooltip, Typography} from "antd"
+import {Button, Collapse, Empty, Spin, Tag, Tooltip} from "antd"
 import {useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -43,9 +43,7 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
         <div className="flex flex-col gap-2">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <Typography.Text className="text-xs font-medium text-[var(--ag-c-888)]">
-                    GATEWAY TOOLS
-                </Typography.Text>
+                <span className="text-xs font-medium text-[var(--ag-c-888)]">GATEWAY TOOLS</span>
                 <Button
                     type="text"
                     size="small"
@@ -65,9 +63,9 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
             ) : integrationKeys.length === 0 ? (
                 <Empty
                     description={
-                        <Typography.Text type="secondary" className="text-xs">
+                        <span className="text-xs text-muted-foreground">
                             No gateway tools connected.
-                        </Typography.Text>
+                        </span>
                     }
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                     className="my-2"
@@ -129,7 +127,7 @@ function IntegrationSectionLabel({integrationKey}: {integrationKey: string}) {
                     unoptimized
                 />
             ) : null}
-            <Typography.Text className="text-sm truncate">{label}</Typography.Text>
+            <span className="text-sm truncate">{label}</span>
         </div>
     )
 }
@@ -156,12 +154,10 @@ function ConnectionRow({connection, onTest}: {connection: ToolConnection; onTest
                 />
             ) : null}
             <div className="flex flex-col min-w-0 flex-1 leading-tight">
-                <Typography.Text className="text-xs truncate">
-                    {connection.name || connection.slug}
-                </Typography.Text>
-                <Typography.Text className="text-[10px] text-slate-400 truncate">
+                <span className="text-xs truncate">{connection.name || connection.slug}</span>
+                <span className="text-[10px] text-slate-400 truncate">
                     {label} / {connection.slug}
-                </Typography.Text>
+                </span>
             </div>
             <ConnectionStatusBadge connection={connection} />
             <Tooltip title="Test">

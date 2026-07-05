@@ -1,6 +1,6 @@
 import {ReactNode, useState} from "react"
 
-import {Tabs, Typography} from "antd"
+import {Tabs} from "antd"
 
 interface WidgetData {
     leftSubHeading?: ReactNode
@@ -34,9 +34,9 @@ const WidgetCard: React.FC<Props> = ({title, leftSubHeading, rightSubHeading, ta
 
     return (
         <div className="rounded-xl border border-solid border-colorBorderSecondary shadow-[0_1px_3px_0_rgb(0_0_0_/_0.05),0_1px_2px_-1px_rgb(0_0_0_/_0.05)] flex flex-col py-4 px-5 bg-colorBgContainer h-full">
-            <Typography.Text className="text-[15px] leading-[1.4] font-semibold text-colorTextHeading mb-1">
+            <span className="text-[15px] leading-[1.4] font-semibold text-colorTextHeading mb-1">
                 {title}
-            </Typography.Text>
+            </span>
             {tabs?.length ? (
                 <Tabs
                     activeKey={tab}

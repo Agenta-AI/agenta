@@ -14,13 +14,11 @@ import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
-import {Button, Tag, Typography} from "antd"
+import {Button, Tag} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import type {VariantNavigationCardProps} from "./types"
-
-const {Text} = Typography
 
 const VariantNavigationCard = ({
     revisionId,
@@ -171,15 +169,15 @@ const VariantNavigationCard = ({
                             // Local draft: show Draft tag then source revision info
                             <>
                                 <DraftTag />
-                                <Text className="text-gray-500">
+                                <span className="text-gray-500">
                                     from {String(variantName).replace(/\s*\(Draft\)$/, "")}
                                     {variantVersion != null ? ` v${variantVersion}` : ""}
-                                </Text>
+                                </span>
                             </>
                         ) : (
                             // Regular revision: show name and version tag, with Draft tag if dirty
                             <>
-                                <Text>{variantName}</Text>
+                                <span>{variantName}</span>
                                 {variantVersion != null && (
                                     <VersionBadge version={variantVersion} variant="chip" />
                                 )}
@@ -204,13 +202,13 @@ const VariantNavigationCard = ({
                     </Button>
                 </div>
                 <div className="flex items-center justify-between">
-                    <Text>Average Latency</Text>
+                    <span>Average Latency</span>
                     <Tag color="default" variant="filled" className="flex items-center gap-1">
                         <Timer size={14} /> {avgLatency}
                     </Tag>
                 </div>
                 <div className="flex items-center justify-between">
-                    <Text>Average Cost</Text>
+                    <span>Average Cost</span>
                     <Tag color="default" variant="filled" className="flex items-center gap-1">
                         <PlusCircle size={14} /> {avgTokens} / {avgCost}
                     </Tag>

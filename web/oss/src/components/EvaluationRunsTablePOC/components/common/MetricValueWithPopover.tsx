@@ -1,7 +1,5 @@
 import type {ReactNode} from "react"
 
-import {Typography} from "antd"
-
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
@@ -43,11 +41,11 @@ const MetricValueWithPopover = ({
     prefetchedStats,
 }: MetricValueWithPopoverProps) => {
     const content = (
-        <Typography.Text
+        <span
             className={`${CLASS_NAME} ${isPlaceholder ? "text-neutral-500" : "text-neutral-800"}`}
         >
             {display}
-        </Typography.Text>
+        </span>
     )
 
     if (disablePopover) {

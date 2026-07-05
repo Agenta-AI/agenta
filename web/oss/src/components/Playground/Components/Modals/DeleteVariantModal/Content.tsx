@@ -11,7 +11,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {EntityNameWithVersion} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
-import {Button, Spin, Typography} from "antd"
+import {Button, Spin} from "antd"
 import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -19,8 +19,6 @@ import {
     clearRegistryVariantNameCache,
 } from "@/oss/components/VariantsComponents/store/registryStore"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
-
-const {Text} = Typography
 
 interface Props {
     revisionIds: string[]
@@ -139,20 +137,22 @@ const SingleDeleteContent = ({
     return (
         <section className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
-                <Text>
+                <span>
                     {isLastRevision ? (
                         "Cannot delete the only revision. Delete the app instead."
                     ) : (
                         <>
                             You are about to delete{" "}
-                            <Text strong>
+                            <span className="font-semibold">
                                 <EntityNameWithVersion name={entityName} version={entityVersion} />
-                            </Text>
+                            </span>
                             .
                         </>
                     )}
-                </Text>
-                {!isLastRevision && <Text type="secondary">This action cannot be undone.</Text>}
+                </span>
+                {!isLastRevision && (
+                    <span className="text-muted-foreground">This action cannot be undone.</span>
+                )}
             </div>
 
             <div className="flex items-center justify-end gap-2">
@@ -408,7 +408,7 @@ const BulkDeleteContent = ({
         return (
             <div className="flex items-center gap-3 py-6">
                 <Spin />
-                <Text>Checking if the selected item(s) can be deleted…</Text>
+                <span>Checking if the selected item(s) can be deleted…</span>
             </div>
         )
     }
@@ -417,9 +417,9 @@ const BulkDeleteContent = ({
     if (canDelete === false) {
         return (
             <section className="flex flex-col gap-4">
-                <Text>
+                <span>
                     One or more variants cannot be deleted because they are currently in use.
-                </Text>
+                </span>
                 <div className="flex items-center justify-end">
                     <Button type="primary" onClick={onClose}>
                         Close
@@ -433,7 +433,7 @@ const BulkDeleteContent = ({
         <section className="flex flex-col gap-5">
             <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                    <Text>
+                    <span>
                         You are about to delete {targetVariantCount} variant
                         {targetVariantCount === 1 ? "" : "s"}
                         {deletionPlan.revisions.length > 0 &&
@@ -441,10 +441,10 @@ const BulkDeleteContent = ({
                                 deletionPlan.revisions.length === 1 ? "" : "s"
                             })`}
                         .
-                    </Text>
-                    <Text type="secondary">
+                    </span>
+                    <span className="text-muted-foreground">
                         Selected revisions: {totalSelectedCount}. This action cannot be undone.
-                    </Text>
+                    </span>
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -454,16 +454,18 @@ const BulkDeleteContent = ({
                             className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2"
                         >
                             <div className="flex flex-col">
-                                <Text strong>{group.displayName}</Text>
-                                <Text type="secondary">Variant ID: {group.variantId}</Text>
+                                <span className="font-semibold">{group.displayName}</span>
+                                <span className="text-muted-foreground">
+                                    Variant ID: {group.variantId}
+                                </span>
                             </div>
-                            <Text>
+                            <span>
                                 {group.deleteEntireVariant
                                     ? "All revisions will be removed"
                                     : `${group.selectedIds.length} of ${
                                           group.totalIds.length || group.selectedIds.length
                                       } revisions`}
-                            </Text>
+                            </span>
                         </div>
                     ))}
                 </div>
@@ -488,9 +490,9 @@ const BulkDeleteContent = ({
                 </Button>
             </div>
             {isLastRevision && (
-                <Text type="secondary" className="text-center">
+                <span className="text-center text-muted-foreground">
                     Cannot delete the only revision. Delete the app instead.
-                </Text>
+                </span>
             )}
         </section>
     )

@@ -2,7 +2,7 @@ import {useEffect, useMemo, useState, type CSSProperties} from "react"
 
 import {DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Export, Link, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Popover, Space, Typography} from "antd"
+import {Button, Dropdown, Popover, Space} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -294,9 +294,9 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-                <Typography.Title level={3} style={{margin: 0}}>
+                <h3 style={{margin: 0}} className="text-lg font-semibold leading-snug">
                     {testsetName || "Test set"}
-                </Typography.Title>
+                </h3>
                 <Dropdown
                     menu={{
                         items: revisionMenuItems,
@@ -354,54 +354,44 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                         <div className="flex flex-col gap-2 max-w-xs">
                             {metadata?.testsetSlug && (
                                 <div>
-                                    <Typography.Text type="secondary" className="block">
+                                    <span className="block text-muted-foreground">
                                         Testset Slug
-                                    </Typography.Text>
-                                    <Typography.Text>{metadata.testsetSlug}</Typography.Text>
+                                    </span>
+                                    <span>{metadata.testsetSlug}</span>
                                 </div>
                             )}
                             {metadata?.revisionSlug && (
                                 <div>
-                                    <Typography.Text type="secondary" className="block">
+                                    <span className="block text-muted-foreground">
                                         Revision Slug
-                                    </Typography.Text>
-                                    <Typography.Text>{metadata.revisionSlug}</Typography.Text>
+                                    </span>
+                                    <span>{metadata.revisionSlug}</span>
                                 </div>
                             )}
                             {metadata?.commitMessage && (
                                 <div>
-                                    <Typography.Text type="secondary" className="block">
+                                    <span className="block text-muted-foreground">
                                         Commit Message
-                                    </Typography.Text>
-                                    <Typography.Text>{metadata.commitMessage}</Typography.Text>
+                                    </span>
+                                    <span>{metadata.commitMessage}</span>
                                 </div>
                             )}
                             {metadata?.author && (
                                 <div>
-                                    <Typography.Text type="secondary" className="block">
-                                        Author
-                                    </Typography.Text>
+                                    <span className="block text-muted-foreground">Author</span>
                                     <UserReference userId={metadata.author} />
                                 </div>
                             )}
                             {metadata?.createdAt && (
                                 <div>
-                                    <Typography.Text type="secondary" className="block">
-                                        Created
-                                    </Typography.Text>
-                                    <Typography.Text>
-                                        {new Date(metadata.createdAt).toLocaleString()}
-                                    </Typography.Text>
+                                    <span className="block text-muted-foreground">Created</span>
+                                    <span>{new Date(metadata.createdAt).toLocaleString()}</span>
                                 </div>
                             )}
                             {metadata?.updatedAt && (
                                 <div>
-                                    <Typography.Text type="secondary" className="block">
-                                        Updated
-                                    </Typography.Text>
-                                    <Typography.Text>
-                                        {new Date(metadata.updatedAt).toLocaleString()}
-                                    </Typography.Text>
+                                    <span className="block text-muted-foreground">Updated</span>
+                                    <span>{new Date(metadata.updatedAt).toLocaleString()}</span>
                                 </div>
                             )}
                         </div>

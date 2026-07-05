@@ -7,7 +7,7 @@ import {
     FullscreenOutlined,
     InfoCircleOutlined,
 } from "@ant-design/icons"
-import {GlobalToken, Space, Tooltip, Typography, theme} from "antd"
+import {GlobalToken, Space, Tooltip, theme} from "antd"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -166,7 +166,7 @@ export const ResultRenderer = memo(
             (item) => item.evaluator_config === params.config.id,
         )?.result
 
-        return <Typography.Text>{getTypedValue(result)}</Typography.Text>
+        return <span>{getTypedValue(result)}</span>
     },
     (prev, next) => prev.value === next.value,
 )
@@ -258,7 +258,7 @@ export const StatusRenderer = memo(
         const errorStacktrace = params.data?.status.error?.stacktrace
 
         return (
-            <Typography.Text className={classes.statusCell}>
+            <span className={classes.statusCell}>
                 <div style={{backgroundColor: color}} />
                 <span>{label}</span>
                 {errorMsg && (
@@ -270,7 +270,7 @@ export const StatusRenderer = memo(
                 )}
                 <span className={classes.dot}></span>
                 <span className={classes.date}>{duration}</span>
-            </Typography.Text>
+            </span>
         )
     },
     (prev, next) => prev.value === next.value && prev.data?.duration === next.data?.duration,
@@ -295,7 +295,7 @@ export const DateFromNowRenderer = memo(
             return () => clearInterval(interval)
         }, [])
 
-        return <Typography.Text>{dayjs(date).fromNow()}</Typography.Text>
+        return <span>{dayjs(date).fromNow()}</span>
     },
     (prev, next) => prev.value === next.value,
 )

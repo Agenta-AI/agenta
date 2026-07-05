@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Alert, Collapse, Typography} from "antd"
+import {Alert, Collapse} from "antd"
 import clsx from "clsx"
 
 import {transformMetadata} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
@@ -65,18 +65,18 @@ const AnnotationForm = ({
                     key: slug,
                     label: (
                         <div className="flex items-center justify-between w-full">
-                            <Typography.Text
+                            <span
                                 className="capitalize truncate max-w-[50%] text-start"
                                 title={evaluator.name ?? slug}
                             >
                                 {evaluator.name ?? slug}
-                            </Typography.Text>
-                            <Typography.Text
+                            </span>
+                            <span
                                 className="text-[var(--ag-c-758391)] truncate max-w-[40%] text-end"
                                 title={slug}
                             >
                                 {slug}
-                            </Typography.Text>
+                            </span>
                         </div>
                     ),
                     children: (
@@ -97,9 +97,9 @@ const AnnotationForm = ({
                                     )
                                 })
                             ) : (
-                                <Typography.Text type="secondary" className="text-sm">
+                                <span className="text-sm text-muted-foreground">
                                     No annotation fields available
-                                </Typography.Text>
+                                </span>
                             )}
                         </div>
                     ),
@@ -110,9 +110,9 @@ const AnnotationForm = ({
     if (evaluators.length === 0) {
         return (
             <div className="h-full flex items-center justify-center py-4">
-                <Typography.Text type="secondary">
+                <span className="text-muted-foreground">
                     No human evaluators configured for this run
-                </Typography.Text>
+                </span>
             </div>
         )
     }

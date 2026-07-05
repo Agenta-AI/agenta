@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Form, Tag, Typography} from "antd"
+import {Button, Form, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {testsetReferenceQueryAtomFamily} from "../../../../atoms/references"
@@ -10,8 +10,6 @@ import {simpleTestsetDetailsAtomFamily} from "../../../../atoms/testsetDetails"
 import {TestsetTagList} from "../../../references"
 
 import {DefList, DefRow, SectionCard, SectionHeaderRow, SectionSkeleton} from "./SectionPrimitives"
-
-const {Text} = Typography
 
 interface TestsetSectionProps {
     runId: string
@@ -86,14 +84,12 @@ const EmbeddedTestsetRows = ({
                         </Tag>
                     ))
                 ) : (
-                    <Text type="secondary">No column metadata.</Text>
+                    <span className="text-muted-foreground">No column metadata.</span>
                 )}
             </DefRow>
             {simple?.description ? (
                 <DefRow label="Description">
-                    <Text type="secondary" className="leading-5">
-                        {simple.description}
-                    </Text>
+                    <span className="leading-5 text-muted-foreground">{simple.description}</span>
                 </DefRow>
             ) : null}
         </DefList>
@@ -151,14 +147,14 @@ const TestsetCard = ({
             {!collapsed ? (
                 <div className="flex flex-col gap-3 mt-1">
                     {simple?.description ? (
-                        <Text type="secondary" className="leading-5">
+                        <span className="leading-5 text-muted-foreground">
                             {simple.description}
-                        </Text>
+                        </span>
                     ) : null}
 
                     <div className="flex flex-wrap items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <Text className="font-medium text-neutral-800">Test cases</Text>
+                            <span className="font-medium text-neutral-800">Test cases</span>
                             <Tag className="!m-0 !bg-[var(--ag-c-EEF2FF)] !border-[var(--ag-c-E0EAFF)] !text-[var(--ag-c-344054)]">
                                 {testcaseCount ?? "—"}
                             </Tag>
@@ -166,7 +162,7 @@ const TestsetCard = ({
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <Text className="font-medium text-neutral-800">Column preview</Text>
+                        <span className="font-medium text-neutral-800">Column preview</span>
                         {columns && columns.length ? (
                             <div className="flex flex-wrap gap-2">
                                 {columnPreview.map((col) => (
@@ -184,7 +180,7 @@ const TestsetCard = ({
                                 ) : null}
                             </div>
                         ) : (
-                            <Text type="secondary">No column metadata.</Text>
+                            <span className="text-muted-foreground">No column metadata.</span>
                         )}
                     </div>
                 </div>

@@ -13,7 +13,6 @@
 import {useCallback, useMemo} from "react"
 
 import {ChatMessageEditor} from "@agenta/ui/chat-message"
-import {Typography} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -71,9 +70,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({promptKey, promptVersion}) =
     if (!workingPrompt) {
         return (
             <div className="flex h-full items-center justify-center">
-                <Typography.Text type="secondary" className="text-[11px]">
-                    No refined prompt yet
-                </Typography.Text>
+                <span className="text-[11px] text-muted-foreground">No refined prompt yet</span>
             </div>
         )
     }

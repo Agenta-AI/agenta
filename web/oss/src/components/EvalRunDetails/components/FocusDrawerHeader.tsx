@@ -2,7 +2,7 @@ import {memo, useCallback, useEffect, useMemo} from "react"
 
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
-import {Button, Select, SelectProps, Tag, Typography} from "antd"
+import {Button, Select, SelectProps, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
@@ -159,9 +159,9 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
                         <div className="flex flex-col">
                             <span>{option.data.label}</span>
                             {option.data.description ? (
-                                <Typography.Text type="secondary" className="text-xs">
+                                <span className="text-xs text-muted-foreground">
                                     {option.data.description}
-                                </Typography.Text>
+                                </span>
                             ) : null}
                         </div>
                     )}

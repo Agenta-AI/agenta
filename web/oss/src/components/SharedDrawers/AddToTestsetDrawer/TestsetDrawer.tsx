@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from "react"
 
 import {WarningCircle} from "@phosphor-icons/react"
-import {Button, Input, Typography} from "antd"
+import {Button, Input} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import GenericDrawer from "@/oss/components/GenericDrawer"
@@ -82,9 +82,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                     <div className="flex flex-col gap-3 py-2 px-3">
                         {/* Commit message input */}
                         <div className="flex flex-col gap-1">
-                            <Typography.Text className="text-gray-500">
-                                Commit message (optional)
-                            </Typography.Text>
+                            <span className="text-gray-500">Commit message (optional)</span>
                             <Input.TextArea
                                 placeholder="Describe your changes..."
                                 value={drawer.commitMessage}
@@ -129,13 +127,10 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                         data-tour="add-to-testset-drawer"
                     >
                         {drawer.isDifferStructureExist && (
-                            <Typography.Text
-                                className="mb-1 flex items-center gap-1"
-                                type="warning"
-                            >
+                            <span className="mb-1 flex items-center gap-1 text-amber-600 dark:text-amber-400">
                                 <WarningCircle size={16} /> Some of the selected spans have a
                                 different structure than the others.
-                            </Typography.Text>
+                            </span>
                         )}
 
                         <TestsetSelector

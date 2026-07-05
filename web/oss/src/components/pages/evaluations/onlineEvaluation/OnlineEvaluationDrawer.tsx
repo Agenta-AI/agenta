@@ -10,7 +10,7 @@ import {
 } from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
+import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip} from "antd"
 import dayjs from "dayjs"
 import type {Dayjs} from "dayjs"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -51,8 +51,6 @@ interface OnlineEvaluationDrawerProps {
     onClose: () => void
     onCreate?: (values: any) => void | Promise<void>
 }
-
-const {Text, Link: TypographyLink} = Typography
 const {RangePicker} = DatePicker
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 
@@ -498,9 +496,12 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                         name="tags"
                                         label={
                                             <div className="flex items-center justify-between">
-                                                <Text>
-                                                    Add tags <Text type="secondary">Optional</Text>
-                                                </Text>
+                                                <span>
+                                                    Add tags{" "}
+                                                    <span className="text-muted-foreground">
+                                                        Optional
+                                                    </span>
+                                                </span>
                                             </div>
                                         }
                                         style={{marginBottom: 0}}
@@ -564,7 +565,9 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                                 <Switch size="small" disabled />
                                             </Form.Item>
                                             <Tooltip title="Not available yet">
-                                                <Text type="secondary">Run on historical data</Text>
+                                                <span className="text-muted-foreground">
+                                                    Run on historical data
+                                                </span>
                                             </Tooltip>
                                         </div>
                                         <Form.Item name="historical_range" className="mb-0">
@@ -638,22 +641,20 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                             allowClear
                                         />
                                         {!isLoadingEvaluators && !hasEvaluatorOptions ? (
-                                            <Text type="secondary" className="block mt-2">
+                                            <span className="block mt-2 text-muted-foreground">
                                                 No supported evaluators are available. Add an
                                                 evaluator configured as Custom, LLM-as-a-judge,
                                                 Code, Regex test, or Webhook test to continue.
                                                 {evaluatorRegistryHref ? (
                                                     <>
                                                         {" "}
-                                                        <TypographyLink
-                                                            href={evaluatorRegistryHref}
-                                                        >
+                                                        <a href={evaluatorRegistryHref}>
                                                             Open evaluator registry
-                                                        </TypographyLink>
+                                                        </a>
                                                         .
                                                     </>
                                                 ) : null}
-                                            </Text>
+                                            </span>
                                         ) : null}
                                     </Form.Item>
 

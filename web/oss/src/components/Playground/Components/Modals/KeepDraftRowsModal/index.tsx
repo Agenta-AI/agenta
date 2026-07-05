@@ -1,6 +1,6 @@
 import {playgroundController} from "@agenta/playground"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {initialKeepDraftRowsState, keepDraftRowsModalAtom} from "./store/state"
@@ -82,8 +82,8 @@ const KeepDraftRowsModal = () => {
             width={500}
         >
             <ModalContent gap="small">
-                <Typography.Text>{descriptionLine1}</Typography.Text>
-                <Typography.Text>{descriptionLine2}</Typography.Text>
+                <span>{descriptionLine1}</span>
+                <span>{descriptionLine2}</span>
             </ModalContent>
         </EnhancedModal>
     )

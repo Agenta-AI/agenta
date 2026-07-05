@@ -2,11 +2,8 @@ import {memo, type ReactNode} from "react"
 
 import {CheckCircle, CircleNotch, Prohibit, Warning} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-import {Typography} from "antd"
 
 import {formatToolValue, stripFence} from "../../assets/toolFormat"
-
-const {Text} = Typography
 
 const isToolPart = (t: string) => t.startsWith("tool-") || t === "dynamic-tool"
 
@@ -55,9 +52,7 @@ const Row = ({label, accent, children}: {label: string; accent?: boolean; childr
             accent ? "border-colorPrimary" : "border-colorBorderSecondary"
         }`}
     >
-        <Text type="secondary" className="!text-[11px] font-medium">
-            {label}
-        </Text>
+        <span className="!text-[11px] font-medium text-muted-foreground">{label}</span>
         {children}
     </div>
 )
@@ -72,12 +67,12 @@ const ToolStep = ({part}: {part: ToolUIPart}) => {
         <div className="ag-surface-card flex flex-col gap-1.5 rounded-[11px] p-2.5">
             <div className="flex min-w-0 items-center gap-2">
                 <ToolStatus state={state} />
-                <Text
+                <span
                     className="!text-xs !font-medium font-mono min-w-0 truncate"
                     title={toolName(part)}
                 >
                     {toolName(part)}
-                </Text>
+                </span>
                 <span
                     className={`ml-auto shrink-0 rounded px-1.5 py-px font-mono text-[10px] ${
                         state === "output-error"

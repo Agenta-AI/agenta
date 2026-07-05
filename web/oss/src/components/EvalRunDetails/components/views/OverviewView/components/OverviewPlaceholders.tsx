@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {Skeleton, Typography} from "antd"
+import {Skeleton} from "antd"
 import clsx from "clsx"
 import {
     PolarAngleAxis,
@@ -152,14 +152,12 @@ export const OverviewLoadingPlaceholder = ({
                         <RadarLoadingMock />
                     </div>
                     {title ? (
-                        <Typography.Text className="text-sm font-medium text-neutral-700">
-                            {title}
-                        </Typography.Text>
+                        <span className="text-sm font-medium text-neutral-700">{title}</span>
                     ) : null}
                     {description ? (
-                        <Typography.Paragraph className="!mb-0 text-xs text-neutral-500 max-w-[320px]">
+                        <p className="!mb-0 text-xs text-neutral-500 max-w-[320px]">
                             {description}
-                        </Typography.Paragraph>
+                        </p>
                     ) : null}
                 </div>
             )
@@ -168,14 +166,10 @@ export const OverviewLoadingPlaceholder = ({
         return (
             <div className="w-full max-w-[380px] px-4 py-6">
                 {title ? (
-                    <Typography.Text className="block text-sm font-medium text-neutral-700">
-                        {title}
-                    </Typography.Text>
+                    <span className="block text-sm font-medium text-neutral-700">{title}</span>
                 ) : null}
                 {description ? (
-                    <Typography.Paragraph className="!mb-3 text-xs text-neutral-500">
-                        {description}
-                    </Typography.Paragraph>
+                    <p className="!mb-3 text-xs text-neutral-500">{description}</p>
                 ) : null}
                 <Skeleton active paragraph={{rows: 3}} title={false} />
             </div>
@@ -209,15 +203,7 @@ export const OverviewEmptyPlaceholder = ({
         )}
         style={{minHeight}}
     >
-        {title ? (
-            <Typography.Text className="text-sm font-medium text-neutral-700">
-                {title}
-            </Typography.Text>
-        ) : null}
-        {description ? (
-            <Typography.Paragraph className="!mb-0 text-xs text-neutral-500">
-                {description}
-            </Typography.Paragraph>
-        ) : null}
+        {title ? <span className="text-sm font-medium text-neutral-700">{title}</span> : null}
+        {description ? <p className="!mb-0 text-xs text-neutral-500">{description}</p> : null}
     </div>
 )

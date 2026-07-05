@@ -8,7 +8,7 @@ import {
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
 import {projectIdAtom} from "@agenta/shared/state"
-import {Button, Card, Divider, Space, Typography, notification} from "antd"
+import {Button, Card, Divider, Space, notification} from "antd"
 import clsx from "clsx"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -86,14 +86,8 @@ function extractAppRef(
 
 const AuthorDisplay = ({authorId}: {authorId: string | null}) => {
     const name = useUserDisplayName(authorId ?? undefined)
-    return <Typography.Text>{name ?? "-"}</Typography.Text>
+    return <span>{name ?? "-"}</span>
 }
-
-// ============================================================================
-// COMPONENT
-// ============================================================================
-
-const {Text} = Typography
 
 const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, appId}) => {
     const {appTheme} = useAppTheme()
@@ -291,7 +285,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                                 onClick={() => handleSelectItem(index)}
                             >
                                 <Space style={{justifyContent: "space-between"}}>
-                                    <Text
+                                    <span
                                         className={clsx(
                                             "text-sm",
                                             isDark
@@ -300,8 +294,8 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                                         )}
                                     >
                                         <b>Deployment</b> <span>v{item.appDeploymentIndex}</span>
-                                    </Text>
-                                    <Text
+                                    </span>
+                                    <span
                                         className={clsx(
                                             "text-sm",
                                             isDark
@@ -314,11 +308,11 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                                                 ? dayjs(item.created_at).fromNow()
                                                 : "-"}
                                         </span>
-                                    </Text>
+                                    </span>
                                 </Space>
 
                                 {item.appRevisionId === currentAppRevisionId && (
-                                    <Text
+                                    <span
                                         style={{
                                             fontStyle: "italic",
                                             fontSize: 12,
@@ -326,14 +320,14 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
                                         }}
                                     >
                                         Current deployment
-                                    </Text>
+                                    </span>
                                 )}
 
                                 <Divider className="my-[10px]" />
 
                                 <Space>
                                     <div>
-                                        <Text strong>Modified By: </Text>
+                                        <span className="font-semibold">Modified By: </span>
                                         <AuthorDisplay
                                             authorId={item.created_by_id ?? item.author}
                                         />

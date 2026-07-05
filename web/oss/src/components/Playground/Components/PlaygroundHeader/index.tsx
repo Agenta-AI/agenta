@@ -34,7 +34,6 @@ import {
     Space,
     Tag,
     Tooltip,
-    Typography,
     message,
     type MenuProps,
 } from "antd"
@@ -575,9 +574,9 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     <Robot size={15} weight="fill" />
                                 </span>
                             </Tooltip>
-                            <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+                            <span className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
                                 {currentWorkflow?.name || "Agent"}
-                            </Typography>
+                            </span>
                             {rootEntityId ? (
                                 <>
                                     <Divider orientation="vertical" className="!mx-1 h-5" />
@@ -586,9 +585,9 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             ) : null}
                         </div>
                     ) : (
-                        <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+                        <span className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
                             Playground
-                        </Typography>
+                        </span>
                     )}
                 </div>
 

@@ -8,7 +8,7 @@ import {
 import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Empty, Popover, Skeleton, Tabs, Tag, Typography} from "antd"
+import {Button, Empty, Popover, Skeleton, Tabs, Tag} from "antd"
 import type {PopoverProps} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -142,11 +142,9 @@ const EvaluatorTemplateDropdown = ({
                                     )}
                                 />
                             </div>
-                            <Typography.Text
-                                className={cn("text-xs line-clamp-1", textColors.tertiary)}
-                            >
+                            <span className={cn("text-xs line-clamp-1", textColors.tertiary)}>
                                 {item.description}
-                            </Typography.Text>
+                            </span>
                         </div>
                     )
                 })}
@@ -157,9 +155,7 @@ const EvaluatorTemplateDropdown = ({
     const popoverContent = (
         <div className="w-[380px]">
             <div className="px-4 pt-3 pb-0">
-                <Typography.Text className="text-[14px] leading-[22px] font-[500]">
-                    Select evaluator type
-                </Typography.Text>
+                <span className="text-[14px] leading-[22px] font-[500]">Select evaluator type</span>
             </div>
             <Tabs
                 items={tabItems}

@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react"
 
-import {Alert, Segmented, Typography} from "antd"
+import {Alert, Segmented} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -15,8 +15,6 @@ import {formatSamplingRate, stringifyError} from "../utils"
 
 import {ReadOnlyContainer} from "./CopyableFields"
 import {SectionHeaderRow} from "./SectionPrimitives"
-
-const {Text} = Typography
 const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => module.Editor), {
     ssr: false,
 })
@@ -71,7 +69,7 @@ const QuerySection = ({runId}: QuerySectionProps) => {
     }, [cfg?.revision])
 
     if (isLoading && !queryRevision) {
-        return <Text type="secondary">Loading…</Text>
+        return <span className="text-muted-foreground">Loading…</span>
     }
 
     return (
@@ -89,9 +87,9 @@ const QuerySection = ({runId}: QuerySectionProps) => {
             <SectionHeaderRow
                 left={
                     <div className="flex flex-col gap-1">
-                        <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">
+                        <span className="text-sm font-semibold text-[var(--ag-c-344054)]">
                             Query
-                        </Text>
+                        </span>
                     </div>
                 }
                 right={
@@ -124,7 +122,7 @@ const QuerySection = ({runId}: QuerySectionProps) => {
                           }`
                         : null
                     if (!revLabel) return null
-                    return <Text className="text-sm text-neutral-600">{revLabel}</Text>
+                    return <span className="text-sm text-neutral-600">{revLabel}</span>
                 })()}
             </div>
 
@@ -145,11 +143,11 @@ const QuerySection = ({runId}: QuerySectionProps) => {
             ) : (
                 <div className="flex flex-col gap-3 mt-3">
                     <div className="flex flex-col gap-1">
-                        <Text className="font-medium text-neutral-800">Filters</Text>
+                        <span className="font-medium text-neutral-800">Filters</span>
                         <FiltersPreview filtering={filters ?? undefined} />
                     </div>
                     <div className="flex flex-col gap-1">
-                        <Text className="font-medium text-neutral-800">Sample rate</Text>
+                        <span className="font-medium text-neutral-800">Sample rate</span>
                         <ReadOnlyContainer>{formatSamplingRate(windowing?.rate)}</ReadOnlyContainer>
                     </div>
                 </div>

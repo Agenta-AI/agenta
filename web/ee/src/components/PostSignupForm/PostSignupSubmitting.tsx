@@ -1,4 +1,4 @@
-import {Spin, Typography} from "antd"
+import {Spin} from "antd"
 
 import type {Org} from "@/oss/lib/Types"
 
@@ -24,12 +24,10 @@ const PostSignupSubmitting = ({orgs}: PostSignupSubmittingProps) => {
             <div className="w-[400px] mx-auto mt-16 flex flex-col items-center gap-6 text-center">
                 <Spin size="large" />
                 <div className="space-y-1">
-                    <Typography.Title level={3} className="!mb-0">
+                    <h3 className="!mb-0 text-lg font-semibold leading-snug">
                         Setting up your workspace
-                    </Typography.Title>
-                    <Typography.Paragraph type="secondary" className="!mb-0">
-                        This will only take a moment.
-                    </Typography.Paragraph>
+                    </h3>
+                    <p className="!mb-0 text-muted-foreground">This will only take a moment.</p>
                 </div>
             </div>
         </>

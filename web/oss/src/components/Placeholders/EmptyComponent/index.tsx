@@ -1,6 +1,6 @@
 import {ReactNode} from "react"
 
-import {Button, Empty, Space, Tooltip, Typography} from "antd"
+import {Button, Empty, Space, Tooltip} from "antd"
 import {BaseButtonProps} from "antd/es/button/button"
 
 const emptyClass =
@@ -40,7 +40,7 @@ const EmptyComponent: React.FC<Props> = ({image, description, primaryCta, second
                 )}
                 {secondaryCta && (
                     <>
-                        <Typography.Text>Or</Typography.Text>
+                        <span>Or</span>
                         <Tooltip title={secondaryCta.tooltip} placement="bottom">
                             <Button
                                 size={secondaryCta.size || "large"}

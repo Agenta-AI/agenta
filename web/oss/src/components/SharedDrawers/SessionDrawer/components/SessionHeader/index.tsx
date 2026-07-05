@@ -2,7 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDown, CaretUp, ChatCenteredDots, SidebarSimple} from "@phosphor-icons/react"
-import {Button, Tag, Typography} from "antd"
+import {Button, Tag} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {isAgentChatSliceEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
@@ -73,7 +73,7 @@ const SessionHeader = () => {
                     />
                 </div>
 
-                <Typography.Text className="text-sm font-medium">Session</Typography.Text>
+                <span className="text-sm font-medium">Session</span>
                 <TooltipWithCopyAction copyText={sessionId || ""} title="Copy session id">
                     <Tag className="font-mono bg-[var(--ag-c-0517290F)]" bordered={false}>
                         # {sessionId || "-"}

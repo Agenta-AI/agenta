@@ -2,7 +2,7 @@ import {memo, useMemo} from "react"
 
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Sidebar} from "@phosphor-icons/react"
-import {Breadcrumb, Typography} from "antd"
+import {Breadcrumb} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue} from "jotai"
 import Link from "next/link"
@@ -124,7 +124,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
 
             <div className={clsx(classes.topRightBar, "shrink-0 flex items-center gap-3")}>
                 <ThemeSwitcher />
-                <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
+                <span>agenta v{packageJsonData.version}</span>
             </div>
         </section>
     )

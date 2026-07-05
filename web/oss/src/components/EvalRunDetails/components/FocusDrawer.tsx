@@ -7,7 +7,7 @@ import {
     METRIC_PLACEHOLDER as METRIC_EMPTY_PLACEHOLDER,
 } from "@agenta/ui/cell-renderers"
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Popover, Skeleton, Typography} from "antd"
+import {Button, Popover, Skeleton} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AlertCircle} from "lucide-react"
@@ -95,8 +95,6 @@ const buildStaticMetricColumn = (
     } as EvaluationTableColumn & {__source: "runMetric"}
 }
 
-const {Text} = Typography
-
 const FocusValueCard = ({
     label,
     children,
@@ -112,7 +110,7 @@ const FocusValueCard = ({
             className,
         )}
     >
-        <Text className="text-xs font-medium text-[var(--ag-c-101828)]">{label}</Text>
+        <span className="text-xs font-medium text-[var(--ag-c-101828)]">{label}</span>
         <div className="mt-2 text-sm whitespace-pre-wrap break-words">{children}</div>
     </div>
 )
@@ -357,7 +355,9 @@ const RunMetricValue = memo(
 
         return (
             <div className="flex flex-col gap-1">
-                <Text strong>{column.displayLabel ?? column.label ?? column.id}</Text>
+                <span className="font-semibold">
+                    {column.displayLabel ?? column.label ?? column.id}
+                </span>
                 {isLoading ? (
                     <Skeleton.Input active size="small" style={{width: 120}} />
                 ) : (
@@ -544,9 +544,9 @@ const ScenarioColumnValue = memo(
 
             return (
                 <div className="flex flex-col gap-2">
-                    <Text className="text-xs font-medium text-[var(--ag-c-475467)]">
+                    <span className="text-xs font-medium text-[var(--ag-c-475467)]">
                         {displayLabel}
-                    </Text>
+                    </span>
                     {metricContent}
                 </div>
             )
@@ -598,7 +598,7 @@ const ScenarioColumnValue = memo(
                                 <AlertCircle size={14} className="flex-shrink-0" />
                                 <span className="font-medium">Error</span>
                             </div>
-                            <Text type="danger">{stepError.message}</Text>
+                            <span className="text-destructive">{stepError.message}</span>
                         </div>
                     </Popover>
                 )
@@ -613,7 +613,7 @@ const ScenarioColumnValue = memo(
             }
 
             if (resolvedValue === null || resolvedValue === undefined) {
-                return <Text type="secondary">—</Text>
+                return <span className="text-muted-foreground">—</span>
             }
 
             // Check if it's a JSON string that should be parsed
@@ -645,11 +645,11 @@ const ScenarioColumnValue = memo(
                         // Not valid JSON, render as text
                     }
                 }
-                return <Text>{resolvedValue}</Text>
+                return <span>{resolvedValue}</span>
             }
 
             if (typeof resolvedValue === "number" || typeof resolvedValue === "boolean") {
-                return <Text>{String(resolvedValue)}</Text>
+                return <span>{String(resolvedValue)}</span>
             }
 
             // For objects/arrays, use JSON editor
@@ -671,7 +671,7 @@ const ScenarioColumnValue = memo(
                     </div>
                 )
             } catch {
-                return <Text>{String(resolvedValue)}</Text>
+                return <span>{String(resolvedValue)}</span>
             }
         }
 
@@ -746,7 +746,7 @@ const FocusSectionHeader = ({
             onClick={onToggle}
             onKeyDown={handleKeyDown}
         >
-            <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</Text>
+            <span className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</span>
             <Button
                 type="link"
                 size="small"
@@ -977,7 +977,7 @@ const CompareMetaRow = memo(
                                         key={`meta-empty-${compareIndex}`}
                                         className="min-w-[480px] flex items-center justify-center p-3 bg-gray-50 rounded-lg"
                                     >
-                                        <Text type="secondary">—</Text>
+                                        <span className="text-muted-foreground">—</span>
                                     </div>
                                 )
                             }
@@ -1081,7 +1081,7 @@ const CompareSectionRow = memo(
                                             key={`empty-${compareIndex}`}
                                             className="min-w-[480px] flex items-center justify-center p-4 bg-gray-50 rounded-lg"
                                         >
-                                            <Text type="secondary">—</Text>
+                                            <span className="text-muted-foreground">—</span>
                                         </div>
                                     )
                                 }
@@ -1283,7 +1283,7 @@ const FocusDrawerCompareContent = () => {
     if (!compareScenarios.length) {
         return (
             <div className="p-6">
-                <Text type="secondary">No comparison scenarios found</Text>
+                <span className="text-muted-foreground">No comparison scenarios found</span>
             </div>
         )
     }

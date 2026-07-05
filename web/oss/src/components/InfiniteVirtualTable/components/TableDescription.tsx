@@ -1,6 +1,5 @@
 import type {ReactNode} from "react"
 
-import {Typography} from "antd"
 import clsx from "clsx"
 
 export interface TableDescriptionProps {
@@ -36,13 +35,17 @@ const TableDescription = ({children, className, maxWidth = "prose"}: TableDescri
     }[maxWidth]
 
     return (
-        <Typography.Paragraph
-            type="secondary"
-            className={clsx(maxWidthClass, "line-clamp-2 h-10", className)}
+        <p
+            className={[
+                clsx(maxWidthClass, "line-clamp-2 h-10", className),
+                "text-muted-foreground",
+            ]
+                .filter(Boolean)
+                .join(" ")}
             style={{marginBottom: 0}}
         >
             {children}
-        </Typography.Paragraph>
+        </p>
     )
 }
 

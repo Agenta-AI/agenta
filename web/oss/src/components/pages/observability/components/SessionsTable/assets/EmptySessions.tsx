@@ -1,5 +1,4 @@
 import {MessageOutlined} from "@ant-design/icons"
-import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
@@ -22,12 +21,10 @@ const EmptySessions = ({showOnboarding = true}: EmptySessionsProps) => {
                     image={<MessageOutlined style={{fontSize: 32, color: "#d9d9d9"}} />}
                     description={
                         <div className="flex flex-col gap-2">
-                            <Typography.Text className="text-lg font-medium">
-                                No sessions found
-                            </Typography.Text>
-                            <Typography.Text type="secondary">
+                            <span className="text-lg font-medium">No sessions found</span>
+                            <span className="text-muted-foreground">
                                 Try adjusting your filters or time range to view sessions.
-                            </Typography.Text>
+                            </span>
                         </div>
                     }
                 />
@@ -41,13 +38,11 @@ const EmptySessions = ({showOnboarding = true}: EmptySessionsProps) => {
                 image={<MessageOutlined style={{fontSize: 32, color: "#d9d9d9"}} />}
                 description={
                     <div className="flex flex-col gap-2">
-                        <Typography.Text className="text-lg font-medium">
-                            No sessions observed
-                        </Typography.Text>
-                        <Typography.Text type="secondary">
+                        <span className="text-lg font-medium">No sessions observed</span>
+                        <span className="text-muted-foreground">
                             Sessions allow you to track multi-turn conversations with your LLM
                             application including the intermediate steps.
-                        </Typography.Text>
+                        </span>
                     </div>
                 }
                 primaryCta={{

@@ -1,7 +1,7 @@
 import {useRef, useState} from "react"
 
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Form, FormProps, Input, Typography} from "antd"
+import {Button, Form, FormProps, Input} from "antd"
 import {OTPRef} from "antd/es/input/OTP"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
@@ -17,8 +17,6 @@ import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 import {authFlowAtom} from "@/oss/state/session"
 
 import {SendOTPProps} from "../assets/types"
-
-const {Text} = Typography
 
 const SendOTP = ({
     message,
@@ -194,9 +192,9 @@ const SendOTP = ({
                     Resend one-time password
                 </Button>
                 {isResendDisabled && (
-                    <Text className="text-colorTextDisabled">
+                    <span className="text-colorTextDisabled">
                         Please wait to request new code (60s)
-                    </Text>
+                    </span>
                 )}
             </div>
         </div>

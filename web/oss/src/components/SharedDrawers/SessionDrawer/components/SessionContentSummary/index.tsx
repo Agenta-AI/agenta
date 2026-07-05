@@ -1,5 +1,4 @@
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
-import {Typography} from "antd"
 
 import useSessionDrawer from "../../hooks/useSessionDrawer"
 
@@ -30,7 +29,7 @@ const SessionContentSummary = () => {
 
     return (
         <div className="flex flex-col gap-2">
-            <Typography.Text>Summary</Typography.Text>
+            <span>Summary</span>
             <div className="flex items-center gap-2 overflow-x-auto">
                 {Object.entries(aggregatedStats || {}).map(([key, value]) => {
                     return (

@@ -1,6 +1,5 @@
 import {memo, useMemo} from "react"
 
-import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {loadable} from "jotai/utils"
 
@@ -65,9 +64,7 @@ const QueryFilterOption = ({option}: {option: QueryOption}) => {
 
     return (
         <div className="flex flex-col gap-0.5">
-            <Typography.Text className="text-gray-900" ellipsis>
-                {option.label}
-            </Typography.Text>
+            <span className="text-gray-900 truncate">{option.label}</span>
             {revisionFiltering ? (
                 <FiltersPreview
                     filtering={revisionFiltering}
@@ -76,17 +73,13 @@ const QueryFilterOption = ({option}: {option: QueryOption}) => {
                     className="text-xs text-[var(--ag-c-475467)]"
                 />
             ) : isLoading ? (
-                <Typography.Text className="text-xs text-[var(--ag-c-98A2B3)]">
-                    Loading filters…
-                </Typography.Text>
+                <span className="text-xs text-[var(--ag-c-98A2B3)]">Loading filters…</span>
             ) : fallbackSummary ? (
-                <Typography.Text className="text-xs text-[var(--ag-c-475467)]" ellipsis>
+                <span className="text-xs text-[var(--ag-c-475467)] truncate">
                     {fallbackSummary}
-                </Typography.Text>
+                </span>
             ) : (
-                <Typography.Text className="text-xs text-[var(--ag-c-98A2B3)]">
-                    No filters
-                </Typography.Text>
+                <span className="text-xs text-[var(--ag-c-98A2B3)]">No filters</span>
             )}
         </div>
     )

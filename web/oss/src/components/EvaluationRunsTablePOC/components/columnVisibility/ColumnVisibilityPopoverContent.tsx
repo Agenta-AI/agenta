@@ -1,6 +1,5 @@
 import {useCallback, useMemo} from "react"
 
-import {Typography} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {
@@ -180,18 +179,16 @@ const MetricColumnLabel = ({
 
     return (
         <div className="flex flex-col leading-tight">
-            <Typography.Text ellipsis>{primaryLabel}</Typography.Text>
+            <span className="truncate">{primaryLabel}</span>
             {groupLabel ? (
-                <Typography.Text type="secondary" className="text-xs" ellipsis>
-                    {groupLabel}
-                </Typography.Text>
+                <span className="text-xs text-muted-foreground truncate">{groupLabel}</span>
             ) : null}
         </div>
     )
 }
 
 const DefaultNodeLabel = ({label, emphasize}: {label: string; emphasize?: boolean}) => (
-    <Typography.Text className={emphasize ? "font-semibold" : ""} ellipsis>
+    <span className={[emphasize ? "font-semibold" : "", "truncate"].filter(Boolean).join(" ")}>
         {label}
-    </Typography.Text>
+    </span>
 )

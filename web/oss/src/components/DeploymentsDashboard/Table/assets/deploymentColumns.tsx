@@ -5,7 +5,6 @@ import {workflowVariantsListDataAtomFamily} from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {SkeletonLine, createStandardColumns, useDefaultStoreAtomValue} from "@agenta/ui/table"
 import {ArrowCounterClockwise, ArrowSquareOut, Eye, Lightning} from "@phosphor-icons/react"
-import {Typography} from "antd"
 
 import {routerAppIdAtom} from "@/oss/state/app"
 
@@ -21,11 +20,7 @@ const DeploymentVariantCell = memo(({record}: {record: DeploymentRevisionRow}) =
     const variants = useDefaultStoreAtomValue(workflowVariantsListDataAtomFamily(appId))
 
     if (!revisionId) {
-        return (
-            <Typography.Text type="secondary" className="h-full flex items-center">
-                —
-            </Typography.Text>
-        )
+        return <span className="h-full flex items-center text-muted-foreground">—</span>
     }
 
     const variantEntity = record.variantId ? variants.find((v) => v.id === record.variantId) : null
@@ -52,9 +47,7 @@ const CommitMessageCell = memo(({record}: {record: DeploymentRevisionRow}) => {
     if (!msg) return null
     return (
         <div className="h-full flex items-center">
-            <Typography.Text type="secondary" className="text-xs truncate block">
-                {msg}
-            </Typography.Text>
+            <span className="text-xs truncate block text-muted-foreground">{msg}</span>
         </div>
     )
 })
@@ -126,21 +119,17 @@ export function createDeploymentColumns(actions: DeploymentColumnActions) {
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="50%" />
                 if (!record.createdById) {
-                    return (
-                        <Typography.Text type="secondary" className="h-full flex items-center">
-                            —
-                        </Typography.Text>
-                    )
+                    return <span className="h-full flex items-center text-muted-foreground">—</span>
                 }
                 return (
                     <div className="h-full flex items-center">
-                        <Typography.Text type="secondary" className="text-xs truncate block">
+                        <span className="text-xs truncate block text-muted-foreground">
                             <UserAuthorLabel
                                 userId={record.createdById}
                                 showPrefix={false}
                                 showAvatar
                             />
-                        </Typography.Text>
+                        </span>
                     </div>
                 )
             },

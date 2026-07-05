@@ -1,6 +1,6 @@
 import {memo, useMemo, type ReactNode} from "react"
 
-import {Card, Typography} from "antd"
+import {Card} from "antd"
 import clsx from "clsx"
 import {
     Area,
@@ -157,13 +157,9 @@ const EvaluatorTemporalMetricsChart = ({
             title={
                 <div className="flex justify-between items-center w-full">
                     <div className="flex flex-col gap-1">
-                        <Typography.Text className="text-sm font-medium text-neutral-900">
-                            {name}
-                        </Typography.Text>
+                        <span className="text-sm font-medium text-neutral-900">{name}</span>
                         {metricKey ? (
-                            <Typography.Text type="secondary" className="text-xs">
-                                {metricKey}
-                            </Typography.Text>
+                            <span className="text-xs text-muted-foreground">{metricKey}</span>
                         ) : null}
                     </div>
                     {latestSummaries.length ? (

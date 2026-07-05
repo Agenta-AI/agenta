@@ -1,6 +1,5 @@
 import {memo, useEffect} from "react"
 
-import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {latestRevisionAtomFamily, requestLatestRevisionAtom} from "@/oss/state/entities/testset"
@@ -26,13 +25,13 @@ const LatestCommitMessage = ({testsetId}: LatestCommitMessageProps) => {
     }, [testsetId, requestLatestRevision])
 
     if (!latestRevision) {
-        return <Typography.Text type="secondary">—</Typography.Text>
+        return <span className="text-muted-foreground">—</span>
     }
 
     return (
-        <Typography.Text ellipsis title={latestRevision.message || "No message"}>
+        <span title={latestRevision.message || "No message"} className="truncate">
             {latestRevision.message || "—"}
-        </Typography.Text>
+        </span>
     )
 }
 

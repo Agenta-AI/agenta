@@ -3,7 +3,7 @@ import {useState} from "react"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
-import {Alert, Button, Popover, Typography, Upload, UploadFile} from "antd"
+import {Alert, Button, Popover, Upload, UploadFile} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {FilePreviewTable} from "@/oss/components/pages/testset/modals/components/FilePreviewTable"
@@ -11,8 +11,6 @@ import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
 import {uploadTestsetRevisionPreview} from "@/oss/services/testsets/api"
-
-const {Text} = Typography
 const {Dragger} = Upload
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -247,10 +245,10 @@ export function ImportTestsetRevisionModal({
             width={600}
         >
             <section className={classes.container}>
-                <Text type="secondary">
+                <span className="text-muted-foreground">
                     Import a CSV or JSON file to replace the current data in "{testsetName}". This
                     will create a new revision.
-                </Text>
+                </span>
 
                 {!fileProgress ? (
                     <div className={classes.dragger}>
@@ -280,12 +278,12 @@ export function ImportTestsetRevisionModal({
                                     title="File format requirements"
                                     content={
                                         <div style={{maxWidth: 280}}>
-                                            <Text strong>CSV:</Text>
+                                            <span className="font-semibold">CSV:</span>
                                             <ul style={{paddingLeft: 16, margin: "4px 0 8px"}}>
                                                 <li>Comma-separated values</li>
                                                 <li>First row must be headers</li>
                                             </ul>
-                                            <Text strong>JSON:</Text>
+                                            <span className="font-semibold">JSON:</span>
                                             <ul style={{paddingLeft: 16, margin: "4px 0 0"}}>
                                                 <li>Array of objects</li>
                                                 <li>Each object has column names as keys</li>

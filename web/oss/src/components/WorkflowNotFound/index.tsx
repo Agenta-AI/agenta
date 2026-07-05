@@ -1,14 +1,12 @@
 import {useCallback, useEffect} from "react"
 
 import {ArrowClockwise, GridFour, Scales} from "@phosphor-icons/react"
-import {Button, Card, Space, Typography} from "antd"
+import {Button, Card, Space} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {appIdentifiersAtom} from "@/oss/state/appState"
-
-const {Title, Paragraph, Text} = Typography
 
 interface WorkflowNotFoundProps {
     /** The bad workflow ID from the URL — may be null if URL had no ID. */
@@ -76,16 +74,14 @@ function WorkflowNotFound({workflowId, routeSegment}: WorkflowNotFoundProps) {
         <div className="flex flex-col grow h-full overflow-hidden items-center justify-center p-6">
             <Card className="max-w-[520px] w-[90%]">
                 <Space direction="vertical" className="w-full" size="middle">
-                    <Title level={3} className="!mb-0">
-                        Workflow not found
-                    </Title>
-                    <Paragraph className="!mb-0" type="secondary">
+                    <h3 className="!mb-0 text-lg font-semibold leading-snug">Workflow not found</h3>
+                    <p className="!mb-0 text-muted-foreground">
                         The workflow you tried to open isn’t available anymore. It may have been
                         deleted, archived, or the link is no longer valid.
-                    </Paragraph>
-                    <Text type="secondary" className="text-xs">
+                    </p>
+                    <span className="text-xs text-muted-foreground">
                         ID:&nbsp;<code>{truncateId(workflowId)}</code>
-                    </Text>
+                    </span>
                     <Space wrap>
                         <Button
                             type="primary"

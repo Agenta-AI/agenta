@@ -1,6 +1,6 @@
 import {MouseEvent, useMemo, useState, useCallback} from "react"
 
-import {Input, Tag, Tooltip, Typography} from "antd"
+import {Input, Tag, Tooltip} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -366,9 +366,9 @@ const FiltersSummary = () => {
 
     if (!groups.length) {
         return (
-            <Typography.Text className="text-xs text-[var(--ag-c-98A2B3)] whitespace-nowrap">
+            <span className="text-xs text-[var(--ag-c-98A2B3)] whitespace-nowrap">
                 No filters applied
-            </Typography.Text>
+            </span>
         )
     }
 

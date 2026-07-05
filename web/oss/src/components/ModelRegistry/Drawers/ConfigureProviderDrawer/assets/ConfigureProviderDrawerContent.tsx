@@ -10,7 +10,7 @@ import type {LlmProvider} from "@agenta/shared/types"
 import {SelectLLMProviderBase, type ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {capitalize} from "@agenta/ui/select-llm-provider"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
-import {Button, Form, Input, Typography} from "antd"
+import {Button, Form, Input} from "antd"
 import {useWatch} from "antd/lib/form/Form"
 
 import {isSlugInputValid} from "@/oss/lib/helpers/utils"
@@ -20,8 +20,6 @@ import LabelInput from "../../../assets/LabelInput"
 import {PROVIDER_AUTH_REQUIREMENTS, PROVIDER_FIELDS} from "./constants"
 import ModelNameInput from "./ModelNameInput"
 import {ConfigureProviderDrawerContentProps} from "./types"
-
-const {Text} = Typography
 
 /**
  * Optional render metadata you can attach to each PROVIDER_FIELDS item.
@@ -66,10 +64,10 @@ const renderControl = (field: FieldWithAttributes, isRequired?: boolean) => {
     if (a.kind === "textarea") {
         return (
             <div className="flex flex-col gap-1">
-                <Text className="font-medium">
+                <span className="font-medium">
                     {field.label}
                     {isRequired ? <span aria-hidden> *</span> : null}
-                </Text>
+                </span>
                 <Input.TextArea
                     placeholder={field.placeholder}
                     rows={a.rows ?? 6}
@@ -84,10 +82,10 @@ const renderControl = (field: FieldWithAttributes, isRequired?: boolean) => {
     // a.kind === "json"
     return (
         <div className="flex flex-col gap-1">
-            <Text className="font-medium">
+            <span className="font-medium">
                 {field.label}
                 {isRequired ? <span aria-hidden> *</span> : null}
-            </Text>
+            </span>
             <Input.TextArea
                 placeholder={field.placeholder ?? '{\n  "type": "service_account",\n  ...\n}'}
                 rows={a.rows ?? 10}
@@ -219,15 +217,15 @@ const ConfigureProviderDrawerContent = ({
         >
             <section className="[&_>.ant-form-item]:!mb-0 flex flex-col gap-4">
                 {hasSelectedProvider && errorMessage && (
-                    <Typography.Text className="mb-1 flex items-center gap-1" type="danger">
+                    <span className="mb-1 flex items-center gap-1 text-destructive">
                         <WarningCircle size={16} /> {errorMessage.replace("Value error,", "")}
-                    </Typography.Text>
+                    </span>
                 )}
 
                 <div className="flex flex-col gap-1">
-                    <Text className="font-medium">
+                    <span className="font-medium">
                         Provider<span aria-hidden> *</span>
-                    </Text>
+                    </span>
                     <Form.Item name="provider" className="mb-0" rules={[{required: true}]}>
                         <SelectLLMProviderBase options={providerOptions} />
                     </Form.Item>
@@ -310,9 +308,9 @@ const ConfigureProviderDrawerContent = ({
                                     </Form.Item>
 
                                     {field.note && (
-                                        <Text className="text-[var(--ag-c-586673)] -mt-2">
+                                        <span className="text-[var(--ag-c-586673)] -mt-2">
                                             {field.note}
-                                        </Text>
+                                        </span>
                                     )}
                                 </React.Fragment>
                             )
@@ -322,7 +320,7 @@ const ConfigureProviderDrawerContent = ({
                             {(fields, {add, remove}) => (
                                 <div className="flex flex-col gap-2">
                                     <div className="w-full flex items-center justify-between">
-                                        <Text className="font-medium">Models</Text>
+                                        <span className="font-medium">Models</span>
                                         <Button
                                             icon={<Plus size={14} />}
                                             size="small"
@@ -333,9 +331,9 @@ const ConfigureProviderDrawerContent = ({
                                     </div>
 
                                     {fields.length === 0 ? (
-                                        <Text className="text-[var(--ag-c-586673)]">
+                                        <span className="text-[var(--ag-c-586673)]">
                                             No custom models configured
-                                        </Text>
+                                        </span>
                                     ) : (
                                         fields.map((field) => {
                                             const {key, ...restField} = field

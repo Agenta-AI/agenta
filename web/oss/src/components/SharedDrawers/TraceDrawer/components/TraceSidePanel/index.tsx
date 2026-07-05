@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {Collapse, CollapseProps, Skeleton, Typography} from "antd"
+import {Collapse, CollapseProps, Skeleton} from "antd"
 import clsx from "clsx"
 
 import {TracesWithAnnotations} from "@/oss/services/observability/types"
@@ -36,9 +36,7 @@ const TraceSidePanel = ({
 
     const emptyState = (message: string) => (
         <div className="px-3 py-4">
-            <Typography.Text type="secondary" className="text-sm">
-                {message}
-            </Typography.Text>
+            <span className="text-sm text-muted-foreground">{message}</span>
         </div>
     )
 
@@ -78,34 +76,22 @@ const TraceSidePanel = ({
         () => [
             {
                 key: "annotations",
-                label: (
-                    <Typography.Text className={collapseItemLabelClass}>
-                        Annotations
-                    </Typography.Text>
-                ),
+                label: <span className={collapseItemLabelClass}>Annotations</span>,
                 children: annotationsContent,
             },
             {
                 key: "details",
-                label: (
-                    <Typography.Text className={collapseItemLabelClass}>Trace info</Typography.Text>
-                ),
+                label: <span className={collapseItemLabelClass}>Trace info</span>,
                 children: detailsContent,
             },
             {
                 key: "references",
-                label: (
-                    <Typography.Text className={collapseItemLabelClass}>References</Typography.Text>
-                ),
+                label: <span className={collapseItemLabelClass}>References</span>,
                 children: referencesContent,
             },
             {
                 key: "linked",
-                label: (
-                    <Typography.Text className={collapseItemLabelClass}>
-                        Linked spans
-                    </Typography.Text>
-                ),
+                label: <span className={collapseItemLabelClass}>Linked spans</span>,
                 children: linkedContent,
             },
         ],

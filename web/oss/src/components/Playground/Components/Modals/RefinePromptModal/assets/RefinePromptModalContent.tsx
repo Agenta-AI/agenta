@@ -13,7 +13,7 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {CloseOutlined} from "@ant-design/icons"
-import {Button, Switch, Typography} from "antd"
+import {Button, Switch} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -91,12 +91,10 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
             <div className="flex min-h-0 w-1/2 flex-col border-r border-[var(--ag-rgba-051729-06)]">
                 {/* Left Header */}
                 <div className="border-b border-[var(--ag-rgba-051729-06)] px-4 py-3">
-                    <Typography.Text strong className="text-[13px]">
-                        Instructions
-                    </Typography.Text>
-                    <Typography.Text type="secondary" className="mt-0.5 block text-[11px]">
+                    <span className="text-[13px] font-semibold">Instructions</span>
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
                         Chat with an LLM agent to improve your prompt
-                    </Typography.Text>
+                    </span>
                 </div>
 
                 {/* Left Content + Input */}
@@ -113,14 +111,10 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
             <div className="flex min-h-0 w-1/2 flex-col">
                 {/* Right Header */}
                 <div className="flex items-center justify-between border-b border-[var(--ag-rgba-051729-06)] px-4 py-3">
-                    <Typography.Text strong className="text-[13px]">
-                        Refine prompt
-                    </Typography.Text>
+                    <span className="text-[13px] font-semibold">Refine prompt</span>
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                            <Typography.Text type="secondary" className="text-[11px]">
-                                Diff
-                            </Typography.Text>
+                            <span className="text-[11px] text-muted-foreground">Diff</span>
                             <Switch
                                 size="small"
                                 checked={showDiff}
@@ -146,9 +140,9 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                         <PreviewPanel promptKey={promptKey} promptVersion={promptVersion} />
                     ) : (
                         <div className="flex h-full items-center justify-center px-4">
-                            <Typography.Text type="secondary" className="text-center text-[11px]">
+                            <span className="text-center text-[11px] text-muted-foreground">
                                 Submit instructions to see the refined prompt
-                            </Typography.Text>
+                            </span>
                         </div>
                     )}
                 </div>

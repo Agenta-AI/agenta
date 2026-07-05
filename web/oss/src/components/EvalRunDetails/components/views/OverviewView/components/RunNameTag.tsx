@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {Popover, Skeleton, Typography} from "antd"
+import {Popover, Skeleton} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
@@ -93,11 +93,11 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
             <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between gap-2 min-w-0">
                     <div className="min-w-0 flex-1">
-                        <Typography.Text strong className="truncate block" title={label || runId}>
+                        <span className="truncate block font-semibold" title={label || runId}>
                             {label || runId}
-                        </Typography.Text>
+                        </span>
                     </div>
-                    <Typography.Text type="secondary">Run details</Typography.Text>
+                    <span className="text-muted-foreground">Run details</span>
                 </div>
                 {isLoading ? (
                     <div className="flex flex-col gap-2">
@@ -107,7 +107,7 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
                 ) : (
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between gap-3">
-                            <Typography.Text type="secondary">Run ID</Typography.Text>
+                            <span className="text-muted-foreground">Run ID</span>
                             <ReferenceTag
                                 label={shortRunId}
                                 tooltip={runId}
@@ -117,14 +117,14 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
                             />
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                            <Typography.Text type="secondary">Application</Typography.Text>
+                            <span className="text-muted-foreground">Application</span>
                             <ApplicationReferenceLabel
                                 runId={runId}
                                 applicationId={invocationRefs?.applicationId}
                             />
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                            <Typography.Text type="secondary">Variant</Typography.Text>
+                            <span className="text-muted-foreground">Variant</span>
                             <VariantRevisionLabel
                                 runId={runId}
                                 variantId={
@@ -135,7 +135,7 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
                             />
                         </div>
                         <div className="flex items-start justify-between gap-3">
-                            <Typography.Text type="secondary">Test sets</Typography.Text>
+                            <span className="text-muted-foreground">Test sets</span>
                             <TestsetTagList
                                 ids={testsetIds}
                                 runId={runId}
@@ -143,12 +143,12 @@ const RunNameTag = ({runId, label, accentColor}: RunNameTagProps) => {
                             />
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                            <Typography.Text type="secondary">Created</Typography.Text>
-                            <Typography.Text>{formatDateTime(createdAt)}</Typography.Text>
+                            <span className="text-muted-foreground">Created</span>
+                            <span>{formatDateTime(createdAt)}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                            <Typography.Text type="secondary">Updated</Typography.Text>
-                            <Typography.Text>{formatDateTime(updatedAt)}</Typography.Text>
+                            <span className="text-muted-foreground">Updated</span>
+                            <span>{formatDateTime(updatedAt)}</span>
                         </div>
                     </div>
                 )}

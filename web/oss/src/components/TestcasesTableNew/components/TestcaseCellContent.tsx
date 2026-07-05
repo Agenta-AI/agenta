@@ -10,11 +10,8 @@ import {
     safeJsonStringify,
     type ChatPreviewStrategy,
 } from "@agenta/ui/cell-renderers"
-import {Typography} from "antd"
 
 import {parseTestcaseCellJson} from "./testcaseCellValueUtils"
-
-const {Text} = Typography
 const LAST_USER_PREVIEW_COLUMNS = new Set(["messages", "prompt", "input_messages"])
 
 interface TestcaseCellContentProps {
@@ -118,9 +115,7 @@ const TestcaseCellContent = memo(({value, columnKey, maxLines = 10}: TestcaseCel
     if (value === undefined || value === null || value === "") {
         return (
             <div className="testcase-table-cell">
-                <Text type="secondary" className="text-xs">
-                    —
-                </Text>
+                <span className="text-xs text-muted-foreground">—</span>
             </div>
         )
     }

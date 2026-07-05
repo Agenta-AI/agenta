@@ -1,7 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {ArrowLeft, Code, Rocket, Sparkle, TreeView} from "@phosphor-icons/react"
-import {Typography, Card, Button} from "antd"
+import {Card, Button} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -14,8 +14,6 @@ import {
 } from "@/oss/state/url/postLoginRedirect"
 
 import {RunEvaluationView} from "./views/RunEvaluationView"
-
-const {Title} = Typography
 
 type ViewState = "selection" | "trace" | "eval"
 
@@ -148,7 +146,7 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
 
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-10 px-5 py-10">
-            <Title level={2}>How would you like to start?</Title>
+            <h2 className="text-xl font-semibold leading-tight">How would you like to start?</h2>
 
             <div className="flex gap-6 flex-wrap justify-center">
                 <Card

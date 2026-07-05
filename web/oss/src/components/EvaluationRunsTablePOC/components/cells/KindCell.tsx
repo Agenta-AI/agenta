@@ -1,4 +1,4 @@
-import {Tag, Typography} from "antd"
+import {Tag} from "antd"
 
 import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
@@ -65,7 +65,7 @@ export const PreviewKindCell = ({record}: {record: EvaluationRunTableRow}) => {
     if (record.__isSkeleton) {
         return (
             <div className={CELL_CLASS}>
-                <Typography.Text type="secondary">Loading…</Typography.Text>
+                <span className="text-muted-foreground">Loading…</span>
             </div>
         )
     }
@@ -73,7 +73,7 @@ export const PreviewKindCell = ({record}: {record: EvaluationRunTableRow}) => {
     if (!kind) {
         return (
             <div className={CELL_CLASS}>
-                <Typography.Text type="secondary">—</Typography.Text>
+                <span className="text-muted-foreground">—</span>
             </div>
         )
     }

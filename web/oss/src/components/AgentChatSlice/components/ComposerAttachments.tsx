@@ -9,12 +9,10 @@ import {
     WarningCircle,
     X,
 } from "@phosphor-icons/react"
-import {Tooltip, Typography} from "antd"
+import {Tooltip} from "antd"
 import type {UploadFile} from "antd"
 
 import {type AttachmentLimits, type AttachmentRejection, formatBytes} from "../assets/attachments"
-
-const {Text} = Typography
 
 const iconForType = (mediaType: string) => {
     if (mediaType.startsWith("image/")) return ImageIcon
@@ -114,10 +112,10 @@ const ComposerAttachments = ({
                     className="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border-0 bg-transparent px-3 py-3 text-center transition-colors hover:bg-colorFillQuaternary"
                 >
                     <UploadSimple size={18} className="text-colorTextTertiary" />
-                    <Text className="!text-xs !font-medium">Attach files</Text>
-                    <Text type="secondary" className="!text-[11px]">
+                    <span className="!text-xs !font-medium">Attach files</span>
+                    <span className="!text-[11px] text-muted-foreground">
                         {limits.label} · up to {limits.maxCount}, {maxMb} MB each
-                    </Text>
+                    </span>
                 </button>
             ) : (
                 <div className="flex flex-wrap items-center gap-2">
@@ -155,13 +153,13 @@ const ComposerAttachments = ({
                             >
                                 <Icon size={16} className="shrink-0 text-colorTextSecondary" />
                                 <div className="flex min-w-0 flex-col">
-                                    <Text className="!text-xs truncate" title={f.name}>
+                                    <span className="!text-xs truncate" title={f.name}>
                                         {f.name}
-                                    </Text>
+                                    </span>
                                     {size && (
-                                        <Text type="secondary" className="!text-[11px]">
+                                        <span className="!text-[11px] text-muted-foreground">
                                             {size}
-                                        </Text>
+                                        </span>
                                     )}
                                 </div>
                                 <button

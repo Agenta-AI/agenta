@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {Card, Typography} from "antd"
+import {Card} from "antd"
 
 import useURL from "@/oss/hooks/useURL"
 
@@ -23,12 +23,10 @@ const AggregatedOverviewSection = ({runIds}: AggregatedOverviewSectionProps) => 
             <div className="flex flex-col">
                 <div className="border border-solid border-[var(--ag-c-EAEFF5)] rounded h-full">
                     <div className="py-2 px-3 flex flex-col justify-center border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]">
-                        <Typography.Text className="font-medium">
-                            Evaluator Scores Overview
-                        </Typography.Text>
-                        <Typography.Text className="text-[var(--ag-c-758391)]">
+                        <span className="font-medium">Evaluator Scores Overview</span>
+                        <span className="text-[var(--ag-c-758391)]">
                             Average evaluator score across evaluations
-                        </Typography.Text>
+                        </span>
                     </div>
                     <div className="flex flex-col gap-2 p-2 lg:flex-row lg:items-stretch">
                         <div className="w-full lg:w-7/12">

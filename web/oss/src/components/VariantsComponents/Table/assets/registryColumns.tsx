@@ -14,7 +14,6 @@ import {
     PlusCircle,
     Trash,
 } from "@phosphor-icons/react"
-import {Typography} from "antd"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -79,17 +78,13 @@ const RegistryVariantNameCell = memo(({record}: {record: RegistryRevisionRow}) =
 const CreatedByCell = memo(({revisionId}: {revisionId: string}) => {
     const createdById = useDefaultStoreAtomValue(revisionCreatedByIdAtomFamily(revisionId))
     if (!createdById) {
-        return (
-            <Typography.Text type="secondary" className="h-full flex items-center">
-                —
-            </Typography.Text>
-        )
+        return <span className="h-full flex items-center text-muted-foreground">—</span>
     }
     return (
         <div className="h-full flex items-center">
-            <Typography.Text type="secondary" className="text-xs truncate block">
+            <span className="text-xs truncate block text-muted-foreground">
                 <UserAuthorLabel userId={createdById} showPrefix={false} showAvatar showYouLabel />
-            </Typography.Text>
+            </span>
         </div>
     )
 })
@@ -99,9 +94,7 @@ const CommitMessageCell = memo(({revisionId}: {revisionId: string}) => {
     if (!msg) return null
     return (
         <div className="h-full flex items-center">
-            <Typography.Text type="secondary" className="text-xs truncate block">
-                {msg}
-            </Typography.Text>
+            <span className="text-xs truncate block text-muted-foreground">{msg}</span>
         </div>
     )
 })

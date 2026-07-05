@@ -3,7 +3,7 @@ import {useState} from "react"
 import {CopyButton} from "@agenta/ui"
 import {PythonOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileTs} from "@phosphor-icons/react"
-import {Button, Radio, Tabs, Typography} from "antd"
+import {Button, Radio, Tabs} from "antd"
 
 import cURLCode from "@/oss/code_snippets/testsets/create_with_json/curl"
 import pythonCode from "@/oss/code_snippets/testsets/create_with_json/python"
@@ -13,8 +13,6 @@ import pythonCodeUpload from "@/oss/code_snippets/testsets/create_with_upload/py
 import tsCodeUpload from "@/oss/code_snippets/testsets/create_with_upload/typescript"
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-
-const {Text} = Typography
 
 interface Props {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -86,23 +84,23 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                     onClick={() => setCurrent(0)}
                 />
 
-                <Text className="leading-[1.5714285714285714] text-[16px] font-semibold">
+                <span className="leading-[1.5714285714285714] text-[16px] font-semibold">
                     Create a testset with API
-                </Text>
+                </span>
             </div>
 
             <div className="flex flex-col gap-6">
-                <Text>Create a testset programmatically using our API endpoints</Text>
+                <span>Create a testset programmatically using our API endpoints</span>
 
                 <div className="grid gap-2">
-                    <Text className="font-medium">Select type</Text>
+                    <span className="font-medium">Select type</span>
                     <Radio.Group value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
                         <Radio value="csv">CSV</Radio>
                         <Radio value="json">JSON</Radio>
                     </Radio.Group>
                 </div>
 
-                <Text>Use these endpoints to create a testset via JSON or upload a file</Text>
+                <span>Use these endpoints to create a testset via JSON or upload a file</span>
 
                 <div>
                     <Tabs
@@ -149,13 +147,13 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
             </div>
 
             <div className="w-full flex items-center justify-between">
-                <Typography.Link
+                <a
                     href="https://agenta.ai/docs/evaluation/managing-test-sets/create-programatically"
                     target="_blank"
                     className="text-colorTextSecondary"
                 >
                     Read the docs
-                </Typography.Link>
+                </a>
 
                 <Button onClick={onCancel}>Close</Button>
             </div>

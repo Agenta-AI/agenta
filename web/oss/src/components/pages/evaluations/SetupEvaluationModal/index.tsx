@@ -3,7 +3,7 @@ import {useState} from "react"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined} from "@ant-design/icons"
 import {Book, Play} from "@phosphor-icons/react"
-import {Button, ModalProps, Typography} from "antd"
+import {Button, ModalProps} from "antd"
 
 import ApiKeyInput from "@/oss/components/pages/app-management/components/ApiKeyInput"
 import {
@@ -12,8 +12,6 @@ import {
     modalHeaderClass,
 } from "@/oss/components/pages/app-management/modals/SetupTracingModal"
 import {TracingCodeComponent} from "@/oss/components/pages/app-management/modals/SetupTracingModal/components/TracingCodeComponent"
-
-const {Text, Title} = Typography
 
 const CODE_SNIPPET = `import asyncio
 import agenta as ag
@@ -85,7 +83,7 @@ const SetupEvaluationModalContent = ({onCancel}: {onCancel: ModalProps["onCancel
                     type="text"
                     icon={<CloseOutlined />}
                 />
-                <Text>Evaluate from SDK</Text>
+                <span>Evaluate from SDK</span>
 
                 <div className="flex gap-2 items-center">
                     <Button
@@ -106,10 +104,12 @@ const SetupEvaluationModalContent = ({onCancel}: {onCancel: ModalProps["onCancel
             </div>
             <div className={modalBodyClass}>
                 <div className="flex flex-col gap-1 mb-4">
-                    <Title style={{margin: 0}}>Evaluate from SDK</Title>
-                    <Text>
+                    <h1 style={{margin: 0}} className="text-2xl font-semibold leading-tight">
+                        Evaluate from SDK
+                    </h1>
+                    <span>
                         Evaluate complex AI apps to compare changes and ensure they are reliable.
-                    </Text>
+                    </span>
                 </div>
 
                 <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />

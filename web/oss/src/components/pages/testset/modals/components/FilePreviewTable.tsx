@@ -1,6 +1,5 @@
 import {useMemo} from "react"
 
-import {Typography} from "antd"
 import clsx from "clsx"
 
 interface FilePreviewTableProps {
@@ -25,9 +24,9 @@ export function FilePreviewTable({data, maxRows = 5, className}: FilePreviewTabl
 
     return (
         <div className={clsx("flex flex-col gap-1 w-full", className)}>
-            <Typography.Text className="font-medium text-sm">
+            <span className="font-medium text-sm">
                 Preview ({Math.min(data.length, maxRows)} of {data.length} rows)
-            </Typography.Text>
+            </span>
             <div className="border border-solid border-colorBorderSecondary rounded-md overflow-hidden max-h-[200px] overflow-y-auto">
                 <table className="w-full border-collapse text-xs table-fixed">
                     <thead>

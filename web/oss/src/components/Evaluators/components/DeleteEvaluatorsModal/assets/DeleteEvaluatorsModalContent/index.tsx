@@ -2,7 +2,6 @@ import {memo, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {EntityNameWithVersion} from "@agenta/ui"
-import {Typography} from "antd"
 
 interface DeleteEvaluatorsModalContentProps {
     selectedCount: number
@@ -40,7 +39,7 @@ const DeleteEvaluatorsModalContent = ({
 
     return (
         <div className="space-y-3">
-            <Typography.Paragraph className="mb-0 text-sm text-slate-700">
+            <p className="mb-0 text-sm text-slate-700">
                 {selectedCount === 1 && previewEntities[0] ? (
                     <>
                         Are you sure you want to archive{" "}
@@ -55,7 +54,7 @@ const DeleteEvaluatorsModalContent = ({
                 ) : (
                     "Are you sure you want to archive the selected evaluators?"
                 )}
-            </Typography.Paragraph>
+            </p>
 
             {selectedCount > 1 && previewEntities.length > 0 && (
                 <div className="flex flex-col gap-2">
@@ -72,16 +71,16 @@ const DeleteEvaluatorsModalContent = ({
                         </div>
                     ))}
                     {remaining > 0 && (
-                        <Typography.Text type="secondary" className="text-xs pl-3">
+                        <span className="text-xs pl-3 text-muted-foreground">
                             and {remaining} more…
-                        </Typography.Text>
+                        </span>
                     )}
                 </div>
             )}
 
-            <Typography.Text type="secondary" className="text-xs">
+            <span className="text-xs text-muted-foreground">
                 Archived evaluators are hidden from your workspace and can be restored later.
-            </Typography.Text>
+            </span>
         </div>
     )
 }

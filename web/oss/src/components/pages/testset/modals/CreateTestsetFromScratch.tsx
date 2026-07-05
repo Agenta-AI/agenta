@@ -2,7 +2,7 @@ import {useMemo, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Input, Typography} from "antd"
+import {Button, Input} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -12,8 +12,6 @@ import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {KeyValuePair, TestsetCreationMode} from "@/oss/lib/Types"
 import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
 import {invalidateTestsetsListCache, type TestsetTableRow} from "@/oss/state/entities/testset"
-
-const {Text} = Typography
 
 interface Props {
     mode: TestsetCreationMode
@@ -135,13 +133,13 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                     onClick={goBackToInitialStep}
                 />
 
-                <Text className="leading-normal text-xl font-semibold">{getHeaderText}</Text>
+                <span className="leading-normal text-xl font-semibold">{getHeaderText}</span>
             </div>
 
-            <Text>Create a new testset directly from the webUI</Text>
+            <span>Create a new testset directly from the webUI</span>
 
             <div className="grid gap-1">
-                <Text className="font-medium">Testset Name</Text>
+                <span className="font-medium">Testset Name</span>
                 <Input
                     placeholder="Enter a name"
                     value={testsetName}

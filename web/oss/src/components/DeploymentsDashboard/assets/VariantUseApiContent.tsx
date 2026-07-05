@@ -9,7 +9,7 @@ import {
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
-import {Spin, Tabs, Typography} from "antd"
+import {Spin, Tabs} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -239,7 +239,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         <div>
             <div className="flex flex-col gap-6 p-4">
                 <div className="flex flex-col">
-                    <Typography.Text className="font-medium">Variant</Typography.Text>
+                    <span className="font-medium">Variant</span>
                     <div className="flex items-center gap-2">
                         <SelectVariant
                             value={selectedRevisionId}

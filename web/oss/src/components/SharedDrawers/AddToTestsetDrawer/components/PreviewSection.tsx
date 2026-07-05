@@ -1,7 +1,5 @@
 import {useMemo} from "react"
 
-import {Typography} from "antd"
-
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import {TestcasesTableShell} from "@/oss/components/TestcasesTableNew/components/TestcasesTableShell"
 import {useTestcasesTable} from "@/oss/components/TestcasesTableNew/hooks/useTestcasesTable"
@@ -40,10 +38,10 @@ export function PreviewSection({
 
     return (
         <div className="flex flex-col gap-1">
-            <Typography.Text className="font-medium">{title}</Typography.Text>
-            <Typography.Text type="secondary" className="text-xs">
+            <span className="font-medium">{title}</span>
+            <span className="text-xs text-muted-foreground">
                 See how your mapped data will appear in the testset
-            </Typography.Text>
+            </span>
             {isMapColumnExist ? (
                 <div className="mt-1">
                     {(selectedRevisionId && selectedRevisionId !== "draft") || isNewTestset ? (
@@ -71,17 +69,17 @@ export function PreviewSection({
                         />
                     ) : (
                         <div className="py-4 px-3 bg-gray-50 rounded-md border border-dashed border-gray-200 text-center">
-                            <Typography.Text type="secondary">
+                            <span className="text-muted-foreground">
                                 Select a testset and configure mappings to see the preview
-                            </Typography.Text>
+                            </span>
                         </div>
                     )}
                 </div>
             ) : (
                 <div className="py-4 px-3 bg-gray-50 rounded-md border border-dashed border-gray-200 text-center">
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         Add at least one mapping to see how your data will appear
-                    </Typography.Text>
+                    </span>
                 </div>
             )}
         </div>

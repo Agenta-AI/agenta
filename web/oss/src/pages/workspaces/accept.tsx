@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState, type FC} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {Button, Card, Typography} from "antd"
+import {Button, Card} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
@@ -237,12 +237,10 @@ const Accept: FC = () => {
         return (
             <main className="flex flex-col grow h-full overflow-hidden items-center justify-center bg-[var(--ag-c-F5F7FA)]">
                 <Card className="max-w-[520px] w-[90%] text-center">
-                    <Typography.Title level={3} className="!mb-2">
+                    <h3 className="!mb-2 text-lg font-semibold leading-snug">
                         Unable to accept invitation
-                    </Typography.Title>
-                    <Typography.Paragraph className="text-[var(--ag-c-586673)] !mb-6">
-                        {error}
-                    </Typography.Paragraph>
+                    </h3>
+                    <p className="text-[var(--ag-c-586673)] !mb-6">{error}</p>
                     <div className="flex gap-3 justify-center flex-wrap">
                         <Button onClick={handleGoBack}>Go back to your workspaces</Button>
                         <Button type="primary" onClick={handleSignInDifferentAccount}>

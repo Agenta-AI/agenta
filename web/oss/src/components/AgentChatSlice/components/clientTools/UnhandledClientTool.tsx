@@ -6,11 +6,8 @@
 import {useEffect, useRef} from "react"
 
 import {Warning} from "@phosphor-icons/react"
-import {Typography} from "antd"
 
 import type {ClientToolHandlerProps} from "./types"
-
-const {Text} = Typography
 
 const UnhandledClientTool = ({meta, settle}: ClientToolHandlerProps) => {
     const settledRef = useRef(false)
@@ -23,9 +20,9 @@ const UnhandledClientTool = ({meta, settle}: ClientToolHandlerProps) => {
     return (
         <div className="flex min-w-0 items-center gap-2 py-1">
             <Warning size={13} weight="fill" className="shrink-0 text-colorWarning" />
-            <Text type="secondary" className="!text-xs truncate">
+            <span className="!text-xs truncate text-muted-foreground">
                 Can’t handle the “{meta.toolName}” request
-            </Text>
+            </span>
         </div>
     )
 }

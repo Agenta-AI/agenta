@@ -1,7 +1,7 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Segmented, Tag, Typography} from "antd"
+import {Button, Segmented, Tag} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -14,8 +14,6 @@ import {toIdString} from "../utils"
 import {ReadOnlySkeleton} from "./CopyableFields"
 import PromptConfigCard from "./PromptConfigCard"
 import {DefList, DefRow, SectionCard, SectionSkeleton} from "./SectionPrimitives"
-
-const {Text} = Typography
 const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => module.Editor), {
     ssr: false,
 })
@@ -165,7 +163,7 @@ const InvocationSection = ({
                 />
             </div>
         ) : (
-            <Text type="secondary">Variant configuration unavailable.</Text>
+            <span className="text-muted-foreground">Variant configuration unavailable.</span>
         )
 
         return (
@@ -189,7 +187,7 @@ const InvocationSection = ({
                                 {variantLabel}
                             </span>
                         ) : (
-                            <Text type="secondary">—</Text>
+                            <span className="text-muted-foreground">—</span>
                         )}
                     </DefRow>
                     <DefRow label="Type">
@@ -197,9 +195,9 @@ const InvocationSection = ({
                             {hasSchemaAvailable ? "Workflow" : "Custom workflow"}
                         </Tag>
                         {!hasSchemaAvailable ? (
-                            <Text type="secondary" className="text-[12.5px]">
+                            <span className="text-[12.5px] text-muted-foreground">
                                 No playground schema — snapshot available as JSON
-                            </Text>
+                            </span>
                         ) : null}
                     </DefRow>
                 </DefList>
@@ -328,7 +326,7 @@ const VariantConfigurationBlock = memo(
         }
 
         if (!hasVariantConfig) {
-            return <Text type="secondary">Variant configuration unavailable.</Text>
+            return <span className="text-muted-foreground">Variant configuration unavailable.</span>
         }
 
         return (

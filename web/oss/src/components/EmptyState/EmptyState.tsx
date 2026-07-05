@@ -3,7 +3,7 @@ import {useState} from "react"
 
 import {Stream} from "@cloudflare/stream-react"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Skeleton, Typography} from "antd"
+import {Button, Skeleton} from "antd"
 import clsx from "clsx"
 
 export interface EmptyStateProps {
@@ -111,21 +111,19 @@ const EmptyState = ({
             <div className="flex w-full flex-col items-center text-center">
                 {/* Title + Description */}
                 <div className="mb-6">
-                    <Typography.Title
-                        level={3}
-                        className="!mb-2 !text-2xl !font-bold !text-[var(--ag-c-101828)]"
+                    <h3
+                        className="!mb-2 !text-2xl !font-bold !text-[var(--ag-c-101828)] text-lg font-semibold leading-snug"
                         style={{textWrap: "balance"}}
                     >
                         {title}
-                    </Typography.Title>
+                    </h3>
 
-                    <Typography.Paragraph
-                        type="secondary"
-                        className="mx-auto max-w-2xl !text-base !text-[var(--ag-c-475467)]"
+                    <p
+                        className="mx-auto max-w-2xl !text-base !text-[var(--ag-c-475467)] text-muted-foreground"
                         style={{marginBottom: 0, textWrap: "pretty"}}
                     >
                         {description}
-                    </Typography.Paragraph>
+                    </p>
                 </div>
 
                 {/* CTAs */}

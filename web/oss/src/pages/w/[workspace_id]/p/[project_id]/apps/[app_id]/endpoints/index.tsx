@@ -16,7 +16,6 @@ import {
     type RadioChangeEvent,
     Tabs,
     Tooltip,
-    Typography,
 } from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -58,8 +57,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
 }))
-
-const {Text, Title} = Typography
 
 /**
  * Build example params JSON from a JSON Schema input definition.
@@ -294,16 +291,16 @@ function VariantEndpointContent() {
 
     return (
         <div className={classes.container}>
-            <Title level={3}>
+            <h3 className="text-lg font-semibold leading-snug">
                 <ApiOutlined />
                 API endpoint
-            </Title>
-            <Text>
+            </h3>
+            <span>
                 Select an environment then use this endpoint to send requests to the LLM app.
-            </Text>
+            </span>
 
             <div>
-                <Text>Environment: </Text>
+                <span>Environment: </span>
                 <Radio.Group
                     value={selectedEnvironment?.name}
                     onChange={handleRadioChange}

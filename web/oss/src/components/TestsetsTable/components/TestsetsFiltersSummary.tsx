@@ -1,6 +1,6 @@
 import type {MouseEvent} from "react"
 
-import {Tag, Typography} from "antd"
+import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {getTestsetTableState, type TestsetTableMode} from "@/oss/state/entities/testset"
@@ -48,9 +48,9 @@ const TestsetsFiltersSummary = ({tableMode = "active"}: TestsetsFiltersSummaryPr
 
     if (!summary.hasFilters) {
         return (
-            <Typography.Text className="text-xs text-[var(--ag-c-98A2B3)] whitespace-nowrap">
+            <span className="text-xs text-[var(--ag-c-98A2B3)] whitespace-nowrap">
                 No filters applied
-            </Typography.Text>
+            </span>
         )
     }
 

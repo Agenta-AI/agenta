@@ -1,5 +1,3 @@
-import {Typography} from "antd"
-
 import EvaluationRunsCreateButton from "./EvaluationRunsCreateButton"
 import EvaluationRunsDeleteButton from "./EvaluationRunsDeleteButton"
 import EvaluationRunsHeaderFilters from "./filters/EvaluationRunsHeaderFilters"
@@ -15,9 +13,9 @@ const EvaluationRunsTableHeader = ({showFilters = true, title}: EvaluationRunsTa
             {showFilters ? (
                 <EvaluationRunsHeaderFilters />
             ) : title ? (
-                <Typography.Title level={5} style={{margin: 0}}>
+                <h5 style={{margin: 0}} className="text-sm font-semibold leading-normal">
                     {title}
-                </Typography.Title>
+                </h5>
             ) : null}
         </div>
 

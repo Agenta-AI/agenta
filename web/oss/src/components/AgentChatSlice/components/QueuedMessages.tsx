@@ -10,12 +10,10 @@ import {
     X,
 } from "@phosphor-icons/react"
 import type {FileUIPart} from "ai"
-import {Popover, Typography} from "antd"
+import {Popover} from "antd"
 
 import {fileKind, filePartName} from "../assets/files"
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
-
-const {Text} = Typography
 
 /** One attachment tile: image thumbnail, else a type icon. */
 const Attachment = ({part}: {part: FileUIPart}) => {
@@ -56,9 +54,9 @@ const QueuedList = ({
 }) => (
     <div className="w-[300px] max-w-[80vw]">
         <div className="flex items-center justify-between gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1.5">
-            <Text type="secondary" className="!text-[11px] uppercase tracking-wide">
+            <span className="!text-[11px] uppercase tracking-wide text-muted-foreground">
                 Queued — sent one by one
-            </Text>
+            </span>
             <button
                 type="button"
                 onClick={onClear}

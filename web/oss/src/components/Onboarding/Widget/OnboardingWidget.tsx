@@ -4,7 +4,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useNextStep} from "@agentaai/nextstepjs"
 import {CaretDown, CaretUp, RocketLaunch, X} from "@phosphor-icons/react"
-import {Button, Collapse, message, Typography} from "antd"
+import {Button, Collapse, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -53,8 +53,6 @@ import {
 } from "./analytics"
 import {WidgetSection} from "./components"
 import {WIDGET_DEFAULT_CONFIG, WIDGET_HEADER_TITLE} from "./constants"
-
-const {Text} = Typography
 
 // ---------------------------------------------------------------------------
 // Lightweight gate — only reads cheap localStorage-backed atoms + session
@@ -456,9 +454,9 @@ const OnboardingWidgetContent = () => {
                             weight="regular"
                             className="shrink-0 text-colorText"
                         />
-                        <Text className="text-sm font-semibold text-colorText">
+                        <span className="text-sm font-semibold text-colorText">
                             {WIDGET_HEADER_TITLE}
-                        </Text>
+                        </span>
                     </div>
                 ),
                 extra: (

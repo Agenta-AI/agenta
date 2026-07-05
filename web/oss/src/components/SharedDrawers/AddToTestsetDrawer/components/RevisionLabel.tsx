@@ -1,5 +1,3 @@
-import {Typography} from "antd"
-
 import {UserReference} from "@/oss/components/References/UserReference"
 import type {RevisionListItem} from "@/oss/state/entities/testset"
 
@@ -13,19 +11,18 @@ export function buildRevisionLabel(revision: RevisionListItem): React.ReactNode 
             <div className="flex items-center gap-2">
                 <span className="font-medium">v{revision.version}</span>
                 {revision.created_at && (
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-xs text-muted-foreground">
                         {new Date(revision.created_at).toLocaleDateString()}
-                    </Typography.Text>
+                    </span>
                 )}
             </div>
             {revision.message && (
-                <Typography.Text
-                    type="secondary"
-                    className="text-xs truncate max-w-[220px]"
+                <span
+                    className="text-xs truncate max-w-[220px] text-muted-foreground"
                     title={revision.message}
                 >
                     {revision.message}
-                </Typography.Text>
+                </span>
             )}
             {revision.created_by_id && (
                 <div className="text-xs">
@@ -46,9 +43,9 @@ export function buildSelectedRevisionLabel(
 ): React.ReactNode {
     return (
         <span style={{display: "flex", alignItems: "center", gap: 8, width: "100%"}}>
-            <Typography.Text ellipsis style={{flex: "1 1 0", minWidth: 0}}>
+            <span style={{flex: "1 1 0", minWidth: 0}} className="truncate">
                 {testsetName}
-            </Typography.Text>
+            </span>
             <span
                 style={{
                     padding: "2px 6px",

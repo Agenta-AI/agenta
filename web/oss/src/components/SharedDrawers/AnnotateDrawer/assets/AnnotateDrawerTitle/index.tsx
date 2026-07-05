@@ -4,7 +4,7 @@ import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {CaretLeft, Plus} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -251,17 +251,15 @@ const AnnotateDrawerTitle = ({
                     data-tour="annotate-drawer-close"
                 />
                 {steps === AnnotateDrawerSteps.ANNOTATE || showOnly?.annotateUi ? (
-                    <Typography.Text className="text-sm font-medium">Annotate</Typography.Text>
+                    <span className="text-sm font-medium">Annotate</span>
                 ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS ||
                   showOnly?.selectEvaluatorsUi ? (
-                    <Typography.Text className="text-sm font-medium">
-                        Select Evaluators
-                    </Typography.Text>
+                    <span className="text-sm font-medium">Select Evaluators</span>
                 ) : steps === AnnotateDrawerSteps.CREATE_EVALUATOR ||
                   showOnly?.createEvaluatorUi ? (
-                    <Typography.Text className="text-sm font-medium">
+                    <span className="text-sm font-medium">
                         {createEvaluatorMode === "edit" ? "Edit evaluator" : "Create new evaluator"}
-                    </Typography.Text>
+                    </span>
                 ) : null}
             </div>
 

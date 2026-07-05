@@ -1,7 +1,6 @@
 import {memo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
-import {Typography} from "antd"
 
 export interface UserReferenceProps {
     /** The user ID to display */
@@ -18,7 +17,7 @@ export interface UserReferenceProps {
  */
 export const UserReference = memo(({userId, className}: UserReferenceProps) => {
     if (!userId) {
-        return <Typography.Text type="secondary">—</Typography.Text>
+        return <span className="text-muted-foreground">—</span>
     }
 
     return (

@@ -1,6 +1,5 @@
 import {useEffect, useMemo} from "react"
 
-import {Typography} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
@@ -77,11 +76,7 @@ const MetricGroupHeader = ({
         evaluatorId ??
         "Evaluator"
 
-    return (
-        <Typography.Text className="break-keep text-left" ellipsis>
-            {label}
-        </Typography.Text>
-    )
+    return <span className="break-keep text-left truncate">{label}</span>
 }
 
 export default MetricGroupHeader

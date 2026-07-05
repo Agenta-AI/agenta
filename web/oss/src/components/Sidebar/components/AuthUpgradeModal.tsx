@@ -10,7 +10,7 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Button, Divider, Typography} from "antd"
+import {Alert, Button, Divider} from "antd"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
 import EmailPasswordSignIn from "@/oss/components/pages/auth/EmailPasswordSignIn"
@@ -22,8 +22,6 @@ import {getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 import {useProfileData} from "@/oss/state/profile"
-
-const {Text} = Typography
 
 export interface AuthUpgradeDetail {
     message?: string
@@ -174,7 +172,7 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
         >
             <div className="flex flex-col gap-4">
                 {organizationName && (
-                    <Text>{organizationName} requires additional authentication to continue.</Text>
+                    <span>{organizationName} requires additional authentication to continue.</span>
                 )}
                 {detailMessage && <Alert showIcon message={detailMessage} type="warning" />}
                 {showSso && (
