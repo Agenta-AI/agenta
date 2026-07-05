@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
+    AGENTA_FORCED_TOOLS,
     BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
@@ -55,6 +56,42 @@ def _embed_slug(entry: dict) -> str | None:
     refs = entry.get("@ag.embed", {}).get("@ag.references", {})
     workflow = refs.get("workflow") or refs.get("workflow_revision") or {}
     return workflow.get("slug")
+
+
+def test_agent_template_overlay_tools_list_is_pinned_with_builtin_grants_first():
+    """Pin the exact overlay tools list: builtin grants, then platform ops, then embeds.
+
+    The leading builtin grants (``{"type": "builtin", "name": "read"/"bash"}`` from
+    ``AGENTA_FORCED_TOOLS``) are load-bearing: any custom tool on the wire flips Pi's
+    builtin gating from "Pi defaults" to granted-only, so without an explicit ``read``
+    grant the playbook skill is announced but unloadable (live-QA finding 2026-07-05).
+    ``bash`` keeps skill helper scripts runnable.
+    """
+    overlay = build_agent_template_overlay()
+
+    catalog = StaticWorkflowCatalog()
+    expected_static_tool_embeds = []
+    for slug in catalog.list_slugs():
+        revision = catalog.retrieve_revision(slug=slug)
+        if not revision or not revision.flags or revision.flags.is_skill:
+            continue
+        expected_static_tool_embeds.append(
+            {
+                "@ag.embed": {
+                    "@ag.references": {"workflow": {"slug": slug}},
+                    "@ag.selector": {"path": "parameters.tool"},
+                },
+                "name": revision.name,
+            }
+        )
+
+    assert AGENTA_FORCED_TOOLS == ["read", "bash"]
+    assert overlay["tools"] == [
+        {"type": "builtin", "name": "read"},
+        {"type": "builtin", "name": "bash"},
+        *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
+        *expected_static_tool_embeds,
+    ]
 
 
 def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permissions():

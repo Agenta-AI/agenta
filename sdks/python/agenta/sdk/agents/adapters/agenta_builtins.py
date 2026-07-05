@@ -52,13 +52,12 @@ AGENTA_FORCED_APPEND_SYSTEM = """\
 You are an Agenta agent. Be precise, cite what your tools and skills return, and do not
 fabricate results."""
 
-# Built-in tools the Agenta harness records as forced, unioned with the agent's resolved
-# tools. NOTE: this list is config-level metadata only today. The runner never reads
-# ``request.tools`` / ``builtin_names`` to grant builtins, and Pi already gets ``read`` (and
-# ``bash``) from its own DEFAULTS, so skills render regardless of this list. The intent is that
-# ``read`` is needed for Pi to render the skills section and ``bash`` lets skills run helper
-# scripts; wiring the forced set to actually deliver builtins over the wire is deferred (it
-# works via Pi defaults today).
+# Built-in tools the Agenta harness forces, unioned with the agent's resolved tools. These
+# grants are load-bearing on the wire: once ANY custom tool ships in ``request.tools``, the
+# runner flips Pi's builtin gating from "Pi defaults" to granted-only. So ``read`` and
+# ``bash`` must be granted explicitly wherever build-kit tools ship (e.g. the playground
+# overlay), or Pi loses them — skills are then announced but unloadable (``read`` loads
+# SKILL.md; ``bash`` runs skill helper scripts).
 AGENTA_FORCED_TOOLS: List[str] = ["read", "bash"]
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
