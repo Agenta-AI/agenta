@@ -332,10 +332,11 @@ session's allowlist and Pi runs its own implementation of `read`, `write`, `web_
 on. Nothing is resolved and nothing is delivered. Note that built-ins are a Pi concept here;
 they are not delivered to non-Pi harnesses over ACP, which bring their own native tool set.
 
-Pi's builtins now flow through the same permission relay as gateway and code tools. The
+Pi's builtins now flow through the same permission relay as gateway tools (code tools are
+declared but not yet executable in the runner; the relay path is shared either way). The
 bundled Pi extension's `tool_call` hook reports every builtin call over the relay directory as
 a permission record (`kind: "permission"`), and the runner decides it through the same shared
-`decide()` in `permission-plan.ts` the relay already uses for gateway and code tools. An `ask`
+`decide()` in `permission-plan.ts` the relay already uses for gateway tools. An `ask`
 verdict pauses the turn exactly like a relay tool does. The extension hook then maps a
 non-allow verdict to Pi's own `{ block: true }`, because Pi, not the runner, is the thing that
 would otherwise execute the call.

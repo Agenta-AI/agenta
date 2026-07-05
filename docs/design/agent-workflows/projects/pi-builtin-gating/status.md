@@ -2,8 +2,8 @@
 
 ## State
 
-Implemented and live-QA'd (2026-07-04). PR finalization is pending the #4985 merge: six
-files' hunks are frozen until then (see build-notes.md).
+MERGED to big-agents via PR #5066 (2026-07-05), after Mahmoud's review, all CI suites
+green, and the post-#4985 deployment smoke (all pass, no drift).
 
 ## Decision log
 
@@ -224,8 +224,13 @@ spike.
 - **A headless batch invoke without `x-ag-messages-format: vercel` fails with a 500.** The
   error is "No user message to send" where a 4xx would better signal a caller mistake. This
   is a service developer-experience gap, not a gating bug.
-- **Hardening candidate: fail loud when a gating-active turn ends with zero permission
-  records.** The `protocol: 1` pin catches an old runner talking to a new extension bundle,
+- **Hardening, upgraded from candidate to next slice (CodeRabbit called it correctly: a
+  silent gate bypass, not polish). Fail loud when a gating-active turn ends with zero
+  permission records.** Design direction: a handshake record the extension writes at
+  `before_agent_start` when gating is active; the runner errors the turn if it is absent.
+  Exposure note: the prod image builds the bundle and the runner in one docker build
+  (the Dockerfile runs `build:extension`), so the skew is a dev-mount artifact.
+  Original finding: The `protocol: 1` pin catches an old runner talking to a new extension bundle,
   but not the reverse: a new runner talking to an old extension bundle writes no permission
   record at all, so the pin has nothing to reject and gating silently does not exist. A
   policy that must gate could detect this directly: if a turn is gating-active but produces
