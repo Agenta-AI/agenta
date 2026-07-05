@@ -8,6 +8,11 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
+from agenta.sdk.contexts.running import RunningContext, running_context_manager
+from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
+from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+from agenta.sdk.models.workflows import WorkflowInvokeRequest
+from agenta.sdk.utils.types import build_agent_v0_default
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.tools.dtos import ToolCall, ToolCallData, ToolCallFunction
@@ -222,6 +227,89 @@ async def test_test_run_happy_path_invokes_child_and_returns_digest(monkeypatch)
     assert payload["data"]["inputs"] == {
         "messages": [{"role": "user", "content": "Say hi"}]
     }
+    assert workflows.ensure_calls
+    assert workflows.prepare_calls
+
+
+async def test_test_run_parameters_less_agent_revision_succeeds_with_resolver_backed_child(
+    monkeypatch,
+):
+    expected_parameters = {"agent": build_agent_v0_default()}
+    http_calls = []
+    monkeypatch.setattr(
+        "agenta.sdk.middlewares.running.resolver.ag.async_api",
+        None,
+        raising=False,
+    )
+
+    class ResolverBackedAsyncClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, *, json=None, headers=None):
+            http_calls.append({"url": url, "json": json, "headers": headers})
+            request = WorkflowInvokeRequest.model_validate(json)
+
+            async def _noop_call_next(_request):
+                return None
+
+            with (
+                running_context_manager(RunningContext()),
+                tracing_context_manager(TracingContext()),
+            ):
+                await ResolverMiddleware()(request, _noop_call_next)
+
+            if request.data.parameters != expected_parameters:
+                return httpx.Response(
+                    500,
+                    json={
+                        "status": {
+                            "message": (
+                                "pi_core: model authentication failed "
+                                "(resolved model=<none> provider=<none>)"
+                            )
+                        }
+                    },
+                )
+
+            return _response(
+                {
+                    "messages": [{"role": "assistant", "content": "pong"}],
+                    "stop_reason": "stop",
+                }
+            )
+
+    monkeypatch.setattr(
+        "oss.src.core.tools.platform_handlers.httpx.AsyncClient",
+        ResolverBackedAsyncClient,
+    )
+    workflows = FakeWorkflowsService(
+        revision_data={
+            "uri": "agenta:builtin:agent:v0",
+            "url": "https://agent.internal",
+            "schemas": {"parameters": {"type": "object"}},
+        }
+    )
+
+    result = await handle_test_run(
+        arguments=_args(terminal_tool=None),
+        headers={},
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflows_service=workflows,
+        tracing_service=FakeTracingService(),
+    )
+
+    assert result.verdict == "unconfirmed"
+    assert result.output == "pong"
+    revision = http_calls[0]["json"]["data"]["revision"]["data"]
+    assert "parameters" not in revision
     assert workflows.ensure_calls
     assert workflows.prepare_calls
 

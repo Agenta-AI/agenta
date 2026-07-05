@@ -527,6 +527,19 @@ def retrieve_configuration(uri: Optional[str] = None) -> Optional[dict]:
     return _get_with_latest(CONFIGURATION_REGISTRY, provider, kind, key, version)
 
 
+def seed_empty_parameters_from_configuration(
+    revision: Optional[WorkflowRevisionData],
+) -> Optional[WorkflowRevisionData]:
+    """Seed missing/empty parameters from the URI's registered default configuration."""
+    if revision is None or revision.parameters:
+        return revision
+
+    configuration = retrieve_configuration(revision.uri)
+    if configuration and configuration.parameters:
+        revision.parameters = configuration.parameters
+    return revision
+
+
 def register_meta(meta: dict, uri: str) -> str:
     """Register (or OVERRIDE) the interface ``meta`` for a URI in the meta registry.
 
